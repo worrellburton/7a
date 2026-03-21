@@ -2,8 +2,13 @@ import type { Metadata } from "next";
 import Hero from "@/components/Hero";
 import TrustBadges from "@/components/TrustBadges";
 import ProgramSection from "@/components/ProgramSection";
+import TreatmentServices from "@/components/TreatmentServices";
 import StatsSection from "@/components/StatsSection";
 import InsuranceVerification from "@/components/InsuranceVerification";
+import InsuranceCarousel from "@/components/InsuranceCarousel";
+import CampusTour from "@/components/CampusTour";
+import SevenArrowsExperience from "@/components/SevenArrowsExperience";
+import Amenities from "@/components/Amenities";
 import ContactForm from "@/components/ContactForm";
 import TraumAddictionSection from "@/components/TraumAddictionSection";
 import AboutSection from "@/components/AboutSection";
@@ -177,6 +182,11 @@ export default function Home() {
       <Hero />
       <TrustBadges />
       <ProgramSection />
+      <TreatmentServices />
+      <InsuranceCarousel />
+      <CampusTour />
+      <SevenArrowsExperience />
+      <Amenities />
       <StatsSection />
       <InsuranceVerification />
       <ContactForm />
