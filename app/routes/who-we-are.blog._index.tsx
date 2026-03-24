@@ -98,17 +98,17 @@ export default function BlogPage() {
             <div className="p-6 lg:p-8 flex flex-col justify-center">
               <div className="flex items-center gap-3 mb-3">
                 <span
-                  className="text-primary/50 text-xs font-semibold uppercase tracking-wider"
+                  className="text-primary/70 text-xs font-semibold uppercase tracking-wider"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   Recovery Roadmap
                 </span>
               </div>
-              <h3 className="text-xl lg:text-2xl font-bold text-foreground/40 mb-3">
+              <h3 className="text-xl lg:text-2xl font-bold text-foreground/70 mb-3">
                 What Happens When You Walk Through the Door: Your First Week in Treatment
               </h3>
               <p
-                className="text-foreground/30 leading-relaxed text-sm"
+                className="text-foreground/60 leading-relaxed text-sm"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 Your first week in treatment, demystified. A day-by-day investigative look at what really happens when you arrive — written for anyone who is afraid to make the call.
