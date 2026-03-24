@@ -14,6 +14,7 @@ export default function AlumniAftercarePage() {
         label="Treatment Programs"
         title="Alumni & Aftercare"
         description="Recovery does not end when you leave our facility. Seven Arrows Recovery offers a robust alumni network and individualized aftercare planning to help you build a fulfilling, substance-free life for years to come."
+        image="/7a/images/group-gathering-pavilion.jpg"
       />
 
       {/* Continuing Care Overview */}

@@ -14,6 +14,7 @@ export default function ResidentialInpatientPage() {
         label="Treatment Programs"
         title="Residential Inpatient"
         description="Immerse yourself in recovery with our residential inpatient program, designed for individuals who need round-the-clock clinical support in a safe, structured environment at the base of the Swisshelm Mountains."
+        image="/7a/images/bedroom-shared.jpg"
       />
 
       {/* Program Overview */}

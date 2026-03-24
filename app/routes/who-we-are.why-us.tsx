@@ -77,6 +77,7 @@ export default function WhyUsPage() {
         label="Why Choose Us"
         title="Why Us?"
         description="Choosing a treatment center is one of the most important decisions you will ever make. Here is why individuals and families across Arizona and beyond trust Seven Arrows Recovery."
+        image="/7a/images/facility-exterior-mountains.jpg"
       />
 
       {/* Differentiators */}

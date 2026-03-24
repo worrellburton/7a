@@ -14,6 +14,7 @@ export default function XanaxAddictionPage() {
         label="What We Treat"
         title="Xanax Addiction Treatment"
         description="Xanax is one of the most commonly prescribed and widely misused benzodiazepines in America. At Seven Arrows Recovery, we provide safe, medically supervised detox and comprehensive treatment to help you overcome Xanax dependence."
+        image="/7a/images/sound-healing-session.jpg"
       />
 
       {/* Understanding Xanax Addiction */}

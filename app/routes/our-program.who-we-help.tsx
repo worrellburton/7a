@@ -47,6 +47,7 @@ export default function WhoWeHelpPage() {
         label="Who We Help"
         title="Recovery for Every Story"
         description="At Seven Arrows Recovery, we serve adults from all backgrounds who are ready to break free from addiction. Our intimate, personalized program meets you wherever you are in your journey."
+        image="/7a/images/individual-therapy-session.jpg"
       />
 
       {/* Introduction */}

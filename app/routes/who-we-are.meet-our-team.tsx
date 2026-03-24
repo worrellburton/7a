@@ -53,6 +53,7 @@ export default function MeetOurTeamPage() {
         label="Our Team"
         title="Meet Our Team"
         description="Behind every successful recovery is a dedicated team of professionals. At Seven Arrows Recovery, our clinicians, therapists, and support staff bring expertise, empathy, and genuine care to everything they do."
+        image="/7a/images/equine-therapy-portrait.jpg"
       />
 
       {/* Team Intro */}

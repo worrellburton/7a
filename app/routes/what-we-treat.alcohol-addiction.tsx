@@ -14,6 +14,7 @@ export default function AlcoholAddictionPage() {
         label="What We Treat"
         title="Alcohol Addiction Treatment"
         description="Alcohol use disorder is one of the most common and dangerous forms of addiction. At Seven Arrows Recovery, we provide comprehensive, medically supervised treatment to help you reclaim your life."
+        image="/7a/images/group-gathering-pavilion.jpg"
       />
 
       {/* Understanding Alcohol Addiction */}

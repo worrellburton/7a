@@ -15,6 +15,7 @@ export default function ContactPage() {
         label="Get in Touch"
         title="Contact Us"
         description="Our compassionate admissions team is available around the clock to answer your questions, verify insurance, and help you or your loved one take the first step toward lasting recovery."
+        image="/7a/images/covered-porch-desert-view.jpg"
       />
 
       {/* Contact Info + Form */}
@@ -179,14 +180,15 @@ export default function ContactPage() {
           </div>
 
           <div
-            className="rounded-2xl h-72 lg:h-96"
-            style={{
-              background:
-                'linear-gradient(160deg, #4a6741 0%, #8b7355 40%, #c4956a 70%, #e8c9a0 100%)',
-            }}
+            className="relative rounded-2xl h-72 lg:h-96 overflow-hidden"
             aria-label="Map showing Seven Arrows Recovery location in Cochise County, Arizona"
           >
-            <div className="flex items-center justify-center h-full">
+            <img
+              src="/7a/images/sign-night-sky-milky-way.jpg"
+              alt="Seven Arrows sign under starry sky"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="relative flex items-center justify-center h-full">
               <div className="text-center text-white/90">
                 <svg
                   className="mx-auto mb-4 w-16 h-16 opacity-80"

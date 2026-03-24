@@ -59,6 +59,7 @@ export default function OurProgramPage() {
         label="Our Program"
         title="A Different Kind of Recovery"
         description="At Seven Arrows Recovery, we blend clinical excellence with the healing power of the land, indigenous wisdom, and trauma-focused care. Our intimate, boutique setting ensures every client receives deeply personalized treatment."
+        image="/7a/images/sound-healing-session.jpg"
       />
 
       {/* Overview */}

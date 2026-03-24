@@ -53,6 +53,7 @@ export default function CareersPage() {
         label="Careers"
         title="Careers"
         description="At Seven Arrows Recovery, our team is the heart of everything we do. If you are passionate about helping others heal, we want to hear from you."
+        image="/7a/images/covered-porch-desert-view.jpg"
       />
 
       {/* Why Work Here */}

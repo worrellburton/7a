@@ -65,6 +65,7 @@ export default function BlogPage() {
         label="Blog"
         title="Blog"
         description="Insights, stories, and resources from the clinical team at Seven Arrows Recovery. Explore topics on addiction, trauma, mental health, and the journey to lasting recovery."
+        image="/7a/images/resident-reading-window.jpg"
       />
 
       {/* Blog Grid */}

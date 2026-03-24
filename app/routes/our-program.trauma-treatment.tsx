@@ -37,6 +37,7 @@ export default function TraumaTreatmentPage() {
         label="Trauma Treatment"
         title="Healing Trauma at the Root"
         description="Addiction rarely exists in isolation. At Seven Arrows Recovery, our TraumAddiction\u2122 approach treats trauma and substance use as one integrated condition, unlocking deeper and more lasting healing."
+        image="/7a/images/embrace-connection.jpg"
       />
 
       {/* Introduction */}

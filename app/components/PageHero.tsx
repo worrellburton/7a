@@ -2,11 +2,19 @@ interface PageHeroProps {
   label: string;
   title: string;
   description: string;
+  image?: string;
 }
 
-export default function PageHero({ label, title, description }: PageHeroProps) {
+export default function PageHero({ label, title, description, image }: PageHeroProps) {
   return (
     <section className="relative py-20 lg:py-32 overflow-hidden">
+      {image && (
+        <img
+          src={image}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      )}
       <div
         className="absolute inset-0"
         style={{

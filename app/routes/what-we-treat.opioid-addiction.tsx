@@ -14,6 +14,7 @@ export default function OpioidAddictionPage() {
         label="What We Treat"
         title="Opioid Addiction Treatment"
         description="Opioid addiction has become one of the most devastating public health crises in American history. At Seven Arrows Recovery, we provide comprehensive, medically supervised treatment to help individuals overcome opioid dependence and rebuild their lives."
+        image="/7a/images/group-therapy-room.jpg"
       />
 
       {/* Understanding Opioid Addiction */}

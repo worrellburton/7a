@@ -6,13 +6,12 @@ export default function Hero() {
       className="relative min-h-[600px] lg:min-h-[700px] flex items-center"
       aria-labelledby="hero-heading"
     >
-      {/* Background image placeholder - replace with actual image */}
+      {/* Background image */}
       <div className="absolute inset-0 z-0">
-        <div
-          className="w-full h-full"
-          style={{
-            background: 'linear-gradient(135deg, #e8ddd4 0%, #d4c4b0 30%, #c9b99a 50%, #bfae8e 70%, #d4c4b0 100%)',
-          }}
+        <img
+          src="/7a/images/facility-exterior-mountains.jpg"
+          alt="Seven Arrows Recovery facility with Swisshelm Mountains"
+          className="w-full h-full object-cover"
         />
         {/* Overlay for text readability */}
         <div className="absolute inset-0 bg-gradient-to-r from-white/80 via-white/40 to-transparent" />

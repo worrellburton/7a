@@ -15,6 +15,7 @@ export default function FAQsPage() {
         label="Frequently Asked Questions"
         title="FAQs"
         description="We understand that choosing a treatment center comes with many questions. Here are answers to the ones we hear most often. If you do not see your question below, please reach out directly."
+        image="/7a/images/common-area-living-room.jpg"
       />
 
       {/* FAQ List */}

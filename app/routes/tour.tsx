@@ -7,37 +7,37 @@ const campusHighlights = [
     title: 'Sweat Lodge',
     description:
       'A sacred space for ceremonial healing and spiritual renewal, guided by experienced practitioners.',
-    gradient: 'from-amber-700 via-amber-600 to-yellow-500',
+    image: '/7a/images/campfire-ceremony-circle.webp',
   },
   {
     title: 'Equine Area',
     description:
       'Our equine-assisted therapy grounds provide a powerful setting for building trust, empathy, and emotional awareness.',
-    gradient: 'from-green-800 via-green-600 to-emerald-400',
+    image: '/7a/images/horses-grazing.jpg',
   },
   {
     title: 'Swisshelm Mountains',
     description:
       'Surrounded by the dramatic Swisshelm Mountain range, our campus offers breathtaking views and a profound sense of peace.',
-    gradient: 'from-slate-700 via-stone-500 to-amber-300',
+    image: '/7a/images/facility-exterior-mountains.jpg',
   },
   {
     title: 'Living Quarters',
     description:
       'Comfortable, well-appointed private and semi-private rooms designed to feel like home during your stay.',
-    gradient: 'from-primary via-amber-600 to-yellow-400',
+    image: '/7a/images/bedroom-shared.jpg',
   },
   {
     title: 'Common Areas',
     description:
       'Warm gathering spaces for group sessions, peer connection, and relaxation between therapeutic activities.',
-    gradient: 'from-stone-600 via-warm-card to-warm-bg',
+    image: '/7a/images/common-area-living-room.jpg',
   },
   {
     title: 'Dining Facilities',
     description:
       'Nutritious, chef-prepared meals served in a communal dining space that fosters fellowship and healthy habits.',
-    gradient: 'from-orange-700 via-orange-500 to-yellow-400',
+    image: '/7a/images/covered-porch-desert-view.jpg',
   },
 ];
 
@@ -53,6 +53,7 @@ export default function TourPage() {
         label="Virtual Tour"
         title="Tour Our Campus"
         description="Explore the grounds of Seven Arrows Recovery, a boutique treatment center set at the base of Arizona's Swisshelm Mountains. Every detail of our campus was designed to support healing, reflection, and renewal."
+        image="/7a/images/facility-exterior-mountains.jpg"
       />
 
       {/* Virtual Tour Placeholder */}
@@ -77,13 +78,14 @@ export default function TourPage() {
           </div>
 
           <div
-            className="rounded-2xl overflow-hidden"
-            style={{
-              background:
-                'linear-gradient(135deg, #a0522d 0%, #c67a4a 40%, #ede4da 100%)',
-            }}
+            className="relative rounded-2xl overflow-hidden"
           >
-            <div className="flex items-center justify-center h-72 lg:h-96">
+            <img
+              src="/7a/images/sign-night-sky-milky-way.jpg"
+              alt="Seven Arrows sign under starry night sky"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="relative flex items-center justify-center h-72 lg:h-96">
               <div className="text-center text-white/90">
                 <svg
                   className="mx-auto mb-4 w-16 h-16 opacity-80"
@@ -133,11 +135,13 @@ export default function TourPage() {
                 key={item.title}
                 className="rounded-2xl overflow-hidden bg-warm-card shadow-sm hover:shadow-md transition-shadow"
               >
-                {/* Gradient image placeholder */}
-                <div
-                  className={`h-48 bg-gradient-to-br ${item.gradient}`}
-                  aria-label={`Photo of ${item.title}`}
-                />
+                <div className="relative h-48 overflow-hidden">
+                  <img
+                    src={item.image}
+                    alt={`Photo of ${item.title}`}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
                 <div className="p-6">
                   <h3 className="text-xl font-bold text-foreground mb-2">{item.title}</h3>
                   <p
@@ -184,13 +188,15 @@ export default function TourPage() {
               </Link>
             </div>
             <div
-              className="rounded-2xl h-80 lg:h-96"
-              style={{
-                background:
-                  'linear-gradient(160deg, #4a6741 0%, #8b7355 40%, #c4956a 70%, #e8c9a0 100%)',
-              }}
+              className="relative rounded-2xl h-80 lg:h-96 overflow-hidden"
               aria-label="Scenic view of the Swisshelm Mountains"
-            />
+            >
+              <img
+                src="/7a/images/facility-exterior-mountains.jpg"
+                alt="Scenic view of the Swisshelm Mountains"
+                className="w-full h-full object-cover"
+              />
+            </div>
           </div>
         </div>
       </section>

@@ -37,6 +37,7 @@ export default function EquineAssistedPage() {
         label="Equine-Assisted Experience"
         title="Healing Through Connection with Horses"
         description="At Seven Arrows Recovery, our equine-assisted program offers a powerful, experiential approach to healing. Working with horses in the Arizona high desert, clients discover new pathways to emotional growth, self-awareness, and lasting recovery."
+        image="/7a/images/equine-therapy-portrait.jpg"
       />
 
       {/* Introduction */}

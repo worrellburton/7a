@@ -8,19 +8,17 @@ export default function AboutSection() {
           {/* Left images */}
           <div className="lg:col-span-6 relative">
             <div className="rounded-2xl overflow-hidden aspect-[4/3] shadow-lg">
-              <div
-                className="w-full h-full"
-                style={{
-                  background: 'linear-gradient(135deg, #8b6b4b 0%, #6b4b3b 50%, #4b3b2b 100%)',
-                }}
+              <img
+                src="/7a/images/common-area-living-room.jpg"
+                alt="Interior common area with couches"
+                className="w-full h-full object-cover"
               />
             </div>
             <div className="absolute -bottom-8 right-0 lg:right-8 w-2/3 rounded-2xl overflow-hidden aspect-[4/3] shadow-xl border-4 border-white">
-              <div
-                className="w-full h-full"
-                style={{
-                  background: 'linear-gradient(135deg, #a0c0e0 0%, #80a0c0 30%, #c09060 60%, #a07040 100%)',
-                }}
+              <img
+                src="/7a/images/group-sunset-desert.jpg"
+                alt="Group watching sunset in the desert"
+                className="w-full h-full object-cover"
               />
             </div>
           </div>

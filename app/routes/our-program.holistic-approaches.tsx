@@ -47,6 +47,7 @@ export default function HolisticApproachesPage() {
         label="Holistic Approaches"
         title="Nurturing the Whole Person"
         description="True recovery goes beyond treating symptoms. Our holistic therapies nourish the mind, body, and spirit, giving clients the tools they need to build a balanced and fulfilling life in sobriety."
+        image="/7a/images/sound-healing-session.jpg"
       />
 
       {/* Introduction */}

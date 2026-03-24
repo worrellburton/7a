@@ -59,6 +59,7 @@ export default function OurPhilosophyPage() {
         label="Our Philosophy"
         title="Our Philosophy"
         description="At Seven Arrows Recovery, we believe lasting recovery requires a unified approach that addresses the mind, body, and spirit. Our seven core principles guide everything we do."
+        image="/7a/images/horses-grazing.jpg"
       />
 
       {/* Mind Body Spirit */}

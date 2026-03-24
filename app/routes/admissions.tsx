@@ -45,6 +45,7 @@ export default function AdmissionsPage() {
         label="Begin Your Journey"
         title="Admissions"
         description="Taking the first step toward recovery is the hardest part. Our compassionate admissions team is here to guide you through a simple, confidential process — from your first call to your arrival at our campus."
+        image="/7a/images/embrace-connection.jpg"
       />
 
       {/* Step-by-Step Process */}
