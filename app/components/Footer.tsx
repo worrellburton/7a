@@ -40,7 +40,7 @@ export default function Footer() {
           <div>
             <h3 className="text-sm font-semibold tracking-wider uppercase mb-4">What We Treat</h3>
             <ul className="space-y-3" role="list">
-              {['Alcohol Addiction', 'Drug Addiction', 'Dual Diagnosis', 'Trauma'].map((item) => (
+              {['Alcohol Addiction', 'Opioid Addiction', 'Dual-Diagnosis', 'Heroin Addiction'].map((item) => (
                 <li key={item}>
                   <Link
                     to={`/what-we-treat/${item.toLowerCase().replace(/\s+/g, '-')}`}
