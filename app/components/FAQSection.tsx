@@ -1,6 +1,18 @@
 
-
 import { useState } from 'react';
+
+const BRANDFETCH_CLIENT_ID = '1id3n10pdBTarCHI0db';
+
+const insuranceLogos = [
+  { name: 'Aetna', domain: 'aetna.com' },
+  { name: 'Blue Cross Blue Shield', domain: 'bcbs.com' },
+  { name: 'Cigna', domain: 'cigna.com' },
+  { name: 'Humana', domain: 'humana.com' },
+  { name: 'UnitedHealthcare', domain: 'uhc.com' },
+  { name: 'TRICARE', domain: 'tricare.mil' },
+];
+
+const INSURANCE_FAQ_INDEX = 1;
 
 const faqs = [
   {
@@ -80,6 +92,27 @@ export default function FAQSection() {
                   <p className="text-sm text-foreground/70 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
                     {faq.answer}
                   </p>
+                  {index === INSURANCE_FAQ_INDEX && (
+                    <div className="flex flex-wrap items-center gap-6 mt-5 pt-5 border-t border-gray-100">
+                      {insuranceLogos.map((logo) => (
+                        <img
+                          key={logo.domain}
+                          src={`https://cdn.brandfetch.io/${logo.domain}/fallback/404/theme/dark/h/60/w/160/logo?c=${BRANDFETCH_CLIENT_ID}`}
+                          alt={logo.name}
+                          className="h-6 w-auto max-w-[120px] object-contain opacity-60 hover:opacity-100 transition-opacity"
+                          loading="lazy"
+                          onError={(e) => {
+                            const el = e.currentTarget;
+                            el.style.display = 'none';
+                            const span = document.createElement('span');
+                            span.textContent = logo.name;
+                            span.className = 'text-xs font-semibold text-foreground/50 whitespace-nowrap';
+                            el.parentElement?.appendChild(span);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
