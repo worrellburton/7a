@@ -3,16 +3,18 @@
 import { useState } from 'react';
 import { Link } from '@remix-run/react';
 
+const BRANDFETCH_CLIENT_ID = '1id3n10pdBTarCHI0db';
+
 const insuranceProviders = [
-  'Cigna',
-  'Anthem',
-  'BlueCross BlueShield',
-  'Carelon Behavioral Health',
-  'ComPsych',
-  'Aetna',
-  'UnitedHealthcare',
-  'Humana',
-  'TRICARE',
+  { name: 'Cigna', domain: 'cigna.com' },
+  { name: 'Anthem', domain: 'anthem.com' },
+  { name: 'BlueCross BlueShield', domain: 'bcbs.com' },
+  { name: 'Carelon Behavioral Health', domain: 'carelon.com' },
+  { name: 'ComPsych', domain: 'compsych.com' },
+  { name: 'Aetna', domain: 'aetna.com' },
+  { name: 'UnitedHealthcare', domain: 'uhc.com' },
+  { name: 'Humana', domain: 'humana.com' },
+  { name: 'TRICARE', domain: 'tricare.mil' },
 ];
 
 export default function InsuranceCarousel() {
@@ -62,11 +64,15 @@ export default function InsuranceCarousel() {
             <div className="flex items-center gap-8 lg:gap-12 overflow-hidden">
               {insuranceProviders.slice(offset, offset + visibleCount).map((provider) => (
                 <div
-                  key={provider}
-                  className="flex-shrink-0 text-white/80 text-sm lg:text-base font-bold tracking-wide whitespace-nowrap"
-                  style={{ fontFamily: 'var(--font-body)' }}
+                  key={provider.name}
+                  className="flex-shrink-0 flex items-center justify-center h-12 lg:h-14"
                 >
-                  {provider}
+                  <img
+                    src={`https://cdn.brandfetch.io/${provider.domain}/theme/light/h/56/w/200/logo?c=${BRANDFETCH_CLIENT_ID}`}
+                    alt={provider.name}
+                    className="h-8 lg:h-10 w-auto object-contain brightness-0 invert opacity-80"
+                    loading="lazy"
+                  />
                 </div>
               ))}
             </div>

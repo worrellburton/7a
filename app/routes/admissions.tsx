@@ -24,13 +24,15 @@ const steps = [
   },
 ];
 
+const BRANDFETCH_CLIENT_ID = '1id3n10pdBTarCHI0db';
+
 const insuranceProviders = [
-  'Aetna',
-  'Blue Cross Blue Shield',
-  'Cigna',
-  'Humana',
-  'UnitedHealthcare',
-  'TRICARE',
+  { name: 'Aetna', domain: 'aetna.com' },
+  { name: 'Blue Cross Blue Shield', domain: 'bcbs.com' },
+  { name: 'Cigna', domain: 'cigna.com' },
+  { name: 'Humana', domain: 'humana.com' },
+  { name: 'UnitedHealthcare', domain: 'uhc.com' },
+  { name: 'TRICARE', domain: 'tricare.mil' },
 ];
 
 export const meta: MetaFunction = () => [
@@ -119,31 +121,18 @@ export default function AdmissionsPage() {
               <h3 className="text-lg font-bold text-foreground mb-4">
                 Accepted Providers Include:
               </h3>
-              <div className="grid grid-cols-2 gap-3 mb-8">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
                 {insuranceProviders.map((provider) => (
                   <div
-                    key={provider}
-                    className="flex items-center gap-2 rounded-lg bg-white px-4 py-3 shadow-sm"
+                    key={provider.name}
+                    className="flex items-center justify-center rounded-lg bg-white px-4 py-4 shadow-sm h-16"
                   >
-                    <svg
-                      className="w-5 h-5 text-primary flex-shrink-0"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <span
-                      className="text-foreground text-sm font-medium"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {provider}
-                    </span>
+                    <img
+                      src={`https://cdn.brandfetch.io/${provider.domain}/h/48/w/160/logo?c=${BRANDFETCH_CLIENT_ID}`}
+                      alt={provider.name}
+                      className="h-8 w-auto object-contain"
+                      loading="lazy"
+                    />
                   </div>
                 ))}
               </div>
