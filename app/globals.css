@@ -86,7 +86,9 @@ h3 { font-size: clamp(1.15rem, 2vw, 1.5rem); }
   letter-spacing: 0.15em;
   text-transform: uppercase;
   border-radius: 9999px;
-  border: 2px solid var(--color-foreground);
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--color-foreground);
   transition: all 0.3s ease;
   text-decoration: none;
   font-family: var(--font-body), system-ui, sans-serif;
