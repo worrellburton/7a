@@ -2,136 +2,120 @@ import PageHero from '~/components/PageHero';
 import { Link } from '@remix-run/react';
 import type { MetaFunction } from '@remix-run/node';
 
-const posts = [
-  {
-    title: 'When Drinking Stops Working: Recognizing the Signs of Addiction',
-    excerpt:
-      'A compassionate guide to understanding when substance use has crossed from choice to compulsion — the first step on the Recovery Roadmap.',
-    category: 'Recovery Roadmap',
-    date: 'March 24, 2026',
-    image: '/7a/images/resident-reading-window.jpg',
-    href: '/who-we-are/blog/when-drinking-stops-working',
-  },
-  {
-    title: 'What Happens When You Walk Through the Door: Your First Week in Treatment',
-    excerpt:
-      'Your first week in treatment, demystified. A day-by-day guide to what really happens when you arrive — written for anyone afraid to make the call.',
-    category: 'Recovery Roadmap',
-    date: 'March 24, 2026',
-    image: '/7a/images/covered-porch-desert-view.jpg',
-    href: '/who-we-are/blog/what-happens-when-you-walk-through-the-door',
-  },
-  {
-    title: 'Understanding the Connection Between Trauma and Addiction',
-    excerpt:
-      'Research consistently shows that unresolved trauma is one of the strongest predictors of substance use disorders. Learn how our TraumAddiction\u2122 approach addresses both simultaneously.',
-    category: 'Trauma & Recovery',
-    date: 'March 15, 2026',
-    image: '/7a/images/embrace-connection.jpg',
-  },
-  {
-    title: '5 Signs It Is Time to Seek Professional Help for Addiction',
-    excerpt:
-      'Recognizing when casual use has crossed into dependency can be difficult. Here are five warning signs that it may be time to consider professional treatment.',
-    category: 'Addiction Education',
-    date: 'March 8, 2026',
-    image: '/7a/images/horses-grazing.jpg',
-  },
-  {
-    title: 'How Family Involvement Strengthens Recovery Outcomes',
-    excerpt:
-      'Addiction affects the entire family system. Discover why family therapy and education are essential components of lasting recovery and how Seven Arrows supports families.',
-    category: 'Family & Recovery',
-    date: 'February 28, 2026',
-    image: '/7a/images/sound-healing-session.jpg',
-  },
-  {
-    title: 'The Role of Nature in Healing: Why Our Location Matters',
-    excerpt:
-      'Situated at the base of the Swisshelm Mountains, our setting is more than scenic. Learn how the desert landscape actively supports the therapeutic process.',
-    category: 'Holistic Wellness',
-    date: 'February 20, 2026',
-    image: '/7a/images/group-sunset-desert.jpg',
-  },
-  {
-    title: 'What to Expect During Medically Supervised Detox',
-    excerpt:
-      'Detoxification is often the first step in recovery, and it does not have to be frightening. Here is what the process looks like at Seven Arrows Recovery.',
-    category: 'Treatment',
-    date: 'February 12, 2026',
-    image: '/7a/images/covered-porch-desert-view.jpg',
-  },
-  {
-    title: 'Building a Relapse Prevention Plan That Actually Works',
-    excerpt:
-      'A strong aftercare plan is one of the most important factors in sustaining long-term sobriety. Learn the key elements of an effective relapse prevention strategy.',
-    category: 'Aftercare',
-    date: 'February 5, 2026',
-    image: '/7a/images/group-gathering-pavilion.jpg',
-  },
-];
-
 export const meta: MetaFunction = () => [
-  { title: "Blog" },
-  { name: "description", content: "Insights, stories, and resources on addiction recovery, mental health, trauma healing, and holistic wellness from the team at Seven Arrows Recovery." },
+  { title: "The Recovery Roadmap — An Investigative Series | Seven Arrows Recovery" },
+  { name: "description", content: "An in-depth investigative series exploring addiction, recovery, and the journey to lasting healing. From the clinical team at Seven Arrows Recovery." },
 ];
 
 export default function BlogPage() {
   return (
     <>
       <PageHero
-        label="Blog"
-        title="Blog"
-        description="Insights, stories, and resources from the clinical team at Seven Arrows Recovery. Explore topics on addiction, trauma, mental health, and the journey to lasting recovery."
+        label="Investigative Series"
+        title="The Recovery Roadmap"
+        description="An in-depth investigative series exploring the reality of addiction, treatment, and recovery — told with honesty, science, and compassion by the clinical team at Seven Arrows Recovery."
         image="/7a/images/resident-reading-window.jpg"
       />
 
-      {/* Blog Grid */}
+      {/* Series Grid */}
       <section className="py-16 lg:py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {posts.map((post) => {
-              const Wrapper = post.href ? Link : 'div';
-              const wrapperProps = post.href ? { href: post.href } : {};
-              return (
-              <Wrapper
-                key={post.title}
-                {...wrapperProps}
-                className="bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group block no-underline"
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+
+          {/* Episode 1 — Published */}
+          <Link
+            href="/who-we-are/blog/when-drinking-stops-working"
+            className="flex flex-col md:flex-row bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group no-underline mb-8"
+          >
+            <div className="relative md:w-80 shrink-0">
+              <img src="/7a/images/resident-reading-window.jpg" alt="When Drinking Stops Working" className="h-56 md:h-full w-full object-cover" loading="lazy" />
+              <div className="absolute top-4 left-4 bg-primary text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md" style={{ fontFamily: 'var(--font-body)' }}>
+                Episode 1
+              </div>
+            </div>
+            <div className="p-6 lg:p-8 flex flex-col justify-center">
+              <div className="flex items-center gap-3 mb-3">
+                <span
+                  className="text-primary text-xs font-semibold uppercase tracking-wider"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Recovery Roadmap
+                </span>
+                <span className="text-foreground/40 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
+                  March 24, 2026
+                </span>
+              </div>
+              <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 group-hover:text-primary transition-colors">
+                When Drinking Stops Working: Recognizing the Signs of Addiction
+              </h3>
+              <p
+                className="text-foreground/70 leading-relaxed text-sm mb-4"
+                style={{ fontFamily: 'var(--font-body)' }}
               >
-                <img src={post.image} alt={post.title} className="h-48 w-full object-cover" loading="lazy" />
-                <div className="p-6">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span
-                      className="text-primary text-xs font-semibold uppercase tracking-wider"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {post.category}
-                    </span>
-                    <span className="text-foreground/40 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
-                      {post.date}
-                    </span>
-                  </div>
-                  <h3 className="text-xl font-bold text-foreground mb-3 group-hover:text-primary transition-colors">
-                    {post.title}
-                  </h3>
-                  <p
-                    className="text-foreground/70 leading-relaxed text-sm"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {post.excerpt}
-                  </p>
-                  <span
-                    className="inline-block mt-4 text-primary font-semibold text-sm tracking-wide uppercase"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    Read More &rarr;
-                  </span>
+                A compassionate guide to understanding when substance use has crossed from choice to compulsion — the first step on the Recovery Roadmap. Featuring interactive self-assessment tools, the neuroscience of addiction, and expert insight from the Seven Arrows clinical team.
+              </p>
+              <span
+                className="inline-block text-primary font-semibold text-sm tracking-wide uppercase"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Read Episode 1 &rarr;
+              </span>
+            </div>
+          </Link>
+
+          {/* Episode 2 — Coming Soon (Glowing) */}
+          <div
+            className="relative flex flex-col md:flex-row rounded-2xl overflow-hidden mb-8"
+            style={{
+              background: 'linear-gradient(135deg, rgba(160,82,45,0.06), rgba(160,82,45,0.02))',
+            }}
+          >
+            {/* Glowing border */}
+            <div
+              className="absolute inset-0 rounded-2xl pointer-events-none z-10"
+              style={{
+                border: '2px solid transparent',
+                backgroundImage: 'linear-gradient(#fff, #fff), linear-gradient(135deg, #a0522d, #c67a4a, #a0522d)',
+                backgroundOrigin: 'border-box',
+                backgroundClip: 'padding-box, border-box',
+                animation: 'glowPulse 2.5s ease-in-out infinite',
+              }}
+            />
+            <div className="relative md:w-80 shrink-0 h-56 md:h-auto bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
+              <div className="text-center">
+                <div
+                  className="inline-block text-primary text-sm font-bold uppercase tracking-widest mb-2 px-5 py-2 rounded-full border border-primary/30"
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    animation: 'glowPulse 2.5s ease-in-out infinite',
+                    boxShadow: '0 0 25px rgba(160,82,45,0.2)',
+                  }}
+                >
+                  Coming Soon
                 </div>
-              </Wrapper>
-              );
-            })}
+                <p className="text-foreground/40 text-sm mt-1" style={{ fontFamily: 'var(--font-body)' }}>Episode 2</p>
+              </div>
+            </div>
+            <div className="p-6 lg:p-8 flex flex-col justify-center">
+              <div className="flex items-center gap-3 mb-3">
+                <span
+                  className="text-primary/50 text-xs font-semibold uppercase tracking-wider"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Recovery Roadmap
+                </span>
+              </div>
+              <h3 className="text-xl lg:text-2xl font-bold text-foreground/40 mb-3">
+                What Happens When You Walk Through the Door: Your First Week in Treatment
+              </h3>
+              <p
+                className="text-foreground/30 leading-relaxed text-sm"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Your first week in treatment, demystified. A day-by-day investigative look at what really happens when you arrive — written for anyone who is afraid to make the call.
+              </p>
+            </div>
           </div>
+
         </div>
       </section>
 
@@ -158,6 +142,13 @@ export default function BlogPage() {
           </div>
         </div>
       </section>
+
+      <style>{`
+        @keyframes glowPulse {
+          0%, 100% { opacity: 0.6; box-shadow: 0 0 15px rgba(160,82,45,0.1); }
+          50% { opacity: 1; box-shadow: 0 0 30px rgba(160,82,45,0.25); }
+        }
+      `}</style>
     </>
   );
 }

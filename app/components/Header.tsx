@@ -58,12 +58,15 @@ function QuestionIcon({ className }: { className?: string }) {
 function BlogIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="8" y1="13" x2="16" y2="13">
-        <animate attributeName="x2" values="8;16;8" dur="2s" repeatCount="indefinite" />
-      </line>
-      <line x1="8" y1="17" x2="14" y2="17" />
+      {/* Magnifying glass — investigative */}
+      <circle cx="11" cy="11" r="8">
+        <animate attributeName="r" values="8;8.4;8" dur="2s" repeatCount="indefinite" />
+      </circle>
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      {/* Lines inside — text being investigated */}
+      <line x1="8" y1="8" x2="14" y2="8" opacity="0.5" />
+      <line x1="8" y1="11" x2="13" y2="11" opacity="0.4" />
+      <line x1="8" y1="14" x2="11" y2="14" opacity="0.3" />
     </svg>
   );
 }
@@ -300,6 +303,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   'Our Philosophy': PhilosophyIcon,
   'FAQs': QuestionIcon,
   'Blog': BlogIcon,
+  'Investigative Series': BlogIcon,
   'Careers': CareersIcon,
   'Areas We Serve': MapIcon,
   'Residential Inpatient': HomeIcon,
@@ -347,7 +351,7 @@ const navLinks: NavItem[] = [
       { label: 'Why Us?', href: '/who-we-are/why-us', description: 'What sets Seven Arrows apart' },
       { label: 'Our Philosophy', href: '/who-we-are/our-philosophy', description: 'TraumAddiction\u2122 & holistic healing' },
       { label: 'FAQs', href: '/who-we-are/faqs', description: 'Common questions answered' },
-      { label: 'Blog', href: '/who-we-are/blog', description: 'Recovery insights & stories' },
+      { label: 'Investigative Series', href: '/who-we-are/blog', description: 'The Recovery Roadmap' },
       { label: 'Careers', href: '/who-we-are/careers', description: 'Join our healing community' },
       { label: 'Areas We Serve', href: '/who-we-are/areas-we-serve', description: 'Nationwide admissions from Arizona' },
     ],
@@ -399,7 +403,7 @@ const navLinks: NavItem[] = [
 
 /* ── Mega Menu Dropdown ────────────────────────────────────────────── */
 
-function MegaMenuDropdown({ item }: { item: NavItem }) {
+function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React.RefObject<HTMLElement | null> }) {
   const [open, setOpen] = useState(false);
   const timeout = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -435,17 +439,19 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
         </svg>
       </button>
 
-      {/* Full-width mega menu panel — positioned from header bottom */}
+      {/* Full-width mega menu panel — positioned below header */}
       {open && (
-        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" style={{ backgroundColor: 'rgba(0,0,0,0.15)', transition: 'background-color 0.3s ease' }} />
       )}
       <div
         className={`fixed left-0 right-0 z-50 transition-all duration-300 ease-out ${
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         style={{
-          top: '68px',
+          top: (headerRef.current?.getBoundingClientRect().bottom ?? 68) + 'px',
         }}
+        onMouseEnter={enter}
+        onMouseLeave={leave}
       >
         {/* Gradient reveal bar */}
         <div
@@ -459,25 +465,26 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
           }}
         />
         <div
-          className="bg-white shadow-2xl transition-all duration-300 ease-out"
+          className="shadow-2xl transition-all duration-300 ease-out"
           style={{
             transform: open ? 'translateY(0)' : 'translateY(-8px)',
             opacity: open ? 1 : 0,
+            backgroundColor: '#ffffff',
           }}
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Header */}
-            <div className="py-4 border-b border-gray-100">
+            <div className="py-4 border-b" style={{ borderColor: 'rgba(0,0,0,0.06)' }}>
               <Link
                 href={item.href}
-                className="text-xs font-bold text-foreground hover:text-primary transition-colors tracking-wider uppercase"
-                style={{ fontFamily: 'var(--font-body)' }}
+                className="text-xs font-bold hover:text-primary transition-colors tracking-wider uppercase"
+                style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}
                 onClick={() => setOpen(false)}
               >
                 {item.label} Overview →
               </Link>
               {item.description && (
-                <p className="text-[11px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{item.description}</p>
+                <p className="text-[11px] mt-0.5" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{item.description}</p>
               )}
             </div>
 
@@ -489,25 +496,31 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
                   <Link
                     key={sub.href}
                     href={sub.href}
-                    className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg hover:bg-warm-bg transition-all"
+                    className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
                     onClick={() => setOpen(false)}
                     style={{
                       opacity: open ? 1 : 0,
                       transform: open ? 'translateY(0)' : 'translateY(8px)',
                       transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
                     }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
                   >
                     {Icon && (
-                      <div className="shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors mt-0.5">
+                      <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
                         <Icon className="w-4 h-4 text-primary" />
                       </div>
                     )}
                     <div>
-                      <div className="text-[13px] font-semibold text-foreground group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                      <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>
                         {sub.label}
                       </div>
                       {sub.description && (
-                        <p className="text-[11px] text-foreground/50 mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
+                        <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>
                           {sub.description}
                         </p>
                       )}
@@ -518,7 +531,7 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
             </div>
 
             {/* Footer CTA */}
-            <div className="py-3 border-t border-gray-100">
+            <div className="py-3" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
               <a href="tel:+18669964308" className="flex items-center gap-2 text-[11px] text-primary font-semibold hover:text-primary-dark transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
                 <PhoneIcon className="w-3 h-3" />
                 Questions? Call (866) 996-4308
@@ -536,13 +549,14 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
 
   const toggleMobileDropdown = (label: string) => {
     setMobileExpanded(mobileExpanded === label ? null : label);
   };
 
   return (
-    <header className="bg-white sticky top-0 z-50 shadow-sm" role="banner">
+    <header ref={headerRef} className="bg-white sticky top-0 z-50 shadow-sm" role="banner">
       <nav className="px-4 sm:px-6 xl:px-10" aria-label="Main navigation">
         <div className="flex items-center h-16 lg:h-[68px]">
           {/* Logo — compact */}
@@ -558,27 +572,29 @@ export default function Header() {
           <div className="hidden lg:flex items-center gap-1 xl:gap-2 flex-1 min-w-0">
             {navLinks.map((item) =>
               item.dropdown ? (
-                <MegaMenuDropdown key={item.href} item={item} />
+                <MegaMenuDropdown key={item.href} item={item} headerRef={headerRef} />
               ) : item.label === 'Blog' ? (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="relative px-2 xl:px-3 py-2 flex items-center gap-1.5 text-[11px] xl:text-xs font-semibold tracking-[0.08em] uppercase text-primary hover:text-primary-dark transition-colors whitespace-nowrap group"
+                  className="relative px-2 xl:px-3 py-2 flex items-center justify-center group"
                   style={{ fontFamily: 'var(--font-body)' }}
-                  aria-label="Blog"
+                  aria-label="Investigative Series"
+                  title="The Recovery Roadmap — Investigative Series"
                 >
-                  <span className="relative flex items-center justify-center w-6 h-6">
+                  <span className="relative flex items-center justify-center w-8 h-8">
                     {/* Glow ring */}
                     <span className="absolute inset-0 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors" />
-                    <span className="absolute inset-[-2px] rounded-full animate-pulse opacity-40 bg-primary/10" />
-                    <svg className="relative w-3.5 h-3.5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="8" y1="13" x2="16" y2="13" />
-                      <line x1="8" y1="17" x2="14" y2="17" />
+                    <span className="absolute inset-[-3px] rounded-full animate-pulse opacity-30 bg-primary/15" />
+                    <svg className="relative w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      {/* Magnifying glass — investigative */}
+                      <circle cx="11" cy="11" r="7" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      {/* Subtle lines inside */}
+                      <line x1="8" y1="9" x2="14" y2="9" opacity="0.5" />
+                      <line x1="8" y1="12" x2="12" y2="12" opacity="0.4" />
                     </svg>
                   </span>
-                  {item.label}
                 </Link>
               ) : (
                 <Link
@@ -593,15 +609,19 @@ export default function Header() {
             )}
           </div>
 
-          {/* Phone CTA — compact pill */}
+          {/* Phone CTA — prominent with pulse */}
           <a
             href="tel:+18669964308"
-            className="hidden lg:inline-flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-full text-xs font-semibold tracking-wide transition-all whitespace-nowrap shrink-0 ml-4"
-            style={{ fontFamily: 'var(--font-body)' }}
+            className="hidden lg:inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-5 py-2.5 rounded-full text-sm font-bold tracking-wide transition-all whitespace-nowrap shrink-0 ml-4 relative"
+            style={{ fontFamily: 'var(--font-body)', boxShadow: '0 2px 12px rgba(160,82,45,0.35)' }}
             aria-label="Call us at (866) 996-4308"
           >
-            <PhoneIcon className="w-3.5 h-3.5" />
-            (866) 996-4308
+            {/* Pulse ring */}
+            <span className="absolute inset-0 rounded-full animate-ping opacity-20 bg-primary" style={{ animationDuration: '2s' }} />
+            <span className="relative flex items-center gap-2">
+              <PhoneIcon className="w-4 h-4" />
+              (866) 996-4308
+            </span>
           </a>
 
           {/* Mobile menu button */}

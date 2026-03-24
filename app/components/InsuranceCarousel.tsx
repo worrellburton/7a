@@ -34,7 +34,7 @@ function InsuranceLogo({ name, domain }: { name: string; domain: string }) {
       src={`https://cdn.brandfetch.io/${domain}/fallback/404/theme/light/h/80/w/200/logo?c=${BRANDFETCH_CLIENT_ID}`}
       alt={name}
       className="h-7 lg:h-9 w-auto max-w-[160px] object-contain brightness-0 invert"
-      loading="lazy"
+      loading="eager"
       onError={() => setFailed(true)}
     />
   );
@@ -50,6 +50,16 @@ export default function InsuranceCarousel() {
 
   return (
     <section className="relative" aria-labelledby="insurance-carousel-heading">
+      {/* Preload all logo images */}
+      {insuranceProviders.map((p) => (
+        <link
+          key={p.domain}
+          rel="preload"
+          as="image"
+          href={`https://cdn.brandfetch.io/${p.domain}/fallback/404/theme/light/h/80/w/200/logo?c=${BRANDFETCH_CLIENT_ID}`}
+        />
+      ))}
+
       <div className="absolute inset-0">
         <img src="/7a/images/sign-night-sky-milky-way.jpg" alt="" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-black/70" />
@@ -69,37 +79,86 @@ export default function InsuranceCarousel() {
             We Work With Most Major Insurance
           </h2>
 
-          <div className="flex items-center justify-center gap-3 mb-8">
+          <div className="flex items-center justify-center gap-4 lg:gap-6 mb-8">
+            {/* Previous button */}
             <button
               onClick={prev}
               disabled={offset === 0}
-              className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white disabled:opacity-20 transition-opacity text-xl shrink-0"
+              className="w-11 h-11 lg:w-12 lg:h-12 flex items-center justify-center rounded-full border border-white/20 text-white/60 hover:text-white hover:border-white/50 hover:bg-white/10 disabled:opacity-15 disabled:cursor-not-allowed transition-all duration-300 shrink-0"
               aria-label="Previous insurance providers"
             >
-              &lsaquo;
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
             </button>
 
-            <div className="flex items-center justify-center gap-8 lg:gap-12 overflow-hidden">
-              {insuranceProviders.slice(offset, offset + visibleCount).map((provider) => (
-                <Link
-                  key={provider.name}
-                  href={provider.href}
-                  className="flex-shrink-0 flex items-center justify-center h-12 px-1 opacity-70 hover:opacity-100 transition-opacity"
-                  aria-label={provider.name}
-                >
-                  <InsuranceLogo name={provider.name} domain={provider.domain} />
-                </Link>
-              ))}
+            {/* Logo track */}
+            <div className="overflow-hidden flex-1 max-w-4xl">
+              <div
+                className="flex items-center gap-8 lg:gap-12"
+                style={{
+                  transform: `translateX(-${offset * (100 / visibleCount)}%)`,
+                  transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              >
+                {insuranceProviders.map((provider) => (
+                  <Link
+                    key={provider.name}
+                    href={provider.href}
+                    className="flex-shrink-0 flex items-center justify-center h-14 px-2 opacity-70 hover:opacity-100 transition-all duration-300 group"
+                    aria-label={provider.name}
+                    style={{
+                      width: `calc(${100 / visibleCount}% - ${(visibleCount - 1) * (window?.innerWidth > 1024 ? 48 : 32) / visibleCount}px)`,
+                    }}
+                  >
+                    <div
+                      className="relative flex items-center justify-center"
+                      style={{
+                        filter: 'drop-shadow(0 0 8px rgba(198, 122, 74, 0.15))',
+                      }}
+                    >
+                      {/* Glow effect behind logo */}
+                      <div
+                        className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                        style={{
+                          background: 'radial-gradient(circle, rgba(198, 122, 74, 0.2) 0%, transparent 70%)',
+                          transform: 'scale(2.5)',
+                        }}
+                      />
+                      <div className="relative" style={{ animation: 'logoGlow 3s ease-in-out infinite' }}>
+                        <InsuranceLogo name={provider.name} domain={provider.domain} />
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
             </div>
 
+            {/* Next button */}
             <button
               onClick={next}
               disabled={offset >= maxOffset}
-              className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white disabled:opacity-20 transition-opacity text-xl shrink-0"
+              className="w-11 h-11 lg:w-12 lg:h-12 flex items-center justify-center rounded-full border border-white/20 text-white/60 hover:text-white hover:border-white/50 hover:bg-white/10 disabled:opacity-15 disabled:cursor-not-allowed transition-all duration-300 shrink-0"
               aria-label="Next insurance providers"
             >
-              &rsaquo;
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </button>
+          </div>
+
+          {/* Dot indicators */}
+          <div className="flex items-center justify-center gap-1.5 mb-8">
+            {Array.from({ length: maxOffset + 1 }).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setOffset(i)}
+                className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                  i === offset ? 'bg-accent w-4' : 'bg-white/30 hover:bg-white/50'
+                }`}
+                aria-label={`Go to slide ${i + 1}`}
+              />
+            ))}
           </div>
 
           <Link href="/admissions#verify" className="btn-primary text-xs">
@@ -107,6 +166,13 @@ export default function InsuranceCarousel() {
           </Link>
         </div>
       </div>
+
+      <style>{`
+        @keyframes logoGlow {
+          0%, 100% { filter: drop-shadow(0 0 6px rgba(198, 122, 74, 0.1)); }
+          50% { filter: drop-shadow(0 0 14px rgba(198, 122, 74, 0.3)); }
+        }
+      `}</style>
     </section>
   );
 }

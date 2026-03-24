@@ -3,7 +3,8 @@
 export default function GoogleReviewsBadge() {
   return (
     <div
-      className="fixed bottom-6 left-6 z-50 bg-white rounded-xl shadow-lg p-4 flex items-center gap-3 border border-gray-100"
+      className="fixed bottom-6 left-6 z-50 rounded-xl shadow-lg p-4 flex items-center gap-3 border border-gray-100"
+      style={{ backgroundColor: '#ffffff' }}
       role="complementary"
       aria-label="Google Reviews rating"
     >

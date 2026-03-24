@@ -1,6 +1,133 @@
 
 
-import { useState, type FormEvent } from 'react';
+import { useState, useRef, useEffect, type FormEvent } from 'react';
+
+const paymentOptions = [
+  {
+    value: 'insurance',
+    label: 'Insurance',
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        <path d="M9 12l2 2 4-4" />
+      </svg>
+    ),
+  },
+  {
+    value: 'private-pay',
+    label: 'Private Pay',
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <line x1="2" y1="10" x2="22" y2="10" />
+        <path d="M7 15h4" />
+      </svg>
+    ),
+  },
+  {
+    value: 'other',
+    label: 'Other',
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+    ),
+  },
+];
+
+function CustomSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const selected = paymentOptions.find((o) => o.value === value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full px-4 py-3 bg-white text-left rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none flex items-center justify-between gap-2"
+        style={{ color: selected ? '#1a1a1a' : '#9ca3af' }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2.5">
+          {selected ? (
+            <>
+              <span className="text-primary">{selected.icon}</span>
+              <span style={{ color: '#1a1a1a' }}>{selected.label}</span>
+            </>
+          ) : (
+            'Select'
+          )}
+        </span>
+        <svg
+          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <ul
+          className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden"
+          role="listbox"
+        >
+          {paymentOptions.map((option) => (
+            <li key={option.value}>
+              <button
+                type="button"
+                className={`w-full px-4 py-3 text-left text-sm flex items-center gap-2.5 transition-colors ${
+                  value === option.value
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'hover:bg-warm-bg'
+                }`}
+                style={{ color: value === option.value ? undefined : '#1a1a1a' }}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                role="option"
+                aria-selected={value === option.value}
+              >
+                <span className={value === option.value ? 'text-primary' : 'text-gray-400'}>
+                  {option.icon}
+                </span>
+                {option.label}
+                {value === option.value && (
+                  <svg className="w-4 h-4 ml-auto text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default function ContactForm() {
   const [formData, setFormData] = useState({
@@ -72,7 +199,8 @@ export default function ContactForm() {
                   name="firstName"
                   required
                   placeholder="First Name"
-                  className="w-full px-4 py-3 bg-white text-foreground rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  className="w-full px-4 py-3 bg-white rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  style={{ color: '#1a1a1a' }}
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                 />
@@ -87,7 +215,8 @@ export default function ContactForm() {
                   name="lastName"
                   required
                   placeholder="Last Name"
-                  className="w-full px-4 py-3 bg-white text-foreground rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  className="w-full px-4 py-3 bg-white rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  style={{ color: '#1a1a1a' }}
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                 />
@@ -102,7 +231,8 @@ export default function ContactForm() {
                   name="telephone"
                   required
                   placeholder="Telephone"
-                  className="w-full px-4 py-3 bg-white text-foreground rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  className="w-full px-4 py-3 bg-white rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  style={{ color: '#1a1a1a' }}
                   value={formData.telephone}
                   onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
                 />
@@ -117,7 +247,8 @@ export default function ContactForm() {
                   name="email"
                   required
                   placeholder="Email"
-                  className="w-full px-4 py-3 bg-white text-foreground rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  className="w-full px-4 py-3 bg-white rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  style={{ color: '#1a1a1a' }}
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
@@ -126,19 +257,10 @@ export default function ContactForm() {
                 <label htmlFor="paymentMethod" className="block text-white text-sm font-medium mb-2">
                   Form of Payment
                 </label>
-                <select
-                  id="paymentMethod"
-                  name="paymentMethod"
-                  required
-                  className="w-full px-4 py-3 bg-white text-foreground rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none appearance-none"
+                <CustomSelect
                   value={formData.paymentMethod}
-                  onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                >
-                  <option value="" disabled>Select</option>
-                  <option value="insurance">Insurance</option>
-                  <option value="private-pay">Private Pay</option>
-                  <option value="other">Other</option>
-                </select>
+                  onChange={(val) => setFormData({ ...formData, paymentMethod: val })}
+                />
               </div>
             </div>
 

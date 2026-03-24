@@ -282,7 +282,7 @@ export default function BlogPost1() {
   return (
     <>
       <PageHero
-        label="The Recovery Roadmap — Part 1"
+        label="The Recovery Roadmap — Episode 1"
         title="When Drinking Stops Working: Recognizing the Signs of Addiction"
         description="A compassionate guide to understanding when substance use has crossed from choice to compulsion — and why reaching out is an act of courage, not weakness."
         image="/7a/images/resident-reading-window.jpg"
@@ -385,27 +385,45 @@ export default function BlogPost1() {
                 Now that you have recognized the signs, let us talk about what treatment actually looks like. It is not what you see in movies — and it might be exactly what you need.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/who-we-are/blog/what-happens-when-you-walk-through-the-door" className="btn-primary">
-                  Read Part 2: Your First Week in Treatment
-                </Link>
-                <a href="tel:8669964308" className="btn-outline">
+                <a href="tel:8669964308" className="btn-primary">
                   Call (866) 996-4308
                 </a>
+                <Link href="/who-we-are/blog" className="btn-outline">
+                  View Full Series
+                </Link>
               </div>
             </div>
 
-            {/* Internal links */}
+            {/* Series navigation */}
             <div className="mt-12 pt-8 border-t border-gray-100">
               <p className="text-sm text-foreground/50 mb-4">
-                <strong className="text-foreground/70">This is Part 1 of &ldquo;The Recovery Roadmap&rdquo;</strong> — a five-part series from Seven Arrows Recovery guiding you from recognition to lasting recovery.
+                <strong className="text-foreground/70">This is Episode 1 of &ldquo;The Recovery Roadmap&rdquo;</strong> — an investigative series from Seven Arrows Recovery guiding you from recognition to lasting recovery.
               </p>
-              <p className="text-sm text-foreground/50">
-                <strong>Next:</strong>{' '}
-                <Link href="/who-we-are/blog/what-happens-when-you-walk-through-the-door" className="text-primary hover:text-primary-dark underline">
-                  Part 2 — What Happens When You Walk Through the Door: Your First Week in Treatment
-                </Link>
-              </p>
+              <div
+                className="flex items-center gap-3 p-4 rounded-xl border border-primary/20"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(160,82,45,0.05), rgba(160,82,45,0.02))',
+                  animation: 'glowPulse 2.5s ease-in-out infinite',
+                }}
+              >
+                <div
+                  className="shrink-0 text-primary text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-primary/30"
+                  style={{ fontFamily: 'var(--font-body)', animation: 'glowPulse 2.5s ease-in-out infinite' }}
+                >
+                  Coming Soon
+                </div>
+                <p className="text-sm text-foreground/40">
+                  <strong className="text-foreground/50">Episode 2:</strong> What Happens When You Walk Through the Door — Your First Week in Treatment
+                </p>
+              </div>
             </div>
+
+            <style>{`
+              @keyframes glowPulse {
+                0%, 100% { opacity: 0.7; box-shadow: 0 0 10px rgba(160,82,45,0.08); }
+                50% { opacity: 1; box-shadow: 0 0 20px rgba(160,82,45,0.18); }
+              }
+            `}</style>
 
           </div>
         </div>

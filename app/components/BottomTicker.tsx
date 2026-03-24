@@ -8,7 +8,6 @@ const tickerItems = [
   { type: 'stat', text: '90+ Day Programs Available' },
   { type: 'review', text: '"We finally have our son back." — Sarah K.' },
   { type: 'stat', text: '24/7 Admissions Support' },
-  { type: 'link', text: 'NEW: Your First Week in Treatment →', href: '/who-we-are/blog/what-happens-when-you-walk-through-the-door' },
   { type: 'review', text: '"This place is different." — James R.' },
   { type: 'stat', text: 'JCAHO Accredited • LegitScript Certified' },
 ];

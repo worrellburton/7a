@@ -18,8 +18,6 @@ const tickerItems = [
   { type: 'divider' },
   { type: 'stat', text: '24/7 Admissions' },
   { type: 'divider' },
-  { type: 'link', text: 'Read: Your First Week in Treatment →', href: '/who-we-are/blog/what-happens-when-you-walk-through-the-door' },
-  { type: 'divider' },
   { type: 'review', text: '"This place is different." — James R.' },
   { type: 'divider' },
   { type: 'stat', text: 'JCAHO Accredited • LegitScript Certified' },
@@ -105,13 +103,14 @@ export default function Hero() {
                 transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s',
               }}
             >
-              <p className="section-label text-[10px]">Drug Rehab in Arizona</p>
+              <p className="section-label text-[10px]" style={{ color: 'var(--color-primary)' }}>Drug Rehab in Arizona</p>
             </div>
 
             {/* Heading */}
             <h1
               id="hero-heading"
-              className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold tracking-tight text-foreground leading-[1.1] mb-5"
+              className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold tracking-tight leading-[1.1] mb-5"
+              style={{ color: '#1a1a1a' }}
             >
               <span
                 className="inline-block"
@@ -147,9 +146,10 @@ export default function Hero() {
 
             {/* Description */}
             <p
-              className="text-sm text-foreground/70 leading-relaxed mb-7 max-w-md"
+              className="text-sm leading-relaxed mb-7 max-w-md"
               style={{
                 fontFamily: 'var(--font-body)',
+                color: 'rgba(26, 26, 26, 0.7)',
                 opacity: visible ? 1 : 0,
                 transform: visible ? 'translateY(0)' : 'translateY(30px)',
                 transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.9s',
