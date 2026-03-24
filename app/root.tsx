@@ -63,12 +63,74 @@ export const links: LinksFunction = () => [
   { rel: "canonical", href: "https://sevenarrowsrecovery.com" },
 ];
 
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "@id": "https://sevenarrowsrecovery.com/#organization",
+  name: "Seven Arrows Recovery",
+  url: "https://sevenarrowsrecovery.com",
+  logo: "https://sevenarrowsrecovery.com/images/logo.png",
+  contactPoint: {
+    "@type": "ContactPoint",
+    telephone: "+1-866-996-4308",
+    contactType: "admissions",
+    areaServed: "US",
+    availableLanguage: ["English", "Spanish"],
+    hoursAvailable: {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+      opens: "00:00",
+      closes: "23:59",
+    },
+  },
+  sameAs: [
+    "https://www.facebook.com/sevenarrowsrecovery",
+    "https://www.instagram.com/sevenarrowsrecovery",
+  ],
+  address: {
+    "@type": "PostalAddress",
+    addressRegion: "AZ",
+    addressCountry: "US",
+    addressLocality: "Cochise County",
+  },
+  foundingDate: "2020",
+  numberOfEmployees: { "@type": "QuantitativeValue", minValue: 10, maxValue: 50 },
+  areaServed: [
+    { "@type": "State", name: "Arizona" },
+    { "@type": "City", name: "Phoenix" },
+    { "@type": "City", name: "Scottsdale" },
+    { "@type": "City", name: "Tucson" },
+    { "@type": "City", name: "Mesa" },
+  ],
+};
+
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Seven Arrows Recovery",
+  url: "https://sevenarrowsrecovery.com",
+  publisher: { "@id": "https://sevenarrowsrecovery.com/#organization" },
+  potentialAction: {
+    "@type": "SearchAction",
+    target: "https://sevenarrowsrecovery.com/search?q={search_term_string}",
+    "query-input": "required name=search_term_string",
+  },
+};
+
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
         <Meta />
         <Links />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        />
       </head>
       <body className="min-h-screen flex flex-col antialiased pb-16 lg:pb-0">
         <TopBar />

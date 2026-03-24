@@ -35,11 +35,24 @@ const structuredData = {
     latitude: 31.9,
     longitude: -109.9,
   },
-  areaServed: {
-    "@type": "State",
-    name: "Arizona",
-  },
+  areaServed: [
+    { "@type": "State", name: "Arizona" },
+    { "@type": "City", name: "Phoenix" },
+    { "@type": "City", name: "Scottsdale" },
+    { "@type": "City", name: "Tucson" },
+    { "@type": "City", name: "Mesa" },
+    { "@type": "City", name: "Tempe" },
+    { "@type": "City", name: "Glendale" },
+  ],
   medicalSpecialty: "Addiction Medicine",
+  isAcceptingNewPatients: true,
+  currenciesAccepted: "USD",
+  paymentAccepted: "Insurance, Private Pay",
+  hasCredential: [
+    { "@type": "EducationalOccupationalCredential", credentialCategory: "JCAHO Accredited" },
+    { "@type": "EducationalOccupationalCredential", credentialCategory: "LegitScript Certified" },
+    { "@type": "EducationalOccupationalCredential", credentialCategory: "HIPAA Compliant" },
+  ],
   availableService: [
     {
       "@type": "MedicalTherapy",

@@ -1,5 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /build/
 
 User-agent: Googlebot
 Allow: /
@@ -13,7 +15,22 @@ Allow: /
 User-agent: ChatGPT-User
 Allow: /
 
+User-agent: GPTBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
 User-agent: anthropic-ai
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Applebot-Extended
 Allow: /
 
 Sitemap: https://sevenarrowsrecovery.com/sitemap.xml

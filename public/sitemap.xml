@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Homepage -->
+  <url><loc>https://sevenarrowsrecovery.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+
+  <!-- Who We Are -->
+  <url><loc>https://sevenarrowsrecovery.com/who-we-are</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/who-we-are/meet-our-team</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/who-we-are/why-us</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/who-we-are/our-philosophy</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/who-we-are/faqs</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/who-we-are/blog</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/who-we-are/careers</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/who-we-are/areas-we-serve</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- Treatment -->
+  <url><loc>https://sevenarrowsrecovery.com/treatment</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/treatment/residential-inpatient</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/treatment/detoxification</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/treatment/interventions</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/treatment/alumni-aftercare</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- Our Program -->
+  <url><loc>https://sevenarrowsrecovery.com/our-program</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/our-program/trauma-treatment</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/our-program/indigenous-approach</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/our-program/family-program</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/our-program/holistic-approaches</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/our-program/equine-assisted</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/our-program/evidence-based</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/our-program/who-we-help</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- What We Treat -->
+  <url><loc>https://sevenarrowsrecovery.com/what-we-treat</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/what-we-treat/dual-diagnosis</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/what-we-treat/alcohol-addiction</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/what-we-treat/heroin-addiction</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/what-we-treat/marijuana-addiction</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/what-we-treat/opioid-addiction</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/what-we-treat/prescription-drug-addiction</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/what-we-treat/xanax-addiction</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- Location Pages -->
+  <url><loc>https://sevenarrowsrecovery.com/locations/phoenix</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/locations/scottsdale</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/locations/tucson</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/locations/mesa</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+  <!-- Insurance Pages -->
+  <url><loc>https://sevenarrowsrecovery.com/insurance/aetna</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/insurance/blue-cross-blue-shield</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/insurance/cigna</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/insurance/united-healthcare</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/insurance/humana</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/insurance/tricare</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+  <!-- Other Key Pages -->
+  <url><loc>https://sevenarrowsrecovery.com/tour</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/admissions</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://sevenarrowsrecovery.com/contact</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+</urlset>

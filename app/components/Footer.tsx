@@ -51,6 +51,21 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
+            <h3 className="text-sm font-semibold tracking-wider uppercase mb-4 mt-8">Areas We Serve</h3>
+            <ul className="space-y-3" role="list">
+              {[
+                { name: 'Phoenix', href: '/locations/phoenix' },
+                { name: 'Scottsdale', href: '/locations/scottsdale' },
+                { name: 'Tucson', href: '/locations/tucson' },
+                { name: 'Mesa', href: '/locations/mesa' },
+              ].map((loc) => (
+                <li key={loc.name}>
+                  <Link href={loc.href} className="text-white/60 text-sm hover:text-primary transition-colors">
+                    {loc.name}, AZ
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
 
           {/* Contact */}

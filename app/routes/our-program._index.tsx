@@ -1,4 +1,5 @@
 import PageHero from '~/components/PageHero';
+import MedicalDisclaimer from '~/components/MedicalDisclaimer';
 import { Link } from '@remix-run/react';
 import type { MetaFunction } from '@remix-run/node';
 
@@ -138,6 +139,9 @@ export default function OurProgramPage() {
           </div>
         </div>
       </section>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+        <MedicalDisclaimer />
+      </div>
     </main>
   );
 }
