@@ -24,7 +24,7 @@ export default function TraumAddictionSection() {
                 methods to address the psychological, spiritual, emotional and physiological needs of each individual,
                 creating a more integrative, effective, and holistic approach to healing.
               </p>
-              <Link href="/treatment/traumaddiction" className="btn-dark">
+              <Link to="/treatment/traumaddiction" className="btn-dark">
                 TraumAddiction&trade;
               </Link>
             </div>

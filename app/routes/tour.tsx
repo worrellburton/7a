@@ -70,7 +70,7 @@ export default function TourPage() {
             >
               Our full interactive virtual tour is coming soon. In the meantime, explore the
               highlights of our campus below or{' '}
-              <Link href="/contact" className="text-primary underline hover:text-primary-dark">
+              <Link to="/contact" className="text-primary underline hover:text-primary-dark">
                 schedule an in-person visit
               </Link>
               .
@@ -183,7 +183,7 @@ export default function TourPage() {
                 for reflection, healing, and rediscovery. Our clients consistently describe the
                 setting as one of the most powerful parts of their recovery journey.
               </p>
-              <Link href="/contact" className="btn-primary">
+              <Link to="/contact" className="btn-primary">
                 Schedule a Visit
               </Link>
             </div>
@@ -215,10 +215,10 @@ export default function TourPage() {
             to arrange a private tour or start the admissions process today.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/admissions" className="btn-primary">
+            <Link to="/admissions" className="btn-primary">
               Start Admissions
             </Link>
-            <Link href="/contact" className="btn-outline">
+            <Link to="/contact" className="btn-outline">
               Contact Us
             </Link>
           </div>

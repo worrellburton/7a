@@ -153,7 +153,7 @@ export default function SevenArrowsExperience() {
           ))}
         </div>
 
-        <Link href="/our-program" className="btn-dark">
+        <Link to="/our-program" className="btn-dark">
           Our Seven Core Principles
         </Link>
       </div>

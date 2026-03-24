@@ -58,7 +58,7 @@ export default function CampusTour() {
         </div>
 
         <div className="mt-12 text-center">
-          <Link href="/tour" className="btn-dark">
+          <Link to="/tour" className="btn-dark">
             Tour Campus
           </Link>
         </div>

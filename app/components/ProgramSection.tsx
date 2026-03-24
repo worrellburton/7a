@@ -22,7 +22,7 @@ export default function ProgramSection() {
                 approach and unique combination of evidence-based, holistic, experiential
                 and traditional therapies offers you a transformative experience in healing.
               </p>
-              <Link href="/our-program" className="btn-outline">
+              <Link to="/our-program" className="btn-outline">
                 Our Program
               </Link>
             </div>

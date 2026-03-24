@@ -104,11 +104,11 @@ export default function InsuranceCarousel() {
                 {insuranceProviders.map((provider) => (
                   <Link
                     key={provider.name}
-                    href={provider.href}
+                    to={provider.href}
                     className="flex-shrink-0 flex items-center justify-center h-14 px-2 opacity-70 hover:opacity-100 transition-all duration-300 group"
                     aria-label={provider.name}
                     style={{
-                      width: `calc(${100 / visibleCount}% - ${(visibleCount - 1) * (window?.innerWidth > 1024 ? 48 : 32) / visibleCount}px)`,
+                      width: `calc(${100 / visibleCount}% - 32px)`,
                     }}
                   >
                     <div
@@ -161,7 +161,7 @@ export default function InsuranceCarousel() {
             ))}
           </div>
 
-          <Link href="/admissions#verify" className="btn-primary text-xs">
+          <Link to="/admissions#verify" className="btn-primary text-xs">
             Verify Insurance
           </Link>
         </div>

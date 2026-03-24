@@ -161,7 +161,7 @@ export default function DualDiagnosisPage() {
             confidential assessment.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/contact" className="btn-primary">
+            <Link to="/contact" className="btn-primary">
               Contact Us
             </Link>
             <a href="tel:8669964308" className="btn-primary">

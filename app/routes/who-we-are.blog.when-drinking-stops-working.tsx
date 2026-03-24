@@ -388,7 +388,7 @@ export default function BlogPost1() {
                 <a href="tel:8669964308" className="btn-primary">
                   Call (866) 996-4308
                 </a>
-                <Link href="/who-we-are/blog" className="btn-outline">
+                <Link to="/who-we-are/blog" className="btn-outline">
                   View Full Series
                 </Link>
               </div>

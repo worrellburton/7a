@@ -37,7 +37,7 @@ export default function AboutSection() {
               recovery and working with you as a unique individual. Your interests and needs are integrated into
               your daily routine, and can be harmonized with existing treatment schedules.
             </p>
-            <Link href="/who-we-are" className="btn-dark">
+            <Link to="/who-we-are" className="btn-dark">
               Who We Are
             </Link>
           </div>

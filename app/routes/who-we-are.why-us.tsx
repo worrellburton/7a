@@ -142,7 +142,7 @@ export default function WhyUsPage() {
             <a href="tel:8669964308" className="btn-primary">
               Call (866) 996-4308
             </a>
-            <Link href="/contact" className="btn-outline border-white text-white hover:bg-white hover:text-foreground">
+            <Link to="/contact" className="btn-outline border-white text-white hover:bg-white hover:text-foreground">
               Contact Us Online
             </Link>
           </div>

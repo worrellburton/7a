@@ -93,9 +93,9 @@ export default function AdmissionsPage() {
           </div>
 
           <div className="text-center mt-10">
-            <Link href="tel:8669964308" className="btn-primary">
+            <a href="tel:8669964308" className="btn-primary">
               Call (866) 996-4308
-            </Link>
+            </a>
           </div>
         </div>
       </section>
@@ -181,10 +181,10 @@ export default function AdmissionsPage() {
             setting ensures you receive attentive, individualized care throughout your stay.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/tour" className="btn-primary">
+            <Link to="/tour" className="btn-primary">
               Tour Our Campus
             </Link>
-            <Link href="/contact" className="btn-outline">
+            <Link to="/contact" className="btn-outline">
               Have Questions? Contact Us
             </Link>
           </div>

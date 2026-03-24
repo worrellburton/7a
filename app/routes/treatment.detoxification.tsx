@@ -168,10 +168,10 @@ export default function DetoxificationPage() {
             out our online form.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="tel:8669964308" className="btn-primary">
+            <a href="tel:8669964308" className="btn-primary">
               Call (866) 996-4308
-            </Link>
-            <Link href="/contact" className="btn-outline border-white text-white hover:bg-white hover:text-foreground">
+            </a>
+            <Link to="/contact" className="btn-outline border-white text-white hover:bg-white hover:text-foreground">
               Contact Us Online
             </Link>
           </div>

@@ -144,7 +144,7 @@ export default function ContactPage() {
                 <a href="tel:8669964308" className="btn-primary">
                   Call Now
                 </a>
-                <Link href="/admissions" className="btn-outline">
+                <Link to="/admissions" className="btn-outline">
                   Start Admissions
                 </Link>
               </div>

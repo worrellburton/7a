@@ -252,7 +252,7 @@ export default function LocationPhoenixPage() {
               Call (866) 996-4308
             </a>
             <Link
-              href="/contact"
+              to="/contact"
               className="btn-outline border-white text-white hover:bg-white hover:text-foreground"
             >
               Verify Your Insurance

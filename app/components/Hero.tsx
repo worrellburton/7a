@@ -169,7 +169,7 @@ export default function Hero() {
                 transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 1.1s',
               }}
             >
-              <Link href="/admissions" className="btn-primary text-sm">
+              <Link to="/admissions" className="btn-primary text-sm">
                 Get Started
               </Link>
             </div>

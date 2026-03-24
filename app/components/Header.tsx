@@ -58,15 +58,16 @@ function QuestionIcon({ className }: { className?: string }) {
 function BlogIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      {/* Magnifying glass — investigative */}
-      <circle cx="11" cy="11" r="8">
-        <animate attributeName="r" values="8;8.4;8" dur="2s" repeatCount="indefinite" />
-      </circle>
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-      {/* Lines inside — text being investigated */}
-      <line x1="8" y1="8" x2="14" y2="8" opacity="0.5" />
-      <line x1="8" y1="11" x2="13" y2="11" opacity="0.4" />
-      <line x1="8" y1="14" x2="11" y2="14" opacity="0.3" />
+      {/* Open magazine */}
+      <rect x="2" y="4" width="20" height="16" rx="2">
+        <animate attributeName="opacity" values="0.8;1;0.8" dur="2.5s" repeatCount="indefinite" />
+      </rect>
+      <line x1="12" y1="4" x2="12" y2="20" />
+      <line x1="5" y1="8" x2="10" y2="8" opacity="0.6" />
+      <line x1="5" y1="11" x2="10" y2="11" opacity="0.4" />
+      <line x1="5" y1="14" x2="9" y2="14" opacity="0.3" />
+      <line x1="14" y1="8" x2="19" y2="8" opacity="0.6" />
+      <line x1="14" y1="11" x2="19" y2="11" opacity="0.4" />
     </svg>
   );
 }
@@ -560,7 +561,7 @@ export default function Header() {
       <nav className="px-4 sm:px-6 xl:px-10" aria-label="Main navigation">
         <div className="flex items-center h-16 lg:h-[68px]">
           {/* Logo — compact */}
-          <Link href="/" className="shrink-0 mr-6" aria-label="Seven Arrows Recovery - Home">
+          <Link to="/" className="shrink-0 mr-6" aria-label="Seven Arrows Recovery - Home">
             <img
               src="/7a/images/logo.png"
               alt="Seven Arrows Recovery"
@@ -576,7 +577,7 @@ export default function Header() {
               ) : item.label === 'Blog' ? (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  to={item.href}
                   className="relative px-2 xl:px-3 py-2 flex items-center justify-center group"
                   style={{ fontFamily: 'var(--font-body)' }}
                   aria-label="Investigative Series"
@@ -587,12 +588,14 @@ export default function Header() {
                     <span className="absolute inset-0 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors" />
                     <span className="absolute inset-[-3px] rounded-full animate-pulse opacity-30 bg-primary/15" />
                     <svg className="relative w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      {/* Magnifying glass — investigative */}
-                      <circle cx="11" cy="11" r="7" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                      {/* Subtle lines inside */}
-                      <line x1="8" y1="9" x2="14" y2="9" opacity="0.5" />
-                      <line x1="8" y1="12" x2="12" y2="12" opacity="0.4" />
+                      {/* Open magazine / newspaper */}
+                      <rect x="2" y="4" width="20" height="16" rx="2" />
+                      <line x1="12" y1="4" x2="12" y2="20" />
+                      <line x1="5" y1="8" x2="10" y2="8" opacity="0.7" />
+                      <line x1="5" y1="11" x2="10" y2="11" opacity="0.5" />
+                      <line x1="5" y1="14" x2="9" y2="14" opacity="0.4" />
+                      <line x1="14" y1="8" x2="19" y2="8" opacity="0.7" />
+                      <line x1="14" y1="11" x2="19" y2="11" opacity="0.5" />
                     </svg>
                   </span>
                 </Link>

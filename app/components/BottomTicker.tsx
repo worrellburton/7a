@@ -29,7 +29,7 @@ function TickerContent() {
           )}
           {item.type === 'link' && item.href && (
             <Link
-              href={item.href}
+              to={item.href}
               className="text-white text-xs font-semibold hover:text-accent transition-colors underline decoration-accent/50"
               style={{ fontFamily: 'var(--font-body)' }}
             >
@@ -46,10 +46,11 @@ function TickerContent() {
 export default function BottomTicker() {
   return (
     <div className="hidden lg:block bg-dark-section border-t border-white/5 py-3 overflow-hidden">
-      <div className="ticker-track flex">
-        <div className="ticker-content flex animate-ticker">
+      <div className="flex animate-ticker" style={{ width: 'max-content' }}>
+        <div className="flex items-center shrink-0">
           <TickerContent />
-          {/* Duplicate for seamless loop */}
+        </div>
+        <div className="flex items-center shrink-0">
           <TickerContent />
         </div>
       </div>

@@ -69,7 +69,7 @@ export default function TreatmentServices() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">
           {services.map((service) => (
-            <Link key={service.title} href={service.href} className="group block">
+            <Link key={service.title} to={service.href} className="group block">
               <div className="relative rounded-lg overflow-hidden aspect-[4/5] mb-3">
                 <img src={service.image} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
               </div>

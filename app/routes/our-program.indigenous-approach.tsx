@@ -104,10 +104,10 @@ export default function IndigenousApproachPage() {
             recovery. Our admissions team is here to answer your questions.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="tel:8669964308" className="btn-primary">
+            <a href="tel:8669964308" className="btn-primary">
               Call (866) 996-4308
-            </Link>
-            <Link href="/contact" className="btn-primary">
+            </a>
+            <Link to="/contact" className="btn-primary">
               Contact Us Online
             </Link>
           </div>

@@ -7,7 +7,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <Link href="/" className="flex items-center gap-3 mb-6" aria-label="Seven Arrows Recovery">
+            <Link to="/" className="flex items-center gap-3 mb-6" aria-label="Seven Arrows Recovery">
               <img
                 src="/7a/images/logo.png"
                 alt="Seven Arrows Recovery"
@@ -60,7 +60,7 @@ export default function Footer() {
                 { name: 'Mesa', href: '/locations/mesa' },
               ].map((loc) => (
                 <li key={loc.name}>
-                  <Link href={loc.href} className="text-white/60 text-sm hover:text-primary transition-colors">
+                  <Link to={loc.href} className="text-white/60 text-sm hover:text-primary transition-colors">
                     {loc.name}, AZ
                   </Link>
                 </li>
@@ -93,8 +93,8 @@ export default function Footer() {
             &copy; {new Date().getFullYear()} Seven Arrows Recovery. All rights reserved.
           </p>
           <div className="flex gap-6 text-xs text-white/40">
-            <Link href="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>
-            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+            <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
           </div>
         </div>
       </div>
