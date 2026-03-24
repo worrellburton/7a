@@ -15,6 +15,7 @@ import AboutSection from "~/components/AboutSection";
 import FAQSection from "~/components/FAQSection";
 import GoogleReviews from "~/components/GoogleReviews";
 import StickyMobileCTA from "~/components/StickyMobileCTA";
+import BlogPreview from "~/components/BlogPreview";
 
 const structuredData = {
   "@context": "https://schema.org",
@@ -204,6 +205,7 @@ export default function Home() {
       <TraumAddictionSection />
       <AboutSection />
       <FAQSection />
+      <BlogPreview />
       <StickyMobileCTA />
     </>
   );

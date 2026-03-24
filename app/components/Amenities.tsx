@@ -73,8 +73,7 @@ const amenities = [
 export default function Amenities() {
   return (
     <section
-      className="py-20 lg:py-28 relative overflow-hidden"
-      style={{ backgroundColor: 'var(--color-warm-bg)' }}
+      className="py-20 lg:py-28 bg-white relative overflow-hidden"
       aria-labelledby="amenities-heading"
     >
       {/* Subtle background pattern */}

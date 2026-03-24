@@ -93,7 +93,7 @@ const principles = [
 
 export default function SevenArrowsExperience() {
   return (
-    <section className="py-20 lg:py-28 bg-white relative overflow-hidden" aria-labelledby="experience-heading">
+    <section className="py-20 lg:py-28 bg-warm-bg relative overflow-hidden" aria-labelledby="experience-heading">
       {/* Subtle background watermark */}
       <div
         className="absolute inset-0 opacity-[0.03] pointer-events-none"

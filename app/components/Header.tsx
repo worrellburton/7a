@@ -424,7 +424,8 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
     <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
       <button
         type="button"
-        className="flex items-center gap-1 text-xs xl:text-sm font-medium tracking-wider uppercase transition-colors text-foreground hover:text-primary whitespace-nowrap"
+        className="flex items-center gap-1 px-2 xl:px-3 py-2 text-[11px] xl:text-xs font-semibold tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
+        style={{ fontFamily: 'var(--font-body)' }}
         aria-expanded={open}
       >
         {item.label}
@@ -433,50 +434,79 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
         </svg>
       </button>
 
-      {/* Full-width mega menu panel */}
+      {/* Full-width mega menu panel — positioned from header bottom */}
+      {open && (
+        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+      )}
       <div
-        className={`fixed top-20 lg:top-24 left-0 right-0 z-50 transition-all duration-200 ${
-          open ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'
+        className={`fixed left-0 right-0 z-50 transition-all duration-300 ease-out ${
+          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
+        style={{
+          top: '68px',
+        }}
       >
-        <div className="bg-white shadow-2xl border-t border-gray-100">
+        {/* Gradient reveal bar */}
+        <div
+          className="h-1 w-full transition-all duration-500"
+          style={{
+            background: open
+              ? 'linear-gradient(90deg, transparent 0%, var(--color-primary) 20%, var(--color-accent) 50%, var(--color-primary) 80%, transparent 100%)'
+              : 'transparent',
+            opacity: open ? 1 : 0,
+            transform: open ? 'scaleX(1)' : 'scaleX(0)',
+          }}
+        />
+        <div
+          className="bg-white shadow-2xl transition-all duration-300 ease-out"
+          style={{
+            transform: open ? 'translateY(0)' : 'translateY(-8px)',
+            opacity: open ? 1 : 0,
+          }}
+        >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Header */}
-            <div className="py-5 border-b border-gray-100">
+            <div className="py-4 border-b border-gray-100">
               <Link
                 href={item.href}
-                className="text-sm font-bold text-foreground hover:text-primary transition-colors tracking-wider uppercase"
+                className="text-xs font-bold text-foreground hover:text-primary transition-colors tracking-wider uppercase"
+                style={{ fontFamily: 'var(--font-body)' }}
                 onClick={() => setOpen(false)}
               >
                 {item.label} Overview →
               </Link>
               {item.description && (
-                <p className="text-xs text-foreground/50 mt-1" style={{ fontFamily: 'var(--font-body)' }}>{item.description}</p>
+                <p className="text-[11px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{item.description}</p>
               )}
             </div>
 
-            {/* Items grid — always use 3 or 4 columns for full width */}
-            <div className={`grid gap-x-6 gap-y-1 py-6`} style={{ gridTemplateColumns: `repeat(${Math.min(cols + 1, 4)}, 1fr)` }}>
-              {item.dropdown?.map((sub) => {
+            {/* Items grid */}
+            <div className={`grid gap-x-4 gap-y-0.5 py-4`} style={{ gridTemplateColumns: `repeat(${Math.min(cols + 1, 4)}, 1fr)` }}>
+              {item.dropdown?.map((sub, idx) => {
                 const Icon = iconMap[sub.label];
                 return (
                   <Link
                     key={sub.href}
                     href={sub.href}
-                    className="group flex items-start gap-3 px-4 py-3 rounded-lg hover:bg-warm-bg transition-colors"
+                    className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg hover:bg-warm-bg transition-all"
                     onClick={() => setOpen(false)}
+                    style={{
+                      opacity: open ? 1 : 0,
+                      transform: open ? 'translateY(0)' : 'translateY(8px)',
+                      transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
+                    }}
                   >
                     {Icon && (
-                      <div className="shrink-0 w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors mt-0.5">
-                        <Icon className="w-4.5 h-4.5 text-primary" />
+                      <div className="shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors mt-0.5">
+                        <Icon className="w-4 h-4 text-primary" />
                       </div>
                     )}
                     <div>
-                      <div className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                      <div className="text-[13px] font-semibold text-foreground group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
                         {sub.label}
                       </div>
                       {sub.description && (
-                        <p className="text-xs text-foreground/50 mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
+                        <p className="text-[11px] text-foreground/50 mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
                           {sub.description}
                         </p>
                       )}
@@ -487,9 +517,9 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
             </div>
 
             {/* Footer CTA */}
-            <div className="py-4 border-t border-gray-100">
-              <a href="tel:+18669964308" className="flex items-center gap-2 text-xs text-primary font-semibold hover:text-primary-dark transition-colors">
-                <PhoneIcon className="w-3.5 h-3.5" />
+            <div className="py-3 border-t border-gray-100">
+              <a href="tel:+18669964308" className="flex items-center gap-2 text-[11px] text-primary font-semibold hover:text-primary-dark transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                <PhoneIcon className="w-3 h-3" />
                 Questions? Call (866) 996-4308
               </a>
             </div>
@@ -512,19 +542,19 @@ export default function Header() {
 
   return (
     <header className="bg-white sticky top-0 z-50 shadow-sm" role="banner">
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
-        <div className="flex items-center justify-between h-20 lg:h-24">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 shrink-0" aria-label="Seven Arrows Recovery - Home">
+      <nav className="px-4 sm:px-6 xl:px-10" aria-label="Main navigation">
+        <div className="flex items-center h-16 lg:h-[68px]">
+          {/* Logo — compact */}
+          <Link href="/" className="shrink-0 mr-6" aria-label="Seven Arrows Recovery - Home">
             <img
               src="/7a/images/logo.png"
               alt="Seven Arrows Recovery"
-              className="h-14 lg:h-18 w-auto"
+              className="h-11 lg:h-12 w-auto"
             />
           </Link>
 
-          {/* Desktop Mega Navigation */}
-          <div className="hidden lg:flex items-center justify-center gap-4 xl:gap-6 flex-1 mx-4 xl:mx-8">
+          {/* Desktop Navigation — spread across full width */}
+          <div className="hidden lg:flex items-center gap-1 xl:gap-2 flex-1 min-w-0">
             {navLinks.map((item) =>
               item.dropdown ? (
                 <MegaMenuDropdown key={item.href} item={item} />
@@ -532,7 +562,8 @@ export default function Header() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="text-xs xl:text-sm font-medium tracking-wider uppercase transition-colors text-foreground hover:text-primary whitespace-nowrap"
+                  className="px-2 xl:px-3 py-2 text-[11px] xl:text-xs font-semibold tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
+                  style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {item.label}
                 </Link>
@@ -540,30 +571,31 @@ export default function Header() {
             )}
           </div>
 
-          {/* Phone CTA */}
+          {/* Phone CTA — compact pill */}
           <a
             href="tel:+18669964308"
-            className="hidden lg:inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-full text-sm font-semibold tracking-wide transition-all whitespace-nowrap shrink-0"
+            className="hidden lg:inline-flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-full text-xs font-semibold tracking-wide transition-all whitespace-nowrap shrink-0 ml-4"
+            style={{ fontFamily: 'var(--font-body)' }}
             aria-label="Call us at (866) 996-4308"
           >
-            <PhoneIcon className="w-4 h-4" />
+            <PhoneIcon className="w-3.5 h-3.5" />
             (866) 996-4308
           </a>
 
           {/* Mobile menu button */}
           <button
             type="button"
-            className="lg:hidden p-2 text-foreground"
+            className="lg:hidden p-2 text-foreground ml-auto"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
             aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? (
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             ) : (
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             )}
@@ -572,21 +604,22 @@ export default function Header() {
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <div className="lg:hidden pb-6 border-t border-gray-100" role="menu">
-            <div className="pt-4 space-y-1">
+          <div className="lg:hidden pb-4 border-t border-gray-100" role="menu">
+            <div className="pt-3 space-y-0.5">
               {navLinks.map((item) => (
                 <div key={item.href}>
                   {item.dropdown ? (
                     <>
                       <button
                         type="button"
-                        className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium tracking-wider uppercase text-foreground hover:text-primary"
+                        className="flex items-center justify-between w-full px-3 py-2.5 text-xs font-semibold tracking-wider uppercase text-foreground hover:text-primary"
+                        style={{ fontFamily: 'var(--font-body)' }}
                         onClick={() => toggleMobileDropdown(item.label)}
                         aria-expanded={mobileExpanded === item.label}
                       >
                         {item.label}
                         <svg
-                          className={`w-4 h-4 transition-transform ${mobileExpanded === item.label ? 'rotate-180' : ''}`}
+                          className={`w-3.5 h-3.5 transition-transform ${mobileExpanded === item.label ? 'rotate-180' : ''}`}
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -602,20 +635,17 @@ export default function Header() {
                               <Link
                                 key={sub.href}
                                 href={sub.href}
-                                className="flex items-center gap-3 px-6 py-3 text-sm text-foreground hover:text-primary border-b border-foreground/5 last:border-b-0"
+                                className="flex items-center gap-2.5 px-5 py-2.5 text-sm text-foreground hover:text-primary border-b border-foreground/5 last:border-b-0"
                                 role="menuitem"
                                 onClick={() => setMobileMenuOpen(false)}
                               >
                                 {Icon && (
-                                  <div className="shrink-0 w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center">
-                                    <Icon className="w-3.5 h-3.5 text-primary" />
+                                  <div className="shrink-0 w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
+                                    <Icon className="w-3 h-3 text-primary" />
                                   </div>
                                 )}
                                 <div>
-                                  <div className="font-medium">{sub.label}</div>
-                                  {sub.description && (
-                                    <div className="text-xs text-foreground/50">{sub.description}</div>
-                                  )}
+                                  <div className="text-sm font-medium" style={{ fontFamily: 'var(--font-body)' }}>{sub.label}</div>
                                 </div>
                               </Link>
                             );
@@ -626,7 +656,8 @@ export default function Header() {
                   ) : (
                     <Link
                       href={item.href}
-                      className="block px-4 py-3 text-sm font-medium tracking-wider uppercase text-foreground hover:text-primary"
+                      className="block px-3 py-2.5 text-xs font-semibold tracking-wider uppercase text-foreground hover:text-primary"
+                      style={{ fontFamily: 'var(--font-body)' }}
                       role="menuitem"
                       onClick={() => setMobileMenuOpen(false)}
                     >
@@ -635,9 +666,9 @@ export default function Header() {
                   )}
                 </div>
               ))}
-              <div className="px-4 pt-4">
-                <a href="tel:+18669964308" className="btn-primary w-full text-center flex items-center justify-center gap-2">
-                  <PhoneIcon className="w-4 h-4" />
+              <div className="px-3 pt-3">
+                <a href="tel:+18669964308" className="btn-primary w-full text-center flex items-center justify-center gap-2 text-xs py-3">
+                  <PhoneIcon className="w-3.5 h-3.5" />
                   (866) 996-4308
                 </a>
               </div>

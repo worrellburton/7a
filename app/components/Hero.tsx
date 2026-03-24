@@ -13,7 +13,7 @@ export default function Hero() {
   return (
     <section
       ref={sectionRef}
-      className="relative min-h-[600px] lg:min-h-[85vh] flex items-center overflow-hidden"
+      className="relative min-h-[500px] lg:min-h-[75vh] flex items-center overflow-hidden"
       aria-labelledby="hero-heading"
     >
       {/* Background image with subtle zoom */}
@@ -46,7 +46,7 @@ export default function Hero() {
           {/* Heading with staggered word reveal */}
           <h1
             id="hero-heading"
-            className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-foreground leading-[1.1] mb-8"
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground leading-[1.1] mb-6"
           >
             <span
               className="inline-block"
@@ -82,7 +82,7 @@ export default function Hero() {
 
           {/* Description */}
           <p
-            className="text-lg lg:text-xl text-foreground/80 leading-relaxed mb-10 max-w-xl"
+            className="text-sm lg:text-base text-foreground/80 leading-relaxed mb-8 max-w-lg"
             style={{
               fontFamily: 'var(--font-body)',
               opacity: visible ? 1 : 0,
