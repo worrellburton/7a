@@ -8,18 +8,11 @@ export default function Footer() {
           {/* Brand */}
           <div className="lg:col-span-1">
             <Link href="/" className="flex items-center gap-3 mb-6" aria-label="Seven Arrows Recovery">
-              <div className="w-10 h-10 rounded-full border-2 border-primary flex items-center justify-center">
-                <svg className="w-6 h-6 text-primary" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-                  <circle cx="20" cy="20" r="18" stroke="currentColor" strokeWidth="1.5" />
-                  <line x1="20" y1="2" x2="20" y2="38" stroke="currentColor" strokeWidth="1" />
-                  <line x1="2" y1="20" x2="38" y2="20" stroke="currentColor" strokeWidth="1" />
-                  <circle cx="20" cy="20" r="4" fill="currentColor" />
-                </svg>
-              </div>
-              <div>
-                <div className="text-lg font-bold tracking-wider">SEVEN ARROWS</div>
-                <div className="text-[0.55rem] tracking-[0.3em] text-white/50 uppercase">Recovery</div>
-              </div>
+              <img
+                src="/7a/images/logo.png"
+                alt="Seven Arrows Recovery"
+                className="h-16 w-auto brightness-0 invert"
+              />
             </Link>
             <p className="text-white/60 text-sm leading-relaxed">
               A boutique drug and alcohol rehab center nestled at the base of the Swisshelm Mountains in Arizona.
