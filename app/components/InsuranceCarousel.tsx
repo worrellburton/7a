@@ -79,7 +79,7 @@ export default function InsuranceCarousel() {
             We Work With Most Major Insurance
           </h2>
 
-          <div className="flex items-center justify-center gap-4 lg:gap-6 mb-8">
+          <div className="flex items-center justify-center gap-4 lg:gap-6 mb-10">
             {/* Previous button */}
             <button
               onClick={prev}
@@ -105,7 +105,7 @@ export default function InsuranceCarousel() {
                   <Link
                     key={provider.name}
                     to={provider.href}
-                    className="flex-shrink-0 flex items-center justify-center h-14 px-2 opacity-70 hover:opacity-100 transition-all duration-300 group"
+                    className="flex-shrink-0 flex items-center justify-center h-16 px-2 opacity-70 hover:opacity-100 transition-all duration-300 group"
                     aria-label={provider.name}
                     style={{
                       width: `calc(${100 / visibleCount}% - 32px)`,
@@ -148,7 +148,7 @@ export default function InsuranceCarousel() {
           </div>
 
           {/* Dot indicators */}
-          <div className="flex items-center justify-center gap-1.5 mb-8">
+          <div className="flex items-center justify-center gap-1.5 mb-10">
             {Array.from({ length: maxOffset + 1 }).map((_, i) => (
               <button
                 key={i}
