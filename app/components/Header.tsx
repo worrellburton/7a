@@ -523,7 +523,7 @@ export default function Header() {
           </Link>
 
           {/* Desktop Mega Navigation */}
-          <div className="hidden lg:flex items-center gap-5 xl:gap-7">
+          <div className="hidden lg:flex items-center justify-evenly flex-1 mx-6 xl:mx-10">
             {navLinks.map((item) =>
               item.dropdown ? (
                 <MegaMenuDropdown key={item.href} item={item} />

@@ -3,18 +3,16 @@
 import { useState } from 'react';
 import { Link } from '@remix-run/react';
 
-const BRANDFETCH_CLIENT_ID = '1id3n10pdBTarCHI0db';
-
 const insuranceProviders = [
-  { name: 'Cigna', domain: 'cigna.com' },
-  { name: 'Anthem', domain: 'anthem.com' },
-  { name: 'BlueCross BlueShield', domain: 'bcbs.com' },
-  { name: 'Carelon Behavioral Health', domain: 'carelon.com' },
-  { name: 'ComPsych', domain: 'compsych.com' },
-  { name: 'Aetna', domain: 'aetna.com' },
-  { name: 'UnitedHealthcare', domain: 'uhc.com' },
-  { name: 'Humana', domain: 'humana.com' },
-  { name: 'TRICARE', domain: 'tricare.mil' },
+  { name: 'UnitedHealthcare', href: '/insurance/united-healthcare' },
+  { name: 'Aetna', href: '/insurance/aetna' },
+  { name: 'Blue Cross Blue Shield', href: '/insurance/blue-cross-blue-shield' },
+  { name: 'Cigna', href: '/insurance/cigna' },
+  { name: 'Humana', href: '/insurance/humana' },
+  { name: 'TRICARE', href: '/insurance/tricare' },
+  { name: 'Anthem', href: '/insurance/aetna' },
+  { name: 'Carelon Behavioral Health', href: '/admissions' },
+  { name: 'ComPsych', href: '/admissions' },
 ];
 
 export default function InsuranceCarousel() {
@@ -60,17 +58,18 @@ export default function InsuranceCarousel() {
 
             <div className="flex items-center gap-8 lg:gap-12 overflow-hidden">
               {insuranceProviders.slice(offset, offset + visibleCount).map((provider) => (
-                <div
+                <Link
                   key={provider.name}
-                  className="flex-shrink-0 flex items-center justify-center h-12 lg:h-14"
+                  href={provider.href}
+                  className="flex-shrink-0 flex items-center justify-center h-12 lg:h-14 px-4 group"
                 >
-                  <img
-                    src={`https://cdn.brandfetch.io/${provider.domain}/theme/light/h/56/w/200/logo?c=${BRANDFETCH_CLIENT_ID}`}
-                    alt={provider.name}
-                    className="h-8 lg:h-10 w-auto object-contain brightness-0 invert opacity-80"
-                    loading="lazy"
-                  />
-                </div>
+                  <span
+                    className="text-white/80 group-hover:text-white text-lg lg:text-xl font-bold tracking-wide whitespace-nowrap transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {provider.name}
+                  </span>
+                </Link>
               ))}
             </div>
 
