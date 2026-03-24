@@ -362,9 +362,9 @@ const navLinks: NavItem[] = [
     href: '/treatment',
     description: 'Clinical & residential programs tailored to your needs.',
     dropdown: [
-      { label: 'Residential Inpatient', href: '/treatment/residential-inpatient', description: '90+ day immersive treatment' },
-      { label: 'Detoxification', href: '/treatment/detoxification', description: 'Medical detox in a safe environment' },
       { label: 'Interventions', href: '/treatment/interventions', description: 'Professional intervention services' },
+      { label: 'Detoxification', href: '/treatment/detoxification', description: 'Medical detox in a safe environment' },
+      { label: 'Residential Inpatient', href: '/treatment/residential-inpatient', description: '90+ day immersive treatment' },
       { label: 'Alumni & Aftercare', href: '/treatment/alumni-aftercare', description: 'Lifelong support network' },
     ],
   },
@@ -491,46 +491,94 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
             </div>
 
             {/* Items grid */}
-            <div className={`grid gap-x-4 gap-y-0.5 py-4`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-              {item.dropdown?.map((sub, idx) => {
-                const Icon = iconMap[sub.label];
-                return (
-                  <Link
-                    key={sub.href}
-                    to={sub.href}
-                    className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
-                    onClick={() => setOpen(false)}
-                    style={{
-                      opacity: open ? 1 : 0,
-                      transform: open ? 'translateY(0)' : 'translateY(8px)',
-                      transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    {Icon && (
-                      <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
-                        <Icon className="w-4 h-4 text-primary" />
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>
-                        {sub.label}
-                      </div>
-                      {sub.description && (
-                        <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>
-                          {sub.description}
-                        </p>
+            {itemCount <= 4 ? (
+              /* Compact layout: icons above, centered, bigger icons */
+              <div>
+                <div className={`grid gap-x-4 py-6`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+                  {item.dropdown?.map((sub, idx) => {
+                    const Icon = iconMap[sub.label];
+                    return (
+                      <Link
+                        key={sub.href}
+                        to={sub.href}
+                        className="group flex flex-col items-center text-center px-4 py-4 rounded-xl transition-all duration-200"
+                        onClick={() => setOpen(false)}
+                        style={{
+                          opacity: open ? 1 : 0,
+                          transform: open ? 'translateY(0)' : 'translateY(8px)',
+                          transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        {Icon && (
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-3" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                            <Icon className="w-6 h-6 text-primary" />
+                          </div>
+                        )}
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>
+                          {sub.label}
+                        </div>
+                        {sub.description && (
+                          <p className="text-[11px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.45)' }}>
+                            {sub.description}
+                          </p>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+                <p className="text-center text-[11px] tracking-[0.15em] uppercase pb-3" style={{ fontFamily: 'var(--font-body)', color: 'rgba(160,82,45,0.6)' }}>
+                  Here for every step of the way
+                </p>
+              </div>
+            ) : (
+              /* Standard layout: icons beside text */
+              <div className={`grid gap-x-4 gap-y-0.5 py-4`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+                {item.dropdown?.map((sub, idx) => {
+                  const Icon = iconMap[sub.label];
+                  return (
+                    <Link
+                      key={sub.href}
+                      to={sub.href}
+                      className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
+                      onClick={() => setOpen(false)}
+                      style={{
+                        opacity: open ? 1 : 0,
+                        transform: open ? 'translateY(0)' : 'translateY(8px)',
+                        transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      {Icon && (
+                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                          <Icon className="w-4 h-4 text-primary" />
+                        </div>
                       )}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+                      <div>
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>
+                          {sub.label}
+                        </div>
+                        {sub.description && (
+                          <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>
+                            {sub.description}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Footer CTA */}
             <div className="py-3" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
