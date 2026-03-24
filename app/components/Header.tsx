@@ -501,18 +501,19 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                       <Link
                         key={sub.href}
                         to={sub.href}
-                        className="group flex flex-col items-center text-center px-4 py-4 rounded-xl transition-all duration-200"
+                        className="group flex flex-col items-center text-center px-5 py-5 rounded-xl border border-transparent transition-all duration-200 hover:border-primary/20 hover:shadow-md hover:-translate-y-0.5"
                         onClick={() => setOpen(false)}
                         style={{
                           opacity: open ? 1 : 0,
                           transform: open ? 'translateY(0)' : 'translateY(8px)',
                           transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
+                          backgroundColor: 'rgba(160,82,45,0.03)',
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)';
+                          e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.07)';
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.03)';
                         }}
                       >
                         {Icon && (
