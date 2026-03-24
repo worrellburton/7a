@@ -32,17 +32,6 @@ export default function ProgramSection() {
           <div className="lg:col-span-4">
             <div className="relative rounded-2xl overflow-hidden aspect-[3/4] bg-warm-card">
               <img src="/7a/images/equine-therapy-portrait.jpg" alt="Seven Arrows Recovery program" className="w-full h-full object-cover" loading="lazy" />
-              {/* Play button overlay */}
-              <button
-                className="absolute inset-0 flex items-center justify-center group"
-                aria-label="Play video about Seven Arrows Recovery"
-              >
-                <div className="w-16 h-16 bg-black/60 rounded-xl flex items-center justify-center group-hover:bg-black/80 transition-colors">
-                  <svg className="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
-              </button>
             </div>
           </div>
 
