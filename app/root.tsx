@@ -11,6 +11,8 @@ import Header from "~/components/Header";
 import Footer from "~/components/Footer";
 import GoogleReviewsBadge from "~/components/GoogleReviewsBadge";
 import ThemeToggle from "~/components/ThemeToggle";
+import FloatingContactCTA from "~/components/FloatingContactCTA";
+import BottomTicker from "~/components/BottomTicker";
 import "./globals.css";
 
 export const meta: MetaFunction = () => [
@@ -140,6 +142,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Footer />
         <GoogleReviewsBadge />
         <ThemeToggle />
+        <FloatingContactCTA />
+        <BottomTicker />
         <ScrollRestoration />
         <Scripts />
       </body>

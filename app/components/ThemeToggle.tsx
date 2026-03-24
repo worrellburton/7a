@@ -32,7 +32,7 @@ export default function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-      className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center transition-all duration-500 group lg:bottom-8 lg:right-8"
+      className="fixed bottom-20 left-6 z-40 w-11 h-11 rounded-full flex items-center justify-center transition-all duration-500 group lg:bottom-8 lg:left-8"
       style={{
         background: dark
           ? 'radial-gradient(circle at 40% 40%, #1e3a5f 0%, #0f1b2d 100%)'

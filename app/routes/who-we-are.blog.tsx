@@ -4,6 +4,24 @@ import type { MetaFunction } from '@remix-run/node';
 
 const posts = [
   {
+    title: 'When Drinking Stops Working: Recognizing the Signs of Addiction',
+    excerpt:
+      'A compassionate guide to understanding when substance use has crossed from choice to compulsion — the first step on the Recovery Roadmap.',
+    category: 'Recovery Roadmap',
+    date: 'March 24, 2026',
+    image: '/7a/images/resident-reading-window.jpg',
+    href: '/who-we-are/blog/when-drinking-stops-working',
+  },
+  {
+    title: 'What Happens When You Walk Through the Door: Your First Week in Treatment',
+    excerpt:
+      'Your first week in treatment, demystified. A day-by-day guide to what really happens when you arrive — written for anyone afraid to make the call.',
+    category: 'Recovery Roadmap',
+    date: 'March 24, 2026',
+    image: '/7a/images/covered-porch-desert-view.jpg',
+    href: '/who-we-are/blog/what-happens-when-you-walk-through-the-door',
+  },
+  {
     title: 'Understanding the Connection Between Trauma and Addiction',
     excerpt:
       'Research consistently shows that unresolved trauma is one of the strongest predictors of substance use disorders. Learn how our TraumAddiction\u2122 approach addresses both simultaneously.',
@@ -72,10 +90,14 @@ export default function BlogPage() {
       <section className="py-16 lg:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {posts.map((post) => (
-              <div
+            {posts.map((post) => {
+              const Wrapper = post.href ? Link : 'div';
+              const wrapperProps = post.href ? { href: post.href } : {};
+              return (
+              <Wrapper
                 key={post.title}
-                className="bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group"
+                {...wrapperProps}
+                className="bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group block no-underline"
               >
                 <img src={post.image} alt={post.title} className="h-48 w-full object-cover" loading="lazy" />
                 <div className="p-6">
@@ -106,8 +128,9 @@ export default function BlogPage() {
                     Read More &rarr;
                   </span>
                 </div>
-              </div>
-            ))}
+              </Wrapper>
+              );
+            })}
           </div>
         </div>
       </section>

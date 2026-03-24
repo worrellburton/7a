@@ -524,7 +524,7 @@ export default function Header() {
           </Link>
 
           {/* Desktop Mega Navigation */}
-          <div className="hidden lg:flex items-center justify-evenly flex-1 mx-6 xl:mx-10">
+          <div className="hidden lg:flex items-center justify-center gap-4 xl:gap-6 flex-1 mx-4 xl:mx-8">
             {navLinks.map((item) =>
               item.dropdown ? (
                 <MegaMenuDropdown key={item.href} item={item} />
@@ -543,7 +543,7 @@ export default function Header() {
           {/* Phone CTA */}
           <a
             href="tel:+18669964308"
-            className="hidden lg:inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-full text-sm font-semibold tracking-wide transition-all"
+            className="hidden lg:inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-full text-sm font-semibold tracking-wide transition-all whitespace-nowrap shrink-0"
             aria-label="Call us at (866) 996-4308"
           >
             <PhoneIcon className="w-4 h-4" />
