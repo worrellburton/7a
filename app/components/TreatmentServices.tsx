@@ -4,42 +4,42 @@ const services = [
   {
     title: 'Detoxification',
     href: '/treatment#detox',
-    gradient: 'linear-gradient(180deg, #c9a88a 0%, #8b6f50 100%)',
+    image: '/7a/images/embrace-connection.jpg',
   },
   {
     title: 'Inpatient',
     href: '/treatment#inpatient',
-    gradient: 'linear-gradient(180deg, #a08070 0%, #705040 100%)',
+    image: '/7a/images/bedroom-shared.jpg',
   },
   {
     title: 'Dual-Diagnosis',
     href: '/treatment#dual-diagnosis',
-    gradient: 'linear-gradient(180deg, #b09080 0%, #706050 100%)',
+    image: '/7a/images/individual-therapy-session.jpg',
   },
   {
     title: 'Holistic Therapies',
     href: '/treatment#holistic',
-    gradient: 'linear-gradient(180deg, #c0a090 0%, #907060 100%)',
+    image: '/7a/images/sound-healing-session.jpg',
   },
   {
     title: 'Equine Experience',
     href: '/treatment#equine',
-    gradient: 'linear-gradient(180deg, #d0b8a0 0%, #a08868 100%)',
+    image: '/7a/images/horses-grazing.jpg',
   },
   {
     title: 'Evidence-Based',
     href: '/treatment#evidence-based',
-    gradient: 'linear-gradient(180deg, #b09878 0%, #806850 100%)',
+    image: '/7a/images/group-therapy-room.jpg',
   },
   {
     title: 'Indigenous',
     href: '/treatment#indigenous',
-    gradient: 'linear-gradient(180deg, #90a8b0 0%, #607080 100%)',
+    image: '/7a/images/campfire-ceremony-circle.webp',
   },
   {
     title: 'Aftercare & Alumni',
     href: '/treatment#aftercare',
-    gradient: 'linear-gradient(180deg, #a09080 0%, #605040 100%)',
+    image: '/7a/images/group-gathering-pavilion.jpg',
   },
 ];
 
@@ -71,10 +71,7 @@ export default function TreatmentServices() {
           {services.map((service) => (
             <Link key={service.title} href={service.href} className="group block">
               <div className="relative rounded-lg overflow-hidden aspect-[4/5] mb-3">
-                <div
-                  className="w-full h-full group-hover:scale-105 transition-transform duration-500"
-                  style={{ background: service.gradient }}
-                />
+                <img src={service.image} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
               </div>
               <div className="flex items-center gap-3">
                 <span className="block w-8 h-[2px] bg-foreground/30" />

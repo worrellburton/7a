@@ -9,7 +9,7 @@ const posts = [
       'Research consistently shows that unresolved trauma is one of the strongest predictors of substance use disorders. Learn how our TraumAddiction\u2122 approach addresses both simultaneously.',
     category: 'Trauma & Recovery',
     date: 'March 15, 2026',
-    gradient: 'from-primary/30 to-accent/20',
+    image: '/7a/images/embrace-connection.jpg',
   },
   {
     title: '5 Signs It Is Time to Seek Professional Help for Addiction',
@@ -17,7 +17,7 @@ const posts = [
       'Recognizing when casual use has crossed into dependency can be difficult. Here are five warning signs that it may be time to consider professional treatment.',
     category: 'Addiction Education',
     date: 'March 8, 2026',
-    gradient: 'from-accent/30 to-primary/20',
+    image: '/7a/images/horses-grazing.jpg',
   },
   {
     title: 'How Family Involvement Strengthens Recovery Outcomes',
@@ -25,7 +25,7 @@ const posts = [
       'Addiction affects the entire family system. Discover why family therapy and education are essential components of lasting recovery and how Seven Arrows supports families.',
     category: 'Family & Recovery',
     date: 'February 28, 2026',
-    gradient: 'from-primary/20 to-warm-card',
+    image: '/7a/images/sound-healing-session.jpg',
   },
   {
     title: 'The Role of Nature in Healing: Why Our Location Matters',
@@ -33,7 +33,7 @@ const posts = [
       'Situated at the base of the Swisshelm Mountains, our setting is more than scenic. Learn how the desert landscape actively supports the therapeutic process.',
     category: 'Holistic Wellness',
     date: 'February 20, 2026',
-    gradient: 'from-warm-card to-primary/20',
+    image: '/7a/images/group-sunset-desert.jpg',
   },
   {
     title: 'What to Expect During Medically Supervised Detox',
@@ -41,7 +41,7 @@ const posts = [
       'Detoxification is often the first step in recovery, and it does not have to be frightening. Here is what the process looks like at Seven Arrows Recovery.',
     category: 'Treatment',
     date: 'February 12, 2026',
-    gradient: 'from-primary/30 to-warm-card',
+    image: '/7a/images/covered-porch-desert-view.jpg',
   },
   {
     title: 'Building a Relapse Prevention Plan That Actually Works',
@@ -49,7 +49,7 @@ const posts = [
       'A strong aftercare plan is one of the most important factors in sustaining long-term sobriety. Learn the key elements of an effective relapse prevention strategy.',
     category: 'Aftercare',
     date: 'February 5, 2026',
-    gradient: 'from-accent/20 to-primary/30',
+    image: '/7a/images/group-gathering-pavilion.jpg',
   },
 ];
 
@@ -77,26 +77,7 @@ export default function BlogPage() {
                 key={post.title}
                 className="bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group"
               >
-                {/* Image Placeholder */}
-                <div
-                  className={`h-48 bg-gradient-to-br ${post.gradient} flex items-center justify-center`}
-                >
-                  <div className="w-16 h-16 rounded-full bg-white/30 flex items-center justify-center">
-                    <svg
-                      className="w-8 h-8 text-primary/50"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
-                      />
-                    </svg>
-                  </div>
-                </div>
+                <img src={post.image} alt={post.title} className="h-48 w-full object-cover" loading="lazy" />
                 <div className="p-6">
                   <div className="flex items-center gap-3 mb-3">
                     <span

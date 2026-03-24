@@ -33,12 +33,7 @@ export default function TraumAddictionSection() {
           {/* Right image */}
           <div className="lg:col-span-6 lg:mt-8">
             <div className="rounded-2xl overflow-hidden aspect-[4/3]">
-              <div
-                className="w-full h-full"
-                style={{
-                  background: 'linear-gradient(135deg, #e8d8c8 0%, #c8a888 50%, #a08878 100%)',
-                }}
-              />
+              <img src="/7a/images/sound-healing-session.jpg" alt="TraumAddiction treatment session" className="w-full h-full object-cover" loading="lazy" />
             </div>
           </div>
         </div>

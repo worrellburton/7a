@@ -27,14 +27,11 @@ export default function InsuranceCarousel() {
 
   return (
     <section className="relative" aria-labelledby="insurance-carousel-heading">
-      {/* Background image placeholder */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(40,30,20,0.85) 0%, rgba(40,30,20,0.9) 100%), linear-gradient(180deg, #4a6040 0%, #3a5030 50%, #2a3820 100%)',
-        }}
-      />
+      {/* Background image */}
+      <div className="absolute inset-0">
+        <img src="/7a/images/sign-night-sky-milky-way.jpg" alt="" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-black/70" />
+      </div>
       <div className="relative py-20 lg:py-28">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p

@@ -88,32 +88,28 @@ export default function OurPhilosophyPage() {
                 title: 'Mind',
                 description:
                   'Evidence-based therapies including CBT, DBT, EMDR, and motivational interviewing address cognitive patterns, emotional regulation, and trauma processing.',
-                gradient: 'from-primary/20 to-accent/10',
+                image: '/7a/images/individual-therapy-session.jpg',
               },
               {
                 title: 'Body',
                 description:
                   'Yoga, fitness programming, nutritional counseling, somatic experiencing, and equine-assisted therapy reconnect clients with their physical selves.',
-                gradient: 'from-accent/20 to-primary/10',
+                image: '/7a/images/horses-grazing.jpg',
               },
               {
                 title: 'Spirit',
                 description:
                   'Meditation, breathwork, time in nature at the Swisshelm Mountains, and guided reflection cultivate meaning, purpose, and inner peace.',
-                gradient: 'from-primary/15 to-warm-card',
+                image: '/7a/images/sign-night-sky-milky-way.jpg',
               },
             ].map((pillar) => (
-              <div
-                key={pillar.title}
-                className={`bg-gradient-to-br ${pillar.gradient} rounded-2xl p-8 text-center`}
-              >
-                <h3 className="text-2xl font-bold text-foreground mb-4">{pillar.title}</h3>
-                <p
-                  className="text-foreground/70 leading-relaxed"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  {pillar.description}
-                </p>
+              <div key={pillar.title} className="relative rounded-2xl overflow-hidden">
+                <img src={pillar.image} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/50" />
+                <div className="relative p-8 text-center">
+                  <h3 className="text-2xl font-bold text-white mb-4">{pillar.title}</h3>
+                  <p className="text-white/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{pillar.description}</p>
+                </div>
               </div>
             ))}
           </div>

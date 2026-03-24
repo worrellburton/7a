@@ -31,12 +31,7 @@ export default function ProgramSection() {
           {/* Center video thumbnail */}
           <div className="lg:col-span-4">
             <div className="relative rounded-2xl overflow-hidden aspect-[3/4] bg-warm-card">
-              <div
-                className="w-full h-full"
-                style={{
-                  background: 'linear-gradient(180deg, #c9a88a 0%, #a07050 50%, #806040 100%)',
-                }}
-              />
+              <img src="/7a/images/equine-therapy-portrait.jpg" alt="Seven Arrows Recovery program" className="w-full h-full object-cover" loading="lazy" />
               {/* Play button overlay */}
               <button
                 className="absolute inset-0 flex items-center justify-center group"
@@ -54,12 +49,7 @@ export default function ProgramSection() {
           {/* Right sunset image */}
           <div className="lg:col-span-3">
             <div className="rounded-2xl overflow-hidden aspect-[3/4] bg-warm-card mb-4">
-              <div
-                className="w-full h-full"
-                style={{
-                  background: 'linear-gradient(180deg, #f0a050 0%, #e08040 30%, #c06030 60%, #604030 100%)',
-                }}
-              />
+              <img src="/7a/images/group-sunset-desert.jpg" alt="A place to find yourself" className="w-full h-full object-cover" loading="lazy" />
             </div>
             <p className="text-center text-sm tracking-[0.15em] text-foreground/60 uppercase" style={{ fontFamily: 'var(--font-sans)' }}>
               A Place to Find Yourself
