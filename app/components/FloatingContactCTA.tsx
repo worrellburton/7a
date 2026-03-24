@@ -91,10 +91,40 @@ function ThemeToggleButton() {
   );
 }
 
+function StickyPhoneBar() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 200);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  return (
+    <div
+      className={`fixed bottom-0 left-0 right-0 z-50 lg:hidden transition-transform duration-300 ${visible ? 'translate-y-0' : 'translate-y-full'}`}
+    >
+      <a
+        href="tel:+18669964308"
+        className="flex items-center justify-center gap-2 bg-primary text-white py-3.5 font-semibold text-sm tracking-wide shadow-lg"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+        </svg>
+        Call (866) 996-4308
+      </a>
+    </div>
+  );
+}
+
 export default function FloatingContactCTA() {
   const [expanded, setExpanded] = useState(false);
 
   return (
+    <>
+    <StickyPhoneBar />
     <div className="fixed bottom-6 right-6 z-50 hidden lg:flex flex-col items-end gap-2">
       {/* Expanded contact options */}
       {expanded && (
@@ -174,5 +204,6 @@ export default function FloatingContactCTA() {
         </button>
       </div>
     </div>
+    </>
   );
 }
