@@ -438,7 +438,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
     <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
       <button
         type="button"
-        className="flex items-center gap-1 px-2 xl:px-3 py-2 text-[11px] xl:text-xs font-semibold tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
+        className="flex items-center gap-0.5 px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
         style={{ fontFamily: 'var(--font-body)' }}
         aria-expanded={open}
       >
@@ -714,7 +714,7 @@ export default function Header() {
       <nav className="px-4 sm:px-6 xl:px-10" aria-label="Main navigation">
         <div className="flex items-center h-16 lg:h-[68px]">
           {/* Logo — compact */}
-          <Link to="/" className="shrink-0 mr-6" aria-label="Seven Arrows Recovery - Home">
+          <Link to="/" className="shrink-0 mr-2 xl:mr-6" aria-label="Seven Arrows Recovery - Home">
             <img
               src="/7a/images/logo.png"
               alt="Seven Arrows Recovery"
@@ -723,7 +723,7 @@ export default function Header() {
           </Link>
 
           {/* Desktop Navigation — spread across full width */}
-          <div className="hidden lg:flex items-center gap-1 xl:gap-2 flex-1 min-w-0">
+          <div className="hidden lg:flex items-center gap-0 xl:gap-1 flex-1 min-w-0">
             {navLinks.map((item) =>
               item.dropdown ? (
                 <MegaMenuDropdown key={item.href} item={item} headerRef={headerRef} />
@@ -731,7 +731,7 @@ export default function Header() {
                 <Link
                   key={item.href}
                   to={item.href}
-                  className="px-2 xl:px-3 py-2 text-[11px] xl:text-xs font-semibold tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
+                  className="px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {item.label}
@@ -743,7 +743,7 @@ export default function Header() {
           {/* Phone CTA — prominent with pulse */}
           <a
             href="tel:+18669964308"
-            className="hidden lg:inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-5 py-2.5 rounded-full text-sm font-bold tracking-wide transition-all whitespace-nowrap shrink-0 ml-4 relative"
+            className="hidden lg:inline-flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white px-3 xl:px-5 py-2 xl:py-2.5 rounded-full text-xs xl:text-sm font-bold tracking-wide transition-all whitespace-nowrap shrink-0 ml-2 xl:ml-4 relative"
             style={{ fontFamily: 'var(--font-body)', boxShadow: '0 2px 12px rgba(160,82,45,0.35)' }}
             aria-label="Call us at (866) 996-4308"
           >
