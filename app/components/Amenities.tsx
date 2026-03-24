@@ -73,15 +73,14 @@ const amenities = [
 export default function Amenities() {
   return (
     <section
-      className="py-20 lg:py-28 bg-white relative overflow-hidden"
+      className="py-20 lg:py-28 bg-warm-bg relative overflow-hidden"
       aria-labelledby="amenities-heading"
     >
-      {/* Subtle background pattern */}
+      {/* Soft radial gradient accent */}
       <div
-        className="absolute inset-0 opacity-[0.08] pointer-events-none"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath d='M60 10 L70 50 L60 40 L50 50 Z' fill='%23a0522d'/%3E%3C/svg%3E")`,
-          backgroundSize: '120px 120px',
+          background: 'radial-gradient(ellipse at 20% 0%, rgba(160,82,45,0.06) 0%, transparent 50%), radial-gradient(ellipse at 80% 100%, rgba(160,82,45,0.04) 0%, transparent 50%)',
         }}
       />
 
