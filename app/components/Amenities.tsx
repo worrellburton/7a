@@ -73,15 +73,15 @@ const amenities = [
 export default function Amenities() {
   return (
     <section
-      className="py-20 lg:py-28 text-white relative overflow-hidden"
-      style={{ backgroundColor: 'var(--color-primary)' }}
+      className="py-20 lg:py-28 relative overflow-hidden"
+      style={{ backgroundColor: 'var(--color-warm-bg)' }}
       aria-labelledby="amenities-heading"
     >
       {/* Subtle background pattern */}
       <div
         className="absolute inset-0 opacity-[0.08] pointer-events-none"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath d='M60 10 L70 50 L60 40 L50 50 Z' fill='white'/%3E%3C/svg%3E")`,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath d='M60 10 L70 50 L60 40 L50 50 Z' fill='%23a0522d'/%3E%3C/svg%3E")`,
           backgroundSize: '120px 120px',
         }}
       />
@@ -89,14 +89,14 @@ export default function Amenities() {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
           <p
-            className="text-xs font-semibold tracking-[0.2em] uppercase text-white/70 mb-4"
+            className="section-label justify-center mb-4"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             A Boutique Treatment Experience
           </p>
           <h2
             id="amenities-heading"
-            className="text-3xl lg:text-5xl font-bold tracking-tight"
+            className="text-3xl lg:text-5xl font-bold tracking-tight text-foreground"
           >
             Welcome to Your Home Away From Home
           </h2>
@@ -105,7 +105,7 @@ export default function Amenities() {
         <div className="grid md:grid-cols-3 gap-10 lg:gap-16">
           {amenities.map((amenity) => (
             <div key={amenity.title} className="flex gap-4">
-              <div className="flex-shrink-0 text-white/80">{amenity.icon}</div>
+              <div className="flex-shrink-0 text-primary">{amenity.icon}</div>
               <div>
                 <h3
                   className="text-lg font-bold mb-2"
@@ -114,7 +114,7 @@ export default function Amenities() {
                   {amenity.title}
                 </h3>
                 <p
-                  className="text-white/70 text-sm leading-relaxed"
+                  className="text-foreground/70 text-sm leading-relaxed"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {amenity.description}

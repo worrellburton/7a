@@ -86,7 +86,7 @@ export default function GoogleReviews() {
 
   return (
     <section
-      className="py-20 lg:py-28 bg-[var(--color-warm-bg)]"
+      className="py-20 lg:py-28 bg-white"
       aria-labelledby="reviews-heading"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

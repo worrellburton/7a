@@ -433,65 +433,66 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
         </svg>
       </button>
 
-      {/* Mega menu panel */}
+      {/* Full-width mega menu panel */}
       <div
-        className={`absolute top-full left-1/2 -translate-x-1/2 pt-4 z-50 transition-all duration-200 ${
+        className={`fixed top-20 lg:top-24 left-0 right-0 z-50 transition-all duration-200 ${
           open ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'
         }`}
-        style={{ minWidth: cols > 1 ? `${cols * 280}px` : '320px' }}
       >
-        <div className="bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden">
-          {/* Header */}
-          <div className="px-6 py-4 bg-gradient-to-r from-warm-bg to-white border-b border-gray-100">
-            <Link
-              href={item.href}
-              className="text-sm font-bold text-foreground hover:text-primary transition-colors tracking-wider uppercase"
-              onClick={() => setOpen(false)}
-            >
-              {item.label} Overview →
-            </Link>
-            {item.description && (
-              <p className="text-xs text-foreground/50 mt-1" style={{ fontFamily: 'var(--font-body)' }}>{item.description}</p>
-            )}
-          </div>
+        <div className="bg-white shadow-2xl border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Header */}
+            <div className="py-5 border-b border-gray-100">
+              <Link
+                href={item.href}
+                className="text-sm font-bold text-foreground hover:text-primary transition-colors tracking-wider uppercase"
+                onClick={() => setOpen(false)}
+              >
+                {item.label} Overview →
+              </Link>
+              {item.description && (
+                <p className="text-xs text-foreground/50 mt-1" style={{ fontFamily: 'var(--font-body)' }}>{item.description}</p>
+              )}
+            </div>
 
-          {/* Items grid */}
-          <div className={`grid gap-0 p-2`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-            {item.dropdown?.map((sub) => {
-              const Icon = iconMap[sub.label];
-              return (
-                <Link
-                  key={sub.href}
-                  href={sub.href}
-                  className="group flex items-start gap-3 px-4 py-3 rounded-lg hover:bg-warm-bg transition-colors"
-                  onClick={() => setOpen(false)}
-                >
-                  {Icon && (
-                    <div className="shrink-0 w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors mt-0.5">
-                      <Icon className="w-4.5 h-4.5 text-primary" />
-                    </div>
-                  )}
-                  <div>
-                    <div className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
-                      {sub.label}
-                    </div>
-                    {sub.description && (
-                      <p className="text-xs text-foreground/50 mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
-                        {sub.description}
-                      </p>
+            {/* Items grid — always use 3 or 4 columns for full width */}
+            <div className={`grid gap-x-6 gap-y-1 py-6`} style={{ gridTemplateColumns: `repeat(${Math.min(cols + 1, 4)}, 1fr)` }}>
+              {item.dropdown?.map((sub) => {
+                const Icon = iconMap[sub.label];
+                return (
+                  <Link
+                    key={sub.href}
+                    href={sub.href}
+                    className="group flex items-start gap-3 px-4 py-3 rounded-lg hover:bg-warm-bg transition-colors"
+                    onClick={() => setOpen(false)}
+                  >
+                    {Icon && (
+                      <div className="shrink-0 w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors mt-0.5">
+                        <Icon className="w-4.5 h-4.5 text-primary" />
+                      </div>
                     )}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+                    <div>
+                      <div className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                        {sub.label}
+                      </div>
+                      {sub.description && (
+                        <p className="text-xs text-foreground/50 mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
+                          {sub.description}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
 
-          {/* Footer CTA */}
-          <div className="px-6 py-3 bg-warm-bg/50 border-t border-gray-100">
-            <a href="tel:+18669964308" className="flex items-center gap-2 text-xs text-primary font-semibold hover:text-primary-dark transition-colors">
-              <PhoneIcon className="w-3.5 h-3.5" />
-              Questions? Call (866) 996-4308
-            </a>
+            {/* Footer CTA */}
+            <div className="py-4 border-t border-gray-100">
+              <a href="tel:+18669964308" className="flex items-center gap-2 text-xs text-primary font-semibold hover:text-primary-dark transition-colors">
+                <PhoneIcon className="w-3.5 h-3.5" />
+                Questions? Call (866) 996-4308
+              </a>
+            </div>
           </div>
         </div>
       </div>

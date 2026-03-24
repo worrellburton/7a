@@ -45,7 +45,7 @@ const services = [
 
 export default function TreatmentServices() {
   return (
-    <section className="py-20 lg:py-28 bg-white" aria-labelledby="treatment-heading">
+    <section className="py-20 lg:py-28 bg-warm-bg" aria-labelledby="treatment-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
           <p className="section-label mb-4">Our Treatment Services</p>
