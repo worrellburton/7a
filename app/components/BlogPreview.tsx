@@ -27,7 +27,7 @@ export default function BlogPreview() {
           {/* Episode 1 — Published */}
           <Link
             to="/who-we-are/blog/when-drinking-stops-working"
-            className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group block no-underline"
+            className="bg-white rounded-xl overflow-hidden shadow-sm group block no-underline transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_8px_30px_rgba(160,82,45,0.2)]"
           >
             <div className="relative">
               <img src="/7a/images/resident-reading-window.jpg" alt="When Drinking Stops Working" className="h-48 w-full object-cover" loading="lazy" />
@@ -61,7 +61,7 @@ export default function BlogPreview() {
 
           {/* Episode 2 — Coming Soon (Glowing) */}
           <div
-            className="relative rounded-xl overflow-hidden shadow-sm block"
+            className="relative rounded-xl overflow-hidden shadow-sm block transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_8px_30px_rgba(160,82,45,0.2)] cursor-default"
             style={{
               background: 'linear-gradient(135deg, rgba(160,82,45,0.08), rgba(160,82,45,0.03))',
             }}
