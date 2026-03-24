@@ -416,6 +416,14 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
     timeout.current = setTimeout(() => setOpen(false), 200);
   };
 
+  // Close on scroll so users can scroll past the menu
+  useEffect(() => {
+    if (!open) return;
+    const handleScroll = () => setOpen(false);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [open]);
+
   useEffect(() => {
     return () => {
       if (timeout.current) clearTimeout(timeout.current);
@@ -440,9 +448,18 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
         </svg>
       </button>
 
-      {/* Full-width mega menu panel — positioned below header */}
+      {/* Backdrop — only covers area below header, allows scroll-through */}
       {open && (
-        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" style={{ backgroundColor: 'rgba(0,0,0,0.15)', transition: 'background-color 0.3s ease' }} />
+        <div
+          className="fixed left-0 right-0 bottom-0 z-40"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
+          style={{
+            top: (headerRef.current?.getBoundingClientRect().bottom ?? 68) + 'px',
+            backgroundColor: 'rgba(0,0,0,0.15)',
+            transition: 'background-color 0.3s ease',
+          }}
+        />
       )}
       <div
         className={`fixed left-0 right-0 z-50 transition-all duration-300 ease-out ${
