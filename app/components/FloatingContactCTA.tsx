@@ -107,13 +107,13 @@ function StickyPhoneBar() {
     >
       <a
         href="tel:+18669964308"
-        className="flex items-center justify-center gap-2 bg-primary text-white py-3.5 font-semibold text-sm tracking-wide shadow-lg"
+        className="flex items-center justify-center gap-3 mx-auto mb-3 max-w-xs bg-primary text-white py-3 px-8 font-normal text-sm tracking-wider rounded-full shadow-[0_4px_20px_rgba(160,82,45,0.4)]"
         style={{ fontFamily: 'var(--font-body)' }}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
         </svg>
-        Call (866) 996-4308
+        <span className="font-light tracking-widest">(866) 996-4308</span>
       </a>
     </div>
   );
