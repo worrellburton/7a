@@ -424,7 +424,7 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
     <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
       <button
         type="button"
-        className="flex items-center gap-1 text-xs xl:text-sm font-medium tracking-wider uppercase transition-colors text-foreground hover:text-primary"
+        className="flex items-center gap-1 text-xs xl:text-sm font-medium tracking-wider uppercase transition-colors text-foreground hover:text-primary whitespace-nowrap"
         aria-expanded={open}
       >
         {item.label}
@@ -532,7 +532,7 @@ export default function Header() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="text-xs xl:text-sm font-medium tracking-wider uppercase transition-colors text-foreground hover:text-primary"
+                  className="text-xs xl:text-sm font-medium tracking-wider uppercase transition-colors text-foreground hover:text-primary whitespace-nowrap"
                 >
                   {item.label}
                 </Link>
