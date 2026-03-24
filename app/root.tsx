@@ -10,7 +10,6 @@ import TopBar from "~/components/TopBar";
 import Header from "~/components/Header";
 import Footer from "~/components/Footer";
 import GoogleReviewsBadge from "~/components/GoogleReviewsBadge";
-import ThemeToggle from "~/components/ThemeToggle";
 import FloatingContactCTA from "~/components/FloatingContactCTA";
 import "./globals.css";
 
@@ -140,7 +139,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <main className="flex-1">{children}</main>
         <Footer />
         <GoogleReviewsBadge />
-        <ThemeToggle />
         <FloatingContactCTA />
         <ScrollRestoration />
         <Scripts />

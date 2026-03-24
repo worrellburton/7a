@@ -394,6 +394,7 @@ const navLinks: NavItem[] = [
   { label: 'Tour', href: '/tour' },
   { label: 'Admissions', href: '/admissions' },
   { label: 'Contact', href: '/contact' },
+  { label: 'Blog', href: '/who-we-are/blog' },
 ];
 
 /* ── Mega Menu Dropdown ────────────────────────────────────────────── */
@@ -558,6 +559,27 @@ export default function Header() {
             {navLinks.map((item) =>
               item.dropdown ? (
                 <MegaMenuDropdown key={item.href} item={item} />
+              ) : item.label === 'Blog' ? (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="relative px-2 xl:px-3 py-2 flex items-center gap-1.5 text-[11px] xl:text-xs font-semibold tracking-[0.08em] uppercase text-primary hover:text-primary-dark transition-colors whitespace-nowrap group"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                  aria-label="Blog"
+                >
+                  <span className="relative flex items-center justify-center w-6 h-6">
+                    {/* Glow ring */}
+                    <span className="absolute inset-0 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors" />
+                    <span className="absolute inset-[-2px] rounded-full animate-pulse opacity-40 bg-primary/10" />
+                    <svg className="relative w-3.5 h-3.5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="8" y1="13" x2="16" y2="13" />
+                      <line x1="8" y1="17" x2="14" y2="17" />
+                    </svg>
+                  </span>
+                  {item.label}
+                </Link>
               ) : (
                 <Link
                   key={item.href}
