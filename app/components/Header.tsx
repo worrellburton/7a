@@ -423,8 +423,9 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
     };
   }, []);
 
-  // Calculate columns: up to 4 items per column
-  const cols = item.dropdown ? Math.min(Math.ceil(item.dropdown.length / 4), 3) : 1;
+  // Calculate columns: use one row if 4 or fewer items, otherwise up to 4 items per column
+  const itemCount = item.dropdown?.length ?? 0;
+  const cols = itemCount <= 4 ? itemCount : Math.min(Math.ceil(itemCount / 4), 3);
 
   return (
     <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
@@ -490,7 +491,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
             </div>
 
             {/* Items grid */}
-            <div className={`grid gap-x-4 gap-y-0.5 py-4`} style={{ gridTemplateColumns: `repeat(${Math.min(cols + 1, 4)}, 1fr)` }}>
+            <div className={`grid gap-x-4 gap-y-0.5 py-4`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
               {item.dropdown?.map((sub, idx) => {
                 const Icon = iconMap[sub.label];
                 return (
