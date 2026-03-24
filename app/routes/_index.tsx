@@ -13,6 +13,7 @@ import ContactForm from "~/components/ContactForm";
 import TraumAddictionSection from "~/components/TraumAddictionSection";
 import AboutSection from "~/components/AboutSection";
 import FAQSection from "~/components/FAQSection";
+import GoogleReviews from "~/components/GoogleReviews";
 import StickyMobileCTA from "~/components/StickyMobileCTA";
 
 const structuredData = {
@@ -197,6 +198,7 @@ export default function Home() {
       <SevenArrowsExperience />
       <Amenities />
       <StatsSection />
+      <GoogleReviews />
       <InsuranceVerification />
       <ContactForm />
       <TraumAddictionSection />
