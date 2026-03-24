@@ -108,13 +108,25 @@ export default function TreatmentServices() {
                     >
                       {service.title}
                     </span>
-                    <span
-                      className="block h-[2px] bg-primary transition-all duration-500 mt-2"
+                    {/* Native American arrow pointing right */}
+                    <svg
+                      className="mt-2 text-primary transition-all duration-500"
                       style={{
-                        width: isHovered ? '3rem' : '1.5rem',
+                        width: isHovered ? '2.5rem' : '1.5rem',
                         opacity: isHovered ? 1 : 0.6,
                       }}
-                    />
+                      viewBox="0 0 40 12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    >
+                      <line x1="0" y1="6" x2="32" y2="6" />
+                      <path d="M28 2 L36 6 L28 10" />
+                      {/* Feather notches */}
+                      <line x1="6" y1="3" x2="6" y2="9" opacity="0.4" />
+                      <line x1="10" y1="3" x2="10" y2="9" opacity="0.4" />
+                    </svg>
                   </div>
                 </div>
               </Link>

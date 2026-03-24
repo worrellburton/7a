@@ -489,11 +489,11 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
               )}
             </div>
 
-            {/* Items grid */}
-            {itemCount <= 4 ? (
-              /* Compact layout: icons above, centered, bigger icons */
+            {/* Items grid — layout varies by menu */}
+            {item.label === 'Treatment' ? (
+              /* Treatment: 4 icon cards in a row */
               <div>
-                <div className={`grid gap-x-4 py-6`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+                <div className="grid grid-cols-4 gap-4 py-6">
                   {item.dropdown?.map((sub, idx) => {
                     const Icon = iconMap[sub.label];
                     return (
@@ -508,36 +508,137 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                           transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
                           backgroundColor: 'rgba(160,82,45,0.03)',
                         }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.07)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.03)';
-                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.07)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.03)'; }}
                       >
                         {Icon && (
                           <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-3" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
                             <Icon className="w-6 h-6 text-primary" />
                           </div>
                         )}
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>
-                          {sub.label}
-                        </div>
-                        {sub.description && (
-                          <p className="text-[11px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.45)' }}>
-                            {sub.description}
-                          </p>
-                        )}
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                        {sub.description && <p className="text-[11px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.45)' }}>{sub.description}</p>}
                       </Link>
                     );
                   })}
                 </div>
-                <p className="text-center text-[11px] tracking-[0.15em] uppercase pb-3" style={{ fontFamily: 'var(--font-body)', color: 'rgba(160,82,45,0.6)' }}>
-                  Here for every step of the way
-                </p>
+                <p className="text-center text-[11px] tracking-[0.15em] uppercase pb-3" style={{ fontFamily: 'var(--font-body)', color: 'rgba(160,82,45,0.6)' }}>Here for every step of the way</p>
+              </div>
+            ) : item.label === 'Who We Are' ? (
+              /* Who We Are: Featured "Meet Our Team" + 3 cols of 2 for the rest */
+              <div className="py-5">
+                <div className="grid grid-cols-4 gap-4">
+                  {/* Featured: Meet Our Team */}
+                  {item.dropdown?.slice(0, 1).map((sub, idx) => {
+                    const Icon = iconMap[sub.label];
+                    return (
+                      <Link
+                        key={sub.href}
+                        to={sub.href}
+                        className="group row-span-2 flex flex-col items-center justify-center text-center px-6 py-8 rounded-xl border border-primary/15 transition-all duration-200 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5"
+                        onClick={() => setOpen(false)}
+                        style={{ backgroundColor: 'rgba(160,82,45,0.05)', opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: 'all 0.3s ease-out 0.05s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.05)'; }}
+                      >
+                        {Icon && (
+                          <div className="w-14 h-14 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-4" style={{ backgroundColor: 'rgba(160,82,45,0.12)' }}>
+                            <Icon className="w-7 h-7 text-primary" />
+                          </div>
+                        )}
+                        <div className="text-[15px] font-bold group-hover:text-primary transition-colors mb-1" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                        {sub.description && <p className="text-[11px] leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
+                      </Link>
+                    );
+                  })}
+                  {/* Rest: 3 cols of 2 rows */}
+                  {item.dropdown?.slice(1).map((sub, idx) => {
+                    const Icon = iconMap[sub.label];
+                    return (
+                      <Link
+                        key={sub.href}
+                        to={sub.href}
+                        className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
+                        onClick={() => setOpen(false)}
+                        style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + (idx + 1) * 0.03}s` }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                      >
+                        {Icon && (
+                          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                            <Icon className="w-4 h-4 text-primary" />
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                          {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : item.label === 'What We Treat' ? (
+              /* What We Treat: 4 columns of 2 rows */
+              <div className="grid grid-cols-4 gap-x-4 gap-y-1 py-5">
+                {item.dropdown?.map((sub, idx) => {
+                  const Icon = iconMap[sub.label];
+                  return (
+                    <Link
+                      key={sub.href}
+                      to={sub.href}
+                      className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
+                      onClick={() => setOpen(false)}
+                      style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s` }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      {Icon && (
+                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                          <Icon className="w-4 h-4 text-primary" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                        {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : item.label === 'Our Program' ? (
+              /* Our Program: icon cards like Treatment but in a 4-col grid with wrapping */
+              <div className="grid grid-cols-4 gap-4 py-6">
+                {item.dropdown?.map((sub, idx) => {
+                  const Icon = iconMap[sub.label];
+                  return (
+                    <Link
+                      key={sub.href}
+                      to={sub.href}
+                      className="group flex flex-col items-center text-center px-4 py-4 rounded-xl border border-transparent transition-all duration-200 hover:border-primary/20 hover:shadow-md hover:-translate-y-0.5"
+                      onClick={() => setOpen(false)}
+                      style={{
+                        opacity: open ? 1 : 0,
+                        transform: open ? 'translateY(0)' : 'translateY(8px)',
+                        transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
+                        backgroundColor: 'rgba(160,82,45,0.03)',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.07)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.03)'; }}
+                    >
+                      {Icon && (
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                          <Icon className="w-5 h-5 text-primary" />
+                        </div>
+                      )}
+                      <div className="text-[12px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                      {sub.description && <p className="text-[10px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.45)' }}>{sub.description}</p>}
+                    </Link>
+                  );
+                })}
               </div>
             ) : (
-              /* Standard layout: icons beside text */
+              /* Fallback: standard grid */
               <div className={`grid gap-x-4 gap-y-0.5 py-4`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
                 {item.dropdown?.map((sub, idx) => {
                   const Icon = iconMap[sub.label];
@@ -547,17 +648,9 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                       to={sub.href}
                       className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
                       onClick={() => setOpen(false)}
-                      style={{
-                        opacity: open ? 1 : 0,
-                        transform: open ? 'translateY(0)' : 'translateY(8px)',
-                        transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
+                      style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s` }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                     >
                       {Icon && (
                         <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
@@ -565,14 +658,8 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                         </div>
                       )}
                       <div>
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>
-                          {sub.label}
-                        </div>
-                        {sub.description && (
-                          <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>
-                            {sub.description}
-                          </p>
-                        )}
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                        {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
                       </div>
                     </Link>
                   );
