@@ -399,7 +399,6 @@ const navLinks: NavItem[] = [
   { label: 'Tour', href: '/tour' },
   { label: 'Admissions', href: '/admissions' },
   { label: 'Contact', href: '/contact' },
-  { label: 'Blog', href: '/who-we-are/blog' },
 ];
 
 /* ── Mega Menu Dropdown ────────────────────────────────────────────── */
@@ -624,35 +623,10 @@ export default function Header() {
             {navLinks.map((item) =>
               item.dropdown ? (
                 <MegaMenuDropdown key={item.href} item={item} headerRef={headerRef} />
-              ) : item.label === 'Blog' ? (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  className="relative px-2 xl:px-3 py-2 flex items-center justify-center group"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                  aria-label="Investigative Series"
-                  title="The Recovery Roadmap — Investigative Series"
-                >
-                  <span className="relative flex items-center justify-center w-8 h-8">
-                    {/* Glow ring */}
-                    <span className="absolute inset-0 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors" />
-                    <span className="absolute inset-[-3px] rounded-full animate-pulse opacity-30 bg-primary/15" />
-                    <svg className="relative w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      {/* Open magazine / newspaper */}
-                      <rect x="2" y="4" width="20" height="16" rx="2" />
-                      <line x1="12" y1="4" x2="12" y2="20" />
-                      <line x1="5" y1="8" x2="10" y2="8" opacity="0.7" />
-                      <line x1="5" y1="11" x2="10" y2="11" opacity="0.5" />
-                      <line x1="5" y1="14" x2="9" y2="14" opacity="0.4" />
-                      <line x1="14" y1="8" x2="19" y2="8" opacity="0.7" />
-                      <line x1="14" y1="11" x2="19" y2="11" opacity="0.5" />
-                    </svg>
-                  </span>
-                </Link>
               ) : (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  to={item.href}
                   className="px-2 xl:px-3 py-2 text-[11px] xl:text-xs font-semibold tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
