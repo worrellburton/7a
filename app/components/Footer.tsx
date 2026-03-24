@@ -26,7 +26,7 @@ export default function Footer() {
               {['Who We Are', 'Treatment', 'Our Program', 'Admissions'].map((item) => (
                 <li key={item}>
                   <Link
-                    href={`/${item.toLowerCase().replace(/\s+/g, '-')}`}
+                    to={`/${item.toLowerCase().replace(/\s+/g, '-')}`}
                     className="text-white/60 text-sm hover:text-primary transition-colors"
                   >
                     {item}
@@ -43,7 +43,7 @@ export default function Footer() {
               {['Alcohol Addiction', 'Drug Addiction', 'Dual Diagnosis', 'Trauma'].map((item) => (
                 <li key={item}>
                   <Link
-                    href={`/what-we-treat/${item.toLowerCase().replace(/\s+/g, '-')}`}
+                    to={`/what-we-treat/${item.toLowerCase().replace(/\s+/g, '-')}`}
                     className="text-white/60 text-sm hover:text-primary transition-colors"
                   >
                     {item}

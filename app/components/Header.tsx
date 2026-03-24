@@ -477,7 +477,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
             {/* Header */}
             <div className="py-4 border-b" style={{ borderColor: 'rgba(0,0,0,0.06)' }}>
               <Link
-                href={item.href}
+                to={item.href}
                 className="text-xs font-bold hover:text-primary transition-colors tracking-wider uppercase"
                 style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}
                 onClick={() => setOpen(false)}
@@ -496,7 +496,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                 return (
                   <Link
                     key={sub.href}
-                    href={sub.href}
+                    to={sub.href}
                     className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
                     onClick={() => setOpen(false)}
                     style={{
@@ -679,7 +679,7 @@ export default function Header() {
                             return (
                               <Link
                                 key={sub.href}
-                                href={sub.href}
+                                to={sub.href}
                                 className="flex items-center gap-2.5 px-5 py-2.5 text-sm text-foreground hover:text-primary border-b border-foreground/5 last:border-b-0"
                                 role="menuitem"
                                 onClick={() => setMobileMenuOpen(false)}
@@ -700,7 +700,7 @@ export default function Header() {
                     </>
                   ) : (
                     <Link
-                      href={item.href}
+                      to={item.href}
                       className="block px-3 py-2.5 text-xs font-semibold tracking-wider uppercase text-foreground hover:text-primary"
                       style={{ fontFamily: 'var(--font-body)' }}
                       role="menuitem"

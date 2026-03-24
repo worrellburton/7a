@@ -88,7 +88,7 @@ export default function OurProgramPage() {
             {programs.map((program) => (
               <Link
                 key={program.href}
-                href={program.href}
+                to={program.href}
                 className="group bg-warm-card rounded-2xl p-8 shadow-sm hover:shadow-md transition-all duration-300"
               >
                 <h3 className="text-xl font-bold text-foreground mb-3 group-hover:text-[#a0522d] transition-colors">
@@ -131,7 +131,7 @@ export default function OurProgramPage() {
               Call (866) 996-4308
             </a>
             <Link
-              href="/contact"
+              to="/contact"
               className="btn-primary"
             >
               Contact Us Online

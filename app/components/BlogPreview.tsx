@@ -15,7 +15,7 @@ export default function BlogPreview() {
             </h2>
           </div>
           <Link
-            href="/who-we-are/blog"
+            to="/who-we-are/blog"
             className="hidden sm:inline-flex text-sm font-semibold text-primary hover:text-primary-dark transition-colors"
             style={{ fontFamily: 'var(--font-body)' }}
           >
@@ -26,7 +26,7 @@ export default function BlogPreview() {
         <div className="grid md:grid-cols-2 gap-6">
           {/* Episode 1 — Published */}
           <Link
-            href="/who-we-are/blog/when-drinking-stops-working"
+            to="/who-we-are/blog/when-drinking-stops-working"
             className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group block no-underline"
           >
             <div className="relative">
@@ -116,7 +116,7 @@ export default function BlogPreview() {
 
         <div className="sm:hidden text-center mt-6">
           <Link
-            href="/who-we-are/blog"
+            to="/who-we-are/blog"
             className="text-sm font-semibold text-primary hover:text-primary-dark transition-colors"
             style={{ fontFamily: 'var(--font-body)' }}
           >

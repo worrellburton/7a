@@ -23,7 +23,7 @@ export default function BlogPage() {
 
           {/* Episode 1 — Published */}
           <Link
-            href="/who-we-are/blog/when-drinking-stops-working"
+            to="/who-we-are/blog/when-drinking-stops-working"
             className="flex flex-col md:flex-row bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group no-underline mb-8"
           >
             <div className="relative md:w-80 shrink-0">

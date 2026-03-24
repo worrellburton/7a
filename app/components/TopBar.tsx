@@ -31,7 +31,7 @@ export default function TopBar() {
           </a>
         </div>
         <Link
-          href="/patient-portal"
+          to="/patient-portal"
           className="font-semibold tracking-widest text-xs hover:opacity-80 transition-opacity uppercase"
         >
           Patient Portal
