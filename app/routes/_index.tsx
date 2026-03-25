@@ -192,20 +192,20 @@ export default function Home() {
       />
       <Hero />
       <TrustBadges />
+      <StatsSection />
       <ProgramSection />
       <TreatmentServices />
-      <InsuranceCarousel />
       <CampusTour />
+      <InsuranceCarousel />
+      <TraumAddictionSection />
+      <GoogleReviews />
       <SevenArrowsExperience />
       <Amenities />
-      <StatsSection />
-      <GoogleReviews />
       <InsuranceVerification />
-      <ContactForm />
-      <TraumAddictionSection />
       <AboutSection />
-      <FAQSection />
       <BlogPreview />
+      <FAQSection />
+      <ContactForm />
       <StickyMobileCTA />
     </>
   );

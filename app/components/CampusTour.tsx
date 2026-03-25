@@ -2,63 +2,45 @@ import { Link } from '@remix-run/react';
 
 export default function CampusTour() {
   return (
-    <section className="py-20 lg:py-28 bg-dark-section" aria-labelledby="campus-heading">
+    <section className="py-20 lg:py-28 bg-white" aria-labelledby="campus-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
-          <div>
-            <p className="section-label mb-4" style={{ color: 'var(--color-accent)' }}>Explore</p>
-            <h2
-              id="campus-heading"
-              className="text-3xl lg:text-5xl font-bold tracking-tight text-white leading-tight"
-            >
-              Our Stunning Campus
-            </h2>
-          </div>
-          <div>
-            <p
-              className="text-white/70 leading-relaxed"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              The staff at our Arizona rehab center believe in comprehensive treatment
-              of the mind, body, and spirit. Our holistic approach guides clients to
-              begin a fresh chapter in their lives.
-            </p>
-          </div>
+        <div className="text-center mb-14 max-w-2xl mx-auto">
+          <p className="section-label justify-center mb-4">Explore</p>
+          <h2
+            id="campus-heading"
+            className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground leading-tight mb-4"
+          >
+            Our Stunning Campus
+          </h2>
+          <p
+            className="text-foreground/60 leading-relaxed"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Nestled at the base of the Swisshelm Mountains, our facility offers
+            a serene environment for mind, body, and spirit healing.
+          </p>
         </div>
 
-        <div className="mt-12 grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="rounded-2xl overflow-hidden aspect-[4/3]">
-            <img
-              src="/7a/images/facility-exterior-mountains.jpg"
-              alt="Facility exterior with mountains"
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="rounded-2xl overflow-hidden aspect-[4/3]">
-            <img
-              src="/7a/images/covered-porch-desert-view.jpg"
-              alt="Covered porch with desert view"
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="rounded-2xl overflow-hidden aspect-[4/3]">
-            <img
-              src="/7a/images/bedroom-shared.jpg"
-              alt="Shared bedroom"
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="rounded-2xl overflow-hidden aspect-[4/3]">
-            <img
-              src="/7a/images/group-gathering-pavilion.jpg"
-              alt="Group gathering under pavilion at dusk"
-              className="w-full h-full object-cover"
-            />
-          </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { src: '/7a/images/facility-exterior-mountains.jpg', alt: 'Facility exterior with mountains' },
+            { src: '/7a/images/covered-porch-desert-view.jpg', alt: 'Covered porch with desert view' },
+            { src: '/7a/images/bedroom-shared.jpg', alt: 'Shared bedroom' },
+            { src: '/7a/images/group-gathering-pavilion.jpg', alt: 'Group gathering under pavilion at dusk' },
+          ].map((img) => (
+            <div key={img.alt} className="rounded-2xl overflow-hidden aspect-[4/3] bg-warm-bg">
+              <img
+                src={img.src}
+                alt={img.alt}
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                loading="lazy"
+              />
+            </div>
+          ))}
         </div>
 
         <div className="mt-12 text-center">
-          <Link to="/tour" className="btn-dark">
+          <Link to="/tour" className="btn-outline">
             Tour Campus
           </Link>
         </div>

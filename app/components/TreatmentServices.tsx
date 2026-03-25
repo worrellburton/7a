@@ -1,137 +1,105 @@
 import { Link } from '@remix-run/react';
-import { useState } from 'react';
 
 const services = [
   {
     title: 'Detoxification',
-    href: '/treatment#detox',
+    href: '/treatment/detoxification',
     image: '/7a/images/embrace-connection.jpg',
+    description: 'Safe, medically supervised detox',
   },
   {
-    title: 'Inpatient',
-    href: '/treatment#inpatient',
+    title: 'Residential Inpatient',
+    href: '/treatment/residential-inpatient',
     image: '/7a/images/bedroom-shared.jpg',
+    description: '30–90 day residential programs',
   },
   {
     title: 'Dual-Diagnosis',
-    href: '/treatment#dual-diagnosis',
+    href: '/what-we-treat/dual-diagnosis',
     image: '/7a/images/individual-therapy-session.jpg',
+    description: 'Co-occurring mental health care',
   },
   {
     title: 'Holistic Therapies',
-    href: '/treatment#holistic',
+    href: '/our-program/holistic-approaches',
     image: '/7a/images/sound-healing-session.jpg',
+    description: 'Sound healing, meditation & more',
   },
   {
-    title: 'Equine Experience',
-    href: '/treatment#equine',
+    title: 'Equine Therapy',
+    href: '/our-program/equine-assisted',
     image: '/7a/images/horses-grazing.jpg',
+    description: 'Healing through horse connection',
   },
   {
     title: 'Evidence-Based',
-    href: '/treatment#evidence-based',
+    href: '/our-program/evidence-based',
     image: '/7a/images/group-therapy-room.jpg',
+    description: 'CBT, DBT, EMDR & proven methods',
   },
   {
-    title: 'Indigenous',
-    href: '/treatment#indigenous',
+    title: 'Indigenous Healing',
+    href: '/our-program/indigenous-approach',
     image: '/7a/images/campfire-ceremony-circle.webp',
+    description: 'Ancient wisdom traditions',
   },
   {
     title: 'Aftercare & Alumni',
-    href: '/treatment#aftercare',
+    href: '/treatment/alumni-aftercare',
     image: '/7a/images/group-gathering-pavilion.jpg',
+    description: 'Lifelong recovery support',
   },
 ];
 
 export default function TreatmentServices() {
-  const [hovered, setHovered] = useState<string | null>(null);
-
   return (
     <section className="py-20 lg:py-28 bg-warm-bg" aria-labelledby="treatment-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-12">
-          <p className="section-label mb-4">Our Treatment Services</p>
+        <div className="text-center mb-14 max-w-2xl mx-auto">
+          <p className="section-label justify-center mb-4">Our Treatment Services</p>
           <h2
             id="treatment-heading"
-            className="text-3xl lg:text-5xl font-bold tracking-tight text-foreground leading-tight mb-6"
+            className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground leading-tight mb-4"
           >
-            Unwind. Restore. Heal.
+            Comprehensive Care for Recovery
           </h2>
           <p
-            className="text-foreground/70 leading-relaxed max-w-3xl"
+            className="text-foreground/60 leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Seven Arrows Recovery combines evidence-based modalities with holistic therapy.
-            We offer comprehensive services that value the mind, body and spirit and provide
-            personalized support that&apos;s tailored to specific and unique needs. We also
-            work with local providers to implement a continuum of care necessary for
-            lifelong sobriety.
+            Seven Arrows combines evidence-based modalities with holistic therapy,
+            offering personalized support tailored to your unique needs.
           </p>
         </div>
 
-        <div
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6"
-          onMouseLeave={() => setHovered(null)}
-        >
-          {services.map((service) => {
-            const isHovered = hovered === service.title;
-            const isFaded = hovered !== null && !isHovered;
-
-            return (
-              <Link
-                key={service.title}
-                to={service.href}
-                className="group block transition-all duration-500"
-                style={{
-                  opacity: isFaded ? 0.35 : 1,
-                  filter: isFaded ? 'grayscale(0.4)' : 'none',
-                }}
-                onMouseEnter={() => setHovered(service.title)}
-              >
-                <div className="relative rounded-lg overflow-hidden aspect-square">
-                  <img
-                    src={service.image}
-                    alt={service.title}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                    loading="lazy"
-                  />
-                  {/* Gradient overlay + title on image */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <span
-                      className="text-xs font-semibold tracking-[0.15em] uppercase text-white drop-shadow-lg transition-all duration-500 inline-block"
-                      style={{
-                        fontFamily: 'var(--font-body)',
-                        transform: isHovered ? 'translateY(-4px)' : 'translateY(0)',
-                      }}
-                    >
-                      {service.title}
-                    </span>
-                    {/* Native American arrow pointing right */}
-                    <svg
-                      className="mt-2 text-primary transition-all duration-500"
-                      style={{
-                        width: isHovered ? '2.5rem' : '1.5rem',
-                        opacity: isHovered ? 1 : 0.6,
-                      }}
-                      viewBox="0 0 40 12"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    >
-                      <line x1="0" y1="6" x2="32" y2="6" />
-                      <path d="M28 2 L36 6 L28 10" />
-                      {/* Feather notches */}
-                      <line x1="6" y1="3" x2="6" y2="9" opacity="0.4" />
-                      <line x1="10" y1="3" x2="10" y2="9" opacity="0.4" />
-                    </svg>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-5">
+          {services.map((service) => (
+            <Link
+              key={service.title}
+              to={service.href}
+              className="group block bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-1 transition-all duration-300"
+            >
+              <div className="aspect-square overflow-hidden">
+                <img
+                  src={service.image}
+                  alt={service.title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  loading="lazy"
+                />
+              </div>
+              <div className="p-4">
+                <h3 className="text-sm font-bold text-foreground mb-1 group-hover:text-primary transition-colors">
+                  {service.title}
+                </h3>
+                <p
+                  className="text-xs text-foreground/50 leading-relaxed"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {service.description}
+                </p>
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
     </section>
