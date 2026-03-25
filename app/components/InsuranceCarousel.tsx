@@ -62,13 +62,13 @@ export default function InsuranceCarousel() {
             We Work With Most Major Insurance
           </h2>
 
-          {/* Logo grid — 3 rows */}
-          <div className="grid grid-cols-3 lg:grid-cols-3 gap-6 lg:gap-8 mb-12 max-w-3xl mx-auto">
+          {/* Logo grid — 2 rows */}
+          <div className="flex flex-wrap justify-center items-center gap-x-8 lg:gap-x-12 gap-y-6 mb-12 max-w-4xl mx-auto">
             {insuranceProviders.map((provider) => (
               <Link
                 key={provider.name}
                 to={provider.href}
-                className="flex items-center justify-center h-16 lg:h-20 px-4 rounded-xl opacity-60 hover:opacity-100 transition-all duration-300 group hover:bg-white/5"
+                className="flex items-center justify-center h-12 lg:h-14 px-3 rounded-lg opacity-70 hover:opacity-100 transition-all duration-300 hover:bg-white/5"
                 aria-label={provider.name}
               >
                 <InsuranceLogo name={provider.name} domain={provider.domain} />

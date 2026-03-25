@@ -722,8 +722,8 @@ export default function Header() {
             />
           </Link>
 
-          {/* Desktop Navigation — spread across full width */}
-          <div className="hidden lg:flex items-center gap-0 xl:gap-1 flex-1 min-w-0">
+          {/* Desktop Navigation — aligned right */}
+          <div className="hidden lg:flex items-center gap-0 xl:gap-1 ml-auto min-w-0">
             {navLinks.map((item) =>
               item.dropdown ? (
                 <MegaMenuDropdown key={item.href} item={item} headerRef={headerRef} />

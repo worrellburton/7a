@@ -137,14 +137,14 @@ export default function SevenArrowsExperience() {
         </p>
 
         {/* 7 Principles with animated SVG icons */}
-        <div className="flex flex-wrap items-center justify-center gap-6 lg:gap-8 mb-12">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-6 lg:gap-4 mb-12">
           {principles.map((p) => (
-            <div key={p.label} className="flex items-center gap-2 text-foreground/80 group">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <p.Icon className="w-4 h-4 text-primary" />
+            <div key={p.label} className="flex flex-col items-center gap-3 text-foreground/80 group">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 group-hover:scale-105 transition-all duration-300">
+                <p.Icon className="w-8 h-8 text-primary" />
               </div>
               <span
-                className="text-sm font-medium"
+                className="text-xs font-semibold tracking-wide text-center leading-tight"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 {p.label}
