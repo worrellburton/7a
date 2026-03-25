@@ -79,7 +79,7 @@ export default function Hero() {
       aria-labelledby="hero-heading"
     >
       {/* Main hero area */}
-      <div className="relative min-h-[480px] lg:min-h-[calc(100vh-68px-40px-44px)] flex items-center">
+      <div className="relative min-h-[520px] lg:min-h-[calc(100vh-68px-40px)] flex items-center">
         {/* Background image with subtle zoom */}
         <div className="absolute inset-0 z-0">
           <img
@@ -88,29 +88,29 @@ export default function Hero() {
             className="w-full h-full object-cover transition-transform duration-[8000ms] ease-out"
             style={{ transform: visible ? 'scale(1.05)' : 'scale(1)' }}
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/50 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#2a0f0a]/60 via-transparent to-transparent" />
+          {/* Darkened overlay for text contrast */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#2a0f0a]/80 via-[#2a0f0a]/50 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#2a0f0a]/70 via-transparent to-[#2a0f0a]/20" />
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
-          <div className="max-w-xl">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
+          <div className="max-w-2xl">
             {/* Label */}
             <div
-              className="mb-5"
+              className="mb-6"
               style={{
                 opacity: visible ? 1 : 0,
                 transform: visible ? 'translateY(0)' : 'translateY(20px)',
                 transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s',
               }}
             >
-              <p className="section-label text-[10px]" style={{ color: 'var(--color-primary)' }}>Drug Rehab in Arizona</p>
+              <p className="section-label text-[10px]" style={{ color: 'var(--color-accent)' }}>Drug Rehab in Arizona</p>
             </div>
 
             {/* Heading */}
             <h1
               id="hero-heading"
-              className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold tracking-tight leading-[1.1] mb-5"
-              style={{ color: '#1a1a1a' }}
+              className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.08] mb-6 text-white"
             >
               <span
                 className="inline-block"
@@ -138,6 +138,7 @@ export default function Hero() {
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(40px)',
                   transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.7s',
+                  color: 'var(--color-accent)',
                 }}
               >
                 Heal.
@@ -146,10 +147,10 @@ export default function Hero() {
 
             {/* Description */}
             <p
-              className="text-sm leading-relaxed mb-7 max-w-md"
+              className="text-base lg:text-lg leading-relaxed mb-8 max-w-lg"
               style={{
                 fontFamily: 'var(--font-body)',
-                color: 'rgba(26, 26, 26, 0.7)',
+                color: 'rgba(255, 255, 255, 0.75)',
                 opacity: visible ? 1 : 0,
                 transform: visible ? 'translateY(0)' : 'translateY(30px)',
                 transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.9s',
@@ -161,8 +162,9 @@ export default function Hero() {
               Swisshelm mountains.
             </p>
 
-            {/* CTA */}
+            {/* CTAs */}
             <div
+              className="flex flex-col sm:flex-row gap-4"
               style={{
                 opacity: visible ? 1 : 0,
                 transform: visible ? 'translateY(0)' : 'translateY(30px)',
@@ -172,6 +174,9 @@ export default function Hero() {
               <Link to="/admissions" className="btn-primary text-sm">
                 Get Started
               </Link>
+              <a href="tel:+18669964308" className="btn-outline border-white/40 text-white hover:bg-white hover:text-foreground text-sm">
+                Call (866) 996-4308
+              </a>
             </div>
           </div>
         </div>
