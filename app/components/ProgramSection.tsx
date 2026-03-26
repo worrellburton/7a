@@ -26,7 +26,7 @@ export default function ProgramSection() {
             <div className="aspect-[4/3] overflow-hidden">
               <img
                 src="/7a/images/equine-therapy-portrait.jpg"
-                alt="Equine therapy at Seven Arrows"
+                alt="Equine-Assisted Psychotherapy at Seven Arrows"
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
@@ -34,7 +34,7 @@ export default function ProgramSection() {
             <div className="p-6">
               <h3 className="text-lg font-bold text-foreground mb-2">Holistic & Experiential</h3>
               <p className="text-foreground/60 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-                Equine therapy, sound healing, and nature-based practices at the base of the Swisshelm Mountains.
+                Equine-Assisted Psychotherapy, sound healing, and nature-based practices at the base of the Swisshelm Mountains.
               </p>
             </div>
           </div>

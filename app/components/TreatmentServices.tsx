@@ -26,10 +26,10 @@ const services = [
     description: 'Sound healing, meditation & more',
   },
   {
-    title: 'Equine Therapy',
+    title: 'Equine-Assisted Psychotherapy',
     href: '/our-program/equine-assisted',
     image: '/7a/images/horses-grazing.jpg',
-    description: 'Healing through horse connection',
+    description: 'EAP for trauma & recovery',
   },
   {
     title: 'Evidence-Based',
