@@ -7,21 +7,21 @@ export default function TrustBadges() {
   ];
 
   return (
-    <section className="py-8 bg-white border-b border-gray-100" aria-label="Accreditations and certifications">
+    <section className="py-12 bg-warm-bg border-y border-gray-100" aria-label="Accreditations and certifications">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center justify-center gap-6 lg:gap-12">
-          <span className="text-xs tracking-[0.15em] uppercase text-foreground/30 font-semibold" style={{ fontFamily: 'var(--font-body)' }}>
-            Trusted by
-          </span>
+        <p className="text-center text-xs tracking-[0.2em] uppercase text-foreground/40 font-semibold mb-6" style={{ fontFamily: 'var(--font-body)' }}>
+          Accredited &amp; Trusted
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-8 lg:gap-16">
           {badges.map((badge) => (
             <div
               key={badge.abbr}
-              className="flex items-center gap-2 opacity-40 hover:opacity-70 transition-opacity"
+              className="flex flex-col items-center gap-2 opacity-60 hover:opacity-100 transition-opacity"
             >
-              <div className="w-8 h-8 rounded-lg bg-warm-bg flex items-center justify-center">
-                <span className="text-[10px] font-bold text-primary tracking-wide">{badge.abbr}</span>
+              <div className="w-16 h-16 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-sm">
+                <span className="text-xs font-bold text-primary tracking-wide">{badge.abbr}</span>
               </div>
-              <span className="text-xs text-foreground/60 hidden sm:block" style={{ fontFamily: 'var(--font-body)' }}>
+              <span className="text-[0.65rem] text-foreground/50 text-center max-w-[100px] leading-tight" style={{ fontFamily: 'var(--font-body)' }}>
                 {badge.name}
               </span>
             </div>

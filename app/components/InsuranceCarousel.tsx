@@ -21,7 +21,7 @@ function InsuranceLogo({ name, domain }: { name: string; domain: string }) {
   if (failed) {
     return (
       <span
-        className="text-foreground/60 text-sm font-bold tracking-wide whitespace-nowrap"
+        className="text-white/80 text-sm lg:text-base font-bold tracking-wide whitespace-nowrap"
         style={{ fontFamily: 'var(--font-body)' }}
       >
         {name}
@@ -31,9 +31,9 @@ function InsuranceLogo({ name, domain }: { name: string; domain: string }) {
 
   return (
     <img
-      src={`https://cdn.brandfetch.io/${domain}/fallback/404/theme/dark/h/80/w/200/logo?c=${BRANDFETCH_CLIENT_ID}`}
+      src={`https://cdn.brandfetch.io/${domain}/fallback/404/theme/light/h/80/w/200/logo?c=${BRANDFETCH_CLIENT_ID}`}
       alt={name}
-      className="h-6 lg:h-8 w-auto max-w-[130px] object-contain opacity-50"
+      className="h-7 lg:h-9 w-auto max-w-[140px] object-contain brightness-0 invert"
       loading="eager"
       onError={() => setFailed(true)}
     />
@@ -42,37 +42,44 @@ function InsuranceLogo({ name, domain }: { name: string; domain: string }) {
 
 export default function InsuranceCarousel() {
   return (
-    <section className="py-16 lg:py-20 bg-warm-bg" aria-labelledby="insurance-carousel-heading">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <p
-          className="text-xs font-semibold tracking-[0.2em] uppercase text-foreground/40 mb-3"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          Insurance Can Help Cover the Cost of Treatment
-        </p>
-        <h2
-          id="insurance-carousel-heading"
-          className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground mb-12"
-        >
-          We Work With Most Major Insurance
-        </h2>
+    <section className="relative" aria-labelledby="insurance-carousel-heading">
+      <div className="absolute inset-0">
+        <img src="/7a/images/sign-night-sky-milky-way.jpg" alt="" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-black/70" />
+      </div>
+      <div className="relative py-16 lg:py-24">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p
+            className="text-[10px] font-semibold tracking-[0.2em] uppercase text-white/60 mb-3"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Insurance Can Help Cover the Cost of Treatment
+          </p>
+          <h2
+            id="insurance-carousel-heading"
+            className="text-2xl lg:text-3xl font-bold tracking-tight text-white mb-12"
+          >
+            We Work With Most Major Insurance
+          </h2>
 
-        <div className="flex flex-wrap justify-center items-center gap-x-8 lg:gap-x-12 gap-y-6 mb-12 max-w-4xl mx-auto">
-          {insuranceProviders.map((provider) => (
-            <Link
-              key={provider.name}
-              to={provider.href}
-              className="flex items-center justify-center h-12 lg:h-14 px-3 rounded-lg hover:opacity-100 transition-all duration-300 hover:bg-white/60"
-              aria-label={provider.name}
-            >
-              <InsuranceLogo name={provider.name} domain={provider.domain} />
-            </Link>
-          ))}
+          {/* Logo grid — 2 rows */}
+          <div className="flex flex-wrap justify-center items-center gap-x-8 lg:gap-x-12 gap-y-6 mb-12 max-w-4xl mx-auto">
+            {insuranceProviders.map((provider) => (
+              <Link
+                key={provider.name}
+                to={provider.href}
+                className="flex items-center justify-center h-12 lg:h-14 px-3 rounded-lg opacity-70 hover:opacity-100 transition-all duration-300 hover:bg-white/5"
+                aria-label={provider.name}
+              >
+                <InsuranceLogo name={provider.name} domain={provider.domain} />
+              </Link>
+            ))}
+          </div>
+
+          <Link to="/admissions#verify" className="btn-primary text-xs">
+            Verify Insurance
+          </Link>
         </div>
-
-        <Link to="/admissions#verify" className="btn-primary text-xs">
-          Verify Insurance
-        </Link>
       </div>
     </section>
   );
