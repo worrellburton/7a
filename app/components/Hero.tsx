@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 
 const CLOUDFLARE_CUSTOMER = 'customer-1sijhr9xl3yqixxu';
 const CLOUDFLARE_VIDEO_ID = '23efc2d576759452ccdf1a2b1813580a';
-const VIDEO_HLS = `https://${CLOUDFLARE_CUSTOMER}.cloudflarestream.com/${CLOUDFLARE_VIDEO_ID}/manifest/video.m3u8`;
+const VIDEO_HLS = `https://${CLOUDFLARE_CUSTOMER}.cloudflarestream.com/${CLOUDFLARE_VIDEO_ID}/manifest/video.m3u8?clientBandwidthHint=10`;
+const VIDEO_MP4 = `https://${CLOUDFLARE_CUSTOMER}.cloudflarestream.com/${CLOUDFLARE_VIDEO_ID}/downloads/default.mp4`;
 
 /* ── Ticker Items ──────────────────────────────────────────────────── */
 
@@ -93,14 +94,34 @@ function HeroBackgroundVideo() {
     script.onload = () => {
       const Hls = (window as any).Hls;
       if (Hls && Hls.isSupported()) {
-        const hls = new Hls({ enableWorker: false });
+        const hls = new Hls({
+          enableWorker: false,
+          capLevelToPlayerSize: false,
+          startLevel: -1,
+          autoStartLoad: true,
+          maxBufferLength: 30,
+          abrBandWidthUpFactor: 2.0,
+        });
         hls.loadSource(VIDEO_HLS);
         hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        // Once manifest is parsed, force the highest quality level
+        hls.on(Hls.Events.MANIFEST_PARSED, (_: unknown, data: { levels: unknown[] }) => {
+          hls.currentLevel = data.levels.length - 1;
           video.play().catch(() => {});
           onLoaded();
         });
+      } else {
+        // No HLS support at all — fall back to MP4 download
+        video.src = VIDEO_MP4;
+        video.addEventListener('loadeddata', onLoaded, { once: true });
+        video.play().catch(() => {});
       }
+    };
+    script.onerror = () => {
+      // hls.js failed to load — fall back to MP4
+      video.src = VIDEO_MP4;
+      video.addEventListener('loadeddata', onLoaded, { once: true });
+      video.play().catch(() => {});
     };
     document.head.appendChild(script);
 
