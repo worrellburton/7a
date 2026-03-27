@@ -189,12 +189,8 @@ function HolisticIcon({ className }: { className?: string }) {
 
 function HorseIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 2L18 6l-3-1-4 4 2 3-4 4-3-1-4 5">
-        <animate attributeName="stroke-dashoffset" from="80" to="0" dur="3s" repeatCount="indefinite" />
-        <set attributeName="stroke-dasharray" to="80" />
-      </path>
-      <path d="M2 22l3-5 3 1 4-4-2-3 4-4 3 1 3-3" opacity="0.3" />
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20 2.5c0 0-2 1-3 2s-1.5 2.5-1.5 2.5L14 6l-1.5 1.5c0 0-1 .5-2 1.5S9 11 9 11L7 12l-1 2-2 1v3l1 1h2l1-1.5L9.5 16l1.5-1 2-.5 1.5.5 1 1.5V19l1 1.5h2l1-1V17l-.5-2-1-2-.5-2 .5-2L19 8l1-2 1-2-.5-.5z" />
     </svg>
   );
 }
