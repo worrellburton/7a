@@ -9,7 +9,7 @@ import InsuranceCarousel from "~/components/InsuranceCarousel";
 import CampusTour from "~/components/CampusTour";
 import SevenArrowsExperience from "~/components/SevenArrowsExperience";
 import Amenities from "~/components/Amenities";
-import ContactForm from "~/components/ContactForm";
+
 import TraumAddictionSection from "~/components/TraumAddictionSection";
 import AboutSection from "~/components/AboutSection";
 import FAQSection from "~/components/FAQSection";
@@ -205,7 +205,6 @@ export default function Home() {
       <AboutSection />
       <BlogPreview />
       <FAQSection />
-      <ContactForm />
       <StickyMobileCTA />
     </>
   );
