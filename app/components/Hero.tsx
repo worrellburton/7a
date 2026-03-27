@@ -1,5 +1,9 @@
 import { Link } from '@remix-run/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+const CLOUDFLARE_CUSTOMER = 'customer-1sijhr9xl3yqixxu';
+const CLOUDFLARE_VIDEO_ID = '23efc2d576759452ccdf1a2b1813580a';
+const VIDEO_HLS = `https://${CLOUDFLARE_CUSTOMER}.cloudflarestream.com/${CLOUDFLARE_VIDEO_ID}/manifest/video.m3u8`;
 
 /* ── Ticker Items ──────────────────────────────────────────────────── */
 
@@ -60,6 +64,69 @@ function TickerContent() {
         return null;
       })}
     </>
+  );
+}
+
+/* ── Hero Video ──────────────────────────────────────────────────── */
+
+function HeroVideo() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const onLoaded = () => setLoaded(true);
+
+    // Safari supports HLS natively
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = VIDEO_HLS;
+      video.addEventListener('loadeddata', onLoaded, { once: true });
+      video.play().catch(() => {});
+      return;
+    }
+
+    // For other browsers, load hls.js from CDN
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js';
+    script.onload = () => {
+      const Hls = (window as any).Hls;
+      if (Hls && Hls.isSupported()) {
+        const hls = new Hls({ enableWorker: false });
+        hls.loadSource(VIDEO_HLS);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+          onLoaded();
+        });
+      }
+    };
+    document.head.appendChild(script);
+
+    return () => {
+      script.remove();
+    };
+  }, []);
+
+  return (
+    <div className="relative rounded-3xl overflow-hidden aspect-[4/5] shadow-2xl bg-warm-card">
+      {/* Poster image shown until video loads */}
+      <img
+        src="/7a/images/facility-exterior-mountains.jpg"
+        alt="Seven Arrows Recovery facility with Swisshelm Mountains"
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${loaded ? 'opacity-0' : 'opacity-100'}`}
+      />
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        loop
+        playsInline
+        poster="/7a/images/facility-exterior-mountains.jpg"
+        className={`w-full h-full object-cover transition-opacity duration-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+      />
+    </div>
   );
 }
 
@@ -195,7 +262,7 @@ export default function Hero() {
               </p>
             </div>
 
-            {/* Right: Hero Image */}
+            {/* Right: Hero Video */}
             <div
               className="relative hidden lg:block"
               style={{
@@ -204,13 +271,8 @@ export default function Hero() {
                 transition: 'all 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s',
               }}
             >
-              <div className="relative rounded-3xl overflow-hidden aspect-[4/5] shadow-2xl">
-                <img
-                  src="/7a/images/facility-exterior-mountains.jpg"
-                  alt="Seven Arrows Recovery facility with Swisshelm Mountains"
-                  className="w-full h-full object-cover"
-                />
-              </div>
+              <HeroVideo />
+
 
               {/* Floating stat card */}
               <div
