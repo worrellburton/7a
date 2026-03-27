@@ -36,6 +36,188 @@ const heroSlides: {
   },
 ];
 
+/* ── Desert Gradient WebGL Background ─────────────────────────────── */
+
+function DesertGradientCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const gl = canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: false });
+    if (!gl) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Full-screen quad vertex shader
+    const vsSource = `
+      attribute vec2 aPos;
+      varying vec2 vUv;
+      void main() {
+        vUv = aPos * 0.5 + 0.5;
+        gl_Position = vec4(aPos, 0.0, 1.0);
+      }
+    `;
+
+    // Fragment shader: layered radial gradients that drift and pulse
+    // Desert palette: warm sand, terracotta, sage, dusty rose, canyon shadow
+    const fsSource = `
+      precision highp float;
+      varying vec2 vUv;
+      uniform float uTime;
+      uniform vec2 uResolution;
+
+      // Smooth noise for organic movement
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
+
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      }
+
+      float fbm(vec2 p) {
+        float v = 0.0;
+        float a = 0.5;
+        for (int i = 0; i < 4; i++) {
+          v += a * noise(p);
+          p *= 2.0;
+          a *= 0.5;
+        }
+        return v;
+      }
+
+      void main() {
+        vec2 uv = vUv;
+        float aspect = uResolution.x / uResolution.y;
+        vec2 p = vec2(uv.x * aspect, uv.y);
+        float t = uTime * 0.08;
+
+        // Flowing noise field
+        float n1 = fbm(p * 1.5 + vec2(t * 0.3, t * 0.2));
+        float n2 = fbm(p * 2.0 + vec2(-t * 0.2, t * 0.4) + 5.0);
+        float n3 = fbm(p * 1.0 + vec2(t * 0.15, -t * 0.1) + 10.0);
+
+        // Desert palette colors (RGB)
+        // Warm sand base
+        vec3 sand      = vec3(0.957, 0.941, 0.922);  // #f4f0eb - warm bg
+        // Terracotta / canyon
+        vec3 terra     = vec3(0.627, 0.322, 0.176);  // #a0522d - primary
+        // Dusty rose / sunset
+        vec3 rose      = vec3(0.776, 0.478, 0.290);  // #c67a4a - accent
+        // Sage green / desert plant
+        vec3 sage      = vec3(0.588, 0.627, 0.518);  // #96a084
+        // Canyon shadow / deep earth
+        vec3 shadow    = vec3(0.239, 0.059, 0.039);  // #3d0f0a
+
+        // Drifting radial gradient centers
+        vec2 c1 = vec2(
+          0.2 + sin(t * 0.5) * 0.15,
+          0.3 + cos(t * 0.4) * 0.2
+        );
+        vec2 c2 = vec2(
+          0.8 + cos(t * 0.3) * 0.12,
+          0.7 + sin(t * 0.6) * 0.15
+        );
+        vec2 c3 = vec2(
+          0.5 + sin(t * 0.7 + 2.0) * 0.2,
+          0.2 + cos(t * 0.35 + 1.0) * 0.15
+        );
+        vec2 c4 = vec2(
+          0.15 + cos(t * 0.45 + 3.0) * 0.1,
+          0.85 + sin(t * 0.55) * 0.1
+        );
+
+        // Radial falloffs
+        float r1 = smoothstep(0.6, 0.0, length(uv - c1));
+        float r2 = smoothstep(0.5, 0.0, length(uv - c2));
+        float r3 = smoothstep(0.55, 0.0, length(uv - c3));
+        float r4 = smoothstep(0.4, 0.0, length(uv - c4));
+
+        // Compose: start from sand, layer color blobs
+        vec3 col = sand;
+        col = mix(col, rose,   r1 * 0.12 * (0.8 + n1 * 0.4));
+        col = mix(col, terra,  r2 * 0.08 * (0.7 + n2 * 0.6));
+        col = mix(col, sage,   r3 * 0.10 * (0.6 + n3 * 0.5));
+        col = mix(col, shadow, r4 * 0.04 * (0.5 + n1 * 0.3));
+
+        // Subtle mountain horizon line shimmer
+        float horizon = smoothstep(0.02, 0.0, abs(uv.y - 0.65 - fbm(vec2(uv.x * 3.0 + t * 0.2, 0.0)) * 0.08));
+        col = mix(col, terra, horizon * 0.06);
+
+        // Very subtle grain for texture
+        float grain = (hash(uv * uResolution + fract(uTime)) - 0.5) * 0.012;
+        col += grain;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    const compile = (type: number, src: string) => {
+      const s = gl.createShader(type)!;
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      return s;
+    };
+
+    const prog = gl.createProgram()!;
+    gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsSource));
+    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsSource));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+
+    const aPos = gl.getAttribLocation(prog, 'aPos');
+    const uTime = gl.getUniformLocation(prog, 'uTime');
+    const uResolution = gl.getUniformLocation(prog, 'uResolution');
+
+    // Full-screen quad
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    let raf: number;
+    const start = performance.now();
+    const draw = () => {
+      const elapsed = (performance.now() - start) / 1000;
+      gl.uniform1f(uTime, elapsed);
+      gl.uniform2f(uResolution, canvas.width, canvas.height);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      aria-hidden="true"
+    />
+  );
+}
+
 /* ── Ticker Items ──────────────────────────────────────────────────── */
 
 const tickerItems = [
@@ -260,7 +442,8 @@ export default function Hero() {
       aria-labelledby="hero-heading"
     >
       {/* Main hero area — light background, split layout */}
-      <div className="relative bg-warm-bg">
+      <div className="relative bg-warm-bg overflow-hidden">
+        <DesertGradientCanvas />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center min-h-[520px] lg:min-h-[calc(100vh-68px-40px-44px)]">
 
