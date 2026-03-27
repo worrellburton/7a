@@ -1,10 +1,40 @@
 import { Link } from '@remix-run/react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+/* ── Cloudflare Stream Config ────────────────────────────────────── */
 
 const CLOUDFLARE_CUSTOMER = 'customer-1sijhr9xl3yqixxu';
-const CLOUDFLARE_VIDEO_ID = '23efc2d576759452ccdf1a2b1813580a';
-const VIDEO_HLS = `https://${CLOUDFLARE_CUSTOMER}.cloudflarestream.com/${CLOUDFLARE_VIDEO_ID}/manifest/video.m3u8?clientBandwidthHint=10`;
-const VIDEO_MP4 = `https://${CLOUDFLARE_CUSTOMER}.cloudflarestream.com/${CLOUDFLARE_VIDEO_ID}/downloads/default.mp4`;
+
+/**
+ * Add more Cloudflare Stream video IDs here to expand the carousel.
+ * Each slide can be a video (with a Cloudflare video ID) or a static image.
+ */
+const heroSlides: {
+  type: 'video' | 'image';
+  src: string; // video ID for Cloudflare Stream, or image path
+  label: string;
+}[] = [
+  {
+    type: 'video',
+    src: '23efc2d576759452ccdf1a2b1813580a',
+    label: 'Our Facility',
+  },
+  {
+    type: 'image',
+    src: '/7a/images/equine-therapy-portrait.jpg',
+    label: 'Equine Therapy',
+  },
+  {
+    type: 'image',
+    src: '/7a/images/group-sunset-desert.jpg',
+    label: 'Community',
+  },
+  {
+    type: 'image',
+    src: '/7a/images/covered-porch-desert-view.jpg',
+    label: 'Desert Views',
+  },
+];
 
 /* ── Ticker Items ──────────────────────────────────────────────────── */
 
@@ -54,7 +84,7 @@ function TickerContent() {
           return (
             <Link
               key={i}
-              href={item.href}
+              to={item.href}
               className="whitespace-nowrap text-accent text-[11px] font-semibold hover:text-white transition-colors"
               style={{ fontFamily: 'var(--font-body)' }}
             >
@@ -68,11 +98,13 @@ function TickerContent() {
   );
 }
 
-/* ── Hero Background Video ─────────────────────────────────────── */
+/* ── Video Slide ──────────────────────────────────────────────────── */
 
-function HeroBackgroundVideo() {
+function VideoSlide({ videoId, active }: { videoId: string; active: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<any>(null);
   const [loaded, setLoaded] = useState(false);
+  const hlsUrl = `https://${CLOUDFLARE_CUSTOMER}.cloudflarestream.com/${videoId}/manifest/video.m3u8?clientBandwidthHint=10`;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -80,193 +112,350 @@ function HeroBackgroundVideo() {
 
     const onLoaded = () => setLoaded(true);
 
-    // Safari supports HLS natively
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = VIDEO_HLS;
+      video.src = hlsUrl;
       video.addEventListener('loadeddata', onLoaded, { once: true });
-      video.play().catch(() => {});
-      return;
-    }
-
-    // For other browsers, load hls.js from CDN
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js';
-    script.onload = () => {
+    } else if (typeof (window as any).Hls !== 'undefined') {
       const Hls = (window as any).Hls;
-      if (Hls && Hls.isSupported()) {
-        const hls = new Hls({
-          enableWorker: false,
-          capLevelToPlayerSize: false,
-          startLevel: -1,
-          autoStartLoad: true,
-          maxBufferLength: 30,
-          abrBandWidthUpFactor: 2.0,
-        });
-        hls.loadSource(VIDEO_HLS);
+      if (Hls.isSupported()) {
+        const hls = new Hls({ enableWorker: false, capLevelToPlayerSize: false });
+        hls.loadSource(hlsUrl);
         hls.attachMedia(video);
-        // Once manifest is parsed, force the highest quality level
         hls.on(Hls.Events.MANIFEST_PARSED, (_: unknown, data: { levels: unknown[] }) => {
           hls.currentLevel = data.levels.length - 1;
-          video.play().catch(() => {});
           onLoaded();
         });
-      } else {
-        // No HLS support at all — fall back to MP4 download
-        video.src = VIDEO_MP4;
-        video.addEventListener('loadeddata', onLoaded, { once: true });
-        video.play().catch(() => {});
+        hlsRef.current = hls;
       }
-    };
-    script.onerror = () => {
-      // hls.js failed to load — fall back to MP4
-      video.src = VIDEO_MP4;
-      video.addEventListener('loadeddata', onLoaded, { once: true });
-      video.play().catch(() => {});
-    };
-    document.head.appendChild(script);
+    } else {
+      // hls.js not yet loaded — try loading script
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js';
+      script.onload = () => {
+        const Hls = (window as any).Hls;
+        if (Hls && Hls.isSupported()) {
+          const hls = new Hls({ enableWorker: false, capLevelToPlayerSize: false });
+          hls.loadSource(hlsUrl);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.MANIFEST_PARSED, (_: unknown, data: { levels: unknown[] }) => {
+            hls.currentLevel = data.levels.length - 1;
+            onLoaded();
+          });
+          hlsRef.current = hls;
+        }
+      };
+      document.head.appendChild(script);
+    }
 
     return () => {
-      script.remove();
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
     };
-  }, []);
+  }, [hlsUrl]);
+
+  // Play/pause based on active state
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (active) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [active, loaded]);
 
   return (
-    <>
-      {/* Poster image — always present as base layer */}
-      <img
-        src="/7a/images/facility-exterior-mountains.jpg"
-        alt="Seven Arrows Recovery facility with Swisshelm Mountains"
-        className="absolute inset-0 w-full h-full object-cover"
-      />
-      {/* Video fades in over poster once loaded */}
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        loop
-        playsInline
-        poster="/7a/images/facility-exterior-mountains.jpg"
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-[2000ms] ${loaded ? 'opacity-100' : 'opacity-0'}`}
-      />
-    </>
+    <video
+      ref={videoRef}
+      muted
+      loop
+      playsInline
+      className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+    />
   );
 }
+
+/* ── Bullet Points ────────────────────────────────────────────────── */
+
+const highlights = [
+  {
+    icon: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+    ),
+    text: '24/7 admissions — begin treatment within 48 hours',
+  },
+  {
+    icon: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 00-3-3.87" />
+        <path d="M16 3.13a4 4 0 010 7.75" />
+      </svg>
+    ),
+    text: '6:1 client-to-staff ratio for personalized care',
+  },
+  {
+    icon: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        <path d="M9 12l2 2 4-4" />
+      </svg>
+    ),
+    text: 'Most major insurance plans accepted',
+  },
+  {
+    icon: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+      </svg>
+    ),
+    text: 'TraumAddiction\u2122 specialty approach to healing',
+  },
+];
 
 /* ── Hero Component ────────────────────────────────────────────────── */
 
 export default function Hero() {
   const [visible, setVisible] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
     return () => clearTimeout(timer);
   }, []);
 
+  // Auto-advance every 8 seconds
+  const startAutoPlay = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % heroSlides.length);
+    }, 8000);
+  }, []);
+
+  useEffect(() => {
+    startAutoPlay();
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [startAutoPlay]);
+
+  const goToSlide = (index: number) => {
+    setActiveSlide(index);
+    startAutoPlay(); // Reset timer on manual navigation
+  };
+
+  const goNext = () => goToSlide((activeSlide + 1) % heroSlides.length);
+  const goPrev = () => goToSlide((activeSlide - 1 + heroSlides.length) % heroSlides.length);
+
   return (
     <section
       className="relative flex flex-col overflow-hidden"
       aria-labelledby="hero-heading"
     >
-      {/* Main hero area */}
-      <div className="relative min-h-[520px] lg:min-h-[calc(100vh-68px-40px)] flex items-center">
-        {/* Background video with dark overlay */}
-        <div className="absolute inset-0 z-0">
-          <HeroBackgroundVideo />
-          {/* Darkened overlay for text contrast */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#2a0f0a]/80 via-[#2a0f0a]/50 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#2a0f0a]/70 via-transparent to-[#2a0f0a]/20" />
-        </div>
+      {/* Main hero area — light background, split layout */}
+      <div className="relative bg-warm-bg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center min-h-[520px] lg:min-h-[calc(100vh-68px-40px-44px)]">
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
-          <div className="max-w-2xl">
-            {/* Label */}
-            <div
-              className="mb-6"
-              style={{
-                opacity: visible ? 1 : 0,
-                transform: visible ? 'translateY(0)' : 'translateY(20px)',
-                transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s',
-              }}
-            >
-              <p className="section-label text-[10px]" style={{ color: 'var(--color-accent)' }}>Drug Rehab in Arizona</p>
+            {/* Left: Text Content */}
+            <div className="py-16 lg:py-24">
+              <h1
+                id="hero-heading"
+                className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tracking-tight leading-[1.08] mb-8 text-foreground"
+                style={{
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? 'translateY(0)' : 'translateY(30px)',
+                  transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.2s',
+                }}
+              >
+                A place to heal,{' '}
+                <br className="hidden sm:block" />
+                a plan made for you
+              </h1>
+
+              <ul className="space-y-4 mb-10">
+                {highlights.map((item, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-3"
+                    style={{
+                      opacity: visible ? 1 : 0,
+                      transform: visible ? 'translateY(0)' : 'translateY(20px)',
+                      transition: `all 0.7s cubic-bezier(0.16, 1, 0.3, 1) ${0.4 + i * 0.1}s`,
+                    }}
+                  >
+                    <span className="text-primary mt-0.5 shrink-0">{item.icon}</span>
+                    <span className="text-foreground/70 text-[15px] leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
+                      {item.text}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <div
+                className="flex flex-col sm:flex-row gap-4"
+                style={{
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
+                  transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.9s',
+                }}
+              >
+                <Link to="/admissions" className="btn-dark text-sm">
+                  Get Started
+                </Link>
+                <a href="tel:+18669964308" className="btn-outline text-sm">
+                  Call (866) 996-4308
+                </a>
+              </div>
+
+              <p
+                className="mt-8 text-foreground/40 text-xs leading-relaxed max-w-sm"
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  opacity: visible ? 1 : 0,
+                  transition: 'opacity 0.8s ease 1.2s',
+                }}
+              >
+                JCAHO Accredited &bull; LegitScript Certified &bull; HIPAA Compliant
+              </p>
             </div>
 
-            {/* Heading */}
-            <h1
-              id="hero-heading"
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.08] mb-6 text-white"
-            >
-              <span
-                className="inline-block"
-                style={{
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(40px)',
-                  transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.4s',
-                }}
-              >
-                A Place
-              </span>{' '}
-              <span
-                className="inline-block"
-                style={{
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(40px)',
-                  transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.55s',
-                }}
-              >
-                to
-              </span>{' '}
-              <span
-                className="inline-block"
-                style={{
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(40px)',
-                  transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.7s',
-                  color: 'var(--color-accent)',
-                }}
-              >
-                Heal.
-              </span>
-            </h1>
-
-            {/* Description */}
-            <p
-              className="text-base lg:text-lg leading-relaxed mb-8 max-w-lg"
-              style={{
-                fontFamily: 'var(--font-body)',
-                color: 'rgba(255, 255, 255, 0.75)',
-                opacity: visible ? 1 : 0,
-                transform: visible ? 'translateY(0)' : 'translateY(30px)',
-                transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.9s',
-              }}
-            >
-              Find out why Seven Arrows Recovery is considered one of the best drug
-              rehabs in Arizona. We provide clinical and residential treatment to ensure
-              lasting recovery in a small group setting, nestled at the base of the tranquil
-              Swisshelm mountains.
-            </p>
-
-            {/* CTAs */}
+            {/* Right: Video/Image Carousel */}
             <div
-              className="flex flex-col sm:flex-row gap-4"
+              className="relative hidden lg:block"
               style={{
                 opacity: visible ? 1 : 0,
-                transform: visible ? 'translateY(0)' : 'translateY(30px)',
-                transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 1.1s',
+                transform: visible ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.98)',
+                transition: 'all 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s',
               }}
             >
-              <Link to="/admissions" className="btn-primary text-sm">
-                Get Started
-              </Link>
-              <a href="tel:+18669964308" className="btn-outline border-white/40 text-white hover:bg-white hover:text-foreground text-sm">
-                Call (866) 996-4308
-              </a>
+              <div className="relative rounded-3xl overflow-hidden aspect-[4/5] shadow-2xl bg-warm-card">
+                {/* Slides */}
+                {heroSlides.map((slide, i) => (
+                  <div
+                    key={i}
+                    className={`absolute inset-0 transition-opacity duration-700 ${i === activeSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                  >
+                    {slide.type === 'video' ? (
+                      <>
+                        {/* Poster behind video */}
+                        <img
+                          src="/7a/images/facility-exterior-mountains.jpg"
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <VideoSlide videoId={slide.src} active={i === activeSlide} />
+                      </>
+                    ) : (
+                      <img
+                        src={slide.src}
+                        alt={slide.label}
+                        className="w-full h-full object-cover"
+                        loading={i === 0 ? 'eager' : 'lazy'}
+                      />
+                    )}
+                  </div>
+                ))}
+
+                {/* Navigation arrows */}
+                <button
+                  onClick={goPrev}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white transition-colors"
+                  aria-label="Previous slide"
+                >
+                  <svg className="w-5 h-5 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                </button>
+                <button
+                  onClick={goNext}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white transition-colors"
+                  aria-label="Next slide"
+                >
+                  <svg className="w-5 h-5 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+
+                {/* Slide label + dots */}
+                <div className="absolute bottom-4 left-0 right-0 z-20 flex flex-col items-center gap-2">
+                  <span className="text-white text-xs font-semibold tracking-wider uppercase drop-shadow-lg" style={{ fontFamily: 'var(--font-body)' }}>
+                    {heroSlides[activeSlide].label}
+                  </span>
+                  <div className="flex gap-2">
+                    {heroSlides.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => goToSlide(i)}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${
+                          i === activeSlide ? 'w-6 bg-white' : 'w-1.5 bg-white/50 hover:bg-white/70'
+                        }`}
+                        aria-label={`Go to slide ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Floating stat card */}
+              <div
+                className="absolute -bottom-6 -left-6 bg-white rounded-2xl p-5 shadow-xl border border-gray-100 z-30"
+                style={{
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
+                  transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 1.1s',
+                }}
+              >
+                <p className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1">Google Rating</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-foreground">4.9</span>
+                  <span className="text-foreground/40 text-sm">/5</span>
+                </div>
+                <div className="flex gap-0.5 mt-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <svg key={star} className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+              </div>
+
+              {/* Floating badge top-right */}
+              <div
+                className="absolute -top-4 -right-4 bg-white rounded-xl px-4 py-3 shadow-lg border border-gray-100 z-30"
+                style={{
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? 'translateY(0)' : 'translateY(-10px)',
+                  transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 1.3s',
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+                      <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">6:1 Ratio</p>
+                    <p className="text-[10px] text-foreground/50">Client to Staff</p>
+                  </div>
+                </div>
+              </div>
             </div>
+
           </div>
         </div>
       </div>
 
-      {/* Horizontal scrolling ticker — pinned at bottom of hero */}
+      {/* Horizontal scrolling ticker */}
       <div
         className="relative z-20 bg-dark-section overflow-hidden"
         style={{
