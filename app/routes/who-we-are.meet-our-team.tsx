@@ -7,37 +7,37 @@ const teamMembers = [
     name: 'Clinical Director',
     role: 'Clinical Director, LISAC, LPC',
     bio: 'With over 15 years in addiction medicine, our Clinical Director leads the treatment team with a focus on trauma-informed, evidence-based care.',
-    image: '/7a/images/equine-therapy-portrait.jpg',
+    image: '/images/equine-therapy-portrait.jpg',
   },
   {
     name: 'Lead Therapist',
     role: 'Lead Therapist, LCSW',
     bio: 'Specializing in EMDR and somatic experiencing, our Lead Therapist brings deep expertise in treating co-occurring trauma and substance use disorders.',
-    image: '/7a/images/individual-therapy-session.jpg',
+    image: '/images/individual-therapy-session.jpg',
   },
   {
     name: 'Medical Director',
     role: 'Medical Director, MD',
     bio: 'Board-certified in addiction medicine, our Medical Director oversees all medical protocols, detox management, and medication-assisted treatment.',
-    image: '/7a/images/covered-porch-desert-view.jpg',
+    image: '/images/covered-porch-desert-view.jpg',
   },
   {
     name: 'Holistic Therapist',
     role: 'Holistic Therapist, RYT-500',
     bio: 'Our Holistic Therapist integrates yoga, mindfulness, breathwork, and equine-assisted therapy into each client\'s individualized treatment plan.',
-    image: '/7a/images/sound-healing-session.jpg',
+    image: '/images/sound-healing-session.jpg',
   },
   {
     name: 'Family Program Coordinator',
     role: 'Family Program Coordinator, LMFT',
     bio: 'Our Family Program Coordinator facilitates family therapy sessions and educational workshops designed to rebuild trust and strengthen support systems.',
-    image: '/7a/images/group-sunset-desert.jpg',
+    image: '/images/group-sunset-desert.jpg',
   },
   {
     name: 'Admissions Counselor',
     role: 'Admissions Counselor',
     bio: 'Compassionate and knowledgeable, our Admissions Counselor guides clients and families through the intake process with care and confidentiality.',
-    image: '/7a/images/embrace-connection.jpg',
+    image: '/images/embrace-connection.jpg',
   },
 ];
 
@@ -53,7 +53,7 @@ export default function MeetOurTeamPage() {
         label="Our Team"
         title="Meet Our Team"
         description="Behind every successful recovery is a dedicated team of professionals. At Seven Arrows Recovery, our clinicians, therapists, and support staff bring expertise, empathy, and genuine care to everything they do."
-        image="/7a/images/equine-therapy-portrait.jpg"
+        image="/images/equine-therapy-portrait.jpg"
       />
 
       {/* Team Intro */}

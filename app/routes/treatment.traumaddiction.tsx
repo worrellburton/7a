@@ -47,7 +47,7 @@ export default function TraumAddictionPage() {
         label="TraumAddiction®"
         title="Trauma & Addiction Are One Condition"
         description="TraumAddiction® is our integrated model for treating trauma and substance use together — not as separate conditions, but as deeply interconnected challenges that require a unified, salutogenic approach."
-        image="/7a/images/embrace-connection.jpg"
+        image="/images/embrace-connection.jpg"
       />
 
       {/* The Problem */}

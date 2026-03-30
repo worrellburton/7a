@@ -9,7 +9,7 @@ export default function AboutSection() {
           <div className="relative">
             <div className="rounded-2xl overflow-hidden aspect-[4/3] bg-white shadow-sm">
               <img
-                src="/7a/images/common-area-living-room.jpg"
+                src="/images/common-area-living-room.jpg"
                 alt="Interior common area with couches"
                 className="w-full h-full object-cover"
                 loading="lazy"
@@ -17,7 +17,7 @@ export default function AboutSection() {
             </div>
             <div className="absolute -bottom-6 right-4 lg:right-8 w-1/2 rounded-2xl overflow-hidden aspect-[4/3] shadow-xl border-4 border-white">
               <img
-                src="/7a/images/group-sunset-desert.jpg"
+                src="/images/group-sunset-desert.jpg"
                 alt="Group watching sunset in the desert"
                 className="w-full h-full object-cover"
                 loading="lazy"

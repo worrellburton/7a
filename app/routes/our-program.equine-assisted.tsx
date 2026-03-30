@@ -66,7 +66,7 @@ export default function EquineAssistedPage() {
         label="Equine-Assisted Psychotherapy"
         title="Healing Happens in the Arena"
         description="Equine-Assisted Psychotherapy (EAP) creates a powerful, experiential way to access emotions, patterns, and relational dynamics that are often difficult to reach through talk therapy alone."
-        image="/7a/images/equine-therapy-portrait.jpg"
+        image="/images/equine-therapy-portrait.jpg"
       />
 
       {/* What is EAP — Split Section */}
@@ -127,7 +127,7 @@ export default function EquineAssistedPage() {
             <div className="relative">
               <div className="rounded-2xl overflow-hidden aspect-[3/4] shadow-lg">
                 <img
-                  src="/7a/images/equine-therapy-portrait.jpg"
+                  src="/images/equine-therapy-portrait.jpg"
                   alt="Client working with a horse during an Equine-Assisted Psychotherapy session"
                   className="w-full h-full object-cover"
                 />
@@ -186,7 +186,7 @@ export default function EquineAssistedPage() {
       {/* Full-width image break */}
       <section className="relative h-[50vh] min-h-[400px] overflow-hidden">
         <img
-          src="/7a/images/horses-grazing.jpg"
+          src="/images/horses-grazing.jpg"
           alt="Horses grazing in the Arizona landscape near Seven Arrows Recovery"
           className="w-full h-full object-cover"
         />
@@ -212,7 +212,7 @@ export default function EquineAssistedPage() {
             {/* Left: Image */}
             <div className="rounded-2xl overflow-hidden aspect-[4/3] bg-warm-bg">
               <img
-                src="/7a/images/horse-sketch-artwork.jpg"
+                src="/images/horse-sketch-artwork.jpg"
                 alt="Artistic rendering of horse therapy"
                 className="w-full h-full object-cover"
                 loading="lazy"

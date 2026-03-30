@@ -15,7 +15,7 @@ export default function ContactPage() {
         label="Get in Touch"
         title="Contact Us"
         description="Our compassionate admissions team is available around the clock to answer your questions, verify insurance, and help you or your loved one take the first step toward lasting recovery."
-        image="/7a/images/covered-porch-desert-view.jpg"
+        image="/images/covered-porch-desert-view.jpg"
       />
 
       {/* Contact Info + Form */}
@@ -184,7 +184,7 @@ export default function ContactPage() {
             aria-label="Map showing Seven Arrows Recovery location in Cochise County, Arizona"
           >
             <img
-              src="/7a/images/sign-night-sky-milky-way.jpg"
+              src="/images/sign-night-sky-milky-way.jpg"
               alt="Seven Arrows sign under starry sky"
               className="absolute inset-0 w-full h-full object-cover"
             />

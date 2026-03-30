@@ -14,7 +14,7 @@ export default function BlogPage() {
         label="Investigative Series"
         title="The Recovery Roadmap"
         description="An in-depth investigative series exploring the reality of addiction, treatment, and recovery — told with honesty, science, and compassion by the clinical team at Seven Arrows Recovery."
-        image="/7a/images/resident-reading-window.jpg"
+        image="/images/resident-reading-window.jpg"
       />
 
       {/* Series Grid */}
@@ -27,7 +27,7 @@ export default function BlogPage() {
             className="flex flex-col md:flex-row bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group no-underline mb-8"
           >
             <div className="relative md:w-80 shrink-0">
-              <img src="/7a/images/resident-reading-window.jpg" alt="When Drinking Stops Working" className="h-56 md:h-full w-full object-cover" loading="lazy" />
+              <img src="/images/resident-reading-window.jpg" alt="When Drinking Stops Working" className="h-56 md:h-full w-full object-cover" loading="lazy" />
               <div className="absolute top-4 left-4 bg-primary text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md" style={{ fontFamily: 'var(--font-body)' }}>
                 Episode 1
               </div>

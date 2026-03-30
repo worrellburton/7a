@@ -14,7 +14,7 @@ export default function DetoxificationPage() {
         label="Treatment Programs"
         title="Detoxification"
         description="Medical detox is the critical first step in recovery. Our medically supervised detoxification program ensures your safety and comfort as your body clears substances, preparing you for the therapeutic work ahead."
-        image="/7a/images/embrace-connection.jpg"
+        image="/images/embrace-connection.jpg"
       />
 
       {/* Overview */}

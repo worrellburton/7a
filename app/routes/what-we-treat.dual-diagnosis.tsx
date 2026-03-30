@@ -14,7 +14,7 @@ export default function DualDiagnosisPage() {
         label="What We Treat"
         title="Dual Diagnosis Treatment"
         description="When mental health conditions and substance use disorders occur together, integrated treatment is essential. At Seven Arrows Recovery, we address both simultaneously for lasting healing."
-        image="/7a/images/individual-therapy-session.jpg"
+        image="/images/individual-therapy-session.jpg"
       />
 
       {/* Understanding Dual Diagnosis */}

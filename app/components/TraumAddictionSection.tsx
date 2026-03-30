@@ -8,7 +8,7 @@ export default function TraumAddictionSection() {
           {/* Left: Image */}
           <div className="rounded-2xl overflow-hidden aspect-[4/3] bg-warm-bg">
             <img
-              src="/7a/images/sound-healing-session.jpg"
+              src="/images/sound-healing-session.jpg"
               alt="TraumAddiction treatment session"
               className="w-full h-full object-cover"
               loading="lazy"

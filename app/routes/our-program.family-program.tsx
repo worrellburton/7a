@@ -37,7 +37,7 @@ export default function FamilyProgramPage() {
         label="Family Program"
         title="Healing the Whole Family"
         description="Addiction affects everyone in the family. At Seven Arrows Recovery, our family program brings loved ones into the healing process through therapy, education, and ongoing connection."
-        image="/7a/images/group-sunset-desert.jpg"
+        image="/images/group-sunset-desert.jpg"
       />
 
       {/* Introduction */}

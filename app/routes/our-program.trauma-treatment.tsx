@@ -47,7 +47,7 @@ export default function TraumaTreatmentPage() {
         label="TraumAddiction® Treatment"
         title="Healing Trauma at the Root"
         description="Addiction rarely exists in isolation. Our TraumAddiction® approach treats trauma and substance use as one integrated condition through the Forward-Facing Freedom® model — unlocking deeper and more lasting healing."
-        image="/7a/images/embrace-connection.jpg"
+        image="/images/embrace-connection.jpg"
       />
 
       {/* The Problem */}

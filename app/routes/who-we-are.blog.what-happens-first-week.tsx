@@ -437,7 +437,7 @@ export default function BlogFirstWeek() {
           {/* Image break - community */}
           <div className="my-12 rounded-2xl overflow-hidden aspect-[16/7]">
             <img
-              src="/7a/images/group-gathering-pavilion.jpg"
+              src="/images/group-gathering-pavilion.jpg"
               alt="Group gathering at Seven Arrows Recovery"
               className="w-full h-full object-cover"
               loading="lazy"

@@ -146,7 +146,7 @@ export default function InsuranceCignaPage() {
         label="Insurance Coverage"
         title="Cigna Rehab Coverage"
         description="Seven Arrows Recovery accepts most Cigna and Evernorth Behavioral Health plans for drug and alcohol addiction treatment. Let our team verify your coverage and handle all the insurance details."
-        image="/7a/images/embrace-connection.jpg"
+        image="/images/embrace-connection.jpg"
       />
 
       {/* Cigna Overview */}

@@ -14,7 +14,7 @@ export default function InterventionsPage() {
         label="Treatment Programs"
         title="Interventions"
         description="When someone you love is struggling with addiction and is not yet ready to seek help, a professional intervention can be the turning point. Our intervention specialists guide families through a compassionate, structured process that opens the door to treatment."
-        image="/7a/images/group-therapy-room.jpg"
+        image="/images/group-therapy-room.jpg"
       />
 
       {/* Overview */}

@@ -14,7 +14,7 @@ export default function HeroinAddictionPage() {
         label="What We Treat"
         title="Heroin Addiction Treatment"
         description="Heroin addiction is a devastating and life-threatening condition, but recovery is possible with the right support. Seven Arrows Recovery provides medically supervised detox and comprehensive treatment in a safe, compassionate environment."
-        image="/7a/images/embrace-connection.jpg"
+        image="/images/embrace-connection.jpg"
       />
 
       {/* Understanding Heroin Addiction */}

@@ -112,7 +112,7 @@ export default function LocationMesaPage() {
         label="Drug Rehab in Mesa"
         title="Addiction Treatment for Mesa, Arizona's East Valley"
         description="Mesa is one of the largest cities in Arizona—and one of the hardest hit by the opioid and fentanyl crisis. Seven Arrows Recovery provides Mesa residents with a clear path from the East Valley to lasting recovery at our private campus in the Swisshelm Mountains."
-        image="/7a/images/sign-night-sky-milky-way.jpg"
+        image="/images/sign-night-sky-milky-way.jpg"
       />
 
       {/* City Context */}

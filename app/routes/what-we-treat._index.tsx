@@ -60,7 +60,7 @@ export default function WhatWeTreatPage() {
         label="What We Treat"
         title="Conditions We Treat"
         description="At Seven Arrows Recovery, we provide individualized, evidence-based treatment for a wide range of substance use disorders and co-occurring mental health conditions. Our clinical team creates personalized plans to guide you toward lasting recovery."
-        image="/7a/images/resident-reading-window.jpg"
+        image="/images/resident-reading-window.jpg"
       />
 
       {/* Conditions Grid */}

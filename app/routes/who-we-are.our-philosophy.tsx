@@ -99,7 +99,7 @@ export default function OurPhilosophyPage() {
         label="Our Philosophy"
         title="A Salutogenic Approach to Recovery"
         description="At Seven Arrows Recovery, we believe lasting recovery requires more than stopping substance use. Our philosophy is rooted in the science of health creation — addressing the mind, body, and spirit through the TraumAddiction® and Forward-Facing Freedom® framework."
-        image="/7a/images/horses-grazing.jpg"
+        image="/images/horses-grazing.jpg"
       />
 
       {/* TraumAddiction Introduction */}
@@ -246,19 +246,19 @@ export default function OurPhilosophyPage() {
                 title: 'Mind',
                 description:
                   'Psychoeducation, attentional practices, and cognitive reframing address thought patterns and build the awareness needed for self-regulation and lasting behavioral change.',
-                image: '/7a/images/individual-therapy-session.jpg',
+                image: '/images/individual-therapy-session.jpg',
               },
               {
                 title: 'Body',
                 description:
                   'Somatic experiencing, breathwork, movement therapy, and equine-assisted experiences reconnect clients with their physical selves and restore the nervous system\'s natural capacity for regulation.',
-                image: '/7a/images/horses-grazing.jpg',
+                image: '/images/horses-grazing.jpg',
               },
               {
                 title: 'Spirit',
                 description:
                   'Meaning-making, values development, community connection, and time in nature at the Swisshelm Mountains cultivate purpose and a sense of coherence essential for sustained recovery.',
-                image: '/7a/images/sign-night-sky-milky-way.jpg',
+                image: '/images/sign-night-sky-milky-way.jpg',
               },
             ].map((pillar) => (
               <div key={pillar.title} className="relative rounded-2xl overflow-hidden">

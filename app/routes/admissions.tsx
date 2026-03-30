@@ -105,7 +105,7 @@ export default function AdmissionsPage() {
         label="The First Step"
         title="Our Admissions Process"
         description="At Seven Arrows we have streamlined your admissions process. You will always have access to a live person to answer any concerns that you or your loved one might have — both prior to admission and throughout your stay."
-        image="/7a/images/embrace-connection.jpg"
+        image="/images/embrace-connection.jpg"
       />
 
       {/* Intro + Call */}
@@ -328,7 +328,7 @@ export default function AdmissionsPage() {
             </div>
             <div className="rounded-2xl overflow-hidden aspect-[4/3]">
               <img
-                src="/7a/images/group-gathering-pavilion.jpg"
+                src="/images/group-gathering-pavilion.jpg"
                 alt="Clients gathering at Seven Arrows Recovery"
                 className="w-full h-full object-cover"
                 loading="lazy"

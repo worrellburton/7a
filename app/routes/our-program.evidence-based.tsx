@@ -42,7 +42,7 @@ export default function EvidenceBasedPage() {
         label="Evidence-Based Treatment"
         title="Grounded in Proven Science"
         description="At Seven Arrows Recovery, our clinical programming is built on therapies that decades of research have shown to be effective. We combine these proven methods with our unique setting and philosophy to deliver treatment that is both rigorous and deeply human."
-        image="/7a/images/group-therapy-room.jpg"
+        image="/images/group-therapy-room.jpg"
       />
 
       {/* Introduction */}

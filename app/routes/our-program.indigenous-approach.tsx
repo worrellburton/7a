@@ -37,7 +37,7 @@ export default function IndigenousApproachPage() {
         label="Indigenous Approach"
         title="Rooted in Ancient Wisdom"
         description="At Seven Arrows Recovery, we honor indigenous healing traditions as a vital part of the recovery journey. The land, the ceremonies, and the wisdom of generations past guide our clients toward deep, lasting transformation."
-        image="/7a/images/campfire-ceremony-circle.webp"
+        image="/images/campfire-ceremony-circle.webp"
       />
 
       {/* Introduction */}

@@ -25,7 +25,7 @@ export default function ProgramSection() {
           <div className="rounded-2xl overflow-hidden bg-warm-bg">
             <div className="aspect-[4/3] overflow-hidden">
               <img
-                src="/7a/images/equine-therapy-portrait.jpg"
+                src="/images/equine-therapy-portrait.jpg"
                 alt="Equine therapy at Seven Arrows"
                 className="w-full h-full object-cover"
                 loading="lazy"
@@ -81,7 +81,7 @@ export default function ProgramSection() {
           <div className="rounded-2xl overflow-hidden bg-warm-bg">
             <div className="aspect-[4/3] overflow-hidden">
               <img
-                src="/7a/images/group-sunset-desert.jpg"
+                src="/images/group-sunset-desert.jpg"
                 alt="Group gathering at sunset in the Arizona desert"
                 className="w-full h-full object-cover"
                 loading="lazy"

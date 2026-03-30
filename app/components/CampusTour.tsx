@@ -23,10 +23,10 @@ export default function CampusTour() {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { src: '/7a/images/facility-exterior-mountains.jpg', alt: 'Facility exterior with mountains' },
-            { src: '/7a/images/covered-porch-desert-view.jpg', alt: 'Covered porch with desert view' },
-            { src: '/7a/images/bedroom-shared.jpg', alt: 'Shared bedroom' },
-            { src: '/7a/images/group-gathering-pavilion.jpg', alt: 'Group gathering under pavilion at dusk' },
+            { src: '/images/facility-exterior-mountains.jpg', alt: 'Facility exterior with mountains' },
+            { src: '/images/covered-porch-desert-view.jpg', alt: 'Covered porch with desert view' },
+            { src: '/images/bedroom-shared.jpg', alt: 'Shared bedroom' },
+            { src: '/images/group-gathering-pavilion.jpg', alt: 'Group gathering under pavilion at dusk' },
           ].map((img) => (
             <div key={img.alt} className="rounded-2xl overflow-hidden aspect-[4/3] bg-warm-bg">
               <img

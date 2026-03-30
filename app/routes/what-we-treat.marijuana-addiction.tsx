@@ -14,7 +14,7 @@ export default function MarijuanaAddictionPage() {
         label="What We Treat"
         title="Marijuana Addiction Treatment"
         description="While often perceived as harmless, marijuana can create a powerful psychological dependence that disrupts daily life. At Seven Arrows Recovery, we help individuals break free from marijuana addiction and build a foundation for lasting wellness."
-        image="/7a/images/horses-grazing.jpg"
+        image="/images/horses-grazing.jpg"
       />
 
       {/* Understanding Marijuana Addiction */}

@@ -115,7 +115,7 @@ export default function WhyUsPage() {
         label="Why Choose Us"
         title="Why Choose Seven Arrows Recovery for Addiction Treatment in Arizona?"
         description="Seven Arrows Recovery is a residential inpatient drug and alcohol rehabilitation center located on 160 private acres in Elfrida, Arizona, at the base of the Swisshelm Mountains. We serve men and women from across the state and nationwide who are ready to break the cycle of addiction through clinically driven, trauma-informed, and holistic care. Our boutique setting, low client-to-staff ratio, and integrative approach create the conditions where lasting recovery becomes possible."
-        image="/7a/images/facility-exterior-mountains.jpg"
+        image="/images/facility-exterior-mountains.jpg"
       />
 
       {/* ── H2: A Healing Sanctuary in the Sonoran Desert ── */}

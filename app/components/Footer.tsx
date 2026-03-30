@@ -291,7 +291,7 @@ export default function Footer() {
             {/* Brand */}
             <div className="lg:col-span-1">
               <Link to="/" className="flex items-center gap-3 mb-5" aria-label="Seven Arrows Recovery">
-                <img src="/7a/images/logo.png" alt="Seven Arrows Recovery" className="h-14 w-auto brightness-0 invert" />
+                <img src="/images/logo.png" alt="Seven Arrows Recovery" className="h-14 w-auto brightness-0 invert" />
               </Link>
               <p className="text-white/40 text-xs leading-relaxed">
                 A boutique drug and alcohol rehab center nestled at the base of the Swisshelm Mountains in Arizona.

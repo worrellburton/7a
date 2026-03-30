@@ -7,37 +7,37 @@ const campusHighlights = [
     title: 'Sweat Lodge',
     description:
       'A sacred space for ceremonial healing and spiritual renewal, guided by experienced practitioners.',
-    image: '/7a/images/campfire-ceremony-circle.webp',
+    image: '/images/campfire-ceremony-circle.webp',
   },
   {
     title: 'Equine Area',
     description:
       'Our equine-assisted therapy grounds provide a powerful setting for building trust, empathy, and emotional awareness.',
-    image: '/7a/images/horses-grazing.jpg',
+    image: '/images/horses-grazing.jpg',
   },
   {
     title: 'Swisshelm Mountains',
     description:
       'Surrounded by the dramatic Swisshelm Mountain range, our campus offers breathtaking views and a profound sense of peace.',
-    image: '/7a/images/facility-exterior-mountains.jpg',
+    image: '/images/facility-exterior-mountains.jpg',
   },
   {
     title: 'Living Quarters',
     description:
       'Comfortable, well-appointed private and semi-private rooms designed to feel like home during your stay.',
-    image: '/7a/images/bedroom-shared.jpg',
+    image: '/images/bedroom-shared.jpg',
   },
   {
     title: 'Common Areas',
     description:
       'Warm gathering spaces for group sessions, peer connection, and relaxation between therapeutic activities.',
-    image: '/7a/images/common-area-living-room.jpg',
+    image: '/images/common-area-living-room.jpg',
   },
   {
     title: 'Dining Facilities',
     description:
       'Nutritious, chef-prepared meals served in a communal dining space that fosters fellowship and healthy habits.',
-    image: '/7a/images/covered-porch-desert-view.jpg',
+    image: '/images/covered-porch-desert-view.jpg',
   },
 ];
 
@@ -53,7 +53,7 @@ export default function TourPage() {
         label="Virtual Tour"
         title="Tour Our Campus"
         description="Explore the grounds of Seven Arrows Recovery, a boutique treatment center set at the base of Arizona's Swisshelm Mountains. Every detail of our campus was designed to support healing, reflection, and renewal."
-        image="/7a/images/facility-exterior-mountains.jpg"
+        image="/images/facility-exterior-mountains.jpg"
       />
 
       {/* Virtual Tour Placeholder */}
@@ -81,7 +81,7 @@ export default function TourPage() {
             className="relative rounded-2xl overflow-hidden"
           >
             <img
-              src="/7a/images/sign-night-sky-milky-way.jpg"
+              src="/images/sign-night-sky-milky-way.jpg"
               alt="Seven Arrows sign under starry night sky"
               className="absolute inset-0 w-full h-full object-cover"
             />
@@ -192,7 +192,7 @@ export default function TourPage() {
               aria-label="Scenic view of the Swisshelm Mountains"
             >
               <img
-                src="/7a/images/facility-exterior-mountains.jpg"
+                src="/images/facility-exterior-mountains.jpg"
                 alt="Scenic view of the Swisshelm Mountains"
                 className="w-full h-full object-cover"
               />

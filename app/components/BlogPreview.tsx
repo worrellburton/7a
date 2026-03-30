@@ -30,7 +30,7 @@ export default function BlogPreview() {
             className="bg-white rounded-xl overflow-hidden shadow-sm group block no-underline transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_8px_30px_rgba(160,82,45,0.2)]"
           >
             <div className="relative">
-              <img src="/7a/images/resident-reading-window.jpg" alt="When Drinking Stops Working" className="h-48 w-full object-cover" loading="lazy" />
+              <img src="/images/resident-reading-window.jpg" alt="When Drinking Stops Working" className="h-48 w-full object-cover" loading="lazy" />
               <div className="absolute top-3 left-3 bg-primary text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full" style={{ fontFamily: 'var(--font-body)' }}>
                 Episode 1
               </div>

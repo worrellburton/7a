@@ -21,17 +21,17 @@ const heroSlides: {
   },
   {
     type: 'image',
-    src: '/7a/images/equine-therapy-portrait.jpg',
+    src: '/images/equine-therapy-portrait.jpg',
     label: 'Equine Therapy',
   },
   {
     type: 'image',
-    src: '/7a/images/group-sunset-desert.jpg',
+    src: '/images/group-sunset-desert.jpg',
     label: 'Community',
   },
   {
     type: 'image',
-    src: '/7a/images/covered-porch-desert-view.jpg',
+    src: '/images/covered-porch-desert-view.jpg',
     label: 'Desert Views',
   },
 ];
@@ -530,7 +530,7 @@ export default function Hero() {
                       <>
                         {/* Poster behind video */}
                         <img
-                          src="/7a/images/facility-exterior-mountains.jpg"
+                          src="/images/facility-exterior-mountains.jpg"
                           alt=""
                           className="absolute inset-0 w-full h-full object-cover"
                         />

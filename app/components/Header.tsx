@@ -712,7 +712,7 @@ export default function Header() {
           {/* Logo — compact */}
           <Link to="/" className="shrink-0 mr-2 xl:mr-6" aria-label="Seven Arrows Recovery - Home">
             <img
-              src="/7a/images/logo.png"
+              src="/images/logo.png"
               alt="Seven Arrows Recovery"
               className="h-11 lg:h-12 w-auto"
             />
