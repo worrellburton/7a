@@ -444,7 +444,7 @@ export default function Hero() {
       {/* Main hero area — light background, split layout */}
       <div className="relative bg-warm-bg overflow-hidden">
         <DesertGradientCanvas />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center min-h-[520px] lg:min-h-[calc(100vh-68px-40px-44px)]">
 
             {/* Left: Text Content */}
