@@ -5,12 +5,6 @@ import type { MetaFunction } from "@remix-run/node";
 
 const services = [
   {
-    title: "Detoxification",
-    href: "/treatment/detoxification",
-    description:
-      "Medically supervised detox in a safe, comfortable setting with 24/7 medical oversight to help you through the critical first stage of recovery.",
-  },
-  {
     title: "Residential Inpatient",
     href: "/treatment/residential-inpatient",
     description:

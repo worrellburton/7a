@@ -2,12 +2,6 @@ import { Link } from '@remix-run/react';
 
 const services = [
   {
-    title: 'Detoxification',
-    href: '/treatment/detoxification',
-    image: '/images/embrace-connection.jpg',
-    description: 'Safe, medically supervised detox',
-  },
-  {
     title: 'Residential Inpatient',
     href: '/treatment/residential-inpatient',
     image: '/images/bedroom-shared.jpg',

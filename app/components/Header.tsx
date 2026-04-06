@@ -359,7 +359,6 @@ const navLinks: NavItem[] = [
     description: 'Clinical & residential programs tailored to your needs.',
     dropdown: [
       { label: 'Interventions', href: '/treatment/interventions', description: 'Professional intervention services' },
-      { label: 'Detoxification', href: '/treatment/detoxification', description: 'Medical detox in a safe environment' },
       { label: 'Residential Inpatient', href: '/treatment/residential-inpatient', description: '90+ day immersive treatment' },
       { label: 'Alumni & Aftercare', href: '/treatment/alumni-aftercare', description: 'Lifelong support network' },
     ],
