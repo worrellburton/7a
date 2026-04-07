@@ -212,12 +212,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             alt="Seven Arrows Recovery"
             className="h-20 w-auto mx-auto mb-6"
           />
-          <h1 className="text-3xl font-bold text-foreground mb-1 tracking-tight">
-            Seven Arrows Recovery
-          </h1>
-          <p className="text-foreground/40 text-xs tracking-widest uppercase mb-10" style={{ fontFamily: 'var(--font-body)' }}>
-            Patient Portal
-          </p>
+          <div className="mb-10" />
           <button
             onClick={signInWithGoogle}
             className="w-full flex items-center justify-center gap-3 bg-foreground hover:bg-foreground/90 text-white rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-sm hover:shadow-lg"
@@ -231,9 +226,6 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             </svg>
             Continue with Google
           </button>
-          <p className="mt-8 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-            Secure &bull; HIPAA Compliant &bull; Confidential
-          </p>
         </div>
       </div>
     );
