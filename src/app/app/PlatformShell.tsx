@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+import { usePagePermissions } from '@/lib/PagePermissions';
+import PageGuard from '@/lib/PageGuard';
 
 /* ── Login WebGL Background ─────────────────────────────────────── */
 
@@ -233,6 +235,7 @@ const navItems = [
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
   const { user, loading, isAdmin, signInWithGoogle, signOut } = useAuth();
+  const { isPageAdminOnly } = usePagePermissions();
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -297,7 +300,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
         {/* Nav links */}
         <nav className="flex-1 p-3 space-y-1">
-          {navItems.map((item) => {
+          {navItems.filter((item) => !isPageAdminOnly(item.href) || isAdmin).map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
@@ -322,19 +325,32 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           {userMenuOpen && (
             <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
               {isAdmin && (
-                <Link
-                  href="/app/users"
-                  onClick={() => setUserMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-                  </svg>
-                  Users
-                </Link>
+                <>
+                  <Link
+                    href="/app/users"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+                    </svg>
+                    Users
+                  </Link>
+                  <Link
+                    href="/app/pages"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                    Pages
+                  </Link>
+                </>
               )}
               <a
                 href="/"
@@ -401,7 +417,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             </span>
           </div>
           <div className="flex gap-2">
-            {navItems.map((item) => (
+            {navItems.filter((item) => !isPageAdminOnly(item.href) || isAdmin).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -413,7 +429,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           </div>
         </div>
 
-        {children}
+        <PageGuard>{children}</PageGuard>
 
         {/* Theme toggle — fixed bottom right */}
         <ThemeToggle />
