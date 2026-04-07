@@ -4,6 +4,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import GoogleReviewsBadge from '@/components/GoogleReviewsBadge';
 import FloatingContactCTA from '@/components/FloatingContactCTA';
+import { AuthProvider } from '@/lib/AuthProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -117,12 +118,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen flex flex-col antialiased pb-16 lg:pb-0">
-        <TopBar />
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
-        <GoogleReviewsBadge />
-        <FloatingContactCTA />
+        <AuthProvider>
+          <TopBar />
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Footer />
+          <GoogleReviewsBadge />
+          <FloatingContactCTA />
+        </AuthProvider>
       </body>
     </html>
   );
