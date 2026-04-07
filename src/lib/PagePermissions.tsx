@@ -13,6 +13,7 @@ const defaultPages: PageConfig[] = [
   { path: '/app', label: 'Home', adminOnly: false },
   { path: '/app/improvements', label: 'Facilities', adminOnly: false },
   { path: '/app/compliance', label: 'Compliance', adminOnly: false },
+  { path: '/app/groups', label: 'Groups', adminOnly: false },
   { path: '/app/frameworks', label: 'Frameworks', adminOnly: false },
   { path: '/app/users', label: 'Users', adminOnly: true },
   { path: '/app/pages', label: 'Pages', adminOnly: true },
