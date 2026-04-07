@@ -1,9 +1,158 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+
+/* ── Login WebGL Background ─────────────────────────────────────── */
+
+function LoginBackground() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const gl = canvas.getContext('webgl', { alpha: false, antialias: true });
+    if (!gl) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const resize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const vs = `
+      attribute vec2 aPos;
+      varying vec2 vUv;
+      void main() {
+        vUv = aPos * 0.5 + 0.5;
+        gl_Position = vec4(aPos, 0.0, 1.0);
+      }
+    `;
+
+    const fs = `
+      precision highp float;
+      varying vec2 vUv;
+      uniform float uTime;
+      uniform vec2 uRes;
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1,0)), f.x),
+                   mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
+      }
+      float fbm(vec2 p) {
+        float v = 0.0, a = 0.5;
+        for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
+        return v;
+      }
+
+      void main() {
+        vec2 uv = vUv;
+        float asp = uRes.x / uRes.y;
+        float t = uTime * 0.05;
+
+        float n1 = fbm(vec2(uv.x * asp * 1.2 + t * 0.3, uv.y * 1.2 + t * 0.2));
+        float n2 = fbm(vec2(uv.x * asp * 1.8 - t * 0.2, uv.y * 1.8 + t * 0.35) + 5.0);
+        float n3 = fbm(vec2(uv.x * asp * 0.8 + t * 0.15, uv.y * 0.8 - t * 0.1) + 10.0);
+
+        // Warm desert palette
+        vec3 sand  = vec3(0.965, 0.950, 0.930);
+        vec3 terra = vec3(0.627, 0.322, 0.176);
+        vec3 rose  = vec3(0.776, 0.478, 0.290);
+        vec3 sage  = vec3(0.620, 0.660, 0.560);
+        vec3 dusk  = vec3(0.400, 0.280, 0.350);
+
+        // Drifting radial blobs
+        vec2 c1 = vec2(0.3 + sin(t * 0.7) * 0.2, 0.3 + cos(t * 0.5) * 0.2);
+        vec2 c2 = vec2(0.7 + cos(t * 0.4) * 0.15, 0.6 + sin(t * 0.8) * 0.15);
+        vec2 c3 = vec2(0.5 + sin(t * 0.9 + 2.0) * 0.25, 0.8 + cos(t * 0.3) * 0.1);
+        vec2 c4 = vec2(0.2 + cos(t * 0.6 + 1.0) * 0.1, 0.7 + sin(t * 0.7) * 0.15);
+
+        float r1 = smoothstep(0.55, 0.0, length(uv - c1));
+        float r2 = smoothstep(0.50, 0.0, length(uv - c2));
+        float r3 = smoothstep(0.45, 0.0, length(uv - c3));
+        float r4 = smoothstep(0.40, 0.0, length(uv - c4));
+
+        vec3 col = sand;
+        col = mix(col, rose,  r1 * 0.18 * (0.7 + n1 * 0.6));
+        col = mix(col, terra, r2 * 0.12 * (0.6 + n2 * 0.8));
+        col = mix(col, sage,  r3 * 0.14 * (0.5 + n3 * 0.6));
+        col = mix(col, dusk,  r4 * 0.08 * (0.6 + n1 * 0.4));
+
+        // Subtle flowing particles
+        float p1 = smoothstep(0.48, 0.50, noise(uv * 30.0 + t * 2.0)) * 0.03;
+        float p2 = smoothstep(0.49, 0.51, noise(uv * 25.0 - t * 1.5 + 3.0)) * 0.02;
+        col += vec3(terra) * p1 + vec3(rose) * p2;
+
+        // Film grain
+        col += (hash(uv * uRes + fract(uTime * 0.5)) - 0.5) * 0.008;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    const compile = (type: number, src: string) => {
+      const s = gl.createShader(type)!;
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      return s;
+    };
+
+    const prog = gl.createProgram()!;
+    gl.attachShader(prog, compile(gl.VERTEX_SHADER, vs));
+    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+
+    const aPos = gl.getAttribLocation(prog, 'aPos');
+    const uTime = gl.getUniformLocation(prog, 'uTime');
+    const uRes = gl.getUniformLocation(prog, 'uRes');
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    let raf: number;
+    const t0 = performance.now();
+    const draw = () => {
+      gl.uniform1f(uTime, (performance.now() - t0) / 1000);
+      gl.uniform2f(uRes, canvas.width, canvas.height);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full"
+      aria-hidden="true"
+    />
+  );
+}
+
+/* ── Nav Items ──────────────────────────────────────────────────── */
 
 const navItems = [
   {
@@ -24,6 +173,18 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    label: 'Users',
+    href: '/app/users',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 00-3-3.87" />
+        <path d="M16 3.13a4 4 0 010 7.75" />
+      </svg>
+    ),
+  },
 ];
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
@@ -40,39 +201,39 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     );
   }
 
-  // Not signed in — show login
+  // Not signed in — show login with WebGL background
   if (!user) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center bg-warm-bg">
-        <div className="max-w-md w-full mx-4">
-          <div className="bg-white rounded-2xl p-8 lg:p-10 shadow-sm border border-gray-100 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-              <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                <path d="M9 12l2 2 4-4" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold text-foreground mb-2">Patient Portal</h1>
-            <p className="text-foreground/60 text-sm leading-relaxed mb-8" style={{ fontFamily: 'var(--font-body)' }}>
-              Sign in to access your recovery dashboard, treatment updates, and resources.
-            </p>
-            <button
-              onClick={signInWithGoogle}
-              className="w-full flex items-center justify-center gap-3 bg-foreground hover:bg-foreground/90 text-white rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-sm hover:shadow-md"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-              </svg>
-              Continue with Google
-            </button>
-            <p className="mt-6 text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-              Secure &bull; HIPAA Compliant &bull; Confidential
-            </p>
-          </div>
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <LoginBackground />
+        <div className="relative z-10 max-w-sm w-full mx-4 text-center">
+          <img
+            src="/images/logo.png"
+            alt="Seven Arrows Recovery"
+            className="h-20 w-auto mx-auto mb-6"
+          />
+          <h1 className="text-3xl font-bold text-foreground mb-1 tracking-tight">
+            Seven Arrows Recovery
+          </h1>
+          <p className="text-foreground/40 text-xs tracking-widest uppercase mb-10" style={{ fontFamily: 'var(--font-body)' }}>
+            Patient Portal
+          </p>
+          <button
+            onClick={signInWithGoogle}
+            className="w-full flex items-center justify-center gap-3 bg-foreground hover:bg-foreground/90 text-white rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-sm hover:shadow-lg"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+            </svg>
+            Continue with Google
+          </button>
+          <p className="mt-8 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+            Secure &bull; HIPAA Compliant &bull; Confidential
+          </p>
         </div>
       </div>
     );
