@@ -13,7 +13,7 @@ interface RecentUser {
 
 function isOnlineNow(lastSignIn: string | null): boolean {
   if (!lastSignIn) return false;
-  return Date.now() - new Date(lastSignIn).getTime() < 15 * 60 * 1000;
+  return Date.now() - new Date(lastSignIn).getTime() < 6 * 60 * 1000;
 }
 
 function timeAgo(dateStr: string | null): string {

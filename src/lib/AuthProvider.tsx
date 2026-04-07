@@ -63,6 +63,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Heartbeat: update last_sign_in every 5 minutes so "Active today" is accurate
+  useEffect(() => {
+    if (!user) return;
+    const update = () => {
+      supabase.from('users').update({ last_sign_in: new Date().toISOString() }).eq('id', user.id).then(() => {});
+    };
+    update(); // immediately on mount
+    const interval = setInterval(update, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user]);
+
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',

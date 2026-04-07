@@ -1,35 +1,43 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from './supabase';
 
-interface PageConfig {
+export interface PageConfig {
   path: string;
   label: string;
   adminOnly: boolean;
+  section: 'nav' | 'popup';
+  sort_order: number;
 }
 
 const defaultPages: PageConfig[] = [
-  { path: '/app', label: 'Home', adminOnly: false },
-  { path: '/app/improvements', label: 'Facilities', adminOnly: false },
-  { path: '/app/compliance', label: 'Compliance', adminOnly: false },
-  { path: '/app/groups', label: 'Groups', adminOnly: false },
-  { path: '/app/frameworks', label: 'Frameworks', adminOnly: false },
-  { path: '/app/users', label: 'Users', adminOnly: true },
-  { path: '/app/pages', label: 'Pages', adminOnly: true },
+  { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0 },
+  { path: '/app/improvements', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1 },
+  { path: '/app/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2 },
+  { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3 },
+  { path: '/app/frameworks', label: 'Frameworks', adminOnly: false, section: 'nav', sort_order: 4 },
+  { path: '/app/users', label: 'Users', adminOnly: true, section: 'popup', sort_order: 0 },
+  { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1 },
 ];
 
 interface PagePermissionsContextType {
   pages: PageConfig[];
+  navPages: PageConfig[];
+  popupPages: PageConfig[];
   setPageAdminOnly: (path: string, adminOnly: boolean) => void;
   isPageAdminOnly: (path: string) => boolean;
+  updatePageLayout: (updatedPages: PageConfig[]) => void;
   loading: boolean;
 }
 
 const PagePermissionsContext = createContext<PagePermissionsContextType>({
   pages: defaultPages,
+  navPages: defaultPages.filter((p) => p.section === 'nav'),
+  popupPages: defaultPages.filter((p) => p.section === 'popup'),
   setPageAdminOnly: () => {},
   isPageAdminOnly: () => false,
+  updatePageLayout: () => {},
   loading: true,
 });
 
@@ -41,13 +49,21 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
     async function load() {
       const { data } = await supabase
         .from('page_permissions')
-        .select('path, admin_only');
+        .select('path, admin_only, section, sort_order');
 
       if (data && data.length > 0) {
         setPages((prev) =>
           prev.map((p) => {
-            const match = data.find((d: { path: string; admin_only: boolean }) => d.path === p.path);
-            return match ? { ...p, adminOnly: match.admin_only } : p;
+            const match = data.find((d: { path: string }) => d.path === p.path);
+            if (match) {
+              return {
+                ...p,
+                adminOnly: match.admin_only ?? p.adminOnly,
+                section: match.section ?? p.section,
+                sort_order: match.sort_order ?? p.sort_order,
+              };
+            }
+            return p;
           })
         );
       }
@@ -57,7 +73,6 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   }, []);
 
   const setPageAdminOnly = async (path: string, adminOnly: boolean) => {
-    // Always keep Users and Pages as admin-only
     if (path === '/app/users' || path === '/app/pages') return;
 
     setPages((prev) => prev.map((p) => (p.path === path ? { ...p, adminOnly } : p)));
@@ -72,8 +87,27 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
     return page?.adminOnly ?? false;
   };
 
+  const updatePageLayout = useCallback(async (updatedPages: PageConfig[]) => {
+    setPages(updatedPages);
+
+    const upserts = updatedPages.map((p) => ({
+      path: p.path,
+      admin_only: p.adminOnly,
+      section: p.section,
+      sort_order: p.sort_order,
+    }));
+
+    await supabase
+      .from('page_permissions')
+      .upsert(upserts, { onConflict: 'path' });
+  }, []);
+
+  const sorted = [...pages].sort((a, b) => a.sort_order - b.sort_order);
+  const navPages = sorted.filter((p) => p.section === 'nav');
+  const popupPages = sorted.filter((p) => p.section === 'popup');
+
   return (
-    <PagePermissionsContext.Provider value={{ pages, setPageAdminOnly, isPageAdminOnly, loading }}>
+    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, isPageAdminOnly, updatePageLayout, loading }}>
       {children}
     </PagePermissionsContext.Provider>
   );
