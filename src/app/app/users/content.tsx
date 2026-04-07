@@ -56,12 +56,27 @@ export default function UsersContent() {
       .update({ is_admin: !currentValue })
       .eq('id', userId);
 
-    if (!error) {
+    if (error) {
+      console.error('Toggle admin error:', error);
+      showToast(`Failed to update: ${error.message}`);
+      return;
+    }
+
+    // Verify the update actually persisted
+    const { data: verify } = await supabase
+      .from('users')
+      .select('is_admin')
+      .eq('id', userId)
+      .single();
+
+    if (verify && verify.is_admin === !currentValue) {
       const updated = users.find((u) => u.id === userId);
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, is_admin: !currentValue } : u))
       );
       showToast(`${updated?.full_name || 'User'} ${!currentValue ? 'granted' : 'removed'} admin access`);
+    } else {
+      showToast('Update blocked by database permissions — check RLS policies');
     }
   }
 
