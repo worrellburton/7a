@@ -152,6 +152,41 @@ function LoginBackground() {
   );
 }
 
+/* ── Theme Toggle ──────────────────────────────────────────────── */
+
+function ThemeToggle() {
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains('dark'));
+  }, []);
+
+  const toggle = () => {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle('dark', next);
+    localStorage.setItem('theme', next ? 'dark' : 'light');
+  };
+
+  return (
+    <button
+      onClick={toggle}
+      className="fixed bottom-5 right-5 z-50 w-10 h-10 rounded-full bg-white dark:bg-[#2a2118] border border-gray-200 dark:border-white/10 shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
+      aria-label="Toggle theme"
+    >
+      {dark ? (
+        <svg className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ) : (
+        <svg className="w-5 h-5 text-foreground/60" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 /* ── Nav Items ──────────────────────────────────────────────────── */
 
 const navItems = [
@@ -165,32 +200,28 @@ const navItems = [
     ),
   },
   {
-    label: 'Improvements',
+    label: 'Facilities',
     href: '/app/improvements',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Users',
-    href: '/app/users',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 00-3-3.87" />
-        <path d="M16 3.13a4 4 0 010 7.75" />
+        <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2m-16 0H3m2-10h4m-4 4h4m6-4h4m-4 4h4" />
       </svg>
     ),
   },
 ];
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, signInWithGoogle, signOut } = useAuth();
+  const { user, loading, isAdmin, signInWithGoogle, signOut } = useAuth();
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // Restore theme on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
 
   // Loading state
   if (loading) {
@@ -270,18 +301,39 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         <div className="relative p-3 border-t border-gray-100">
           {userMenuOpen && (
             <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+              {isAdmin && (
+                <Link
+                  href="/app/users"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+                  </svg>
+                  Users
+                </Link>
+              )}
               <Link
                 href="/"
-                className="block px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
+                className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
                 Back to Website
               </Link>
               <button
                 onClick={() => { signOut(); setUserMenuOpen(false); }}
-                className="block w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                className="flex items-center gap-2.5 w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                </svg>
                 Sign Out
               </button>
             </div>
@@ -311,7 +363,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       </aside>
 
       {/* Main content area */}
-      <div className="flex-1 bg-warm-bg overflow-auto">
+      <div className="flex-1 bg-warm-bg overflow-auto relative">
         {/* Mobile nav bar */}
         <div className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -340,6 +392,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         </div>
 
         {children}
+
+        {/* Theme toggle — fixed bottom right */}
+        <ThemeToggle />
       </div>
     </div>
   );
