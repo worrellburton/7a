@@ -21,6 +21,12 @@ export default function UsersContent() {
   const router = useRouter();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -51,9 +57,11 @@ export default function UsersContent() {
       .eq('id', userId);
 
     if (!error) {
+      const updated = users.find((u) => u.id === userId);
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, is_admin: !currentValue } : u))
       );
+      showToast(`${updated?.full_name || 'User'} ${!currentValue ? 'granted' : 'removed'} admin access`);
     }
   }
 
@@ -166,6 +174,18 @@ export default function UsersContent() {
           </div>
         )}
       </div>
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-[fadeSlideUp_0.3s_ease-out]">
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-foreground text-white text-sm font-medium shadow-xl">
+            <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            {toast}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
