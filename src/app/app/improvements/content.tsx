@@ -59,10 +59,21 @@ export default function ImprovementsContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchIssues = useCallback(async () => {
+    // Wait for supabase to restore the auth session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('facilities_issues')
       .select('*')
       .order('reported', { ascending: false });
+
+    if (error) {
+      console.error('Failed to fetch issues:', error);
+    }
 
     if (!error && data) {
       setItems(data.map((d: Record<string, unknown>) => ({
