@@ -270,7 +270,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
           <Link href="/app" className="flex items-center gap-2.5">
-            <img src="/images/logo.png" alt="Seven Arrows" className="h-8 w-auto" />
+            <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
             <span className="text-sm font-bold text-foreground tracking-tight">Portal</span>
           </Link>
         </div>
@@ -316,16 +316,18 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   Users
                 </Link>
               )}
-              <Link
+              <a
                 href="/"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-6H18m0 0v4.5m0-4.5L10.5 13.5" />
                 </svg>
-                Back to Website
-              </Link>
+                See New Website
+              </a>
               <button
                 onClick={() => { signOut(); setUserMenuOpen(false); }}
                 className="flex items-center gap-2.5 w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
