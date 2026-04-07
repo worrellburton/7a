@@ -47,25 +47,32 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from('page_permissions')
-        .select('path, admin_only, section, sort_order');
+      try {
+        const { data, error } = await supabase
+          .from('page_permissions')
+          .select('path, admin_only, section, sort_order');
 
-      if (data && data.length > 0) {
-        setPages((prev) =>
-          prev.map((p) => {
-            const match = data.find((d: { path: string }) => d.path === p.path);
-            if (match) {
-              return {
-                ...p,
-                adminOnly: match.admin_only ?? p.adminOnly,
-                section: match.section ?? p.section,
-                sort_order: match.sort_order ?? p.sort_order,
-              };
-            }
-            return p;
-          })
-        );
+        // Only apply DB overrides if query succeeded and returned data
+        if (!error && data && data.length > 0) {
+          setPages((prev) =>
+            prev.map((p) => {
+              const match = data.find((d: { path: string }) => d.path === p.path);
+              if (match) {
+                return {
+                  ...p,
+                  adminOnly: match.admin_only ?? p.adminOnly,
+                  // Only override section/sort_order if they exist in DB
+                  section: (match.section === 'nav' || match.section === 'popup') ? match.section : p.section,
+                  sort_order: typeof match.sort_order === 'number' ? match.sort_order : p.sort_order,
+                };
+              }
+              return p;
+            })
+          );
+        }
+        // If query fails or returns nothing, defaults are used — that's fine
+      } catch {
+        // DB unavailable — use hardcoded defaults
       }
       setLoading(false);
     }
