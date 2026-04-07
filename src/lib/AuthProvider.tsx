@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { db } from '@/lib/db';
 
 interface AuthContextType {
   user: User | null;
@@ -29,12 +30,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
 
   async function checkAdmin(userId: string) {
-    const { data } = await supabase
-      .from('users')
-      .select('is_admin')
-      .eq('id', userId)
-      .single();
-    setIsAdmin(data?.is_admin === true);
+    const data = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin' });
+    if (Array.isArray(data) && data[0]) {
+      setIsAdmin(data[0].is_admin === true);
+    }
   }
 
   useEffect(() => {
@@ -67,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
     const update = () => {
-      supabase.from('users').update({ last_sign_in: new Date().toISOString() }).eq('id', user.id).then(() => {});
+      db({ action: 'update', table: 'users', data: { last_sign_in: new Date().toISOString() }, match: { id: user.id } });
     };
     update(); // immediately on mount
     const interval = setInterval(update, 5 * 60 * 1000);

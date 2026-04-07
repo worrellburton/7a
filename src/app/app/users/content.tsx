@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -39,12 +39,8 @@ export default function UsersContent() {
     }
 
     async function fetchUsers() {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!error && data) {
+      const data = await db({ action: 'select', table: 'users', order: { column: 'created_at', ascending: false } });
+      if (Array.isArray(data)) {
         setUsers(data);
       }
       setLoading(false);
@@ -54,25 +50,18 @@ export default function UsersContent() {
   }, [user, isAdmin, router]);
 
   async function toggleAdmin(userId: string, currentValue: boolean) {
-    const { error } = await supabase
-      .from('users')
-      .update({ is_admin: !currentValue })
-      .eq('id', userId);
+    const result = await db({ action: 'update', table: 'users', data: { is_admin: !currentValue }, match: { id: userId } });
 
-    if (error) {
-      console.error('Toggle admin error:', error);
-      showToast(`Failed to update: ${error.message}`);
+    if (result?.error) {
+      console.error('Toggle admin error:', result.error);
+      showToast(`Failed to update: ${result.error}`);
       return;
     }
 
     // Verify the update actually persisted
-    const { data: verify } = await supabase
-      .from('users')
-      .select('is_admin')
-      .eq('id', userId)
-      .single();
+    const verify = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin' });
 
-    if (verify && verify.is_admin === !currentValue) {
+    if (Array.isArray(verify) && verify[0] && verify[0].is_admin === !currentValue) {
       const updated = users.find((u) => u.id === userId);
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, is_admin: !currentValue } : u))
@@ -90,13 +79,10 @@ export default function UsersContent() {
     }
     if (!confirm(`Delete ${userName}? This cannot be undone.`)) return;
 
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', userId);
+    const result = await db({ action: 'delete', table: 'users', match: { id: userId } });
 
-    if (error) {
-      showToast(`Failed to delete: ${error.message}`);
+    if (result?.error) {
+      showToast(`Failed to delete: ${result.error}`);
       return;
     }
     setUsers((prev) => prev.filter((u) => u.id !== userId));
@@ -105,13 +91,10 @@ export default function UsersContent() {
 
   async function saveJobTitle(userId: string) {
     const trimmed = jobTitleDraft.trim() || null;
-    const { error } = await supabase
-      .from('users')
-      .update({ job_title: trimmed })
-      .eq('id', userId);
+    const result = await db({ action: 'update', table: 'users', data: { job_title: trimmed }, match: { id: userId } });
 
-    if (error) {
-      showToast(`Failed to update job title: ${error.message}`);
+    if (result?.error) {
+      showToast(`Failed to update job title: ${result.error}`);
     } else {
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, job_title: trimmed } : u)));
     }

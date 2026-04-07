@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { useEffect, useState } from 'react';
 
 interface Group {
@@ -24,12 +24,8 @@ export default function GroupsContent() {
   useEffect(() => {
     if (!user) return;
     async function fetchGroups() {
-      const { data, error } = await supabase
-        .from('groups')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!error && data) setGroups(data);
+      const data = await db({ action: 'select', table: 'groups', order: { column: 'created_at', ascending: false } });
+      if (Array.isArray(data)) setGroups(data);
       setLoading(false);
     }
     fetchGroups();
@@ -38,14 +34,10 @@ export default function GroupsContent() {
   async function addGroup() {
     if (!name.trim()) return;
     setSaving(true);
-    const { data, error } = await supabase
-      .from('groups')
-      .insert({ name: name.trim(), description: description.trim() || null })
-      .select()
-      .single();
+    const data = await db({ action: 'insert', table: 'groups', data: { name: name.trim(), description: description.trim() || null } });
 
-    if (!error && data) {
-      setGroups((prev) => [data, ...prev]);
+    if (data && data.id) {
+      setGroups((prev) => [data as Group, ...prev]);
       setName('');
       setDescription('');
       setShowAdd(false);
@@ -55,8 +47,8 @@ export default function GroupsContent() {
 
   async function deleteGroup(id: string, groupName: string) {
     if (!confirm(`Delete "${groupName}"? This cannot be undone.`)) return;
-    const { error } = await supabase.from('groups').delete().eq('id', id);
-    if (!error) setGroups((prev) => prev.filter((g) => g.id !== id));
+    const result = await db({ action: 'delete', table: 'groups', match: { id } });
+    if (result?.ok) setGroups((prev) => prev.filter((g) => g.id !== id));
   }
 
   if (!user) return null;

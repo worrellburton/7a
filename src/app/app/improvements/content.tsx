@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
 
 const locations = ['Lodge', 'Barn', 'Admin Building', 'Grounds', 'Other'] as const;
 
@@ -59,33 +60,17 @@ export default function ImprovementsContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchIssues = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('facilities_issues')
-      .select('*')
-      .order('reported', { ascending: false });
-
-    if (error) {
-      console.error('Failed to fetch issues:', error);
-    }
-
-    if (!error && data) {
-      setItems(data.map((d: Record<string, unknown>) => ({
-        id: d.id as string,
-        location: d.location as string,
-        issue: d.issue as string,
-        priority: d.priority as Priority,
-        status: d.status as Status,
-        reported: d.reported as string,
-        submitted_by: d.submitted_by as string,
-        notes: (d.notes as string) || '',
-        photo_urls: (d.photo_urls as string[]) || [],
-      })));
+    const data = await db({ action: 'select', table: 'facilities_issues', order: { column: 'reported', ascending: false } });
+    if (Array.isArray(data)) {
+      setItems(data as Issue[]);
+    } else {
+      console.error('Failed to fetch issues:', data);
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    if (session) fetchIssues();
+    if (session?.access_token) fetchIssues();
   }, [session, fetchIssues]);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -166,24 +151,10 @@ export default function ImprovementsContent() {
       photo_urls: photoUrls,
     };
 
-    const { data, error } = await supabase
-      .from('facilities_issues')
-      .insert(row)
-      .select()
-      .single();
+    const data = await db({ action: 'insert', table: 'facilities_issues', data: row });
 
-    if (!error && data) {
-      setItems((prev) => [{
-        id: data.id,
-        location: data.location,
-        issue: data.issue,
-        priority: data.priority,
-        status: data.status,
-        reported: data.reported,
-        submitted_by: data.submitted_by,
-        notes: data.notes || '',
-        photo_urls: data.photo_urls || [],
-      }, ...prev]);
+    if (data && data.id) {
+      setItems((prev) => [data as Issue, ...prev]);
     }
 
     setNewItem({ location: '', issue: '', priority: 'Medium', notes: '' });
@@ -194,26 +165,14 @@ export default function ImprovementsContent() {
   };
 
   const updateStatus = async (id: string, status: Status) => {
-    const { error } = await supabase
-      .from('facilities_issues')
-      .update({ status })
-      .eq('id', id);
-
-    if (!error) {
-      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
-    }
+    await db({ action: 'update', table: 'facilities_issues', data: { status }, match: { id } });
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
   };
 
   const deleteIssue = async (id: string) => {
-    const { error } = await supabase
-      .from('facilities_issues')
-      .delete()
-      .eq('id', id);
-
-    if (!error) {
-      setItems((prev) => prev.filter((i) => i.id !== id));
-      setExpandedId(null);
-    }
+    await db({ action: 'delete', table: 'facilities_issues', match: { id } });
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    setExpandedId(null);
   };
 
   const SortIcon = ({ column }: { column: SortKey }) => (

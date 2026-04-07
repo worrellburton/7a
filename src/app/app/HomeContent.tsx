@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { useEffect, useState } from 'react';
 
 interface RecentUser {
@@ -34,14 +34,12 @@ export default function HomeContent() {
   useEffect(() => {
     if (!user) return;
     async function fetchRecentUsers() {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const { data } = await supabase
-        .from('users')
-        .select('id, full_name, avatar_url, last_sign_in')
-        .gte('last_sign_in', today.toISOString())
-        .order('last_sign_in', { ascending: false });
-      if (data) setRecentUsers(data);
+      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in', order: { column: 'last_sign_in', ascending: false } });
+      if (Array.isArray(data)) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        setRecentUsers(data.filter((u: RecentUser) => u.last_sign_in && new Date(u.last_sign_in) >= today));
+      }
       setTimeout(() => setLoaded(true), 100);
     }
     fetchRecentUsers();

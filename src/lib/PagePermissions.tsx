@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase } from './supabase';
+import { db } from '@/lib/db';
 
 export interface PageConfig {
   path: string;
@@ -48,12 +48,14 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   useEffect(() => {
     async function load() {
       try {
-        const { data, error } = await supabase
-          .from('page_permissions')
-          .select('path, admin_only, section, sort_order');
+        const data = await db({
+          action: 'select',
+          table: 'page_permissions',
+          select: 'path, admin_only, section, sort_order',
+        });
 
         // Only apply DB overrides if query succeeded and returned data
-        if (!error && data && data.length > 0) {
+        if (Array.isArray(data) && data.length > 0) {
           setPages((prev) =>
             prev.map((p) => {
               const match = data.find((d: { path: string }) => d.path === p.path);
@@ -84,9 +86,12 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
 
     setPages((prev) => prev.map((p) => (p.path === path ? { ...p, adminOnly } : p)));
 
-    await supabase
-      .from('page_permissions')
-      .upsert({ path, admin_only: adminOnly }, { onConflict: 'path' });
+    await db({
+      action: 'upsert',
+      table: 'page_permissions',
+      data: [{ path, admin_only: adminOnly }],
+      onConflict: 'path',
+    });
   };
 
   const isPageAdminOnly = (path: string) => {
@@ -104,9 +109,12 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
       sort_order: p.sort_order,
     }));
 
-    await supabase
-      .from('page_permissions')
-      .upsert(upserts, { onConflict: 'path' });
+    await db({
+      action: 'upsert',
+      table: 'page_permissions',
+      data: upserts,
+      onConflict: 'path',
+    });
   }, []);
 
   const sorted = [...pages].sort((a, b) => a.sort_order - b.sort_order);

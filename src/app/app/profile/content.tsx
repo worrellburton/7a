@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { useEffect, useState } from 'react';
 
 export default function ProfileContent() {
@@ -20,15 +20,11 @@ export default function ProfileContent() {
   useEffect(() => {
     if (!user) return;
     async function load() {
-      const { data } = await supabase
-        .from('users')
-        .select('full_name, job_title')
-        .eq('id', user!.id)
-        .single();
+      const data = await db({ action: 'select', table: 'users', match: { id: user!.id }, select: 'full_name, job_title' });
 
-      if (data) {
-        setFullName(data.full_name || '');
-        setJobTitle(data.job_title || '');
+      if (Array.isArray(data) && data[0]) {
+        setFullName(data[0].full_name || '');
+        setJobTitle(data[0].job_title || '');
       }
       setLoaded(true);
     }
@@ -38,16 +34,18 @@ export default function ProfileContent() {
   async function saveProfile() {
     if (!user) return;
     setSaving(true);
-    const { error } = await supabase
-      .from('users')
-      .update({
+    const result = await db({
+      action: 'update',
+      table: 'users',
+      data: {
         full_name: fullName.trim() || null,
         job_title: jobTitle.trim() || null,
-      })
-      .eq('id', user.id);
+      },
+      match: { id: user.id },
+    });
 
-    if (error) {
-      showToast(`Failed to save: ${error.message}`);
+    if (result?.error) {
+      showToast(`Failed to save: ${result.error}`);
     } else {
       showToast('Profile updated');
     }

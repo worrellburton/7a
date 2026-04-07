@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { useAuth } from '@/lib/AuthProvider';
 
 const locations = ['Lodge', 'Barn', 'Admin Building', 'Grounds', 'Other'] as const;
@@ -54,9 +55,10 @@ export default function SubmitContent() {
       }
     }
 
-    const { error } = await supabase
-      .from('facilities_issues')
-      .insert({
+    const result = await db({
+      action: 'insert',
+      table: 'facilities_issues',
+      data: {
         location: form.location,
         issue: form.issue.trim(),
         priority: form.priority,
@@ -65,11 +67,12 @@ export default function SubmitContent() {
         submitted_by: userName,
         notes: form.notes.trim(),
         photo_urls: photoUrls,
-      });
+      },
+    });
 
     setSubmitting(false);
 
-    if (!error) {
+    if (result && result.id) {
       setSubmitted(true);
     } else {
       alert('Failed to submit. Please try again.');
