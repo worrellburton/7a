@@ -1,9 +1,4 @@
 import type { Metadata } from 'next';
-import TopBar from '@/components/TopBar';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
-import GoogleReviewsBadge from '@/components/GoogleReviewsBadge';
-import FloatingContactCTA from '@/components/FloatingContactCTA';
 import { AuthProvider } from '@/lib/AuthProvider';
 import './globals.css';
 
@@ -117,14 +112,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
         />
       </head>
-      <body className="min-h-screen flex flex-col antialiased pb-16 lg:pb-0">
+      <body className="min-h-screen flex flex-col antialiased">
         <AuthProvider>
-          <TopBar />
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <GoogleReviewsBadge />
-          <FloatingContactCTA />
+          {children}
         </AuthProvider>
       </body>
     </html>
