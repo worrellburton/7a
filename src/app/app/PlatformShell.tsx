@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+import { usePagePermissions } from '@/lib/PagePermissions';
+import PageGuard from '@/lib/PageGuard';
 
 /* ── Login WebGL Background ─────────────────────────────────────── */
 
@@ -62,53 +64,54 @@ function LoginBackground() {
       void main() {
         vec2 uv = vUv;
         float asp = uRes.x / uRes.y;
-        float t = uTime * 0.08;
+        float t = uTime * 0.04;
 
-        // Dark base
-        vec3 bg = vec3(0.04, 0.05, 0.09);
+        // Warm tan base
+        vec3 bg = vec3(0.96, 0.94, 0.92);
 
-        // Aurora colors
-        vec3 teal   = vec3(0.1, 0.6, 0.55);
-        vec3 cyan   = vec3(0.15, 0.45, 0.7);
-        vec3 purple = vec3(0.35, 0.15, 0.5);
-        vec3 green  = vec3(0.1, 0.5, 0.3);
+        // Warm palette for waves
+        vec3 sand  = vec3(0.92, 0.88, 0.82);
+        vec3 terra = vec3(0.78, 0.58, 0.42);
+        vec3 rose  = vec3(0.82, 0.65, 0.55);
 
-        // Flowing wave bands
-        float wave1 = sin(uv.x * asp * 3.0 + t * 1.2 + fbm(uv * 3.0 + t * 0.3) * 2.0) * 0.08;
-        float wave2 = sin(uv.x * asp * 2.0 - t * 0.8 + fbm(uv * 2.5 + t * 0.2 + 5.0) * 2.5) * 0.1;
-        float wave3 = sin(uv.x * asp * 4.0 + t * 0.6 + fbm(uv * 2.0 - t * 0.15 + 10.0) * 1.8) * 0.06;
+        float n1 = fbm(uv * 2.0 + t * 0.3);
+        float n2 = fbm(uv * 2.5 + t * 0.2 + 5.0);
 
-        // Position bands in middle area
-        float band1 = smoothstep(0.06, 0.0, abs(uv.y - 0.45 + wave1));
-        float band2 = smoothstep(0.08, 0.0, abs(uv.y - 0.5 + wave2));
-        float band3 = smoothstep(0.05, 0.0, abs(uv.y - 0.55 + wave3));
-
-        // Broader aurora glow
-        float glow1 = smoothstep(0.25, 0.0, abs(uv.y - 0.45 + wave1)) * 0.3;
-        float glow2 = smoothstep(0.3, 0.0, abs(uv.y - 0.5 + wave2)) * 0.25;
-        float glow3 = smoothstep(0.2, 0.0, abs(uv.y - 0.55 + wave3)) * 0.2;
-
-        vec3 col = bg;
-        col += teal * (band1 * 0.8 + glow1);
-        col += cyan * (band2 * 0.7 + glow2);
-        col += purple * (band3 * 0.6 + glow3);
-        col += green * glow1 * 0.3;
-
-        // Sine wave lines (thin flowing lines)
-        for (int i = 0; i < 5; i++) {
+        // Subtle flowing wave bands
+        for (int i = 0; i < 4; i++) {
           float fi = float(i);
-          float freq = 2.0 + fi * 0.8;
-          float speed = 0.5 + fi * 0.15;
-          float yOff = 0.35 + fi * 0.07;
-          float n = fbm(vec2(uv.x * asp * 1.5 + fi * 3.0, t * 0.2 + fi));
-          float wave = sin(uv.x * asp * freq + t * speed + n * 3.0) * (0.04 + fi * 0.01);
-          float line = smoothstep(0.003, 0.0, abs(uv.y - yOff + wave));
-          vec3 lineCol = mix(teal, cyan, fi / 4.0);
-          col += lineCol * line * (0.4 + n * 0.3);
+          float freq = 1.5 + fi * 0.6;
+          float speed = 0.3 + fi * 0.08;
+          float yOff = 0.3 + fi * 0.12;
+          float n = fbm(vec2(uv.x * asp * 1.2 + fi * 2.5, t * 0.15 + fi));
+          float wave = sin(uv.x * asp * freq + t * speed + n * 2.5) * (0.06 + fi * 0.01);
+          float line = smoothstep(0.004, 0.0, abs(uv.y - yOff + wave));
+          float glow = smoothstep(0.08, 0.0, abs(uv.y - yOff + wave));
+          vec3 lineCol = mix(terra, rose, fi / 3.0);
+          col = bg;
+          col = bg + lineCol * line * 0.12 + lineCol * glow * 0.03;
         }
 
-        // Subtle film grain
-        col += (hash(uv * uRes + fract(uTime * 0.5)) - 0.5) * 0.015;
+        // Very subtle drifting warmth
+        col = bg;
+        for (int i = 0; i < 4; i++) {
+          float fi = float(i);
+          float freq = 1.5 + fi * 0.6;
+          float speed = 0.3 + fi * 0.08;
+          float yOff = 0.3 + fi * 0.12;
+          float n = fbm(vec2(uv.x * asp * 1.2 + fi * 2.5, t * 0.15 + fi));
+          float wave = sin(uv.x * asp * freq + t * speed + n * 2.5) * (0.06 + fi * 0.01);
+          float line = smoothstep(0.003, 0.0, abs(uv.y - yOff + wave));
+          float glow = smoothstep(0.06, 0.0, abs(uv.y - yOff + wave));
+          vec3 lineCol = mix(terra, rose, fi / 3.0);
+          col += lineCol * line * 0.08 + lineCol * glow * 0.015;
+        }
+
+        // Barely-there noise texture
+        col += (sand - bg) * n1 * 0.03;
+
+        // Film grain
+        col += (hash(uv * uRes + fract(uTime * 0.5)) - 0.5) * 0.006;
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -232,6 +235,7 @@ const navItems = [
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
   const { user, loading, isAdmin, signInWithGoogle, signOut } = useAuth();
+  const { isPageAdminOnly } = usePagePermissions();
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -266,7 +270,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           <div className="mb-10" />
           <button
             onClick={signInWithGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-white/95 hover:bg-white text-foreground rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-lg hover:shadow-xl backdrop-blur-sm"
+            className="w-full flex items-center justify-center gap-3 bg-foreground hover:bg-foreground/90 text-white rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-sm hover:shadow-lg"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -296,7 +300,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
         {/* Nav links */}
         <nav className="flex-1 p-3 space-y-1">
-          {navItems.map((item) => {
+          {navItems.filter((item) => !isPageAdminOnly(item.href) || isAdmin).map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
@@ -321,19 +325,32 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           {userMenuOpen && (
             <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
               {isAdmin && (
-                <Link
-                  href="/app/users"
-                  onClick={() => setUserMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-                  </svg>
-                  Users
-                </Link>
+                <>
+                  <Link
+                    href="/app/users"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+                    </svg>
+                    Users
+                  </Link>
+                  <Link
+                    href="/app/pages"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                    Pages
+                  </Link>
+                </>
               )}
               <a
                 href="/"
@@ -400,7 +417,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             </span>
           </div>
           <div className="flex gap-2">
-            {navItems.map((item) => (
+            {navItems.filter((item) => !isPageAdminOnly(item.href) || isAdmin).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -412,7 +429,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           </div>
         </div>
 
-        {children}
+        <PageGuard>{children}</PageGuard>
 
         {/* Theme toggle — fixed bottom right */}
         <ThemeToggle />
