@@ -14,6 +14,7 @@ interface AppUser {
   last_sign_in: string | null;
   created_at: string;
   is_admin: boolean;
+  job_title: string | null;
 }
 
 export default function UsersContent() {
@@ -22,6 +23,8 @@ export default function UsersContent() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [editingJobTitle, setEditingJobTitle] = useState<string | null>(null);
+  const [jobTitleDraft, setJobTitleDraft] = useState('');
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -100,6 +103,21 @@ export default function UsersContent() {
     showToast(`${userName} has been removed`);
   }
 
+  async function saveJobTitle(userId: string) {
+    const trimmed = jobTitleDraft.trim() || null;
+    const { error } = await supabase
+      .from('users')
+      .update({ job_title: trimmed })
+      .eq('id', userId);
+
+    if (error) {
+      showToast(`Failed to update job title: ${error.message}`);
+    } else {
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, job_title: trimmed } : u)));
+    }
+    setEditingJobTitle(null);
+  }
+
   if (!user || !isAdmin) return null;
 
   return (
@@ -138,7 +156,8 @@ export default function UsersContent() {
               <thead>
                 <tr className="border-b border-gray-100 bg-warm-bg/50">
                   <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>User</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden sm:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Provider</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden sm:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Job Title</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Provider</th>
                   <th className="text-center px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Admin</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Last Sign In</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Joined</th>
@@ -164,6 +183,28 @@ export default function UsersContent() {
                       </div>
                     </td>
                     <td className="px-6 py-4 hidden sm:table-cell">
+                      {editingJobTitle === u.id ? (
+                        <input
+                          autoFocus
+                          value={jobTitleDraft}
+                          onChange={(e) => setJobTitleDraft(e.target.value)}
+                          onBlur={() => saveJobTitle(u.id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') saveJobTitle(u.id); if (e.key === 'Escape') setEditingJobTitle(null); }}
+                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none w-full max-w-[160px]"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                          placeholder="Add job title..."
+                        />
+                      ) : (
+                        <button
+                          onClick={() => { setEditingJobTitle(u.id); setJobTitleDraft(u.job_title || ''); }}
+                          className="text-xs text-foreground/50 hover:text-foreground transition-colors text-left"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          {u.job_title || <span className="text-foreground/25 italic">Add title...</span>}
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 hidden md:table-cell">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warm-bg text-xs font-medium text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>
                         {u.provider === 'google' && (
                           <svg className="w-3 h-3" viewBox="0 0 24 24">
