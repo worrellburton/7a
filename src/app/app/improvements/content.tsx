@@ -1,25 +1,26 @@
 'use client';
 
-import { Fragment, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
+import { supabase } from '@/lib/supabase';
 
 const locations = ['Lodge', 'Barn', 'Admin Building', 'Grounds', 'Other'] as const;
 
 type Priority = 'High' | 'Medium' | 'Low';
 type Status = 'Open' | 'In Progress' | 'Completed';
-type SortKey = 'location' | 'issue' | 'priority' | 'status' | 'reported' | 'submittedBy' | 'daysOutstanding';
+type SortKey = 'location' | 'issue' | 'priority' | 'status' | 'reported' | 'submitted_by' | 'daysOutstanding';
 type SortDir = 'asc' | 'desc';
 
-interface Improvement {
-  id: number;
+interface Issue {
+  id: string;
   location: string;
   issue: string;
   priority: Priority;
   status: Status;
   reported: string;
-  submittedBy: string;
+  submitted_by: string;
   notes: string;
-  photos: string[];
+  photo_urls: string[];
 }
 
 function daysOutstanding(reported: string): number {
@@ -43,30 +44,63 @@ const statusStyle: Record<Status, string> = {
 
 export default function ImprovementsContent() {
   const { user } = useAuth();
-  const [items, setItems] = useState<Improvement[]>([]);
+  const [items, setItems] = useState<Issue[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [sortKey, setSortKey] = useState<SortKey>('reported');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newItem, setNewItem] = useState({ location: '', issue: '', priority: 'Medium' as Priority, notes: '' });
-  const [newPhotos, setNewPhotos] = useState<string[]>([]);
+  const [newPhotos, setNewPhotos] = useState<File[]>([]);
+  const [newPhotoPreview, setNewPhotoPreview] = useState<string[]>([]);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchIssues = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('facilities_issues')
+      .select('*')
+      .order('reported', { ascending: false });
+
+    if (!error && data) {
+      setItems(data.map((d: Record<string, unknown>) => ({
+        id: d.id as string,
+        location: d.location as string,
+        issue: d.issue as string,
+        priority: d.priority as Priority,
+        status: d.status as Status,
+        reported: d.reported as string,
+        submitted_by: d.submitted_by as string,
+        notes: (d.notes as string) || '',
+        photo_urls: (d.photo_urls as string[]) || [],
+      })));
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (user) fetchIssues();
+  }, [user, fetchIssues]);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) return;
+    const newFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    setNewPhotos((prev) => [...prev, ...newFiles]);
+
+    // Generate previews
+    newFiles.forEach((file) => {
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === 'string') {
-          setNewPhotos((prev) => [...prev, reader.result as string]);
+          setNewPhotoPreview((prev) => [...prev, reader.result as string]);
         }
       };
       reader.readAsDataURL(file);
     });
+
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -89,28 +123,93 @@ export default function ImprovementsContent() {
     const dir = sortDir === 'asc' ? 1 : -1;
     if (sortKey === 'priority') return (priorityOrder[a.priority] - priorityOrder[b.priority]) * dir;
     if (sortKey === 'daysOutstanding') return (daysOutstanding(a.reported) - daysOutstanding(b.reported)) * dir;
-    const aVal = a[sortKey as keyof Improvement] as string;
-    const bVal = b[sortKey as keyof Improvement] as string;
+    const aVal = a[sortKey as keyof Issue] as string;
+    const bVal = b[sortKey as keyof Issue] as string;
     return aVal < bVal ? -dir : aVal > bVal ? dir : 0;
   });
 
-  const addItem = () => {
+  async function uploadPhotos(files: File[]): Promise<string[]> {
+    const urls: string[] = [];
+    for (const file of files) {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `issues/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from('issue-photos').upload(path, file);
+      if (!error) {
+        const { data: urlData } = supabase.storage.from('issue-photos').getPublicUrl(path);
+        urls.push(urlData.publicUrl);
+      }
+    }
+    return urls;
+  }
+
+  const addItem = async () => {
     if (!newItem.location || !newItem.issue.trim()) return;
-    const item: Improvement = {
-      id: Date.now(),
+    setSubmitting(true);
+
+    let photoUrls: string[] = [];
+    if (newPhotos.length > 0) {
+      photoUrls = await uploadPhotos(newPhotos);
+    }
+
+    const row = {
       location: newItem.location,
       issue: newItem.issue.trim(),
       priority: newItem.priority,
-      status: 'Open',
+      status: 'Open' as Status,
       reported: new Date().toISOString().split('T')[0],
-      submittedBy: userName,
+      submitted_by: userName,
       notes: newItem.notes.trim(),
-      photos: newPhotos,
+      photo_urls: photoUrls,
     };
-    setItems([item, ...items]);
+
+    const { data, error } = await supabase
+      .from('facilities_issues')
+      .insert(row)
+      .select()
+      .single();
+
+    if (!error && data) {
+      setItems((prev) => [{
+        id: data.id,
+        location: data.location,
+        issue: data.issue,
+        priority: data.priority,
+        status: data.status,
+        reported: data.reported,
+        submitted_by: data.submitted_by,
+        notes: data.notes || '',
+        photo_urls: data.photo_urls || [],
+      }, ...prev]);
+    }
+
     setNewItem({ location: '', issue: '', priority: 'Medium', notes: '' });
     setNewPhotos([]);
+    setNewPhotoPreview([]);
     setShowAddForm(false);
+    setSubmitting(false);
+  };
+
+  const updateStatus = async (id: string, status: Status) => {
+    const { error } = await supabase
+      .from('facilities_issues')
+      .update({ status })
+      .eq('id', id);
+
+    if (!error) {
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
+    }
+  };
+
+  const deleteIssue = async (id: string) => {
+    const { error } = await supabase
+      .from('facilities_issues')
+      .delete()
+      .eq('id', id);
+
+    if (!error) {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      setExpandedId(null);
+    }
   };
 
   const SortIcon = ({ column }: { column: SortKey }) => (
@@ -125,7 +224,7 @@ export default function ImprovementsContent() {
   const columns: [SortKey, string][] = [
     ['location', 'Location'],
     ['issue', 'Issue'],
-    ['submittedBy', 'Submitted By'],
+    ['submitted_by', 'Submitted By'],
     ['priority', 'Priority'],
     ['status', 'Status'],
     ['reported', 'Reported'],
@@ -232,13 +331,16 @@ export default function ImprovementsContent() {
               </svg>
               Add Photos
             </button>
-            {newPhotos.length > 0 && (
+            {newPhotoPreview.length > 0 && (
               <div className="flex gap-2 mt-3 flex-wrap">
-                {newPhotos.map((photo, i) => (
+                {newPhotoPreview.map((photo, i) => (
                   <div key={i} className="relative group">
                     <img src={photo} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
                     <button
-                      onClick={() => setNewPhotos(newPhotos.filter((_, j) => j !== i))}
+                      onClick={() => {
+                        setNewPhotos((prev) => prev.filter((_, j) => j !== i));
+                        setNewPhotoPreview((prev) => prev.filter((_, j) => j !== i));
+                      }}
                       className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
@@ -254,13 +356,14 @@ export default function ImprovementsContent() {
           <div className="flex gap-2">
             <button
               onClick={addItem}
-              className="px-4 py-2 rounded-xl bg-foreground text-white text-sm font-medium hover:bg-foreground/80 transition-colors"
+              disabled={submitting || !newItem.location || !newItem.issue.trim()}
+              className="px-4 py-2 rounded-xl bg-foreground text-white text-sm font-medium hover:bg-foreground/80 transition-colors disabled:opacity-50"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Add Issue
+              {submitting ? 'Submitting...' : 'Add Issue'}
             </button>
             <button
-              onClick={() => { setShowAddForm(false); setNewItem({ location: '', issue: '', priority: 'Medium', notes: '' }); setNewPhotos([]); }}
+              onClick={() => { setShowAddForm(false); setNewItem({ location: '', issue: '', priority: 'Medium', notes: '' }); setNewPhotos([]); setNewPhotoPreview([]); }}
               className="px-4 py-2 rounded-xl text-sm font-medium text-foreground/60 hover:bg-warm-bg transition-colors"
               style={{ fontFamily: 'var(--font-body)' }}
             >
@@ -290,8 +393,12 @@ export default function ImprovementsContent() {
         </div>
       )}
 
-      {/* Table or empty state */}
-      {items.length === 0 && !showAddForm ? (
+      {/* Loading state */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : items.length === 0 && !showAddForm ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-20">
           <div className="w-14 h-14 rounded-2xl bg-warm-bg flex items-center justify-center mx-auto mb-4">
             <svg className="w-7 h-7 text-foreground/25" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
@@ -333,17 +440,17 @@ export default function ImprovementsContent() {
                       <td className="px-5 py-3.5 text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
                         <span className="inline-flex items-center gap-2">
                           {item.issue}
-                          {item.photos.length > 0 && (
+                          {item.photo_urls.length > 0 && (
                             <span className="inline-flex items-center gap-0.5 text-xs text-foreground/30">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                               </svg>
-                              {item.photos.length}
+                              {item.photo_urls.length}
                             </span>
                           )}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>{item.submittedBy}</td>
+                      <td className="px-5 py-3.5 text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>{item.submitted_by}</td>
                       <td className="px-5 py-3.5">
                         <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${priorityStyle[item.priority]}`}>
                           {item.priority}
@@ -374,11 +481,11 @@ export default function ImprovementsContent() {
                               <p className="text-sm text-foreground/70 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
                                 {item.notes || 'No additional notes.'}
                               </p>
-                              {item.photos.length > 0 && (
+                              {item.photo_urls.length > 0 && (
                                 <>
                                   <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Photos</p>
                                   <div className="flex gap-2 flex-wrap">
-                                    {item.photos.map((photo, i) => (
+                                    {item.photo_urls.map((photo, i) => (
                                       <button key={i} onClick={(e) => { e.stopPropagation(); setViewingPhoto(photo); }}>
                                         <img src={photo} alt="" className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-pointer" />
                                       </button>
@@ -390,7 +497,7 @@ export default function ImprovementsContent() {
                             <div className="flex gap-2 shrink-0">
                               {item.status !== 'In Progress' && (
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setItems(items.map(i => i.id === item.id ? { ...i, status: 'In Progress' } : i)); }}
+                                  onClick={(e) => { e.stopPropagation(); updateStatus(item.id, 'In Progress'); }}
                                   className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
                                 >
                                   Mark In Progress
@@ -398,14 +505,14 @@ export default function ImprovementsContent() {
                               )}
                               {item.status !== 'Completed' && (
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setItems(items.map(i => i.id === item.id ? { ...i, status: 'Completed' } : i)); }}
+                                  onClick={(e) => { e.stopPropagation(); updateStatus(item.id, 'Completed'); }}
                                   className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
                                 >
                                   Mark Complete
                                 </button>
                               )}
                               <button
-                                onClick={(e) => { e.stopPropagation(); setItems(items.filter(i => i.id !== item.id)); setExpandedId(null); }}
+                                onClick={(e) => { e.stopPropagation(); deleteIssue(item.id); }}
                                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                               >
                                 Delete

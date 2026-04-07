@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 const locations = ['Lodge', 'Barn', 'Admin Building', 'Grounds', 'Other'] as const;
 
@@ -8,19 +9,23 @@ type Priority = 'High' | 'Medium' | 'Low';
 
 export default function SubmitContent() {
   const [form, setForm] = useState({ name: '', location: '', issue: '', priority: 'Medium' as Priority, notes: '' });
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) return;
+    const newFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    setPhotos((prev) => [...prev, ...newFiles]);
+
+    newFiles.forEach((file) => {
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === 'string') {
-          setPhotos((prev) => [...prev, reader.result as string]);
+          setPhotoPreviews((prev) => [...prev, reader.result as string]);
         }
       };
       reader.readAsDataURL(file);
@@ -28,10 +33,43 @@ export default function SubmitContent() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.location || !form.issue.trim()) return;
-    // In production this would POST to an API
-    setSubmitted(true);
+    setSubmitting(true);
+
+    let photoUrls: string[] = [];
+    if (photos.length > 0) {
+      for (const file of photos) {
+        const ext = file.name.split('.').pop() || 'jpg';
+        const path = `issues/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error } = await supabase.storage.from('issue-photos').upload(path, file);
+        if (!error) {
+          const { data: urlData } = supabase.storage.from('issue-photos').getPublicUrl(path);
+          photoUrls.push(urlData.publicUrl);
+        }
+      }
+    }
+
+    const { error } = await supabase
+      .from('facilities_issues')
+      .insert({
+        location: form.location,
+        issue: form.issue.trim(),
+        priority: form.priority,
+        status: 'Open',
+        reported: new Date().toISOString().split('T')[0],
+        submitted_by: form.name.trim() || 'Anonymous',
+        notes: form.notes.trim(),
+        photo_urls: photoUrls,
+      });
+
+    setSubmitting(false);
+
+    if (!error) {
+      setSubmitted(true);
+    } else {
+      alert('Failed to submit. Please try again.');
+    }
   };
 
   if (submitted) {
@@ -48,7 +86,7 @@ export default function SubmitContent() {
             Thank you, {form.name || 'your submission'} has been received. Our team will review it shortly.
           </p>
           <button
-            onClick={() => { setSubmitted(false); setForm({ name: '', location: '', issue: '', priority: 'Medium', notes: '' }); setPhotos([]); }}
+            onClick={() => { setSubmitted(false); setForm({ name: '', location: '', issue: '', priority: 'Medium', notes: '' }); setPhotos([]); setPhotoPreviews([]); }}
             className="mt-6 px-5 py-2.5 rounded-xl bg-[#1a1a1a] text-white text-sm font-medium hover:bg-[#1a1a1a]/80 transition-colors"
           >
             Submit Another
@@ -138,13 +176,16 @@ export default function SubmitContent() {
                 </svg>
                 Add Photos
               </button>
-              {photos.length > 0 && (
+              {photoPreviews.length > 0 && (
                 <div className="flex gap-2 mt-3 flex-wrap">
-                  {photos.map((photo, i) => (
+                  {photoPreviews.map((photo, i) => (
                     <div key={i} className="relative group">
                       <img src={photo} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
                       <button
-                        onClick={() => setPhotos(photos.filter((_, j) => j !== i))}
+                        onClick={() => {
+                          setPhotos((prev) => prev.filter((_, j) => j !== i));
+                          setPhotoPreviews((prev) => prev.filter((_, j) => j !== i));
+                        }}
                         className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
@@ -160,10 +201,10 @@ export default function SubmitContent() {
 
           <button
             onClick={handleSubmit}
-            disabled={!form.location || !form.issue.trim()}
+            disabled={!form.location || !form.issue.trim() || submitting}
             className="w-full mt-6 px-4 py-3 rounded-xl bg-[#1a1a1a] text-white text-sm font-medium hover:bg-[#1a1a1a]/80 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            Submit Issue
+            {submitting ? 'Submitting...' : 'Submit Issue'}
           </button>
         </div>
 
