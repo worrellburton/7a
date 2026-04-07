@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 
 const locations = ['Lodge', 'Barn', 'Admin Building', 'Grounds', 'Other'] as const;
@@ -19,6 +19,7 @@ interface Improvement {
   reported: string;
   submittedBy: string;
   notes: string;
+  photos: string[];
 }
 
 function daysOutstanding(reported: string): number {
@@ -49,6 +50,25 @@ export default function ImprovementsContent() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newItem, setNewItem] = useState({ location: '', issue: '', priority: 'Medium' as Priority, notes: '' });
+  const [newPhotos, setNewPhotos] = useState<string[]>([]);
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach((file) => {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setNewPhotos((prev) => [...prev, reader.result as string]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   if (!user) return null;
 
@@ -85,9 +105,11 @@ export default function ImprovementsContent() {
       reported: new Date().toISOString().split('T')[0],
       submittedBy: userName,
       notes: newItem.notes.trim(),
+      photos: newPhotos,
     };
     setItems([item, ...items]);
     setNewItem({ location: '', issue: '', priority: 'Medium', notes: '' });
+    setNewPhotos([]);
     setShowAddForm(false);
   };
 
@@ -133,7 +155,23 @@ export default function ImprovementsContent() {
       {/* Add form */}
       {showAddForm && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-4">
-          <h3 className="text-sm font-bold text-foreground mb-4">New Issue</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-foreground">New Issue</h3>
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/submit`;
+                navigator.clipboard.writeText(url);
+                alert(`Public link copied!\n${url}`);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              Live Link
+            </button>
+          </div>
           <div className="grid sm:grid-cols-2 gap-3 mb-4">
             <select
               value={newItem.location}
@@ -173,6 +211,46 @@ export default function ImprovementsContent() {
             className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-warm-bg/50 focus:outline-none focus:border-primary mb-4 resize-none"
             style={{ fontFamily: 'var(--font-body)' }}
           />
+          {/* Photo upload */}
+          <div className="mb-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoUpload}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-300 text-sm text-foreground/50 hover:border-primary hover:text-primary transition-colors"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+              </svg>
+              Add Photos
+            </button>
+            {newPhotos.length > 0 && (
+              <div className="flex gap-2 mt-3 flex-wrap">
+                {newPhotos.map((photo, i) => (
+                  <div key={i} className="relative group">
+                    <img src={photo} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
+                    <button
+                      onClick={() => setNewPhotos(newPhotos.filter((_, j) => j !== i))}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2">
             <button
               onClick={addItem}
@@ -182,7 +260,7 @@ export default function ImprovementsContent() {
               Add Issue
             </button>
             <button
-              onClick={() => { setShowAddForm(false); setNewItem({ location: '', issue: '', priority: 'Medium', notes: '' }); }}
+              onClick={() => { setShowAddForm(false); setNewItem({ location: '', issue: '', priority: 'Medium', notes: '' }); setNewPhotos([]); }}
               className="px-4 py-2 rounded-xl text-sm font-medium text-foreground/60 hover:bg-warm-bg transition-colors"
               style={{ fontFamily: 'var(--font-body)' }}
             >
@@ -252,7 +330,19 @@ export default function ImprovementsContent() {
                       className="border-b border-gray-50 hover:bg-warm-bg/50 transition-colors cursor-pointer"
                     >
                       <td className="px-5 py-3.5 text-sm font-medium text-foreground">{item.location}</td>
-                      <td className="px-5 py-3.5 text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>{item.issue}</td>
+                      <td className="px-5 py-3.5 text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
+                        <span className="inline-flex items-center gap-2">
+                          {item.issue}
+                          {item.photos.length > 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-xs text-foreground/30">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                              </svg>
+                              {item.photos.length}
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       <td className="px-5 py-3.5 text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>{item.submittedBy}</td>
                       <td className="px-5 py-3.5">
                         <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${priorityStyle[item.priority]}`}>
@@ -281,9 +371,21 @@ export default function ImprovementsContent() {
                           <div className="flex items-start gap-6">
                             <div className="flex-1">
                               <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Notes</p>
-                              <p className="text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
+                              <p className="text-sm text-foreground/70 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
                                 {item.notes || 'No additional notes.'}
                               </p>
+                              {item.photos.length > 0 && (
+                                <>
+                                  <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Photos</p>
+                                  <div className="flex gap-2 flex-wrap">
+                                    {item.photos.map((photo, i) => (
+                                      <button key={i} onClick={(e) => { e.stopPropagation(); setViewingPhoto(photo); }}>
+                                        <img src={photo} alt="" className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-pointer" />
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
                             </div>
                             <div className="flex gap-2 shrink-0">
                               {item.status !== 'In Progress' && (
@@ -323,6 +425,28 @@ export default function ImprovementsContent() {
               <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>No issues match this filter.</p>
             </div>
           )}
+        </div>
+      )}
+      {/* Photo lightbox */}
+      {viewingPhoto && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setViewingPhoto(null)}
+        >
+          <button
+            onClick={() => setViewingPhoto(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <img
+            src={viewingPhoto}
+            alt=""
+            className="max-w-full max-h-[85vh] rounded-2xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
