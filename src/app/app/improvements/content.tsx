@@ -43,7 +43,7 @@ const statusStyle: Record<Status, string> = {
 };
 
 export default function ImprovementsContent() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [items, setItems] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('All');
@@ -59,13 +59,6 @@ export default function ImprovementsContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchIssues = useCallback(async () => {
-    // Wait for supabase to restore the auth session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      setLoading(false);
-      return;
-    }
-
     const { data, error } = await supabase
       .from('facilities_issues')
       .select('*')
@@ -92,8 +85,8 @@ export default function ImprovementsContent() {
   }, []);
 
   useEffect(() => {
-    if (user) fetchIssues();
-  }, [user, fetchIssues]);
+    if (session) fetchIssues();
+  }, [session, fetchIssues]);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
