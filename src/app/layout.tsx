@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     'geo.region': 'US-AZ',
     'geo.placename': 'Cochise County, Arizona',
   },
-  icons: { icon: '/favicon.ico' },
+  icons: { icon: '/favicon.svg' },
 };
 
 const organizationSchema = {
