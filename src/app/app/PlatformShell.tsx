@@ -55,50 +55,60 @@ function LoginBackground() {
       }
       float fbm(vec2 p) {
         float v = 0.0, a = 0.5;
-        for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
+        for (int i = 0; i < 6; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
         return v;
       }
 
       void main() {
         vec2 uv = vUv;
         float asp = uRes.x / uRes.y;
-        float t = uTime * 0.05;
+        float t = uTime * 0.08;
 
-        float n1 = fbm(vec2(uv.x * asp * 1.2 + t * 0.3, uv.y * 1.2 + t * 0.2));
-        float n2 = fbm(vec2(uv.x * asp * 1.8 - t * 0.2, uv.y * 1.8 + t * 0.35) + 5.0);
-        float n3 = fbm(vec2(uv.x * asp * 0.8 + t * 0.15, uv.y * 0.8 - t * 0.1) + 10.0);
+        // Dark base
+        vec3 bg = vec3(0.04, 0.05, 0.09);
 
-        // Warm desert palette
-        vec3 sand  = vec3(0.965, 0.950, 0.930);
-        vec3 terra = vec3(0.627, 0.322, 0.176);
-        vec3 rose  = vec3(0.776, 0.478, 0.290);
-        vec3 sage  = vec3(0.620, 0.660, 0.560);
-        vec3 dusk  = vec3(0.400, 0.280, 0.350);
+        // Aurora colors
+        vec3 teal   = vec3(0.1, 0.6, 0.55);
+        vec3 cyan   = vec3(0.15, 0.45, 0.7);
+        vec3 purple = vec3(0.35, 0.15, 0.5);
+        vec3 green  = vec3(0.1, 0.5, 0.3);
 
-        // Drifting radial blobs
-        vec2 c1 = vec2(0.3 + sin(t * 0.7) * 0.2, 0.3 + cos(t * 0.5) * 0.2);
-        vec2 c2 = vec2(0.7 + cos(t * 0.4) * 0.15, 0.6 + sin(t * 0.8) * 0.15);
-        vec2 c3 = vec2(0.5 + sin(t * 0.9 + 2.0) * 0.25, 0.8 + cos(t * 0.3) * 0.1);
-        vec2 c4 = vec2(0.2 + cos(t * 0.6 + 1.0) * 0.1, 0.7 + sin(t * 0.7) * 0.15);
+        // Flowing wave bands
+        float wave1 = sin(uv.x * asp * 3.0 + t * 1.2 + fbm(uv * 3.0 + t * 0.3) * 2.0) * 0.08;
+        float wave2 = sin(uv.x * asp * 2.0 - t * 0.8 + fbm(uv * 2.5 + t * 0.2 + 5.0) * 2.5) * 0.1;
+        float wave3 = sin(uv.x * asp * 4.0 + t * 0.6 + fbm(uv * 2.0 - t * 0.15 + 10.0) * 1.8) * 0.06;
 
-        float r1 = smoothstep(0.55, 0.0, length(uv - c1));
-        float r2 = smoothstep(0.50, 0.0, length(uv - c2));
-        float r3 = smoothstep(0.45, 0.0, length(uv - c3));
-        float r4 = smoothstep(0.40, 0.0, length(uv - c4));
+        // Position bands in middle area
+        float band1 = smoothstep(0.06, 0.0, abs(uv.y - 0.45 + wave1));
+        float band2 = smoothstep(0.08, 0.0, abs(uv.y - 0.5 + wave2));
+        float band3 = smoothstep(0.05, 0.0, abs(uv.y - 0.55 + wave3));
 
-        vec3 col = sand;
-        col = mix(col, rose,  r1 * 0.18 * (0.7 + n1 * 0.6));
-        col = mix(col, terra, r2 * 0.12 * (0.6 + n2 * 0.8));
-        col = mix(col, sage,  r3 * 0.14 * (0.5 + n3 * 0.6));
-        col = mix(col, dusk,  r4 * 0.08 * (0.6 + n1 * 0.4));
+        // Broader aurora glow
+        float glow1 = smoothstep(0.25, 0.0, abs(uv.y - 0.45 + wave1)) * 0.3;
+        float glow2 = smoothstep(0.3, 0.0, abs(uv.y - 0.5 + wave2)) * 0.25;
+        float glow3 = smoothstep(0.2, 0.0, abs(uv.y - 0.55 + wave3)) * 0.2;
 
-        // Subtle flowing particles
-        float p1 = smoothstep(0.48, 0.50, noise(uv * 30.0 + t * 2.0)) * 0.03;
-        float p2 = smoothstep(0.49, 0.51, noise(uv * 25.0 - t * 1.5 + 3.0)) * 0.02;
-        col += vec3(terra) * p1 + vec3(rose) * p2;
+        vec3 col = bg;
+        col += teal * (band1 * 0.8 + glow1);
+        col += cyan * (band2 * 0.7 + glow2);
+        col += purple * (band3 * 0.6 + glow3);
+        col += green * glow1 * 0.3;
 
-        // Film grain
-        col += (hash(uv * uRes + fract(uTime * 0.5)) - 0.5) * 0.008;
+        // Sine wave lines (thin flowing lines)
+        for (int i = 0; i < 5; i++) {
+          float fi = float(i);
+          float freq = 2.0 + fi * 0.8;
+          float speed = 0.5 + fi * 0.15;
+          float yOff = 0.35 + fi * 0.07;
+          float n = fbm(vec2(uv.x * asp * 1.5 + fi * 3.0, t * 0.2 + fi));
+          float wave = sin(uv.x * asp * freq + t * speed + n * 3.0) * (0.04 + fi * 0.01);
+          float line = smoothstep(0.003, 0.0, abs(uv.y - yOff + wave));
+          vec3 lineCol = mix(teal, cyan, fi / 4.0);
+          col += lineCol * line * (0.4 + n * 0.3);
+        }
+
+        // Subtle film grain
+        col += (hash(uv * uRes + fract(uTime * 0.5)) - 0.5) * 0.015;
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -175,12 +185,13 @@ function ThemeToggle() {
       aria-label="Toggle theme"
     >
       {dark ? (
-        <svg className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.364-6.364l-1.414 1.414M7.05 16.95l-1.414 1.414m12.728 0l-1.414-1.414M7.05 7.05L5.636 5.636" />
         </svg>
       ) : (
-        <svg className="w-5 h-5 text-foreground/60" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+        <svg className="w-5 h-5 text-foreground/60" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
         </svg>
       )}
     </button>
@@ -204,7 +215,16 @@ const navItems = [
     href: '/app/improvements',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2m-16 0H3m2-10h4m-4 4h4m6-4h4m-4 4h4" />
+        <path d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Compliance',
+    href: '/app/compliance',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
       </svg>
     ),
   },
@@ -246,7 +266,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           <div className="mb-10" />
           <button
             onClick={signInWithGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-foreground hover:bg-foreground/90 text-white rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-sm hover:shadow-lg"
+            className="w-full flex items-center justify-center gap-3 bg-white/95 hover:bg-white text-foreground rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-lg hover:shadow-xl backdrop-blur-sm"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -271,7 +291,6 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         <div className="p-5 border-b border-gray-100">
           <Link href="/app" className="flex items-center gap-2.5">
             <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
-            <span className="text-sm font-bold text-foreground tracking-tight">Portal</span>
           </Link>
         </div>
 
@@ -326,7 +345,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-6H18m0 0v4.5m0-4.5L10.5 13.5" />
                 </svg>
-                See New Website
+                In Progress
               </a>
               <button
                 onClick={() => { signOut(); setUserMenuOpen(false); }}
