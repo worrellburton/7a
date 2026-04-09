@@ -41,7 +41,12 @@ export const metadata: Metadata = {
     'geo.placename': 'Cochise County, Arizona',
   },
   icons: { icon: '/favicon.svg' },
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 const organizationSchema = {

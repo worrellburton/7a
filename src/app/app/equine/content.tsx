@@ -73,23 +73,30 @@ export default function EquineContent() {
   useEffect(() => {
     if (!session?.access_token) return;
     async function load() {
-      const data = await db({ action: 'select', table: 'equine', order: { column: 'name', ascending: true } });
-      if (Array.isArray(data) && data.length > 0) {
-        // Backfill owner for horses that don't have one
-        const updated = data.map((h: Horse) => ({ ...h, owner: h.owner || 'GOD', notes: h.notes || '', vet_visits: h.vet_visits || [] }));
-        const needsUpdate = updated.filter((h: Horse, i: number) => !data[i].owner);
-        for (const h of needsUpdate) {
-          await db({ action: 'update', table: 'equine', data: { owner: 'GOD' }, match: { id: h.id } });
-        }
-        setHorses(updated);
-      } else if (Array.isArray(data) && data.length === 0) {
-        for (const h of defaultHorses) {
-          const result = await db({ action: 'insert', table: 'equine', data: h });
-          if (result && result.id) {
-            setHorses(prev => [...prev, result]);
+      try {
+        const data = await db({ action: 'select', table: 'equine', order: { column: 'name', ascending: true } });
+        if (Array.isArray(data) && data.length > 0) {
+          // Normalize: ensure optional columns have defaults even if missing from DB
+          const updated = data.map((h: Record<string, unknown>) => ({
+            ...h,
+            owner: (h.owner as string) || 'GOD',
+            notes: (h.notes as string) || '',
+            vet_visits: Array.isArray(h.vet_visits) ? h.vet_visits : [],
+            document_urls: Array.isArray(h.document_urls) ? h.document_urls : [],
+          })) as Horse[];
+          setHorses(updated);
+        } else if (Array.isArray(data) && data.length === 0) {
+          for (const h of defaultHorses) {
+            const result = await db({ action: 'insert', table: 'equine', data: h });
+            if (result && result.id) {
+              setHorses(prev => [...prev, result]);
+            }
           }
+        } else {
+          setDbAvailable(false);
+          setHorses(defaultHorses.map((h, i) => ({ ...h, id: `local-${i}`, created_at: new Date().toISOString() })));
         }
-      } else {
+      } catch {
         setDbAvailable(false);
         setHorses(defaultHorses.map((h, i) => ({ ...h, id: `local-${i}`, created_at: new Date().toISOString() })));
       }
@@ -100,12 +107,11 @@ export default function EquineContent() {
 
   const updateField = async (id: string, field: string, value: string) => {
     const parsed = field === 'age' ? (parseInt(value) || null) : field === 'body_score' ? (parseFloat(value) || null) : value;
-    if (!dbAvailable || id.startsWith('local-')) {
-      setHorses(prev => prev.map(h => h.id === id ? { ...h, [field]: parsed } : h));
-      return;
-    }
-    await db({ action: 'update', table: 'equine', data: { [field]: parsed }, match: { id } });
     setHorses(prev => prev.map(h => h.id === id ? { ...h, [field]: parsed } : h));
+    if (!dbAvailable || id.startsWith('local-')) return;
+    try {
+      await db({ action: 'update', table: 'equine', data: { [field]: parsed }, match: { id } });
+    } catch { /* column may not exist yet */ }
   };
 
   const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
