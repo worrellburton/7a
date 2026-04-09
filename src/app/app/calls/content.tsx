@@ -46,6 +46,17 @@ interface CTMResponse {
 
 type Tab = 'calls' | 'sources';
 
+interface Insights {
+  today: number;
+  yesterday: number;
+  thisWeek: number;
+  allTime: number;
+  avgDuration: number;
+  inbound: number;
+  outbound: number;
+  dailyCounts: { label: string; short: string; date: string; count: number }[];
+}
+
 async function ctmFetch(endpoint: string, params?: Record<string, string | number>): Promise<CTMResponse> {
   const token = getAuthToken();
   const res = await fetch('/api/ctm', {
@@ -103,6 +114,8 @@ export default function CallsContent() {
   const [dateFilter, setDateFilter] = useState('');
   const [directionFilter, setDirectionFilter] = useState<string>('all');
   const [sources, setSources] = useState<{ name: string; count: number }[]>([]);
+  const [insights, setInsights] = useState<Insights | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Discover account ID first
@@ -130,6 +143,79 @@ export default function CallsContent() {
     }
     discoverAccount();
   }, [session]);
+
+  // Fetch insights data (last 7 days)
+  useEffect(() => {
+    if (!accountId) return;
+    async function loadInsights() {
+      setInsightsLoading(true);
+      try {
+        const now = new Date();
+        // Build last 7 days in Arizona time
+        const days: { label: string; short: string; date: string }[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+          const label = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/Phoenix' });
+          const short = d.toLocaleDateString('en-US', { weekday: 'narrow', timeZone: 'America/Phoenix' });
+          days.push({ label, short, date: dateStr });
+        }
+
+        const todayStr = days[6].date;
+        const yesterdayStr = days[5].date;
+        const weekStartStr = days[0].date;
+
+        // Fetch this week's calls (up to 250) in one request
+        const weekData = await ctmFetch(`/accounts/${accountId}/calls.json`, {
+          start_date: weekStartStr,
+          end_date: todayStr,
+          per_page: 250,
+        });
+
+        const weekCalls: Call[] = weekData.calls || [];
+        const weekTotal = weekData.total_entries || weekCalls.length;
+
+        // Group by day
+        const dayCounts = new Map<string, number>();
+        let totalDuration = 0;
+        let inboundCount = 0;
+        let outboundCount = 0;
+
+        weekCalls.forEach(c => {
+          const callDate = new Date(c.called_at).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+          dayCounts.set(callDate, (dayCounts.get(callDate) || 0) + 1);
+          totalDuration += c.duration || 0;
+          if (c.direction === 'inbound') inboundCount++;
+          if (c.direction === 'outbound') outboundCount++;
+        });
+
+        const dailyCounts = days.map(d => ({
+          ...d,
+          count: dayCounts.get(d.date) || 0,
+        }));
+
+        // Get all-time total from a lightweight call
+        const allTimeData = await ctmFetch(`/accounts/${accountId}/calls.json`, { per_page: 1 });
+        const allTime = allTimeData.total_entries || 0;
+
+        setInsights({
+          today: dayCounts.get(todayStr) || 0,
+          yesterday: dayCounts.get(yesterdayStr) || 0,
+          thisWeek: weekTotal,
+          allTime,
+          avgDuration: weekCalls.length > 0 ? Math.round(totalDuration / weekCalls.length) : 0,
+          inbound: inboundCount,
+          outbound: outboundCount,
+          dailyCounts,
+        });
+      } catch {
+        // Insights are non-critical
+      }
+      setInsightsLoading(false);
+    }
+    loadInsights();
+  }, [accountId]);
 
   const fetchCalls = useCallback(async (p: number) => {
     if (!accountId) return;
@@ -201,6 +287,87 @@ export default function CallsContent() {
           </p>
         </div>
       </div>
+
+      {/* Insights Dashboard */}
+      {insightsLoading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-5 animate-pulse">
+              <div className="h-3 bg-gray-100 rounded w-16 mb-3" />
+              <div className="h-7 bg-gray-100 rounded w-12" />
+            </div>
+          ))}
+        </div>
+      ) : insights && (
+        <div className="mb-6 space-y-4">
+          {/* Stat Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Today</p>
+              <p className="text-2xl font-bold text-foreground">{insights.today}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {insights.inbound > 0 || insights.outbound > 0 ? `${insights.inbound} in / ${insights.outbound} out this week` : 'No calls yet'}
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Yesterday</p>
+              <p className="text-2xl font-bold text-foreground">{insights.yesterday}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {insights.yesterday > insights.today ? (
+                  <span className="text-red-400">{insights.yesterday - insights.today} more than today</span>
+                ) : insights.today > insights.yesterday ? (
+                  <span className="text-emerald-500">{insights.today - insights.yesterday} fewer than today</span>
+                ) : 'Same as today'}
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>This Week</p>
+              <p className="text-2xl font-bold text-foreground">{insights.thisWeek}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                Avg {formatDuration(insights.avgDuration)} per call
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>All Time</p>
+              <p className="text-2xl font-bold text-foreground">{insights.allTime.toLocaleString()}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>Total calls tracked</p>
+            </div>
+          </div>
+
+          {/* Weekly Bar Chart */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>This Week</p>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
+                </span>
+              </div>
+            </div>
+            <div className="flex items-end gap-2 h-32">
+              {insights.dailyCounts.map((day) => {
+                const max = Math.max(...insights.dailyCounts.map(d => d.count), 1);
+                const height = day.count > 0 ? Math.max((day.count / max) * 100, 8) : 4;
+                const isToday = day.date === insights.dailyCounts[insights.dailyCounts.length - 1].date;
+                return (
+                  <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
+                    <span className="text-xs font-bold text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
+                      {day.count > 0 ? day.count : ''}
+                    </span>
+                    <div
+                      className={`w-full rounded-lg transition-all ${isToday ? 'bg-[#a0522d]' : 'bg-[#a0522d]/30'}`}
+                      style={{ height: `${height}%`, minHeight: day.count > 0 ? '8px' : '3px' }}
+                    />
+                    <span className={`text-xs ${isToday ? 'font-bold text-foreground' : 'text-foreground/40'}`} style={{ fontFamily: 'var(--font-body)' }}>
+                      {day.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error State */}
       {error && (
