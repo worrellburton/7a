@@ -32,6 +32,44 @@ interface Horse {
   created_at: string;
 }
 
+interface EditableCellProps {
+  horseId: string;
+  field: string;
+  value: string;
+  className?: string;
+  editingId: string | null;
+  editField: string;
+  editValue: string;
+  setEditValue: (v: string) => void;
+  setEditingId: (v: string | null) => void;
+  saveEdit: () => void;
+  startEdit: (id: string, field: string, value: string) => void;
+}
+
+function EditableCell({ horseId, field, value, className = '', editingId, editField, editValue, setEditValue, setEditingId, saveEdit, startEdit }: EditableCellProps) {
+  if (editingId === horseId && editField === field) {
+    return (
+      <input
+        autoFocus
+        value={editValue}
+        onChange={e => setEditValue(e.target.value)}
+        onBlur={saveEdit}
+        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+        className="text-sm px-1.5 py-0.5 rounded border border-gray-200 focus:border-primary focus:outline-none w-full bg-white"
+        style={{ fontFamily: 'var(--font-body)' }}
+      />
+    );
+  }
+  return (
+    <span
+      className={`cursor-text hover:text-foreground transition-colors ${className}`}
+      onClick={e => { e.stopPropagation(); startEdit(horseId, field, value); }}
+    >
+      {value || <span className="text-foreground/20">—</span>}
+    </span>
+  );
+}
+
 const defaultHorses: Omit<Horse, 'id' | 'created_at'>[] = [
   { name: 'Arrow', age: 10, body_score: 5, weight: '1015 lbs', works_in: 'EAP only / Not broken', rideable: 'No', shoe_schedule: '16 weeks', behavior: 'Less spooky / Good', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Boots off, doing good, no noticeable pain', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
   { name: 'Chika', age: 6, body_score: 5, weight: '865 lbs', works_in: 'EAP only / Not broken', rideable: 'No', shoe_schedule: '16 weeks', behavior: 'Good', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Check scab, is dried and closed, starting to peel. Slight limp', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
@@ -294,21 +332,21 @@ export default function EquineContent() {
       case 'name':
         return <span className="text-sm font-bold text-foreground whitespace-nowrap">{horse.name}</span>;
       case 'age':
-        return <EditableCell horseId={horse.id} field="age" value={String(horse.age || '')} />;
+        return <EditableCell {...ecProps} horseId={horse.id} field="age" value={String(horse.age || '')} />;
       case 'body_score':
-        return <span className={`text-sm ${bodyScoreColor(horse.body_score)}`}><EditableCell horseId={horse.id} field="body_score" value={String(horse.body_score || '')} className={bodyScoreColor(horse.body_score)} /></span>;
+        return <span className={`text-sm ${bodyScoreColor(horse.body_score)}`}><EditableCell {...ecProps} horseId={horse.id} field="body_score" value={String(horse.body_score || '')} className={bodyScoreColor(horse.body_score)} /></span>;
       case 'weight':
-        return <EditableCell horseId={horse.id} field="weight" value={horse.weight} />;
+        return <EditableCell {...ecProps} horseId={horse.id} field="weight" value={horse.weight} />;
       case 'works_in':
-        return <EditableCell horseId={horse.id} field="works_in" value={horse.works_in} />;
+        return <EditableCell {...ecProps} horseId={horse.id} field="works_in" value={horse.works_in} />;
       case 'rideable':
         return <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${rideableColor(horse.rideable)}`}>{horse.rideable === 'Yes' ? 'Yes' : horse.rideable === 'No' ? 'No' : horse.rideable}</span>;
       case 'shoe_schedule':
-        return <EditableCell horseId={horse.id} field="shoe_schedule" value={horse.shoe_schedule} />;
+        return <EditableCell {...ecProps} horseId={horse.id} field="shoe_schedule" value={horse.shoe_schedule} />;
       case 'behavior':
-        return <EditableCell horseId={horse.id} field="behavior" value={horse.behavior} />;
+        return <EditableCell {...ecProps} horseId={horse.id} field="behavior" value={horse.behavior} />;
       case 'owner':
-        return <EditableCell horseId={horse.id} field="owner" value={horse.owner} />;
+        return <EditableCell {...ecProps} horseId={horse.id} field="owner" value={horse.owner} />;
       case 'last_vet': {
         const lastVisit = (horse.vet_visits || []).sort((a, b) => b.date.localeCompare(a.date))[0];
         return lastVisit
@@ -324,29 +362,7 @@ export default function EquineContent() {
     }
   };
 
-  const EditableCell = ({ horseId, field, value, className = '' }: { horseId: string; field: string; value: string; className?: string }) => {
-    if (editingId === horseId && editField === field) {
-      return (
-        <input
-          autoFocus
-          value={editValue}
-          onChange={e => setEditValue(e.target.value)}
-          onBlur={saveEdit}
-          onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
-          className="text-sm px-1.5 py-0.5 rounded border border-gray-200 focus:border-primary focus:outline-none w-full bg-white"
-          style={{ fontFamily: 'var(--font-body)' }}
-        />
-      );
-    }
-    return (
-      <span
-        className={`cursor-text hover:text-foreground transition-colors ${className}`}
-        onClick={e => { e.stopPropagation(); startEdit(horseId, field, value); }}
-      >
-        {value || <span className="text-foreground/20">—</span>}
-      </span>
-    );
-  };
+  const ecProps = { editingId, editField, editValue, setEditValue, setEditingId, saveEdit, startEdit };
 
   return (
     <div className="p-6 lg:p-10">
@@ -418,7 +434,7 @@ export default function EquineContent() {
                             ].map(([field, label, value]) => (
                               <div key={field}>
                                 <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>{label}</p>
-                                <EditableCell horseId={horse.id} field={field} value={value} className="text-sm text-foreground/70" />
+                                <EditableCell {...ecProps} horseId={horse.id} field={field} value={value} className="text-sm text-foreground/70" />
                               </div>
                             ))}
                           </div>
