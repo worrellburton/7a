@@ -408,21 +408,35 @@ export default function BillingContent() {
 
       {/* Patients Tab */}
       {tab === 'patients' && (
-        <div className="space-y-2">
-          {patients.map(p => (
-            <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-4">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <h3 className="text-sm font-bold text-foreground">{p.first_name} {p.last_name}</h3>
-                  <p className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>DOB: {p.date_of_birth} &middot; {p.gender === 'M' ? 'Male' : 'Female'} &middot; {p.city}, {p.state}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-medium text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>{p.payer_name}</p>
-                  <p className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>Member: {p.member_id} &middot; Policy: {p.policy_number}</p>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100 bg-warm-bg/50">
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Patient</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>DOB</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Gender</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Location</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Payer</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Member ID</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Policy #</th>
+                </tr>
+              </thead>
+              <tbody>
+                {patients.map(p => (
+                  <tr key={p.id} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors">
+                    <td className="px-5 py-3.5 text-sm font-bold text-foreground whitespace-nowrap">{p.first_name} {p.last_name}</td>
+                    <td className="px-5 py-3.5 text-sm text-foreground/60 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{p.date_of_birth}</td>
+                    <td className="px-5 py-3.5 text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>{p.gender === 'M' ? 'Male' : 'Female'}</td>
+                    <td className="px-5 py-3.5 text-sm text-foreground/60 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{p.city}, {p.state}</td>
+                    <td className="px-5 py-3.5 text-sm text-foreground/60 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{p.payer_name}</td>
+                    <td className="px-5 py-3.5 text-xs text-foreground/40 font-mono">{p.member_id}</td>
+                    <td className="px-5 py-3.5 text-xs text-foreground/40 font-mono">{p.policy_number}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
