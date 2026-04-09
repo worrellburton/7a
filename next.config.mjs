@@ -3,7 +3,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Force Vercel rebuild
+  // v2 deploy
 };
 
 export default nextConfig;
