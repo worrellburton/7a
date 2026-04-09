@@ -38,9 +38,8 @@ export default function UsersContent() {
       return;
     }
 
-    const token = session.access_token;
     async function fetchUsers() {
-      const data = await db({ action: 'select', table: 'users', order: { column: 'created_at', ascending: false } }, token);
+      const data = await db({ action: 'select', table: 'users', order: { column: 'created_at', ascending: false } });
       if (Array.isArray(data)) {
         setUsers(data);
       }

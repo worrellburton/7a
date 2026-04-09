@@ -10,7 +10,17 @@ interface DbOptions {
   onConflict?: string;
 }
 
-export async function db(options: DbOptions, token?: string) {
+// Module-level token synced by AuthProvider — always fresh
+let _authToken: string | null = null;
+
+export function setAuthToken(token: string | null) {
+  _authToken = token;
+}
+
+export async function db(options: DbOptions) {
+  let token = _authToken;
+
+  // Fallback: try getSession if AuthProvider hasn't set the token yet
   if (!token) {
     const { data: { session } } = await supabase.auth.getSession();
     token = session?.access_token || '';

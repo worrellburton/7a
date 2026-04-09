@@ -49,14 +49,13 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!session?.access_token) return;
-    const token = session.access_token;
     async function load() {
       try {
         const data = await db({
           action: 'select',
           table: 'page_permissions',
           select: 'path, admin_only, section, sort_order',
-        }, token);
+        });
 
         // Only apply DB overrides if query succeeded and returned data
         if (Array.isArray(data) && data.length > 0) {

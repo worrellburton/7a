@@ -23,9 +23,8 @@ export default function GroupsContent() {
 
   useEffect(() => {
     if (!session?.access_token) return;
-    const token = session.access_token;
     async function fetchGroups() {
-      const data = await db({ action: 'select', table: 'groups', order: { column: 'created_at', ascending: false } }, token);
+      const data = await db({ action: 'select', table: 'groups', order: { column: 'created_at', ascending: false } });
       if (Array.isArray(data)) setGroups(data);
       setLoading(false);
     }

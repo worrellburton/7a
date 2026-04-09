@@ -19,9 +19,8 @@ export default function ProfileContent() {
 
   useEffect(() => {
     if (!session?.access_token || !user) return;
-    const token = session.access_token;
     async function load() {
-      const data = await db({ action: 'select', table: 'users', match: { id: user!.id }, select: 'full_name, job_title' }, token);
+      const data = await db({ action: 'select', table: 'users', match: { id: user!.id }, select: 'full_name, job_title' });
 
       if (Array.isArray(data) && data[0]) {
         setFullName(data[0].full_name || '');

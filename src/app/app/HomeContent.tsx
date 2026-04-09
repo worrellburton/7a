@@ -33,9 +33,8 @@ export default function HomeContent() {
 
   useEffect(() => {
     if (!session?.access_token) return;
-    const token = session.access_token;
     async function fetchRecentUsers() {
-      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in', order: { column: 'last_sign_in', ascending: false } }, token);
+      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in', order: { column: 'last_sign_in', ascending: false } });
       if (Array.isArray(data)) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);

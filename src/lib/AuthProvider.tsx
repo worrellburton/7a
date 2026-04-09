@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
-import { db } from '@/lib/db';
+import { db, setAuthToken } from '@/lib/db';
 
 interface AuthContextType {
   user: User | null;
@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      setAuthToken(session?.access_token ?? null);
       if (session?.user) {
         checkAdmin(session.user.id);
       }
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        setAuthToken(session?.access_token ?? null);
         if (session?.user) {
           checkAdmin(session.user.id);
         } else {
@@ -65,9 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Heartbeat: update last_sign_in every 5 minutes so "Active today" is accurate
   useEffect(() => {
     if (!user || !session?.access_token) return;
-    const token = session.access_token;
     const update = () => {
-      db({ action: 'update', table: 'users', data: { last_sign_in: new Date().toISOString() }, match: { id: user.id } }, token);
+      db({ action: 'update', table: 'users', data: { last_sign_in: new Date().toISOString() }, match: { id: user.id } });
     };
     update(); // immediately on mount
     const interval = setInterval(update, 5 * 60 * 1000);
