@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { db } from '@/lib/db';
+import { useAuth } from '@/lib/AuthProvider';
 
 export interface PageConfig {
   path: string;
@@ -42,17 +43,20 @@ const PagePermissionsContext = createContext<PagePermissionsContextType>({
 });
 
 export function PagePermissionsProvider({ children }: { children: React.ReactNode }) {
+  const { session } = useAuth();
   const [pages, setPages] = useState<PageConfig[]>(defaultPages);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!session?.access_token) return;
+    const token = session.access_token;
     async function load() {
       try {
         const data = await db({
           action: 'select',
           table: 'page_permissions',
           select: 'path, admin_only, section, sort_order',
-        });
+        }, token);
 
         // Only apply DB overrides if query succeeded and returned data
         if (Array.isArray(data) && data.length > 0) {
@@ -79,7 +83,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
       setLoading(false);
     }
     load();
-  }, []);
+  }, [session]);
 
   const setPageAdminOnly = async (path: string, adminOnly: boolean) => {
     if (path === '/app/users' || path === '/app/pages') return;

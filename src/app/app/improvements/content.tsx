@@ -59,8 +59,8 @@ export default function ImprovementsContent() {
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchIssues = useCallback(async () => {
-    const data = await db({ action: 'select', table: 'facilities_issues', order: { column: 'reported', ascending: false } });
+  const fetchIssues = useCallback(async (token: string) => {
+    const data = await db({ action: 'select', table: 'facilities_issues', order: { column: 'reported', ascending: false } }, token);
     if (Array.isArray(data)) {
       setItems(data as Issue[]);
     } else {
@@ -70,7 +70,7 @@ export default function ImprovementsContent() {
   }, []);
 
   useEffect(() => {
-    if (session?.access_token) fetchIssues();
+    if (session?.access_token) fetchIssues(session.access_token);
   }, [session, fetchIssues]);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

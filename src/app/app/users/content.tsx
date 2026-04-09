@@ -18,7 +18,7 @@ interface AppUser {
 }
 
 export default function UsersContent() {
-  const { user, isAdmin } = useAuth();
+  const { user, session, isAdmin } = useAuth();
   const router = useRouter();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,14 +32,15 @@ export default function UsersContent() {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!session?.access_token) return;
     if (!isAdmin) {
       router.replace('/app');
       return;
     }
 
+    const token = session.access_token;
     async function fetchUsers() {
-      const data = await db({ action: 'select', table: 'users', order: { column: 'created_at', ascending: false } });
+      const data = await db({ action: 'select', table: 'users', order: { column: 'created_at', ascending: false } }, token);
       if (Array.isArray(data)) {
         setUsers(data);
       }
@@ -47,7 +48,7 @@ export default function UsersContent() {
     }
 
     fetchUsers();
-  }, [user, isAdmin, router]);
+  }, [session, isAdmin, router]);
 
   async function toggleAdmin(userId: string, currentValue: boolean) {
     const result = await db({ action: 'update', table: 'users', data: { is_admin: !currentValue }, match: { id: userId } });

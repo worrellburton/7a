@@ -5,7 +5,7 @@ import { db } from '@/lib/db';
 import { useEffect, useState } from 'react';
 
 export default function ProfileContent() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [jobTitle, setJobTitle] = useState('');
   const [fullName, setFullName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -18,9 +18,10 @@ export default function ProfileContent() {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!session?.access_token || !user) return;
+    const token = session.access_token;
     async function load() {
-      const data = await db({ action: 'select', table: 'users', match: { id: user!.id }, select: 'full_name, job_title' });
+      const data = await db({ action: 'select', table: 'users', match: { id: user!.id }, select: 'full_name, job_title' }, token);
 
       if (Array.isArray(data) && data[0]) {
         setFullName(data[0].full_name || '');
@@ -29,7 +30,7 @@ export default function ProfileContent() {
       setLoaded(true);
     }
     load();
-  }, [user]);
+  }, [session, user]);
 
   async function saveProfile() {
     if (!user) return;

@@ -27,14 +27,15 @@ function timeAgo(dateStr: string | null): string {
 }
 
 export default function HomeContent() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!session?.access_token) return;
+    const token = session.access_token;
     async function fetchRecentUsers() {
-      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in', order: { column: 'last_sign_in', ascending: false } });
+      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in', order: { column: 'last_sign_in', ascending: false } }, token);
       if (Array.isArray(data)) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -43,7 +44,7 @@ export default function HomeContent() {
       setTimeout(() => setLoaded(true), 100);
     }
     fetchRecentUsers();
-  }, [user]);
+  }, [session]);
 
   if (!user) return null;
 

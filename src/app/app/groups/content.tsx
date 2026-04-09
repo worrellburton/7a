@@ -12,7 +12,7 @@ interface Group {
 }
 
 export default function GroupsContent() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -22,14 +22,15 @@ export default function GroupsContent() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!session?.access_token) return;
+    const token = session.access_token;
     async function fetchGroups() {
-      const data = await db({ action: 'select', table: 'groups', order: { column: 'created_at', ascending: false } });
+      const data = await db({ action: 'select', table: 'groups', order: { column: 'created_at', ascending: false } }, token);
       if (Array.isArray(data)) setGroups(data);
       setLoading(false);
     }
     fetchGroups();
-  }, [user]);
+  }, [session]);
 
   async function addGroup() {
     if (!name.trim()) return;
