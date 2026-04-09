@@ -42,8 +42,24 @@ interface Claim {
   created_at: string;
 }
 
-type Tab = 'patients' | 'claims' | 'pipeline';
+type Tab = 'patients' | 'claims' | 'pipeline' | 'config';
 type ClaimStatus = 'Draft' | 'Submitted' | 'Accepted' | 'Rejected';
+
+interface RateConfig {
+  id: string;
+  asam_level: string;
+  procedure_code: string;
+  modifier: string;
+  revenue_code: string;
+  daily_rate: number;
+  description: string;
+}
+
+const defaultRates: RateConfig[] = [
+  { id: '1', asam_level: '3.5', procedure_code: 'H2036', modifier: 'HF', revenue_code: '0901', daily_rate: 450, description: 'Clinically Managed High-Intensity Residential' },
+  { id: '2', asam_level: '3.7', procedure_code: 'H0018', modifier: 'HB', revenue_code: '1001', daily_rate: 600, description: 'Medically Monitored Intensive Inpatient' },
+  { id: '3', asam_level: '3.1', procedure_code: 'H0015', modifier: 'HF', revenue_code: '0906', daily_rate: 350, description: 'Clinically Managed Low-Intensity Residential' },
+];
 
 const pipelineStages = [
   { key: 'Draft', label: 'Draft', color: 'bg-gray-100 text-gray-600', accent: 'border-gray-300' },
@@ -280,6 +296,9 @@ export default function BillingContent() {
   const [diagSearch, setDiagSearch] = useState('');
   const [stediPreview, setStediPreview] = useState<{ payload: ReturnType<typeof buildStediPayload>; claim: Claim; patient: Patient } | null>(null);
   const [extendedNotes, setExtendedNotes] = useState<Record<string, { group_notes: string; individual_notes: string; medical_notes: string }>>({});
+  const [rates, setRates] = useState<RateConfig[]>([]);
+  const [editingRate, setEditingRate] = useState<RateConfig | null>(null);
+  const [showRateForm, setShowRateForm] = useState(false);
   const [claimForm, setClaimForm] = useState({
     patient_id: '',
     admission_date: '',
@@ -392,6 +411,15 @@ export default function BillingContent() {
       // Load saved Stedi key
       const saved = localStorage.getItem('stedi_api_key');
       if (saved) setStediKey(saved);
+
+      // Load saved rate configs
+      const savedRates = localStorage.getItem('billing_rate_configs');
+      if (savedRates) {
+        try { setRates(JSON.parse(savedRates)); } catch { setRates(defaultRates); }
+      } else {
+        setRates(defaultRates);
+        localStorage.setItem('billing_rate_configs', JSON.stringify(defaultRates));
+      }
 
       setLoading(false);
     }
@@ -528,8 +556,8 @@ export default function BillingContent() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-warm-bg rounded-xl p-1 w-fit">
-        {(['patients', 'claims', 'pipeline'] as Tab[]).map(t => {
-          const label = t === 'patients' ? `Pre-Claim (${patients.length})` : t === 'claims' ? `Claims (${claims.length})` : 'RCM Pipeline';
+        {(['patients', 'claims', 'pipeline', 'config'] as Tab[]).map(t => {
+          const label = t === 'patients' ? `Pre-Claim (${patients.length})` : t === 'claims' ? `Claims (${claims.length})` : t === 'pipeline' ? 'RCM Pipeline' : 'Config';
           return (
             <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
               {label}
@@ -904,6 +932,144 @@ export default function BillingContent() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Config Tab */}
+      {tab === 'config' && (
+        <div className="space-y-6">
+          {/* Rate Schedule */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-foreground">ASAM Level Rate Schedule</h3>
+                <p className="text-xs text-foreground/40 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>Configure per diem rates by ASAM level of care</p>
+              </div>
+              <button onClick={() => { setEditingRate(null); setShowRateForm(true); }} className="px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>+ Add Rate</button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-warm-bg/50">
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>ASAM Level</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Description</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Procedure</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Modifier</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Revenue</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Daily Rate</th>
+                    <th className="w-20" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rates.map(r => (
+                    <tr key={r.id} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary">{r.asam_level}</span>
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>{r.description}</td>
+                      <td className="px-5 py-3.5 text-sm font-mono font-medium text-foreground">{r.procedure_code}</td>
+                      <td className="px-5 py-3.5 text-sm font-mono text-foreground/60">{r.modifier || '—'}</td>
+                      <td className="px-5 py-3.5 text-sm font-mono text-foreground/60">{r.revenue_code}</td>
+                      <td className="px-5 py-3.5 text-sm font-bold text-foreground">${r.daily_rate.toLocaleString()}</td>
+                      <td className="px-3 py-3.5">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => { setEditingRate(r); setShowRateForm(true); }} className="p-1.5 rounded-lg hover:bg-warm-bg text-foreground/30 hover:text-foreground/60 transition-colors">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" /></svg>
+                          </button>
+                          <button onClick={() => { const updated = rates.filter(x => x.id !== r.id); setRates(updated); localStorage.setItem('billing_rate_configs', JSON.stringify(updated)); }} className="p-1.5 rounded-lg hover:bg-red-50 text-foreground/15 hover:text-red-500 transition-colors">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {rates.length === 0 && (
+                    <tr><td colSpan={7} className="px-5 py-8 text-center text-sm text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>No rates configured. Click + Add Rate to get started.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Add/Edit Rate Form */}
+          {showRateForm && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <h3 className="text-sm font-bold text-foreground mb-4">{editingRate ? 'Edit Rate' : 'Add Rate'}</h3>
+              <div className="grid sm:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="text-xs text-foreground/50 mb-1 block" style={{ fontFamily: 'var(--font-body)' }}>ASAM Level</label>
+                  <input type="text" defaultValue={editingRate?.asam_level || ''} id="rate-asam" placeholder="e.g. 3.5" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-warm-bg/50 focus:outline-none focus:border-primary" style={{ fontFamily: 'var(--font-body)' }} />
+                </div>
+                <div>
+                  <label className="text-xs text-foreground/50 mb-1 block" style={{ fontFamily: 'var(--font-body)' }}>Procedure Code</label>
+                  <input type="text" defaultValue={editingRate?.procedure_code || ''} id="rate-proc" placeholder="e.g. H2036" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-warm-bg/50 focus:outline-none focus:border-primary" style={{ fontFamily: 'var(--font-body)' }} />
+                </div>
+                <div>
+                  <label className="text-xs text-foreground/50 mb-1 block" style={{ fontFamily: 'var(--font-body)' }}>Daily Rate ($)</label>
+                  <input type="number" defaultValue={editingRate?.daily_rate || ''} id="rate-amount" placeholder="450" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-warm-bg/50 focus:outline-none focus:border-primary" style={{ fontFamily: 'var(--font-body)' }} />
+                </div>
+                <div>
+                  <label className="text-xs text-foreground/50 mb-1 block" style={{ fontFamily: 'var(--font-body)' }}>Modifier</label>
+                  <input type="text" defaultValue={editingRate?.modifier || ''} id="rate-mod" placeholder="e.g. HF" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-warm-bg/50 focus:outline-none focus:border-primary" style={{ fontFamily: 'var(--font-body)' }} />
+                </div>
+                <div>
+                  <label className="text-xs text-foreground/50 mb-1 block" style={{ fontFamily: 'var(--font-body)' }}>Revenue Code</label>
+                  <input type="text" defaultValue={editingRate?.revenue_code || ''} id="rate-rev" placeholder="e.g. 0901" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-warm-bg/50 focus:outline-none focus:border-primary" style={{ fontFamily: 'var(--font-body)' }} />
+                </div>
+                <div>
+                  <label className="text-xs text-foreground/50 mb-1 block" style={{ fontFamily: 'var(--font-body)' }}>Description</label>
+                  <input type="text" defaultValue={editingRate?.description || ''} id="rate-desc" placeholder="Level of care description" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-warm-bg/50 focus:outline-none focus:border-primary" style={{ fontFamily: 'var(--font-body)' }} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const asam = (document.getElementById('rate-asam') as HTMLInputElement).value.trim();
+                    const proc = (document.getElementById('rate-proc') as HTMLInputElement).value.trim();
+                    const amount = parseFloat((document.getElementById('rate-amount') as HTMLInputElement).value) || 0;
+                    const mod = (document.getElementById('rate-mod') as HTMLInputElement).value.trim();
+                    const rev = (document.getElementById('rate-rev') as HTMLInputElement).value.trim();
+                    const desc = (document.getElementById('rate-desc') as HTMLInputElement).value.trim();
+                    if (!asam || !proc || !amount) return;
+                    const entry: RateConfig = { id: editingRate?.id || String(Date.now()), asam_level: asam, procedure_code: proc, modifier: mod, revenue_code: rev, daily_rate: amount, description: desc };
+                    const updated = editingRate ? rates.map(r => r.id === editingRate.id ? entry : r) : [...rates, entry];
+                    setRates(updated);
+                    localStorage.setItem('billing_rate_configs', JSON.stringify(updated));
+                    setShowRateForm(false);
+                    setEditingRate(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-foreground text-white text-sm font-medium hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}
+                >{editingRate ? 'Update' : 'Add'}</button>
+                <button onClick={() => { setShowRateForm(false); setEditingRate(null); }} className="px-4 py-2.5 rounded-xl text-sm font-medium text-foreground/60 hover:bg-warm-bg transition-colors" style={{ fontFamily: 'var(--font-body)' }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Stedi API Config (also accessible from Config tab) */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <h3 className="text-sm font-bold text-foreground mb-3">Stedi API</h3>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="text-xs text-foreground/50 mb-1 block" style={{ fontFamily: 'var(--font-body)' }}>API Key</label>
+                <input type="password" value={stediKey} onChange={e => setStediKey(e.target.value)} placeholder="Key ..." className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-warm-bg/50 focus:outline-none focus:border-primary" style={{ fontFamily: 'var(--font-body)' }} />
+              </div>
+              <button onClick={() => { localStorage.setItem('stedi_api_key', stediKey); }} className="px-4 py-2 rounded-xl bg-foreground text-white text-sm font-medium hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>Save</button>
+            </div>
+            <p className="text-xs text-foreground/30 mt-2" style={{ fontFamily: 'var(--font-body)' }}>Get your API key from <span className="text-primary">stedi.com/app/settings/api-keys</span></p>
+          </div>
+
+          {/* Billing Provider Info */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <h3 className="text-sm font-bold text-foreground mb-3">Provider Information</h3>
+            <div className="grid sm:grid-cols-2 gap-x-8 gap-y-2 text-sm" style={{ fontFamily: 'var(--font-body)' }}>
+              <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-foreground/40">Organization</span><span className="font-medium text-foreground">Seven Arrows Recovery LLC</span></div>
+              <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-foreground/40">NPI</span><span className="font-mono text-foreground">1234567890</span></div>
+              <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-foreground/40">EIN</span><span className="font-mono text-foreground">86-0541237</span></div>
+              <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-foreground/40">Taxonomy</span><span className="font-mono text-foreground">261QR0405X</span></div>
+              <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-foreground/40">Place of Service</span><span className="font-mono text-foreground">55 (Residential)</span></div>
+              <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-foreground/40">Contact</span><span className="text-foreground">Bobby Burton · (866) 996-4308</span></div>
+            </div>
+          </div>
         </div>
       )}
 
