@@ -1,16 +1,16 @@
 import { getAuthToken } from './db';
 
 // Upload a file through the server-side API (bypasses storage RLS)
-export async function uploadFile(file: File): Promise<string | null> {
+export async function uploadFile(file: File, bucket?: string): Promise<{ url: string | null; error: string | null }> {
   try {
     const token = getAuthToken();
     if (!token) {
-      console.error('Upload failed: no auth token');
-      return null;
+      return { url: null, error: 'Not authenticated — please sign in again.' };
     }
 
     const formData = new FormData();
     formData.append('file', file);
+    if (bucket) formData.append('bucket', bucket);
 
     const res = await fetch('/api/upload', {
       method: 'POST',
@@ -19,15 +19,14 @@ export async function uploadFile(file: File): Promise<string | null> {
     });
 
     if (!res.ok) {
-      const err = await res.text();
-      console.error('Upload failed:', res.status, err);
-      return null;
+      const body = await res.json().catch(() => null);
+      const msg = body?.error || `Upload failed (${res.status})`;
+      return { url: null, error: msg };
     }
 
     const data = await res.json();
-    return data.url || null;
+    return { url: data.url || null, error: data.url ? null : 'No URL returned from upload.' };
   } catch (err) {
-    console.error('Upload error:', err);
-    return null;
+    return { url: null, error: String(err) };
   }
 }

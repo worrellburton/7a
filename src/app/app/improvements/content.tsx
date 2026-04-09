@@ -73,7 +73,10 @@ export default function ImprovementsContent() {
   const [userAvatars, setUserAvatars] = useState<Record<string, string>>({});
   const [editingIssueId, setEditingIssueId] = useState<string | null>(null);
   const [editingIssueDraft, setEditingIssueDraft] = useState('');
+  const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const existingPhotoInputRef = useRef<HTMLInputElement>(null);
+  const existingPhotoTargetId = useRef<string | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -151,8 +154,9 @@ export default function ImprovementsContent() {
 
     let photoUrls: string[] = [];
     for (const file of newPhotos) {
-      const url = await uploadFile(file);
+      const { url, error } = await uploadFile(file);
       if (url) photoUrls.push(url);
+      else if (error) { showToast(`Photo upload failed: ${error}`); setSubmitting(false); return; }
     }
 
     const row = {
@@ -197,6 +201,29 @@ export default function ImprovementsContent() {
     await db({ action: 'update', table: 'facilities_issues', data: { issue: trimmed }, match: { id } });
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, issue: trimmed } : i)));
     setEditingIssueId(null);
+  };
+
+  const addPhotoToIssue = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const id = existingPhotoTargetId.current;
+    if (!id || !e.target.files?.length) return;
+    const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+    if (!files.length) return;
+    setUploadingPhotoId(id);
+    const item = items.find(i => i.id === id);
+    const currentUrls = item?.photo_urls || [];
+    const newUrls = [...currentUrls];
+    for (const file of files) {
+      const { url, error } = await uploadFile(file);
+      if (url) newUrls.push(url);
+      else if (error) { showToast(`Photo upload failed: ${error}`); break; }
+    }
+    if (newUrls.length > currentUrls.length) {
+      await db({ action: 'update', table: 'facilities_issues', data: { photo_urls: newUrls }, match: { id } });
+      setItems(prev => prev.map(i => i.id === id ? { ...i, photo_urls: newUrls } : i));
+      showToast('Photos added');
+    }
+    setUploadingPhotoId(null);
+    if (existingPhotoInputRef.current) existingPhotoInputRef.current.value = '';
   };
 
   const deleteIssue = async (id: string) => {
@@ -411,18 +438,28 @@ export default function ImprovementsContent() {
                           <div className="flex-1">
                             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Notes</p>
                             <p className="text-sm text-foreground/70 mb-3" style={{ fontFamily: 'var(--font-body)' }}>{item.notes || 'No additional notes.'}</p>
-                            {item.photo_urls.length > 0 && (
-                              <>
-                                <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Photos</p>
-                                <div className="flex gap-2 flex-wrap">
-                                  {item.photo_urls.map((photo, i) => (
-                                    <button key={i} onClick={(e) => { e.stopPropagation(); setViewingPhoto(photo); }}>
-                                      <img src={photo} alt="" className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-pointer" />
-                                    </button>
-                                  ))}
-                                </div>
-                              </>
-                            )}
+                            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Photos</p>
+                            <div className="flex gap-2 flex-wrap items-center">
+                              {item.photo_urls.map((photo, i) => (
+                                <button key={i} onClick={(e) => { e.stopPropagation(); setViewingPhoto(photo); }}>
+                                  <img src={photo} alt="" className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-pointer" />
+                                </button>
+                              ))}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); existingPhotoTargetId.current = item.id; existingPhotoInputRef.current?.click(); }}
+                                disabled={uploadingPhotoId === item.id}
+                                className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-foreground/30 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                              >
+                                {uploadingPhotoId === item.id ? (
+                                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5" /></svg>
+                                    <span className="text-[10px] mt-0.5">Add</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -456,15 +493,27 @@ export default function ImprovementsContent() {
                   {item.notes && <p className="text-xs text-foreground/40 mt-1" style={{ fontFamily: 'var(--font-body)' }}>{item.notes}</p>}
                 </div>
               </div>
-              {item.photo_urls.length > 0 && (
-                <div className="flex gap-2 flex-wrap mb-3 ml-9">
-                  {item.photo_urls.map((photo, i) => (
-                    <button key={i} onClick={() => setViewingPhoto(photo)}>
-                      <img src={photo} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="flex gap-2 flex-wrap mb-3 ml-9 items-center">
+                {item.photo_urls.map((photo, i) => (
+                  <button key={i} onClick={() => setViewingPhoto(photo)}>
+                    <img src={photo} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
+                  </button>
+                ))}
+                <button
+                  onClick={() => { existingPhotoTargetId.current = item.id; existingPhotoInputRef.current?.click(); }}
+                  disabled={uploadingPhotoId === item.id}
+                  className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-foreground/30 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                >
+                  {uploadingPhotoId === item.id ? (
+                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5" /></svg>
+                      <span className="text-[9px] mt-0.5">Add</span>
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="flex items-center gap-2 ml-9">
                 <select value={item.priority} onChange={(e) => updatePriority(item.id, e.target.value as Priority)} className={`appearance-none px-2.5 py-1 pr-6 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none ${priorityStyle[item.priority]}`} style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}>
                   <option value="High">High</option>
@@ -491,6 +540,9 @@ export default function ImprovementsContent() {
           <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>No issues match these filters.</p>
         </div>
       ) : null}
+
+      {/* Hidden file input for adding photos to existing issues */}
+      <input ref={existingPhotoInputRef} type="file" accept="image/*" multiple onChange={addPhotoToIssue} className="hidden" />
 
       {/* Photo lightbox */}
       {viewingPhoto && (
