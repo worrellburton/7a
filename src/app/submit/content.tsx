@@ -44,8 +44,9 @@ export default function SubmitContent() {
 
     let photoUrls: string[] = [];
     for (const file of photos) {
-      const url = await uploadFile(file);
+      const { url, error } = await uploadFile(file);
       if (url) photoUrls.push(url);
+      else if (error) { setSubmitting(false); return; }
     }
 
     const result = await db({

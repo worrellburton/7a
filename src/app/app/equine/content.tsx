@@ -113,7 +113,7 @@ export default function EquineContent() {
     if (!horseId || !e.target.files?.length) return;
     setUploading(horseId);
     const file = e.target.files[0];
-    const url = await uploadFile(file);
+    const { url } = await uploadFile(file);
     if (url) {
       const horse = horses.find(h => h.id === horseId);
       const newUrls = [...(horse?.document_urls || []), url];
@@ -167,7 +167,7 @@ export default function EquineContent() {
     if (!ref || !e.target.files?.length) return;
     setUploading(`vet-${ref.horseId}-${ref.visitIndex}`);
     const file = e.target.files[0];
-    const url = await uploadFile(file);
+    const { url } = await uploadFile(file);
     if (url) {
       const horse = horses.find(h => h.id === ref.horseId);
       if (horse) {
