@@ -60,7 +60,13 @@ export default function EquineContent() {
     async function load() {
       const data = await db({ action: 'select', table: 'equine', order: { column: 'name', ascending: true } });
       if (Array.isArray(data) && data.length > 0) {
-        setHorses(data);
+        // Backfill owner for horses that don't have one
+        const updated = data.map((h: Horse) => ({ ...h, owner: h.owner || 'GOD', notes: h.notes || '' }));
+        const needsUpdate = updated.filter((h: Horse, i: number) => !data[i].owner);
+        for (const h of needsUpdate) {
+          await db({ action: 'update', table: 'equine', data: { owner: 'GOD' }, match: { id: h.id } });
+        }
+        setHorses(updated);
       } else if (Array.isArray(data) && data.length === 0) {
         for (const h of defaultHorses) {
           const result = await db({ action: 'insert', table: 'equine', data: h });
