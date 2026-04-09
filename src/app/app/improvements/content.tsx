@@ -58,6 +58,7 @@ export default function ImprovementsContent() {
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [userAvatars, setUserAvatars] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string) => {
@@ -81,7 +82,18 @@ export default function ImprovementsContent() {
   }, []);
 
   useEffect(() => {
-    if (session?.access_token) fetchIssues();
+    if (!session?.access_token) return;
+    fetchIssues();
+    // Fetch user avatars for "Submitted By" column
+    db({ action: 'select', table: 'users', select: 'full_name, avatar_url' }).then((data) => {
+      if (Array.isArray(data)) {
+        const map: Record<string, string> = {};
+        data.forEach((u: { full_name: string | null; avatar_url: string | null }) => {
+          if (u.full_name && u.avatar_url) map[u.full_name] = u.avatar_url;
+        });
+        setUserAvatars(map);
+      }
+    });
   }, [session, fetchIssues]);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -427,16 +439,34 @@ export default function ImprovementsContent() {
                           )}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>{item.submitted_by}</td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2">
+                          {userAvatars[item.submitted_by] ? (
+                            <img src={userAvatars[item.submitted_by]} alt="" className="w-6 h-6 rounded-full shrink-0" />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold shrink-0">
+                              {(item.submitted_by || '?').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>{item.submitted_by}</span>
+                        </div>
+                      </td>
                       <td className="px-5 py-3.5">
                         <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${priorityStyle[item.priority]}`}>
                           {item.priority}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${statusStyle[item.status]}`}>
-                          {item.status}
-                        </span>
+                      <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={item.status}
+                          onChange={(e) => updateStatus(item.id, e.target.value as Status)}
+                          className={`appearance-none px-2.5 py-1 pr-6 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 ${statusStyle[item.status]}`}
+                          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
+                        >
+                          <option value="Open">Open</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Completed">Completed</option>
+                        </select>
                       </td>
                       <td className="px-5 py-3.5 text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{item.reported}</td>
                       <td className="px-5 py-3.5 text-sm font-medium text-foreground/60 text-center">
