@@ -144,12 +144,25 @@ export default function CallsContent() {
     discoverAccount();
   }, [session]);
 
-  // Fetch insights data (last 7 days)
+  // Fetch insights data — grab all calls and compute stats client-side
   useEffect(() => {
     if (!accountId) return;
     async function loadInsights() {
       setInsightsLoading(true);
       try {
+        // Fetch all calls (paginate if needed)
+        let allCalls: Call[] = [];
+        let pg = 1;
+        let totalPages = 1;
+        let allTime = 0;
+        while (pg <= totalPages && pg <= 10) { // cap at 10 pages (250 calls)
+          const data = await ctmFetch(`/accounts/${accountId}/calls.json`, { page: pg, per_page: 25 });
+          if (data.calls) allCalls = allCalls.concat(data.calls);
+          totalPages = data.total_pages || 1;
+          allTime = data.total_entries || 0;
+          pg++;
+        }
+
         const now = new Date();
         // Build last 7 days in Arizona time
         const days: { label: string; short: string; date: string }[] = [];
@@ -164,30 +177,24 @@ export default function CallsContent() {
 
         const todayStr = days[6].date;
         const yesterdayStr = days[5].date;
-        const weekStartStr = days[0].date;
+        const weekDates = new Set(days.map(d => d.date));
 
-        // Fetch this week's calls (up to 250) in one request
-        const weekData = await ctmFetch(`/accounts/${accountId}/calls.json`, {
-          start_date: weekStartStr,
-          end_date: todayStr,
-          per_page: 250,
-        });
-
-        const weekCalls: Call[] = weekData.calls || [];
-        const weekTotal = weekData.total_entries || weekCalls.length;
-
-        // Group by day
+        // Group all calls by date
         const dayCounts = new Map<string, number>();
-        let totalDuration = 0;
+        let weekDuration = 0;
+        let weekCallCount = 0;
         let inboundCount = 0;
         let outboundCount = 0;
 
-        weekCalls.forEach(c => {
+        allCalls.forEach(c => {
           const callDate = new Date(c.called_at).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
           dayCounts.set(callDate, (dayCounts.get(callDate) || 0) + 1);
-          totalDuration += c.duration || 0;
-          if (c.direction === 'inbound') inboundCount++;
-          if (c.direction === 'outbound') outboundCount++;
+          if (weekDates.has(callDate)) {
+            weekDuration += c.duration || 0;
+            weekCallCount++;
+            if (c.direction === 'inbound') inboundCount++;
+            if (c.direction === 'outbound') outboundCount++;
+          }
         });
 
         const dailyCounts = days.map(d => ({
@@ -195,16 +202,12 @@ export default function CallsContent() {
           count: dayCounts.get(d.date) || 0,
         }));
 
-        // Get all-time total from a lightweight call
-        const allTimeData = await ctmFetch(`/accounts/${accountId}/calls.json`, { per_page: 1 });
-        const allTime = allTimeData.total_entries || 0;
-
         setInsights({
           today: dayCounts.get(todayStr) || 0,
           yesterday: dayCounts.get(yesterdayStr) || 0,
-          thisWeek: weekTotal,
+          thisWeek: weekCallCount,
           allTime,
-          avgDuration: weekCalls.length > 0 ? Math.round(totalDuration / weekCalls.length) : 0,
+          avgDuration: weekCallCount > 0 ? Math.round(weekDuration / weekCallCount) : 0,
           inbound: inboundCount,
           outbound: outboundCount,
           dailyCounts,
