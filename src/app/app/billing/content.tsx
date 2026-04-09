@@ -85,6 +85,174 @@ const statusStyle: Record<string, string> = {
   Rejected: 'bg-red-50 text-red-600',
 };
 
+// Sample claims mapped to patients by index — seeded after patients load
+const sampleClaimsTemplate = [
+  {
+    patientIndex: 0, // John Martinez — BCBS
+    status: 'Draft',
+    claim_type: 'Institutional',
+    admission_date: '2026-03-01',
+    discharge_date: '2026-03-31',
+    diagnosis_codes: ['F10.20', 'F43.10', 'F32.9'],
+    procedure_code: 'H0018',
+    procedure_modifier: 'HB',
+    revenue_code: '1001',
+    charge_amount: 18600,
+    units: 31,
+    place_of_service: '55',
+    authorization_number: 'BCBS-AUTH-90441',
+    attending_npi: '1234567890',
+    group_notes: 'Patient participated in 12 group therapy sessions (CBT, DBT, relapse prevention). Active engagement, shared personal experiences, demonstrated improved coping skills.',
+    individual_notes: 'Weekly individual therapy x4 sessions. Focus: trauma processing (combat-related PTSD), alcohol triggers identification, development of sober support network. Patient shows significant progress with PTSD symptom reduction (PCL-5 score 62→38).',
+    medical_notes: 'H&P completed 3/1. Vitals stable. Liver panel mildly elevated at admit, normalized by 3/15. Gabapentin 300mg TID for anxiety. No acute medical issues. Cleared for equine therapy.',
+  },
+  {
+    patientIndex: 1, // Sarah Thompson — UHC
+    status: 'Draft',
+    claim_type: 'Institutional',
+    admission_date: '2026-03-10',
+    discharge_date: '2026-04-08',
+    diagnosis_codes: ['F11.20', 'F41.1', 'F43.12'],
+    procedure_code: 'H0018',
+    procedure_modifier: 'HB',
+    revenue_code: '1001',
+    charge_amount: 17400,
+    units: 30,
+    place_of_service: '55',
+    authorization_number: 'UHC-PA-22781',
+    attending_npi: '1234567890',
+    group_notes: 'Attended 11 group sessions including trauma-focused CBT, mindfulness-based relapse prevention, and womens recovery group. Initially guarded but became a peer leader by week 3.',
+    individual_notes: 'Individual therapy x4. Primary focus: opioid dependence with chronic pain management alternatives, PTSD from domestic violence. Completed trauma narrative therapy. PHQ-9 score improved 22→9.',
+    medical_notes: 'Admitted on Suboxone 16mg/day, tapered to 8mg by discharge. Vivitrol injection administered 3/31. Chronic pain managed with PT referral and non-opioid protocol. BMI normalized.',
+  },
+  {
+    patientIndex: 2, // Michael Rivera — Aetna
+    status: 'Draft',
+    claim_type: 'Institutional',
+    admission_date: '2026-02-15',
+    discharge_date: '2026-03-16',
+    diagnosis_codes: ['F14.20', 'F15.20', 'F33.1', 'F41.1'],
+    procedure_code: 'H0018',
+    procedure_modifier: 'HB',
+    revenue_code: '1001',
+    charge_amount: 18000,
+    units: 30,
+    place_of_service: '55',
+    authorization_number: 'AET-REF-55903',
+    attending_npi: '1234567890',
+    group_notes: 'Participated in 13 group sessions. Cocaine/stimulant-specific relapse prevention group, anger management, family systems therapy group. Demonstrated insight into triggers and high-risk situations.',
+    individual_notes: 'Individual therapy x5. Dual diagnosis focus: stimulant use disorder with recurrent depression. Motivational interviewing, contingency management plan developed. GAD-7 improved 18→7. BDI-II improved 31→12.',
+    medical_notes: 'Cardiac clearance obtained (stimulant history). EKG normal sinus rhythm. Started Wellbutrin XL 300mg for depression/craving reduction. Sleep study referral for reported insomnia. Nutritional counseling for 15lb weight loss during active use.',
+  },
+  {
+    patientIndex: 3, // Emily Chen — Cigna
+    status: 'Draft',
+    claim_type: 'Institutional',
+    admission_date: '2026-03-15',
+    discharge_date: '2026-04-04',
+    diagnosis_codes: ['F10.20', 'F19.20', 'F43.10'],
+    procedure_code: 'H0018',
+    procedure_modifier: 'HB',
+    revenue_code: '1001',
+    charge_amount: 12600,
+    units: 21,
+    place_of_service: '55',
+    authorization_number: 'CIG-PRIOR-22014',
+    attending_npi: '1234567890',
+    group_notes: 'Attended 9 group sessions: process group, psychoeducation (disease model), equine-assisted psychotherapy x3 sessions. Strong therapeutic alliance with equine program — showed emotional regulation improvement.',
+    individual_notes: 'Individual therapy x3. Focus: polysubstance use (alcohol + cannabis), trauma history (childhood neglect). EMDR initiated session 2, completed 3 processing sessions. AUDIT score decreased 28→8.',
+    medical_notes: 'Medical clearance at admission. Thiamine/folate supplementation. Mild withdrawal managed with CIWA protocol days 1-3. Peak CIWA score 12, resolved by day 4. No medications at discharge per patient preference.',
+  },
+  {
+    patientIndex: 4, // David Okafor — AHCCCS
+    status: 'Draft',
+    claim_type: 'Institutional',
+    admission_date: '2026-03-05',
+    discharge_date: '2026-04-03',
+    diagnosis_codes: ['F11.20', 'F10.20', 'F32.9', 'F43.10'],
+    procedure_code: 'H0018',
+    procedure_modifier: 'HB',
+    revenue_code: '1001',
+    charge_amount: 17400,
+    units: 30,
+    place_of_service: '55',
+    authorization_number: 'AHCCCS-BH-88125',
+    attending_npi: '1234567890',
+    group_notes: 'Attended 12 group sessions: CBT, DBT skills, relapse prevention, mens recovery, equine therapy x2. Actively participated, developed peer mentor role for newer residents.',
+    individual_notes: 'Individual therapy x4. Dual opioid/alcohol dependence with comorbid depression and PTSD. Trauma-focused CBT for childhood adverse experiences (ACE score 7). Developed comprehensive safety and relapse prevention plan. PHQ-9 improved 24→10.',
+    medical_notes: 'Started Vivitrol 380mg IM at admission (post-detox). Maintained monthly injection schedule. Trazodone 100mg for insomnia. Hepatitis C screening positive — GI referral placed. TB screening negative. Dental referral for neglected oral health.',
+  },
+];
+
+function buildStediPayload(claim: Claim & { group_notes?: string; individual_notes?: string; medical_notes?: string }, patient: Patient) {
+  const days = Math.ceil((new Date(claim.discharge_date).getTime() - new Date(claim.admission_date).getTime()) / 86400000) || 1;
+  return {
+    tradingPartnerServiceId: patient.payer_id,
+    submitter: {
+      organizationName: 'Seven Arrows Recovery LLC',
+      contactInformation: { name: 'Bobby Burton', phoneNumber: '8669964308' },
+    },
+    receiver: { organizationName: patient.payer_name },
+    subscriber: {
+      memberId: patient.member_id,
+      paymentResponsibilityLevelCode: 'P',
+      firstName: patient.first_name.toUpperCase(),
+      lastName: patient.last_name.toUpperCase(),
+      gender: patient.gender,
+      dateOfBirth: patient.date_of_birth.replace(/-/g, ''),
+      policyNumber: patient.policy_number,
+      address: { address1: patient.address, city: patient.city, state: patient.state, postalCode: patient.zip },
+    },
+    claimInformation: {
+      claimFilingCode: 'CI',
+      patientControlNumber: claim.id.slice(0, 20),
+      claimChargeAmount: String(claim.charge_amount),
+      placeOfServiceCode: claim.place_of_service,
+      claimFrequencyCode: '1',
+      signatureIndicator: 'Y',
+      releaseInformationCode: 'Y',
+      benefitsAssignmentCertificationIndicator: 'Y',
+      claimDateInformation: {
+        statementBeginDate: claim.admission_date.replace(/-/g, ''),
+        statementEndDate: claim.discharge_date.replace(/-/g, ''),
+      },
+      healthCareCodeInformation: claim.diagnosis_codes.map((code, i) => ({
+        diagnosisTypeCode: i === 0 ? 'ABK' : 'ABF',
+        diagnosisCode: code.replace('.', ''),
+      })),
+      serviceLines: [{
+        serviceDate: claim.admission_date.replace(/-/g, ''),
+        serviceDateEnd: claim.discharge_date.replace(/-/g, ''),
+        professionalService: {
+          procedureIdentifier: 'HC',
+          procedureCode: claim.procedure_code,
+          procedureModifiers: claim.procedure_modifier ? [claim.procedure_modifier] : [],
+          lineItemChargeAmount: String(claim.charge_amount),
+          measurementUnit: 'DA',
+          serviceUnitCount: String(claim.units || days),
+          compositeDiagnosisCodePointers: { diagnosisCodePointers: claim.diagnosis_codes.map((_, i) => String(i + 1)) },
+          placeOfServiceCode: claim.place_of_service,
+        },
+      }],
+    },
+    billingProvider: {
+      providerType: 'billingProvider',
+      npi: '1234567890',
+      employerId: '860541237',
+      organizationName: 'SEVEN ARROWS RECOVERY LLC',
+      address: { address1: '1234 Recovery Ranch Rd', city: 'Cochise County', state: 'AZ', postalCode: '85603' },
+      taxonomyCode: '261QR0405X',
+    },
+    renderingProvider: {
+      providerType: 'renderingProvider',
+      npi: '9876543210',
+      firstName: 'JAMES',
+      lastName: 'WILSON',
+      taxonomyCode: '101YM0800X',
+    },
+  };
+}
+
 export default function BillingContent() {
   const { user, session } = useAuth();
   const [tab, setTab] = useState<Tab>('patients');
@@ -98,6 +266,8 @@ export default function BillingContent() {
   const [stediKey, setStediKey] = useState('');
   const [showStediConfig, setShowStediConfig] = useState(false);
   const [diagSearch, setDiagSearch] = useState('');
+  const [stediPreview, setStediPreview] = useState<{ payload: ReturnType<typeof buildStediPayload>; claim: Claim; patient: Patient } | null>(null);
+  const [extendedNotes, setExtendedNotes] = useState<Record<string, { group_notes: string; individual_notes: string; medical_notes: string }>>({});
   const [claimForm, setClaimForm] = useState({
     patient_id: '',
     admission_date: '',
@@ -117,25 +287,75 @@ export default function BillingContent() {
     if (!session?.access_token) return;
     async function load() {
       // Load patients
+      let loadedPatients: Patient[] = [];
       const pData = await db({ action: 'select', table: 'billing_patients', order: { column: 'last_name', ascending: true } });
       if (Array.isArray(pData) && pData.length > 0) {
-        setPatients(pData);
+        loadedPatients = pData;
       } else if (Array.isArray(pData) && pData.length === 0) {
         // Seed sample patients
-        const seeded: Patient[] = [];
         for (const p of samplePatients) {
           const result = await db({ action: 'insert', table: 'billing_patients', data: p });
-          if (result?.id) seeded.push(result);
+          if (result?.id) loadedPatients.push(result);
         }
-        setPatients(seeded);
       } else {
         setDbAvailable(false);
-        setPatients(samplePatients.map((p, i) => ({ ...p, id: `local-${i}` })));
+        loadedPatients = samplePatients.map((p, i) => ({ ...p, id: `local-${i}` }));
       }
+      setPatients(loadedPatients);
 
       // Load claims
       const cData = await db({ action: 'select', table: 'billing_claims', order: { column: 'created_at', ascending: false } });
-      if (Array.isArray(cData)) setClaims(cData);
+      let loadedClaims: Claim[] = [];
+      if (Array.isArray(cData)) loadedClaims = cData;
+
+      // Seed sample claims if no claims exist yet
+      const notesMap: Record<string, { group_notes: string; individual_notes: string; medical_notes: string }> = {};
+      if (loadedClaims.length === 0 && loadedPatients.length > 0 && !loadedPatients[0].id.startsWith('local-')) {
+        for (const tmpl of sampleClaimsTemplate) {
+          const sampleP = samplePatients[tmpl.patientIndex];
+          // Find the matching loaded patient by name
+          const patient = loadedPatients.find(p => p.first_name === sampleP.first_name && p.last_name === sampleP.last_name);
+          if (!patient?.id) continue;
+          const claimData = {
+            patient_id: patient.id,
+            status: tmpl.status,
+            claim_type: tmpl.claim_type,
+            admission_date: tmpl.admission_date,
+            discharge_date: tmpl.discharge_date,
+            diagnosis_codes: tmpl.diagnosis_codes,
+            procedure_code: tmpl.procedure_code,
+            procedure_modifier: tmpl.procedure_modifier,
+            revenue_code: tmpl.revenue_code,
+            charge_amount: tmpl.charge_amount,
+            units: tmpl.units,
+            place_of_service: tmpl.place_of_service,
+            authorization_number: tmpl.authorization_number,
+            submitted_by: 'System',
+          };
+          const result = await db({ action: 'insert', table: 'billing_claims', data: claimData });
+          if (result?.id) {
+            loadedClaims.push(result);
+            notesMap[result.id] = { group_notes: tmpl.group_notes, individual_notes: tmpl.individual_notes, medical_notes: tmpl.medical_notes };
+          }
+        }
+      }
+
+      // Build notes map for existing claims (match by patient name + template)
+      if (Object.keys(notesMap).length === 0 && loadedClaims.length > 0) {
+        for (const c of loadedClaims) {
+          const patient = loadedPatients.find(p => p.id === c.patient_id);
+          if (!patient) continue;
+          const tmpl = sampleClaimsTemplate.find(t => {
+            const sp = samplePatients[t.patientIndex];
+            return sp.first_name === patient.first_name && sp.last_name === patient.last_name;
+          });
+          if (tmpl) {
+            notesMap[c.id] = { group_notes: tmpl.group_notes, individual_notes: tmpl.individual_notes, medical_notes: tmpl.medical_notes };
+          }
+        }
+      }
+      setExtendedNotes(notesMap);
+      setClaims(loadedClaims);
 
       // Load saved Stedi key
       const saved = localStorage.getItem('stedi_api_key');
@@ -182,72 +402,19 @@ export default function BillingContent() {
     setTab('claims');
   };
 
-  const submitToStedi = async (claim: Claim) => {
-    if (!stediKey) { setShowStediConfig(true); return; }
+  const openStediPreview = (claim: Claim) => {
     const patient = getPatient(claim.patient_id);
     if (!patient) return;
+    const notes = extendedNotes[claim.id];
+    const claimWithNotes = { ...claim, ...notes };
+    const payload = buildStediPayload(claimWithNotes, patient);
+    setStediPreview({ payload, claim, patient });
+  };
 
-    // Calculate days
-    const days = Math.ceil((new Date(claim.discharge_date).getTime() - new Date(claim.admission_date).getTime()) / 86400000) || 1;
-
-    const payload = {
-      tradingPartnerServiceId: patient.payer_id,
-      submitter: {
-        organizationName: 'Seven Arrows Recovery LLC',
-        contactInformation: { name: 'Bobby Burton', phoneNumber: '8669964308' },
-      },
-      receiver: { organizationName: patient.payer_name },
-      subscriber: {
-        memberId: patient.member_id,
-        paymentResponsibilityLevelCode: 'P',
-        firstName: patient.first_name.toUpperCase(),
-        lastName: patient.last_name.toUpperCase(),
-        gender: patient.gender,
-        dateOfBirth: patient.date_of_birth.replace(/-/g, ''),
-        policyNumber: patient.policy_number,
-        address: { address1: patient.address, city: patient.city, state: patient.state, postalCode: patient.zip },
-      },
-      claimInformation: {
-        claimFilingCode: 'CI',
-        patientControlNumber: claim.id.slice(0, 20),
-        claimChargeAmount: String(claim.charge_amount),
-        placeOfServiceCode: claim.place_of_service,
-        claimFrequencyCode: '1',
-        signatureIndicator: 'Y',
-        releaseInformationCode: 'Y',
-        benefitsAssignmentCertificationIndicator: 'Y',
-        claimDateInformation: {
-          statementBeginDate: claim.admission_date.replace(/-/g, ''),
-          statementEndDate: claim.discharge_date.replace(/-/g, ''),
-        },
-        healthCareCodeInformation: claim.diagnosis_codes.map((code, i) => ({
-          diagnosisTypeCode: i === 0 ? 'ABK' : 'ABF',
-          diagnosisCode: code.replace('.', ''),
-        })),
-        serviceLines: [{
-          serviceDate: claim.admission_date.replace(/-/g, ''),
-          serviceDateEnd: claim.discharge_date.replace(/-/g, ''),
-          professionalService: {
-            procedureIdentifier: 'HC',
-            procedureCode: claim.procedure_code,
-            procedureModifiers: claim.procedure_modifier ? [claim.procedure_modifier] : [],
-            lineItemChargeAmount: String(claim.charge_amount),
-            measurementUnit: 'DA',
-            serviceUnitCount: String(claim.units || days),
-            compositeDiagnosisCodePointers: { diagnosisCodePointers: claim.diagnosis_codes.map((_, i) => String(i + 1)) },
-            placeOfServiceCode: claim.place_of_service,
-          },
-        }],
-      },
-      billingProvider: {
-        providerType: 'billingProvider',
-        npi: '1234567890',
-        employerId: '123456789',
-        organizationName: 'SEVEN ARROWS RECOVERY LLC',
-        address: { address1: '123 Recovery Rd', city: 'Cochise County', state: 'AZ', postalCode: '85603' },
-        taxonomyCode: '261QR0405X',
-      },
-    };
+  const confirmStediSubmit = async () => {
+    if (!stediPreview) return;
+    const { claim, payload } = stediPreview;
+    if (!stediKey) { setShowStediConfig(true); setStediPreview(null); return; }
 
     try {
       const res = await fetch('/api/stedi', {
@@ -267,6 +434,7 @@ export default function BillingContent() {
     } catch (err) {
       alert(`Stedi submission failed: ${err}`);
     }
+    setStediPreview(null);
   };
 
   if (!user) return null;
@@ -471,30 +639,50 @@ export default function BillingContent() {
                               <p className="text-xs text-foreground/30 py-2" style={{ fontFamily: 'var(--font-body)' }}>No claims yet for this patient.</p>
                             ) : (
                               <div className="space-y-2">
-                                {patientClaims.map(c => (
-                                  <div key={c.id} className="bg-white rounded-xl px-4 py-3 border border-gray-100">
-                                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1.5">
-                                      <div className="flex items-center gap-2">
-                                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle[c.status] || statusStyle.Draft}`}>{c.status}</span>
-                                        <span className="text-sm font-medium text-foreground" style={{ fontFamily: 'var(--font-body)' }}>{c.procedure_code} — ${c.charge_amount?.toLocaleString()}</span>
+                                {patientClaims.map(c => {
+                                  const notes = extendedNotes[c.id];
+                                  return (
+                                    <div key={c.id} className="bg-white rounded-xl px-4 py-3 border border-gray-100">
+                                      <div className="flex items-center justify-between flex-wrap gap-2 mb-1.5">
+                                        <div className="flex items-center gap-2">
+                                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle[c.status] || statusStyle.Draft}`}>{c.status}</span>
+                                          <span className="text-sm font-medium text-foreground" style={{ fontFamily: 'var(--font-body)' }}>{c.procedure_code} — ${c.charge_amount?.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {c.stedi_claim_id && <span className="text-xs text-foreground/30 font-mono">{c.stedi_claim_id.slice(0, 12)}...</span>}
+                                          {c.status === 'Draft' && (
+                                            <button onClick={(e) => { e.stopPropagation(); openStediPreview(c); }} className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                                              Send to Stedi
+                                            </button>
+                                          )}
+                                        </div>
                                       </div>
-                                      <div className="flex items-center gap-2">
-                                        {c.stedi_claim_id && <span className="text-xs text-foreground/30 font-mono">{c.stedi_claim_id.slice(0, 12)}...</span>}
-                                        {c.status === 'Draft' && (
-                                          <button onClick={(e) => { e.stopPropagation(); submitToStedi(c); }} className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
-                                            Send to Stedi
-                                          </button>
-                                        )}
+                                      <div className="flex flex-wrap gap-x-5 gap-y-0.5 text-xs text-foreground/40 mb-2" style={{ fontFamily: 'var(--font-body)' }}>
+                                        <span>Admit: {c.admission_date}</span>
+                                        <span>Discharge: {c.discharge_date}</span>
+                                        <span>Auth: {c.authorization_number}</span>
+                                        <span>Dx: {(c.diagnosis_codes || []).join(', ')}</span>
+                                        <span>Units: {c.units}</span>
                                       </div>
+                                      {notes && (
+                                        <div className="grid gap-2 mt-2 pt-2 border-t border-gray-50">
+                                          <details>
+                                            <summary className="text-xs font-semibold text-foreground/50 cursor-pointer hover:text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>Group Therapy Notes</summary>
+                                            <p className="mt-1.5 text-xs text-foreground/60 leading-relaxed pl-3 border-l-2 border-primary/20" style={{ fontFamily: 'var(--font-body)' }}>{notes.group_notes}</p>
+                                          </details>
+                                          <details>
+                                            <summary className="text-xs font-semibold text-foreground/50 cursor-pointer hover:text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>Individual Therapy Notes</summary>
+                                            <p className="mt-1.5 text-xs text-foreground/60 leading-relaxed pl-3 border-l-2 border-blue-200" style={{ fontFamily: 'var(--font-body)' }}>{notes.individual_notes}</p>
+                                          </details>
+                                          <details>
+                                            <summary className="text-xs font-semibold text-foreground/50 cursor-pointer hover:text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>Medical Notes</summary>
+                                            <p className="mt-1.5 text-xs text-foreground/60 leading-relaxed pl-3 border-l-2 border-emerald-200" style={{ fontFamily: 'var(--font-body)' }}>{notes.medical_notes}</p>
+                                          </details>
+                                        </div>
+                                      )}
                                     </div>
-                                    <div className="flex flex-wrap gap-x-5 gap-y-0.5 text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-                                      <span>Admit: {c.admission_date}</span>
-                                      <span>Discharge: {c.discharge_date}</span>
-                                      <span>Dx: {(c.diagnosis_codes || []).join(', ')}</span>
-                                      <span>Units: {c.units}</span>
-                                    </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </td>
@@ -531,7 +719,7 @@ export default function BillingContent() {
                   <div className="flex items-center gap-2">
                     {c.stedi_claim_id && <span className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>Stedi: {c.stedi_claim_id.slice(0, 12)}...</span>}
                     {c.status === 'Draft' && (
-                      <button onClick={() => submitToStedi(c)} className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                      <button onClick={() => openStediPreview(c)} className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
                         Send to Stedi
                       </button>
                     )}
@@ -553,6 +741,122 @@ export default function BillingContent() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Stedi Preview Modal */}
+      {stediPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setStediPreview(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-bold text-foreground">Stedi 837P Claim Preview</h2>
+                <p className="text-xs text-foreground/40 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                  {stediPreview.patient.first_name} {stediPreview.patient.last_name} &middot; {stediPreview.patient.payer_name} &middot; ${stediPreview.claim.charge_amount?.toLocaleString()}
+                </p>
+              </div>
+              <button onClick={() => setStediPreview(null)} className="p-2 hover:bg-warm-bg rounded-xl transition-colors">
+                <svg className="w-5 h-5 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                <div className="bg-warm-bg/50 rounded-xl p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/30 font-semibold" style={{ fontFamily: 'var(--font-body)' }}>Subscriber</p>
+                  <p className="text-sm font-bold text-foreground mt-1">{stediPreview.payload.subscriber.firstName} {stediPreview.payload.subscriber.lastName}</p>
+                  <p className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>ID: {stediPreview.payload.subscriber.memberId}</p>
+                </div>
+                <div className="bg-warm-bg/50 rounded-xl p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/30 font-semibold" style={{ fontFamily: 'var(--font-body)' }}>Payer</p>
+                  <p className="text-sm font-bold text-foreground mt-1">{stediPreview.payload.receiver.organizationName}</p>
+                  <p className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>ID: {stediPreview.payload.tradingPartnerServiceId}</p>
+                </div>
+                <div className="bg-warm-bg/50 rounded-xl p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/30 font-semibold" style={{ fontFamily: 'var(--font-body)' }}>Charge</p>
+                  <p className="text-sm font-bold text-foreground mt-1">${stediPreview.claim.charge_amount?.toLocaleString()}</p>
+                  <p className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{stediPreview.claim.units} days</p>
+                </div>
+                <div className="bg-warm-bg/50 rounded-xl p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/30 font-semibold" style={{ fontFamily: 'var(--font-body)' }}>Auth</p>
+                  <p className="text-sm font-bold text-foreground mt-1 break-all">{stediPreview.claim.authorization_number || 'N/A'}</p>
+                  <p className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>POS: {stediPreview.claim.place_of_service}</p>
+                </div>
+              </div>
+
+              {/* Diagnosis Codes */}
+              <div className="mb-4">
+                <h4 className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Diagnosis Codes</h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {stediPreview.payload.claimInformation.healthCareCodeInformation.map((dx: { diagnosisTypeCode: string; diagnosisCode: string }, i: number) => {
+                    const code = dx.diagnosisCode.slice(0, 3) + '.' + dx.diagnosisCode.slice(3);
+                    const diag = commonDiagnoses.find(d => d.code.replace('.', '') === dx.diagnosisCode);
+                    return (
+                      <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium">
+                        <span className="font-mono">{code}</span>
+                        {diag && <span className="text-primary/60">{diag.desc}</span>}
+                        <span className="text-primary/30 text-[10px]">{dx.diagnosisTypeCode === 'ABK' ? 'Primary' : `Dx${i + 1}`}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Service Line */}
+              <div className="mb-4">
+                <h4 className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Service Line</h4>
+                <div className="bg-warm-bg/30 rounded-xl p-3 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div><span className="text-foreground/30">Procedure:</span> <span className="font-bold text-foreground">{stediPreview.claim.procedure_code}</span></div>
+                    <div><span className="text-foreground/30">Modifier:</span> <span className="font-bold text-foreground">{stediPreview.claim.procedure_modifier || 'None'}</span></div>
+                    <div><span className="text-foreground/30">Revenue:</span> <span className="font-bold text-foreground">{stediPreview.claim.revenue_code}</span></div>
+                    <div><span className="text-foreground/30">Units:</span> <span className="font-bold text-foreground">{stediPreview.claim.units} days</span></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Clinical Notes */}
+              {extendedNotes[stediPreview.claim.id] && (
+                <div className="mb-4">
+                  <h4 className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Clinical Documentation</h4>
+                  <div className="space-y-2">
+                    <div className="bg-primary/5 rounded-xl p-3 border border-primary/10">
+                      <p className="text-[10px] uppercase tracking-wider text-primary/60 font-semibold mb-1" style={{ fontFamily: 'var(--font-body)' }}>Group Therapy Notes</p>
+                      <p className="text-xs text-foreground/70 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{extendedNotes[stediPreview.claim.id].group_notes}</p>
+                    </div>
+                    <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100">
+                      <p className="text-[10px] uppercase tracking-wider text-blue-600/60 font-semibold mb-1" style={{ fontFamily: 'var(--font-body)' }}>Individual Therapy Notes</p>
+                      <p className="text-xs text-foreground/70 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{extendedNotes[stediPreview.claim.id].individual_notes}</p>
+                    </div>
+                    <div className="bg-emerald-50/50 rounded-xl p-3 border border-emerald-100">
+                      <p className="text-[10px] uppercase tracking-wider text-emerald-600/60 font-semibold mb-1" style={{ fontFamily: 'var(--font-body)' }}>Medical Notes</p>
+                      <p className="text-xs text-foreground/70 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{extendedNotes[stediPreview.claim.id].medical_notes}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Raw JSON Preview */}
+              <details className="mb-2">
+                <summary className="text-xs text-foreground/30 cursor-pointer hover:text-foreground/50 font-medium" style={{ fontFamily: 'var(--font-body)' }}>View Raw 837P JSON Payload</summary>
+                <pre className="mt-2 text-[11px] bg-gray-900 text-green-400 rounded-xl p-4 overflow-auto max-h-60 leading-relaxed" style={{ fontFamily: 'monospace' }}>{JSON.stringify(stediPreview.payload, null, 2)}</pre>
+              </details>
+            </div>
+
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-warm-bg/30 rounded-b-2xl">
+              <p className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                Endpoint: healthcare.us.stedi.com &middot; 837P Professional Claim v3
+              </p>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setStediPreview(null)} className="px-4 py-2 rounded-xl text-sm font-medium text-foreground/60 hover:bg-white transition-colors" style={{ fontFamily: 'var(--font-body)' }}>Cancel</button>
+                <button onClick={confirmStediSubmit} className="px-5 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                  <svg className="w-4 h-4 inline mr-1.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
+                  Submit to Stedi
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
