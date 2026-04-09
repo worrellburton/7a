@@ -1,8 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/db';
+import { uploadFile } from '@/lib/upload';
 import { useAuth } from '@/lib/AuthProvider';
 
 const locations = ['Lodge', 'Barn', 'Admin Building', 'Grounds', 'Other'] as const;
@@ -43,16 +43,9 @@ export default function SubmitContent() {
     setSubmitting(true);
 
     let photoUrls: string[] = [];
-    if (photos.length > 0) {
-      for (const file of photos) {
-        const ext = file.name.split('.').pop() || 'jpg';
-        const path = `issues/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error } = await supabase.storage.from('issue-photos').upload(path, file);
-        if (!error) {
-          const { data: urlData } = supabase.storage.from('issue-photos').getPublicUrl(path);
-          photoUrls.push(urlData.publicUrl);
-        }
-      }
+    for (const file of photos) {
+      const url = await uploadFile(file);
+      if (url) photoUrls.push(url);
     }
 
     const result = await db({
@@ -63,7 +56,7 @@ export default function SubmitContent() {
         issue: form.issue.trim(),
         priority: form.priority,
         status: 'Open',
-        reported: new Date().toISOString().split('T')[0],
+        reported: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
         submitted_by: userName,
         notes: form.notes.trim(),
         photo_urls: photoUrls,

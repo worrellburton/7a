@@ -17,6 +17,10 @@ export function setAuthToken(token: string | null) {
   _authToken = token;
 }
 
+export function getAuthToken(): string {
+  return _authToken || '';
+}
+
 export async function db(options: DbOptions) {
   let token = _authToken;
 
