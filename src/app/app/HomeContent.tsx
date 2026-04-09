@@ -9,6 +9,7 @@ interface RecentUser {
   full_name: string | null;
   avatar_url: string | null;
   last_sign_in: string | null;
+  job_title: string | null;
 }
 
 function isOnlineNow(lastSignIn: string | null): boolean {
@@ -34,7 +35,7 @@ export default function HomeContent() {
   useEffect(() => {
     if (!session?.access_token) return;
     async function fetchRecentUsers() {
-      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in', order: { column: 'last_sign_in', ascending: false } });
+      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, job_title', order: { column: 'last_sign_in', ascending: false } });
       if (Array.isArray(data)) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -90,6 +91,7 @@ export default function HomeContent() {
                   )}
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
                     <p className="font-medium">{u.full_name || 'User'}</p>
+                    {u.job_title && <p className="text-white/80">{u.job_title}</p>}
                     <p className="text-white/60">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
                   </div>
                 </div>

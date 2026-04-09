@@ -186,6 +186,11 @@ export default function ImprovementsContent() {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
   };
 
+  const updatePriority = async (id: string, priority: Priority) => {
+    await db({ action: 'update', table: 'facilities_issues', data: { priority }, match: { id } });
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, priority } : i)));
+  };
+
   const saveIssueText = async (id: string) => {
     const trimmed = editingIssueDraft.trim();
     if (!trimmed) { setEditingIssueId(null); return; }
@@ -254,15 +259,21 @@ export default function ImprovementsContent() {
             </button>
           </div>
           <div className="grid sm:grid-cols-2 gap-3 mb-4">
-            <select value={newItem.location} onChange={(e) => setNewItem({ ...newItem, location: e.target.value })} className="px-3 py-2.5 rounded-xl border border-gray-200 text-base bg-warm-bg/50 focus:outline-none focus:border-primary" style={{ fontFamily: 'var(--font-body)' }}>
-              <option value="">Select location...</option>
-              {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
-            </select>
-            <select value={newItem.priority} onChange={(e) => setNewItem({ ...newItem, priority: e.target.value as Priority })} className="px-3 py-2.5 rounded-xl border border-gray-200 text-base bg-warm-bg/50 focus:outline-none focus:border-primary" style={{ fontFamily: 'var(--font-body)' }}>
-              <option value="High">High Priority</option>
-              <option value="Medium">Medium Priority</option>
-              <option value="Low">Low Priority</option>
-            </select>
+            <div className="relative">
+              <select value={newItem.location} onChange={(e) => setNewItem({ ...newItem, location: e.target.value })} className="appearance-none w-full pl-3 pr-8 py-2.5 rounded-xl border border-gray-200 text-base bg-warm-bg/50 focus:outline-none focus:border-primary cursor-pointer" style={{ fontFamily: 'var(--font-body)' }}>
+                <option value="">Select location...</option>
+                {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+              </select>
+              <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+            </div>
+            <div className="relative">
+              <select value={newItem.priority} onChange={(e) => setNewItem({ ...newItem, priority: e.target.value as Priority })} className="appearance-none w-full pl-3 pr-8 py-2.5 rounded-xl border border-gray-200 text-base bg-warm-bg/50 focus:outline-none focus:border-primary cursor-pointer" style={{ fontFamily: 'var(--font-body)' }}>
+                <option value="High">High Priority</option>
+                <option value="Medium">Medium Priority</option>
+                <option value="Low">Low Priority</option>
+              </select>
+              <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+            </div>
           </div>
           <input type="text" placeholder="Describe the issue..." value={newItem.issue} onChange={(e) => setNewItem({ ...newItem, issue: e.target.value })} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-base bg-warm-bg/50 focus:outline-none focus:border-primary mb-3" style={{ fontFamily: 'var(--font-body)' }} />
           <textarea placeholder="Additional notes (optional)" value={newItem.notes} onChange={(e) => setNewItem({ ...newItem, notes: e.target.value })} rows={2} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-base bg-warm-bg/50 focus:outline-none focus:border-primary mb-4 resize-none" style={{ fontFamily: 'var(--font-body)' }} />
@@ -295,16 +306,22 @@ export default function ImprovementsContent() {
       {/* Filter bar + view toggle */}
       {items.length > 0 && (
         <div className="flex items-center gap-3 mb-4 flex-wrap">
-          <select value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary" style={{ fontFamily: 'var(--font-body)' }}>
-            <option value="All">All Locations</option>
-            {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
-          </select>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary" style={{ fontFamily: 'var(--font-body)' }}>
-            <option value="All">All Status</option>
-            <option value="Open">Open</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Completed">Completed</option>
-          </select>
+          <div className="relative">
+            <select value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)} className="appearance-none pl-3 pr-7 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer" style={{ fontFamily: 'var(--font-body)' }}>
+              <option value="All">All Locations</option>
+              {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+            </select>
+            <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+          </div>
+          <div className="relative">
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="appearance-none pl-3 pr-7 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer" style={{ fontFamily: 'var(--font-body)' }}>
+              <option value="All">All Status</option>
+              <option value="Open">Open</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+            <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+          </div>
           <div className="ml-auto flex items-center gap-1 bg-warm-bg rounded-lg p-1">
             <button onClick={() => setView('table')} className={`p-1.5 rounded-md transition-colors ${view === 'table' ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} aria-label="Table view">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
@@ -368,7 +385,13 @@ export default function ImprovementsContent() {
                           <span className="text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>{item.submitted_by}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5"><span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${priorityStyle[item.priority]}`}>{item.priority}</span></td>
+                      <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <select value={item.priority} onChange={(e) => updatePriority(item.id, e.target.value as Priority)} className={`appearance-none px-2.5 py-1 pr-6 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 ${priorityStyle[item.priority]}`} style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}>
+                          <option value="High">High</option>
+                          <option value="Medium">Medium</option>
+                          <option value="Low">Low</option>
+                        </select>
+                      </td>
                       <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                         <select value={item.status} onChange={(e) => updateStatus(item.id, e.target.value as Status)} className={`appearance-none px-2.5 py-1 pr-6 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 ${statusStyle[item.status]}`} style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}>
                           <option value="Open">Open</option>
@@ -443,7 +466,11 @@ export default function ImprovementsContent() {
                 </div>
               )}
               <div className="flex items-center gap-2 ml-9">
-                <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${priorityStyle[item.priority]}`}>{item.priority}</span>
+                <select value={item.priority} onChange={(e) => updatePriority(item.id, e.target.value as Priority)} className={`appearance-none px-2.5 py-1 pr-6 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none ${priorityStyle[item.priority]}`} style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}>
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
                 <select value={item.status} onChange={(e) => updateStatus(item.id, e.target.value as Status)} className={`appearance-none px-2.5 py-1 pr-6 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none ${statusStyle[item.status]}`} style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}>
                   <option value="Open">Open</option>
                   <option value="In Progress">In Progress</option>
