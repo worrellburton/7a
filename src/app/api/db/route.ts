@@ -7,7 +7,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOi
 
 const admin = createClient(supabaseUrl, supabaseServiceKey);
 
-const ALLOWED_TABLES = ['facilities_issues', 'groups', 'users', 'page_permissions'];
+const ALLOWED_TABLES = ['facilities_issues', 'groups', 'users', 'page_permissions', 'equine', 'billing_patients', 'billing_claims'];
 
 async function getUser(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
