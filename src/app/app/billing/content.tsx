@@ -42,8 +42,17 @@ interface Claim {
   created_at: string;
 }
 
-type Tab = 'patients' | 'claims';
+type Tab = 'patients' | 'claims' | 'pipeline';
 type ClaimStatus = 'Draft' | 'Submitted' | 'Accepted' | 'Rejected';
+
+const pipelineStages = [
+  { key: 'Draft', label: 'Draft', color: 'bg-gray-100 text-gray-600', accent: 'border-gray-300' },
+  { key: 'Submitted', label: 'Submitted', color: 'bg-blue-50 text-blue-700', accent: 'border-blue-400' },
+  { key: 'In Review', label: 'In Review', color: 'bg-amber-50 text-amber-700', accent: 'border-amber-400' },
+  { key: 'Accepted', label: 'Accepted', color: 'bg-emerald-50 text-emerald-700', accent: 'border-emerald-400' },
+  { key: 'Denied', label: 'Denied', color: 'bg-red-50 text-red-600', accent: 'border-red-400' },
+  { key: 'Paid', label: 'Paid', color: 'bg-purple-50 text-purple-700', accent: 'border-purple-400' },
+];
 
 const samplePatients: Omit<Patient, 'id'>[] = [
   { first_name: 'John', last_name: 'Martinez', date_of_birth: '1985-03-15', gender: 'M', member_id: 'AZ-88401', policy_number: 'BCB-442901', payer_name: 'Blue Cross Blue Shield AZ', payer_id: '00210', address: '123 Desert View Dr', city: 'Tucson', state: 'AZ', zip: '85701' },
@@ -263,6 +272,9 @@ export default function BillingContent() {
   const [showClaimForm, setShowClaimForm] = useState(false);
   const [submittingClaim, setSubmittingClaim] = useState(false);
   const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
+  const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null);
+  const [dragClaim, setDragClaim] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null);
   const [stediKey, setStediKey] = useState('');
   const [showStediConfig, setShowStediConfig] = useState(false);
   const [diagSearch, setDiagSearch] = useState('');
@@ -437,6 +449,13 @@ export default function BillingContent() {
     setStediPreview(null);
   };
 
+  const moveClaimToStage = async (claimId: string, newStatus: string) => {
+    setClaims(prev => prev.map(c => c.id === claimId ? { ...c, status: newStatus } : c));
+    if (dbAvailable) {
+      await db({ action: 'update', table: 'billing_claims', data: { status: newStatus }, match: { id: claimId } });
+    }
+  };
+
   if (!user) return null;
 
   if (loading) {
@@ -489,11 +508,14 @@ export default function BillingContent() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-warm-bg rounded-xl p-1 w-fit">
-        {(['patients', 'claims'] as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
-            {t === 'patients' ? `Patients (${patients.length})` : `Claims (${claims.length})`}
-          </button>
-        ))}
+        {(['patients', 'claims', 'pipeline'] as Tab[]).map(t => {
+          const label = t === 'patients' ? `Pre-Claim (${patients.length})` : t === 'claims' ? `Claims (${claims.length})` : 'RCM Pipeline';
+          return (
+            <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* New Claim Form */}
@@ -697,47 +719,168 @@ export default function BillingContent() {
         </div>
       )}
 
-      {/* Claims Tab */}
+      {/* Claims Tab — Table View */}
       {tab === 'claims' && (
-        <div className="space-y-2">
-          {claims.length === 0 && !showClaimForm && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-16">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {claims.length === 0 && !showClaimForm ? (
+            <div className="text-center py-16">
               <svg className="w-10 h-10 mx-auto text-foreground/15 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
               <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>No claims yet</p>
               <button onClick={() => setShowClaimForm(true)} className="mt-3 px-4 py-2 rounded-xl bg-foreground text-white text-xs font-medium hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>Create First Claim</button>
             </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-warm-bg/50">
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Patient</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Status</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Admit</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Discharge</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Procedure</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Charge</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Dx Codes</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Action</th>
+                    <th className="w-8" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {claims.map(c => {
+                    const patient = getPatient(c.patient_id);
+                    const expanded = expandedClaimId === c.id;
+                    const notes = extendedNotes[c.id];
+                    return (
+                      <React.Fragment key={c.id}>
+                        <tr onClick={() => setExpandedClaimId(expanded ? null : c.id)} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer">
+                          <td className="px-5 py-3.5 text-sm font-bold text-foreground whitespace-nowrap">{patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown'}</td>
+                          <td className="px-5 py-3.5"><span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle[c.status] || statusStyle.Draft}`}>{c.status}</span></td>
+                          <td className="px-5 py-3.5 text-sm text-foreground/60 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{c.admission_date}</td>
+                          <td className="px-5 py-3.5 text-sm text-foreground/60 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{c.discharge_date}</td>
+                          <td className="px-5 py-3.5 text-sm text-foreground/60 font-mono" style={{ fontFamily: 'var(--font-body)' }}>{c.procedure_code}</td>
+                          <td className="px-5 py-3.5 text-sm font-bold text-foreground whitespace-nowrap">${c.charge_amount?.toLocaleString()}</td>
+                          <td className="px-5 py-3.5 text-xs text-foreground/40 hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{(c.diagnosis_codes || []).join(', ')}</td>
+                          <td className="px-5 py-3.5 hidden lg:table-cell">
+                            {c.status === 'Draft' && (
+                              <button onClick={(e) => { e.stopPropagation(); openStediPreview(c); }} className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                                Send to Stedi
+                              </button>
+                            )}
+                            {c.stedi_claim_id && <span className="text-xs text-foreground/30 font-mono">{c.stedi_claim_id.slice(0, 12)}...</span>}
+                          </td>
+                          <td className="px-3 py-3.5">
+                            <svg className={`w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                          </td>
+                        </tr>
+                        {expanded && (
+                          <tr>
+                            <td colSpan={9} className="bg-warm-bg/20 px-5 py-4 border-b border-gray-100">
+                              <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-foreground/50 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
+                                <span>Auth: {c.authorization_number || 'N/A'}</span>
+                                <span>Units: {c.units} days</span>
+                                <span>POS: {c.place_of_service}</span>
+                                <span>Payer: {patient?.payer_name}</span>
+                                <span>Member: {patient?.member_id}</span>
+                              </div>
+                              {c.status === 'Draft' && (
+                                <div className="mb-3 lg:hidden">
+                                  <button onClick={(e) => { e.stopPropagation(); openStediPreview(c); }} className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                                    Send to Stedi
+                                  </button>
+                                </div>
+                              )}
+                              {notes && (
+                                <div className="grid gap-2 mb-3">
+                                  <details>
+                                    <summary className="text-xs font-semibold text-foreground/50 cursor-pointer hover:text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>Group Therapy Notes</summary>
+                                    <p className="mt-1.5 text-xs text-foreground/60 leading-relaxed pl-3 border-l-2 border-primary/20" style={{ fontFamily: 'var(--font-body)' }}>{notes.group_notes}</p>
+                                  </details>
+                                  <details>
+                                    <summary className="text-xs font-semibold text-foreground/50 cursor-pointer hover:text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>Individual Therapy Notes</summary>
+                                    <p className="mt-1.5 text-xs text-foreground/60 leading-relaxed pl-3 border-l-2 border-blue-200" style={{ fontFamily: 'var(--font-body)' }}>{notes.individual_notes}</p>
+                                  </details>
+                                  <details>
+                                    <summary className="text-xs font-semibold text-foreground/50 cursor-pointer hover:text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>Medical Notes</summary>
+                                    <p className="mt-1.5 text-xs text-foreground/60 leading-relaxed pl-3 border-l-2 border-emerald-200" style={{ fontFamily: 'var(--font-body)' }}>{notes.medical_notes}</p>
+                                  </details>
+                                </div>
+                              )}
+                              {c.stedi_response && (
+                                <details>
+                                  <summary className="text-xs text-foreground/30 cursor-pointer hover:text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>API Response</summary>
+                                  <pre className="mt-1 text-xs bg-white rounded-lg p-3 overflow-auto max-h-40 text-foreground/60 border border-gray-100" style={{ fontFamily: 'monospace' }}>{JSON.stringify(c.stedi_response, null, 2)}</pre>
+                                </details>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
-          {claims.map(c => {
-            const patient = getPatient(c.patient_id);
+        </div>
+      )}
+
+      {/* RCM Pipeline Tab */}
+      {tab === 'pipeline' && (
+        <div className="flex gap-3 overflow-x-auto pb-4">
+          {pipelineStages.map(stage => {
+            const stageClaims = claims.filter(c => c.status === stage.key);
+            const stageTotal = stageClaims.reduce((sum, c) => sum + (c.charge_amount || 0), 0);
+            const isOver = dragOver === stage.key;
             return (
-              <div key={c.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-4">
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-                  <div className="flex items-center gap-3">
-                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${statusStyle[c.status] || statusStyle.Draft}`}>{c.status}</span>
-                    <h3 className="text-sm font-bold text-foreground">{patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown Patient'}</h3>
-                  </div>
+              <div
+                key={stage.key}
+                className={`flex-shrink-0 w-64 flex flex-col rounded-2xl border-t-[3px] ${stage.accent} bg-warm-bg/30 transition-colors ${isOver ? 'bg-primary/5 ring-2 ring-primary/20' : ''}`}
+                onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(stage.key); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null); }}
+                onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); if (id) moveClaimToStage(id, stage.key); setDragOver(null); setDragClaim(null); }}
+              >
+                <div className="px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    {c.stedi_claim_id && <span className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>Stedi: {c.stedi_claim_id.slice(0, 12)}...</span>}
-                    {c.status === 'Draft' && (
-                      <button onClick={() => openStediPreview(c)} className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
-                        Send to Stedi
-                      </button>
-                    )}
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${stage.color}`}>{stage.label}</span>
+                    <span className="text-xs text-foreground/30 font-medium">{stageClaims.length}</span>
                   </div>
+                  <span className="text-xs font-bold text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>${stageTotal.toLocaleString()}</span>
                 </div>
-                <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span>Admit: {c.admission_date}</span>
-                  <span>Discharge: {c.discharge_date}</span>
-                  <span>Procedure: {c.procedure_code}</span>
-                  <span>Charge: ${c.charge_amount?.toLocaleString()}</span>
-                  <span>Dx: {(c.diagnosis_codes || []).join(', ')}</span>
+                <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-2 min-h-[200px]">
+                  {stageClaims.length === 0 && (
+                    <div className={`rounded-xl border-2 border-dashed ${isOver ? 'border-primary/30 bg-primary/5' : 'border-gray-200/50'} p-4 text-center transition-colors`}>
+                      <p className="text-xs text-foreground/20" style={{ fontFamily: 'var(--font-body)' }}>Drop claim here</p>
+                    </div>
+                  )}
+                  {stageClaims.map(c => {
+                    const patient = getPatient(c.patient_id);
+                    const isDragging = dragClaim === c.id;
+                    return (
+                      <div
+                        key={c.id}
+                        draggable
+                        onDragStart={e => { e.dataTransfer.setData('text/plain', c.id); e.dataTransfer.effectAllowed = 'move'; setDragClaim(c.id); }}
+                        onDragEnd={() => { setDragClaim(null); setDragOver(null); }}
+                        className={`bg-white rounded-xl px-3.5 py-3 border border-gray-100 shadow-sm cursor-grab active:cursor-grabbing transition-all hover:shadow-md hover:-translate-y-0.5 ${isDragging ? 'opacity-40 scale-95' : ''}`}
+                      >
+                        <div className="flex items-start justify-between mb-1.5">
+                          <p className="text-sm font-bold text-foreground leading-tight">{patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown'}</p>
+                          <span className="text-sm font-bold text-foreground ml-2 whitespace-nowrap">${c.charge_amount?.toLocaleString()}</span>
+                        </div>
+                        <p className="text-xs text-foreground/40 mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>{patient?.payer_name || 'Unknown Payer'}</p>
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {(c.diagnosis_codes || []).slice(0, 2).map((code, i) => (
+                            <span key={i} className="inline-block px-1.5 py-0.5 bg-primary/8 text-primary rounded text-[10px] font-mono font-medium">{code}</span>
+                          ))}
+                          {(c.diagnosis_codes || []).length > 2 && <span className="text-[10px] text-foreground/30">+{c.diagnosis_codes.length - 2}</span>}
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                          <span>{c.procedure_code} &middot; {c.units}d</span>
+                          <span>{c.admission_date}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                {c.stedi_response && (
-                  <details className="mt-2">
-                    <summary className="text-xs text-foreground/30 cursor-pointer hover:text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>API Response</summary>
-                    <pre className="mt-1 text-xs bg-warm-bg rounded-lg p-3 overflow-auto max-h-40 text-foreground/60" style={{ fontFamily: 'monospace' }}>{JSON.stringify(c.stedi_response, null, 2)}</pre>
-                  </details>
-                )}
               </div>
             );
           })}

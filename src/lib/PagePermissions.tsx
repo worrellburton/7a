@@ -19,8 +19,7 @@ const defaultPages: PageConfig[] = [
   { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3 },
   { path: '/app/equine', label: 'Equine', adminOnly: false, section: 'nav', sort_order: 4 },
   { path: '/app/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 5 },
-  { path: '/app/rcm-pipeline', label: 'RCM Pipeline', adminOnly: false, section: 'nav', sort_order: 6 },
-  { path: '/app/frameworks', label: 'Frameworks', adminOnly: false, section: 'nav', sort_order: 7 },
+  { path: '/app/frameworks', label: 'Frameworks', adminOnly: false, section: 'nav', sort_order: 6 },
   { path: '/app/users', label: 'Users', adminOnly: true, section: 'popup', sort_order: 0 },
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1 },
 ];
