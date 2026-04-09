@@ -320,6 +320,26 @@ export default function BillingContent() {
       let loadedClaims: Claim[] = [];
       if (Array.isArray(cData)) loadedClaims = cData;
 
+      // Deduplicate: keep only the first claim per patient (by patient_id + admission_date)
+      if (loadedClaims.length > 0) {
+        const seen = new Set<string>();
+        const dupeIds: string[] = [];
+        for (const c of loadedClaims) {
+          const key = `${c.patient_id}|${c.admission_date}|${c.discharge_date}`;
+          if (seen.has(key)) {
+            dupeIds.push(c.id);
+          } else {
+            seen.add(key);
+          }
+        }
+        if (dupeIds.length > 0) {
+          for (const id of dupeIds) {
+            await db({ action: 'delete', table: 'billing_claims', match: { id } });
+          }
+          loadedClaims = loadedClaims.filter(c => !dupeIds.includes(c.id));
+        }
+      }
+
       // Seed sample claims if no claims exist yet
       const notesMap: Record<string, { group_notes: string; individual_notes: string; medical_notes: string }> = {};
       if (loadedClaims.length === 0 && loadedPatients.length > 0 && !loadedPatients[0].id.startsWith('local-')) {
