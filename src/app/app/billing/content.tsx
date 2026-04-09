@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface Patient {
   id: string;
@@ -94,6 +94,7 @@ export default function BillingContent() {
   const [dbAvailable, setDbAvailable] = useState(true);
   const [showClaimForm, setShowClaimForm] = useState(false);
   const [submittingClaim, setSubmittingClaim] = useState(false);
+  const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
   const [stediKey, setStediKey] = useState('');
   const [showStediConfig, setShowStediConfig] = useState(false);
   const [diagSearch, setDiagSearch] = useState('');
@@ -297,8 +298,8 @@ export default function BillingContent() {
             <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93s.844.083 1.18-.146l.742-.504a1.125 1.125 0 011.537.169l.773.773a1.125 1.125 0 01.17 1.537l-.505.742c-.229.336-.247.784-.147 1.18.1.396.44.71.864.78l.894.15c.542.09.94.56.94 1.109v1.094c0 .55-.398 1.02-.94 1.11l-.894.149c-.424.07-.764.384-.93.78s-.083.844.146 1.18l.504.742a1.125 1.125 0 01-.17 1.537l-.772.773a1.125 1.125 0 01-1.537.17l-.742-.505c-.336-.229-.784-.247-1.18-.147-.396.1-.71.44-.78.864l-.15.894c-.09.542-.56.94-1.109.94h-1.094c-.55 0-1.02-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93s-.844-.083-1.18.146l-.742.504a1.125 1.125 0 01-1.537-.17l-.773-.772a1.125 1.125 0 01-.17-1.537l.505-.742c.229-.336.247-.784.147-1.18a1.726 1.726 0 00-.78-.864l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.764-.383.93-.78.165-.396.083-.843-.146-1.18l-.504-.742a1.125 1.125 0 01.17-1.537l.772-.773a1.125 1.125 0 011.537-.17l.742.505c.336.229.784.247 1.18.147.396-.1.71-.44.78-.864l.15-.894z" /><circle cx="12" cy="12" r="3" /></svg>
             Stedi Config
           </button>
-          <button onClick={() => { setShowClaimForm(true); setTab('claims'); }} className="px-4 py-2 rounded-xl bg-foreground text-white text-sm font-medium hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
-            + New Claim
+          <button onClick={() => { setClaimForm({ ...claimForm, patient_id: '' }); setShowClaimForm(true); setTab('claims'); }} className="px-4 py-2 rounded-xl bg-foreground text-white text-sm font-medium hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+            Create Claim
           </button>
         </div>
       </div>
@@ -419,21 +420,89 @@ export default function BillingContent() {
                   <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Location</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Payer</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Member ID</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Policy #</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Claims</th>
+                  <th className="w-8" />
                 </tr>
               </thead>
               <tbody>
-                {patients.map(p => (
-                  <tr key={p.id} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors">
-                    <td className="px-5 py-3.5 text-sm font-bold text-foreground whitespace-nowrap">{p.first_name} {p.last_name}</td>
-                    <td className="px-5 py-3.5 text-sm text-foreground/60 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{p.date_of_birth}</td>
-                    <td className="px-5 py-3.5 text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>{p.gender === 'M' ? 'Male' : 'Female'}</td>
-                    <td className="px-5 py-3.5 text-sm text-foreground/60 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{p.city}, {p.state}</td>
-                    <td className="px-5 py-3.5 text-sm text-foreground/60 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{p.payer_name}</td>
-                    <td className="px-5 py-3.5 text-xs text-foreground/40 font-mono">{p.member_id}</td>
-                    <td className="px-5 py-3.5 text-xs text-foreground/40 font-mono">{p.policy_number}</td>
-                  </tr>
-                ))}
+                {patients.map(p => {
+                  const patientClaims = claims.filter(c => c.patient_id === p.id);
+                  const expanded = expandedPatientId === p.id;
+                  return (
+                    <React.Fragment key={p.id}>
+                      <tr onClick={() => setExpandedPatientId(expanded ? null : p.id)} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer">
+                        <td className="px-5 py-3.5 text-sm font-bold text-foreground whitespace-nowrap">{p.first_name} {p.last_name}</td>
+                        <td className="px-5 py-3.5 text-sm text-foreground/60 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{p.date_of_birth}</td>
+                        <td className="px-5 py-3.5 text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>{p.gender === 'M' ? 'Male' : 'Female'}</td>
+                        <td className="px-5 py-3.5 text-sm text-foreground/60 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{p.city}, {p.state}</td>
+                        <td className="px-5 py-3.5 text-sm text-foreground/60 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{p.payer_name}</td>
+                        <td className="px-5 py-3.5 text-xs text-foreground/40 font-mono">{p.member_id}</td>
+                        <td className="px-5 py-3.5">
+                          {patientClaims.length > 0
+                            ? <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">{patientClaims.length}</span>
+                            : <span className="text-xs text-foreground/20" style={{ fontFamily: 'var(--font-body)' }}>None</span>
+                          }
+                        </td>
+                        <td className="px-3 py-3.5">
+                          <svg className={`w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                        </td>
+                      </tr>
+                      {expanded && (
+                        <tr>
+                          <td colSpan={8} className="bg-warm-bg/20 px-5 py-4 border-b border-gray-100">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+                                Claims for {p.first_name} {p.last_name}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClaimForm({ ...claimForm, patient_id: p.id });
+                                  setShowClaimForm(true);
+                                  setTab('claims');
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 transition-colors"
+                                style={{ fontFamily: 'var(--font-body)' }}
+                              >
+                                + Create Claim
+                              </button>
+                            </div>
+                            {patientClaims.length === 0 ? (
+                              <p className="text-xs text-foreground/30 py-2" style={{ fontFamily: 'var(--font-body)' }}>No claims yet for this patient.</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {patientClaims.map(c => (
+                                  <div key={c.id} className="bg-white rounded-xl px-4 py-3 border border-gray-100">
+                                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle[c.status] || statusStyle.Draft}`}>{c.status}</span>
+                                        <span className="text-sm font-medium text-foreground" style={{ fontFamily: 'var(--font-body)' }}>{c.procedure_code} — ${c.charge_amount?.toLocaleString()}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        {c.stedi_claim_id && <span className="text-xs text-foreground/30 font-mono">{c.stedi_claim_id.slice(0, 12)}...</span>}
+                                        {c.status === 'Draft' && (
+                                          <button onClick={(e) => { e.stopPropagation(); submitToStedi(c); }} className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                                            Send to Stedi
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-x-5 gap-y-0.5 text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                                      <span>Admit: {c.admission_date}</span>
+                                      <span>Discharge: {c.discharge_date}</span>
+                                      <span>Dx: {(c.diagnosis_codes || []).join(', ')}</span>
+                                      <span>Units: {c.units}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
