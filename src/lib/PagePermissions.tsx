@@ -62,6 +62,15 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
 
         // Only apply DB overrides if query succeeded and returned data
         if (Array.isArray(data) && data.length > 0) {
+          // Ensure any new defaultPages missing from DB get inserted
+          const dbPaths = new Set(data.map((d: { path: string }) => d.path));
+          const missing = defaultPages.filter((p) => !dbPaths.has(p.path));
+          if (missing.length > 0) {
+            for (const m of missing) {
+              await db({ action: 'upsert', table: 'page_permissions', data: [{ path: m.path, admin_only: m.adminOnly, section: m.section, sort_order: m.sort_order }], onConflict: 'path' });
+            }
+          }
+
           setPages((prev) =>
             prev.map((p) => {
               const match = data.find((d: { path: string }) => d.path === p.path);
