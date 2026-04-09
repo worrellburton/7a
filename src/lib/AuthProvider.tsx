@@ -64,14 +64,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Heartbeat: update last_sign_in every 5 minutes so "Active today" is accurate
   useEffect(() => {
-    if (!user) return;
+    if (!user || !session?.access_token) return;
+    const token = session.access_token;
     const update = () => {
-      db({ action: 'update', table: 'users', data: { last_sign_in: new Date().toISOString() }, match: { id: user.id } });
+      db({ action: 'update', table: 'users', data: { last_sign_in: new Date().toISOString() }, match: { id: user.id } }, token);
     };
     update(); // immediately on mount
     const interval = setInterval(update, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, session]);
 
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({

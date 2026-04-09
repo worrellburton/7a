@@ -10,9 +10,11 @@ interface DbOptions {
   onConflict?: string;
 }
 
-export async function db(options: DbOptions) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token || '';
+export async function db(options: DbOptions, token?: string) {
+  if (!token) {
+    const { data: { session } } = await supabase.auth.getSession();
+    token = session?.access_token || '';
+  }
 
   const res = await fetch('/api/db', {
     method: 'POST',
