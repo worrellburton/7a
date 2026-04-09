@@ -57,14 +57,25 @@ export default function ImprovementsContent() {
   const [newPhotoPreview, setNewPhotoPreview] = useState<string[]>([]);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const fetchIssues = useCallback(async () => {
-    const data = await db({ action: 'select', table: 'facilities_issues', order: { column: 'reported', ascending: false } });
-    if (Array.isArray(data)) {
-      setItems(data as Issue[]);
-    } else {
-      console.error('Failed to fetch issues:', data);
+    try {
+      const data = await db({ action: 'select', table: 'facilities_issues', order: { column: 'reported', ascending: false } });
+      if (Array.isArray(data)) {
+        setItems(data as Issue[]);
+      } else {
+        console.error('Failed to fetch issues:', data);
+        showToast(`Failed to load: ${data?.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Fetch issues error:', err);
     }
     setLoading(false);
   }, []);
@@ -155,6 +166,9 @@ export default function ImprovementsContent() {
 
     if (data && data.id) {
       setItems((prev) => [data as Issue, ...prev]);
+      showToast('Issue reported');
+    } else {
+      showToast(`Failed to save: ${data?.error || 'Unknown error'}`);
     }
 
     setNewItem({ location: '', issue: '', priority: 'Medium', notes: '' });
@@ -517,6 +531,21 @@ export default function ImprovementsContent() {
             className="max-w-full max-h-[85vh] rounded-2xl object-contain"
             onClick={(e) => e.stopPropagation()}
           />
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-[fadeSlideUp_0.3s_ease-out]">
+          <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-xl ${
+            toast.startsWith('Failed') ? 'bg-red-600 text-white' : 'bg-foreground text-white'
+          }`}>
+            {!toast.startsWith('Failed') && (
+              <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {toast}
+          </div>
         </div>
       )}
     </div>
