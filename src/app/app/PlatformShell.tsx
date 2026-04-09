@@ -230,9 +230,9 @@ const pageIcons: Record<string, React.ReactNode> = {
     </svg>
   ),
   '/app/equine': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 4s-2-1-4-1c-3 0-5 2-6 4H8L4 11l4 1-2 4 4-2 1 4 3-5c2.5-.5 5-3 7-5l1-4z" />
-      <path d="M2 20s2-2 4-2 4 2 4 2" />
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 2c-1 0-2.5.8-3 2l-1 3-4 1-3 4h3l-1 3 2.5 1L13 21M17 21v-5c0-1 .5-2 1.5-3L21 10l-1-3c-.5-1.5-1-3-2-5" />
+      <path d="M20.5 3.5c.5 0 1 .5 1 1" />
     </svg>
   ),
   '/app/billing': (
