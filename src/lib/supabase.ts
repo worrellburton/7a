@@ -1,5 +1,4 @@
 import { createBrowserClient } from '@supabase/ssr';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Browser-side Supabase client. All queries go through here and are
 // constrained by RLS policies — no service-role key in browser code.
@@ -8,33 +7,25 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 //   NEXT_PUBLIC_SUPABASE_URL
 //   NEXT_PUBLIC_SUPABASE_ANON_KEY
 //
-// The client is lazy-initialized. Next.js imports this module during the
-// static-prerender phase of a build; if we threw at module load when env
-// vars were missing, the whole build would fail even on pages that never
-// actually touch Supabase at runtime. Deferring the env check to the first
-// real property access keeps the build safe while still failing loudly at
-// runtime if the project is misconfigured.
+// NEXT_PUBLIC_* values are inlined by Next.js at build time. If they're
+// missing from the build environment we fall back to harmless placeholder
+// values so the static-prerender phase of `next build` doesn't crash. A
+// runtime warning is logged in the browser so a misconfigured deploy is
+// obvious in devtools, and any actual query will fail at the network
+// layer instead of silently succeeding.
 
-let _client: SupabaseClient | null = null;
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-function getClient(): SupabaseClient {
-  if (_client) return _client;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) {
-    throw new Error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
-        'Copy .env.example to .env.local and fill in your Supabase project credentials.'
-    );
-  }
-  _client = createBrowserClient(url, key);
-  return _client;
+if (typeof window !== 'undefined' && (!url || !key)) {
+  // eslint-disable-next-line no-console
+  console.error(
+    '[supabase] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
+      'Set them in your Vercel project env (or .env.local for local dev) and redeploy.'
+  );
 }
 
-export const supabase = new Proxy({} as SupabaseClient, {
-  get(_target, prop, receiver) {
-    const client = getClient();
-    const value = Reflect.get(client, prop, receiver);
-    return typeof value === 'function' ? value.bind(client) : value;
-  },
-});
+export const supabase = createBrowserClient(
+  url || 'https://placeholder.supabase.co',
+  key || 'placeholder-anon-key'
+);
