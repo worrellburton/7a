@@ -343,14 +343,14 @@ export default function CallsHeatmapContent() {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 overflow-x-auto">
-          <div className="inline-flex flex-col gap-2 min-w-max">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 overflow-x-auto">
+          <div className="inline-flex flex-col gap-3 min-w-max">
             {/* Month labels row */}
-            <div className="flex items-end gap-[3px] pl-8 h-4">
+            <div className="flex items-end gap-[5px] pl-12 h-5">
               {Array.from({ length: WEEKS }).map((_, col) => {
                 const lbl = monthLabels.find((m) => m.col === col);
                 return (
-                  <div key={col} className="w-[14px] text-[10px] text-foreground/40 font-medium" style={{ fontFamily: 'var(--font-body)' }}>
+                  <div key={col} className="w-[28px] text-[12px] text-foreground/40 font-medium" style={{ fontFamily: 'var(--font-body)' }}>
                     {lbl?.label || ''}
                   </div>
                 );
@@ -358,20 +358,20 @@ export default function CallsHeatmapContent() {
             </div>
 
             {/* Grid with weekday labels on the left */}
-            <div className="flex gap-2">
-              <div className="flex flex-col gap-[3px] pt-0">
+            <div className="flex gap-3">
+              <div className="flex flex-col gap-[5px] pt-0">
                 {weekdayLabels.map((d, i) => (
-                  <div key={i} className="h-[14px] text-[10px] text-foreground/40 font-medium leading-[14px] w-6 text-right pr-1" style={{ fontFamily: 'var(--font-body)' }}>
+                  <div key={i} className="h-[28px] text-[12px] text-foreground/40 font-medium leading-[28px] w-9 text-right pr-1" style={{ fontFamily: 'var(--font-body)' }}>
                     {d}
                   </div>
                 ))}
               </div>
-              <div className="flex gap-[3px]">
+              <div className="flex gap-[5px]">
                 {Array.from({ length: WEEKS }).map((_, col) => (
-                  <div key={col} className="flex flex-col gap-[3px]">
+                  <div key={col} className="flex flex-col gap-[5px]">
                     {Array.from({ length: 7 }).map((_, row) => {
                       const date = dateGrid[col * 7 + row];
-                      if (!date) return <div key={row} className="w-[14px] h-[14px]" />;
+                      if (!date) return <div key={row} className="w-[28px] h-[28px]" />;
                       const bucket = buckets.get(date);
                       const count = bucket?.count || 0;
                       const isFuture = date > todayAz;
@@ -380,7 +380,7 @@ export default function CallsHeatmapContent() {
                           key={row}
                           onMouseEnter={(e) => !isFuture && handleCellEnter(e, date)}
                           onMouseLeave={handleCellLeave}
-                          className={`w-[14px] h-[14px] rounded-[3px] transition-transform hover:scale-125 hover:ring-2 hover:ring-primary/30 cursor-pointer ${
+                          className={`w-[28px] h-[28px] rounded-[5px] transition-transform hover:scale-125 hover:ring-2 hover:ring-primary/30 cursor-pointer ${
                             isFuture ? 'bg-transparent border border-dashed border-foreground/10' : cellClass(count)
                           }`}
                           aria-label={`${date}: ${count} calls`}
@@ -393,13 +393,13 @@ export default function CallsHeatmapContent() {
             </div>
 
             {/* Legend */}
-            <div className="flex items-center gap-2 mt-4 text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+            <div className="flex items-center gap-2 mt-5 text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
               <span>Less</span>
-              <div className="w-[14px] h-[14px] rounded-[3px] bg-warm-bg border border-foreground/5" />
-              <div className="w-[14px] h-[14px] rounded-[3px] bg-primary/30" />
-              <div className="w-[14px] h-[14px] rounded-[3px] bg-primary/60" />
-              <div className="w-[14px] h-[14px] rounded-[3px] bg-primary" />
-              <div className="w-[14px] h-[14px] rounded-[3px] bg-primary-dark" />
+              <div className="w-[20px] h-[20px] rounded-[4px] bg-warm-bg border border-foreground/5" />
+              <div className="w-[20px] h-[20px] rounded-[4px] bg-primary/30" />
+              <div className="w-[20px] h-[20px] rounded-[4px] bg-primary/60" />
+              <div className="w-[20px] h-[20px] rounded-[4px] bg-primary" />
+              <div className="w-[20px] h-[20px] rounded-[4px] bg-primary-dark" />
               <span>More</span>
             </div>
           </div>
