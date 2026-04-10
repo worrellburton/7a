@@ -309,6 +309,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   const { isPageAdminOnly, navPages, popupPages } = usePagePermissions();
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Restore theme on mount
   useEffect(() => {
@@ -317,6 +318,26 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       document.documentElement.classList.add('dark');
     }
   }, []);
+
+  // Close drawer on Escape + lock body scroll while open
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [mobileMenuOpen]);
+
+  // Auto-close drawer on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   // Loading state
   if (loading) {
@@ -468,32 +489,154 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
       {/* Main content area */}
       <div className="flex-1 bg-warm-bg overflow-auto relative">
-        {/* Mobile nav bar */}
-        <div className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            {user.user_metadata?.avatar_url ? (
-              <img src={user.user_metadata.avatar_url} alt="" className="w-7 h-7 rounded-full" />
-            ) : (
-              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
-                {(user.user_metadata?.full_name || '?').charAt(0).toUpperCase()}
-              </div>
-            )}
-            <span className="text-sm font-medium text-foreground">
-              {user.user_metadata?.full_name?.split(' ')[0] || 'Portal'}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            {navPages.filter((item) => !item.adminOnly || isAdmin).map((item) => (
-              <Link
-                key={item.path}
-                href={item.path}
-                className={`p-2 rounded-lg ${pathname === item.path ? 'bg-primary/10 text-primary' : 'text-foreground/40'}`}
-              >
-                {getPageIcon(item.path)}
-              </Link>
-            ))}
-          </div>
+        {/* Mobile top bar */}
+        <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 dark:bg-[#1a1410]/90 backdrop-blur border-b border-gray-100 dark:border-white/5">
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open menu"
+            className="p-2 -ml-2 rounded-lg text-foreground/70 hover:bg-warm-bg transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <Link href="/app" className="text-xl font-black text-primary tracking-tighter">
+            7A
+          </Link>
+          <div className="w-10" aria-hidden="true" />
         </div>
+
+        {/* Mobile drawer */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden fixed inset-0 z-50" role="dialog" aria-modal="true">
+            {/* Backdrop */}
+            <div
+              onClick={() => setMobileMenuOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-drawer-fade"
+              aria-hidden="true"
+            />
+            {/* Panel */}
+            <aside className="absolute inset-y-0 left-0 w-[82%] max-w-[320px] bg-white dark:bg-[#1a1410] border-r border-gray-100 dark:border-white/5 shadow-2xl flex flex-col animate-drawer-slide">
+              {/* Header: brand + close */}
+              <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-white/5">
+                <Link href="/app" className="flex items-center gap-2.5">
+                  <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
+                </Link>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  aria-label="Close menu"
+                  className="p-2 -mr-2 rounded-lg text-foreground/60 hover:bg-warm-bg transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Nav links */}
+              <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+                {navPages.filter((item) => !item.adminOnly || isAdmin).map((item) => {
+                  const isActive = pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      href={item.path}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                      }`}
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                        {getPageIcon(item.path)}
+                      </span>
+                      {item.label}
+                    </Link>
+                  );
+                })}
+
+                {popupPages.filter((item) => !item.adminOnly || isAdmin).length > 0 && (
+                  <>
+                    <div className="h-px my-3 bg-gray-100 dark:bg-white/5" />
+                    {popupPages.filter((item) => !item.adminOnly || isAdmin).map((item) => {
+                      const isActive = pathname === item.path;
+                      return (
+                        <Link
+                          key={item.path}
+                          href={item.path}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                          }`}
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                            {getPageIcon(item.path)}
+                          </span>
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </>
+                )}
+
+                <Link
+                  href="/app/profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                    pathname === '/app/profile'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                  }`}
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <span className={pathname === '/app/profile' ? 'text-primary' : 'text-foreground/40'}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                  </span>
+                  My Profile
+                </Link>
+              </nav>
+
+              {/* User card + sign out */}
+              <div className="p-3 border-t border-gray-100 dark:border-white/5 space-y-1">
+                <div className="flex items-center gap-3 px-3 py-2.5">
+                  {user.user_metadata?.avatar_url ? (
+                    <img src={user.user_metadata.avatar_url} alt="" className="w-9 h-9 rounded-full" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold">
+                      {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {user.user_metadata?.full_name || 'User'}
+                    </p>
+                    <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setMobileMenuOpen(false); signOut(); }}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                  </svg>
+                  Sign Out
+                </button>
+              </div>
+            </aside>
+          </div>
+        )}
 
         <PageGuard>{children}</PageGuard>
 
