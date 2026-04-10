@@ -5,11 +5,19 @@ import { db } from '@/lib/db';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 // ------------------------------------------------------------
-// Calendar — Phase 2: drag groups/users onto the grid, persist.
-// Phase 1 delivered the month/week/day chrome; this layer adds the
-// left palette, HTML5 drag-and-drop, and the calendar_events table
-// round-trip. Phase 3 handles edit/delete, drag-to-reschedule, and
-// extra polish.
+// Calendar — Phase 3: polish, edit, reschedule, delete.
+//
+// On top of Phase 1 (views) and Phase 2 (palette + drag-to-create):
+//   * Events are clickable → edit modal with title / notes / time /
+//     all-day toggle / delete.
+//   * Existing events are draggable. Dropping on another day or time
+//     slot re-writes their event_date / start_time.
+//   * Drop targets pulse while a drag hovers; chips crossfade in;
+//     modal fades + scales; the whole surface feels tactile.
+//
+// DropCell handles two mime types: SUBJECT_MIME from the palette
+// (create a new event) and EVENT_MIME from an existing event
+// (reschedule it).
 // ------------------------------------------------------------
 
 type View = 'month' | 'week' | 'day';
@@ -47,7 +55,8 @@ interface DragPayload {
   color: string;
 }
 
-const DRAG_MIME = 'application/x-cal-subject';
+const SUBJECT_MIME = 'application/x-cal-subject';
+const EVENT_MIME = 'application/x-cal-event-ref';
 
 // ---- Date helpers (local time, no library) ----
 function startOfMonth(d: Date) {
@@ -136,6 +145,7 @@ export default function CalendarContent() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Initial data fetch
   useEffect(() => {
@@ -220,8 +230,8 @@ export default function CalendarContent() {
     }
   }
 
-  // ---- Drop handler: create a calendar_events row ----
-  const handleDrop = useCallback(
+  // ---- Create a new event from a palette drop ----
+  const handleCreate = useCallback(
     async (payload: DragPayload, date: Date, hour: number | null) => {
       if (!user) return;
       const optimistic: EventRow = {
@@ -262,6 +272,103 @@ export default function CalendarContent() {
     },
     [user]
   );
+
+  // ---- Reschedule an existing event by dragging it ----
+  const handleReschedule = useCallback(
+    async (eventId: string, date: Date, hour: number | null) => {
+      const existing = events.find((ev) => ev.id === eventId);
+      if (!existing) return;
+      const newDate = toISODate(date);
+      const newStart = hour == null ? null : `${String(hour).padStart(2, '0')}:00:00`;
+      const newEnd = hour == null ? null : `${String(hour + 1).padStart(2, '0')}:00:00`;
+      if (
+        existing.event_date === newDate &&
+        existing.start_time === newStart &&
+        existing.end_time === newEnd
+      ) {
+        return; // No-op drop on its own slot.
+      }
+      // Optimistic update
+      setEvents((prev) =>
+        prev.map((ev) =>
+          ev.id === eventId
+            ? { ...ev, event_date: newDate, start_time: newStart, end_time: newEnd }
+            : ev
+        )
+      );
+      const result = await db({
+        action: 'update',
+        table: 'calendar_events',
+        data: { event_date: newDate, start_time: newStart, end_time: newEnd },
+        match: { id: eventId },
+      });
+      if (!result || !(result as { ok?: boolean }).ok) {
+        // Roll back
+        setEvents((prev) =>
+          prev.map((ev) =>
+            ev.id === eventId
+              ? {
+                  ...ev,
+                  event_date: existing.event_date,
+                  start_time: existing.start_time,
+                  end_time: existing.end_time,
+                }
+              : ev
+          )
+        );
+      }
+    },
+    [events]
+  );
+
+  // ---- Save edits from the modal ----
+  const handleSaveEdit = useCallback(
+    async (id: string, patch: Partial<EventRow>) => {
+      const existing = events.find((ev) => ev.id === id);
+      if (!existing) return;
+      setEvents((prev) => prev.map((ev) => (ev.id === id ? { ...ev, ...patch } : ev)));
+      const result = await db({
+        action: 'update',
+        table: 'calendar_events',
+        data: patch as Record<string, unknown>,
+        match: { id },
+      });
+      if (!result || !(result as { ok?: boolean }).ok) {
+        // Roll back on failure
+        setEvents((prev) => prev.map((ev) => (ev.id === id ? existing : ev)));
+      }
+    },
+    [events]
+  );
+
+  // ---- Delete ----
+  const handleDelete = useCallback(
+    async (id: string) => {
+      const existing = events.find((ev) => ev.id === id);
+      if (!existing) return;
+      setEvents((prev) => prev.filter((ev) => ev.id !== id));
+      const result = await db({ action: 'delete', table: 'calendar_events', match: { id } });
+      if (!result || !(result as { ok?: boolean }).ok) {
+        setEvents((prev) => [...prev, existing]);
+      }
+    },
+    [events]
+  );
+
+  const editingEvent = useMemo(
+    () => (editingId ? events.find((ev) => ev.id === editingId) || null : null),
+    [editingId, events]
+  );
+
+  // Escape closes the modal.
+  useEffect(() => {
+    if (!editingId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEditingId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editingId]);
 
   if (!user) return null;
 
@@ -352,7 +459,9 @@ export default function CalendarContent() {
               current={current}
               today={today}
               eventsByDate={eventsByDate}
-              onDrop={(date) => (payload) => handleDrop(payload, date, null)}
+              onCreate={(date, payload) => handleCreate(payload, date, null)}
+              onReschedule={(date, eventId) => handleReschedule(eventId, date, null)}
+              onEventClick={setEditingId}
             />
           )}
           {view === 'week' && (
@@ -360,7 +469,9 @@ export default function CalendarContent() {
               days={weekDays}
               today={today}
               eventsByDate={eventsByDate}
-              onDrop={(date, hour) => (payload) => handleDrop(payload, date, hour)}
+              onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
+              onReschedule={(date, hour, eventId) => handleReschedule(eventId, date, hour)}
+              onEventClick={setEditingId}
             />
           )}
           {view === 'day' && (
@@ -368,11 +479,25 @@ export default function CalendarContent() {
               day={current}
               today={today}
               eventsByDate={eventsByDate}
-              onDrop={(date, hour) => (payload) => handleDrop(payload, date, hour)}
+              onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
+              onReschedule={(date, hour, eventId) => handleReschedule(eventId, date, hour)}
+              onEventClick={setEditingId}
             />
           )}
         </div>
       </div>
+
+      {editingEvent && (
+        <EditModal
+          event={editingEvent}
+          onClose={() => setEditingId(null)}
+          onSave={(patch) => handleSaveEdit(editingEvent.id, patch)}
+          onDelete={() => {
+            handleDelete(editingEvent.id);
+            setEditingId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -497,7 +622,7 @@ function DraggableChip({
   const onDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     const payload: DragPayload = { kind, id, label, color };
     e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload));
+    e.dataTransfer.setData(SUBJECT_MIME, JSON.stringify(payload));
     // Fallback mime so this still ~works if something strips the custom one.
     e.dataTransfer.setData('text/plain', label);
     setDragging(true);
@@ -510,7 +635,7 @@ function DraggableChip({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-grab active:cursor-grabbing transition-all select-none ${
-        dragging ? 'opacity-40 scale-95' : 'hover:bg-warm-bg/40 hover:shadow-sm'
+        dragging ? 'opacity-40 scale-95' : 'hover:bg-warm-bg/40 hover:shadow-sm hover:-translate-y-px'
       }`}
       style={{ borderLeft: `3px solid ${color}` }}
       title={`Drag ${label} onto the calendar`}
@@ -537,16 +662,19 @@ function DraggableChip({
 }
 
 // ------------------------------------------------------------
-// Drop target — wraps any child in a dragover-aware surface
+// Drop target — accepts palette subjects (new event) and event
+// references (reschedule). Pulses while a drag hovers.
 // ------------------------------------------------------------
 
 function DropCell({
-  onDropPayload,
+  onCreate,
+  onReschedule,
   className = '',
   activeClassName = 'animate-cal-drop',
   children,
 }: {
-  onDropPayload: (p: DragPayload) => void;
+  onCreate: (p: DragPayload) => void;
+  onReschedule: (eventId: string) => void;
   className?: string;
   activeClassName?: string;
   children: React.ReactNode;
@@ -554,23 +682,34 @@ function DropCell({
   const [over, setOver] = useState(false);
 
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    if (Array.from(e.dataTransfer.types).includes(DRAG_MIME)) {
+    const types = Array.from(e.dataTransfer.types);
+    if (types.includes(SUBJECT_MIME) || types.includes(EVENT_MIME)) {
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
+      e.dataTransfer.dropEffect = types.includes(EVENT_MIME) ? 'move' : 'copy';
       if (!over) setOver(true);
     }
   };
-  const onDragLeave = () => setOver(false);
+  const onDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    // Only clear if leaving the element entirely (not a child).
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setOver(false);
+  };
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setOver(false);
-    const raw = e.dataTransfer.getData(DRAG_MIME);
-    if (!raw) return;
-    try {
-      const payload = JSON.parse(raw) as DragPayload;
-      onDropPayload(payload);
-    } catch {
-      /* malformed payload — ignore */
+    const eventRef = e.dataTransfer.getData(EVENT_MIME);
+    if (eventRef) {
+      onReschedule(eventRef);
+      return;
+    }
+    const subjectRaw = e.dataTransfer.getData(SUBJECT_MIME);
+    if (subjectRaw) {
+      try {
+        const payload = JSON.parse(subjectRaw) as DragPayload;
+        onCreate(payload);
+      } catch {
+        /* malformed payload — ignore */
+      }
     }
   };
 
@@ -587,15 +726,38 @@ function DropCell({
 }
 
 // ------------------------------------------------------------
-// Event chips
+// Event chips — draggable (reschedule) and clickable (edit)
 // ------------------------------------------------------------
 
-function EventChip({ ev }: { ev: EventRow }) {
+function useEventDrag(ev: EventRow) {
+  const [dragging, setDragging] = useState(false);
+  const onDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData(EVENT_MIME, ev.id);
+    e.dataTransfer.setData('text/plain', ev.title);
+    setDragging(true);
+  };
+  const onDragEnd = () => setDragging(false);
+  return { dragging, onDragStart, onDragEnd };
+}
+
+function EventChip({ ev, onClick }: { ev: EventRow; onClick: (id: string) => void }) {
   const color = ev.color || colorFor(ev.subject_id);
   const hour = parseTime(ev.start_time);
+  const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
   return (
     <div
-      className="animate-cal-event px-2 py-0.5 rounded text-[11px] font-medium truncate cursor-default"
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(ev.id);
+      }}
+      className={`animate-cal-event px-2 py-0.5 rounded text-[11px] font-medium truncate cursor-pointer transition-all hover:-translate-y-px hover:shadow-sm ${
+        dragging ? 'opacity-40' : ''
+      }`}
       style={{
         backgroundColor: color + '22',
         color,
@@ -610,11 +772,21 @@ function EventChip({ ev }: { ev: EventRow }) {
   );
 }
 
-function TimedEventBlock({ ev }: { ev: EventRow }) {
+function TimedEventBlock({ ev, onClick }: { ev: EventRow; onClick: (id: string) => void }) {
   const color = ev.color || colorFor(ev.subject_id);
+  const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
   return (
     <div
-      className="animate-cal-event mx-1 px-2 py-1 rounded text-[11px] font-semibold truncate cursor-default shadow-sm"
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(ev.id);
+      }}
+      className={`animate-cal-event mx-1 px-2 py-1 rounded text-[11px] font-semibold truncate cursor-pointer transition-all shadow-sm hover:-translate-y-px hover:shadow-md ${
+        dragging ? 'opacity-40' : ''
+      }`}
       style={{
         backgroundColor: color + '26',
         color,
@@ -637,13 +809,17 @@ function MonthView({
   current,
   today,
   eventsByDate,
-  onDrop,
+  onCreate,
+  onReschedule,
+  onEventClick,
 }: {
   days: Date[];
   current: Date;
   today: Date;
   eventsByDate: Map<string, EventRow[]>;
-  onDrop: (date: Date) => (payload: DragPayload) => void;
+  onCreate: (date: Date, payload: DragPayload) => void;
+  onReschedule: (date: Date, eventId: string) => void;
+  onEventClick: (id: string) => void;
 }) {
   return (
     <div className="h-full flex flex-col">
@@ -674,7 +850,8 @@ function MonthView({
           return (
             <DropCell
               key={i}
-              onDropPayload={onDrop(d)}
+              onCreate={(payload) => onCreate(d, payload)}
+              onReschedule={(eventId) => onReschedule(d, eventId)}
               className={`relative p-1.5 min-h-[96px] transition-colors hover:bg-warm-bg/40 ${
                 isLastCol ? '' : 'border-r'
               } ${isLastRow ? '' : 'border-b'} border-gray-100`}
@@ -695,7 +872,7 @@ function MonthView({
               </div>
               <div className="space-y-0.5">
                 {shown.map((ev) => (
-                  <EventChip key={ev.id} ev={ev} />
+                  <EventChip key={ev.id} ev={ev} onClick={onEventClick} />
                 ))}
                 {extra > 0 && (
                   <div
@@ -722,12 +899,16 @@ function WeekView({
   days,
   today,
   eventsByDate,
-  onDrop,
+  onCreate,
+  onReschedule,
+  onEventClick,
 }: {
   days: Date[];
   today: Date;
   eventsByDate: Map<string, EventRow[]>;
-  onDrop: (date: Date, hour: number) => (payload: DragPayload) => void;
+  onCreate: (date: Date, hour: number, payload: DragPayload) => void;
+  onReschedule: (date: Date, hour: number, eventId: string) => void;
+  onEventClick: (id: string) => void;
 }) {
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -777,12 +958,13 @@ function WeekView({
                 return (
                   <DropCell
                     key={di}
-                    onDropPayload={onDrop(d, h)}
+                    onCreate={(payload) => onCreate(d, h, payload)}
+                    onReschedule={(eventId) => onReschedule(d, h, eventId)}
                     className="h-16 border-l border-t border-gray-100 hover:bg-warm-bg/30 transition-colors relative overflow-hidden"
                   >
                     <div className="flex flex-col gap-0.5 py-0.5">
                       {slot.map((ev) => (
-                        <TimedEventBlock key={ev.id} ev={ev} />
+                        <TimedEventBlock key={ev.id} ev={ev} onClick={onEventClick} />
                       ))}
                     </div>
                   </DropCell>
@@ -804,12 +986,16 @@ function DayView({
   day,
   today,
   eventsByDate,
-  onDrop,
+  onCreate,
+  onReschedule,
+  onEventClick,
 }: {
   day: Date;
   today: Date;
   eventsByDate: Map<string, EventRow[]>;
-  onDrop: (date: Date, hour: number) => (payload: DragPayload) => void;
+  onCreate: (date: Date, hour: number, payload: DragPayload) => void;
+  onReschedule: (date: Date, hour: number, eventId: string) => void;
+  onEventClick: (id: string) => void;
 }) {
   const isToday = isSameDay(day, today);
   const dayEvents = eventsByDate.get(toISODate(day)) || [];
@@ -845,18 +1031,267 @@ function DayView({
                   {formatHour(h)}
                 </div>
                 <DropCell
-                  onDropPayload={onDrop(day, h)}
+                  onCreate={(payload) => onCreate(day, h, payload)}
+                  onReschedule={(eventId) => onReschedule(day, h, eventId)}
                   className="h-20 border-l border-t border-gray-100 hover:bg-warm-bg/30 transition-colors relative overflow-hidden"
                 >
                   <div className="flex flex-col gap-1 p-1">
                     {slot.map((ev) => (
-                      <TimedEventBlock key={ev.id} ev={ev} />
+                      <TimedEventBlock key={ev.id} ev={ev} onClick={onEventClick} />
                     ))}
                   </div>
                 </DropCell>
               </React.Fragment>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// Edit modal — click an event to open. Handles title, notes, time,
+// all-day toggle, save, and delete with confirmation.
+// ------------------------------------------------------------
+
+function EditModal({
+  event,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  event: EventRow;
+  onClose: () => void;
+  onSave: (patch: Partial<EventRow>) => void;
+  onDelete: () => void;
+}) {
+  const [title, setTitle] = useState(event.title);
+  const [notes, setNotes] = useState(event.notes || '');
+  const [allDay, setAllDay] = useState(event.start_time == null);
+  const initialStart = parseTime(event.start_time) ?? 9;
+  const initialEnd = parseTime(event.end_time) ?? initialStart + 1;
+  const [startHour, setStartHour] = useState(initialStart);
+  const [endHour, setEndHour] = useState(initialEnd);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const color = event.color || colorFor(event.subject_id);
+
+  const dirty =
+    title !== event.title ||
+    (notes || '') !== (event.notes || '') ||
+    allDay !== (event.start_time == null) ||
+    (!allDay && parseTime(event.start_time) !== startHour) ||
+    (!allDay && parseTime(event.end_time) !== endHour);
+
+  function handleSave() {
+    if (!title.trim()) return;
+    const patch: Partial<EventRow> = {
+      title: title.trim(),
+      notes,
+      start_time: allDay ? null : `${String(startHour).padStart(2, '0')}:00:00`,
+      end_time: allDay ? null : `${String(endHour).padStart(2, '0')}:00:00`,
+    };
+    onSave(patch);
+    onClose();
+  }
+
+  const dateLabel = (() => {
+    const [y, m, d] = event.event_date.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    return `${DAYS_FULL[dt.getDay()]}, ${MONTHS[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`;
+  })();
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-cal-fade"
+      onMouseDown={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-cal-event"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {/* Accent bar */}
+        <div className="h-1" style={{ backgroundColor: color }} />
+
+        <div className="p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: color }}
+              />
+              <span
+                className="text-[11px] font-semibold uppercase tracking-wider text-foreground/50"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {event.subject_kind === 'group' ? 'Group' : 'User'} event
+              </span>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg hover:bg-warm-bg text-foreground/40 hover:text-foreground transition-colors"
+              aria-label="Close"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && dirty) handleSave();
+            }}
+            placeholder="Event title"
+            className="w-full text-lg font-semibold text-foreground px-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:outline-none mb-4"
+            style={{ fontFamily: 'var(--font-body)' }}
+          />
+
+          <div
+            className="text-xs text-foreground/50 mb-4 flex items-center gap-2"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
+            </svg>
+            {dateLabel}
+          </div>
+
+          <label
+            className="flex items-center gap-2 mb-4 cursor-pointer select-none"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <input
+              type="checkbox"
+              checked={allDay}
+              onChange={(e) => setAllDay(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/30"
+            />
+            <span className="text-sm text-foreground/70">All day</span>
+          </label>
+
+          {!allDay && (
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label
+                  className="block text-[11px] font-semibold text-foreground/50 uppercase tracking-wider mb-1"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Starts
+                </label>
+                <select
+                  value={startHour}
+                  onChange={(e) => {
+                    const h = Number(e.target.value);
+                    setStartHour(h);
+                    if (endHour <= h) setEndHour(Math.min(h + 1, 23));
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:outline-none text-sm bg-white"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {HOURS.map((h) => (
+                    <option key={h} value={h}>
+                      {formatHour(h)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label
+                  className="block text-[11px] font-semibold text-foreground/50 uppercase tracking-wider mb-1"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Ends
+                </label>
+                <select
+                  value={endHour}
+                  onChange={(e) => setEndHour(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:outline-none text-sm bg-white"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {HOURS.filter((h) => h > startHour).map((h) => (
+                    <option key={h} value={h}>
+                      {formatHour(h)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div className="mb-5">
+            <label
+              className="block text-[11px] font-semibold text-foreground/50 uppercase tracking-wider mb-1"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Notes
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Add details..."
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:outline-none text-sm resize-none"
+              style={{ fontFamily: 'var(--font-body)' }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            {confirmDelete ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-600" style={{ fontFamily: 'var(--font-body)' }}>
+                  Delete this event?
+                </span>
+                <button
+                  onClick={onDelete}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Yes, delete
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-2 py-1.5 rounded-lg text-xs font-semibold text-foreground/50 hover:text-foreground transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-red-700 transition-colors"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z" />
+                </svg>
+                Delete
+              </button>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-foreground/60 hover:bg-warm-bg transition-colors"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!dirty || !title.trim()}
+                className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
