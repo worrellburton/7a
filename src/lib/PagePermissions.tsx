@@ -14,7 +14,7 @@ export interface PageConfig {
 
 const defaultPages: PageConfig[] = [
   { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0 },
-  { path: '/app/improvements', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1 },
+  { path: '/app/facilities', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1 },
   { path: '/app/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2 },
   { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3 },
   { path: '/app/calendar', label: 'Calendar', adminOnly: false, section: 'nav', sort_order: 4 },
@@ -22,8 +22,11 @@ const defaultPages: PageConfig[] = [
   { path: '/app/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6 },
   { path: '/app/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7 },
   { path: '/app/frameworks', label: 'Frameworks', adminOnly: false, section: 'nav', sort_order: 8 },
+  { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9 },
+  { path: '/app/org-chart', label: 'Org Chart', adminOnly: false, section: 'nav', sort_order: 10 },
   { path: '/app/users', label: 'Users', adminOnly: true, section: 'popup', sort_order: 0 },
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1 },
+  { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2 },
 ];
 
 interface PagePermissionsContextType {

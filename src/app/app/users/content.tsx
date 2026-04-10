@@ -15,16 +15,53 @@ interface AppUser {
   created_at: string;
   is_admin: boolean;
   job_title: string | null;
+  last_path: string | null;
+  last_seen_at: string | null;
+  department_id: string | null;
+}
+
+interface Department {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+function pageLabelFromPath(path: string | null): string {
+  if (!path) return '';
+  if (path === '/app' || path === '/app/') return 'Home';
+  const parts = path.split('/').filter(Boolean); // ['app','calendar']
+  const last = parts[parts.length - 1] || '';
+  return last.charAt(0).toUpperCase() + last.slice(1).replace(/-/g, ' ');
+}
+
+function presenceLabel(lastSeenAt: string | null): { online: boolean; text: string } {
+  if (!lastSeenAt) return { online: false, text: 'Offline' };
+  const diff = Date.now() - new Date(lastSeenAt).getTime();
+  const sec = Math.max(0, Math.floor(diff / 1000));
+  if (sec < 120) return { online: true, text: 'Online now' };
+  const min = Math.floor(sec / 60);
+  if (min < 60) return { online: false, text: `${min}m ago` };
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return { online: false, text: `${hr}h ago` };
+  const day = Math.floor(hr / 24);
+  return { online: false, text: `${day}d ago` };
 }
 
 export default function UsersContent() {
   const { user, session, isAdmin } = useAuth();
   const router = useRouter();
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
   const [editingJobTitle, setEditingJobTitle] = useState<string | null>(null);
   const [jobTitleDraft, setJobTitleDraft] = useState('');
+  // force presence labels to re-render every 15s
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const i = setInterval(() => setNowTick((n) => n + 1), 15 * 1000);
+    return () => clearInterval(i);
+  }, []);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -46,8 +83,28 @@ export default function UsersContent() {
       setLoading(false);
     }
 
+    async function fetchDepartments() {
+      const data = await db({ action: 'select', table: 'departments', order: { column: 'name', ascending: true } });
+      if (Array.isArray(data)) {
+        setDepartments(data);
+      }
+    }
+
     fetchUsers();
+    fetchDepartments();
+    // Refresh every 30s so presence stays fresh for the admin watching
+    const refreshInterval = setInterval(fetchUsers, 30 * 1000);
+    return () => clearInterval(refreshInterval);
   }, [session, isAdmin, router]);
+
+  async function updateDepartment(userId: string, departmentId: string | null) {
+    const result = await db({ action: 'update', table: 'users', data: { department_id: departmentId }, match: { id: userId } });
+    if (result?.error) {
+      showToast(`Failed to update department: ${result.error}`);
+      return;
+    }
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, department_id: departmentId } : u)));
+  }
 
   async function toggleAdmin(userId: string, currentValue: boolean) {
     const result = await db({ action: 'update', table: 'users', data: { is_admin: !currentValue }, match: { id: userId } });
@@ -139,10 +196,10 @@ export default function UsersContent() {
               <thead>
                 <tr className="border-b border-gray-100 bg-warm-bg/50">
                   <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>User</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Viewing</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Department</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden sm:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Job Title</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Provider</th>
                   <th className="text-center px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Admin</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Last Sign In</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Joined</th>
                   <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider w-12" style={{ fontFamily: 'var(--font-body)' }}></th>
                 </tr>
@@ -164,6 +221,38 @@ export default function UsersContent() {
                           <p className="text-xs text-foreground/40">{u.email}</p>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {(() => {
+                        const p = presenceLabel(u.last_seen_at);
+                        const pageLabel = pageLabelFromPath(u.last_path);
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${p.online ? 'bg-emerald-500 ring-2 ring-emerald-500/20 animate-pulse' : 'bg-gray-300'}`} />
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-foreground/80 truncate" style={{ fontFamily: 'var(--font-body)' }}>
+                                {p.online && pageLabel ? pageLabel : p.text}
+                              </p>
+                              {p.online && pageLabel && (
+                                <p className="text-[10px] text-emerald-600" style={{ fontFamily: 'var(--font-body)' }}>Online now</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-6 py-4 hidden md:table-cell">
+                      <select
+                        value={u.department_id || ''}
+                        onChange={(e) => updateDepartment(u.id, e.target.value || null)}
+                        className="text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-[160px]"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        <option value="">—</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-6 py-4 hidden sm:table-cell">
                       {editingJobTitle === u.id ? (
@@ -187,19 +276,6 @@ export default function UsersContent() {
                         </button>
                       )}
                     </td>
-                    <td className="px-6 py-4 hidden md:table-cell">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warm-bg text-xs font-medium text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>
-                        {u.provider === 'google' && (
-                          <svg className="w-3 h-3" viewBox="0 0 24 24">
-                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                          </svg>
-                        )}
-                        {u.provider || 'email'}
-                      </span>
-                    </td>
                     <td className="px-6 py-4 text-center">
                       <button
                         onClick={() => toggleAdmin(u.id, u.is_admin)}
@@ -216,11 +292,6 @@ export default function UsersContent() {
                           </svg>
                         )}
                       </button>
-                    </td>
-                    <td className="px-6 py-4 hidden md:table-cell">
-                      <span className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-                        {u.last_sign_in ? new Date(u.last_sign_in).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '\u2014'}
-                      </span>
                     </td>
                     <td className="px-6 py-4 hidden lg:table-cell">
                       <span className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>

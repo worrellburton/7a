@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { getAuthToken } from '@/lib/db';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 
 interface Call {
   id: number;
@@ -462,52 +462,102 @@ export default function CallsContent() {
                     {calls.map(call => {
                       const expanded = expandedId === call.id;
                       return (
-                        <tr key={call.id} onClick={() => setExpandedId(expanded ? null : call.id)} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer">
-                          <td className="px-5 py-3.5">
-                            <div className="text-sm font-medium text-foreground whitespace-nowrap">{formatDate(call.called_at)}</div>
-                            <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{formatTime(call.called_at)}</div>
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
-                            {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
-                              {call.direction || 'unknown'}
-                            </span>
-                            {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ml-1">VM</span>}
-                            {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 ml-1">1st</span>}
-                          </td>
-                          <td className="px-5 py-3.5 text-sm text-foreground/60 max-w-[180px] truncate" style={{ fontFamily: 'var(--font-body)' }}>
-                            {call.source_name || call.source || '—'}
-                          </td>
-                          <td className="px-5 py-3.5 text-sm font-mono text-foreground whitespace-nowrap">
-                            {formatDuration(call.duration)}
-                          </td>
-                          <td className="px-5 py-3.5 text-sm text-foreground/50 whitespace-nowrap hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>
-                            {[call.city, call.state].filter(Boolean).join(', ') || '—'}
-                          </td>
-                          <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
-                            {call.audio ? (
-                              <button
-                                onClick={() => playRecording(call.audio)}
-                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${playingAudio === call.audio ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
-                                style={{ fontFamily: 'var(--font-body)' }}
-                              >
-                                {playingAudio === call.audio ? (
-                                  <><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>Stop</>
-                                ) : (
-                                  <><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>Play</>
+                        <Fragment key={call.id}>
+                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer">
+                            <td className="px-5 py-3.5">
+                              <div className="text-sm font-medium text-foreground whitespace-nowrap">{formatDate(call.called_at)}</div>
+                              <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{formatTime(call.called_at)}</div>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
+                              {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
+                                {call.direction || 'unknown'}
+                              </span>
+                              {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ml-1">VM</span>}
+                              {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 ml-1">1st</span>}
+                            </td>
+                            <td className="px-5 py-3.5 text-sm text-foreground/60 max-w-[180px] truncate" style={{ fontFamily: 'var(--font-body)' }}>
+                              {call.source_name || call.source || '—'}
+                            </td>
+                            <td className="px-5 py-3.5 text-sm font-mono text-foreground whitespace-nowrap">
+                              {formatDuration(call.duration)}
+                            </td>
+                            <td className="px-5 py-3.5 text-sm text-foreground/50 whitespace-nowrap hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>
+                              {[call.city, call.state].filter(Boolean).join(', ') || '—'}
+                            </td>
+                            <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                              {call.audio ? (
+                                <button
+                                  onClick={() => playRecording(call.audio)}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${playingAudio === call.audio ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                                  style={{ fontFamily: 'var(--font-body)' }}
+                                >
+                                  {playingAudio === call.audio ? (
+                                    <><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>Stop</>
+                                  ) : (
+                                    <><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>Play</>
+                                  )}
+                                </button>
+                              ) : (
+                                <span className="text-xs text-foreground/20">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3.5">
+                              <svg className={`w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                            </td>
+                          </tr>
+                          {expanded && (
+                            <tr className="bg-warm-bg/30 border-b border-gray-50">
+                              <td colSpan={8} className="px-5 py-5">
+                                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4 text-sm" style={{ fontFamily: 'var(--font-body)' }}>
+                                  <DetailField label="Caller name" value={call.name && call.name !== 'Unknown' ? call.name : undefined} />
+                                  <DetailField label="Caller number" value={call.caller_number_formatted || call.caller_number} />
+                                  <DetailField label="Tracking number" value={call.tracking_number_formatted || call.tracking_number} />
+                                  <DetailField label="Tracking label" value={call.tracking_label} />
+                                  <DetailField label="Receiving number" value={call.receiving_number_formatted || call.receiving_number} />
+                                  <DetailField label="Business number" value={call.business_number} />
+                                  <DetailField label="Source" value={call.source_name || call.source} />
+                                  <DetailField label="Status" value={call.status} />
+                                  <DetailField label="Direction" value={call.direction} />
+                                  <DetailField label="Total duration" value={formatDuration(call.duration)} />
+                                  <DetailField label="Talk time" value={call.talk_time ? formatDuration(call.talk_time) : undefined} />
+                                  <DetailField label="Ring time" value={call.ring_time ? formatDuration(call.ring_time) : undefined} />
+                                  <DetailField label="Location" value={[call.city, call.state, call.zip].filter(Boolean).join(', ')} />
+                                  <DetailField label="Country" value={call.country} />
+                                  <DetailField label="Score" value={call.score != null ? String(call.score) : undefined} />
+                                  <DetailField label="First call" value={call.first_call ? 'Yes' : undefined} />
+                                  <DetailField label="Voicemail" value={call.voicemail ? 'Yes' : undefined} />
+                                  <DetailField label="Called at" value={`${formatDate(call.called_at)} · ${formatTime(call.called_at)}`} />
+                                </div>
+                                {call.tag_list && call.tag_list.length > 0 && (
+                                  <div className="mt-4">
+                                    <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Tags</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {call.tag_list.map((tag, i) => (
+                                        <span key={i} className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">{tag}</span>
+                                      ))}
+                                    </div>
+                                  </div>
                                 )}
-                              </button>
-                            ) : (
-                              <span className="text-xs text-foreground/20">—</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-3.5">
-                            <svg className={`w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                          </td>
-                        </tr>
+                                {call.notes && (
+                                  <div className="mt-4">
+                                    <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Notes</p>
+                                    <p className="text-sm text-foreground/70 whitespace-pre-wrap" style={{ fontFamily: 'var(--font-body)' }}>{call.notes}</p>
+                                  </div>
+                                )}
+                                {call.audio && (
+                                  <div className="mt-4" onClick={e => e.stopPropagation()}>
+                                    <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Recording</p>
+                                    <audio controls src={call.audio} className="h-9 w-full max-w-md" />
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </tbody>
@@ -572,6 +622,17 @@ export default function CallsContent() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Simple label/value row used inside the expanded call detail drawer.
+function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
+  const display = value && String(value).trim() ? String(value) : '—';
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>{label}</p>
+      <p className={`text-sm ${display === '—' ? 'text-foreground/30' : 'text-foreground/80'} break-words`} style={{ fontFamily: 'var(--font-body)' }}>{display}</p>
     </div>
   );
 }

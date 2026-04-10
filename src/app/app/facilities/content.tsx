@@ -5,7 +5,18 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { uploadFile } from '@/lib/upload';
 
-const locations = ['Lodge', 'Barn', 'Admin Building', 'Grounds', 'Other'] as const;
+const locations = [
+  'Lodge',
+  'Sweat Lodge',
+  'Staff Housing',
+  'Cabin',
+  'Group Room',
+  'Clinical Building',
+  'Barn',
+  'Admin Building',
+  'Grounds',
+  'Other',
+] as const;
 
 type Priority = 'High' | 'Medium' | 'Low';
 type Status = 'Open' | 'In Progress' | 'Completed';
@@ -40,6 +51,8 @@ function daysOutstanding(reported: string): number {
 }
 
 const priorityOrder: Record<Priority, number> = { High: 0, Medium: 1, Low: 2 };
+// Primary group order for rows: In Progress first, then Open, then Completed.
+const statusOrder: Record<Status, number> = { 'In Progress': 0, Open: 1, Completed: 2 };
 
 const priorityStyle: Record<Priority, string> = {
   High: 'bg-red-50 text-red-700',
@@ -53,7 +66,7 @@ const statusStyle: Record<Status, string> = {
   Completed: 'bg-emerald-50 text-emerald-700',
 };
 
-export default function ImprovementsContent() {
+export default function FacilitiesContent() {
   const { user, session } = useAuth();
   const [items, setItems] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,9 +153,14 @@ export default function ImprovementsContent() {
   if (filterLocation !== 'All') filtered = filtered.filter((i) => i.location === filterLocation);
 
   const sorted = [...filtered].sort((a, b) => {
+    // Primary: always group by status — In Progress, then Open, then Completed.
+    const statusDelta = statusOrder[a.status] - statusOrder[b.status];
+    if (statusDelta !== 0) return statusDelta;
+    // Secondary: whatever column the user is currently sorting by.
     const dir = sortDir === 'asc' ? 1 : -1;
     if (sortKey === 'priority') return (priorityOrder[a.priority] - priorityOrder[b.priority]) * dir;
     if (sortKey === 'daysOutstanding') return (daysOutstanding(a.reported) - daysOutstanding(b.reported)) * dir;
+    if (sortKey === 'status') return 0; // already ordered by status
     const aVal = a[sortKey as keyof Issue] as string;
     const bVal = b[sortKey as keyof Issue] as string;
     return aVal < bVal ? -dir : aVal > bVal ? dir : 0;
@@ -394,6 +412,7 @@ export default function ImprovementsContent() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-gray-100">
+                  <th className="px-3 py-3.5 w-14" />
                   {columns.map(([key, label]) => (
                     <th key={key} onClick={() => handleSort(key)} className="px-5 py-3.5 text-xs font-semibold text-foreground/40 uppercase tracking-wider cursor-pointer hover:text-foreground/60 select-none whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
                       {label}<SortIcon column={key} />
@@ -406,6 +425,28 @@ export default function ImprovementsContent() {
                 {sorted.map((item) => (
                   <Fragment key={item.id}>
                     <tr onClick={() => setExpandedId(expandedId === item.id ? null : item.id)} className="border-b border-gray-50 hover:bg-warm-bg/50 transition-colors cursor-pointer group">
+                      <td className="pl-5 pr-2 py-2 w-14">
+                        {item.photo_urls.length > 0 ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setViewingPhoto(item.photo_urls[0]); }}
+                            className="relative block w-10 h-10 rounded-lg overflow-hidden border border-gray-200 hover:ring-2 hover:ring-primary/40 transition-all"
+                            aria-label="View photo"
+                          >
+                            <img src={item.photo_urls[0]} alt="" className="w-full h-full object-cover" />
+                            {item.photo_urls.length > 1 && (
+                              <span className="absolute bottom-0 right-0 text-[9px] font-bold text-white bg-black/55 px-1 rounded-tl-md leading-tight">
+                                +{item.photo_urls.length - 1}
+                              </span>
+                            )}
+                          </button>
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg border border-dashed border-gray-200 flex items-center justify-center text-foreground/20">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                            </svg>
+                          </div>
+                        )}
+                      </td>
                       <td className="px-5 py-3.5 text-sm font-medium text-foreground">{item.location}</td>
                       <td className="px-5 py-3.5 text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
                         {editingIssueId === item.id ? (
@@ -413,12 +454,6 @@ export default function ImprovementsContent() {
                         ) : (
                           <span className="inline-flex items-center gap-2 cursor-text hover:text-foreground transition-colors" onClick={() => { setEditingIssueId(item.id); setEditingIssueDraft(item.issue); }}>
                             {item.issue}
-                            {item.photo_urls.length > 0 && (
-                              <span className="inline-flex items-center gap-0.5 text-xs text-foreground/30">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
-                                {item.photo_urls.length}
-                              </span>
-                            )}
                           </span>
                         )}
                       </td>
@@ -450,12 +485,10 @@ export default function ImprovementsContent() {
                     </tr>
                     {expandedId === item.id && (
                       <tr className="bg-warm-bg/30">
-                        <td colSpan={8} className="px-5 py-4">
+                        <td colSpan={9} className="px-5 py-4">
                           <div className="flex-1">
-                            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Notes</p>
-                            <p className="text-sm text-foreground/70 mb-3" style={{ fontFamily: 'var(--font-body)' }}>{item.notes || 'No additional notes.'}</p>
                             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Photos</p>
-                            <div className="flex gap-2 flex-wrap items-center">
+                            <div className="flex gap-2 flex-wrap items-center mb-4">
                               {item.photo_urls.map((photo, i) => (
                                 <div key={i} className="relative group/photo">
                                   <button onClick={(e) => { e.stopPropagation(); setViewingPhoto(photo); }}>
@@ -485,6 +518,8 @@ export default function ImprovementsContent() {
                                 )}
                               </button>
                             </div>
+                            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Notes</p>
+                            <p className="text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>{item.notes || 'No additional notes.'}</p>
                           </div>
                         </td>
                       </tr>

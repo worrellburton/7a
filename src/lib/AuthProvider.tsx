@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { db, setAuthToken } from '@/lib/db';
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,16 +66,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Heartbeat: update last_sign_in every 5 minutes so "Active today" is accurate
+  // Presence heartbeat: update last_sign_in + current page + last_seen_at.
+  // Runs on mount, on every route change, and on a 60s interval so the
+  // Users page can show "viewing /app/calendar • 12s ago".
   useEffect(() => {
     if (!user || !session?.access_token) return;
     const update = () => {
-      db({ action: 'update', table: 'users', data: { last_sign_in: new Date().toISOString() }, match: { id: user.id } });
+      const now = new Date().toISOString();
+      db({
+        action: 'update',
+        table: 'users',
+        data: {
+          last_sign_in: now,
+          last_seen_at: now,
+          last_path: pathname || null,
+        },
+        match: { id: user.id },
+      });
     };
-    update(); // immediately on mount
-    const interval = setInterval(update, 5 * 60 * 1000);
+    update();
+    const interval = setInterval(update, 60 * 1000);
     return () => clearInterval(interval);
-  }, [user, session]);
+  }, [user, session, pathname]);
 
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({

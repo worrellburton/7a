@@ -596,6 +596,7 @@ export default function CalendarContent() {
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
               onReschedule={(date, hour, eventId) => handleReschedule(eventId, date, hour)}
               onEventClick={setEditingId}
+              onDayClick={handleDayClick}
             />
           )}
           {view === 'day' && (
@@ -1276,6 +1277,7 @@ function WeekView({
   onCreate,
   onReschedule,
   onEventClick,
+  onDayClick,
 }: {
   days: Date[];
   today: Date;
@@ -1284,18 +1286,48 @@ function WeekView({
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
   onReschedule: (date: Date, hour: number, eventId: string) => void;
   onEventClick: (id: string) => void;
+  onDayClick: (date: Date) => void;
 }) {
+  // Per-day sunrise/sunset so each column shows its own light band.
+  const daySun = useMemo(
+    () =>
+      days.map((d) => {
+        const { sunrise, sunset } = sunTimes(d);
+        const span = DAY_END_H - DAY_START_H;
+        const sunrisePct = Math.max(0, Math.min(100, ((sunrise - DAY_START_H) / span) * 100));
+        const sunsetPct = Math.max(0, Math.min(100, ((sunset - DAY_START_H) / span) * 100));
+        const gradient = `linear-gradient(to bottom,
+          rgba(28, 32, 68, 0.20) 0%,
+          rgba(255, 168, 96, 0.16) ${Math.max(0, sunrisePct - 4)}%,
+          rgba(255, 220, 160, 0.04) ${Math.min(100, sunrisePct + 4)}%,
+          rgba(255, 245, 220, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
+          rgba(255, 200, 130, 0.05) ${Math.max(0, sunsetPct - 6)}%,
+          rgba(232, 110, 60, 0.20) ${sunsetPct}%,
+          rgba(70, 45, 90, 0.25) ${Math.min(100, sunsetPct + 6)}%,
+          rgba(18, 20, 55, 0.36) 100%)`;
+        return { sunrise, sunset, sunrisePct, sunsetPct, gradient };
+      }),
+    [days]
+  );
+
   return (
-    <div className="flex flex-col h-full overflow-auto">
+    <div className="flex flex-col h-full min-h-0">
       <div
-        className="grid border-b border-gray-100 bg-warm-bg/30 sticky top-0 z-10"
+        className="grid border-b border-gray-100 bg-warm-bg/30 shrink-0"
         style={{ gridTemplateColumns: '64px repeat(7, minmax(0, 1fr))' }}
       >
         <div />
         {days.map((d, i) => {
           const isToday = isSameDay(d, today);
+          const { sunrise, sunset } = daySun[i];
           return (
-            <div key={i} className="py-3 text-center border-l border-gray-100">
+            <button
+              key={i}
+              type="button"
+              onClick={() => onDayClick(d)}
+              className="py-2 text-center border-l border-gray-100 hover:bg-warm-bg/60 transition-colors cursor-pointer group"
+              title="Open day view"
+            >
               <div
                 className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider"
                 style={{ fontFamily: 'var(--font-body)' }}
@@ -1303,21 +1335,57 @@ function WeekView({
                 {DAYS_SHORT[d.getDay()]}
               </div>
               <div
-                className={`mt-1 inline-flex items-center justify-center text-sm font-semibold w-8 h-8 rounded-full transition-colors ${
-                  isToday ? 'bg-primary text-white shadow-sm' : 'text-foreground/70'
+                className={`mt-0.5 inline-flex items-center justify-center text-sm font-semibold w-8 h-8 rounded-full transition-colors ${
+                  isToday
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'text-foreground/70 group-hover:bg-warm-bg'
                 }`}
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 {d.getDate()}
               </div>
-            </div>
+              <div
+                className="mt-0.5 flex items-center justify-center gap-1 text-[9px] text-foreground/45"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                <svg className="w-2.5 h-2.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3v3" />
+                  <path d="M3 18h18" />
+                  <path d="M6 18a6 6 0 0 1 12 0" />
+                </svg>
+                {formatDecimalTime(sunrise)}
+                <span className="text-foreground/25">·</span>
+                <svg className="w-2.5 h-2.5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 10V3" />
+                  <path d="M3 18h18" />
+                  <path d="M6 18a6 6 0 0 1 12 0" />
+                  <path d="m8 6 4 4 4-4" />
+                </svg>
+                {formatDecimalTime(sunset)}
+              </div>
+            </button>
           );
         })}
       </div>
-      <div className="flex-1">
+      <div className="flex-1 min-h-0 relative">
+        {/* Per-day gradient overlays sit behind the grid cells. */}
         <div
-          className="grid"
+          key={days.map(toISODate).join('|')}
+          className="pointer-events-none absolute inset-0 grid animate-cal-fade"
           style={{ gridTemplateColumns: '64px repeat(7, minmax(0, 1fr))' }}
+          aria-hidden="true"
+        >
+          <div />
+          {daySun.map((s, i) => (
+            <div key={i} style={{ background: s.gradient }} />
+          ))}
+        </div>
+        <div
+          className="grid h-full relative"
+          style={{
+            gridTemplateColumns: '64px repeat(7, minmax(0, 1fr))',
+            gridTemplateRows: `repeat(${HOURS.length}, minmax(0, 1fr))`,
+          }}
         >
           {HOURS.map((h) => (
             <React.Fragment key={h}>
@@ -1335,7 +1403,7 @@ function WeekView({
                     key={di}
                     onCreate={(payload) => onCreate(d, h, payload)}
                     onReschedule={(eventId) => onReschedule(d, h, eventId)}
-                    className="h-16 border-l border-t border-gray-100 hover:bg-warm-bg/30 transition-colors relative overflow-hidden"
+                    className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative overflow-hidden min-h-0"
                   >
                     <div className="flex flex-col gap-0.5 py-0.5">
                       {slot.map((ev) => (
