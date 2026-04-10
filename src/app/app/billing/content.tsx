@@ -474,13 +474,14 @@ export default function BillingContent() {
   const confirmStediSubmit = async () => {
     if (!stediPreview) return;
     const { claim, payload } = stediPreview;
-    if (!stediKey) { setShowStediConfig(true); setStediPreview(null); return; }
 
     try {
+      // The Stedi API key now lives server-side (STEDI_API_KEY). We just
+      // forward the claim payload and let the route handler authenticate.
       const res = await fetch('/api/stedi', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: stediKey, payload }),
+        body: JSON.stringify({ payload }),
       });
       const result = await res.json();
 

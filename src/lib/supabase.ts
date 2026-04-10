@@ -1,6 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xbirikzsrwmgqxlazglm.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhiaXJpa3pzcndtZ3F4bGF6Z2xtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NTQzNDQsImV4cCI6MjA5MTEzMDM0NH0.FGNU8Myke7Pwqkv-8vr37zvRNhzELB95bmOYaxAFR14';
+// Browser-side Supabase client. All queries go through here and are
+// constrained by RLS policies — no service-role key in browser code.
+//
+// Required environment variables (see .env.example):
+//   NEXT_PUBLIC_SUPABASE_URL
+//   NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
+      'Copy .env.example to .env.local and fill in your Supabase project credentials.'
+  );
+}
+
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
