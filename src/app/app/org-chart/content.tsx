@@ -22,12 +22,23 @@ interface Department {
   color: string | null;
 }
 
+interface Edge {
+  id: string;
+  from_user_id: string;
+  to_user_id: string;
+}
+
 // Card + canvas layout constants
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 110;
 const GAP_X = 40;
 const GAP_Y = 50;
 const CANVAS_PADDING = 40;
+
+type ConnectMode =
+  | { kind: 'off' }
+  | { kind: 'pickingFrom' }
+  | { kind: 'pickingTo'; fromId: string };
 
 function defaultPosition(index: number): { x: number; y: number } {
   const COLS = 4;
@@ -43,10 +54,14 @@ export default function OrgChartContent() {
   const { user, session, isAdmin } = useAuth();
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [connectMode, setConnectMode] = useState<ConnectMode>({ kind: 'off' });
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const dragMoved = useRef(false);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const showToast = (msg: string) => {
@@ -58,9 +73,10 @@ export default function OrgChartContent() {
     if (!session?.access_token) return;
 
     async function load() {
-      const [userData, deptData] = await Promise.all([
+      const [userData, deptData, edgeData] = await Promise.all([
         db({ action: 'select', table: 'users', order: { column: 'created_at', ascending: true } }),
         db({ action: 'select', table: 'departments', order: { column: 'name', ascending: true } }),
+        db({ action: 'select', table: 'org_chart_edges' }),
       ]);
       if (Array.isArray(userData)) {
         // Hydrate default positions for users without saved coordinates
@@ -74,6 +90,7 @@ export default function OrgChartContent() {
         setUsers(hydrated);
       }
       if (Array.isArray(deptData)) setDepartments(deptData);
+      if (Array.isArray(edgeData)) setEdges(edgeData);
       setLoading(false);
     }
     load();
@@ -88,6 +105,8 @@ export default function OrgChartContent() {
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>, userId: string) => {
       if (!isAdmin) return;
+      // In connect mode, a mousedown on a card picks it as from/to — don't drag.
+      if (connectMode.kind !== 'off') return;
       e.preventDefault();
       const target = users.find((u) => u.id === userId);
       if (!target) return;
@@ -99,9 +118,10 @@ export default function OrgChartContent() {
         x: pointerX - (target.org_x ?? 0),
         y: pointerY - (target.org_y ?? 0),
       };
+      dragMoved.current = false;
       setDraggingId(userId);
     },
-    [isAdmin, users]
+    [isAdmin, users, connectMode]
   );
 
   useEffect(() => {
@@ -114,6 +134,7 @@ export default function OrgChartContent() {
       const pointerY = e.clientY - canvasRect.top;
       const nextX = Math.max(0, pointerX - dragOffset.current.x);
       const nextY = Math.max(0, pointerY - dragOffset.current.y);
+      dragMoved.current = true;
       setUsers((prev) =>
         prev.map((u) => (u.id === draggingId ? { ...u, org_x: nextX, org_y: nextY } : u))
       );
@@ -122,7 +143,7 @@ export default function OrgChartContent() {
     const handleMouseUp = async () => {
       const target = users.find((u) => u.id === draggingId);
       setDraggingId(null);
-      if (!target) return;
+      if (!target || !dragMoved.current) return;
       const result = await db({
         action: 'update',
         table: 'users',
@@ -139,6 +160,73 @@ export default function OrgChartContent() {
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [draggingId, users]);
+
+  // Click handler for connect-mode card picking
+  const handleCardClick = useCallback(
+    async (userId: string) => {
+      if (!isAdmin) return;
+      if (connectMode.kind === 'off') return;
+      if (connectMode.kind === 'pickingFrom') {
+        setConnectMode({ kind: 'pickingTo', fromId: userId });
+        return;
+      }
+      if (connectMode.kind === 'pickingTo') {
+        const fromId = connectMode.fromId;
+        if (userId === fromId) {
+          showToast('Pick a different card for the target');
+          return;
+        }
+        // Prevent duplicate edges in either direction
+        if (edges.some((e) => e.from_user_id === fromId && e.to_user_id === userId)) {
+          showToast('Connection already exists');
+          setConnectMode({ kind: 'pickingFrom' });
+          return;
+        }
+        const result = await db({
+          action: 'insert',
+          table: 'org_chart_edges',
+          data: { from_user_id: fromId, to_user_id: userId },
+        });
+        if (result?.error) {
+          showToast(`Failed to connect: ${result.error}`);
+        } else if (result && !Array.isArray(result) && 'id' in result) {
+          setEdges((prev) => [...prev, result as Edge]);
+          showToast('Connected');
+        }
+        setConnectMode({ kind: 'pickingFrom' });
+      }
+    },
+    [isAdmin, connectMode, edges]
+  );
+
+  async function deleteEdge(edgeId: string) {
+    if (!isAdmin) return;
+    const result = await db({ action: 'delete', table: 'org_chart_edges', match: { id: edgeId } });
+    if (result?.error) {
+      showToast(`Failed to delete: ${result.error}`);
+      return;
+    }
+    setEdges((prev) => prev.filter((e) => e.id !== edgeId));
+  }
+
+  // Build elbow-connector path (bottom-center → top-center via mid-Y)
+  function elbowPath(from: OrgUser, to: OrgUser): string {
+    const sx = (from.org_x ?? 0) + CARD_WIDTH / 2;
+    const sy = (from.org_y ?? 0) + CARD_HEIGHT;
+    const tx = (to.org_x ?? 0) + CARD_WIDTH / 2;
+    const ty = to.org_y ?? 0;
+    // If target is above source, route sideways instead of downward.
+    if (ty < sy) {
+      const midX = (sx + tx) / 2;
+      return `M ${sx},${sy} L ${sx},${sy + 20} L ${midX},${sy + 20} L ${midX},${ty - 20} L ${tx},${ty - 20} L ${tx},${ty}`;
+    }
+    const midY = (sy + ty) / 2;
+    return `M ${sx},${sy} L ${sx},${midY} L ${tx},${midY} L ${tx},${ty}`;
+  }
+
+  function usersById(id: string): OrgUser | undefined {
+    return users.find((u) => u.id === id);
+  }
 
   // Compute canvas extents so the scroll region grows with placement
   const canvasSize = useMemo(() => {
@@ -186,15 +274,40 @@ export default function OrgChartContent() {
           </p>
         </div>
         {isAdmin && (
-          <button
-            onClick={autoLayout}
-            className="px-4 py-2 bg-warm-bg text-foreground rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-warm-card transition-colors"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Reset layout
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                setConnectMode((m) => (m.kind === 'off' ? { kind: 'pickingFrom' } : { kind: 'off' }))
+              }
+              className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors ${
+                connectMode.kind === 'off'
+                  ? 'bg-primary text-white hover:bg-primary-dark'
+                  : 'bg-foreground text-white hover:bg-primary-dark'
+              }`}
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {connectMode.kind === 'off' ? 'Connect' : 'Done connecting'}
+            </button>
+            <button
+              onClick={autoLayout}
+              className="px-4 py-2 bg-warm-bg text-foreground rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-warm-card transition-colors"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Reset layout
+            </button>
+          </div>
         )}
       </div>
+
+      {connectMode.kind !== 'off' && (
+        <div className="mb-4 p-4 rounded-xl bg-primary/10 border border-primary/20">
+          <p className="text-xs font-medium text-primary" style={{ fontFamily: 'var(--font-body)' }}>
+            {connectMode.kind === 'pickingFrom'
+              ? 'Click the card you want to connect FROM (e.g. the manager).'
+              : 'Now click the card you want to connect TO (e.g. the direct report). Click "Done connecting" when finished.'}
+          </p>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
@@ -213,18 +326,119 @@ export default function OrgChartContent() {
               backgroundSize: '22px 22px',
             }}
           >
+            {/* Edges layer (behind cards) */}
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              width={canvasSize.width}
+              height={canvasSize.height}
+              style={{ overflow: 'visible' }}
+            >
+              <defs>
+                <marker
+                  id="org-arrow"
+                  viewBox="0 0 10 10"
+                  refX="8"
+                  refY="5"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#a0522d" />
+                </marker>
+                <marker
+                  id="org-arrow-hover"
+                  viewBox="0 0 10 10"
+                  refX="8"
+                  refY="5"
+                  markerWidth="7"
+                  markerHeight="7"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
+                </marker>
+              </defs>
+              {edges.map((edge) => {
+                const from = usersById(edge.from_user_id);
+                const to = usersById(edge.to_user_id);
+                if (!from || !to) return null;
+                const d = elbowPath(from, to);
+                const isHovered = hoveredEdgeId === edge.id;
+                // Midpoint for delete handle — use approximate center of path.
+                const sx = (from.org_x ?? 0) + CARD_WIDTH / 2;
+                const sy = (from.org_y ?? 0) + CARD_HEIGHT;
+                const tx = (to.org_x ?? 0) + CARD_WIDTH / 2;
+                const ty = to.org_y ?? 0;
+                const midX = (sx + tx) / 2;
+                const midY = ty < sy ? sy + 20 : (sy + ty) / 2;
+                return (
+                  <g key={edge.id} className="pointer-events-auto">
+                    {/* Wide transparent hit area */}
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={14}
+                      onMouseEnter={() => setHoveredEdgeId(edge.id)}
+                      onMouseLeave={() => setHoveredEdgeId(null)}
+                      className={isAdmin ? 'cursor-pointer' : ''}
+                    />
+                    {/* Visible line */}
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke={isHovered ? '#ef4444' : '#a0522d'}
+                      strokeWidth={isHovered ? 2.5 : 2}
+                      markerEnd={isHovered ? 'url(#org-arrow-hover)' : 'url(#org-arrow)'}
+                      style={{ transition: 'stroke 120ms, stroke-width 120ms' }}
+                    />
+                    {/* Delete handle (admin only, visible on hover) */}
+                    {isAdmin && isHovered && (
+                      <g
+                        transform={`translate(${midX - 10}, ${midY - 10})`}
+                        onMouseEnter={() => setHoveredEdgeId(edge.id)}
+                        onMouseLeave={() => setHoveredEdgeId(null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteEdge(edge.id);
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <circle cx={10} cy={10} r={10} fill="#ef4444" />
+                        <path d="M 6 6 L 14 14 M 14 6 L 6 14" stroke="white" strokeWidth={2} strokeLinecap="round" />
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+
             {users.map((u) => {
               const dept = u.department_id ? deptById.get(u.department_id) : null;
               const isDragging = draggingId === u.id;
+              const isPickingFrom = connectMode.kind === 'pickingFrom';
+              const isPickedSource = connectMode.kind === 'pickingTo' && connectMode.fromId === u.id;
+              const isPickingTo = connectMode.kind === 'pickingTo' && connectMode.fromId !== u.id;
+              const connectHighlight = isPickedSource
+                ? 'border-primary ring-2 ring-primary/30 shadow-lg z-20'
+                : isPickingFrom || isPickingTo
+                ? 'border-primary/40 ring-1 ring-primary/10 cursor-pointer hover:ring-primary/40 hover:border-primary'
+                : '';
               return (
                 <div
                   key={u.id}
                   onMouseDown={(e) => handleMouseDown(e, u.id)}
+                  onClick={() => handleCardClick(u.id)}
                   className={`absolute bg-white rounded-2xl border transition-shadow ${
                     isDragging
                       ? 'border-primary shadow-2xl z-20 scale-[1.02]'
-                      : 'border-gray-200 shadow-sm hover:shadow-md z-10'
-                  } ${isAdmin ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+                      : `${connectHighlight || 'border-gray-200 shadow-sm hover:shadow-md'} z-10`
+                  } ${
+                    isAdmin
+                      ? connectMode.kind !== 'off'
+                        ? 'cursor-pointer'
+                        : 'cursor-grab active:cursor-grabbing'
+                      : 'cursor-default'
+                  }`}
                   style={{
                     left: (u.org_x ?? 0) + 'px',
                     top: (u.org_y ?? 0) + 'px',
