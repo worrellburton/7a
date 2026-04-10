@@ -152,10 +152,10 @@ export default function CallsHeatmapContent() {
         let allCalls: Call[] = [];
         let pg = 1;
         let totalPages = 1;
-        // Fetch every page. CTM caps per_page at 250, so on a busy account
+        // Fetch every page. CTM caps per_page at 150, so on a busy account
         // this may take several round trips — surface progress to the UI.
         while (pg <= totalPages) {
-          const data = await ctmFetch(`/accounts/${accountId}/calls.json`, { page: pg, per_page: 250 });
+          const data = await ctmFetch(`/accounts/${accountId}/calls.json`, { page: pg, per_page: 150 });
           if (data.error) {
             setError(data.error);
             break;
