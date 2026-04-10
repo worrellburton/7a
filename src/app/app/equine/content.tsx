@@ -70,6 +70,22 @@ function EditableCell({ horseId, field, value, className = '', editingId, editFi
   );
 }
 
+type ColDef = { key: string; label: string; hidden?: string };
+
+const defaultColumnOrder: ColDef[] = [
+  { key: 'name', label: 'Name' },
+  { key: 'age', label: 'Age' },
+  { key: 'body_score', label: 'Rate my Body' },
+  { key: 'weight', label: 'Weight' },
+  { key: 'works_in', label: 'Works In' },
+  { key: 'rideable', label: 'Rideable' },
+  { key: 'shoe_schedule', label: 'Shoes' },
+  { key: 'behavior', label: 'Behavior', hidden: 'hidden lg:table-cell' },
+  { key: 'owner', label: 'Owner' },
+  { key: 'last_vet', label: 'Last Vet' },
+  { key: 'docs', label: 'Docs', hidden: 'hidden xl:table-cell' },
+];
+
 const defaultHorses: Omit<Horse, 'id' | 'created_at'>[] = [
   { name: 'Arrow', age: 10, body_score: 5, weight: '1015 lbs', works_in: 'EAP only / Not broken', rideable: 'No', shoe_schedule: '16 weeks', behavior: 'Less spooky / Good', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Boots off, doing good, no noticeable pain', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
   { name: 'Chika', age: 6, body_score: 5, weight: '865 lbs', works_in: 'EAP only / Not broken', rideable: 'No', shoe_schedule: '16 weeks', behavior: 'Good', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Check scab, is dried and closed, starting to peel. Slight limp', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
@@ -107,6 +123,22 @@ export default function EquineContent() {
   const [vetFormReason, setVetFormReason] = useState('');
   const [vetFormNotes, setVetFormNotes] = useState('');
   const [vetViewHorseId, setVetViewHorseId] = useState<string | null>(null);
+  const [columns, setColumns] = useState<ColDef[]>(() => {
+    if (typeof window === 'undefined') return defaultColumnOrder;
+    try {
+      const saved = localStorage.getItem('equine_col_order');
+      if (saved) {
+        const keys: string[] = JSON.parse(saved);
+        // Rebuild from defaults using saved order, adding any new columns
+        const ordered = keys.map(k => defaultColumnOrder.find(c => c.key === k)).filter(Boolean) as ColDef[];
+        const missing = defaultColumnOrder.filter(c => !keys.includes(c.key));
+        return [...ordered, ...missing];
+      }
+    } catch {}
+    return defaultColumnOrder;
+  });
+  const [dragColIdx, setDragColIdx] = useState<number | null>(null);
+  const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -275,39 +307,6 @@ export default function EquineContent() {
     if (s >= 6) return 'text-amber-600 font-bold';
     return 'text-emerald-600 font-bold';
   };
-
-  // Column config with drag-and-drop reordering
-  type ColDef = { key: string; label: string; hidden?: string };
-  const defaultColumnOrder: ColDef[] = [
-    { key: 'name', label: 'Name' },
-    { key: 'age', label: 'Age' },
-    { key: 'body_score', label: 'Rate my Body' },
-    { key: 'weight', label: 'Weight' },
-    { key: 'works_in', label: 'Works In' },
-    { key: 'rideable', label: 'Rideable' },
-    { key: 'shoe_schedule', label: 'Shoes' },
-    { key: 'behavior', label: 'Behavior', hidden: 'hidden lg:table-cell' },
-    { key: 'owner', label: 'Owner' },
-    { key: 'last_vet', label: 'Last Vet' },
-    { key: 'docs', label: 'Docs', hidden: 'hidden xl:table-cell' },
-  ];
-
-  const [columns, setColumns] = useState<ColDef[]>(() => {
-    if (typeof window === 'undefined') return defaultColumnOrder;
-    try {
-      const saved = localStorage.getItem('equine_col_order');
-      if (saved) {
-        const keys: string[] = JSON.parse(saved);
-        // Rebuild from defaults using saved order, adding any new columns
-        const ordered = keys.map(k => defaultColumnOrder.find(c => c.key === k)).filter(Boolean) as ColDef[];
-        const missing = defaultColumnOrder.filter(c => !keys.includes(c.key));
-        return [...ordered, ...missing];
-      }
-    } catch {}
-    return defaultColumnOrder;
-  });
-  const [dragColIdx, setDragColIdx] = useState<number | null>(null);
-  const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
 
   const handleColDragStart = (e: React.DragEvent, idx: number) => {
     e.dataTransfer.setData('text/plain', String(idx));
