@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions } from '@/lib/PagePermissions';
 import PageGuard from '@/lib/PageGuard';
+import PageViewers from './PageViewers';
 
 /* ── Login WebGL Background ─────────────────────────────────────── */
 
@@ -661,6 +662,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         )}
 
         <PageGuard>{children}</PageGuard>
+
+        {/* Same-page viewers — shown on every /app/* page */}
+        <PageViewers />
 
         {/* Theme toggle — fixed bottom right */}
         <ThemeToggle />
