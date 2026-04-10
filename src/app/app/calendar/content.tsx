@@ -48,6 +48,11 @@ interface UserRow {
   avatar_url: string | null;
 }
 
+interface AodRow {
+  event_date: string; // 'YYYY-MM-DD'
+  user_id: string;
+}
+
 interface DragPayload {
   kind: SubjectKind;
   id: string;
@@ -55,7 +60,9 @@ interface DragPayload {
   color: string;
 }
 
-const SUBJECT_MIME = 'application/x-cal-subject';
+// Two subject mimes so the AOD slot can highlight only for team drags.
+const USER_MIME = 'application/x-cal-user';
+const GROUP_MIME = 'application/x-cal-group';
 const EVENT_MIME = 'application/x-cal-event-ref';
 
 // ---- Date helpers (local time, no library) ----
@@ -144,6 +151,7 @@ export default function CalendarContent() {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [aodRows, setAodRows] = useState<AodRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -152,15 +160,17 @@ export default function CalendarContent() {
     if (!session?.access_token) return;
     let alive = true;
     (async () => {
-      const [g, u, e] = await Promise.all([
+      const [g, u, e, a] = await Promise.all([
         db({ action: 'select', table: 'groups', order: { column: 'name', ascending: true } }),
         db({ action: 'select', table: 'users', select: 'id,full_name,email,avatar_url', order: { column: 'full_name', ascending: true } }),
         db({ action: 'select', table: 'calendar_events', order: { column: 'event_date', ascending: true } }),
+        db({ action: 'select', table: 'calendar_day_aod', select: 'event_date,user_id' }),
       ]);
       if (!alive) return;
       if (Array.isArray(g)) setGroups(g as GroupRow[]);
       if (Array.isArray(u)) setUsers(u as UserRow[]);
       if (Array.isArray(e)) setEvents(e as EventRow[]);
+      if (Array.isArray(a)) setAodRows(a as AodRow[]);
       setLoading(false);
     })();
     return () => {
@@ -200,6 +210,20 @@ export default function CalendarContent() {
     }
     return map;
   }, [events]);
+
+  // Quick lookup from user id → UserRow for avatar rendering on chips.
+  const usersById = useMemo(() => {
+    const map = new Map<string, UserRow>();
+    for (const u of users) map.set(u.id, u);
+    return map;
+  }, [users]);
+
+  // Quick lookup from ISO date → AOD user id.
+  const aodByDate = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of aodRows) map.set(a.event_date, a.user_id);
+    return map;
+  }, [aodRows]);
 
   const title = useMemo(() => {
     if (view === 'month') {
@@ -355,6 +379,55 @@ export default function CalendarContent() {
     [events]
   );
 
+  // ---- Set AOD (Assistant on Duty) for a given day ----
+  const handleSetAod = useCallback(
+    async (date: Date, userId: string) => {
+      if (!user) return;
+      const iso = toISODate(date);
+      const prev = aodRows;
+      // Optimistic: replace or add.
+      setAodRows((rows) => {
+        const next = rows.filter((r) => r.event_date !== iso);
+        next.push({ event_date: iso, user_id: userId });
+        return next;
+      });
+      const result = await db({
+        action: 'upsert',
+        table: 'calendar_day_aod',
+        data: [{ event_date: iso, user_id: userId, created_by: user.id }],
+        onConflict: 'event_date',
+      });
+      if (!result || !(result as { ok?: boolean }).ok) {
+        setAodRows(prev); // Roll back on failure.
+      }
+    },
+    [user, aodRows]
+  );
+
+  // ---- Clear the AOD for a day ----
+  const handleClearAod = useCallback(
+    async (date: Date) => {
+      const iso = toISODate(date);
+      const prev = aodRows;
+      setAodRows((rows) => rows.filter((r) => r.event_date !== iso));
+      const result = await db({
+        action: 'delete',
+        table: 'calendar_day_aod',
+        match: { event_date: iso },
+      });
+      if (!result || !(result as { ok?: boolean }).ok) {
+        setAodRows(prev);
+      }
+    },
+    [aodRows]
+  );
+
+  // ---- Navigate to day view for a specific date ----
+  const handleDayClick = useCallback((date: Date) => {
+    setCurrent(date);
+    setView('day');
+  }, []);
+
   const editingEvent = useMemo(
     () => (editingId ? events.find((ev) => ev.id === editingId) || null : null),
     [editingId, events]
@@ -385,7 +458,7 @@ export default function CalendarContent() {
             className="text-sm text-foreground/50"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Drag a group or a user onto a day to schedule it.
+            Drag a group or a team member onto a day to schedule it.
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
@@ -459,9 +532,14 @@ export default function CalendarContent() {
               current={current}
               today={today}
               eventsByDate={eventsByDate}
+              usersById={usersById}
+              aodByDate={aodByDate}
               onCreate={(date, payload) => handleCreate(payload, date, null)}
               onReschedule={(date, eventId) => handleReschedule(eventId, date, null)}
               onEventClick={setEditingId}
+              onDayClick={handleDayClick}
+              onSetAod={handleSetAod}
+              onClearAod={handleClearAod}
             />
           )}
           {view === 'week' && (
@@ -469,6 +547,7 @@ export default function CalendarContent() {
               days={weekDays}
               today={today}
               eventsByDate={eventsByDate}
+              usersById={usersById}
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
               onReschedule={(date, hour, eventId) => handleReschedule(eventId, date, hour)}
               onEventClick={setEditingId}
@@ -479,9 +558,13 @@ export default function CalendarContent() {
               day={current}
               today={today}
               eventsByDate={eventsByDate}
+              usersById={usersById}
+              aodByDate={aodByDate}
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
               onReschedule={(date, hour, eventId) => handleReschedule(eventId, date, hour)}
               onEventClick={setEditingId}
+              onSetAod={handleSetAod}
+              onClearAod={handleClearAod}
             />
           )}
         </div>
@@ -515,7 +598,7 @@ function Palette({
   users: UserRow[];
   loading: boolean;
 }) {
-  const [tab, setTab] = useState<'groups' | 'users'>('groups');
+  const [tab, setTab] = useState<'groups' | 'team'>('groups');
   const [q, setQ] = useState('');
 
   const filteredGroups = useMemo(() => {
@@ -538,7 +621,7 @@ function Palette({
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
       <div className="p-3 border-b border-gray-100">
         <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1 mb-3">
-          {(['groups', 'users'] as const).map((t) => (
+          {(['groups', 'team'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -586,7 +669,7 @@ function Palette({
             filteredGroups.map((g) => <DraggableChip key={g.id} kind="group" id={g.id} label={g.name} />)
           )
         ) : filteredUsers.length === 0 ? (
-          <EmptyMsg text="No users found" />
+          <EmptyMsg text="No team members found" />
         ) : (
           filteredUsers.map((u) => (
             <DraggableChip key={u.id} kind="user" id={u.id} label={userLabel(u)} avatar={u.avatar_url} />
@@ -595,7 +678,7 @@ function Palette({
       </div>
 
       <div className="p-3 border-t border-gray-100 text-[11px] text-foreground/40 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
-        Drag a chip onto a day (month view) or a time slot (week / day view) to schedule it.
+        Drag a group onto a day for an event, or drop a team member on the upper-left AOD slot.
       </div>
     </div>
   );
@@ -622,7 +705,7 @@ function DraggableChip({
   const onDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     const payload: DragPayload = { kind, id, label, color };
     e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData(SUBJECT_MIME, JSON.stringify(payload));
+    e.dataTransfer.setData(kind === 'user' ? USER_MIME : GROUP_MIME, JSON.stringify(payload));
     // Fallback mime so this still ~works if something strips the custom one.
     e.dataTransfer.setData('text/plain', label);
     setDragging(true);
@@ -669,12 +752,14 @@ function DraggableChip({
 function DropCell({
   onCreate,
   onReschedule,
+  onClick,
   className = '',
   activeClassName = 'animate-cal-drop',
   children,
 }: {
   onCreate: (p: DragPayload) => void;
   onReschedule: (eventId: string) => void;
+  onClick?: () => void;
   className?: string;
   activeClassName?: string;
   children: React.ReactNode;
@@ -683,7 +768,7 @@ function DropCell({
 
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     const types = Array.from(e.dataTransfer.types);
-    if (types.includes(SUBJECT_MIME) || types.includes(EVENT_MIME)) {
+    if (types.includes(USER_MIME) || types.includes(GROUP_MIME) || types.includes(EVENT_MIME)) {
       e.preventDefault();
       e.dataTransfer.dropEffect = types.includes(EVENT_MIME) ? 'move' : 'copy';
       if (!over) setOver(true);
@@ -702,10 +787,11 @@ function DropCell({
       onReschedule(eventRef);
       return;
     }
-    const subjectRaw = e.dataTransfer.getData(SUBJECT_MIME);
-    if (subjectRaw) {
+    const raw =
+      e.dataTransfer.getData(USER_MIME) || e.dataTransfer.getData(GROUP_MIME);
+    if (raw) {
       try {
-        const payload = JSON.parse(subjectRaw) as DragPayload;
+        const payload = JSON.parse(raw) as DragPayload;
         onCreate(payload);
       } catch {
         /* malformed payload — ignore */
@@ -715,6 +801,7 @@ function DropCell({
 
   return (
     <div
+      onClick={onClick}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
@@ -742,10 +829,65 @@ function useEventDrag(ev: EventRow) {
   return { dragging, onDragStart, onDragEnd };
 }
 
-function EventChip({ ev, onClick }: { ev: EventRow; onClick: (id: string) => void }) {
+function EventChip({
+  ev,
+  usersById,
+  onClick,
+}: {
+  ev: EventRow;
+  usersById: Map<string, UserRow>;
+  onClick: (id: string) => void;
+}) {
   const color = ev.color || colorFor(ev.subject_id);
   const hour = parseTime(ev.start_time);
   const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
+  const isUser = ev.subject_kind === 'user';
+  const u = isUser ? usersById.get(ev.subject_id) : undefined;
+  const label = isUser ? (u ? userLabel(u) : ev.title) : ev.title;
+  const title = label + (hour != null ? ` · ${formatHour(hour)}` : '');
+
+  if (isUser) {
+    return (
+      <div
+        draggable
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick(ev.id);
+        }}
+        className={`animate-cal-event flex items-center gap-1.5 pl-0.5 pr-1.5 py-0.5 rounded-full cursor-pointer transition-all hover:-translate-y-px hover:shadow-sm ${
+          dragging ? 'opacity-40' : ''
+        }`}
+        style={{
+          backgroundColor: color + '1a',
+          fontFamily: 'var(--font-body)',
+        }}
+        title={title}
+      >
+        {u?.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={u.avatar_url}
+            alt=""
+            className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-white"
+          />
+        ) : (
+          <div
+            className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+            style={{ backgroundColor: color }}
+          >
+            {label.charAt(0).toUpperCase()}
+          </div>
+        )}
+        <span className="text-[11px] font-medium truncate" style={{ color }}>
+          {hour != null ? `${formatHour(hour).replace(' ', '')} ` : ''}
+          {label}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div
       draggable
@@ -764,17 +906,73 @@ function EventChip({ ev, onClick }: { ev: EventRow; onClick: (id: string) => voi
         borderLeft: `2px solid ${color}`,
         fontFamily: 'var(--font-body)',
       }}
-      title={ev.title + (hour != null ? ` · ${formatHour(hour)}` : '')}
+      title={title}
     >
       {hour != null && <span className="opacity-70 mr-1">{formatHour(hour).replace(' ', '')}</span>}
-      {ev.title}
+      {label}
     </div>
   );
 }
 
-function TimedEventBlock({ ev, onClick }: { ev: EventRow; onClick: (id: string) => void }) {
+function TimedEventBlock({
+  ev,
+  usersById,
+  onClick,
+}: {
+  ev: EventRow;
+  usersById: Map<string, UserRow>;
+  onClick: (id: string) => void;
+}) {
   const color = ev.color || colorFor(ev.subject_id);
   const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
+  const isUser = ev.subject_kind === 'user';
+  const u = isUser ? usersById.get(ev.subject_id) : undefined;
+  const label = isUser ? (u ? userLabel(u) : ev.title) : ev.title;
+
+  if (isUser) {
+    return (
+      <div
+        draggable
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick(ev.id);
+        }}
+        className={`animate-cal-event mx-1 px-1.5 py-1 rounded-full flex items-center gap-2 cursor-pointer transition-all shadow-sm hover:-translate-y-px hover:shadow-md ${
+          dragging ? 'opacity-40' : ''
+        }`}
+        style={{
+          backgroundColor: color + '1f',
+          fontFamily: 'var(--font-body)',
+        }}
+        title={label}
+      >
+        {u?.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={u.avatar_url}
+            alt=""
+            className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-white"
+          />
+        ) : (
+          <div
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+            style={{ backgroundColor: color }}
+          >
+            {label.charAt(0).toUpperCase()}
+          </div>
+        )}
+        <span
+          className="text-[11px] font-semibold truncate"
+          style={{ color }}
+        >
+          {label}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div
       draggable
@@ -793,9 +991,119 @@ function TimedEventBlock({ ev, onClick }: { ev: EventRow; onClick: (id: string) 
         borderLeft: `3px solid ${color}`,
         fontFamily: 'var(--font-body)',
       }}
-      title={ev.title}
+      title={label}
     >
-      {ev.title}
+      {label}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// AOD slot — per-day "Assistant on Duty" drop target in the
+// upper-left of each day cell. Accepts team drags only.
+// ------------------------------------------------------------
+
+function AodSlot({
+  user,
+  onSet,
+  onClear,
+  compact = false,
+}: {
+  user: UserRow | undefined;
+  onSet: (userId: string) => void;
+  onClear: () => void;
+  compact?: boolean;
+}) {
+  const [over, setOver] = useState(false);
+
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (e.dataTransfer.types.includes(USER_MIME)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+      if (!over) setOver(true);
+    }
+  };
+  const onDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setOver(false);
+  };
+  const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    const raw = e.dataTransfer.getData(USER_MIME);
+    if (!raw) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setOver(false);
+    try {
+      const payload = JSON.parse(raw) as DragPayload;
+      onSet(payload.id);
+    } catch {
+      /* malformed — ignore */
+    }
+  };
+
+  const color = user ? colorFor(user.id) : 'var(--color-primary)';
+  const label = user ? (user.full_name?.split(' ')[0] || user.email.split('@')[0]) : 'AOD';
+
+  const sizeCls = compact ? 'h-5 text-[9px]' : 'h-6 text-[10px]';
+  const avatarCls = compact ? 'w-4 h-4' : 'w-5 h-5';
+
+  if (!user) {
+    return (
+      <div
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onClick={(e) => e.stopPropagation()}
+        className={`${sizeCls} flex items-center gap-1 px-1.5 rounded border border-dashed transition-colors select-none ${
+          over
+            ? 'border-primary bg-primary/10 text-primary'
+            : 'border-gray-200 text-foreground/30 hover:border-gray-300'
+        }`}
+        style={{ fontFamily: 'var(--font-body)' }}
+        title="Drop a team member here to set Assistant on Duty"
+      >
+        <span className="font-bold tracking-wider">AOD</span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClear();
+      }}
+      className={`${sizeCls} flex items-center gap-1 px-0.5 pr-1.5 rounded-full cursor-pointer transition-all select-none group hover:-translate-y-px ${
+        over ? 'ring-2 ring-primary shadow-sm' : ''
+      }`}
+      style={{
+        backgroundColor: String(color) + '22',
+        fontFamily: 'var(--font-body)',
+      }}
+      title={`AOD: ${user.full_name || user.email} — click to clear`}
+    >
+      {user.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={user.avatar_url}
+          alt=""
+          className={`${avatarCls} rounded-full object-cover shrink-0 ring-1 ring-white`}
+        />
+      ) : (
+        <div
+          className={`${avatarCls} rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0`}
+          style={{ backgroundColor: String(color) }}
+        >
+          {label.charAt(0).toUpperCase()}
+        </div>
+      )}
+      <span className="font-semibold truncate max-w-[60px]" style={{ color: String(color) }}>
+        {label}
+      </span>
     </div>
   );
 }
@@ -809,17 +1117,27 @@ function MonthView({
   current,
   today,
   eventsByDate,
+  usersById,
+  aodByDate,
   onCreate,
   onReschedule,
   onEventClick,
+  onDayClick,
+  onSetAod,
+  onClearAod,
 }: {
   days: Date[];
   current: Date;
   today: Date;
   eventsByDate: Map<string, EventRow[]>;
+  usersById: Map<string, UserRow>;
+  aodByDate: Map<string, string>;
   onCreate: (date: Date, payload: DragPayload) => void;
   onReschedule: (date: Date, eventId: string) => void;
   onEventClick: (id: string) => void;
+  onDayClick: (date: Date) => void;
+  onSetAod: (date: Date, userId: string) => void;
+  onClearAod: (date: Date) => void;
 }) {
   return (
     <div className="h-full flex flex-col">
@@ -843,22 +1161,32 @@ function MonthView({
           const isToday = isSameDay(d, today);
           const isLastCol = (i + 1) % 7 === 0;
           const isLastRow = i >= 35;
-          const dayEvents = eventsByDate.get(toISODate(d)) || [];
+          const iso = toISODate(d);
+          const dayEvents = eventsByDate.get(iso) || [];
           const shown = dayEvents.slice(0, 3);
           const extra = dayEvents.length - shown.length;
+          const aodUserId = aodByDate.get(iso);
+          const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
 
           return (
             <DropCell
               key={i}
               onCreate={(payload) => onCreate(d, payload)}
               onReschedule={(eventId) => onReschedule(d, eventId)}
-              className={`relative p-1.5 min-h-[96px] transition-colors hover:bg-warm-bg/40 ${
+              onClick={() => onDayClick(d)}
+              className={`relative p-1.5 min-h-[96px] cursor-pointer transition-colors hover:bg-warm-bg/40 ${
                 isLastCol ? '' : 'border-r'
               } ${isLastRow ? '' : 'border-b'} border-gray-100`}
             >
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <AodSlot
+                  user={aodUser}
+                  onSet={(userId) => onSetAod(d, userId)}
+                  onClear={() => onClearAod(d)}
+                  compact
+                />
                 <span
-                  className={`inline-flex items-center justify-center text-xs font-semibold w-6 h-6 rounded-full transition-colors ${
+                  className={`inline-flex items-center justify-center text-xs font-semibold w-6 h-6 rounded-full transition-colors shrink-0 ${
                     isToday
                       ? 'bg-primary text-white shadow-sm'
                       : inMonth
@@ -872,7 +1200,7 @@ function MonthView({
               </div>
               <div className="space-y-0.5">
                 {shown.map((ev) => (
-                  <EventChip key={ev.id} ev={ev} onClick={onEventClick} />
+                  <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
                 ))}
                 {extra > 0 && (
                   <div
@@ -899,6 +1227,7 @@ function WeekView({
   days,
   today,
   eventsByDate,
+  usersById,
   onCreate,
   onReschedule,
   onEventClick,
@@ -906,6 +1235,7 @@ function WeekView({
   days: Date[];
   today: Date;
   eventsByDate: Map<string, EventRow[]>;
+  usersById: Map<string, UserRow>;
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
   onReschedule: (date: Date, hour: number, eventId: string) => void;
   onEventClick: (id: string) => void;
@@ -964,7 +1294,7 @@ function WeekView({
                   >
                     <div className="flex flex-col gap-0.5 py-0.5">
                       {slot.map((ev) => (
-                        <TimedEventBlock key={ev.id} ev={ev} onClick={onEventClick} />
+                        <TimedEventBlock key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
                       ))}
                     </div>
                   </DropCell>
@@ -986,37 +1316,58 @@ function DayView({
   day,
   today,
   eventsByDate,
+  usersById,
+  aodByDate,
   onCreate,
   onReschedule,
   onEventClick,
+  onSetAod,
+  onClearAod,
 }: {
   day: Date;
   today: Date;
   eventsByDate: Map<string, EventRow[]>;
+  usersById: Map<string, UserRow>;
+  aodByDate: Map<string, string>;
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
   onReschedule: (date: Date, hour: number, eventId: string) => void;
   onEventClick: (id: string) => void;
+  onSetAod: (date: Date, userId: string) => void;
+  onClearAod: (date: Date) => void;
 }) {
   const isToday = isSameDay(day, today);
-  const dayEvents = eventsByDate.get(toISODate(day)) || [];
+  const iso = toISODate(day);
+  const dayEvents = eventsByDate.get(iso) || [];
+  const aodUserId = aodByDate.get(iso);
+  const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
 
   return (
     <div className="flex flex-col h-full overflow-auto">
-      <div className="py-5 text-center border-b border-gray-100 bg-warm-bg/30 sticky top-0 z-10">
-        <div
-          className="text-[11px] font-semibold text-foreground/50 uppercase tracking-wider"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          {DAYS_FULL[day.getDay()]}
+      <div className="py-5 px-5 border-b border-gray-100 bg-warm-bg/30 sticky top-0 z-10 flex items-center justify-between gap-4">
+        <div className="flex-1">
+          <AodSlot
+            user={aodUser}
+            onSet={(userId) => onSetAod(day, userId)}
+            onClear={() => onClearAod(day)}
+          />
         </div>
-        <div
-          className={`mt-1 inline-flex items-center justify-center text-xl font-bold w-11 h-11 rounded-full transition-colors ${
-            isToday ? 'bg-primary text-white shadow-sm' : 'text-foreground'
-          }`}
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          {day.getDate()}
+        <div className="text-center">
+          <div
+            className="text-[11px] font-semibold text-foreground/50 uppercase tracking-wider"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            {DAYS_FULL[day.getDay()]}
+          </div>
+          <div
+            className={`mt-1 inline-flex items-center justify-center text-xl font-bold w-11 h-11 rounded-full transition-colors ${
+              isToday ? 'bg-primary text-white shadow-sm' : 'text-foreground'
+            }`}
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            {day.getDate()}
+          </div>
         </div>
+        <div className="flex-1" aria-hidden="true" />
       </div>
       <div className="flex-1">
         <div className="grid" style={{ gridTemplateColumns: '80px 1fr' }}>
@@ -1037,7 +1388,7 @@ function DayView({
                 >
                   <div className="flex flex-col gap-1 p-1">
                     {slot.map((ev) => (
-                      <TimedEventBlock key={ev.id} ev={ev} onClick={onEventClick} />
+                      <TimedEventBlock key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
                     ))}
                   </div>
                 </DropCell>
@@ -1124,7 +1475,7 @@ function EditModal({
                 className="text-[11px] font-semibold uppercase tracking-wider text-foreground/50"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                {event.subject_kind === 'group' ? 'Group' : 'User'} event
+                {event.subject_kind === 'group' ? 'Group' : 'Team member'} event
               </span>
             </div>
             <button
