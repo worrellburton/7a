@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { useModal } from '@/lib/ModalProvider';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -50,6 +51,7 @@ function presenceLabel(lastSeenAt: string | null): { online: boolean; text: stri
 export default function UsersContent() {
   const { user, session, isAdmin } = useAuth();
   const router = useRouter();
+  const { confirm } = useModal();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,7 +136,12 @@ export default function UsersContent() {
       showToast("You can't delete yourself");
       return;
     }
-    if (!confirm(`Delete ${userName}? This cannot be undone.`)) return;
+    const ok = await confirm(`Delete ${userName}?`, {
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
 
     const result = await db({ action: 'delete', table: 'users', match: { id: userId } });
 

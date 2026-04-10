@@ -3,18 +3,21 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { useModal } from '@/lib/ModalProvider';
 import { uploadFile } from '@/lib/upload';
 
+// Alphabetical by name, with "Other" forced to the bottom so it doesn't get
+// buried in the middle of the list.
 const locations = [
-  'Lodge',
-  'Sweat Lodge',
-  'Staff Housing',
-  'Cabin',
-  'Group Room',
-  'Clinical Building',
-  'Barn',
   'Admin Building',
+  'Barn',
+  'Cabin',
+  'Clinical Building',
+  'Group Room',
   'Grounds',
+  'Lodge',
+  'Staff Housing',
+  'Sweat Lodge',
   'Other',
 ] as const;
 
@@ -68,6 +71,7 @@ const statusStyle: Record<Status, string> = {
 
 export default function FacilitiesContent() {
   const { user, session } = useAuth();
+  const { confirm, alert } = useModal();
   const [items, setItems] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'table' | 'list'>('table');
@@ -261,7 +265,12 @@ export default function FacilitiesContent() {
   };
 
   const deleteIssue = async (id: string) => {
-    if (!confirm('Delete this issue?')) return;
+    const ok = await confirm('Delete this issue?', {
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await db({ action: 'delete', table: 'facilities_issues', match: { id } });
     setItems((prev) => prev.filter((i) => i.id !== id));
     setExpandedId(null);
@@ -314,7 +323,7 @@ export default function FacilitiesContent() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-foreground">New Issue</h3>
-            <button onClick={() => { const url = `${window.location.origin}/submit`; navigator.clipboard.writeText(url); alert(`Public link copied!\n${url}`); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+            <button onClick={() => { const url = `${window.location.origin}/submit`; navigator.clipboard.writeText(url); alert('Public link copied', { message: url }); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
               Live Link
             </button>
@@ -495,7 +504,7 @@ export default function FacilitiesContent() {
                                     <img src={photo} alt="" className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-pointer" />
                                   </button>
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); if (confirm('Delete this photo?')) deletePhotoFromIssue(item.id, photo); }}
+                                    onClick={async (e) => { e.stopPropagation(); if (await confirm('Delete this photo?', { confirmLabel: 'Delete', tone: 'danger' })) deletePhotoFromIssue(item.id, photo); }}
                                     className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-red-600 text-white shadow-md flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity hover:bg-red-700"
                                     aria-label="Delete photo"
                                   >
@@ -560,7 +569,7 @@ export default function FacilitiesContent() {
                       <img src={photo} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); if (confirm('Delete this photo?')) deletePhotoFromIssue(item.id, photo); }}
+                      onClick={async (e) => { e.stopPropagation(); if (await confirm('Delete this photo?', { confirmLabel: 'Delete', tone: 'danger' })) deletePhotoFromIssue(item.id, photo); }}
                       className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white shadow-md flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity hover:bg-red-700"
                       aria-label="Delete photo"
                     >
@@ -620,10 +629,11 @@ export default function FacilitiesContent() {
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
           <button
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
               if (!viewingPhoto) return;
-              if (!confirm('Delete this photo?')) return;
+              const ok = await confirm('Delete this photo?', { confirmLabel: 'Delete', tone: 'danger' });
+              if (!ok) return;
               const owner = items.find(i => i.photo_urls.includes(viewingPhoto));
               if (owner) deletePhotoFromIssue(owner.id, viewingPhoto);
             }}

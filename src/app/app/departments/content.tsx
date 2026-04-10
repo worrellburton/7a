@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { useModal } from '@/lib/ModalProvider';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -36,6 +37,7 @@ const palette = [
 export default function DepartmentsContent() {
   const { user, session, isAdmin } = useAuth();
   const router = useRouter();
+  const { confirm } = useModal();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,7 +143,12 @@ export default function DepartmentsContent() {
   }
 
   async function deleteDepartment(id: string, name: string) {
-    if (!confirm(`Delete ${name}? Users in this department will become unassigned.`)) return;
+    const ok = await confirm(`Delete ${name}?`, {
+      message: 'Users in this department will become unassigned.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     const result = await db({ action: 'delete', table: 'departments', match: { id } });
     if (result?.error) {
       showToast(`Failed to delete: ${result.error}`);

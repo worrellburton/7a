@@ -35,18 +35,31 @@ export default function PagesContent() {
   const navPages = sorted.filter((p) => p.section === 'nav');
   const popupPages = sorted.filter((p) => p.section === 'popup');
 
-  function handleDragStart(path: string, section: 'nav' | 'popup') {
+  function handleDragStart(e: React.DragEvent, path: string, section: 'nav' | 'popup') {
     dragItem.current = { path, section };
+    // Firefox requires dataTransfer to be set or dragstart is cancelled.
+    e.dataTransfer.setData('text/plain', path);
+    e.dataTransfer.effectAllowed = 'move';
   }
 
   function handleDragOver(e: React.DragEvent, path: string, section: 'nav' | 'popup') {
     e.preventDefault();
+    // Stop bubble so the section handler doesn't clobber our precise target
+    // with '__end__' — that was the bug making everything drop at the bottom.
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
     dragOverItem.current = { path, section };
   }
 
   function handleDragOverSection(e: React.DragEvent, section: 'nav' | 'popup') {
     e.preventDefault();
-    dragOverItem.current = { path: '__end__', section };
+    e.dataTransfer.dropEffect = 'move';
+    // Only treat a section-level dragover as "drop at end" when it isn't
+    // already pointing at a row in this section.
+    const current = dragOverItem.current;
+    if (!current || current.section !== section) {
+      dragOverItem.current = { path: '__end__', section };
+    }
   }
 
   function handleDrop(e: React.DragEvent, targetSection: 'nav' | 'popup') {
@@ -107,8 +120,9 @@ export default function PagesContent() {
       <div
         key={page.path}
         draggable
-        onDragStart={() => handleDragStart(page.path, page.section)}
+        onDragStart={(e) => handleDragStart(e, page.path, page.section)}
         onDragOver={(e) => handleDragOver(e, page.path, page.section)}
+        onDragEnd={() => { dragItem.current = null; dragOverItem.current = null; }}
         className="flex items-center gap-4 px-5 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors cursor-grab active:cursor-grabbing group"
       >
         <svg className="w-4 h-4 text-foreground/20 shrink-0 group-hover:text-foreground/40 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">

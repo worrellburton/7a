@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { useModal } from '@/lib/ModalProvider';
 import { useEffect, useState } from 'react';
 
 interface Group {
@@ -13,6 +14,7 @@ interface Group {
 
 export default function GroupsContent() {
   const { user, session } = useAuth();
+  const { confirm } = useModal();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -82,7 +84,12 @@ export default function GroupsContent() {
   }
 
   async function deleteGroup(id: string, groupName: string) {
-    if (!confirm(`Delete "${groupName}"? This cannot be undone.`)) return;
+    const ok = await confirm(`Delete "${groupName}"?`, {
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     const result = await db({ action: 'delete', table: 'groups', match: { id } });
     if (result && (result as { ok?: boolean }).ok) {
       setGroups((prev) => prev.filter((g) => g.id !== id));

@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -37,6 +38,7 @@ export default function FinanceContent() {
   const { user, session, isAdmin } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { confirm } = useModal();
 
   const [status, setStatus] = useState<QBStatus | null>(null);
   const [company, setCompany] = useState<QBCompany | null>(null);
@@ -115,7 +117,12 @@ export default function FinanceContent() {
   }
 
   async function handleDisconnect() {
-    if (!confirm('Disconnect QuickBooks? You will need to re-authorize the app to reconnect.')) return;
+    const ok = await confirm('Disconnect QuickBooks?', {
+      message: 'You will need to re-authorize the app to reconnect.',
+      confirmLabel: 'Disconnect',
+      tone: 'danger',
+    });
+    if (!ok) return;
     const res = await fetch('/api/quickbooks/disconnect', { method: 'POST', credentials: 'include' });
     if (res.ok) {
       setStatus((s) => (s ? { ...s, connected: false, realmId: null, connectedAt: null, expiresAt: null } : null));

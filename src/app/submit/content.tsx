@@ -4,13 +4,27 @@ import { useRef, useState } from 'react';
 import { db } from '@/lib/db';
 import { uploadFile } from '@/lib/upload';
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 
-const locations = ['Lodge', 'Barn', 'Admin Building', 'Grounds', 'Other'] as const;
+// Alphabetical with Other pinned to the bottom; matches the facilities page.
+const locations = [
+  'Admin Building',
+  'Barn',
+  'Cabin',
+  'Clinical Building',
+  'Group Room',
+  'Grounds',
+  'Lodge',
+  'Staff Housing',
+  'Sweat Lodge',
+  'Other',
+] as const;
 
 type Priority = 'High' | 'Medium' | 'Low';
 
 export default function SubmitContent() {
   const { user, loading, signInWithGoogle } = useAuth();
+  const { alert } = useModal();
   const [form, setForm] = useState({ location: '', issue: '', priority: 'Medium' as Priority, notes: '' });
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
@@ -69,7 +83,7 @@ export default function SubmitContent() {
     if (result && result.id) {
       setSubmitted(true);
     } else {
-      alert('Failed to submit. Please try again.');
+      alert('Submission failed', { message: 'Please try again.' });
     }
   };
 
