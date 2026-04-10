@@ -337,37 +337,34 @@ export default function CallsContent() {
             </div>
           </div>
 
-          {/* Weekly Bar Chart */}
+          {/* Weekly Line Graph */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>This Week</p>
               <div className="flex items-center gap-3">
+                {dateFilter && (
+                  <button
+                    onClick={() => { setDateFilter(''); }}
+                    className="text-[11px] text-foreground/40 hover:text-primary transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Clear day filter
+                  </button>
+                )}
                 <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
                   <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
                 </span>
               </div>
             </div>
-            <div className="flex items-end gap-2 h-32">
-              {insights.dailyCounts.map((day) => {
-                const max = Math.max(...insights.dailyCounts.map(d => d.count), 1);
-                const height = day.count > 0 ? Math.max((day.count / max) * 100, 8) : 4;
-                const isToday = day.date === insights.dailyCounts[insights.dailyCounts.length - 1].date;
-                return (
-                  <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-xs font-bold text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
-                      {day.count > 0 ? day.count : ''}
-                    </span>
-                    <div
-                      className={`w-full rounded-lg transition-all ${isToday ? 'bg-[#a0522d]' : 'bg-[#a0522d]/30'}`}
-                      style={{ height: `${height}%`, minHeight: day.count > 0 ? '8px' : '3px' }}
-                    />
-                    <span className={`text-xs ${isToday ? 'font-bold text-foreground' : 'text-foreground/40'}`} style={{ fontFamily: 'var(--font-body)' }}>
-                      {day.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <WeekGraph
+              data={insights.dailyCounts}
+              selectedDate={dateFilter}
+              onDayClick={(date) => {
+                setDateFilter(date);
+                setTab('calls');
+                setPage(1);
+              }}
+            />
           </div>
         </div>
       )}
@@ -576,5 +573,148 @@ export default function CallsContent() {
         </div>
       )}
     </div>
+  );
+}
+
+// ------------------------------------------------------------
+// WeekGraph — SVG line chart animated left→right.
+// Clickable day points filter the call log to that day.
+// ------------------------------------------------------------
+
+function WeekGraph({
+  data,
+  selectedDate,
+  onDayClick,
+}: {
+  data: { label: string; short: string; date: string; count: number }[];
+  selectedDate: string;
+  onDayClick: (date: string) => void;
+}) {
+  const W = 720;
+  const H = 170;
+  const padL = 24;
+  const padR = 24;
+  const padT = 24;
+  const padB = 36;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+
+  if (data.length === 0) return null;
+
+  const max = Math.max(...data.map((d) => d.count), 1);
+
+  const pts = data.map((d, i) => {
+    const x = padL + (data.length === 1 ? innerW / 2 : (i / (data.length - 1)) * innerW);
+    const y = padT + innerH - (d.count / max) * innerH;
+    return { x, y, ...d };
+  });
+
+  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${padT + innerH} L ${pts[0].x.toFixed(1)} ${padT + innerH} Z`;
+
+  // Build subtle horizontal gridlines (4 bands).
+  const gridYs = [0, 0.25, 0.5, 0.75, 1].map((t) => padT + innerH * t);
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full block select-none"
+      preserveAspectRatio="xMidYMid meet"
+      style={{ maxHeight: 200 }}
+    >
+      <defs>
+        <linearGradient id="wg-area" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#a0522d" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#a0522d" stopOpacity="0.02" />
+        </linearGradient>
+        <clipPath id="wg-clip">
+          <rect x={padL} y={padT - 4} width={innerW} height={innerH + 8}>
+            <animate attributeName="width" from="0" to={innerW} dur="1.8s" fill="freeze" calcMode="spline" keySplines="0.22 1 0.36 1" />
+          </rect>
+        </clipPath>
+      </defs>
+
+      {/* grid */}
+      {gridYs.map((y, i) => (
+        <line
+          key={i}
+          x1={padL}
+          x2={W - padR}
+          y1={y}
+          y2={y}
+          stroke="rgba(0,0,0,0.05)"
+          strokeDasharray={i === gridYs.length - 1 ? '0' : '2 4'}
+        />
+      ))}
+
+      {/* area under line, clipped to animate left→right */}
+      <g clipPath="url(#wg-clip)">
+        <path d={areaPath} fill="url(#wg-area)" />
+        <path
+          d={linePath}
+          fill="none"
+          stroke="#a0522d"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+
+      {/* day points + labels (appear staggered with fade) */}
+      {pts.map((p, i) => {
+        const isSelected = p.date === selectedDate;
+        const isLast = i === pts.length - 1;
+        const delay = 0.3 + i * 0.18;
+        return (
+          <g
+            key={p.date}
+            className="cursor-pointer"
+            onClick={() => onDayClick(p.date)}
+          >
+            {/* hover target */}
+            <rect
+              x={p.x - innerW / pts.length / 2}
+              y={padT - 4}
+              width={innerW / pts.length}
+              height={innerH + padB}
+              fill="transparent"
+            />
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r={isSelected ? 6.5 : 4.5}
+              fill={isSelected ? '#a0522d' : '#ffffff'}
+              stroke="#a0522d"
+              strokeWidth="2"
+              style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }}
+            />
+            {p.count > 0 && (
+              <text
+                x={p.x}
+                y={p.y - 12}
+                textAnchor="middle"
+                fontSize="12"
+                fontWeight="700"
+                fill={isSelected ? '#a0522d' : 'rgba(26,26,26,0.8)'}
+                style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}
+              >
+                {p.count}
+              </text>
+            )}
+            <text
+              x={p.x}
+              y={H - 14}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight={isSelected || isLast ? 700 : 500}
+              fill={isSelected ? '#a0522d' : isLast ? 'rgba(26,26,26,0.9)' : 'rgba(26,26,26,0.4)'}
+              style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.1}s forwards`, fontFamily: 'var(--font-body)' }}
+            >
+              {p.label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }

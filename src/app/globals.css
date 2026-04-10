@@ -188,6 +188,12 @@ h3 { font-size: clamp(1.15rem, 2vw, 1.5rem); }
   animation: drawerFade 200ms ease-out both;
 }
 
+/* Week graph — points/labels fade in after the line draws */
+@keyframes wgFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;

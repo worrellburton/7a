@@ -226,6 +226,22 @@ export default function ImprovementsContent() {
     if (existingPhotoInputRef.current) existingPhotoInputRef.current.value = '';
   };
 
+  const deletePhotoFromIssue = async (id: string, photoUrl: string) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    const newUrls = item.photo_urls.filter(u => u !== photoUrl);
+    const prevUrls = item.photo_urls;
+    setItems(prev => prev.map(i => i.id === id ? { ...i, photo_urls: newUrls } : i));
+    if (viewingPhoto === photoUrl) setViewingPhoto(null);
+    const res = await db({ action: 'update', table: 'facilities_issues', data: { photo_urls: newUrls }, match: { id } });
+    if (!res || (res as { ok?: boolean; error?: string }).error) {
+      setItems(prev => prev.map(i => i.id === id ? { ...i, photo_urls: prevUrls } : i));
+      showToast('Failed to delete photo');
+    } else {
+      showToast('Photo deleted');
+    }
+  };
+
   const deleteIssue = async (id: string) => {
     if (!confirm('Delete this issue?')) return;
     await db({ action: 'delete', table: 'facilities_issues', match: { id } });
@@ -441,9 +457,18 @@ export default function ImprovementsContent() {
                             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Photos</p>
                             <div className="flex gap-2 flex-wrap items-center">
                               {item.photo_urls.map((photo, i) => (
-                                <button key={i} onClick={(e) => { e.stopPropagation(); setViewingPhoto(photo); }}>
-                                  <img src={photo} alt="" className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-pointer" />
-                                </button>
+                                <div key={i} className="relative group/photo">
+                                  <button onClick={(e) => { e.stopPropagation(); setViewingPhoto(photo); }}>
+                                    <img src={photo} alt="" className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-pointer" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); if (confirm('Delete this photo?')) deletePhotoFromIssue(item.id, photo); }}
+                                    className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-red-600 text-white shadow-md flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity hover:bg-red-700"
+                                    aria-label="Delete photo"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </div>
                               ))}
                               <button
                                 onClick={(e) => { e.stopPropagation(); existingPhotoTargetId.current = item.id; existingPhotoInputRef.current?.click(); }}
@@ -495,9 +520,18 @@ export default function ImprovementsContent() {
               </div>
               <div className="flex gap-2 flex-wrap mb-3 ml-9 items-center">
                 {item.photo_urls.map((photo, i) => (
-                  <button key={i} onClick={() => setViewingPhoto(photo)}>
-                    <img src={photo} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
-                  </button>
+                  <div key={i} className="relative group/photo">
+                    <button onClick={() => setViewingPhoto(photo)}>
+                      <img src={photo} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (confirm('Delete this photo?')) deletePhotoFromIssue(item.id, photo); }}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white shadow-md flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity hover:bg-red-700"
+                      aria-label="Delete photo"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
                 ))}
                 <button
                   onClick={() => { existingPhotoTargetId.current = item.id; existingPhotoInputRef.current?.click(); }}
@@ -547,8 +581,22 @@ export default function ImprovementsContent() {
       {/* Photo lightbox */}
       {viewingPhoto && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setViewingPhoto(null)}>
-          <button onClick={() => setViewingPhoto(null)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors">
+          <button onClick={() => setViewingPhoto(null)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors" aria-label="Close">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!viewingPhoto) return;
+              if (!confirm('Delete this photo?')) return;
+              const owner = items.find(i => i.photo_urls.includes(viewingPhoto));
+              if (owner) deletePhotoFromIssue(owner.id, viewingPhoto);
+            }}
+            className="absolute top-4 right-16 inline-flex items-center gap-1.5 px-3 h-10 rounded-full bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors shadow-md"
+            aria-label="Delete photo"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+            Delete
           </button>
           <img src={viewingPhoto} alt="" className="max-w-full max-h-[85vh] rounded-2xl object-contain" onClick={(e) => e.stopPropagation()} />
         </div>

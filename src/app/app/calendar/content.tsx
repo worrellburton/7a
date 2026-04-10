@@ -118,10 +118,55 @@ const DAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 // 7am–9pm covers a therapy day comfortably.
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7);
+const DAY_START_H = HOURS[0];
+const DAY_END_H = HOURS[HOURS.length - 1] + 1; // exclusive upper bound
 function formatHour(h: number) {
   if (h === 0) return '12 AM';
   if (h === 12) return '12 PM';
   return h > 12 ? `${h - 12} PM` : `${h} AM`;
+}
+function formatDecimalTime(h: number) {
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  const norm = mm === 60 ? { h: hh + 1, m: 0 } : { h: hh, m: mm };
+  const period = norm.h >= 12 ? 'PM' : 'AM';
+  const displayH = norm.h === 0 ? 12 : norm.h > 12 ? norm.h - 12 : norm.h;
+  return `${displayH}:${String(norm.m).padStart(2, '0')} ${period}`;
+}
+
+// ---- Sunrise / sunset approximation (NOAA General Solar Position).
+// Defaults to Phoenix, AZ (no DST). Returns decimal local hours.
+function sunTimes(date: Date, lat = 33.4484, lon = -112.074): { sunrise: number; sunset: number } {
+  const rad = Math.PI / 180;
+  const dayMs = 86400000;
+  const jan0 = Date.UTC(date.getFullYear(), 0, 0);
+  const n = Math.floor((Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - jan0) / dayMs);
+
+  const calc = (rising: boolean): number => {
+    const lngHour = lon / 15;
+    const t = n + (((rising ? 6 : 18) - lngHour) / 24);
+    const M = 0.9856 * t - 3.289;
+    let L = M + 1.916 * Math.sin(rad * M) + 0.020 * Math.sin(rad * 2 * M) + 282.634;
+    L = ((L % 360) + 360) % 360;
+    let RA = Math.atan(0.91764 * Math.tan(rad * L)) / rad;
+    RA = ((RA % 360) + 360) % 360;
+    const Lq = Math.floor(L / 90) * 90;
+    const RAq = Math.floor(RA / 90) * 90;
+    RA = (RA + (Lq - RAq)) / 15;
+    const sinDec = 0.39782 * Math.sin(rad * L);
+    const cosDec = Math.cos(Math.asin(sinDec));
+    const cosH = (Math.cos(rad * 90.833) - sinDec * Math.sin(rad * lat)) / (cosDec * Math.cos(rad * lat));
+    if (cosH > 1) return rising ? 6 : 18; // sun never rises
+    if (cosH < -1) return rising ? 0 : 24; // sun never sets
+    const H = (rising ? 360 - Math.acos(cosH) / rad : Math.acos(cosH) / rad) / 15;
+    const T = H + RA - 0.06571 * t - 6.622;
+    let UT = T - lngHour;
+    UT = ((UT % 24) + 24) % 24;
+    // Arizona (America/Phoenix) = UTC-7 year round.
+    return ((UT - 7) + 24) % 24;
+  };
+
+  return { sunrise: calc(true), sunset: calc(false) };
 }
 
 // Deterministic warm palette keyed off the subject id. This way the same
@@ -449,13 +494,13 @@ export default function CalendarContent() {
   const bodyKey = `${view}-${current.getFullYear()}-${current.getMonth()}-${current.getDate()}`;
 
   return (
-    <div className="p-6 lg:p-10 min-h-screen flex flex-col">
+    <div className="p-4 lg:p-6 h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
+      <div className="mb-3 flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-1">Calendar</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-0.5">Calendar</h1>
           <p
-            className="text-sm text-foreground/50"
+            className="text-xs text-foreground/50"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Drag a group or a team member onto a day to schedule it.
@@ -508,10 +553,10 @@ export default function CalendarContent() {
         </div>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-3">
         <h2
           key={title}
-          className="text-xl font-semibold text-foreground animate-cal-fade"
+          className="text-lg font-semibold text-foreground animate-cal-fade"
           style={{ fontFamily: 'var(--font-body)' }}
         >
           {title}
@@ -519,12 +564,12 @@ export default function CalendarContent() {
       </div>
 
       {/* Body: palette + calendar surface */}
-      <div className="flex-1 grid gap-4" style={{ gridTemplateColumns: 'minmax(220px, 260px) 1fr' }}>
+      <div className="flex-1 min-h-0 grid gap-3" style={{ gridTemplateColumns: 'minmax(220px, 260px) 1fr' }}>
         <Palette groups={groups} users={users} loading={loading} />
 
         <div
           key={bodyKey}
-          className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-cal-fade"
+          className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-cal-fade min-h-0 flex flex-col"
         >
           {view === 'month' && (
             <MonthView
@@ -678,7 +723,7 @@ function Palette({
       </div>
 
       <div className="p-3 border-t border-gray-100 text-[11px] text-foreground/40 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
-        Drag a group onto a day for an event, or drop a team member on the upper-left AOD slot.
+        Drag a group onto a day for an event, or drop a team member on the upper-left AOC slot.
       </div>
     </div>
   );
@@ -1043,7 +1088,7 @@ function AodSlot({
   };
 
   const color = user ? colorFor(user.id) : 'var(--color-primary)';
-  const label = user ? (user.full_name?.split(' ')[0] || user.email.split('@')[0]) : 'AOD';
+  const label = user ? (user.full_name?.split(' ')[0] || user.email.split('@')[0]) : 'AOC';
 
   const sizeCls = compact ? 'h-5 text-[9px]' : 'h-6 text-[10px]';
   const avatarCls = compact ? 'w-4 h-4' : 'w-5 h-5';
@@ -1061,9 +1106,9 @@ function AodSlot({
             : 'border-gray-200 text-foreground/30 hover:border-gray-300'
         }`}
         style={{ fontFamily: 'var(--font-body)' }}
-        title="Drop a team member here to set Assistant on Duty"
+        title="Drop a team member here to set Assistant on Call"
       >
-        <span className="font-bold tracking-wider">AOD</span>
+        <span className="font-bold tracking-wider">AOC</span>
       </div>
     );
   }
@@ -1084,7 +1129,7 @@ function AodSlot({
         backgroundColor: String(color) + '22',
         fontFamily: 'var(--font-body)',
       }}
-      title={`AOD: ${user.full_name || user.email} — click to clear`}
+      title={`AOC: ${user.full_name || user.email} — click to clear`}
     >
       {user.avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -1174,7 +1219,7 @@ function MonthView({
               onCreate={(payload) => onCreate(d, payload)}
               onReschedule={(eventId) => onReschedule(d, eventId)}
               onClick={() => onDayClick(d)}
-              className={`relative p-1.5 min-h-[96px] cursor-pointer transition-colors hover:bg-warm-bg/40 ${
+              className={`relative p-1.5 min-h-0 cursor-pointer transition-colors hover:bg-warm-bg/40 overflow-hidden ${
                 isLastCol ? '' : 'border-r'
               } ${isLastRow ? '' : 'border-b'} border-gray-100`}
             >
@@ -1341,10 +1386,31 @@ function DayView({
   const aodUserId = aodByDate.get(iso);
   const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
 
+  const { sunrise, sunset } = useMemo(() => sunTimes(day), [day]);
+
+  // Map a decimal hour to a vertical percentage within the visible hour band.
+  const pctFor = (h: number) => {
+    const span = DAY_END_H - DAY_START_H;
+    return Math.max(0, Math.min(100, ((h - DAY_START_H) / span) * 100));
+  };
+  const sunrisePct = pctFor(sunrise);
+  const sunsetPct = pctFor(sunset);
+
+  // Gradient stops — dawn / day / dusk / night with soft transitions.
+  const gradient = `linear-gradient(to bottom,
+    rgba(28, 32, 68, 0.22) 0%,
+    rgba(255, 168, 96, 0.18) ${Math.max(0, sunrisePct - 4)}%,
+    rgba(255, 220, 160, 0.05) ${Math.min(100, sunrisePct + 4)}%,
+    rgba(255, 245, 220, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
+    rgba(255, 200, 130, 0.06) ${Math.max(0, sunsetPct - 6)}%,
+    rgba(232, 110, 60, 0.22) ${sunsetPct}%,
+    rgba(70, 45, 90, 0.28) ${Math.min(100, sunsetPct + 6)}%,
+    rgba(18, 20, 55, 0.40) 100%)`;
+
   return (
-    <div className="flex flex-col h-full overflow-auto">
-      <div className="py-5 px-5 border-b border-gray-100 bg-warm-bg/30 sticky top-0 z-10 flex items-center justify-between gap-4">
-        <div className="flex-1">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="py-3 px-5 border-b border-gray-100 bg-warm-bg/30 flex items-center justify-between gap-4 shrink-0">
+        <div className="flex-1 flex items-center gap-2">
           <AodSlot
             user={aodUser}
             onSet={(userId) => onSetAod(day, userId)}
@@ -1359,7 +1425,7 @@ function DayView({
             {DAYS_FULL[day.getDay()]}
           </div>
           <div
-            className={`mt-1 inline-flex items-center justify-center text-xl font-bold w-11 h-11 rounded-full transition-colors ${
+            className={`mt-0.5 inline-flex items-center justify-center text-lg font-bold w-10 h-10 rounded-full transition-colors ${
               isToday ? 'bg-primary text-white shadow-sm' : 'text-foreground'
             }`}
             style={{ fontFamily: 'var(--font-body)' }}
@@ -1367,10 +1433,69 @@ function DayView({
             {day.getDate()}
           </div>
         </div>
-        <div className="flex-1" aria-hidden="true" />
+        <div className="flex-1 flex items-center justify-end gap-3 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
+          <span className="inline-flex items-center gap-1 text-foreground/60" title="Sunrise">
+            <svg className="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3v3" />
+              <path d="m5.6 9.6 2 2" />
+              <path d="m16.4 11.6 2-2" />
+              <path d="M3 18h18" />
+              <path d="M6 18a6 6 0 0 1 12 0" />
+            </svg>
+            {formatDecimalTime(sunrise)}
+          </span>
+          <span className="inline-flex items-center gap-1 text-foreground/60" title="Sunset">
+            <svg className="w-3.5 h-3.5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 10V3" />
+              <path d="m5.6 9.6 2 2" />
+              <path d="m16.4 11.6 2-2" />
+              <path d="M3 18h18" />
+              <path d="M6 18a6 6 0 0 1 12 0" />
+              <path d="m8 6 4 4 4-4" />
+            </svg>
+            {formatDecimalTime(sunset)}
+          </span>
+        </div>
       </div>
-      <div className="flex-1">
-        <div className="grid" style={{ gridTemplateColumns: '80px 1fr' }}>
+      <div className="flex-1 min-h-0 relative">
+        {/* Sunrise/sunset gradient overlay — sits behind cells, above bg */}
+        <div
+          key={iso}
+          className="pointer-events-none absolute inset-0 animate-cal-fade"
+          style={{ background: gradient, left: '80px' }}
+          aria-hidden="true"
+        />
+        {/* Sunrise marker line */}
+        {sunrise > DAY_START_H && sunrise < DAY_END_H && (
+          <div
+            className="pointer-events-none absolute left-[80px] right-0 border-t border-dashed border-amber-400/40 flex items-center"
+            style={{ top: `${sunrisePct}%` }}
+            aria-hidden="true"
+          >
+            <span className="ml-2 text-[9px] font-semibold uppercase tracking-wider text-amber-600/80 bg-white/60 px-1 rounded">
+              Sunrise {formatDecimalTime(sunrise)}
+            </span>
+          </div>
+        )}
+        {/* Sunset marker line */}
+        {sunset > DAY_START_H && sunset < DAY_END_H && (
+          <div
+            className="pointer-events-none absolute left-[80px] right-0 border-t border-dashed border-orange-500/40 flex items-center z-10"
+            style={{ top: `${sunsetPct}%` }}
+            aria-hidden="true"
+          >
+            <span className="ml-2 text-[9px] font-semibold uppercase tracking-wider text-orange-600/80 bg-white/60 px-1 rounded">
+              Sunset {formatDecimalTime(sunset)}
+            </span>
+          </div>
+        )}
+        <div
+          className="grid h-full relative"
+          style={{
+            gridTemplateColumns: '80px 1fr',
+            gridTemplateRows: `repeat(${HOURS.length}, minmax(0, 1fr))`,
+          }}
+        >
           {HOURS.map((h) => {
             const slot = dayEvents.filter((ev) => parseTime(ev.start_time) === h);
             return (
@@ -1384,7 +1509,7 @@ function DayView({
                 <DropCell
                   onCreate={(payload) => onCreate(day, h, payload)}
                   onReschedule={(eventId) => onReschedule(day, h, eventId)}
-                  className="h-20 border-l border-t border-gray-100 hover:bg-warm-bg/30 transition-colors relative overflow-hidden"
+                  className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative overflow-hidden min-h-0"
                 >
                   <div className="flex flex-col gap-1 p-1">
                     {slot.map((ev) => (
