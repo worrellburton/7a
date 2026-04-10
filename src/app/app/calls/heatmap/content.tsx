@@ -118,6 +118,7 @@ export default function CallsHeatmapContent() {
   const { session } = useAuth();
   const [accountId, setAccountId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState<{ page: number; totalPages: number; loaded: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [buckets, setBuckets] = useState<Map<string, DayBucket>>(new Map());
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, x: 0, y: 0, bucket: null });
@@ -151,15 +152,17 @@ export default function CallsHeatmapContent() {
         let allCalls: Call[] = [];
         let pg = 1;
         let totalPages = 1;
-        // Cap at 20 pages to avoid runaway (up to 2000 calls)
-        while (pg <= totalPages && pg <= 20) {
-          const data = await ctmFetch(`/accounts/${accountId}/calls.json`, { page: pg, per_page: 100 });
+        // Fetch every page. CTM caps per_page at 250, so on a busy account
+        // this may take several round trips — surface progress to the UI.
+        while (pg <= totalPages) {
+          const data = await ctmFetch(`/accounts/${accountId}/calls.json`, { page: pg, per_page: 250 });
           if (data.error) {
             setError(data.error);
             break;
           }
           if (data.calls) allCalls = allCalls.concat(data.calls);
           totalPages = data.total_pages || 1;
+          setLoadProgress({ page: pg, totalPages, loaded: allCalls.length });
           pg++;
         }
 
@@ -330,8 +333,14 @@ export default function CallsHeatmapContent() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
           <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          {loadProgress && (
+            <p className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+              Loading page {loadProgress.page} of {loadProgress.totalPages}
+              {' '}&middot; {loadProgress.loaded.toLocaleString()} calls so far
+            </p>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 overflow-x-auto">

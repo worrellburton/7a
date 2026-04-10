@@ -14,6 +14,7 @@ interface OrgUser {
   department_id: string | null;
   org_x: number | null;
   org_y: number | null;
+  org_hidden: boolean | null;
 }
 
 interface Department {
@@ -60,6 +61,7 @@ export default function OrgChartContent() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [connectMode, setConnectMode] = useState<ConnectMode>({ kind: 'off' });
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
   const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const dragMoved = useRef(false);
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -209,6 +211,22 @@ export default function OrgChartContent() {
     setEdges((prev) => prev.filter((e) => e.id !== edgeId));
   }
 
+  async function toggleHidden(userId: string, nextHidden: boolean) {
+    if (!isAdmin) return;
+    const result = await db({
+      action: 'update',
+      table: 'users',
+      data: { org_hidden: nextHidden },
+      match: { id: userId },
+    });
+    if (result?.error) {
+      showToast(`Failed to update: ${result.error}`);
+      return;
+    }
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, org_hidden: nextHidden } : u)));
+    showToast(nextHidden ? 'Card hidden' : 'Card shown');
+  }
+
   // Build elbow-connector path (bottom-center → top-center via mid-Y)
   function elbowPath(from: OrgUser, to: OrgUser): string {
     const sx = (from.org_x ?? 0) + CARD_WIDTH / 2;
@@ -228,18 +246,153 @@ export default function OrgChartContent() {
     return users.find((u) => u.id === id);
   }
 
+  // Admins can toggle a "show hidden" mode to see dimmed hidden cards and unhide them.
+  const displayedUsers = useMemo(
+    () => users.filter((u) => showHidden || !u.org_hidden),
+    [users, showHidden]
+  );
+
+  // Edges only render when both endpoints are displayed (matches what the user sees).
+  const displayedUserIds = useMemo(
+    () => new Set(displayedUsers.map((u) => u.id)),
+    [displayedUsers]
+  );
+
   // Compute canvas extents so the scroll region grows with placement
   const canvasSize = useMemo(() => {
     let maxX = 800;
     let maxY = 500;
-    for (const u of users) {
+    for (const u of displayedUsers) {
       if ((u.org_x ?? 0) + CARD_WIDTH + CANVAS_PADDING > maxX)
         maxX = (u.org_x ?? 0) + CARD_WIDTH + CANVAS_PADDING;
       if ((u.org_y ?? 0) + CARD_HEIGHT + CANVAS_PADDING > maxY)
         maxY = (u.org_y ?? 0) + CARD_HEIGHT + CANVAS_PADDING;
     }
     return { width: maxX, height: maxY };
-  }, [users]);
+  }, [displayedUsers]);
+
+  // Count hidden users for the toggle label
+  const hiddenCount = useMemo(
+    () => users.filter((u) => u.org_hidden).length,
+    [users]
+  );
+
+  // Open a print-ready window with a standalone SVG snapshot of the org chart and
+  // trigger the browser print dialog. Users choose "Save as PDF" in the destination.
+  function exportPdf() {
+    // Use only what's currently visible to match what the admin has configured.
+    const visible = displayedUsers.filter((u) => !u.org_hidden);
+    const visibleIds = new Set(visible.map((u) => u.id));
+    const visibleEdges = edges.filter(
+      (e) => visibleIds.has(e.from_user_id) && visibleIds.has(e.to_user_id)
+    );
+
+    // Compute tight bounding box around visible cards
+    let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+    for (const u of visible) {
+      const x = u.org_x ?? 0;
+      const y = u.org_y ?? 0;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x + CARD_WIDTH > maxX) maxX = x + CARD_WIDTH;
+      if (y + CARD_HEIGHT > maxY) maxY = y + CARD_HEIGHT;
+    }
+    if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 800; maxY = 500; }
+    const pad = 40;
+    const vbX = minX - pad;
+    const vbY = minY - pad;
+    const vbW = maxX - minX + pad * 2;
+    const vbH = maxY - minY + pad * 2;
+
+    const escapeXml = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    // Build SVG edge paths
+    const edgeSvg = visibleEdges
+      .map((e) => {
+        const from = visible.find((u) => u.id === e.from_user_id);
+        const to = visible.find((u) => u.id === e.to_user_id);
+        if (!from || !to) return '';
+        return `<path d="${elbowPath(from, to)}" fill="none" stroke="#a0522d" stroke-width="2" marker-end="url(#org-arrow)" />`;
+      })
+      .join('\n');
+
+    // Build SVG cards (rect + text; avatars are skipped for print clarity)
+    const cardSvg = visible
+      .map((u) => {
+        const x = u.org_x ?? 0;
+        const y = u.org_y ?? 0;
+        const name = escapeXml(u.full_name || u.email || 'Unknown');
+        const title = escapeXml(u.job_title || '');
+        const dept = u.department_id ? deptById.get(u.department_id) : null;
+        const deptColor = dept?.color || '#a0522d';
+        const deptName = dept ? escapeXml(dept.name) : '';
+        const initial = escapeXml((u.full_name || u.email || '?').charAt(0).toUpperCase());
+        return `
+          <g>
+            <rect x="${x}" y="${y}" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" rx="16" ry="16" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+            <circle cx="${x + 32}" cy="${y + 32}" r="20" fill="${deptColor}"/>
+            <text x="${x + 32}" y="${y + 38}" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="14" font-weight="700" fill="white">${initial}</text>
+            <text x="${x + 62}" y="${y + 30}" font-family="system-ui,-apple-system,sans-serif" font-size="13" font-weight="600" fill="#1f2937">${name}</text>
+            <text x="${x + 62}" y="${y + 48}" font-family="system-ui,-apple-system,sans-serif" font-size="11" fill="#6b7280">${title}</text>
+            ${deptName ? `<rect x="${x + 62}" y="${y + 62}" width="${Math.min(deptName.length * 6 + 12, CARD_WIDTH - 78)}" height="18" rx="9" ry="9" fill="${deptColor}"/><text x="${x + 68}" y="${y + 75}" font-family="system-ui,-apple-system,sans-serif" font-size="10" font-weight="600" fill="white">${deptName}</text>` : ''}
+          </g>
+        `;
+      })
+      .join('\n');
+
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="${vbX} ${vbY} ${vbW} ${vbH}" width="100%" style="max-width:100%;height:auto;">
+        <defs>
+          <marker id="org-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#a0522d" />
+          </marker>
+        </defs>
+        <rect x="${vbX}" y="${vbY}" width="${vbW}" height="${vbH}" fill="#fafaf7"/>
+        ${edgeSvg}
+        ${cardSvg}
+      </svg>
+    `;
+
+    const stamp = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Org Chart — ${stamp}</title>
+  <style>
+    @page { size: landscape; margin: 0.4in; }
+    html, body { margin: 0; padding: 0; background: white; font-family: system-ui, -apple-system, sans-serif; color: #1f2937; }
+    .wrap { padding: 24px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .sub { font-size: 12px; color: #6b7280; margin: 0 0 16px; }
+    svg { display: block; }
+    @media print { .wrap { padding: 0; } h1 { font-size: 16px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Org Chart</h1>
+    <p class="sub">Generated ${stamp}</p>
+    ${svg}
+  </div>
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () { window.print(); }, 150);
+    });
+  </script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    if (!win) {
+      showToast('Pop-ups blocked — allow pop-ups to export PDF');
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  }
 
   async function autoLayout() {
     if (!isAdmin) return;
@@ -273,30 +426,54 @@ export default function OrgChartContent() {
               : 'Team layout. Only admins can move cards.'}
           </p>
         </div>
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() =>
-                setConnectMode((m) => (m.kind === 'off' ? { kind: 'pickingFrom' } : { kind: 'off' }))
-              }
-              className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors ${
-                connectMode.kind === 'off'
-                  ? 'bg-primary text-white hover:bg-primary-dark'
-                  : 'bg-foreground text-white hover:bg-primary-dark'
-              }`}
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              {connectMode.kind === 'off' ? 'Connect' : 'Done connecting'}
-            </button>
-            <button
-              onClick={autoLayout}
-              className="px-4 py-2 bg-warm-bg text-foreground rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-warm-card transition-colors"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              Reset layout
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={exportPdf}
+            className="px-4 py-2 bg-warm-bg text-foreground rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-warm-card transition-colors inline-flex items-center gap-1.5"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="Open a print-ready view, then choose 'Save as PDF'"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Export PDF
+          </button>
+          {isAdmin && (
+            <>
+              {hiddenCount > 0 && (
+                <button
+                  onClick={() => setShowHidden((v) => !v)}
+                  className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors ${
+                    showHidden ? 'bg-foreground text-white' : 'bg-warm-bg text-foreground hover:bg-warm-card'
+                  }`}
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {showHidden ? `Hide hidden (${hiddenCount})` : `Show hidden (${hiddenCount})`}
+                </button>
+              )}
+              <button
+                onClick={() =>
+                  setConnectMode((m) => (m.kind === 'off' ? { kind: 'pickingFrom' } : { kind: 'off' }))
+                }
+                className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors ${
+                  connectMode.kind === 'off'
+                    ? 'bg-primary text-white hover:bg-primary-dark'
+                    : 'bg-foreground text-white hover:bg-primary-dark'
+                }`}
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {connectMode.kind === 'off' ? 'Connect' : 'Done connecting'}
+              </button>
+              <button
+                onClick={autoLayout}
+                className="px-4 py-2 bg-warm-bg text-foreground rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-warm-card transition-colors"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Reset layout
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {connectMode.kind !== 'off' && (
@@ -361,6 +538,8 @@ export default function OrgChartContent() {
                 const from = usersById(edge.from_user_id);
                 const to = usersById(edge.to_user_id);
                 if (!from || !to) return null;
+                // Skip edges whose endpoints are hidden
+                if (!displayedUserIds.has(from.id) || !displayedUserIds.has(to.id)) return null;
                 const d = elbowPath(from, to);
                 const isHovered = hoveredEdgeId === edge.id;
                 // Midpoint for delete handle — use approximate center of path.
@@ -412,12 +591,13 @@ export default function OrgChartContent() {
               })}
             </svg>
 
-            {users.map((u) => {
+            {displayedUsers.map((u) => {
               const dept = u.department_id ? deptById.get(u.department_id) : null;
               const isDragging = draggingId === u.id;
               const isPickingFrom = connectMode.kind === 'pickingFrom';
               const isPickedSource = connectMode.kind === 'pickingTo' && connectMode.fromId === u.id;
               const isPickingTo = connectMode.kind === 'pickingTo' && connectMode.fromId !== u.id;
+              const isHiddenShown = !!u.org_hidden; // only true when showHidden is on
               const connectHighlight = isPickedSource
                 ? 'border-primary ring-2 ring-primary/30 shadow-lg z-20'
                 : isPickingFrom || isPickingTo
@@ -438,13 +618,13 @@ export default function OrgChartContent() {
                         ? 'cursor-pointer'
                         : 'cursor-grab active:cursor-grabbing'
                       : 'cursor-default'
-                  }`}
+                  } ${isHiddenShown ? 'opacity-50 border-dashed' : ''}`}
                   style={{
                     left: (u.org_x ?? 0) + 'px',
                     top: (u.org_y ?? 0) + 'px',
                     width: CARD_WIDTH + 'px',
                     height: CARD_HEIGHT + 'px',
-                    transitionProperty: 'box-shadow, transform, border-color',
+                    transitionProperty: 'box-shadow, transform, border-color, opacity',
                   }}
                 >
                   <div className="p-4 h-full flex items-start gap-3">
@@ -480,13 +660,36 @@ export default function OrgChartContent() {
                       )}
                     </div>
                   </div>
+                  {isAdmin && (
+                    <button
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleHidden(u.id, !u.org_hidden);
+                      }}
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur border border-gray-200 flex items-center justify-center text-foreground/40 hover:text-foreground hover:border-primary transition-colors"
+                      aria-label={u.org_hidden ? 'Show card' : 'Hide card'}
+                      title={u.org_hidden ? 'Show card' : 'Hide card'}
+                    >
+                      {u.org_hidden ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                 </div>
               );
             })}
-            {users.length === 0 && (
+            {displayedUsers.length === 0 && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-                  No team members yet.
+                  {users.length === 0 ? 'No team members yet.' : 'All cards are hidden.'}
                 </p>
               </div>
             )}

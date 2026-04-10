@@ -289,6 +289,17 @@ export default function CallsContent() {
             {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total calls</span>}
           </p>
         </div>
+        <a
+          href="/app/calls/heatmap"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+            <rect x="3" y="4" width="18" height="16" rx="2" strokeLinejoin="round" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM7 16h2v0H7zM11 16h2v0h-2zM15 16h2v0h-2z" />
+          </svg>
+          View Heatmap
+        </a>
       </div>
 
       {/* Insights Dashboard */}

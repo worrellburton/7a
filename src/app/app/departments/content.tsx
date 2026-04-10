@@ -47,11 +47,55 @@ export default function DepartmentsContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [expandedDeptId, setExpandedDeptId] = useState<string | null>(null);
+  const [dragUserId, setDragUserId] = useState<string | null>(null);
+  // Drop-target id: a department UUID, 'unassigned', or null.
+  const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
   };
+
+  // Drag-and-drop handlers. dataTransfer carries the user id so the browser
+  // can still relay it if our React state gets interrupted.
+  function onUserDragStart(e: React.DragEvent<HTMLDivElement>, userId: string) {
+    e.dataTransfer.setData('text/plain', userId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDragUserId(userId);
+  }
+
+  function onUserDragEnd() {
+    setDragUserId(null);
+    setDragOverTargetId(null);
+  }
+
+  function onTargetDragOver(e: React.DragEvent<HTMLDivElement>, targetId: string) {
+    if (!dragUserId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverTargetId !== targetId) setDragOverTargetId(targetId);
+  }
+
+  function onTargetDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    // Only clear when the pointer actually exits this element (not on entering a child)
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setDragOverTargetId((curr) => (curr ? null : curr));
+  }
+
+  async function onTargetDrop(
+    e: React.DragEvent<HTMLDivElement>,
+    departmentId: string | null
+  ) {
+    e.preventDefault();
+    const userId = e.dataTransfer.getData('text/plain') || dragUserId;
+    setDragUserId(null);
+    setDragOverTargetId(null);
+    if (!userId) return;
+    const current = users.find((u) => u.id === userId);
+    if (!current) return;
+    if (current.department_id === departmentId) return; // no-op
+    await assignUser(userId, departmentId);
+  }
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -151,7 +195,7 @@ export default function DepartmentsContent() {
         <div>
           <h1 className="text-2xl font-bold text-foreground mb-1">Departments</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            Organize staff into departments. Drag users in from the unassigned pool or use the dropdown.
+            Drag people between departments and the unassigned pool, or use the dropdowns.
           </p>
         </div>
         <button
@@ -243,8 +287,19 @@ export default function DepartmentsContent() {
               departments.map((d) => {
                 const members = membersByDept[d.id] || [];
                 const expanded = expandedDeptId === d.id;
+                const isDropTarget = dragOverTargetId === d.id;
                 return (
-                  <div key={d.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div
+                    key={d.id}
+                    onDragOver={(e) => onTargetDragOver(e, d.id)}
+                    onDragLeave={onTargetDragLeave}
+                    onDrop={(e) => onTargetDrop(e, d.id)}
+                    className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all ${
+                      isDropTarget
+                        ? 'border-primary ring-2 ring-primary/30 scale-[1.01]'
+                        : 'border-gray-100'
+                    }`}
+                  >
                     <div className="p-5 flex items-center gap-4">
                       <div
                         className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-sm font-bold"
@@ -310,7 +365,15 @@ export default function DepartmentsContent() {
                         ) : (
                           <div className="space-y-2 mb-3">
                             {members.map((m) => (
-                              <div key={m.id} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2 border border-gray-100">
+                              <div
+                                key={m.id}
+                                draggable
+                                onDragStart={(e) => onUserDragStart(e, m.id)}
+                                onDragEnd={onUserDragEnd}
+                                className={`flex items-center gap-3 bg-white rounded-xl px-3 py-2 border border-gray-100 cursor-grab active:cursor-grabbing ${
+                                  dragUserId === m.id ? 'opacity-40' : ''
+                                }`}
+                              >
                                 {m.avatar_url ? (
                                   <img src={m.avatar_url} alt="" className="w-7 h-7 rounded-full" />
                                 ) : (
@@ -360,7 +423,16 @@ export default function DepartmentsContent() {
           </div>
 
           {/* Unassigned panel */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 h-fit lg:sticky lg:top-5">
+          <div
+            onDragOver={(e) => onTargetDragOver(e, 'unassigned')}
+            onDragLeave={onTargetDragLeave}
+            onDrop={(e) => onTargetDrop(e, null)}
+            className={`bg-white rounded-2xl shadow-sm border p-5 h-fit lg:sticky lg:top-5 transition-all ${
+              dragOverTargetId === 'unassigned'
+                ? 'border-primary ring-2 ring-primary/30'
+                : 'border-gray-100'
+            }`}
+          >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-foreground">Unassigned</h2>
               <span className="text-[11px] font-medium text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
@@ -369,12 +441,20 @@ export default function DepartmentsContent() {
             </div>
             {unassigned.length === 0 ? (
               <p className="text-xs text-foreground/40 italic" style={{ fontFamily: 'var(--font-body)' }}>
-                Every user is assigned to a department.
+                {dragUserId ? 'Drop here to unassign.' : 'Every user is assigned to a department.'}
               </p>
             ) : (
               <div className="space-y-2">
                 {unassigned.map((u) => (
-                  <div key={u.id} className="flex items-center gap-2.5">
+                  <div
+                    key={u.id}
+                    draggable
+                    onDragStart={(e) => onUserDragStart(e, u.id)}
+                    onDragEnd={onUserDragEnd}
+                    className={`flex items-center gap-2.5 cursor-grab active:cursor-grabbing ${
+                      dragUserId === u.id ? 'opacity-40' : ''
+                    }`}
+                  >
                     {u.avatar_url ? (
                       <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full shrink-0" />
                     ) : (
