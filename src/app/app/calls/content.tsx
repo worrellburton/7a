@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { getAuthToken } from '@/lib/db';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 
 interface Call {
   id: number;
@@ -289,6 +289,17 @@ export default function CallsContent() {
             {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total calls</span>}
           </p>
         </div>
+        <a
+          href="/app/calls/heatmap"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+            <rect x="3" y="4" width="18" height="16" rx="2" strokeLinejoin="round" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM7 16h2v0H7zM11 16h2v0h-2zM15 16h2v0h-2z" />
+          </svg>
+          View Heatmap
+        </a>
       </div>
 
       {/* Insights Dashboard */}
@@ -337,37 +348,34 @@ export default function CallsContent() {
             </div>
           </div>
 
-          {/* Weekly Bar Chart */}
+          {/* Weekly Line Graph */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>This Week</p>
               <div className="flex items-center gap-3">
+                {dateFilter && (
+                  <button
+                    onClick={() => { setDateFilter(''); }}
+                    className="text-[11px] text-foreground/40 hover:text-primary transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Clear day filter
+                  </button>
+                )}
                 <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
+                  <span className="w-2 h-2 rounded-full bg-primary" /> Calls
                 </span>
               </div>
             </div>
-            <div className="flex items-end gap-2 h-32">
-              {insights.dailyCounts.map((day) => {
-                const max = Math.max(...insights.dailyCounts.map(d => d.count), 1);
-                const height = day.count > 0 ? Math.max((day.count / max) * 100, 8) : 4;
-                const isToday = day.date === insights.dailyCounts[insights.dailyCounts.length - 1].date;
-                return (
-                  <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-xs font-bold text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
-                      {day.count > 0 ? day.count : ''}
-                    </span>
-                    <div
-                      className={`w-full rounded-lg transition-all ${isToday ? 'bg-[#a0522d]' : 'bg-[#a0522d]/30'}`}
-                      style={{ height: `${height}%`, minHeight: day.count > 0 ? '8px' : '3px' }}
-                    />
-                    <span className={`text-xs ${isToday ? 'font-bold text-foreground' : 'text-foreground/40'}`} style={{ fontFamily: 'var(--font-body)' }}>
-                      {day.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <WeekGraph
+              data={insights.dailyCounts}
+              selectedDate={dateFilter}
+              onDayClick={(date) => {
+                setDateFilter(date);
+                setTab('calls');
+                setPage(1);
+              }}
+            />
           </div>
         </div>
       )}
@@ -465,52 +473,102 @@ export default function CallsContent() {
                     {calls.map(call => {
                       const expanded = expandedId === call.id;
                       return (
-                        <tr key={call.id} onClick={() => setExpandedId(expanded ? null : call.id)} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer">
-                          <td className="px-5 py-3.5">
-                            <div className="text-sm font-medium text-foreground whitespace-nowrap">{formatDate(call.called_at)}</div>
-                            <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{formatTime(call.called_at)}</div>
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
-                            {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
-                              {call.direction || 'unknown'}
-                            </span>
-                            {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ml-1">VM</span>}
-                            {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 ml-1">1st</span>}
-                          </td>
-                          <td className="px-5 py-3.5 text-sm text-foreground/60 max-w-[180px] truncate" style={{ fontFamily: 'var(--font-body)' }}>
-                            {call.source_name || call.source || '—'}
-                          </td>
-                          <td className="px-5 py-3.5 text-sm font-mono text-foreground whitespace-nowrap">
-                            {formatDuration(call.duration)}
-                          </td>
-                          <td className="px-5 py-3.5 text-sm text-foreground/50 whitespace-nowrap hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>
-                            {[call.city, call.state].filter(Boolean).join(', ') || '—'}
-                          </td>
-                          <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
-                            {call.audio ? (
-                              <button
-                                onClick={() => playRecording(call.audio)}
-                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${playingAudio === call.audio ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
-                                style={{ fontFamily: 'var(--font-body)' }}
-                              >
-                                {playingAudio === call.audio ? (
-                                  <><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>Stop</>
-                                ) : (
-                                  <><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>Play</>
+                        <Fragment key={call.id}>
+                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer">
+                            <td className="px-5 py-3.5">
+                              <div className="text-sm font-medium text-foreground whitespace-nowrap">{formatDate(call.called_at)}</div>
+                              <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{formatTime(call.called_at)}</div>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
+                              {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
+                                {call.direction || 'unknown'}
+                              </span>
+                              {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ml-1">VM</span>}
+                              {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 ml-1">1st</span>}
+                            </td>
+                            <td className="px-5 py-3.5 text-sm text-foreground/60 max-w-[180px] truncate" style={{ fontFamily: 'var(--font-body)' }}>
+                              {call.source_name || call.source || '—'}
+                            </td>
+                            <td className="px-5 py-3.5 text-sm font-mono text-foreground whitespace-nowrap">
+                              {formatDuration(call.duration)}
+                            </td>
+                            <td className="px-5 py-3.5 text-sm text-foreground/50 whitespace-nowrap hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>
+                              {[call.city, call.state].filter(Boolean).join(', ') || '—'}
+                            </td>
+                            <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                              {call.audio ? (
+                                <button
+                                  onClick={() => playRecording(call.audio)}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${playingAudio === call.audio ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                                  style={{ fontFamily: 'var(--font-body)' }}
+                                >
+                                  {playingAudio === call.audio ? (
+                                    <><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>Stop</>
+                                  ) : (
+                                    <><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>Play</>
+                                  )}
+                                </button>
+                              ) : (
+                                <span className="text-xs text-foreground/20">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3.5">
+                              <svg className={`w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                            </td>
+                          </tr>
+                          {expanded && (
+                            <tr className="bg-warm-bg/30 border-b border-gray-50">
+                              <td colSpan={8} className="px-5 py-5">
+                                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4 text-sm" style={{ fontFamily: 'var(--font-body)' }}>
+                                  <DetailField label="Caller name" value={call.name && call.name !== 'Unknown' ? call.name : undefined} />
+                                  <DetailField label="Caller number" value={call.caller_number_formatted || call.caller_number} />
+                                  <DetailField label="Tracking number" value={call.tracking_number_formatted || call.tracking_number} />
+                                  <DetailField label="Tracking label" value={call.tracking_label} />
+                                  <DetailField label="Receiving number" value={call.receiving_number_formatted || call.receiving_number} />
+                                  <DetailField label="Business number" value={call.business_number} />
+                                  <DetailField label="Source" value={call.source_name || call.source} />
+                                  <DetailField label="Status" value={call.status} />
+                                  <DetailField label="Direction" value={call.direction} />
+                                  <DetailField label="Total duration" value={formatDuration(call.duration)} />
+                                  <DetailField label="Talk time" value={call.talk_time ? formatDuration(call.talk_time) : undefined} />
+                                  <DetailField label="Ring time" value={call.ring_time ? formatDuration(call.ring_time) : undefined} />
+                                  <DetailField label="Location" value={[call.city, call.state, call.zip].filter(Boolean).join(', ')} />
+                                  <DetailField label="Country" value={call.country} />
+                                  <DetailField label="Score" value={call.score != null ? String(call.score) : undefined} />
+                                  <DetailField label="First call" value={call.first_call ? 'Yes' : undefined} />
+                                  <DetailField label="Voicemail" value={call.voicemail ? 'Yes' : undefined} />
+                                  <DetailField label="Called at" value={`${formatDate(call.called_at)} · ${formatTime(call.called_at)}`} />
+                                </div>
+                                {call.tag_list && call.tag_list.length > 0 && (
+                                  <div className="mt-4">
+                                    <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Tags</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {call.tag_list.map((tag, i) => (
+                                        <span key={i} className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">{tag}</span>
+                                      ))}
+                                    </div>
+                                  </div>
                                 )}
-                              </button>
-                            ) : (
-                              <span className="text-xs text-foreground/20">—</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-3.5">
-                            <svg className={`w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                          </td>
-                        </tr>
+                                {call.notes && (
+                                  <div className="mt-4">
+                                    <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Notes</p>
+                                    <p className="text-sm text-foreground/70 whitespace-pre-wrap" style={{ fontFamily: 'var(--font-body)' }}>{call.notes}</p>
+                                  </div>
+                                )}
+                                {call.audio && (
+                                  <div className="mt-4" onClick={e => e.stopPropagation()}>
+                                    <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Recording</p>
+                                    <audio controls src={call.audio} className="h-9 w-full max-w-md" />
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </tbody>
@@ -576,5 +634,159 @@ export default function CallsContent() {
         </div>
       )}
     </div>
+  );
+}
+
+// Simple label/value row used inside the expanded call detail drawer.
+function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
+  const display = value && String(value).trim() ? String(value) : '—';
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>{label}</p>
+      <p className={`text-sm ${display === '—' ? 'text-foreground/30' : 'text-foreground/80'} break-words`} style={{ fontFamily: 'var(--font-body)' }}>{display}</p>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// WeekGraph — SVG line chart animated left→right.
+// Clickable day points filter the call log to that day.
+// ------------------------------------------------------------
+
+function WeekGraph({
+  data,
+  selectedDate,
+  onDayClick,
+}: {
+  data: { label: string; short: string; date: string; count: number }[];
+  selectedDate: string;
+  onDayClick: (date: string) => void;
+}) {
+  const W = 720;
+  const H = 170;
+  const padL = 24;
+  const padR = 24;
+  const padT = 24;
+  const padB = 36;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+
+  if (data.length === 0) return null;
+
+  const max = Math.max(...data.map((d) => d.count), 1);
+
+  const pts = data.map((d, i) => {
+    const x = padL + (data.length === 1 ? innerW / 2 : (i / (data.length - 1)) * innerW);
+    const y = padT + innerH - (d.count / max) * innerH;
+    return { x, y, ...d };
+  });
+
+  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${padT + innerH} L ${pts[0].x.toFixed(1)} ${padT + innerH} Z`;
+
+  // Build subtle horizontal gridlines (4 bands).
+  const gridYs = [0, 0.25, 0.5, 0.75, 1].map((t) => padT + innerH * t);
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full block select-none"
+      preserveAspectRatio="xMidYMid meet"
+      style={{ maxHeight: 200 }}
+    >
+      <defs>
+        <linearGradient id="wg-area" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#0071e3" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#0071e3" stopOpacity="0.02" />
+        </linearGradient>
+        <clipPath id="wg-clip">
+          <rect x={padL} y={padT - 4} width={innerW} height={innerH + 8}>
+            <animate attributeName="width" from="0" to={innerW} dur="1.8s" fill="freeze" calcMode="spline" keySplines="0.22 1 0.36 1" />
+          </rect>
+        </clipPath>
+      </defs>
+
+      {/* grid */}
+      {gridYs.map((y, i) => (
+        <line
+          key={i}
+          x1={padL}
+          x2={W - padR}
+          y1={y}
+          y2={y}
+          stroke="rgba(0,0,0,0.05)"
+          strokeDasharray={i === gridYs.length - 1 ? '0' : '2 4'}
+        />
+      ))}
+
+      {/* area under line, clipped to animate left→right */}
+      <g clipPath="url(#wg-clip)">
+        <path d={areaPath} fill="url(#wg-area)" />
+        <path
+          d={linePath}
+          fill="none"
+          stroke="#0071e3"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+
+      {/* day points + labels (appear staggered with fade) */}
+      {pts.map((p, i) => {
+        const isSelected = p.date === selectedDate;
+        const isLast = i === pts.length - 1;
+        const delay = 0.3 + i * 0.18;
+        return (
+          <g
+            key={p.date}
+            className="cursor-pointer"
+            onClick={() => onDayClick(p.date)}
+          >
+            {/* hover target */}
+            <rect
+              x={p.x - innerW / pts.length / 2}
+              y={padT - 4}
+              width={innerW / pts.length}
+              height={innerH + padB}
+              fill="transparent"
+            />
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r={isSelected ? 6.5 : 4.5}
+              fill={isSelected ? '#0071e3' : '#ffffff'}
+              stroke="#0071e3"
+              strokeWidth="2"
+              style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }}
+            />
+            {p.count > 0 && (
+              <text
+                x={p.x}
+                y={p.y - 12}
+                textAnchor="middle"
+                fontSize="12"
+                fontWeight="700"
+                fill={isSelected ? '#0071e3' : 'rgba(26,26,26,0.8)'}
+                style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}
+              >
+                {p.count}
+              </text>
+            )}
+            <text
+              x={p.x}
+              y={H - 14}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight={isSelected || isLast ? 700 : 500}
+              fill={isSelected ? '#0071e3' : isLast ? 'rgba(26,26,26,0.9)' : 'rgba(26,26,26,0.4)'}
+              style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.1}s forwards`, fontFamily: 'var(--font-body)' }}
+            >
+              {p.label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }

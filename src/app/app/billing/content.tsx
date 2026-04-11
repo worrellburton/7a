@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { useModal } from '@/lib/ModalProvider';
 import React, { useEffect, useState } from 'react';
 
 interface Patient {
@@ -280,6 +281,7 @@ function buildStediPayload(claim: Claim & { group_notes?: string; individual_not
 
 export default function BillingContent() {
   const { user, session } = useAuth();
+  const { alert } = useModal();
   const [tab, setTab] = useState<Tab>('patients');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
@@ -493,7 +495,7 @@ export default function BillingContent() {
       }
       setClaims(prev => prev.map(c => c.id === claim.id ? { ...c, status: newStatus, stedi_claim_id: stediClaimId, stedi_response: result, submitted_at: new Date().toISOString() } : c));
     } catch (err) {
-      alert(`Stedi submission failed: ${err}`);
+      alert('Stedi submission failed', { message: String(err) });
     }
     setStediPreview(null);
   };

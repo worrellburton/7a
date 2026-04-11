@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { AuthProvider } from '@/lib/AuthProvider';
+import ModalProvider from '@/lib/ModalProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -36,7 +37,7 @@ export const metadata: Metadata = {
   },
   robots: 'index, follow',
   other: {
-    'theme-color': '#a0522d',
+    'theme-color': '#1d1d1f',
     'geo.region': 'US-AZ',
     'geo.placename': 'Cochise County, Arizona',
   },
@@ -120,7 +121,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen flex flex-col antialiased">
         <AuthProvider>
-          {children}
+          <ModalProvider>
+            {children}
+          </ModalProvider>
         </AuthProvider>
       </body>
     </html>

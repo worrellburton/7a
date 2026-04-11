@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions } from '@/lib/PagePermissions';
 import PageGuard from '@/lib/PageGuard';
+import PageViewers from './PageViewers';
 
 /* ── Login WebGL Background ─────────────────────────────────────── */
 
@@ -66,34 +67,20 @@ function LoginBackground() {
         float asp = uRes.x / uRes.y;
         float t = uTime * 0.04;
 
-        // Warm tan base
-        vec3 bg = vec3(0.96, 0.94, 0.92);
+        // Cool near-white base — Apple-style off-white
+        vec3 bg = vec3(0.973, 0.976, 0.980);
 
-        // Warm palette for waves
-        vec3 sand  = vec3(0.92, 0.88, 0.82);
-        vec3 terra = vec3(0.78, 0.58, 0.42);
-        vec3 rose  = vec3(0.82, 0.65, 0.55);
+        // Cool neutral palette for the flowing bands
+        vec3 mist  = vec3(0.945, 0.949, 0.957);
+        vec3 steel = vec3(0.820, 0.850, 0.895);
+        vec3 azure = vec3(0.000, 0.443, 0.890);
 
         float n1 = fbm(uv * 2.0 + t * 0.3);
-        float n2 = fbm(uv * 2.5 + t * 0.2 + 5.0);
 
-        // Subtle flowing wave bands
-        for (int i = 0; i < 4; i++) {
-          float fi = float(i);
-          float freq = 1.5 + fi * 0.6;
-          float speed = 0.3 + fi * 0.08;
-          float yOff = 0.3 + fi * 0.12;
-          float n = fbm(vec2(uv.x * asp * 1.2 + fi * 2.5, t * 0.15 + fi));
-          float wave = sin(uv.x * asp * freq + t * speed + n * 2.5) * (0.06 + fi * 0.01);
-          float line = smoothstep(0.004, 0.0, abs(uv.y - yOff + wave));
-          float glow = smoothstep(0.08, 0.0, abs(uv.y - yOff + wave));
-          vec3 lineCol = mix(terra, rose, fi / 3.0);
-          col = bg;
-          col = bg + lineCol * line * 0.12 + lineCol * glow * 0.03;
-        }
-
-        // Very subtle drifting warmth
-        col = bg;
+        // Single-pass flowing wave bands (cleaned up — the old shader had a
+        // duplicate loop that overwrote its own color). Starts from the
+        // base then accumulates.
+        vec3 col = bg;
         for (int i = 0; i < 4; i++) {
           float fi = float(i);
           float freq = 1.5 + fi * 0.6;
@@ -103,15 +90,16 @@ function LoginBackground() {
           float wave = sin(uv.x * asp * freq + t * speed + n * 2.5) * (0.06 + fi * 0.01);
           float line = smoothstep(0.003, 0.0, abs(uv.y - yOff + wave));
           float glow = smoothstep(0.06, 0.0, abs(uv.y - yOff + wave));
-          vec3 lineCol = mix(terra, rose, fi / 3.0);
-          col += lineCol * line * 0.08 + lineCol * glow * 0.015;
+          // Fade from a soft steel through to a restrained azure accent
+          vec3 lineCol = mix(steel, azure, fi / 3.0);
+          col += lineCol * line * 0.10 + lineCol * glow * 0.02;
         }
 
-        // Barely-there noise texture
-        col += (sand - bg) * n1 * 0.03;
+        // Barely-there cool noise texture
+        col += (mist - bg) * n1 * 0.04;
 
         // Film grain
-        col += (hash(uv * uRes + fract(uTime * 0.5)) - 0.5) * 0.006;
+        col += (hash(uv * uRes + fract(uTime * 0.5)) - 0.5) * 0.005;
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -184,7 +172,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      className="fixed bottom-5 right-5 z-50 w-10 h-10 rounded-full bg-white dark:bg-[#2a2118] border border-gray-200 dark:border-white/10 shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
+      className="fixed bottom-5 right-5 z-50 w-10 h-10 rounded-full bg-white dark:bg-[#1d1d1f] border border-gray-200 dark:border-white/10 shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
       aria-label="Toggle theme"
     >
       {dark ? (
@@ -208,56 +196,108 @@ function ThemeToggle() {
 
 /* ── Icon Map ─────────────────────────────────────────────────── */
 
+// Lucide-derived icon set. Stroke 1.75 at 24-viewBox reads well at w-5 h-5.
+// Meaning-first: Facilities=building (not wrench), Equine=horseshoe,
+// Billing=receipt, Calendar=dated grid.
 const pageIcons: Record<string, React.ReactNode> = {
   '/app': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" />
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9.5 12 2l9 7.5V20a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" />
     </svg>
   ),
-  '/app/improvements': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085" />
+  '/app/facilities': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18" />
+      <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+      <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+      <path d="M10 6h4M10 10h4M10 14h4M10 18h4" />
+    </svg>
+  ),
+  '/app/departments': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="7" width="7" height="13" rx="1" />
+      <rect x="14" y="4" width="7" height="16" rx="1" />
+      <path d="M6 11h1M6 14h1M6 17h1M17 8h1M17 11h1M17 14h1M17 17h1" />
+    </svg>
+  ),
+  '/app/finance': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18" />
+      <path d="M7 15l4-4 4 4 5-6" />
+      <path d="M15 9h5v5" />
+    </svg>
+  ),
+  '/app/reports': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h2v5H8zM12 10h2v8h-2zM16 15h2v3h-2z" />
+    </svg>
+  ),
+  '/app/org-chart': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="3" width="6" height="5" rx="1" />
+      <rect x="3" y="16" width="6" height="5" rx="1" />
+      <rect x="15" y="16" width="6" height="5" rx="1" />
+      <path d="M12 8v3M6 16v-2a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v2" />
     </svg>
   ),
   '/app/compliance': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+      <path d="m9 12 2 2 4-4" />
     </svg>
   ),
   '/app/groups': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  '/app/calendar': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
     </svg>
   ),
   '/app/equine': (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 2c-1 0-2.5.8-3 2l-1 3-4 1-3 4h3l-1 3 2.5 1L13 21M17 21v-5c0-1 .5-2 1.5-3L21 10l-1-3c-.5-1.5-1-3-2-5" />
-      <path d="M20.5 3.5c.5 0 1 .5 1 1" />
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 3c-1.5 6.5.5 13 6 18 5.5-5 7.5-11.5 6-18" />
+      <circle cx="6.5" cy="7.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="6.2" cy="11.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="7" cy="15.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="17.5" cy="7.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="17.8" cy="11.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="17" cy="15.5" r="0.6" fill="currentColor" stroke="none" />
     </svg>
   ),
   '/app/billing': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+      <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+      <path d="M12 17.5v-11" />
     </svg>
   ),
   '/app/calls': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-    </svg>
-  ),
-  '/app/frameworks': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zm0 9.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z" />
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
     </svg>
   ),
   '/app/users': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <circle cx="18" cy="11" r="3" />
+      <path d="m22 15-1.5-1.5M22 7l-1.5 1.5" />
     </svg>
   ),
   '/app/pages': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="M10 9H8M16 13H8M16 17H8" />
     </svg>
   ),
 };
@@ -275,10 +315,19 @@ function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
 export { pageIcons };
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, signInWithGoogle, signOut } = useAuth();
-  const { isPageAdminOnly, navPages, popupPages } = usePagePermissions();
+  const { user, loading, isAdmin, departmentId, signInWithGoogle, signOut } = useAuth();
+  const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
   const pathname = usePathname();
+
+  // Sidebar/popup links are gated on both admin-only flag and the
+  // per-page department allow-list. Admins bypass the department check.
+  const canSeePage = (item: { path: string; adminOnly: boolean }) => {
+    if (item.adminOnly && !isAdmin) return false;
+    if (isAdmin) return true;
+    return isPageAllowedForDepartment(item.path, departmentId);
+  };
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Restore theme on mount
   useEffect(() => {
@@ -287,6 +336,26 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       document.documentElement.classList.add('dark');
     }
   }, []);
+
+  // Close drawer on Escape + lock body scroll while open
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [mobileMenuOpen]);
+
+  // Auto-close drawer on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   // Loading state
   if (loading) {
@@ -311,7 +380,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           <div className="mb-10" />
           <button
             onClick={signInWithGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-foreground hover:bg-foreground/90 text-white rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-sm hover:shadow-lg"
+            className="w-full flex items-center justify-center gap-3 bg-foreground hover:bg-black text-white rounded-full py-3.5 px-6 text-[15px] font-medium transition-all shadow-sm hover:shadow-lg"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -335,26 +404,26 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
           <Link href="/app" className="flex items-center gap-2.5">
-            <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
+            <span className="text-[22px] font-semibold text-foreground tracking-tight">7A</span>
           </Link>
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 p-3 space-y-1">
-          {navPages.filter((item) => !item.adminOnly || isAdmin).map((item) => {
+        <nav className="flex-1 p-3 space-y-0.5">
+          {navPages.filter(canSeePage).map((item) => {
             const isActive = pathname === item.path;
             return (
               <Link
                 key={item.path}
                 href={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                   isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-foreground/60 hover:bg-warm-bg hover:text-foreground'
+                    ? 'bg-gray-100 text-foreground'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-foreground'
                 }`}
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                <span className={isActive ? 'text-primary' : 'text-foreground/40'}>{getPageIcon(item.path)}</span>
+                <span className={isActive ? 'text-foreground' : 'text-gray-400'}>{getPageIcon(item.path)}</span>
                 {item.label}
               </Link>
             );
@@ -368,7 +437,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <Link
                 href="/app/profile"
                 onClick={() => setUserMenuOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
+                className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
@@ -376,12 +445,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </svg>
                 My Profile
               </Link>
-              {popupPages.filter((item) => !item.adminOnly || isAdmin).map((item) => (
+              {popupPages.filter(canSeePage).map((item) => (
                 <Link
                   key={item.path}
                   href={item.path}
                   onClick={() => setUserMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
+                  className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {getPageIcon(item.path, 'sm')}
@@ -392,7 +461,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 href="/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
+                className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
@@ -414,12 +483,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           )}
           <button
             onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-warm-bg transition-colors text-left"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left"
           >
             {user.user_metadata?.avatar_url ? (
               <img src={user.user_metadata.avatar_url} alt="" className="w-8 h-8 rounded-full" />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
+              <div className="w-8 h-8 rounded-full bg-foreground flex items-center justify-center text-white text-xs font-semibold">
                 {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
               </div>
             )}
@@ -437,35 +506,160 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       </aside>
 
       {/* Main content area */}
-      <div className="flex-1 bg-warm-bg overflow-auto relative">
-        {/* Mobile nav bar */}
-        <div className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            {user.user_metadata?.avatar_url ? (
-              <img src={user.user_metadata.avatar_url} alt="" className="w-7 h-7 rounded-full" />
-            ) : (
-              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
-                {(user.user_metadata?.full_name || '?').charAt(0).toUpperCase()}
-              </div>
-            )}
-            <span className="text-sm font-medium text-foreground">
-              {user.user_metadata?.full_name?.split(' ')[0] || 'Portal'}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            {navPages.filter((item) => !item.adminOnly || isAdmin).map((item) => (
-              <Link
-                key={item.path}
-                href={item.path}
-                className={`p-2 rounded-lg ${pathname === item.path ? 'bg-primary/10 text-primary' : 'text-foreground/40'}`}
-              >
-                {getPageIcon(item.path)}
-              </Link>
-            ))}
-          </div>
+      <div className="flex-1 bg-gray-100 overflow-auto relative">
+        {/* Mobile top bar */}
+        <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/85 dark:bg-[#1d1d1f]/85 backdrop-blur-xl border-b border-gray-100 dark:border-white/5">
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open menu"
+            className="p-2 -ml-2 rounded-lg text-foreground/70 hover:bg-gray-100 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <Link href="/app" className="text-xl font-semibold text-foreground tracking-tight">
+            7A
+          </Link>
+          <div className="w-10" aria-hidden="true" />
         </div>
 
+        {/* Mobile drawer */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden fixed inset-0 z-50" role="dialog" aria-modal="true">
+            {/* Backdrop */}
+            <div
+              onClick={() => setMobileMenuOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-drawer-fade"
+              aria-hidden="true"
+            />
+            {/* Panel */}
+            <aside className="absolute inset-y-0 left-0 w-[82%] max-w-[320px] bg-white dark:bg-[#1d1d1f] border-r border-gray-100 dark:border-white/5 shadow-2xl flex flex-col animate-drawer-slide">
+              {/* Header: brand + close */}
+              <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-white/5">
+                <Link href="/app" className="flex items-center gap-2.5">
+                  <span className="text-[22px] font-semibold text-foreground tracking-tight">7A</span>
+                </Link>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  aria-label="Close menu"
+                  className="p-2 -mr-2 rounded-lg text-foreground/60 hover:bg-gray-100 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Nav links */}
+              <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+                {navPages.filter(canSeePage).map((item) => {
+                  const isActive = pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      href={item.path}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
+                        isActive
+                          ? 'bg-gray-100 text-foreground'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-foreground'
+                      }`}
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      <span className={isActive ? 'text-foreground' : 'text-gray-400'}>
+                        {getPageIcon(item.path)}
+                      </span>
+                      {item.label}
+                    </Link>
+                  );
+                })}
+
+                {popupPages.filter(canSeePage).length > 0 && (
+                  <>
+                    <div className="h-px my-3 bg-gray-100 dark:bg-white/5" />
+                    {popupPages.filter(canSeePage).map((item) => {
+                      const isActive = pathname === item.path;
+                      return (
+                        <Link
+                          key={item.path}
+                          href={item.path}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
+                            isActive
+                              ? 'bg-gray-100 text-foreground'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-foreground'
+                          }`}
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          <span className={isActive ? 'text-foreground' : 'text-gray-400'}>
+                            {getPageIcon(item.path)}
+                          </span>
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </>
+                )}
+
+                <Link
+                  href="/app/profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
+                    pathname === '/app/profile'
+                      ? 'bg-gray-100 text-foreground'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-foreground'
+                  }`}
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <span className={pathname === '/app/profile' ? 'text-foreground' : 'text-gray-400'}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                  </span>
+                  My Profile
+                </Link>
+              </nav>
+
+              {/* User card + sign out */}
+              <div className="p-3 border-t border-gray-100 dark:border-white/5 space-y-1">
+                <div className="flex items-center gap-3 px-3 py-2.5">
+                  {user.user_metadata?.avatar_url ? (
+                    <img src={user.user_metadata.avatar_url} alt="" className="w-9 h-9 rounded-full" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center text-white text-sm font-semibold">
+                      {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {user.user_metadata?.full_name || 'User'}
+                    </p>
+                    <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setMobileMenuOpen(false); signOut(); }}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                  </svg>
+                  Sign Out
+                </button>
+              </div>
+            </aside>
+          </div>
+        )}
+
         <PageGuard>{children}</PageGuard>
+
+        {/* Same-page viewers — shown on every /app/* page */}
+        <PageViewers />
 
         {/* Theme toggle — fixed bottom right */}
         <ThemeToggle />

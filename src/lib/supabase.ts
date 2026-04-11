@@ -6,15 +6,25 @@ import { createBrowserClient } from '@supabase/ssr';
 // Required environment variables (see .env.example):
 //   NEXT_PUBLIC_SUPABASE_URL
 //   NEXT_PUBLIC_SUPABASE_ANON_KEY
+//
+// NEXT_PUBLIC_* values are inlined by Next.js at build time. We defer the
+// missing-env check until actual browser runtime: during `next build`'s
+// static-prerender phase, `window` is undefined, so a misconfigured build
+// environment won't crash prerender on pages that import this module. In
+// the real browser, a missing env var throws loudly on module load and
+// makes the problem immediately visible in devtools.
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (typeof window !== 'undefined' && (!url || !key)) {
   throw new Error(
     'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
-      'Copy .env.example to .env.local and fill in your Supabase project credentials.'
+      'Set them in your Vercel project env (or .env.local for local dev) and redeploy.'
   );
 }
 
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createBrowserClient(
+  url || 'https://placeholder.supabase.co',
+  key || 'placeholder-anon-key'
+);

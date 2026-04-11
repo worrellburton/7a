@@ -1,8 +1,9 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
+import { usePagePermissions } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface RecentUser {
   id: string;
@@ -10,11 +11,13 @@ interface RecentUser {
   avatar_url: string | null;
   last_sign_in: string | null;
   job_title: string | null;
+  last_path: string | null;
+  last_seen_at: string | null;
 }
 
-function isOnlineNow(lastSignIn: string | null): boolean {
-  if (!lastSignIn) return false;
-  return Date.now() - new Date(lastSignIn).getTime() < 6 * 60 * 1000;
+function isOnlineNow(lastSeen: string | null): boolean {
+  if (!lastSeen) return false;
+  return Date.now() - new Date(lastSeen).getTime() < 6 * 60 * 1000;
 }
 
 function timeAgo(dateStr: string | null): string {
@@ -29,13 +32,29 @@ function timeAgo(dateStr: string | null): string {
 
 export default function HomeContent() {
   const { user, session } = useAuth();
+  const { pages } = usePagePermissions();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [loaded, setLoaded] = useState(false);
+
+  // Map /app/... path → friendly label ("Calendar", "Org Chart", etc.)
+  const pathLabel = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of pages) map.set(p.path, p.label);
+    map.set('/app/profile', 'My Profile');
+    return (path: string | null): string | null => {
+      if (!path) return null;
+      if (map.has(path)) return map.get(path)!;
+      // Fall back to last segment if it's a nested route we don't know
+      const last = path.split('/').filter(Boolean).pop();
+      if (!last) return null;
+      return last.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    };
+  }, [pages]);
 
   useEffect(() => {
     if (!session?.access_token) return;
     async function fetchRecentUsers() {
-      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, job_title', order: { column: 'last_sign_in', ascending: false } });
+      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title', order: { column: 'last_sign_in', ascending: false } });
       if (Array.isArray(data)) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -69,7 +88,8 @@ export default function HomeContent() {
           </span>
           <div className="flex -space-x-2">
             {recentUsers.map((u) => {
-              const online = isOnlineNow(u.last_sign_in);
+              const online = isOnlineNow(u.last_seen_at || u.last_sign_in);
+              const viewing = online ? pathLabel(u.last_path) : null;
               return (
                 <div key={u.id} className="relative group">
                   {u.avatar_url ? (
@@ -93,6 +113,7 @@ export default function HomeContent() {
                     <p className="font-medium">{u.full_name || 'User'}</p>
                     {u.job_title && <p className="text-white/80">{u.job_title}</p>}
                     <p className="text-white/60">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
+                    {viewing && <p className="text-emerald-300">Viewing {viewing}</p>}
                   </div>
                 </div>
               );
