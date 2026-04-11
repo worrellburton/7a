@@ -490,7 +490,7 @@ export default function OrgChartContent() {
         const from = visible.find((u) => u.id === e.from_user_id);
         const to = visible.find((u) => u.id === e.to_user_id);
         if (!from || !to) return '';
-        return `<path d="${elbowPath(from, to)}" fill="none" stroke="#86868b" stroke-width="2" marker-end="url(#org-arrow)" />`;
+        return `<path d="${elbowPath(from, to)}" fill="none" stroke="#a0522d" stroke-width="2" marker-end="url(#org-arrow)" />`;
       })
       .join('\n');
 
@@ -502,7 +502,7 @@ export default function OrgChartContent() {
         const name = escapeXml(u.full_name || u.email || 'Unknown');
         const title = escapeXml(u.job_title || '');
         const dept = u.department_id ? deptById.get(u.department_id) : null;
-        const deptColor = dept?.color || '#0071e3';
+        const deptColor = dept?.color || '#a0522d';
         const deptName = dept ? escapeXml(dept.name) : '';
         const initial = escapeXml((u.full_name || u.email || '?').charAt(0).toUpperCase());
         return `
@@ -522,10 +522,10 @@ export default function OrgChartContent() {
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="${vbX} ${vbY} ${vbW} ${vbH}" width="100%" style="max-width:100%;height:auto;">
         <defs>
           <marker id="org-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#86868b" />
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#a0522d" />
           </marker>
         </defs>
-        <rect x="${vbX}" y="${vbY}" width="${vbW}" height="${vbH}" fill="#ffffff"/>
+        <rect x="${vbX}" y="${vbY}" width="${vbW}" height="${vbH}" fill="#fafaf7"/>
         ${edgeSvg}
         ${cardSvg}
       </svg>
@@ -677,7 +677,7 @@ export default function OrgChartContent() {
               width: canvasSize.width + 'px',
               height: canvasSize.height + 'px',
               backgroundImage:
-                'radial-gradient(circle, rgba(0, 0, 0, 0.06) 1px, transparent 1px)',
+                'radial-gradient(circle, rgba(160, 82, 45, 0.07) 1px, transparent 1px)',
               backgroundSize: '22px 22px',
               cursor: isAdmin && connectMode.kind === 'off' ? 'crosshair' : undefined,
             }}
@@ -699,7 +699,7 @@ export default function OrgChartContent() {
                   markerHeight="6"
                   orient="auto-start-reverse"
                 >
-                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#86868b" />
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#a0522d" />
                 </marker>
                 <marker
                   id="org-arrow-hover"
@@ -745,7 +745,7 @@ export default function OrgChartContent() {
                     <path
                       d={d}
                       fill="none"
-                      stroke={isHovered ? '#ef4444' : isSelected ? '#0071e3' : '#86868b'}
+                      stroke={isHovered ? '#ef4444' : isSelected ? '#2563eb' : '#a0522d'}
                       strokeWidth={isHovered || isSelected ? 2.5 : 2}
                       markerEnd={isHovered ? 'url(#org-arrow-hover)' : 'url(#org-arrow)'}
                       style={{ transition: 'stroke 120ms, stroke-width 120ms' }}
@@ -817,7 +817,7 @@ export default function OrgChartContent() {
                     ) : (
                       <div
                         className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-white text-sm font-bold"
-                        style={{ backgroundColor: dept?.color || '#0071e3' }}
+                        style={{ backgroundColor: dept?.color || '#a0522d' }}
                       >
                         {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
                       </div>
@@ -832,7 +832,7 @@ export default function OrgChartContent() {
                       {dept && (
                         <span
                           className="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
-                          style={{ backgroundColor: dept.color || '#0071e3' }}
+                          style={{ backgroundColor: dept.color || '#a0522d' }}
                         >
                           {dept.name}
                         </span>

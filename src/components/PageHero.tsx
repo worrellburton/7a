@@ -19,14 +19,14 @@ export default function PageHero({ label, title, description, image }: PageHeroP
         className="absolute inset-0"
         style={{
           background:
-            'linear-gradient(135deg, rgba(251,251,253,0.97) 0%, rgba(245,245,247,0.94) 50%, rgba(232,232,237,0.9) 100%)',
+            'linear-gradient(135deg, rgba(245,240,235,0.97) 0%, rgba(237,228,218,0.94) 50%, rgba(220,200,180,0.9) 100%)',
         }}
       />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <p className="section-label mb-4" style={{ color: 'var(--color-primary)' }}>{label}</p>
         <h1
           className="text-2xl lg:text-4xl font-bold tracking-tight leading-tight mb-4"
-          style={{ color: '#1d1d1f' }}
+          style={{ color: '#1a1a1a' }}
         >
           {title}
         </h1>

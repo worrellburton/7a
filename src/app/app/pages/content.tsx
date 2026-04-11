@@ -317,7 +317,7 @@ export default function PagesContent() {
                       </div>
                       <span
                         className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: d.color || '#0071e3' }}
+                        style={{ backgroundColor: d.color || '#a0522d' }}
                       />
                       <span className="text-sm font-medium text-foreground flex-1">{d.name}</span>
                     </button>

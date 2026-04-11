@@ -169,12 +169,11 @@ function sunTimes(date: Date, lat = 33.4484, lon = -112.074): { sunrise: number;
   return { sunrise: calc(true), sunset: calc(false) };
 }
 
-// Deterministic neutral/cool palette keyed off the subject id. This way the
-// same group/user keeps the same color across sessions without storing it
-// per-row. Tuned to sit quietly next to the Apple/Tesla foundation.
+// Deterministic warm palette keyed off the subject id. This way the same
+// group/user keeps the same color across sessions without storing it per-row.
 const PALETTE = [
-  '#0071e3', '#5856d6', '#6e6e73', '#30d158',
-  '#ff9f0a', '#bf5af2', '#32d2c9', '#86868b',
+  '#a0522d', '#c67a4a', '#8b6f47', '#6b8e5a',
+  '#d4a574', '#b05d4c', '#7c6552', '#96764e',
 ];
 function colorFor(id: string) {
   let h = 0;

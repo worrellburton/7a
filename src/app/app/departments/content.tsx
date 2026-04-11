@@ -24,14 +24,14 @@ interface AppUser {
 }
 
 const palette = [
-  '#0071e3', // Apple blue (primary interactive accent)
-  '#5856d6', // indigo
-  '#bf5af2', // purple
-  '#ff375f', // pink
-  '#ff9500', // orange
-  '#30d158', // green
-  '#32d2c9', // teal
-  '#6e6e73', // gray
+  '#a0522d', // primary
+  '#c67a4a',
+  '#d4a574',
+  '#6b8e4e',
+  '#4a7a8c',
+  '#8e4a6b',
+  '#c9a227',
+  '#5c6bc0',
 ];
 
 export default function DepartmentsContent() {
@@ -310,7 +310,7 @@ export default function DepartmentsContent() {
                     <div className="p-5 flex items-center gap-4">
                       <div
                         className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-sm font-bold"
-                        style={{ backgroundColor: d.color || '#0071e3' }}
+                        style={{ backgroundColor: d.color || '#a0522d' }}
                       >
                         {d.name.charAt(0).toUpperCase()}
                       </div>

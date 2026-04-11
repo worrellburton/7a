@@ -363,7 +363,7 @@ export default function CallsContent() {
                   </button>
                 )}
                 <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span className="w-2 h-2 rounded-full bg-primary" /> Calls
+                  <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
                 </span>
               </div>
             </div>
@@ -696,8 +696,8 @@ function WeekGraph({
     >
       <defs>
         <linearGradient id="wg-area" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#0071e3" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#0071e3" stopOpacity="0.02" />
+          <stop offset="0%" stopColor="#a0522d" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#a0522d" stopOpacity="0.02" />
         </linearGradient>
         <clipPath id="wg-clip">
           <rect x={padL} y={padT - 4} width={innerW} height={innerH + 8}>
@@ -725,7 +725,7 @@ function WeekGraph({
         <path
           d={linePath}
           fill="none"
-          stroke="#0071e3"
+          stroke="#a0522d"
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -755,8 +755,8 @@ function WeekGraph({
               cx={p.x}
               cy={p.y}
               r={isSelected ? 6.5 : 4.5}
-              fill={isSelected ? '#0071e3' : '#ffffff'}
-              stroke="#0071e3"
+              fill={isSelected ? '#a0522d' : '#ffffff'}
+              stroke="#a0522d"
               strokeWidth="2"
               style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }}
             />
@@ -767,7 +767,7 @@ function WeekGraph({
                 textAnchor="middle"
                 fontSize="12"
                 fontWeight="700"
-                fill={isSelected ? '#0071e3' : 'rgba(26,26,26,0.8)'}
+                fill={isSelected ? '#a0522d' : 'rgba(26,26,26,0.8)'}
                 style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}
               >
                 {p.count}
@@ -779,7 +779,7 @@ function WeekGraph({
               textAnchor="middle"
               fontSize="11"
               fontWeight={isSelected || isLast ? 700 : 500}
-              fill={isSelected ? '#0071e3' : isLast ? 'rgba(26,26,26,0.9)' : 'rgba(26,26,26,0.4)'}
+              fill={isSelected ? '#a0522d' : isLast ? 'rgba(26,26,26,0.9)' : 'rgba(26,26,26,0.4)'}
               style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.1}s forwards`, fontFamily: 'var(--font-body)' }}
             >
               {p.label}
