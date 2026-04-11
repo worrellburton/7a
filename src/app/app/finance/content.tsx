@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import BudgetSheet from './BudgetSheet';
 
 // ------------------------------------------------------------
 // Multi-tenant QuickBooks finance page.
@@ -71,6 +72,7 @@ interface ReportResponse {
 }
 
 type Tab =
+  | 'budget'
   | 'company'
   | 'accounts'
   | 'profit-loss'
@@ -79,7 +81,9 @@ type Tab =
   | 'trial-balance'
   | 'general-ledger';
 
-const TABS: Array<{ id: Tab; label: string; report: string }> = [
+// `report: null` marks tabs that don't hit QuickBooks (pure client-side views).
+const TABS: Array<{ id: Tab; label: string; report: string | null }> = [
+  { id: 'budget', label: 'Budget', report: null },
   { id: 'company', label: 'Company', report: 'company-info' },
   { id: 'accounts', label: 'Accounts', report: 'accounts' },
   { id: 'profit-loss', label: 'P&L', report: 'profit-loss' },
@@ -88,6 +92,21 @@ const TABS: Array<{ id: Tab; label: string; report: string }> = [
   { id: 'trial-balance', label: 'Trial Balance', report: 'trial-balance' },
   { id: 'general-ledger', label: 'General Ledger', report: 'general-ledger' },
 ];
+
+// Human-readable relative time for the "last updated" indicator.
+function fmtRelativeTime(iso: string | null): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const sec = Math.max(0, Math.round((now - then) / 1000));
+  if (sec < 10) return 'just now';
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr} hr ago`;
+  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
 
 function fmtMoney(n: number | undefined) {
   if (n === undefined || n === null || Number.isNaN(n)) return '—';
@@ -102,11 +121,21 @@ export default function FinanceContent() {
 
   const [companies, setCompanies] = useState<Company[] | null>(null);
   const [selectedRealm, setSelectedRealm] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('company');
+  const [tab, setTab] = useState<Tab>('budget');
   const [reportData, setReportData] = useState<unknown>(null);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // Timestamp of the last successful QuickBooks data fetch for the current
+  // realm + tab. Shown in the header so admins can tell how stale the
+  // report is at a glance.
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  // Re-render trigger so "3 min ago" keeps ticking without another fetch.
+  const [, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -174,6 +203,7 @@ export default function FinanceContent() {
         }
         const data = await res.json();
         setReportData(data);
+        setLastUpdated(new Date().toISOString());
       } catch (e) {
         setError(String(e));
       } finally {
@@ -183,11 +213,12 @@ export default function FinanceContent() {
     []
   );
 
-  // When realm or tab changes, fetch the matching report.
+  // When realm or tab changes, fetch the matching report. Tabs with a null
+  // `report` field are client-rendered (Budget sheet) and skip the fetch.
   useEffect(() => {
     if (!selectedRealm) return;
     const t = TABS.find((x) => x.id === tab);
-    if (!t) return;
+    if (!t || !t.report) return;
     loadReport(selectedRealm, t.report);
   }, [selectedRealm, tab, loadReport]);
 
@@ -224,11 +255,60 @@ export default function FinanceContent() {
 
   return (
     <div className="p-6 lg:p-10">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground mb-1">Finance</h1>
-        <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-          Connect QuickBooks Online companies to pull reports, balances, and transactions.
-        </p>
+      {/* Header row: title left, connection status + actions right */}
+      <div className="mb-6 flex items-start justify-between gap-6 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground mb-1">Finance</h1>
+          <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+            Connect QuickBooks Online companies to pull reports, balances, and transactions.
+          </p>
+        </div>
+        <div className="flex items-start gap-3">
+          {hasCompanies ? (
+            <div className="flex flex-col items-end gap-1.5">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-900">
+                <span className="relative flex w-2 h-2">
+                  <span className="animate-ping absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60" />
+                  <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" />
+                </span>
+                <span className="text-xs font-semibold" style={{ fontFamily: 'var(--font-body)' }}>
+                  Connected to QuickBooks
+                </span>
+              </div>
+              {lastUpdated && (
+                <p className="text-[11px] text-foreground/40 tabular-nums" style={{ fontFamily: 'var(--font-body)' }}>
+                  Updated {fmtRelativeTime(lastUpdated)}
+                </p>
+              )}
+              <div className="flex items-center gap-2 mt-1">
+                <button
+                  onClick={handleConnect}
+                  className="px-3.5 py-1.5 bg-[#2ca01c] text-white rounded-full text-[11px] font-semibold uppercase tracking-wider hover:bg-[#248a17] transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Connect another
+                </button>
+                {selectedRealm && (
+                  <button
+                    onClick={handleDisconnect}
+                    className="px-3 py-1.5 text-red-600 rounded-full text-[11px] font-semibold uppercase tracking-wider hover:bg-red-50 transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleConnect}
+              className="px-5 py-2.5 bg-[#2ca01c] text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-[#248a17] transition-colors"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Connect to QuickBooks
+            </button>
+          )}
+        </div>
       </div>
 
       {loadingList ? (
@@ -237,123 +317,93 @@ export default function FinanceContent() {
         </div>
       ) : (
         <div className="space-y-5">
-          {/* Connection header */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-[#2ca01c]/10 flex items-center justify-center shrink-0">
-                  <svg className="w-7 h-7 text-[#2ca01c]" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5h-2V10H7L12 5l5 5h-2v6.5h-2v-4h-2v4z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold text-foreground">QuickBooks Online</h2>
-                  <p className="text-xs text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-                    {hasCompanies
-                      ? `${companies!.length} connected ${companies!.length === 1 ? 'company' : 'companies'}`
-                      : 'No companies connected yet'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
+          {/* Realm picker — only when multiple companies are connected */}
+          {hasCompanies && companies!.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              {companies!.map((c) => (
                 <button
-                  onClick={handleConnect}
-                  className="px-5 py-2.5 bg-[#2ca01c] text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-[#248a17] transition-colors"
+                  key={c.realm_id}
+                  onClick={() => setSelectedRealm(c.realm_id)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    selectedRealm === c.realm_id
+                      ? 'bg-primary/10 border-primary/30 text-primary'
+                      : 'bg-warm-bg/50 border-gray-200 text-foreground/60 hover:bg-warm-bg'
+                  }`}
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  {hasCompanies ? 'Connect another' : 'Connect to QuickBooks'}
+                  Realm {c.realm_id}
                 </button>
-                {selectedRealm && (
-                  <button
-                    onClick={handleDisconnect}
-                    className="px-4 py-2 text-red-600 rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-red-50 transition-colors"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    Disconnect
-                  </button>
-                )}
-              </div>
+              ))}
             </div>
+          )}
 
-            {/* Company picker */}
-            {hasCompanies && (
-              <div className="mt-5 flex flex-wrap gap-2">
-                {companies!.map((c) => (
+          {error && (
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200">
+              <p className="text-xs font-medium text-red-800" style={{ fontFamily: 'var(--font-body)' }}>
+                {error}
+              </p>
+            </div>
+          )}
+
+          {!hasCompanies && !error && (
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+              <p className="text-xs font-semibold text-amber-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
+                Getting started
+              </p>
+              <p className="text-xs text-amber-800" style={{ fontFamily: 'var(--font-body)' }}>
+                Click <strong>Connect to QuickBooks</strong> to authorize an Intuit company. Make sure{' '}
+                <code className="bg-amber-100 px-1 py-0.5 rounded">QUICKBOOKS_CLIENT_ID</code> and{' '}
+                <code className="bg-amber-100 px-1 py-0.5 rounded">QUICKBOOKS_CLIENT_SECRET</code> are set
+                in the deployment env, and the redirect URI{' '}
+                <code className="bg-amber-100 px-1 py-0.5 rounded">
+                  {typeof window !== 'undefined' ? window.location.origin : ''}/api/quickbooks/callback
+                </code>{' '}
+                is registered on Intuit&apos;s developer portal.
+              </p>
+            </div>
+          )}
+
+          {/* Tabs + body. Budget tab is client-rendered and always
+              available; other tabs require a selected realm. */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="flex flex-wrap gap-1 p-2 border-b border-gray-100 bg-warm-bg/20">
+              {TABS.map((t) => {
+                const disabled = t.report !== null && !selectedRealm;
+                return (
                   <button
-                    key={c.realm_id}
-                    onClick={() => setSelectedRealm(c.realm_id)}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                      selectedRealm === c.realm_id
-                        ? 'bg-primary/10 border-primary/30 text-primary'
-                        : 'bg-warm-bg/50 border-gray-200 text-foreground/60 hover:bg-warm-bg'
+                    key={t.id}
+                    onClick={() => !disabled && setTab(t.id)}
+                    disabled={disabled}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors ${
+                      tab === t.id
+                        ? 'bg-primary text-white'
+                        : disabled
+                        ? 'text-foreground/25 cursor-not-allowed'
+                        : 'text-foreground/60 hover:bg-warm-bg'
                     }`}
                     style={{ fontFamily: 'var(--font-body)' }}
                   >
-                    Realm {c.realm_id}
+                    {t.label}
                   </button>
-                ))}
-              </div>
-            )}
-
-            {error && (
-              <div className="mt-5 p-4 rounded-xl bg-red-50 border border-red-200">
-                <p className="text-xs font-medium text-red-800" style={{ fontFamily: 'var(--font-body)' }}>
-                  {error}
+                );
+              })}
+            </div>
+            <div className="p-6 min-h-[200px]">
+              {tab === 'budget' ? (
+                <BudgetSheet />
+              ) : fetching ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : selectedRealm ? (
+                <ReportBody tab={tab} data={reportData} />
+              ) : (
+                <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
+                  Connect a QuickBooks company to view this report.
                 </p>
-              </div>
-            )}
-
-            {!hasCompanies && !error && (
-              <div className="mt-5 p-4 rounded-xl bg-amber-50 border border-amber-200">
-                <p className="text-xs font-semibold text-amber-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
-                  Getting started
-                </p>
-                <p className="text-xs text-amber-800" style={{ fontFamily: 'var(--font-body)' }}>
-                  Click <strong>Connect to QuickBooks</strong> to authorize an Intuit company. Make sure{' '}
-                  <code className="bg-amber-100 px-1 py-0.5 rounded">QUICKBOOKS_CLIENT_ID</code> and{' '}
-                  <code className="bg-amber-100 px-1 py-0.5 rounded">QUICKBOOKS_CLIENT_SECRET</code> are set
-                  in the deployment env, and the redirect URI{' '}
-                  <code className="bg-amber-100 px-1 py-0.5 rounded">
-                    {typeof window !== 'undefined' ? window.location.origin : ''}/api/quickbooks/callback
-                  </code>{' '}
-                  is registered on Intuit&apos;s developer portal.
-                </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-
-          {/* Tabs + report body */}
-          {selectedRealm && (
-            <>
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="flex flex-wrap gap-1 p-2 border-b border-gray-100 bg-warm-bg/20">
-                  {TABS.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => setTab(t.id)}
-                      className={`px-3.5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors ${
-                        tab === t.id
-                          ? 'bg-primary text-white'
-                          : 'text-foreground/60 hover:bg-warm-bg'
-                      }`}
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="p-6 min-h-[200px]">
-                  {fetching ? (
-                    <div className="flex items-center justify-center py-16">
-                      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  ) : (
-                    <ReportBody tab={tab} data={reportData} />
-                  )}
-                </div>
-              </div>
-            </>
-          )}
         </div>
       )}
 
