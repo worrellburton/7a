@@ -170,7 +170,7 @@ function CustomSelect({ value, onChange }: { value: string; onChange: (val: stri
         </svg>
       </button>
       {open && (
-        <ul className="absolute z-50 w-full mt-1 bg-[#1d1d1f] rounded-lg shadow-xl border border-white/10 overflow-hidden" role="listbox">
+        <ul className="absolute z-50 w-full mt-1 bg-[#1a1a1a] rounded-lg shadow-xl border border-white/10 overflow-hidden" role="listbox">
           {paymentOptions.map((option) => (
             <li key={option.value}>
               <button
@@ -207,7 +207,7 @@ export default function Footer() {
     <footer
       className="relative overflow-hidden text-white"
       style={{
-        background: 'linear-gradient(180deg, #1d1d1f 0%, #161617 35%, #000000 100%)',
+        background: 'linear-gradient(180deg, #2a0f0a 0%, #1a1a1a 35%, #111111 100%)',
       }}
       role="contentinfo"
     >

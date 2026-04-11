@@ -71,7 +71,7 @@ export default function XanaxAddictionPage() {
                   'Perceptual disturbances and hypersensitivity',
                 ].map((symptom) => (
                   <li key={symptom} className="flex items-start gap-3">
-                    <span className="text-[#0071e3] mt-1 font-bold">&#10003;</span>
+                    <span className="text-[#a0522d] mt-1 font-bold">&#10003;</span>
                     <span>{symptom}</span>
                   </li>
                 ))}

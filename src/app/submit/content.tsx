@@ -90,8 +90,8 @@ export default function SubmitContent() {
   // Loading
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#0071e3] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#f5f0eb] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#a0522d] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -99,16 +99,16 @@ export default function SubmitContent() {
   // Not signed in — show login
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#f5f0eb] flex items-center justify-center p-4">
         <div className="max-w-sm w-full text-center">
-          <span className="text-3xl font-black text-[#0071e3] tracking-tighter">7A</span>
-          <h1 className="text-xl font-bold text-[#1d1d1f] mt-3 mb-1">Report a Facility Issue</h1>
-          <p className="text-sm text-[#1d1d1f]/50 mb-8">
+          <span className="text-3xl font-black text-[#a0522d] tracking-tighter">7A</span>
+          <h1 className="text-xl font-bold text-[#1a1a1a] mt-3 mb-1">Report a Facility Issue</h1>
+          <p className="text-sm text-[#1a1a1a]/50 mb-8">
             Sign in to submit an issue report.
           </p>
           <button
             onClick={signInWithGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-[#1d1d1f] hover:bg-[#1d1d1f]/80 text-white rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-sm hover:shadow-lg"
+            className="w-full flex items-center justify-center gap-3 bg-[#1a1a1a] hover:bg-[#1a1a1a]/80 text-white rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-sm hover:shadow-lg"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -126,20 +126,20 @@ export default function SubmitContent() {
   // Success state
   if (submitted) {
     return (
-      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#f5f0eb] flex items-center justify-center p-4">
         <div className="max-w-md w-full text-center">
           <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto mb-5">
             <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-[#1d1d1f] mb-2">Issue Submitted</h1>
-          <p className="text-sm text-[#1d1d1f]/50">
+          <h1 className="text-2xl font-bold text-[#1a1a1a] mb-2">Issue Submitted</h1>
+          <p className="text-sm text-[#1a1a1a]/50">
             Thank you {userName.split(' ')[0]}, your submission has been received. Our team will review it shortly.
           </p>
           <button
             onClick={() => { setSubmitted(false); setForm({ location: '', issue: '', priority: 'Medium', notes: '' }); setPhotos([]); setPhotoPreviews([]); }}
-            className="mt-6 px-5 py-2.5 rounded-xl bg-[#1d1d1f] text-white text-sm font-medium hover:bg-[#1d1d1f]/80 transition-colors"
+            className="mt-6 px-5 py-2.5 rounded-xl bg-[#1a1a1a] text-white text-sm font-medium hover:bg-[#1a1a1a]/80 transition-colors"
           >
             Submit Another
           </button>
@@ -150,13 +150,13 @@ export default function SubmitContent() {
 
   // Submit form (authenticated)
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#f5f0eb] flex items-center justify-center p-4">
       <div className="max-w-lg w-full">
         <div className="text-center mb-8">
-          <span className="text-3xl font-black text-[#0071e3] tracking-tighter">7A</span>
-          <h1 className="text-xl font-bold text-[#1d1d1f] mt-3 mb-1">Report a Facility Issue</h1>
-          <p className="text-sm text-[#1d1d1f]/50">
-            Submitting as <span className="font-medium text-[#1d1d1f]/70">{userName}</span>
+          <span className="text-3xl font-black text-[#a0522d] tracking-tighter">7A</span>
+          <h1 className="text-xl font-bold text-[#1a1a1a] mt-3 mb-1">Report a Facility Issue</h1>
+          <p className="text-sm text-[#1a1a1a]/50">
+            Submitting as <span className="font-medium text-[#1a1a1a]/70">{userName}</span>
           </p>
         </div>
 
@@ -166,7 +166,7 @@ export default function SubmitContent() {
               <select
                 value={form.location}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
-                className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-[#f5f5f7]/50 focus:outline-none focus:border-[#0071e3]"
+                className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-[#f5f0eb]/50 focus:outline-none focus:border-[#a0522d]"
               >
                 <option value="">Select location...</option>
                 {locations.map((loc) => (
@@ -177,7 +177,7 @@ export default function SubmitContent() {
               <select
                 value={form.priority}
                 onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
-                className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-[#f5f5f7]/50 focus:outline-none focus:border-[#0071e3]"
+                className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-[#f5f0eb]/50 focus:outline-none focus:border-[#a0522d]"
               >
                 <option value="High">High Priority</option>
                 <option value="Medium">Medium Priority</option>
@@ -190,7 +190,7 @@ export default function SubmitContent() {
               placeholder="Describe the issue..."
               value={form.issue}
               onChange={(e) => setForm({ ...form, issue: e.target.value })}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-[#f5f5f7]/50 focus:outline-none focus:border-[#0071e3]"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-[#f5f0eb]/50 focus:outline-none focus:border-[#a0522d]"
             />
 
             <textarea
@@ -198,7 +198,7 @@ export default function SubmitContent() {
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-[#f5f5f7]/50 focus:outline-none focus:border-[#0071e3] resize-none"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-[#f5f0eb]/50 focus:outline-none focus:border-[#a0522d] resize-none"
             />
 
             {/* Photo upload */}
@@ -214,7 +214,7 @@ export default function SubmitContent() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-300 text-sm text-[#1d1d1f]/50 hover:border-[#0071e3] hover:text-[#0071e3] transition-colors"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-300 text-sm text-[#1a1a1a]/50 hover:border-[#a0522d] hover:text-[#a0522d] transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
@@ -247,13 +247,13 @@ export default function SubmitContent() {
           <button
             onClick={handleSubmit}
             disabled={!form.location || !form.issue.trim() || submitting}
-            className="w-full mt-6 px-4 py-3 rounded-xl bg-[#1d1d1f] text-white text-sm font-medium hover:bg-[#1d1d1f]/80 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-full mt-6 px-4 py-3 rounded-xl bg-[#1a1a1a] text-white text-sm font-medium hover:bg-[#1a1a1a]/80 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {submitting ? 'Submitting...' : 'Submit Issue'}
           </button>
         </div>
 
-        <p className="text-center text-xs text-[#1d1d1f]/30 mt-4">
+        <p className="text-center text-xs text-[#1a1a1a]/30 mt-4">
           Seven Arrows Recovery
         </p>
       </div>

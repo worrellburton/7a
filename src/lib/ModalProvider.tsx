@@ -157,34 +157,34 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
         >
           {/* Dim background */}
           <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-md"
+            className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
             onClick={() => close(false)}
           />
           {/* Dialog */}
           <div
-            className="relative bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-md p-7 animate-[scaleIn_0.2s_ease-out]"
+            className="relative bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-md p-6 animate-[scaleIn_0.2s_ease-out]"
             onClick={(e) => e.stopPropagation()}
           >
             <h2
               id="modal-title"
-              className="text-[17px] font-semibold text-foreground mb-1.5 tracking-tight"
+              className="text-lg font-bold text-foreground mb-2"
             >
               {request.title}
             </h2>
             {request.message && (
               <p
-                className="text-[13px] text-gray-600 mb-6 leading-relaxed"
+                className="text-sm text-foreground/60 mb-5"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 {request.message}
               </p>
             )}
-            {!request.message && <div className="mb-6" />}
+            {!request.message && <div className="mb-5" />}
             <div className="flex justify-end gap-2">
               {request.kind === 'confirm' && (
                 <button
                   onClick={() => close(false)}
-                  className="px-5 py-2 rounded-full text-[13px] font-medium bg-gray-100 text-foreground hover:bg-gray-200 transition-colors"
+                  className="px-5 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-warm-bg text-foreground hover:bg-warm-card transition-colors"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {request.cancelLabel}
@@ -193,7 +193,7 @@ export default function ModalProvider({ children }: { children: React.ReactNode 
               <button
                 ref={confirmBtnRef}
                 onClick={() => close(true)}
-                className={`px-5 py-2 rounded-full text-[13px] font-medium text-white transition-colors ${
+                className={`px-5 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider text-white transition-colors ${
                   request.tone === 'danger'
                     ? 'bg-red-600 hover:bg-red-700'
                     : 'bg-primary hover:bg-primary-dark'

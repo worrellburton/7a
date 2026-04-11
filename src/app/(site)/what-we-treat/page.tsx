@@ -90,7 +90,7 @@ export default function WhatWeTreatPage() {
                 href={condition.href}
                 className="group bg-warm-card rounded-2xl p-8 hover:shadow-lg transition-all duration-300"
               >
-                <h3 className="text-xl font-bold text-foreground mb-3 group-hover:text-[#0071e3] transition-colors">
+                <h3 className="text-xl font-bold text-foreground mb-3 group-hover:text-[#a0522d] transition-colors">
                   {condition.title}
                 </h3>
                 <p
@@ -100,7 +100,7 @@ export default function WhatWeTreatPage() {
                   {condition.description}
                 </p>
                 <span
-                  className="text-[#0071e3] font-semibold inline-flex items-center gap-1 group-hover:gap-2 transition-all"
+                  className="text-[#a0522d] font-semibold inline-flex items-center gap-1 group-hover:gap-2 transition-all"
                 >
                   Learn More &rarr;
                 </span>

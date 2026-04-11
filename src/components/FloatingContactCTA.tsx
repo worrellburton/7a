@@ -109,7 +109,7 @@ function StickyPhoneBar() {
     >
       <a
         href="tel:+18669964308"
-        className="flex items-center justify-center gap-3 mx-auto mb-3 max-w-xs bg-primary text-white py-3 px-8 font-normal text-sm tracking-wider rounded-full shadow-[0_4px_20px_rgba(0,113,227,0.4)]"
+        className="flex items-center justify-center gap-3 mx-auto mb-3 max-w-xs bg-primary text-white py-3 px-8 font-normal text-sm tracking-wider rounded-full shadow-[0_4px_20px_rgba(160,82,45,0.4)]"
         style={{ fontFamily: 'var(--font-body)' }}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -71,7 +71,7 @@ export default function PrescriptionDrugAddictionPage() {
                   'Cough suppressants containing codeine or DXM',
                 ].map((drug) => (
                   <li key={drug} className="flex items-start gap-3">
-                    <span className="text-[#0071e3] mt-1 font-bold">&#10003;</span>
+                    <span className="text-[#a0522d] mt-1 font-bold">&#10003;</span>
                     <span>{drug}</span>
                   </li>
                 ))}
