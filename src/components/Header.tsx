@@ -493,7 +493,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
               <Link
                 href={item.href}
                 className="text-xs font-bold hover:text-primary transition-colors tracking-wider uppercase"
-                style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}
+                style={{ fontFamily: 'var(--font-body)', color: '#1d1d1f' }}
                 onClick={() => setOpen(false)}
               >
                 {item.label} Overview →
@@ -530,7 +530,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                             <Icon className="w-6 h-6 text-primary" />
                           </div>
                         )}
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1d1d1f' }}>{sub.label}</div>
                         {sub.description && <p className="text-[11px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.45)' }}>{sub.description}</p>}
                       </Link>
                     );
@@ -560,7 +560,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                             <Icon className="w-7 h-7 text-primary" />
                           </div>
                         )}
-                        <div className="text-[15px] font-bold group-hover:text-primary transition-colors mb-1" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                        <div className="text-[15px] font-bold group-hover:text-primary transition-colors mb-1" style={{ fontFamily: 'var(--font-body)', color: '#1d1d1f' }}>{sub.label}</div>
                         {sub.description && <p className="text-[11px] leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
                       </Link>
                     );
@@ -584,7 +584,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                           </div>
                         )}
                         <div>
-                          <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                          <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1d1d1f' }}>{sub.label}</div>
                           {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
                         </div>
                       </Link>
@@ -613,7 +613,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                         </div>
                       )}
                       <div>
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1d1d1f' }}>{sub.label}</div>
                         {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
                       </div>
                     </Link>
@@ -645,7 +645,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                           <Icon className="w-5 h-5 text-primary" />
                         </div>
                       )}
-                      <div className="text-[12px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                      <div className="text-[12px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1d1d1f' }}>{sub.label}</div>
                       {sub.description && <p className="text-[10px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.45)' }}>{sub.description}</p>}
                     </Link>
                   );
@@ -672,7 +672,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                         </div>
                       )}
                       <div>
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1d1d1f' }}>{sub.label}</div>
                         {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
                       </div>
                     </Link>

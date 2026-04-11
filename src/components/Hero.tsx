@@ -115,17 +115,17 @@ function DesertGradientCanvas() {
         float n2 = fbm(p * 2.0 + vec2(-t * 0.2, t * 0.4) + 5.0);
         float n3 = fbm(p * 1.0 + vec2(t * 0.15, -t * 0.1) + 10.0);
 
-        // Desert palette colors (RGB)
-        // Warm sand base
-        vec3 sand      = vec3(0.957, 0.941, 0.922);  // #f4f0eb - warm bg
-        // Terracotta / canyon
-        vec3 terra     = vec3(0.627, 0.322, 0.176);  // #a0522d - primary
-        // Dusty rose / sunset
-        vec3 rose      = vec3(0.776, 0.478, 0.290);  // #c67a4a - accent
-        // Sage green / desert plant
-        vec3 sage      = vec3(0.588, 0.627, 0.518);  // #96a084
-        // Canyon shadow / deep earth
-        vec3 shadow    = vec3(0.239, 0.059, 0.039);  // #3d0f0a
+        // Cool neutral palette (Apple/Tesla foundation)
+        // Near-white base
+        vec3 sand      = vec3(0.961, 0.961, 0.969);  // #f5f5f7 - soft gray
+        // Apple link blue
+        vec3 terra     = vec3(0.000, 0.443, 0.890);  // #0071e3 - primary
+        // Softer steel blue
+        vec3 rose      = vec3(0.345, 0.400, 0.580);  // #586694 - secondary
+        // Cool mid gray
+        vec3 sage      = vec3(0.525, 0.537, 0.569);  // #868891
+        // Near black
+        vec3 shadow    = vec3(0.114, 0.114, 0.122);  // #1d1d1f - foreground
 
         // Drifting radial gradient centers
         vec2 c1 = vec2(

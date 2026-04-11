@@ -67,7 +67,7 @@ function CustomSelect({
         type="button"
         onClick={() => setOpen(!open)}
         className="w-full px-4 py-3 bg-white text-left rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none flex items-center justify-between gap-2"
-        style={{ color: selected ? '#1a1a1a' : '#9ca3af' }}
+        style={{ color: selected ? '#1d1d1f' : '#9ca3af' }}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -75,7 +75,7 @@ function CustomSelect({
           {selected ? (
             <>
               <span className="text-primary">{selected.icon}</span>
-              <span style={{ color: '#1a1a1a' }}>{selected.label}</span>
+              <span style={{ color: '#1d1d1f' }}>{selected.label}</span>
             </>
           ) : (
             'Select'
@@ -105,7 +105,7 @@ function CustomSelect({
                     ? 'bg-primary/10 text-primary font-medium'
                     : 'hover:bg-warm-bg'
                 }`}
-                style={{ color: value === option.value ? undefined : '#1a1a1a' }}
+                style={{ color: value === option.value ? undefined : '#1d1d1f' }}
                 onClick={() => {
                   onChange(option.value);
                   setOpen(false);
@@ -202,7 +202,7 @@ export default function ContactForm() {
                   required
                   placeholder="First Name"
                   className="w-full px-4 py-3 bg-white rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                  style={{ color: '#1a1a1a' }}
+                  style={{ color: '#1d1d1f' }}
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                 />
@@ -218,7 +218,7 @@ export default function ContactForm() {
                   required
                   placeholder="Last Name"
                   className="w-full px-4 py-3 bg-white rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                  style={{ color: '#1a1a1a' }}
+                  style={{ color: '#1d1d1f' }}
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                 />
@@ -234,7 +234,7 @@ export default function ContactForm() {
                   required
                   placeholder="Telephone"
                   className="w-full px-4 py-3 bg-white rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                  style={{ color: '#1a1a1a' }}
+                  style={{ color: '#1d1d1f' }}
                   value={formData.telephone}
                   onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
                 />
@@ -250,7 +250,7 @@ export default function ContactForm() {
                   required
                   placeholder="Email"
                   className="w-full px-4 py-3 bg-white rounded-sm text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                  style={{ color: '#1a1a1a' }}
+                  style={{ color: '#1d1d1f' }}
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
