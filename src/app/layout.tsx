@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   },
   robots: 'index, follow',
   other: {
-    'theme-color': '#a0522d',
+    'theme-color': '#1d1d1f',
     'geo.region': 'US-AZ',
     'geo.placename': 'Cochise County, Arizona',
   },
