@@ -27,7 +27,7 @@ export default function BlogPreview() {
           {/* Episode 1 — Published */}
           <Link
             href="/who-we-are/blog/when-drinking-stops-working"
-            className="bg-white rounded-xl overflow-hidden shadow-sm group block no-underline transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_8px_30px_rgba(160,82,45,0.2)]"
+            className="bg-white rounded-xl overflow-hidden shadow-sm group block no-underline transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_8px_30px_rgba(0,113,227,0.2)]"
           >
             <div className="relative">
               <img src="/images/resident-reading-window.jpg" alt="When Drinking Stops Working" className="h-48 w-full object-cover" loading="lazy" />
@@ -62,7 +62,7 @@ export default function BlogPreview() {
           {/* Episode 2 — Published */}
           <Link
             href="/who-we-are/blog/what-happens-first-week"
-            className="bg-white rounded-xl overflow-hidden shadow-sm group block no-underline transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_8px_30px_rgba(160,82,45,0.2)]"
+            className="bg-white rounded-xl overflow-hidden shadow-sm group block no-underline transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_8px_30px_rgba(0,113,227,0.2)]"
           >
             <div className="relative">
               <img src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800&q=80" alt="What Happens When You Walk Through the Door" className="h-48 w-full object-cover" loading="lazy" />
@@ -108,8 +108,8 @@ export default function BlogPreview() {
 
       <style>{`
         @keyframes glowPulse {
-          0%, 100% { opacity: 0.6; box-shadow: 0 0 15px rgba(160,82,45,0.1); }
-          50% { opacity: 1; box-shadow: 0 0 30px rgba(160,82,45,0.25); }
+          0%, 100% { opacity: 0.6; box-shadow: 0 0 15px rgba(0,113,227,0.1); }
+          50% { opacity: 1; box-shadow: 0 0 30px rgba(0,113,227,0.25); }
         }
       `}</style>
     </section>

@@ -193,40 +193,40 @@ function DopaminePathway() {
       <div className="w-full max-w-2xl">
         <svg viewBox="0 0 600 320" className="w-full h-auto" role="img" aria-label="Animated diagram showing how substances hijack the brain's dopamine reward pathway">
           {/* Brain outline */}
-          <ellipse cx="300" cy="160" rx="200" ry="140" fill="#f5f0eb" stroke="#a0522d" strokeWidth="2" opacity="0.3">
+          <ellipse cx="300" cy="160" rx="200" ry="140" fill="#f5f5f7" stroke="#0071e3" strokeWidth="2" opacity="0.3">
             <animate attributeName="opacity" values="0;0.3" dur="1s" fill="freeze" begin={visible ? '0s' : 'indefinite'} />
           </ellipse>
 
           {/* VTA region */}
-          <ellipse cx="220" cy="200" rx="40" ry="25" fill="#a0522d" opacity="0.2">
+          <ellipse cx="220" cy="200" rx="40" ry="25" fill="#0071e3" opacity="0.2">
             <animate attributeName="opacity" values="0;0.2" dur="0.8s" fill="freeze" begin={visible ? '0.3s' : 'indefinite'} />
           </ellipse>
-          <text x="220" y="205" textAnchor="middle" fill="#a0522d" fontSize="11" fontWeight="600" fontFamily="Inter, sans-serif">
+          <text x="220" y="205" textAnchor="middle" fill="#0071e3" fontSize="11" fontWeight="600" fontFamily="Inter, sans-serif">
             <tspan>VTA</tspan>
           </text>
-          <text x="220" y="218" textAnchor="middle" fill="#a0522d" fontSize="8" fontFamily="Inter, sans-serif" opacity="0.7">
+          <text x="220" y="218" textAnchor="middle" fill="#0071e3" fontSize="8" fontFamily="Inter, sans-serif" opacity="0.7">
             (Reward Center)
           </text>
 
           {/* Nucleus Accumbens */}
-          <ellipse cx="370" cy="140" rx="45" ry="25" fill="#c67a4a" opacity="0.2">
+          <ellipse cx="370" cy="140" rx="45" ry="25" fill="#5ac8fa" opacity="0.2">
             <animate attributeName="opacity" values="0;0.2" dur="0.8s" fill="freeze" begin={visible ? '0.5s' : 'indefinite'} />
           </ellipse>
-          <text x="370" y="138" textAnchor="middle" fill="#c67a4a" fontSize="10" fontWeight="600" fontFamily="Inter, sans-serif">Nucleus</text>
-          <text x="370" y="150" textAnchor="middle" fill="#c67a4a" fontSize="10" fontWeight="600" fontFamily="Inter, sans-serif">Accumbens</text>
+          <text x="370" y="138" textAnchor="middle" fill="#5ac8fa" fontSize="10" fontWeight="600" fontFamily="Inter, sans-serif">Nucleus</text>
+          <text x="370" y="150" textAnchor="middle" fill="#5ac8fa" fontSize="10" fontWeight="600" fontFamily="Inter, sans-serif">Accumbens</text>
 
           {/* Prefrontal Cortex */}
-          <ellipse cx="370" cy="70" rx="50" ry="22" fill="#3d1a0e" opacity="0.1">
+          <ellipse cx="370" cy="70" rx="50" ry="22" fill="#1d1d1f" opacity="0.1">
             <animate attributeName="opacity" values="0;0.1" dur="0.8s" fill="freeze" begin={visible ? '0.7s' : 'indefinite'} />
           </ellipse>
-          <text x="370" y="68" textAnchor="middle" fill="#3d1a0e" fontSize="10" fontWeight="600" fontFamily="Inter, sans-serif">Prefrontal</text>
-          <text x="370" y="80" textAnchor="middle" fill="#3d1a0e" fontSize="10" fontWeight="600" fontFamily="Inter, sans-serif">Cortex</text>
+          <text x="370" y="68" textAnchor="middle" fill="#1d1d1f" fontSize="10" fontWeight="600" fontFamily="Inter, sans-serif">Prefrontal</text>
+          <text x="370" y="80" textAnchor="middle" fill="#1d1d1f" fontSize="10" fontWeight="600" fontFamily="Inter, sans-serif">Cortex</text>
 
           {/* Normal dopamine path */}
-          <path d="M255 190 Q300 160 330 145" fill="none" stroke="#a0522d" strokeWidth="2" strokeDasharray="6 3" opacity="0.5">
+          <path d="M255 190 Q300 160 330 145" fill="none" stroke="#0071e3" strokeWidth="2" strokeDasharray="6 3" opacity="0.5">
             <animate attributeName="stroke-dashoffset" from="100" href="0" dur="2s" fill="freeze" begin={visible ? '0.8s' : 'indefinite'} />
           </path>
-          <text x="280" y="155" fill="#a0522d" fontSize="9" fontFamily="Inter, sans-serif" opacity="0.7" transform="rotate(-20,280,155)">dopamine</text>
+          <text x="280" y="155" fill="#0071e3" fontSize="9" fontFamily="Inter, sans-serif" opacity="0.7" transform="rotate(-20,280,155)">dopamine</text>
 
           {/* Hijacked path — substance surge */}
           <path d="M255 190 Q300 140 330 130" fill="none" stroke="#eb4d4b" strokeWidth="3" opacity="0">
@@ -250,17 +250,17 @@ function DopaminePathway() {
             <animate attributeName="opacity" values="0;1" dur="0.8s" fill="freeze" begin={visible ? '2.5s' : 'indefinite'} />
             <rect x="420" y="110" width="160" height="70" rx="8" fill="white" stroke="#eb4d4b" strokeWidth="1" opacity="0.9" />
             <text x="500" y="130" textAnchor="middle" fill="#eb4d4b" fontSize="10" fontWeight="700" fontFamily="Inter, sans-serif">Substance Hijack</text>
-            <text x="500" y="145" textAnchor="middle" fill="#1a1a1a" fontSize="9" fontFamily="Inter, sans-serif">Floods 2–10x normal</text>
-            <text x="500" y="158" textAnchor="middle" fill="#1a1a1a" fontSize="9" fontFamily="Inter, sans-serif">dopamine levels</text>
-            <text x="500" y="171" textAnchor="middle" fill="#1a1a1a" fontSize="8" fontFamily="Inter, sans-serif" opacity="0.6">Brain adapts → needs more</text>
+            <text x="500" y="145" textAnchor="middle" fill="#1d1d1f" fontSize="9" fontFamily="Inter, sans-serif">Floods 2–10x normal</text>
+            <text x="500" y="158" textAnchor="middle" fill="#1d1d1f" fontSize="9" fontFamily="Inter, sans-serif">dopamine levels</text>
+            <text x="500" y="171" textAnchor="middle" fill="#1d1d1f" fontSize="8" fontFamily="Inter, sans-serif" opacity="0.6">Brain adapts → needs more</text>
           </g>
 
           {/* Normal reward label */}
           <g opacity="0">
             <animate attributeName="opacity" values="0;1" dur="0.8s" fill="freeze" begin={visible ? '1s' : 'indefinite'} />
-            <rect x="120" y="240" width="160" height="50" rx="8" fill="white" stroke="#a0522d" strokeWidth="1" opacity="0.9" />
-            <text x="200" y="260" textAnchor="middle" fill="#a0522d" fontSize="10" fontWeight="700" fontFamily="Inter, sans-serif">Normal Reward</text>
-            <text x="200" y="275" textAnchor="middle" fill="#1a1a1a" fontSize="9" fontFamily="Inter, sans-serif">Food, connection, exercise</text>
+            <rect x="120" y="240" width="160" height="50" rx="8" fill="white" stroke="#0071e3" strokeWidth="1" opacity="0.9" />
+            <text x="200" y="260" textAnchor="middle" fill="#0071e3" fontSize="10" fontWeight="700" fontFamily="Inter, sans-serif">Normal Reward</text>
+            <text x="200" y="275" textAnchor="middle" fill="#1d1d1f" fontSize="9" fontFamily="Inter, sans-serif">Food, connection, exercise</text>
           </g>
         </svg>
         <p className="text-center text-xs text-foreground/50 mt-2 italic" style={{ fontFamily: 'var(--font-body)' }}>
@@ -397,7 +397,7 @@ export default function PageContent() {
               <div
                 className="flex items-center gap-3 p-4 rounded-xl border border-primary/20"
                 style={{
-                  background: 'linear-gradient(135deg, rgba(160,82,45,0.05), rgba(160,82,45,0.02))',
+                  background: 'linear-gradient(135deg, rgba(0,113,227,0.05), rgba(0,113,227,0.02))',
                   animation: 'glowPulse 2.5s ease-in-out infinite',
                 }}
               >
@@ -415,8 +415,8 @@ export default function PageContent() {
 
             <style>{`
               @keyframes glowPulse {
-                0%, 100% { opacity: 0.7; box-shadow: 0 0 10px rgba(160,82,45,0.08); }
-                50% { opacity: 1; box-shadow: 0 0 20px rgba(160,82,45,0.18); }
+                0%, 100% { opacity: 0.7; box-shadow: 0 0 10px rgba(0,113,227,0.08); }
+                50% { opacity: 1; box-shadow: 0 0 20px rgba(0,113,227,0.18); }
               }
             `}</style>
 

@@ -68,7 +68,7 @@ export default function BlogPage() {
           <div
             className="relative flex flex-col md:flex-row rounded-2xl overflow-hidden mb-8"
             style={{
-              background: 'linear-gradient(135deg, rgba(160,82,45,0.06), rgba(160,82,45,0.02))',
+              background: 'linear-gradient(135deg, rgba(0,113,227,0.06), rgba(0,113,227,0.02))',
             }}
           >
             {/* Glowing border */}
@@ -76,7 +76,7 @@ export default function BlogPage() {
               className="absolute inset-0 rounded-2xl pointer-events-none z-10"
               style={{
                 border: '2px solid transparent',
-                backgroundImage: 'linear-gradient(#fff, #fff), linear-gradient(135deg, #a0522d, #c67a4a, #a0522d)',
+                backgroundImage: 'linear-gradient(#fff, #fff), linear-gradient(135deg, #0071e3, #5ac8fa, #0071e3)',
                 backgroundOrigin: 'border-box',
                 backgroundClip: 'padding-box, border-box',
                 animation: 'glowPulse 2.5s ease-in-out infinite',
@@ -89,7 +89,7 @@ export default function BlogPage() {
                   style={{
                     fontFamily: 'var(--font-body)',
                     animation: 'glowPulse 2.5s ease-in-out infinite',
-                    boxShadow: '0 0 25px rgba(160,82,45,0.2)',
+                    boxShadow: '0 0 25px rgba(0,113,227,0.2)',
                   }}
                 >
                   Coming Soon
@@ -147,8 +147,8 @@ export default function BlogPage() {
 
       <style>{`
         @keyframes glowPulse {
-          0%, 100% { opacity: 0.6; box-shadow: 0 0 15px rgba(160,82,45,0.1); }
-          50% { opacity: 1; box-shadow: 0 0 30px rgba(160,82,45,0.25); }
+          0%, 100% { opacity: 0.6; box-shadow: 0 0 15px rgba(0,113,227,0.1); }
+          50% { opacity: 1; box-shadow: 0 0 30px rgba(0,113,227,0.25); }
         }
       `}</style>
     </>
