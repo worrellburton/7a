@@ -1,18 +1,41 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
+import { db } from '@/lib/db';
 import { useRouter } from 'next/navigation';
 import { pageIcons } from '../PlatformShell';
 
+interface Department {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
 export default function PagesContent() {
-  const { user, isAdmin } = useAuth();
-  const { pages, setPageAdminOnly, updatePageLayout } = usePagePermissions();
+  const { user, session, isAdmin } = useAuth();
+  const { pages, setPageDepartments, updatePageLayout } = usePagePermissions();
   const router = useRouter();
   const [toast, setToast] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [permissionsFor, setPermissionsFor] = useState<string | null>(null); // path being edited
   const dragItem = useRef<{ path: string; section: 'nav' | 'popup' } | null>(null);
   const dragOverItem = useRef<{ path: string; section: 'nav' | 'popup' } | null>(null);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    async function loadDepartments() {
+      const data = await db({
+        action: 'select',
+        table: 'departments',
+        select: 'id, name, color',
+        order: { column: 'name', ascending: true },
+      });
+      if (Array.isArray(data)) setDepartments(data as Department[]);
+    }
+    loadDepartments();
+  }, [session]);
 
   if (!user || !isAdmin) {
     if (typeof window !== 'undefined') router.replace('/app');
@@ -24,12 +47,22 @@ export default function PagesContent() {
     setTimeout(() => setToast(null), 2500);
   };
 
-  const handleToggle = (path: string, currentAdminOnly: boolean) => {
-    if (path === '/app/users' || path === '/app/pages') return;
-    setPageAdminOnly(path, !currentAdminOnly);
+  const editingPage = permissionsFor ? pages.find((p) => p.path === permissionsFor) || null : null;
+
+  function toggleDepartmentForPage(path: string, departmentId: string) {
     const page = pages.find((p) => p.path === path);
-    showToast(`${page?.label || path} is now ${!currentAdminOnly ? 'admin only' : 'visible to all'}`);
-  };
+    if (!page) return;
+    const set = new Set(page.allowedDepartments);
+    if (set.has(departmentId)) set.delete(departmentId);
+    else set.add(departmentId);
+    setPageDepartments(path, Array.from(set));
+  }
+
+  function clearDepartmentsForPage(path: string) {
+    setPageDepartments(path, []);
+    const page = pages.find((p) => p.path === path);
+    showToast(`${page?.label || path} is now visible to everyone`);
+  }
 
   const sorted = [...pages].sort((a, b) => a.sort_order - b.sort_order);
   const navPages = sorted.filter((p) => p.section === 'nav');
@@ -116,6 +149,7 @@ export default function PagesContent() {
 
   function renderRow(page: PageConfig) {
     const locked = page.path === '/app/users' || page.path === '/app/pages';
+    const restricted = page.allowedDepartments.length > 0;
     return (
       <div
         key={page.path}
@@ -134,20 +168,34 @@ export default function PagesContent() {
           <p className="text-xs text-foreground/30 font-mono">{page.path}</p>
         </div>
         <button
-          onClick={() => handleToggle(page.path, page.adminOnly)}
+          onClick={() => !locked && setPermissionsFor(page.path)}
           disabled={locked}
-          className={`w-5 h-5 rounded border-2 transition-colors inline-flex items-center justify-center shrink-0 ${
-            page.adminOnly
-              ? 'bg-primary border-primary text-white'
-              : 'border-gray-300 hover:border-primary/50'
-          } ${locked ? 'opacity-50 cursor-not-allowed' : ''}`}
-          aria-label={`Toggle admin only for ${page.label}`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 ${
+            restricted
+              ? 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20'
+              : 'bg-warm-bg/60 text-foreground/50 hover:bg-warm-bg border border-gray-200'
+          } ${locked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+          style={{ fontFamily: 'var(--font-body)' }}
+          aria-label={`Set permissions for ${page.label}`}
+          title={locked ? 'Always admin only' : 'Set department permissions'}
         >
-          {page.adminOnly && (
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          )}
+          {/* Lock/shield icon */}
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {restricted ? (
+              <>
+                <rect x="3" y="11" width="18" height="10" rx="2" />
+                <path d="M7 11V7a5 5 0 0110 0v4" />
+              </>
+            ) : (
+              <>
+                <rect x="3" y="11" width="18" height="10" rx="2" />
+                <path d="M7 11V7a5 5 0 019.9-1" />
+              </>
+            )}
+          </svg>
+          {restricted
+            ? `${page.allowedDepartments.length} dept${page.allowedDepartments.length === 1 ? '' : 's'}`
+            : 'Everyone'}
         </button>
       </div>
     );
@@ -205,8 +253,98 @@ export default function PagesContent() {
       </div>
 
       <p className="text-xs text-foreground/30 mt-4" style={{ fontFamily: 'var(--font-body)' }}>
-        Users and Pages are always admin-only and cannot be changed. Changes apply to all users.
+        Click the permissions chip to restrict a page to specific departments. Empty means everyone
+        sees it. Admins always see every page. Users, Pages, and Departments are always admin-only.
       </p>
+
+      {/* Permissions modal */}
+      {editingPage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="perm-modal-title"
+        >
+          <div
+            className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
+            onClick={() => setPermissionsFor(null)}
+          />
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-md p-6 max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              id="perm-modal-title"
+              className="text-lg font-bold text-foreground mb-1"
+            >
+              {editingPage.label} permissions
+            </h2>
+            <p className="text-xs text-foreground/50 mb-5" style={{ fontFamily: 'var(--font-body)' }}>
+              Pick the departments whose users can see <span className="font-mono">{editingPage.path}</span>.
+              Leaving this empty means everyone can see it. Admins always have access.
+            </p>
+
+            {departments.length === 0 ? (
+              <p className="text-sm text-foreground/40 py-4 text-center">
+                No departments yet. Create some on the Departments page first.
+              </p>
+            ) : (
+              <div className="space-y-1.5 mb-5">
+                {departments.map((d) => {
+                  const checked = editingPage.allowedDepartments.includes(d.id);
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => toggleDepartmentForPage(editingPage.path, d.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors text-left ${
+                        checked
+                          ? 'bg-primary/5 border-primary/30'
+                          : 'bg-white border-gray-200 hover:bg-warm-bg/30'
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 rounded border-2 inline-flex items-center justify-center shrink-0 transition-colors ${
+                          checked
+                            ? 'bg-primary border-primary text-white'
+                            : 'border-gray-300'
+                        }`}
+                      >
+                        {checked && (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: d.color || '#a0522d' }}
+                      />
+                      <span className="text-sm font-medium text-foreground flex-1">{d.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-gray-100">
+              <button
+                onClick={() => clearDepartmentsForPage(editingPage.path)}
+                className="text-xs font-semibold uppercase tracking-wider text-foreground/50 hover:text-foreground transition-colors px-2 py-1.5"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Clear (everyone)
+              </button>
+              <button
+                onClick={() => setPermissionsFor(null)}
+                className="px-5 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider text-white bg-primary hover:bg-primary-dark transition-colors"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-[fadeSlideUp_0.3s_ease-out]">

@@ -328,9 +328,17 @@ function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
 export { pageIcons };
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, signInWithGoogle, signOut } = useAuth();
-  const { isPageAdminOnly, navPages, popupPages } = usePagePermissions();
+  const { user, loading, isAdmin, departmentId, signInWithGoogle, signOut } = useAuth();
+  const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
   const pathname = usePathname();
+
+  // Sidebar/popup links are gated on both admin-only flag and the
+  // per-page department allow-list. Admins bypass the department check.
+  const canSeePage = (item: { path: string; adminOnly: boolean }) => {
+    if (item.adminOnly && !isAdmin) return false;
+    if (isAdmin) return true;
+    return isPageAllowedForDepartment(item.path, departmentId);
+  };
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -415,7 +423,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
         {/* Nav links */}
         <nav className="flex-1 p-3 space-y-1">
-          {navPages.filter((item) => !item.adminOnly || isAdmin).map((item) => {
+          {navPages.filter(canSeePage).map((item) => {
             const isActive = pathname === item.path;
             return (
               <Link
@@ -450,7 +458,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </svg>
                 My Profile
               </Link>
-              {popupPages.filter((item) => !item.adminOnly || isAdmin).map((item) => (
+              {popupPages.filter(canSeePage).map((item) => (
                 <Link
                   key={item.path}
                   href={item.path}
@@ -561,7 +569,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
               {/* Nav links */}
               <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-                {navPages.filter((item) => !item.adminOnly || isAdmin).map((item) => {
+                {navPages.filter(canSeePage).map((item) => {
                   const isActive = pathname === item.path;
                   return (
                     <Link
@@ -583,10 +591,10 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   );
                 })}
 
-                {popupPages.filter((item) => !item.adminOnly || isAdmin).length > 0 && (
+                {popupPages.filter(canSeePage).length > 0 && (
                   <>
                     <div className="h-px my-3 bg-gray-100 dark:bg-white/5" />
-                    {popupPages.filter((item) => !item.adminOnly || isAdmin).map((item) => {
+                    {popupPages.filter(canSeePage).map((item) => {
                       const isActive = pathname === item.path;
                       return (
                         <Link

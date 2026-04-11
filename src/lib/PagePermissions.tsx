@@ -10,23 +10,26 @@ export interface PageConfig {
   adminOnly: boolean;
   section: 'nav' | 'popup';
   sort_order: number;
+  // Department IDs permitted to view the page. Empty array = unrestricted.
+  // Admins always see the page regardless of this list.
+  allowedDepartments: string[];
 }
 
 const defaultPages: PageConfig[] = [
-  { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0 },
-  { path: '/app/facilities', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1 },
-  { path: '/app/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2 },
-  { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3 },
-  { path: '/app/calendar', label: 'Calendar', adminOnly: false, section: 'nav', sort_order: 4 },
-  { path: '/app/equine', label: 'Equine', adminOnly: false, section: 'nav', sort_order: 5 },
-  { path: '/app/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6 },
-  { path: '/app/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7 },
-  { path: '/app/frameworks', label: 'Frameworks', adminOnly: false, section: 'nav', sort_order: 8 },
-  { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9 },
-  { path: '/app/org-chart', label: 'Org Chart', adminOnly: false, section: 'nav', sort_order: 10 },
-  { path: '/app/users', label: 'Users', adminOnly: true, section: 'popup', sort_order: 0 },
-  { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1 },
-  { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2 },
+  { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0, allowedDepartments: [] },
+  { path: '/app/facilities', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1, allowedDepartments: [] },
+  { path: '/app/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2, allowedDepartments: [] },
+  { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3, allowedDepartments: [] },
+  { path: '/app/calendar', label: 'Calendar', adminOnly: false, section: 'nav', sort_order: 4, allowedDepartments: [] },
+  { path: '/app/equine', label: 'Equine', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [] },
+  { path: '/app/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6, allowedDepartments: [] },
+  { path: '/app/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7, allowedDepartments: [] },
+  { path: '/app/frameworks', label: 'Frameworks', adminOnly: false, section: 'nav', sort_order: 8, allowedDepartments: [] },
+  { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [] },
+  { path: '/app/org-chart', label: 'Org Chart', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [] },
+  { path: '/app/users', label: 'Users', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [] },
+  { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [] },
+  { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [] },
 ];
 
 interface PagePermissionsContextType {
@@ -34,7 +37,11 @@ interface PagePermissionsContextType {
   navPages: PageConfig[];
   popupPages: PageConfig[];
   setPageAdminOnly: (path: string, adminOnly: boolean) => void;
+  setPageDepartments: (path: string, allowedDepartments: string[]) => void;
   isPageAdminOnly: (path: string) => boolean;
+  // True when `userDepartmentId` (may be null) is allowed to view `path`.
+  // Unrestricted pages (empty allowedDepartments) are always allowed.
+  isPageAllowedForDepartment: (path: string, userDepartmentId: string | null) => boolean;
   updatePageLayout: (updatedPages: PageConfig[]) => void;
   loading: boolean;
 }
@@ -44,7 +51,9 @@ const PagePermissionsContext = createContext<PagePermissionsContextType>({
   navPages: defaultPages.filter((p) => p.section === 'nav'),
   popupPages: defaultPages.filter((p) => p.section === 'popup'),
   setPageAdminOnly: () => {},
+  setPageDepartments: () => {},
   isPageAdminOnly: () => false,
+  isPageAllowedForDepartment: () => true,
   updatePageLayout: () => {},
   loading: true,
 });
@@ -61,7 +70,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
         const data = await db({
           action: 'select',
           table: 'page_permissions',
-          select: 'path, admin_only, section, sort_order',
+          select: 'path, admin_only, section, sort_order, allowed_departments',
         });
 
         // Only apply DB overrides if query succeeded and returned data
@@ -71,7 +80,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
           const missing = defaultPages.filter((p) => !dbPaths.has(p.path));
           if (missing.length > 0) {
             for (const m of missing) {
-              await db({ action: 'upsert', table: 'page_permissions', data: [{ path: m.path, admin_only: m.adminOnly, section: m.section, sort_order: m.sort_order }], onConflict: 'path' });
+              await db({ action: 'upsert', table: 'page_permissions', data: [{ path: m.path, admin_only: m.adminOnly, section: m.section, sort_order: m.sort_order, allowed_departments: [] }], onConflict: 'path' });
             }
           }
 
@@ -85,6 +94,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
                   // Only override section/sort_order if they exist in DB
                   section: (match.section === 'nav' || match.section === 'popup') ? match.section : p.section,
                   sort_order: typeof match.sort_order === 'number' ? match.sort_order : p.sort_order,
+                  allowedDepartments: Array.isArray(match.allowed_departments) ? match.allowed_departments : [],
                 };
               }
               return p;
@@ -113,9 +123,29 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
     });
   };
 
+  const setPageDepartments = async (path: string, allowedDepartments: string[]) => {
+    setPages((prev) => prev.map((p) => (p.path === path ? { ...p, allowedDepartments } : p)));
+
+    await db({
+      action: 'upsert',
+      table: 'page_permissions',
+      data: [{ path, allowed_departments: allowedDepartments }],
+      onConflict: 'path',
+    });
+  };
+
   const isPageAdminOnly = (path: string) => {
     const page = pages.find((p) => p.path === path);
     return page?.adminOnly ?? false;
+  };
+
+  const isPageAllowedForDepartment = (path: string, userDepartmentId: string | null) => {
+    const page = pages.find((p) => p.path === path);
+    if (!page) return true;
+    // Empty list = unrestricted
+    if (!page.allowedDepartments || page.allowedDepartments.length === 0) return true;
+    if (!userDepartmentId) return false;
+    return page.allowedDepartments.includes(userDepartmentId);
   };
 
   const updatePageLayout = useCallback(async (updatedPages: PageConfig[]) => {
@@ -126,6 +156,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
       admin_only: p.adminOnly,
       section: p.section,
       sort_order: p.sort_order,
+      allowed_departments: p.allowedDepartments || [],
     }));
 
     await db({
@@ -141,7 +172,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   const popupPages = sorted.filter((p) => p.section === 'popup');
 
   return (
-    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, isPageAdminOnly, updatePageLayout, loading }}>
+    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, setPageDepartments, isPageAdminOnly, isPageAllowedForDepartment, updatePageLayout, loading }}>
       {children}
     </PagePermissionsContext.Provider>
   );
