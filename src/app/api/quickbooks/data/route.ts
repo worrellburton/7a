@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
 
       case 'accounts': {
         const query = encodeURIComponent(
-          'SELECT Id, Name, AccountType, AccountSubType, Classification, CurrentBalance, Active FROM Account MAXRESULTS 1000'
+          'SELECT Id, Name, AcctNum, AccountType, AccountSubType, Classification, CurrentBalance, Active FROM Account MAXRESULTS 1000'
         );
         const data = await qbApiFetch<unknown>(
           realmId,
