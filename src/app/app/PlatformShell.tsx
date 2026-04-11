@@ -240,6 +240,13 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M15 9h5v5" />
     </svg>
   ),
+  '/app/reports': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h2v5H8zM12 10h2v8h-2zM16 15h2v3h-2z" />
+    </svg>
+  ),
   '/app/org-chart': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="9" y="3" width="6" height="5" rx="1" />
