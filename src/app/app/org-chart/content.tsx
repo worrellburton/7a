@@ -51,6 +51,22 @@ function defaultPosition(index: number): { x: number; y: number } {
   };
 }
 
+// Midpoint of an elbow path — used for edge box-select hit-testing so an
+// edge is counted as "in the box" when its elbow bend lies inside.
+function elbowMidpoint(
+  from: { x: number; y: number },
+  to: { x: number; y: number }
+): { x: number; y: number } {
+  const sx = from.x + CARD_WIDTH / 2;
+  const sy = from.y + CARD_HEIGHT;
+  const tx = to.x + CARD_WIDTH / 2;
+  const ty = to.y;
+  if (ty < sy) {
+    return { x: (sx + tx) / 2, y: sy + 20 };
+  }
+  return { x: (sx + tx) / 2, y: (sy + ty) / 2 };
+}
+
 export default function OrgChartContent() {
   const { user, session, isAdmin } = useAuth();
   const [users, setUsers] = useState<OrgUser[]>([]);
@@ -62,7 +78,21 @@ export default function OrgChartContent() {
   const [connectMode, setConnectMode] = useState<ConnectMode>({ kind: 'off' });
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
-  const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Multi-selection state. Cards and edges can be selected independently
+  // via click-drag box select, shift-click, or shift-click on edges.
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
+  // Active box-select rectangle in canvas-local coordinates. Null when
+  // not currently drawing.
+  const [boxSelect, setBoxSelect] = useState<
+    { startX: number; startY: number; curX: number; curY: number } | null
+  >(null);
+  // Drag bookkeeping — starting positions of every card being dragged
+  // (one for single-card drag, many for group drag) plus the pointer
+  // location when the drag began. mousemove re-applies `pointer - start`
+  // to every card in the map.
+  const dragStartPositions = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const dragStartPointer = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const dragMoved = useRef(false);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
@@ -109,21 +139,49 @@ export default function OrgChartContent() {
       if (!isAdmin) return;
       // In connect mode, a mousedown on a card picks it as from/to — don't drag.
       if (connectMode.kind !== 'off') return;
+      // Stop the canvas mousedown from firing and starting a box-select.
+      e.stopPropagation();
       e.preventDefault();
+
+      // Shift-click toggles a card's membership in the selection without starting a drag.
+      if (e.shiftKey) {
+        setSelectedUserIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(userId)) next.delete(userId);
+          else next.add(userId);
+          return next;
+        });
+        return;
+      }
+
       const target = users.find((u) => u.id === userId);
       if (!target) return;
       const canvasRect = canvasRef.current?.getBoundingClientRect();
       if (!canvasRect) return;
       const pointerX = e.clientX - canvasRect.left;
       const pointerY = e.clientY - canvasRect.top;
-      dragOffset.current = {
-        x: pointerX - (target.org_x ?? 0),
-        y: pointerY - (target.org_y ?? 0),
-      };
+
+      // If the clicked card is part of a multi-selection, group-drag all
+      // selected cards. Otherwise, clear any existing selection and drag
+      // just this card.
+      const map = new Map<string, { x: number; y: number }>();
+      if (selectedUserIds.has(userId) && selectedUserIds.size > 1) {
+        for (const id of selectedUserIds) {
+          const u = users.find((x) => x.id === id);
+          if (u) map.set(id, { x: u.org_x ?? 0, y: u.org_y ?? 0 });
+        }
+      } else {
+        // Clicking an unselected (or solo-selected) card clears the selection.
+        setSelectedUserIds(new Set());
+        setSelectedEdgeIds(new Set());
+        map.set(userId, { x: target.org_x ?? 0, y: target.org_y ?? 0 });
+      }
+      dragStartPositions.current = map;
+      dragStartPointer.current = { x: pointerX, y: pointerY };
       dragMoved.current = false;
       setDraggingId(userId);
     },
-    [isAdmin, users, connectMode]
+    [isAdmin, users, connectMode, selectedUserIds]
   );
 
   useEffect(() => {
@@ -134,25 +192,41 @@ export default function OrgChartContent() {
       if (!canvasRect) return;
       const pointerX = e.clientX - canvasRect.left;
       const pointerY = e.clientY - canvasRect.top;
-      const nextX = Math.max(0, pointerX - dragOffset.current.x);
-      const nextY = Math.max(0, pointerY - dragOffset.current.y);
+      const dx = pointerX - dragStartPointer.current.x;
+      const dy = pointerY - dragStartPointer.current.y;
       dragMoved.current = true;
       setUsers((prev) =>
-        prev.map((u) => (u.id === draggingId ? { ...u, org_x: nextX, org_y: nextY } : u))
+        prev.map((u) => {
+          const start = dragStartPositions.current.get(u.id);
+          if (!start) return u;
+          return {
+            ...u,
+            org_x: Math.max(0, start.x + dx),
+            org_y: Math.max(0, start.y + dy),
+          };
+        })
       );
     };
 
     const handleMouseUp = async () => {
-      const target = users.find((u) => u.id === draggingId);
+      const movedIds = Array.from(dragStartPositions.current.keys());
       setDraggingId(null);
-      if (!target || !dragMoved.current) return;
-      const result = await db({
-        action: 'update',
-        table: 'users',
-        data: { org_x: target.org_x, org_y: target.org_y },
-        match: { id: target.id },
-      });
-      if (result?.error) showToast(`Failed to save: ${result.error}`);
+      if (!dragMoved.current) return;
+      // Snapshot current positions and persist each moved card.
+      for (const id of movedIds) {
+        const u = users.find((x) => x.id === id);
+        if (!u) continue;
+        const result = await db({
+          action: 'update',
+          table: 'users',
+          data: { org_x: u.org_x, org_y: u.org_y },
+          match: { id: u.id },
+        });
+        if (result?.error) {
+          showToast(`Failed to save: ${result.error}`);
+          break;
+        }
+      }
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -200,6 +274,109 @@ export default function OrgChartContent() {
     },
     [isAdmin, connectMode, edges]
   );
+
+  // Start a box-select when the mousedown lands on empty canvas space
+  // (i.e. not on a card, not on an edge hit region). Disabled during
+  // connect mode so clicks still pick cards.
+  const handleCanvasMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!isAdmin) return;
+      if (connectMode.kind !== 'off') return;
+      // Only react when the hit target is the canvas itself or the
+      // background SVG — cards/edges call stopPropagation or sit in
+      // higher layers.
+      const target = e.target as Element;
+      if (target !== canvasRef.current && target.tagName !== 'svg') return;
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      if (!canvasRect) return;
+      const x = e.clientX - canvasRect.left;
+      const y = e.clientY - canvasRect.top;
+      // Clear any previous selection unless the shift key is held.
+      if (!e.shiftKey) {
+        setSelectedUserIds(new Set());
+        setSelectedEdgeIds(new Set());
+      }
+      setBoxSelect({ startX: x, startY: y, curX: x, curY: y });
+    },
+    [isAdmin, connectMode]
+  );
+
+  // While a box-select is active, listen for mousemove to update the
+  // rectangle, and mouseup to commit the selection.
+  useEffect(() => {
+    if (!boxSelect) return;
+    const startShiftSelectionUsers = new Set(selectedUserIds);
+    const startShiftSelectionEdges = new Set(selectedEdgeIds);
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
+      if (!canvasRect) return;
+      const curX = e.clientX - canvasRect.left;
+      const curY = e.clientY - canvasRect.top;
+      setBoxSelect((prev) => (prev ? { ...prev, curX, curY } : prev));
+
+      const minX = Math.min(boxSelect.startX, curX);
+      const maxX = Math.max(boxSelect.startX, curX);
+      const minY = Math.min(boxSelect.startY, curY);
+      const maxY = Math.max(boxSelect.startY, curY);
+
+      // Card hit test — any overlap of the card AABB with the box.
+      const hitUsers = new Set<string>(startShiftSelectionUsers);
+      for (const u of users) {
+        if (!showHidden && u.org_hidden) continue;
+        const cx = u.org_x ?? 0;
+        const cy = u.org_y ?? 0;
+        const overlaps =
+          cx < maxX && cx + CARD_WIDTH > minX && cy < maxY && cy + CARD_HEIGHT > minY;
+        if (overlaps) hitUsers.add(u.id);
+      }
+      setSelectedUserIds(hitUsers);
+
+      // Edge hit test — include an edge when its elbow midpoint is in the box.
+      const hitEdges = new Set<string>(startShiftSelectionEdges);
+      for (const edge of edges) {
+        const from = users.find((u) => u.id === edge.from_user_id);
+        const to = users.find((u) => u.id === edge.to_user_id);
+        if (!from || !to) continue;
+        if (!showHidden && (from.org_hidden || to.org_hidden)) continue;
+        const mid = elbowMidpoint(
+          { x: from.org_x ?? 0, y: from.org_y ?? 0 },
+          { x: to.org_x ?? 0, y: to.org_y ?? 0 }
+        );
+        if (mid.x >= minX && mid.x <= maxX && mid.y >= minY && mid.y <= maxY) {
+          hitEdges.add(edge.id);
+        }
+      }
+      setSelectedEdgeIds(hitEdges);
+    };
+
+    const handleMouseUp = () => {
+      setBoxSelect(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+    // Only re-run when a box-select starts; live pointer state is tracked
+    // inside the handler via refs and setState.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boxSelect?.startX, boxSelect?.startY, users, edges, showHidden]);
+
+  // Escape clears any active selection.
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedUserIds(new Set());
+        setSelectedEdgeIds(new Set());
+        setBoxSelect(null);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
 
   async function deleteEdge(edgeId: string) {
     if (!isAdmin) return;
@@ -494,6 +671,7 @@ export default function OrgChartContent() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-auto">
           <div
             ref={canvasRef}
+            onMouseDown={handleCanvasMouseDown}
             className="relative select-none"
             style={{
               width: canvasSize.width + 'px',
@@ -501,6 +679,7 @@ export default function OrgChartContent() {
               backgroundImage:
                 'radial-gradient(circle, rgba(160, 82, 45, 0.07) 1px, transparent 1px)',
               backgroundSize: '22px 22px',
+              cursor: isAdmin && connectMode.kind === 'off' ? 'crosshair' : undefined,
             }}
           >
             {/* Edges layer (behind cards) */}
@@ -542,6 +721,7 @@ export default function OrgChartContent() {
                 if (!displayedUserIds.has(from.id) || !displayedUserIds.has(to.id)) return null;
                 const d = elbowPath(from, to);
                 const isHovered = hoveredEdgeId === edge.id;
+                const isSelected = selectedEdgeIds.has(edge.id);
                 // Midpoint for delete handle — use approximate center of path.
                 const sx = (from.org_x ?? 0) + CARD_WIDTH / 2;
                 const sy = (from.org_y ?? 0) + CARD_HEIGHT;
@@ -565,8 +745,8 @@ export default function OrgChartContent() {
                     <path
                       d={d}
                       fill="none"
-                      stroke={isHovered ? '#ef4444' : '#a0522d'}
-                      strokeWidth={isHovered ? 2.5 : 2}
+                      stroke={isHovered ? '#ef4444' : isSelected ? '#2563eb' : '#a0522d'}
+                      strokeWidth={isHovered || isSelected ? 2.5 : 2}
                       markerEnd={isHovered ? 'url(#org-arrow-hover)' : 'url(#org-arrow)'}
                       style={{ transition: 'stroke 120ms, stroke-width 120ms' }}
                     />
@@ -594,6 +774,7 @@ export default function OrgChartContent() {
             {displayedUsers.map((u) => {
               const dept = u.department_id ? deptById.get(u.department_id) : null;
               const isDragging = draggingId === u.id;
+              const isSelected = selectedUserIds.has(u.id);
               const isPickingFrom = connectMode.kind === 'pickingFrom';
               const isPickedSource = connectMode.kind === 'pickingTo' && connectMode.fromId === u.id;
               const isPickingTo = connectMode.kind === 'pickingTo' && connectMode.fromId !== u.id;
@@ -603,6 +784,9 @@ export default function OrgChartContent() {
                 : isPickingFrom || isPickingTo
                 ? 'border-primary/40 ring-1 ring-primary/10 cursor-pointer hover:ring-primary/40 hover:border-primary'
                 : '';
+              const selectionHighlight = isSelected
+                ? 'border-blue-500 ring-2 ring-blue-400/40 shadow-lg z-20'
+                : '';
               return (
                 <div
                   key={u.id}
@@ -611,7 +795,7 @@ export default function OrgChartContent() {
                   className={`absolute bg-white rounded-2xl border transition-shadow ${
                     isDragging
                       ? 'border-primary shadow-2xl z-20 scale-[1.02]'
-                      : `${connectHighlight || 'border-gray-200 shadow-sm hover:shadow-md'} z-10`
+                      : `${selectionHighlight || connectHighlight || 'border-gray-200 shadow-sm hover:shadow-md'} z-10`
                   } ${
                     isAdmin
                       ? connectMode.kind !== 'off'
@@ -686,6 +870,17 @@ export default function OrgChartContent() {
                 </div>
               );
             })}
+            {boxSelect && (
+              <div
+                className="absolute pointer-events-none border-2 border-blue-500 bg-blue-500/10 z-30"
+                style={{
+                  left: Math.min(boxSelect.startX, boxSelect.curX) + 'px',
+                  top: Math.min(boxSelect.startY, boxSelect.curY) + 'px',
+                  width: Math.abs(boxSelect.curX - boxSelect.startX) + 'px',
+                  height: Math.abs(boxSelect.curY - boxSelect.startY) + 'px',
+                }}
+              />
+            )}
             {displayedUsers.length === 0 && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
