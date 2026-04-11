@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exchangeCodeForTokens, saveIntegration } from '@/lib/quickbooks';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { exchangeCodeForTokens, upsertStoredToken } from '@/lib/quickbooks';
 
 // GET /api/quickbooks/callback?code=...&state=...&realmId=...
-// Intuit redirects here after the user authorizes the app.
+// Intuit redirects here after the user authorizes the app. Token row is
+// keyed by realm_id so each connected Intuit company is its own entry.
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
@@ -26,11 +26,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const tokens = await exchangeCodeForTokens(code, url.origin);
-    const supabase = await getServerSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
-    await saveIntegration(realmId, tokens, user?.id ?? null);
+    await upsertStoredToken(realmId, tokens);
 
-    const res = NextResponse.redirect(`${url.origin}/app/finance?connected=1`);
+    const res = NextResponse.redirect(
+      `${url.origin}/app/finance?connected=1&realm_id=${encodeURIComponent(realmId)}`
+    );
     res.cookies.delete('qbo_oauth_state');
     return res;
   } catch (err) {
