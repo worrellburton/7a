@@ -24,7 +24,6 @@ const defaultPages: PageConfig[] = [
   { path: '/app/equine', label: 'Equine', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [] },
   { path: '/app/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6, allowedDepartments: [] },
   { path: '/app/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7, allowedDepartments: [] },
-  { path: '/app/frameworks', label: 'Frameworks', adminOnly: false, section: 'nav', sort_order: 8, allowedDepartments: [] },
   { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [] },
   { path: '/app/reports', label: 'Reports', adminOnly: true, section: 'nav', sort_order: 10, allowedDepartments: [] },
   { path: '/app/org-chart', label: 'Org Chart', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [] },
