@@ -67,20 +67,34 @@ function LoginBackground() {
         float asp = uRes.x / uRes.y;
         float t = uTime * 0.04;
 
-        // Cool near-white base — Apple-style off-white
-        vec3 bg = vec3(0.973, 0.976, 0.980);
+        // Warm tan base
+        vec3 bg = vec3(0.96, 0.94, 0.92);
 
-        // Cool neutral palette for the flowing bands
-        vec3 mist  = vec3(0.945, 0.949, 0.957);
-        vec3 steel = vec3(0.820, 0.850, 0.895);
-        vec3 azure = vec3(0.000, 0.443, 0.890);
+        // Warm palette for waves
+        vec3 sand  = vec3(0.92, 0.88, 0.82);
+        vec3 terra = vec3(0.78, 0.58, 0.42);
+        vec3 rose  = vec3(0.82, 0.65, 0.55);
 
         float n1 = fbm(uv * 2.0 + t * 0.3);
+        float n2 = fbm(uv * 2.5 + t * 0.2 + 5.0);
 
-        // Single-pass flowing wave bands (cleaned up — the old shader had a
-        // duplicate loop that overwrote its own color). Starts from the
-        // base then accumulates.
-        vec3 col = bg;
+        // Subtle flowing wave bands
+        for (int i = 0; i < 4; i++) {
+          float fi = float(i);
+          float freq = 1.5 + fi * 0.6;
+          float speed = 0.3 + fi * 0.08;
+          float yOff = 0.3 + fi * 0.12;
+          float n = fbm(vec2(uv.x * asp * 1.2 + fi * 2.5, t * 0.15 + fi));
+          float wave = sin(uv.x * asp * freq + t * speed + n * 2.5) * (0.06 + fi * 0.01);
+          float line = smoothstep(0.004, 0.0, abs(uv.y - yOff + wave));
+          float glow = smoothstep(0.08, 0.0, abs(uv.y - yOff + wave));
+          vec3 lineCol = mix(terra, rose, fi / 3.0);
+          col = bg;
+          col = bg + lineCol * line * 0.12 + lineCol * glow * 0.03;
+        }
+
+        // Very subtle drifting warmth
+        col = bg;
         for (int i = 0; i < 4; i++) {
           float fi = float(i);
           float freq = 1.5 + fi * 0.6;
@@ -90,16 +104,15 @@ function LoginBackground() {
           float wave = sin(uv.x * asp * freq + t * speed + n * 2.5) * (0.06 + fi * 0.01);
           float line = smoothstep(0.003, 0.0, abs(uv.y - yOff + wave));
           float glow = smoothstep(0.06, 0.0, abs(uv.y - yOff + wave));
-          // Fade from a soft steel through to a restrained azure accent
-          vec3 lineCol = mix(steel, azure, fi / 3.0);
-          col += lineCol * line * 0.10 + lineCol * glow * 0.02;
+          vec3 lineCol = mix(terra, rose, fi / 3.0);
+          col += lineCol * line * 0.08 + lineCol * glow * 0.015;
         }
 
-        // Barely-there cool noise texture
-        col += (mist - bg) * n1 * 0.04;
+        // Barely-there noise texture
+        col += (sand - bg) * n1 * 0.03;
 
         // Film grain
-        col += (hash(uv * uRes + fract(uTime * 0.5)) - 0.5) * 0.005;
+        col += (hash(uv * uRes + fract(uTime * 0.5)) - 0.5) * 0.006;
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -172,7 +185,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      className="fixed bottom-5 right-5 z-50 w-10 h-10 rounded-full bg-white dark:bg-[#1d1d1f] border border-gray-200 dark:border-white/10 shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
+      className="fixed bottom-5 right-5 z-50 w-10 h-10 rounded-full bg-white dark:bg-[#2a2118] border border-gray-200 dark:border-white/10 shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
       aria-label="Toggle theme"
     >
       {dark ? (
@@ -380,7 +393,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           <div className="mb-10" />
           <button
             onClick={signInWithGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-foreground hover:bg-black text-white rounded-full py-3.5 px-6 text-[15px] font-medium transition-all shadow-sm hover:shadow-lg"
+            className="w-full flex items-center justify-center gap-3 bg-foreground hover:bg-foreground/90 text-white rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-sm hover:shadow-lg"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -404,26 +417,26 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
           <Link href="/app" className="flex items-center gap-2.5">
-            <span className="text-[22px] font-semibold text-foreground tracking-tight">7A</span>
+            <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
           </Link>
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 p-3 space-y-0.5">
+        <nav className="flex-1 p-3 space-y-1">
           {navPages.filter(canSeePage).map((item) => {
             const isActive = pathname === item.path;
             return (
               <Link
                 key={item.path}
                 href={item.path}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-gray-100 text-foreground'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-foreground'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-foreground/60 hover:bg-warm-bg hover:text-foreground'
                 }`}
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                <span className={isActive ? 'text-foreground' : 'text-gray-400'}>{getPageIcon(item.path)}</span>
+                <span className={isActive ? 'text-primary' : 'text-foreground/40'}>{getPageIcon(item.path)}</span>
                 {item.label}
               </Link>
             );
@@ -437,7 +450,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <Link
                 href="/app/profile"
                 onClick={() => setUserMenuOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
@@ -450,7 +463,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   key={item.path}
                   href={item.path}
                   onClick={() => setUserMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {getPageIcon(item.path, 'sm')}
@@ -461,7 +474,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 href="/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
@@ -483,12 +496,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           )}
           <button
             onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-warm-bg transition-colors text-left"
           >
             {user.user_metadata?.avatar_url ? (
               <img src={user.user_metadata.avatar_url} alt="" className="w-8 h-8 rounded-full" />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-foreground flex items-center justify-center text-white text-xs font-semibold">
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
                 {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
               </div>
             )}
@@ -506,13 +519,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       </aside>
 
       {/* Main content area */}
-      <div className="flex-1 bg-gray-100 overflow-auto relative">
+      <div className="flex-1 bg-warm-bg overflow-auto relative">
         {/* Mobile top bar */}
-        <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/85 dark:bg-[#1d1d1f]/85 backdrop-blur-xl border-b border-gray-100 dark:border-white/5">
+        <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 dark:bg-[#1a1410]/90 backdrop-blur border-b border-gray-100 dark:border-white/5">
           <button
             onClick={() => setMobileMenuOpen(true)}
             aria-label="Open menu"
-            className="p-2 -ml-2 rounded-lg text-foreground/70 hover:bg-gray-100 transition-colors"
+            className="p-2 -ml-2 rounded-lg text-foreground/70 hover:bg-warm-bg transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="6" x2="21" y2="6" />
@@ -520,7 +533,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <Link href="/app" className="text-xl font-semibold text-foreground tracking-tight">
+          <Link href="/app" className="text-xl font-black text-primary tracking-tighter">
             7A
           </Link>
           <div className="w-10" aria-hidden="true" />
@@ -536,16 +549,16 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               aria-hidden="true"
             />
             {/* Panel */}
-            <aside className="absolute inset-y-0 left-0 w-[82%] max-w-[320px] bg-white dark:bg-[#1d1d1f] border-r border-gray-100 dark:border-white/5 shadow-2xl flex flex-col animate-drawer-slide">
+            <aside className="absolute inset-y-0 left-0 w-[82%] max-w-[320px] bg-white dark:bg-[#1a1410] border-r border-gray-100 dark:border-white/5 shadow-2xl flex flex-col animate-drawer-slide">
               {/* Header: brand + close */}
               <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-white/5">
                 <Link href="/app" className="flex items-center gap-2.5">
-                  <span className="text-[22px] font-semibold text-foreground tracking-tight">7A</span>
+                  <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
                 </Link>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
                   aria-label="Close menu"
-                  className="p-2 -mr-2 rounded-lg text-foreground/60 hover:bg-gray-100 transition-colors"
+                  className="p-2 -mr-2 rounded-lg text-foreground/60 hover:bg-warm-bg transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -555,7 +568,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               </div>
 
               {/* Nav links */}
-              <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+              <nav className="flex-1 overflow-y-auto p-3 space-y-1">
                 {navPages.filter(canSeePage).map((item) => {
                   const isActive = pathname === item.path;
                   return (
@@ -563,14 +576,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       key={item.path}
                       href={item.path}
                       onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
+                      className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
                         isActive
-                          ? 'bg-gray-100 text-foreground'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-foreground'
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
                       }`}
                       style={{ fontFamily: 'var(--font-body)' }}
                     >
-                      <span className={isActive ? 'text-foreground' : 'text-gray-400'}>
+                      <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
                         {getPageIcon(item.path)}
                       </span>
                       {item.label}
@@ -588,14 +601,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                           key={item.path}
                           href={item.path}
                           onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
+                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
                             isActive
-                              ? 'bg-gray-100 text-foreground'
-                              : 'text-gray-600 hover:bg-gray-50 hover:text-foreground'
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
                           }`}
                           style={{ fontFamily: 'var(--font-body)' }}
                         >
-                          <span className={isActive ? 'text-foreground' : 'text-gray-400'}>
+                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
                             {getPageIcon(item.path)}
                           </span>
                           {item.label}
@@ -608,14 +621,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 <Link
                   href="/app/profile"
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors ${
+                  className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
                     pathname === '/app/profile'
-                      ? 'bg-gray-100 text-foreground'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-foreground'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
                   }`}
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  <span className={pathname === '/app/profile' ? 'text-foreground' : 'text-gray-400'}>
+                  <span className={pathname === '/app/profile' ? 'text-primary' : 'text-foreground/40'}>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
@@ -630,7 +643,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   {user.user_metadata?.avatar_url ? (
                     <img src={user.user_metadata.avatar_url} alt="" className="w-9 h-9 rounded-full" />
                   ) : (
-                    <div className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center text-white text-sm font-semibold">
+                    <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold">
                       {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
                     </div>
                   )}

@@ -93,7 +93,7 @@ export default function OurProgramPage() {
                 href={program.href}
                 className="group bg-warm-card rounded-2xl p-8 shadow-sm hover:shadow-md transition-all duration-300"
               >
-                <h3 className="text-xl font-bold text-foreground mb-3 group-hover:text-[#0071e3] transition-colors">
+                <h3 className="text-xl font-bold text-foreground mb-3 group-hover:text-[#a0522d] transition-colors">
                   {program.title}
                 </h3>
                 <p
@@ -103,7 +103,7 @@ export default function OurProgramPage() {
                   {program.description}
                 </p>
                 <span
-                  className="text-[#0071e3] font-semibold text-sm"
+                  className="text-[#a0522d] font-semibold text-sm"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   Learn more &rarr;
