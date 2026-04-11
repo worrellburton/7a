@@ -520,13 +520,13 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                           opacity: open ? 1 : 0,
                           transform: open ? 'translateY(0)' : 'translateY(8px)',
                           transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
-                          backgroundColor: 'rgba(160,82,45,0.03)',
+                          backgroundColor: 'rgba(0,113,227,0.03)',
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.07)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.03)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0,113,227,0.07)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0,113,227,0.03)'; }}
                       >
                         {Icon && (
-                          <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-3" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-3" style={{ backgroundColor: 'rgba(0,113,227,0.1)' }}>
                             <Icon className="w-6 h-6 text-primary" />
                           </div>
                         )}
@@ -536,7 +536,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                     );
                   })}
                 </div>
-                <p className="text-center text-[11px] tracking-[0.15em] uppercase pb-3" style={{ fontFamily: 'var(--font-body)', color: 'rgba(160,82,45,0.6)' }}>Here for every step of the way</p>
+                <p className="text-center text-[11px] tracking-[0.15em] uppercase pb-3" style={{ fontFamily: 'var(--font-body)', color: 'rgba(0,113,227,0.6)' }}>Here for every step of the way</p>
               </div>
             ) : item.label === 'Who We Are' ? (
               /* Who We Are: Featured "Meet Our Team" + 3 cols of 2 for the rest */
@@ -551,12 +551,12 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                         href={sub.href}
                         className="group row-span-2 flex flex-col items-center justify-center text-center px-6 py-8 rounded-xl border border-primary/15 transition-all duration-200 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5"
                         onClick={() => setOpen(false)}
-                        style={{ backgroundColor: 'rgba(160,82,45,0.05)', opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: 'all 0.3s ease-out 0.05s' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.1)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.05)'; }}
+                        style={{ backgroundColor: 'rgba(0,113,227,0.05)', opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: 'all 0.3s ease-out 0.05s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0,113,227,0.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0,113,227,0.05)'; }}
                       >
                         {Icon && (
-                          <div className="w-14 h-14 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-4" style={{ backgroundColor: 'rgba(160,82,45,0.12)' }}>
+                          <div className="w-14 h-14 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-4" style={{ backgroundColor: 'rgba(0,113,227,0.12)' }}>
                             <Icon className="w-7 h-7 text-primary" />
                           </div>
                         )}
@@ -575,11 +575,11 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                         className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
                         onClick={() => setOpen(false)}
                         style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + (idx + 1) * 0.03}s` }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0,113,227,0.06)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                       >
                         {Icon && (
-                          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(0,113,227,0.1)' }}>
                             <Icon className="w-4 h-4 text-primary" />
                           </div>
                         )}
@@ -604,11 +604,11 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                       className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
                       onClick={() => setOpen(false)}
                       style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s` }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0,113,227,0.06)'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                     >
                       {Icon && (
-                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(0,113,227,0.1)' }}>
                           <Icon className="w-4 h-4 text-primary" />
                         </div>
                       )}
@@ -635,13 +635,13 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                         opacity: open ? 1 : 0,
                         transform: open ? 'translateY(0)' : 'translateY(8px)',
                         transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
-                        backgroundColor: 'rgba(160,82,45,0.03)',
+                        backgroundColor: 'rgba(0,113,227,0.03)',
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.07)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.03)'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0,113,227,0.07)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0,113,227,0.03)'; }}
                     >
                       {Icon && (
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2" style={{ backgroundColor: 'rgba(0,113,227,0.1)' }}>
                           <Icon className="w-5 h-5 text-primary" />
                         </div>
                       )}
@@ -663,11 +663,11 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                       className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
                       onClick={() => setOpen(false)}
                       style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s` }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0,113,227,0.06)'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                     >
                       {Icon && (
-                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(0,113,227,0.1)' }}>
                           <Icon className="w-4 h-4 text-primary" />
                         </div>
                       )}
@@ -741,7 +741,7 @@ export default function Header() {
           <a
             href="tel:+18669964308"
             className="hidden lg:inline-flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white px-3 xl:px-5 py-2 xl:py-2.5 rounded-full text-xs xl:text-sm font-bold tracking-wide transition-all whitespace-nowrap shrink-0 ml-2 xl:ml-4 relative"
-            style={{ fontFamily: 'var(--font-body)', boxShadow: '0 2px 12px rgba(160,82,45,0.35)' }}
+            style={{ fontFamily: 'var(--font-body)', boxShadow: '0 2px 12px rgba(0,113,227,0.35)' }}
             aria-label="Call us at (866) 996-4308"
           >
             {/* Pulse ring */}
