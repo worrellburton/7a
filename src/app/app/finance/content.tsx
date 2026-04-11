@@ -2,32 +2,92 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-interface QBStatus {
-  configured: boolean;
-  connected: boolean;
-  realmId: string | null;
-  connectedAt: string | null;
-  expiresAt: string | null;
+// ------------------------------------------------------------
+// Multi-tenant QuickBooks finance page.
+//
+// `quickbooks_tokens` holds one row per connected Intuit company. This page:
+//   1. Lists connected companies via /api/quickbooks/data?report=list
+//   2. Lets an admin pick one, or Connect another via OAuth
+//   3. Fetches reports for the selected realm via
+//      /api/quickbooks/data?report=<type>&realm_id=<id>
+//
+// Reports use QBO's generic {Header, Columns, Rows} shape; we render them
+// with a single recursive table component that flattens nested row groups
+// into visually indented sections.
+// ------------------------------------------------------------
+
+interface Company {
+  realm_id: string;
+  expires_at: string;
+  updated_at: string;
 }
 
-interface QBAccount {
+interface CompanyInfo {
+  CompanyInfo?: {
+    CompanyName: string;
+    LegalName?: string;
+    CompanyAddr?: { Line1?: string; City?: string; CountrySubDivisionCode?: string; PostalCode?: string };
+    PrimaryPhone?: { FreeFormNumber?: string };
+    Email?: { Address?: string };
+    Country?: string;
+    FiscalYearStartMonth?: string;
+  };
+}
+
+interface Account {
   Id: string;
   Name: string;
-  AccountType: string;
+  AccountType?: string;
+  AccountSubType?: string;
+  Classification?: string;
   CurrentBalance?: number;
+  Active?: boolean;
 }
 
-interface QBCompany {
-  CompanyName: string;
-  LegalName?: string;
-  CompanyAddr?: { Line1?: string; City?: string; CountrySubDivisionCode?: string; PostalCode?: string };
-  PrimaryPhone?: { FreeFormNumber?: string };
-  Email?: { Address?: string };
-  Country?: string;
+interface AccountsResponse {
+  QueryResponse?: { Account?: Account[] };
 }
+
+// QBO report shape — recursive rows.
+interface ReportColData {
+  value?: string;
+  id?: string;
+}
+interface ReportRow {
+  ColData?: ReportColData[];
+  Rows?: { Row?: ReportRow[] };
+  Summary?: { ColData?: ReportColData[] };
+  Header?: { ColData?: ReportColData[] };
+  type?: string;
+  group?: string;
+}
+interface ReportResponse {
+  Header?: { Time?: string; ReportName?: string; DateMacro?: string; StartPeriod?: string; EndPeriod?: string };
+  Columns?: { Column?: Array<{ ColTitle?: string; ColType?: string }> };
+  Rows?: { Row?: ReportRow[] };
+}
+
+type Tab =
+  | 'company'
+  | 'accounts'
+  | 'profit-loss'
+  | 'profit-loss-monthly'
+  | 'balance-sheet'
+  | 'trial-balance'
+  | 'general-ledger';
+
+const TABS: Array<{ id: Tab; label: string; report: string }> = [
+  { id: 'company', label: 'Company', report: 'company-info' },
+  { id: 'accounts', label: 'Accounts', report: 'accounts' },
+  { id: 'profit-loss', label: 'P&L', report: 'profit-loss' },
+  { id: 'profit-loss-monthly', label: 'P&L Monthly', report: 'profit-loss-monthly' },
+  { id: 'balance-sheet', label: 'Balance Sheet', report: 'balance-sheet' },
+  { id: 'trial-balance', label: 'Trial Balance', report: 'trial-balance' },
+  { id: 'general-ledger', label: 'General Ledger', report: 'general-ledger' },
+];
 
 function fmtMoney(n: number | undefined) {
   if (n === undefined || n === null || Number.isNaN(n)) return '—';
@@ -40,11 +100,11 @@ export default function FinanceContent() {
   const searchParams = useSearchParams();
   const { confirm } = useModal();
 
-  const [status, setStatus] = useState<QBStatus | null>(null);
-  const [company, setCompany] = useState<QBCompany | null>(null);
-  const [accounts, setAccounts] = useState<QBAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchingData, setFetchingData] = useState(false);
+  const [companies, setCompanies] = useState<Company[] | null>(null);
+  const [selectedRealm, setSelectedRealm] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('company');
+  const [reportData, setReportData] = useState<unknown>(null);
+  const [fetching, setFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -53,126 +113,131 @@ export default function FinanceContent() {
     setTimeout(() => setToast(null), 2500);
   };
 
-  // Surface query-string feedback from the OAuth callback
+  // Surface OAuth callback feedback
   useEffect(() => {
     const err = searchParams.get('error');
     const connected = searchParams.get('connected');
+    const justConnectedRealm = searchParams.get('realm_id');
     if (err) {
       setError(decodeURIComponent(err));
     } else if (connected) {
       showToast('QuickBooks connected successfully');
+      if (justConnectedRealm) setSelectedRealm(justConnectedRealm);
     }
   }, [searchParams]);
 
+  // Admin gate
   useEffect(() => {
     if (!session?.access_token) return;
     if (!isAdmin) {
       router.replace('/app');
-      return;
     }
+  }, [session, isAdmin, router]);
 
-    async function loadStatus() {
-      try {
-        const res = await fetch('/api/quickbooks/status', { credentials: 'include' });
-        if (!res.ok) {
-          if (res.status === 403) setError('Admin access required');
-          return;
-        }
-        const data = (await res.json()) as QBStatus;
-        setStatus(data);
-        if (data.connected) {
-          loadCompany();
-        }
-      } catch (e) {
-        setError(String(e));
-      } finally {
-        setLoading(false);
+  const loadCompanies = useCallback(async () => {
+    try {
+      const res = await fetch('/api/quickbooks/data?report=list', { credentials: 'include' });
+      if (!res.ok) {
+        if (res.status === 403) setError('Admin access required');
+        else if (res.status === 401) setError('Please sign in');
+        return;
       }
+      const body = (await res.json()) as { companies?: Company[] };
+      const list = body.companies || [];
+      setCompanies(list);
+      // Auto-select first if nothing chosen yet
+      setSelectedRealm((cur) => cur ?? (list[0]?.realm_id ?? null));
+    } catch (e) {
+      setError(String(e));
     }
+  }, []);
 
-    async function loadCompany() {
-      setFetchingData(true);
+  useEffect(() => {
+    if (!session?.access_token || !isAdmin) return;
+    loadCompanies();
+  }, [session, isAdmin, loadCompanies]);
+
+  const loadReport = useCallback(
+    async (realmId: string, reportName: string) => {
+      setFetching(true);
+      setError(null);
+      setReportData(null);
       try {
-        const res = await fetch('/api/quickbooks/company', { credentials: 'include' });
+        const res = await fetch(
+          `/api/quickbooks/data?report=${reportName}&realm_id=${encodeURIComponent(realmId)}`,
+          { credentials: 'include' }
+        );
         if (!res.ok) {
           const body = await res.json().catch(() => ({ error: 'Request failed' }));
-          setError(body.error || 'Failed to load company');
+          setError(body.error || `Request failed (${res.status})`);
           return;
         }
         const data = await res.json();
-        setCompany(data.company);
-        setAccounts(data.accounts || []);
+        setReportData(data);
       } catch (e) {
         setError(String(e));
       } finally {
-        setFetchingData(false);
+        setFetching(false);
       }
-    }
+    },
+    []
+  );
 
-    loadStatus();
-  }, [session, isAdmin, router]);
+  // When realm or tab changes, fetch the matching report.
+  useEffect(() => {
+    if (!selectedRealm) return;
+    const t = TABS.find((x) => x.id === tab);
+    if (!t) return;
+    loadReport(selectedRealm, t.report);
+  }, [selectedRealm, tab, loadReport]);
 
-  async function handleConnect() {
+  function handleConnect() {
     window.location.href = '/api/quickbooks/auth';
   }
 
   async function handleDisconnect() {
-    const ok = await confirm('Disconnect QuickBooks?', {
-      message: 'You will need to re-authorize the app to reconnect.',
+    if (!selectedRealm) return;
+    const ok = await confirm('Disconnect this QuickBooks company?', {
+      message: `Realm ${selectedRealm} will be revoked at Intuit. You can reconnect at any time.`,
       confirmLabel: 'Disconnect',
       tone: 'danger',
     });
     if (!ok) return;
-    const res = await fetch('/api/quickbooks/disconnect', { method: 'POST', credentials: 'include' });
+    const res = await fetch(
+      `/api/quickbooks/disconnect?realm_id=${encodeURIComponent(selectedRealm)}`,
+      { method: 'POST', credentials: 'include' }
+    );
     if (res.ok) {
-      setStatus((s) => (s ? { ...s, connected: false, realmId: null, connectedAt: null, expiresAt: null } : null));
-      setCompany(null);
-      setAccounts([]);
-      showToast('QuickBooks disconnected');
+      showToast('Disconnected');
+      setSelectedRealm(null);
+      setReportData(null);
+      loadCompanies();
     } else {
       showToast('Failed to disconnect');
     }
   }
 
-  async function handleRefresh() {
-    setFetchingData(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/quickbooks/company', { credentials: 'include' });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: 'Request failed' }));
-        setError(body.error || 'Failed to refresh');
-        return;
-      }
-      const data = await res.json();
-      setCompany(data.company);
-      setAccounts(data.accounts || []);
-      showToast('Refreshed');
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setFetchingData(false);
-    }
-  }
-
   if (!user || !isAdmin) return null;
+
+  const loadingList = companies === null;
+  const hasCompanies = !!companies && companies.length > 0;
 
   return (
     <div className="p-6 lg:p-10">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground mb-1">Finance</h1>
         <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-          Connect QuickBooks Online to pull company information, account balances, and transactions.
+          Connect QuickBooks Online companies to pull reports, balances, and transactions.
         </p>
       </div>
 
-      {loading ? (
+      {loadingList ? (
         <div className="flex items-center justify-center py-16">
           <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
         <div className="space-y-5">
-          {/* Connection card */}
+          {/* Connection header */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div className="flex items-start gap-4">
@@ -184,64 +249,49 @@ export default function FinanceContent() {
                 <div>
                   <h2 className="text-base font-semibold text-foreground">QuickBooks Online</h2>
                   <p className="text-xs text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-                    {status?.connected
-                      ? `Connected • Realm ${status.realmId}`
-                      : status?.configured
-                      ? 'Not connected yet'
-                      : 'Server credentials missing'}
+                    {hasCompanies
+                      ? `${companies!.length} connected ${companies!.length === 1 ? 'company' : 'companies'}`
+                      : 'No companies connected yet'}
                   </p>
-                  {status?.connectedAt && (
-                    <p className="text-[11px] text-foreground/40 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                      Connected {new Date(status.connectedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    </p>
-                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {status?.connected ? (
-                  <>
-                    <button
-                      onClick={handleRefresh}
-                      disabled={fetchingData}
-                      className="px-4 py-2 bg-warm-bg text-foreground rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-warm-card transition-colors disabled:opacity-50"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {fetchingData ? 'Refreshing…' : 'Refresh'}
-                    </button>
-                    <button
-                      onClick={handleDisconnect}
-                      className="px-4 py-2 text-red-600 rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-red-50 transition-colors"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      Disconnect
-                    </button>
-                  </>
-                ) : (
+                <button
+                  onClick={handleConnect}
+                  className="px-5 py-2.5 bg-[#2ca01c] text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-[#248a17] transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {hasCompanies ? 'Connect another' : 'Connect to QuickBooks'}
+                </button>
+                {selectedRealm && (
                   <button
-                    onClick={handleConnect}
-                    disabled={!status?.configured}
-                    className="px-5 py-2.5 bg-[#2ca01c] text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-[#248a17] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleDisconnect}
+                    className="px-4 py-2 text-red-600 rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-red-50 transition-colors"
                     style={{ fontFamily: 'var(--font-body)' }}
                   >
-                    Connect to QuickBooks
+                    Disconnect
                   </button>
                 )}
               </div>
             </div>
 
-            {!status?.configured && (
-              <div className="mt-5 p-4 rounded-xl bg-amber-50 border border-amber-200">
-                <p className="text-xs font-semibold text-amber-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
-                  Server credentials missing
-                </p>
-                <p className="text-xs text-amber-800" style={{ fontFamily: 'var(--font-body)' }}>
-                  Set <code className="bg-amber-100 px-1 py-0.5 rounded">QUICKBOOKS_CLIENT_ID</code>,{' '}
-                  <code className="bg-amber-100 px-1 py-0.5 rounded">QUICKBOOKS_CLIENT_SECRET</code>, and optionally{' '}
-                  <code className="bg-amber-100 px-1 py-0.5 rounded">QUICKBOOKS_REDIRECT_URI</code> and{' '}
-                  <code className="bg-amber-100 px-1 py-0.5 rounded">QUICKBOOKS_ENV</code> (<em>sandbox</em> or <em>production</em>) in your deployment env.
-                  The redirect URI on Intuit's developer portal should be{' '}
-                  <code className="bg-amber-100 px-1 py-0.5 rounded">{`${typeof window !== 'undefined' ? window.location.origin : ''}/api/quickbooks/callback`}</code>.
-                </p>
+            {/* Company picker */}
+            {hasCompanies && (
+              <div className="mt-5 flex flex-wrap gap-2">
+                {companies!.map((c) => (
+                  <button
+                    key={c.realm_id}
+                    onClick={() => setSelectedRealm(c.realm_id)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                      selectedRealm === c.realm_id
+                        ? 'bg-primary/10 border-primary/30 text-primary'
+                        : 'bg-warm-bg/50 border-gray-200 text-foreground/60 hover:bg-warm-bg'
+                    }`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Realm {c.realm_id}
+                  </button>
+                ))}
               </div>
             )}
 
@@ -252,65 +302,57 @@ export default function FinanceContent() {
                 </p>
               </div>
             )}
+
+            {!hasCompanies && !error && (
+              <div className="mt-5 p-4 rounded-xl bg-amber-50 border border-amber-200">
+                <p className="text-xs font-semibold text-amber-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
+                  Getting started
+                </p>
+                <p className="text-xs text-amber-800" style={{ fontFamily: 'var(--font-body)' }}>
+                  Click <strong>Connect to QuickBooks</strong> to authorize an Intuit company. Make sure{' '}
+                  <code className="bg-amber-100 px-1 py-0.5 rounded">QUICKBOOKS_CLIENT_ID</code> and{' '}
+                  <code className="bg-amber-100 px-1 py-0.5 rounded">QUICKBOOKS_CLIENT_SECRET</code> are set
+                  in the deployment env, and the redirect URI{' '}
+                  <code className="bg-amber-100 px-1 py-0.5 rounded">
+                    {typeof window !== 'undefined' ? window.location.origin : ''}/api/quickbooks/callback
+                  </code>{' '}
+                  is registered on Intuit&apos;s developer portal.
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Company info */}
-          {status?.connected && company && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-sm font-semibold text-foreground mb-4 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
-                Company
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Name" value={company.CompanyName} />
-                <Field label="Legal name" value={company.LegalName} />
-                <Field
-                  label="Address"
-                  value={
-                    company.CompanyAddr
-                      ? [
-                          company.CompanyAddr.Line1,
-                          [company.CompanyAddr.City, company.CompanyAddr.CountrySubDivisionCode].filter(Boolean).join(', '),
-                          company.CompanyAddr.PostalCode,
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')
-                      : undefined
-                  }
-                />
-                <Field label="Phone" value={company.PrimaryPhone?.FreeFormNumber} />
-                <Field label="Email" value={company.Email?.Address} />
-                <Field label="Country" value={company.Country} />
+          {/* Tabs + report body */}
+          {selectedRealm && (
+            <>
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="flex flex-wrap gap-1 p-2 border-b border-gray-100 bg-warm-bg/20">
+                  {TABS.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTab(t.id)}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors ${
+                        tab === t.id
+                          ? 'bg-primary text-white'
+                          : 'text-foreground/60 hover:bg-warm-bg'
+                      }`}
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="p-6 min-h-[200px]">
+                  {fetching ? (
+                    <div className="flex items-center justify-center py-16">
+                      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <ReportBody tab={tab} data={reportData} />
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Accounts */}
-          {status?.connected && accounts.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <h2 className="text-sm font-semibold text-foreground px-6 pt-6 pb-4 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
-                Account Balances
-              </h2>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-warm-bg/50">
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Account</th>
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Type</th>
-                      <th className="text-right px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {accounts.map((a) => (
-                      <tr key={a.Id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors">
-                        <td className="px-6 py-4 text-sm font-medium text-foreground">{a.Name}</td>
-                        <td className="px-6 py-4 text-xs text-foreground/60">{a.AccountType}</td>
-                        <td className="px-6 py-4 text-right text-sm font-semibold text-foreground tabular-nums">{fmtMoney(a.CurrentBalance)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            </>
           )}
         </div>
       )}
@@ -325,6 +367,173 @@ export default function FinanceContent() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// Report renderers
+// ------------------------------------------------------------
+
+function ReportBody({ tab, data }: { tab: Tab; data: unknown }) {
+  if (!data) {
+    return (
+      <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
+        No data
+      </p>
+    );
+  }
+
+  if (tab === 'company') {
+    const d = data as CompanyInfo;
+    const c = d.CompanyInfo;
+    if (!c) return <EmptyState />;
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Name" value={c.CompanyName} />
+        <Field label="Legal name" value={c.LegalName} />
+        <Field
+          label="Address"
+          value={
+            c.CompanyAddr
+              ? [
+                  c.CompanyAddr.Line1,
+                  [c.CompanyAddr.City, c.CompanyAddr.CountrySubDivisionCode].filter(Boolean).join(', '),
+                  c.CompanyAddr.PostalCode,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              : undefined
+          }
+        />
+        <Field label="Phone" value={c.PrimaryPhone?.FreeFormNumber} />
+        <Field label="Email" value={c.Email?.Address} />
+        <Field label="Country" value={c.Country} />
+        <Field label="Fiscal year start" value={c.FiscalYearStartMonth} />
+      </div>
+    );
+  }
+
+  if (tab === 'accounts') {
+    const d = data as AccountsResponse;
+    const accounts = d.QueryResponse?.Account || [];
+    if (accounts.length === 0) return <EmptyState />;
+    return (
+      <div className="overflow-x-auto -m-6">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-100 bg-warm-bg/40">
+              <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Account</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Type</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Classification</th>
+              <th className="text-right px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map((a) => (
+              <tr key={a.Id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors">
+                <td className="px-6 py-3.5 text-sm font-medium text-foreground">{a.Name}</td>
+                <td className="px-6 py-3.5 text-xs text-foreground/60">{[a.AccountType, a.AccountSubType].filter(Boolean).join(' · ')}</td>
+                <td className="px-6 py-3.5 text-xs text-foreground/50">{a.Classification || '—'}</td>
+                <td className="px-6 py-3.5 text-right text-sm font-semibold text-foreground tabular-nums">{fmtMoney(a.CurrentBalance)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // All remaining tabs are QBO generic reports.
+  const report = data as ReportResponse;
+  return <GenericReport report={report} />;
+}
+
+function EmptyState() {
+  return (
+    <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
+      No data for this report yet.
+    </p>
+  );
+}
+
+function GenericReport({ report }: { report: ReportResponse }) {
+  const cols = report.Columns?.Column || [];
+  const rows = report.Rows?.Row || [];
+  if (cols.length === 0 && rows.length === 0) {
+    return <EmptyState />;
+  }
+  const headerTitles = cols.map((c) => c.ColTitle || '');
+
+  const flat: Array<{ row: ReportRow; depth: number; kind: 'row' | 'summary' | 'header' }> = [];
+  function walk(list: ReportRow[], depth: number) {
+    for (const r of list) {
+      if (r.Header?.ColData) flat.push({ row: r, depth, kind: 'header' });
+      if (r.ColData) flat.push({ row: r, depth, kind: 'row' });
+      if (r.Rows?.Row) walk(r.Rows.Row, depth + 1);
+      if (r.Summary?.ColData) flat.push({ row: r, depth, kind: 'summary' });
+    }
+  }
+  walk(rows, 0);
+
+  return (
+    <div className="overflow-x-auto -m-6">
+      <div className="px-6 pt-0 pb-2">
+        {report.Header?.ReportName && (
+          <h3 className="text-sm font-semibold text-foreground mb-0.5">{report.Header.ReportName}</h3>
+        )}
+        {(report.Header?.StartPeriod || report.Header?.EndPeriod) && (
+          <p className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+            {report.Header?.StartPeriod} — {report.Header?.EndPeriod}
+          </p>
+        )}
+      </div>
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-gray-100 bg-warm-bg/40">
+            {headerTitles.map((t, i) => (
+              <th
+                key={i}
+                className={`${i === 0 ? 'text-left' : 'text-right'} px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider`}
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {t || '\u00A0'}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {flat.map((f, idx) => {
+            const cells =
+              f.kind === 'summary' ? f.row.Summary?.ColData || [] :
+              f.kind === 'header' ? f.row.Header?.ColData || [] :
+              f.row.ColData || [];
+            const isSummary = f.kind === 'summary';
+            const isHeader = f.kind === 'header';
+            return (
+              <tr
+                key={idx}
+                className={`border-b border-gray-100 last:border-b-0 ${
+                  isSummary ? 'font-semibold bg-warm-bg/30' : isHeader ? 'font-semibold bg-warm-bg/20' : ''
+                }`}
+              >
+                {cells.map((c, i) => (
+                  <td
+                    key={i}
+                    className={`${i === 0 ? 'text-left' : 'text-right tabular-nums'} px-6 py-2.5 text-xs text-foreground/80`}
+                    style={{
+                      fontFamily: i === 0 ? undefined : 'var(--font-body)',
+                      paddingLeft: i === 0 ? `${24 + f.depth * 16}px` : undefined,
+                    }}
+                  >
+                    {c.value || (i === 0 ? '\u00A0' : '')}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

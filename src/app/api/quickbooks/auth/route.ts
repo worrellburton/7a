@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildAuthUrl, getQuickBooksClientId } from '@/lib/quickbooks';
+import { buildAuthUrl, getClientId } from '@/lib/quickbooks';
 
 // GET /api/quickbooks/auth
 // Kicks off the OAuth2 Authorization Code flow by redirecting to Intuit.
+// Multi-tenant — any admin can connect another Intuit company; their tokens
+// land in quickbooks_tokens keyed by realm_id.
 export async function GET(req: NextRequest) {
-  if (!getQuickBooksClientId()) {
+  if (!getClientId()) {
     return NextResponse.json(
       { error: 'QUICKBOOKS_CLIENT_ID is not configured on the server' },
       { status: 500 }
