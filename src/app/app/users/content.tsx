@@ -206,7 +206,7 @@ export default function UsersContent() {
                   <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Viewing</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Department</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden sm:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Job Title</th>
-                  <th className="text-center px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Admin</th>
+                  <th className="text-center px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Super Admin</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Joined</th>
                   <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider w-12" style={{ fontFamily: 'var(--font-body)' }}></th>
                 </tr>
@@ -286,12 +286,13 @@ export default function UsersContent() {
                     <td className="px-6 py-4 text-center">
                       <button
                         onClick={() => toggleAdmin(u.id, u.is_admin)}
-                        className={`w-5 h-5 rounded border-2 transition-colors inline-flex items-center justify-center ${
+                        className={`w-5 h-5 rounded-full border-2 transition-all inline-flex items-center justify-center ${
                           u.is_admin
                             ? 'bg-primary border-primary text-white'
                             : 'border-gray-300 hover:border-primary/50'
                         }`}
-                        aria-label={`${u.is_admin ? 'Remove' : 'Grant'} admin for ${u.full_name || u.email}`}
+                        aria-label={`${u.is_admin ? 'Remove' : 'Grant'} super admin for ${u.full_name || u.email}`}
+                        title={u.is_admin ? 'Super admin — click to revoke' : 'Click to grant super admin'}
                       >
                         {u.is_admin && (
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">

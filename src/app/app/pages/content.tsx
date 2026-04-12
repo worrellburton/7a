@@ -13,28 +13,36 @@ interface Department {
   color: string | null;
 }
 
+interface AppUser {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  email: string;
+  department_id: string | null;
+}
+
 export default function PagesContent() {
   const { user, session, isAdmin } = useAuth();
-  const { pages, setPageDepartments, updatePageLayout } = usePagePermissions();
+  const { pages, setPageAdminOnly, setPageDepartments, updatePageLayout } = usePagePermissions();
   const router = useRouter();
   const [toast, setToast] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [permissionsFor, setPermissionsFor] = useState<string | null>(null); // path being edited
   const dragItem = useRef<{ path: string; section: 'nav' | 'popup' } | null>(null);
   const dragOverItem = useRef<{ path: string; section: 'nav' | 'popup' } | null>(null);
 
   useEffect(() => {
     if (!session?.access_token) return;
-    async function loadDepartments() {
-      const data = await db({
-        action: 'select',
-        table: 'departments',
-        select: 'id, name, color',
-        order: { column: 'name', ascending: true },
-      });
-      if (Array.isArray(data)) setDepartments(data as Department[]);
+    async function loadData() {
+      const [deptData, userData] = await Promise.all([
+        db({ action: 'select', table: 'departments', select: 'id, name, color', order: { column: 'name', ascending: true } }),
+        db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, email, department_id' }),
+      ]);
+      if (Array.isArray(deptData)) setDepartments(deptData as Department[]);
+      if (Array.isArray(userData)) setAllUsers(userData as AppUser[]);
     }
-    loadDepartments();
+    loadData();
   }, [session]);
 
   if (!user || !isAdmin) {
@@ -64,21 +72,30 @@ export default function PagesContent() {
     showToast(`${page?.label || path} is now visible to everyone`);
   }
 
+  function toggleAdminOnly(path: string) {
+    const page = pages.find((p) => p.path === path);
+    if (!page) return;
+    setPageAdminOnly(path, !page.adminOnly);
+    showToast(`${page.label} ${!page.adminOnly ? 'restricted to super admins' : 'open to all'}`);
+  }
+
   const sorted = [...pages].sort((a, b) => a.sort_order - b.sort_order);
   const navPages = sorted.filter((p) => p.section === 'nav');
   const popupPages = sorted.filter((p) => p.section === 'popup');
 
+  // Helpers for department/user display
+  const getDeptName = (deptId: string) => departments.find(d => d.id === deptId)?.name || 'Unknown';
+  const getDeptColor = (deptId: string) => departments.find(d => d.id === deptId)?.color || '#a0522d';
+  const getUsersInDept = (deptId: string) => allUsers.filter(u => u.department_id === deptId);
+
   function handleDragStart(e: React.DragEvent, path: string, section: 'nav' | 'popup') {
     dragItem.current = { path, section };
-    // Firefox requires dataTransfer to be set or dragstart is cancelled.
     e.dataTransfer.setData('text/plain', path);
     e.dataTransfer.effectAllowed = 'move';
   }
 
   function handleDragOver(e: React.DragEvent, path: string, section: 'nav' | 'popup') {
     e.preventDefault();
-    // Stop bubble so the section handler doesn't clobber our precise target
-    // with '__end__' — that was the bug making everything drop at the bottom.
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
     dragOverItem.current = { path, section };
@@ -87,8 +104,6 @@ export default function PagesContent() {
   function handleDragOverSection(e: React.DragEvent, section: 'nav' | 'popup') {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    // Only treat a section-level dragover as "drop at end" when it isn't
-    // already pointing at a row in this section.
     const current = dragOverItem.current;
     if (!current || current.section !== section) {
       dragOverItem.current = { path: '__end__', section };
@@ -107,10 +122,8 @@ export default function PagesContent() {
     const dragPage = updated.find((p) => p.path === dragPath);
     if (!dragPage) return;
 
-    // Move to new section
     dragPage.section = overSection;
 
-    // Recompute sort orders for both sections
     const newNav = updated.filter((p) => p.section === 'nav').sort((a, b) => a.sort_order - b.sort_order);
     const newPopup = updated.filter((p) => p.section === 'popup').sort((a, b) => a.sort_order - b.sort_order);
 
@@ -125,9 +138,7 @@ export default function PagesContent() {
         if (idx >= 0) filtered.splice(idx, 0, moved);
         else filtered.push(moved);
       }
-      // Re-assign sort_order
       filtered.forEach((p, i) => { p.sort_order = i; });
-      // Copy back
       list.length = 0;
       list.push(...filtered);
     }
@@ -135,7 +146,6 @@ export default function PagesContent() {
     if (overSection === 'nav') reorder(newNav, dragPath, overPath);
     else reorder(newPopup, dragPath, overPath);
 
-    // Reassign sort_order for both
     newNav.forEach((p, i) => { p.sort_order = i; });
     newPopup.forEach((p, i) => { p.sort_order = i; });
 
@@ -167,6 +177,27 @@ export default function PagesContent() {
           <p className="text-sm font-medium text-foreground">{page.label}</p>
           <p className="text-xs text-foreground/30 font-mono">{page.path}</p>
         </div>
+
+        {/* Super Admin Only toggle */}
+        <button
+          onClick={() => !locked && toggleAdminOnly(page.path)}
+          disabled={locked}
+          className={`relative w-5 h-5 rounded-full border-2 transition-all shrink-0 ${
+            page.adminOnly
+              ? 'bg-primary border-primary'
+              : 'border-gray-300 hover:border-primary/50'
+          } ${locked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+          aria-label={`${page.adminOnly ? 'Remove' : 'Set'} super admin only for ${page.label}`}
+          title={locked ? 'Always super admin only' : page.adminOnly ? 'Super admin only — click to open' : 'Click to restrict to super admins'}
+        >
+          {page.adminOnly && (
+            <svg className="w-3 h-3 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </button>
+
+        {/* Department permissions chip */}
         <button
           onClick={() => !locked && setPermissionsFor(page.path)}
           disabled={locked}
@@ -179,23 +210,59 @@ export default function PagesContent() {
           aria-label={`Set permissions for ${page.label}`}
           title={locked ? 'Always admin only' : 'Set department permissions'}
         >
-          {/* Lock/shield icon */}
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            {restricted ? (
-              <>
-                <rect x="3" y="11" width="18" height="10" rx="2" />
-                <path d="M7 11V7a5 5 0 0110 0v4" />
-              </>
-            ) : (
-              <>
+          {restricted ? (
+            <>
+              {/* Show department names + member avatars */}
+              {page.allowedDepartments.map(deptId => {
+                const deptUsers = getUsersInDept(deptId);
+                return (
+                  <span key={deptId} className="flex items-center gap-1">
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: getDeptColor(deptId) }}
+                    />
+                    <span>{getDeptName(deptId)}</span>
+                    {deptUsers.length > 0 && (
+                      <span className="flex -space-x-1.5 ml-0.5">
+                        {deptUsers.slice(0, 4).map(u => (
+                          <span key={u.id} className="relative group/avatar">
+                            {u.avatar_url ? (
+                              <img
+                                src={u.avatar_url}
+                                alt={u.full_name || u.email}
+                                className="w-4 h-4 rounded-full border border-white"
+                              />
+                            ) : (
+                              <span className="w-4 h-4 rounded-full bg-primary/20 text-primary text-[8px] font-bold flex items-center justify-center border border-white">
+                                {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                            {/* Tooltip */}
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-lg bg-foreground text-white text-[10px] whitespace-nowrap opacity-0 group-hover/avatar:opacity-100 pointer-events-none transition-opacity z-10 shadow-lg">
+                              {u.full_name || u.email}
+                            </span>
+                          </span>
+                        ))}
+                        {deptUsers.length > 4 && (
+                          <span className="w-4 h-4 rounded-full bg-gray-200 text-foreground/50 text-[8px] font-bold flex items-center justify-center border border-white">
+                            +{deptUsers.length - 4}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="11" width="18" height="10" rx="2" />
                 <path d="M7 11V7a5 5 0 019.9-1" />
-              </>
-            )}
-          </svg>
-          {restricted
-            ? `${page.allowedDepartments.length} dept${page.allowedDepartments.length === 1 ? '' : 's'}`
-            : 'Everyone'}
+              </svg>
+              Everyone
+            </>
+          )}
         </button>
       </div>
     );
@@ -253,7 +320,8 @@ export default function PagesContent() {
       </div>
 
       <p className="text-xs text-foreground/30 mt-4" style={{ fontFamily: 'var(--font-body)' }}>
-        Click the permissions chip to restrict a page to specific departments. Empty means everyone
+        The circle toggle restricts a page to super admins only.
+        Click the permissions chip to restrict to specific departments. Empty means everyone
         sees it. Admins always see every page. Users, Pages, and Departments are always admin-only.
       </p>
 
@@ -292,6 +360,7 @@ export default function PagesContent() {
               <div className="space-y-1.5 mb-5">
                 {departments.map((d) => {
                   const checked = editingPage.allowedDepartments.includes(d.id);
+                  const deptUsers = getUsersInDept(d.id);
                   return (
                     <button
                       key={d.id}
@@ -320,6 +389,25 @@ export default function PagesContent() {
                         style={{ backgroundColor: d.color || '#a0522d' }}
                       />
                       <span className="text-sm font-medium text-foreground flex-1">{d.name}</span>
+                      {/* Member avatars in modal */}
+                      {deptUsers.length > 0 && (
+                        <span className="flex -space-x-1.5">
+                          {deptUsers.slice(0, 5).map(u => (
+                            u.avatar_url ? (
+                              <img key={u.id} src={u.avatar_url} alt={u.full_name || ''} className="w-5 h-5 rounded-full border-2 border-white" />
+                            ) : (
+                              <span key={u.id} className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[9px] font-bold flex items-center justify-center border-2 border-white">
+                                {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
+                              </span>
+                            )
+                          ))}
+                          {deptUsers.length > 5 && (
+                            <span className="w-5 h-5 rounded-full bg-gray-200 text-foreground/50 text-[9px] font-bold flex items-center justify-center border-2 border-white">
+                              +{deptUsers.length - 5}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
