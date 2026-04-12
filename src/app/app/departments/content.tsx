@@ -283,7 +283,7 @@ export default function DepartmentsContent() {
       ) : (
         <div className={`grid grid-cols-1 ${unassigned.length > 0 ? 'lg:grid-cols-3' : ''} gap-5`}>
           {/* Department cards */}
-          <div className={`${unassigned.length > 0 ? 'lg:col-span-2' : ''} space-y-4`}
+          <div className={`${unassigned.length > 0 ? 'lg:col-span-2' : ''} space-y-4`}>
             {departments.length === 0 ? (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center">
                 <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
