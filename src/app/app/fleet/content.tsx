@@ -36,6 +36,7 @@ export default function FleetContent() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState('');
   const [toast, setToast] = useState<string | null>(null);
@@ -108,13 +109,36 @@ export default function FleetContent() {
             {vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider bg-primary text-white hover:bg-primary-dark transition-colors"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          {showAddForm ? 'Cancel' : '+ Add Vehicle'}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View Switcher */}
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-2 transition-colors ${viewMode === 'table' ? 'bg-primary text-white' : 'bg-white text-foreground/40 hover:text-foreground/60'}`}
+              title="Table view"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18M3 12h18M3 18h18" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-primary text-white' : 'bg-white text-foreground/40 hover:text-foreground/60'}`}
+              title="Grid view"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+              </svg>
+            </button>
+          </div>
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider bg-primary text-white hover:bg-primary-dark transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            {showAddForm ? 'Cancel' : '+ Add Vehicle'}
+          </button>
+        </div>
       </div>
 
       {/* Add Vehicle Form */}
@@ -169,7 +193,7 @@ export default function FleetContent() {
             + Add Vehicle
           </button>
         </div>
-      ) : vehicles.length > 0 && (
+      ) : vehicles.length > 0 && viewMode === 'table' ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -217,6 +241,63 @@ export default function FleetContent() {
               </tbody>
             </table>
           </div>
+        </div>
+      ) : vehicles.length > 0 && (
+        /* Grid View */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {vehicles.map(v => (
+            <div key={v.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">{v.vehicle_name}</h3>
+                  {v.vehicle_type && <p className="text-xs text-foreground/40 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{v.vehicle_type}</p>}
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusStyles[v.status] || 'bg-gray-100 text-gray-600'}`}>
+                    {statusLabel(v.status)}
+                  </span>
+                  <button
+                    onClick={() => deleteVehicle(v)}
+                    className="p-1 rounded-lg text-foreground/20 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    title="Delete vehicle"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5" style={{ fontFamily: 'var(--font-body)' }}>
+                {v.vin_code && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-foreground/40">VIN</span>
+                    <span className="text-foreground/60 font-mono">{v.vin_code}</span>
+                  </div>
+                )}
+                {v.tags && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-foreground/40">Tags</span>
+                    <span className="text-foreground/60">{v.tags}</span>
+                  </div>
+                )}
+                {v.tags_expire_on && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-foreground/40">Tags Expire</span>
+                    <span className="text-foreground/60">{v.tags_expire_on}</span>
+                  </div>
+                )}
+                {v.next_service && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-foreground/40">Next Service</span>
+                    <span className="text-foreground/60">{v.next_service}</span>
+                  </div>
+                )}
+                {v.comments && (
+                  <p className="text-xs text-foreground/50 mt-2 line-clamp-2">{v.comments}</p>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
