@@ -30,6 +30,7 @@ export default function PagesContent() {
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [permissionsFor, setPermissionsFor] = useState<string | null>(null); // path being edited
   const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
+  const [dragOverDeptId, setDragOverDeptId] = useState<string | null>(null);
   const dragItem = useRef<{ path: string; section: 'nav' | 'popup' } | null>(null);
   const dragOverItem = useRef<{ path: string; section: 'nav' | 'popup' } | null>(null);
 
@@ -158,6 +159,29 @@ export default function PagesContent() {
     dragOverItem.current = null;
   }
 
+  function handleDropOnDeptGroup(e: React.DragEvent, deptId: string | null) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverDeptId(null);
+    if (!dragItem.current) return;
+    const dragPath = dragItem.current.path;
+    const page = pages.find((p) => p.path === dragPath);
+    if (!page) return;
+    // Assign to the department group (or ungroup if null)
+    setPageDepartmentGroup(dragPath, deptId);
+    showToast(`${page.label} ${deptId ? `moved to ${getDeptName(deptId)}` : 'ungrouped'}`);
+    // If dropping into a collapsed group, expand it
+    if (deptId && collapsedDepts.has(deptId)) {
+      setCollapsedDepts(prev => {
+        const next = new Set(prev);
+        next.delete(deptId);
+        return next;
+      });
+    }
+    dragItem.current = null;
+    dragOverItem.current = null;
+  }
+
   function toggleCollapseDept(deptId: string) {
     setCollapsedDepts(prev => {
       const next = new Set(prev);
@@ -176,7 +200,7 @@ export default function PagesContent() {
         draggable
         onDragStart={(e) => handleDragStart(e, page.path, page.section)}
         onDragOver={(e) => handleDragOver(e, page.path, page.section)}
-        onDragEnd={() => { dragItem.current = null; dragOverItem.current = null; }}
+        onDragEnd={() => { dragItem.current = null; dragOverItem.current = null; setDragOverDeptId(null); }}
         className={`flex items-center gap-4 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors cursor-grab active:cursor-grabbing group ${indented ? 'pl-10 pr-5' : 'px-5'}`}
       >
         <svg className="w-4 h-4 text-foreground/20 shrink-0 group-hover:text-foreground/40 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
@@ -324,27 +348,37 @@ export default function PagesContent() {
             ) : (
               (() => {
                 const ungrouped = navPages.filter(p => !p.departmentId);
-                const deptGroupsArr: { dept: Department; pages: PageConfig[] }[] = [];
-                for (const dept of departments) {
-                  const deptPages = navPages.filter(p => p.departmentId === dept.id);
-                  if (deptPages.length > 0) {
-                    deptGroupsArr.push({ dept, pages: deptPages });
-                  }
-                }
                 return (
                   <>
                     {/* Ungrouped pages */}
                     {ungrouped.map(p => renderRow(p))}
 
-                    {/* Department groups */}
-                    {deptGroupsArr.map(({ dept, pages: deptPages }) => {
+                    {/* All department groups (including empty ones for drop targets) */}
+                    {departments.map(dept => {
+                      const deptPages = navPages.filter(p => p.departmentId === dept.id);
                       const isCollapsed = collapsedDepts.has(dept.id);
+                      const isDragOver = dragOverDeptId === dept.id;
                       return (
                         <div key={dept.id}>
-                          {/* Department header row */}
+                          {/* Department header row — drop target */}
                           <div
                             onClick={() => toggleCollapseDept(dept.id)}
-                            className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 bg-warm-bg/40 cursor-pointer hover:bg-warm-bg/60 transition-colors select-none"
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.dataTransfer.dropEffect = 'move';
+                              setDragOverDeptId(dept.id);
+                            }}
+                            onDragLeave={(e) => {
+                              if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+                              setDragOverDeptId(null);
+                            }}
+                            onDrop={(e) => handleDropOnDeptGroup(e, dept.id)}
+                            className={`flex items-center gap-3 px-5 py-3 border-b border-gray-100 cursor-pointer select-none transition-all ${
+                              isDragOver
+                                ? 'bg-primary/10 ring-1 ring-inset ring-primary/30'
+                                : 'bg-warm-bg/40 hover:bg-warm-bg/60'
+                            }`}
                           >
                             <svg
                               className={`w-3.5 h-3.5 text-foreground/30 transition-transform shrink-0 ${isCollapsed ? '-rotate-90' : ''}`}
