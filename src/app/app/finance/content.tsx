@@ -4,6 +4,8 @@ import { useAuth } from '@/lib/AuthProvider';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import BudgetsPanel from './BudgetsPanel';
+import AccountsReceivablesPanel from './AccountsReceivablesPanel';
+import BudgetVsActualsPanel from './BudgetVsActualsPanel';
 import {
   useQuickBooksConnection,
   QuickBooksHeader,
@@ -87,7 +89,7 @@ function fmtMoney(n: number | undefined) {
 
 // ─── Top-level page sections ─────────────────────────────────────
 
-type Section = 'budget' | 'reports';
+type Section = 'budget' | 'ar' | 'bva' | 'reports';
 
 export default function FinanceContent() {
   const { user, session, isAdmin } = useAuth();
@@ -183,6 +185,8 @@ export default function FinanceContent() {
 
   const subtitleMap: Record<Section, string> = {
     budget: 'Set a monthly budget for each department and match it to a QuickBooks P&L account for live actuals.',
+    ar: 'Every income-classified account pulled live from QuickBooks.',
+    bva: 'Month-by-month budget vs. actual spend, with trailing totals, averages, and projected annual run rate.',
     reports: 'Company, accounts, P&L, balance sheet, trial balance, and general ledger — pulled live from QuickBooks.',
   };
 
@@ -202,6 +206,8 @@ export default function FinanceContent() {
       <div className="flex gap-1 mb-5">
         {([
           { id: 'budget' as Section, label: 'Budget' },
+          { id: 'ar' as Section, label: 'Accounts Receivables' },
+          { id: 'bva' as Section, label: 'Budget vs Actuals' },
           { id: 'reports' as Section, label: 'Reports' },
         ]).map((s) => (
           <button
@@ -252,6 +258,42 @@ export default function FinanceContent() {
                   </p>
                 ) : (
                   <BudgetsPanel
+                    realmId={selectedRealm}
+                    onUpdated={() => setLastUpdated(new Date().toISOString())}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ─── Accounts Receivables section ─── */}
+          {section === 'ar' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 min-h-[200px]">
+                {!selectedRealm ? (
+                  <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
+                    Connect a QuickBooks company to view income accounts.
+                  </p>
+                ) : (
+                  <AccountsReceivablesPanel
+                    realmId={selectedRealm}
+                    onUpdated={() => setLastUpdated(new Date().toISOString())}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ─── Budget vs Actuals section ─── */}
+          {section === 'bva' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 min-h-[200px]">
+                {!selectedRealm ? (
+                  <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
+                    Connect a QuickBooks company to view budget vs. actuals.
+                  </p>
+                ) : (
+                  <BudgetVsActualsPanel
                     realmId={selectedRealm}
                     onUpdated={() => setLastUpdated(new Date().toISOString())}
                   />
