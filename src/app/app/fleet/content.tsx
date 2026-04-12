@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { useModal } from '@/lib/ModalProvider';
 import { useEffect, useState } from 'react';
 
 interface Vehicle {
@@ -31,8 +32,18 @@ const statusLabel = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export default function FleetContent() {
   const { user, session } = useAuth();
+  const { confirm } = useModal();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newType, setNewType] = useState('');
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -45,6 +56,38 @@ export default function FleetContent() {
     }
     load();
   }, [session]);
+
+  const addVehicle = async () => {
+    if (!newName.trim()) return;
+    const result = await db({
+      action: 'insert',
+      table: 'fleet_vehicles',
+      data: {
+        vehicle_name: newName.trim(),
+        vehicle_type: newType.trim() || null,
+        status: 'active',
+      },
+    });
+    if (result && result.id) {
+      setVehicles(prev => [...prev, result as Vehicle].sort((a, b) => a.vehicle_name.localeCompare(b.vehicle_name)));
+      setNewName('');
+      setNewType('');
+      setShowAddForm(false);
+      showToast('Vehicle added');
+    }
+  };
+
+  const deleteVehicle = async (v: Vehicle) => {
+    const ok = await confirm(`Delete "${v.vehicle_name}"?`, {
+      message: 'This vehicle and all its documents will be permanently removed.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    await db({ action: 'delete', table: 'fleet_vehicles', match: { id: v.id } });
+    setVehicles(prev => prev.filter(x => x.id !== v.id));
+    showToast('Vehicle deleted');
+  };
 
   if (!user) return null;
 
@@ -65,9 +108,49 @@ export default function FleetContent() {
             {vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''}
           </p>
         </div>
+        <button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider bg-primary text-white hover:bg-primary-dark transition-colors"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {showAddForm ? 'Cancel' : '+ Add Vehicle'}
+        </button>
       </div>
 
-      {vehicles.length === 0 ? (
+      {/* Add Vehicle Form */}
+      {showAddForm && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              autoFocus
+              placeholder="Vehicle name"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addVehicle(); if (e.key === 'Escape') setShowAddForm(false); }}
+              className="flex-1 text-sm px-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:outline-none"
+              style={{ fontFamily: 'var(--font-body)' }}
+            />
+            <input
+              placeholder="Type (e.g. Truck, Van, SUV)"
+              value={newType}
+              onChange={e => setNewType(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addVehicle(); if (e.key === 'Escape') setShowAddForm(false); }}
+              className="flex-1 text-sm px-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:outline-none"
+              style={{ fontFamily: 'var(--font-body)' }}
+            />
+            <button
+              onClick={addVehicle}
+              disabled={!newName.trim()}
+              className="px-5 py-2 rounded-full text-xs font-semibold uppercase tracking-wider bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-40"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      )}
+
+      {vehicles.length === 0 && !showAddForm ? (
         <div className="text-center py-20">
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-warm-bg/50 flex items-center justify-center">
             <svg className="w-8 h-8 text-foreground/20" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -77,9 +160,16 @@ export default function FleetContent() {
               <circle cx="19" cy="19" r="2" />
             </svg>
           </div>
-          <p className="text-foreground/40 text-sm" style={{ fontFamily: 'var(--font-body)' }}>No vehicles yet</p>
+          <p className="text-foreground/40 text-sm mb-3" style={{ fontFamily: 'var(--font-body)' }}>No vehicles yet</p>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider bg-primary text-white hover:bg-primary-dark transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            + Add Vehicle
+          </button>
         </div>
-      ) : (
+      ) : vehicles.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -93,6 +183,7 @@ export default function FleetContent() {
                   <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Tags Expire</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden xl:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Next Service</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden xl:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Comments</th>
+                  <th className="w-10" />
                 </tr>
               </thead>
               <tbody>
@@ -105,16 +196,34 @@ export default function FleetContent() {
                       </span>
                     </td>
                     <td className="px-5 py-3 text-sm text-foreground/60 hidden sm:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{v.vehicle_type || <span className="text-foreground/20">—</span>}</td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden md:table-cell font-mono text-xs" style={{ fontFamily: 'var(--font-body)' }}>{v.vin_code || <span className="text-foreground/20">—</span>}</td>
+                    <td className="px-5 py-3 text-sm text-foreground/60 hidden md:table-cell font-mono text-xs">{v.vin_code || <span className="text-foreground/20">—</span>}</td>
                     <td className="px-5 py-3 text-sm text-foreground/60 hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{v.tags || <span className="text-foreground/20">—</span>}</td>
                     <td className="px-5 py-3 text-sm text-foreground/60 hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{v.tags_expire_on || <span className="text-foreground/20">—</span>}</td>
                     <td className="px-5 py-3 text-sm text-foreground/60 hidden xl:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{v.next_service || <span className="text-foreground/20">—</span>}</td>
                     <td className="px-5 py-3 text-sm text-foreground/60 hidden xl:table-cell max-w-[200px] truncate" style={{ fontFamily: 'var(--font-body)' }}>{v.comments || <span className="text-foreground/20">—</span>}</td>
+                    <td className="px-3 py-3">
+                      <button
+                        onClick={() => deleteVehicle(v)}
+                        className="p-1 rounded-lg text-foreground/20 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Delete vehicle"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full bg-foreground text-white text-sm font-medium shadow-lg animate-[fadeIn_0.2s_ease-out]" style={{ fontFamily: 'var(--font-body)' }}>
+          {toast}
         </div>
       )}
     </div>
