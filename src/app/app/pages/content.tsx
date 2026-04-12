@@ -23,12 +23,14 @@ interface AppUser {
 
 export default function PagesContent() {
   const { user, session, isAdmin } = useAuth();
-  const { pages, setPageAdminOnly, setPageDepartments, updatePageLayout } = usePagePermissions();
+  const { pages, setPageAdminOnly, setPageDepartments, setPageDepartmentGroup, updatePageLayout } = usePagePermissions();
   const router = useRouter();
   const [toast, setToast] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [permissionsFor, setPermissionsFor] = useState<string | null>(null); // path being edited
+  const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
+  const [dragOverDeptId, setDragOverDeptId] = useState<string | null>(null);
   const dragItem = useRef<{ path: string; section: 'nav' | 'popup' } | null>(null);
   const dragOverItem = useRef<{ path: string; section: 'nav' | 'popup' } | null>(null);
 
@@ -157,7 +159,39 @@ export default function PagesContent() {
     dragOverItem.current = null;
   }
 
-  function renderRow(page: PageConfig) {
+  function handleDropOnDeptGroup(e: React.DragEvent, deptId: string | null) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverDeptId(null);
+    if (!dragItem.current) return;
+    const dragPath = dragItem.current.path;
+    const page = pages.find((p) => p.path === dragPath);
+    if (!page) return;
+    // Assign to the department group (or ungroup if null)
+    setPageDepartmentGroup(dragPath, deptId);
+    showToast(`${page.label} ${deptId ? `moved to ${getDeptName(deptId)}` : 'ungrouped'}`);
+    // If dropping into a collapsed group, expand it
+    if (deptId && collapsedDepts.has(deptId)) {
+      setCollapsedDepts(prev => {
+        const next = new Set(prev);
+        next.delete(deptId);
+        return next;
+      });
+    }
+    dragItem.current = null;
+    dragOverItem.current = null;
+  }
+
+  function toggleCollapseDept(deptId: string) {
+    setCollapsedDepts(prev => {
+      const next = new Set(prev);
+      if (next.has(deptId)) next.delete(deptId);
+      else next.add(deptId);
+      return next;
+    });
+  }
+
+  function renderRow(page: PageConfig, indented = false) {
     const locked = page.path === '/app/users' || page.path === '/app/pages';
     const restricted = page.allowedDepartments.length > 0;
     return (
@@ -166,8 +200,8 @@ export default function PagesContent() {
         draggable
         onDragStart={(e) => handleDragStart(e, page.path, page.section)}
         onDragOver={(e) => handleDragOver(e, page.path, page.section)}
-        onDragEnd={() => { dragItem.current = null; dragOverItem.current = null; }}
-        className="flex items-center gap-4 px-5 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors cursor-grab active:cursor-grabbing group"
+        onDragEnd={() => { dragItem.current = null; dragOverItem.current = null; setDragOverDeptId(null); }}
+        className={`flex items-center gap-4 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors cursor-grab active:cursor-grabbing group ${indented ? 'pl-10 pr-5' : 'px-5'}`}
       >
         <svg className="w-4 h-4 text-foreground/20 shrink-0 group-hover:text-foreground/40 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
@@ -177,6 +211,27 @@ export default function PagesContent() {
           <p className="text-sm font-medium text-foreground">{page.label}</p>
           <p className="text-xs text-foreground/30 font-mono">{page.path}</p>
         </div>
+
+        {/* Nav group selector */}
+        {page.section === 'nav' && (
+          <select
+            value={page.departmentId || ''}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const val = e.target.value || null;
+              setPageDepartmentGroup(page.path, val);
+              showToast(`${page.label} ${val ? `moved to ${getDeptName(val)}` : 'ungrouped'}`);
+            }}
+            className="text-[11px] px-2 py-1 rounded-lg border border-gray-200 bg-white text-foreground/60 focus:border-primary focus:outline-none cursor-pointer shrink-0"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="Move to group"
+          >
+            <option value="">No group</option>
+            {departments.map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+        )}
 
         {/* Super Admin Only toggle */}
         <button
@@ -212,7 +267,6 @@ export default function PagesContent() {
         >
           {restricted ? (
             <>
-              {/* Show department names + member avatars */}
               {page.allowedDepartments.map(deptId => {
                 const deptUsers = getUsersInDept(deptId);
                 return (
@@ -237,7 +291,6 @@ export default function PagesContent() {
                                 {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
                               </span>
                             )}
-                            {/* Tooltip */}
                             <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-lg bg-foreground text-white text-[10px] whitespace-nowrap opacity-0 group-hover/avatar:opacity-100 pointer-events-none transition-opacity z-10 shadow-lg">
                               {u.full_name || u.email}
                             </span>
@@ -293,7 +346,65 @@ export default function PagesContent() {
                 Drag pages here to show in the sidebar
               </div>
             ) : (
-              navPages.map(renderRow)
+              (() => {
+                const ungrouped = navPages.filter(p => !p.departmentId);
+                return (
+                  <>
+                    {/* Ungrouped pages */}
+                    {ungrouped.map(p => renderRow(p))}
+
+                    {/* All department groups (including empty ones for drop targets) */}
+                    {departments.map(dept => {
+                      const deptPages = navPages.filter(p => p.departmentId === dept.id);
+                      const isCollapsed = collapsedDepts.has(dept.id);
+                      const isDragOver = dragOverDeptId === dept.id;
+                      return (
+                        <div key={dept.id}>
+                          {/* Department header row — drop target */}
+                          <div
+                            onClick={() => toggleCollapseDept(dept.id)}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.dataTransfer.dropEffect = 'move';
+                              setDragOverDeptId(dept.id);
+                            }}
+                            onDragLeave={(e) => {
+                              if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+                              setDragOverDeptId(null);
+                            }}
+                            onDrop={(e) => handleDropOnDeptGroup(e, dept.id)}
+                            className={`flex items-center gap-3 px-5 py-3 border-b border-gray-100 cursor-pointer select-none transition-all ${
+                              isDragOver
+                                ? 'bg-primary/10 ring-1 ring-inset ring-primary/30'
+                                : 'bg-warm-bg/40 hover:bg-warm-bg/60'
+                            }`}
+                          >
+                            <svg
+                              className={`w-3.5 h-3.5 text-foreground/30 transition-transform shrink-0 ${isCollapsed ? '-rotate-90' : ''}`}
+                              fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: dept.color || '#a0522d' }}
+                            />
+                            <span className="text-xs font-semibold uppercase tracking-wider text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                              {dept.name}
+                            </span>
+                            <span className="text-[10px] text-foreground/30 ml-auto" style={{ fontFamily: 'var(--font-body)' }}>
+                              {deptPages.length} page{deptPages.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          {/* Pages in this group */}
+                          {!isCollapsed && deptPages.map(p => renderRow(p, true))}
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              })()
             )}
           </div>
         </div>
@@ -313,7 +424,7 @@ export default function PagesContent() {
                 Drag pages here to show in the popup menu
               </div>
             ) : (
-              popupPages.map(renderRow)
+              popupPages.map(p => renderRow(p))
             )}
           </div>
         </div>

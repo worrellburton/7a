@@ -13,24 +13,27 @@ export interface PageConfig {
   // Department IDs permitted to view the page. Empty array = unrestricted.
   // Admins always see the page regardless of this list.
   allowedDepartments: string[];
+  // The department this page is grouped under in the sidebar nav.
+  // null = appears in the ungrouped section at the top.
+  departmentId: string | null;
 }
 
 const defaultPages: PageConfig[] = [
-  { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0, allowedDepartments: [] },
-  { path: '/app/facilities', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1, allowedDepartments: [] },
-  { path: '/app/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2, allowedDepartments: [] },
-  { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3, allowedDepartments: [] },
-  { path: '/app/calendar', label: 'Calendar', adminOnly: false, section: 'nav', sort_order: 4, allowedDepartments: [] },
-  { path: '/app/equine', label: 'Equine', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [] },
-  { path: '/app/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6, allowedDepartments: [] },
-  { path: '/app/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7, allowedDepartments: [] },
-  { path: '/app/fleet', label: 'Fleet', adminOnly: false, section: 'nav', sort_order: 8, allowedDepartments: [] },
-  { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [] },
-  { path: '/app/org-chart', label: 'Org Chart', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [] },
-  { path: '/app/users', label: 'Users', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [] },
-  { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [] },
-  { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [] },
-  { path: '/app/apis', label: 'APIs', adminOnly: true, section: 'popup', sort_order: 3, allowedDepartments: [] },
+  { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0, allowedDepartments: [], departmentId: null },
+  { path: '/app/facilities', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1, allowedDepartments: [], departmentId: null },
+  { path: '/app/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2, allowedDepartments: [], departmentId: null },
+  { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3, allowedDepartments: [], departmentId: null },
+  { path: '/app/calendar', label: 'Calendar', adminOnly: false, section: 'nav', sort_order: 4, allowedDepartments: [], departmentId: null },
+  { path: '/app/equine', label: 'Equine', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [], departmentId: null },
+  { path: '/app/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6, allowedDepartments: [], departmentId: null },
+  { path: '/app/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7, allowedDepartments: [], departmentId: null },
+  { path: '/app/fleet', label: 'Fleet', adminOnly: false, section: 'nav', sort_order: 8, allowedDepartments: [], departmentId: null },
+  { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [], departmentId: null },
+  { path: '/app/org-chart', label: 'Org Chart', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: null },
+  { path: '/app/users', label: 'Users', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
+  { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
+  { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [], departmentId: null },
+  { path: '/app/apis', label: 'APIs', adminOnly: true, section: 'popup', sort_order: 3, allowedDepartments: [], departmentId: null },
 ];
 
 interface PagePermissionsContextType {
@@ -39,6 +42,7 @@ interface PagePermissionsContextType {
   popupPages: PageConfig[];
   setPageAdminOnly: (path: string, adminOnly: boolean) => void;
   setPageDepartments: (path: string, allowedDepartments: string[]) => void;
+  setPageDepartmentGroup: (path: string, departmentId: string | null) => void;
   isPageAdminOnly: (path: string) => boolean;
   // True when `userDepartmentId` (may be null) is allowed to view `path`.
   // Unrestricted pages (empty allowedDepartments) are always allowed.
@@ -53,6 +57,7 @@ const PagePermissionsContext = createContext<PagePermissionsContextType>({
   popupPages: defaultPages.filter((p) => p.section === 'popup'),
   setPageAdminOnly: () => {},
   setPageDepartments: () => {},
+  setPageDepartmentGroup: () => {},
   isPageAdminOnly: () => false,
   isPageAllowedForDepartment: () => true,
   updatePageLayout: () => {},
@@ -71,7 +76,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
         const data = await db({
           action: 'select',
           table: 'page_permissions',
-          select: 'path, admin_only, section, sort_order, allowed_departments',
+          select: 'path, admin_only, section, sort_order, allowed_departments, department_id',
         });
 
         // Only apply DB overrides if query succeeded and returned data
@@ -81,7 +86,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
           const missing = defaultPages.filter((p) => !dbPaths.has(p.path));
           if (missing.length > 0) {
             for (const m of missing) {
-              await db({ action: 'upsert', table: 'page_permissions', data: [{ path: m.path, admin_only: m.adminOnly, section: m.section, sort_order: m.sort_order, allowed_departments: [] }], onConflict: 'path' });
+              await db({ action: 'upsert', table: 'page_permissions', data: [{ path: m.path, admin_only: m.adminOnly, section: m.section, sort_order: m.sort_order, allowed_departments: [], department_id: null }], onConflict: 'path' });
             }
           }
 
@@ -96,6 +101,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
                   section: (match.section === 'nav' || match.section === 'popup') ? match.section : p.section,
                   sort_order: typeof match.sort_order === 'number' ? match.sort_order : p.sort_order,
                   allowedDepartments: Array.isArray(match.allowed_departments) ? match.allowed_departments : [],
+                  departmentId: match.department_id ?? null,
                 };
               }
               return p;
@@ -135,6 +141,17 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
     });
   };
 
+  const setPageDepartmentGroup = async (path: string, departmentId: string | null) => {
+    setPages((prev) => prev.map((p) => (p.path === path ? { ...p, departmentId } : p)));
+
+    await db({
+      action: 'upsert',
+      table: 'page_permissions',
+      data: [{ path, department_id: departmentId }],
+      onConflict: 'path',
+    });
+  };
+
   const isPageAdminOnly = (path: string) => {
     const page = pages.find((p) => p.path === path);
     return page?.adminOnly ?? false;
@@ -158,6 +175,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
       section: p.section,
       sort_order: p.sort_order,
       allowed_departments: p.allowedDepartments || [],
+      department_id: p.departmentId || null,
     }));
 
     await db({
@@ -173,7 +191,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   const popupPages = sorted.filter((p) => p.section === 'popup');
 
   return (
-    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, setPageDepartments, isPageAdminOnly, isPageAllowedForDepartment, updatePageLayout, loading }}>
+    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, setPageDepartments, setPageDepartmentGroup, isPageAdminOnly, isPageAllowedForDepartment, updatePageLayout, loading }}>
       {children}
     </PagePermissionsContext.Provider>
   );

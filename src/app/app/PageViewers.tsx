@@ -59,7 +59,7 @@ export default function PageViewers() {
   if (viewers.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#2a2118]/90 backdrop-blur border border-gray-100 dark:border-white/10 shadow-sm">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#2a2118]/90 backdrop-blur border border-gray-100 dark:border-white/10 shadow-sm">
       <span
         className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider"
         style={{ fontFamily: 'var(--font-body)' }}
@@ -80,7 +80,7 @@ export default function PageViewers() {
                 {(u.full_name || '?').charAt(0).toUpperCase()}
               </div>
             )}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
               <p className="font-medium">{u.full_name || 'User'}</p>
               {u.job_title && <p className="text-white/70 text-[10px]">{u.job_title}</p>}
               <p className="text-emerald-300 text-[10px]">Viewing this page</p>

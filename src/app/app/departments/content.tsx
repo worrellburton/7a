@@ -281,9 +281,9 @@ export default function DepartmentsContent() {
           <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className={`grid grid-cols-1 ${unassigned.length > 0 ? 'lg:grid-cols-3' : ''} gap-5`}>
           {/* Department cards */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className={`${unassigned.length > 0 ? 'lg:col-span-2' : ''} space-y-4`}>
             {departments.length === 0 ? (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center">
                 <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
@@ -340,8 +340,41 @@ export default function DepartmentsContent() {
                         )}
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-xs font-medium text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-                          {members.length} {members.length === 1 ? 'member' : 'members'}
+                        {/* Member avatars inline */}
+                        {members.length > 0 && (
+                          <div className="flex -space-x-2">
+                            {members.slice(0, 6).map((m) => (
+                              <div key={m.id} className="relative group/avatar">
+                                {m.avatar_url ? (
+                                  <img
+                                    src={m.avatar_url}
+                                    alt={m.full_name || m.email}
+                                    className="w-7 h-7 rounded-full border-2 border-white"
+                                  />
+                                ) : (
+                                  <div
+                                    className="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold"
+                                    style={{ backgroundColor: d.color || '#a0522d' }}
+                                  >
+                                    {(m.full_name || m.email || '?').charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                                {/* Tooltip */}
+                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-lg bg-foreground text-white text-[10px] whitespace-nowrap opacity-0 group-hover/avatar:opacity-100 pointer-events-none transition-opacity z-10 shadow-lg">
+                                  {m.full_name || m.email}
+                                  {m.job_title ? ` — ${m.job_title}` : ''}
+                                </span>
+                              </div>
+                            ))}
+                            {members.length > 6 && (
+                              <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-200 flex items-center justify-center text-foreground/50 text-[10px] font-bold">
+                                +{members.length - 6}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <span className="text-xs font-medium text-foreground/40 tabular-nums" style={{ fontFamily: 'var(--font-body)' }}>
+                          {members.length}
                         </span>
                         <button
                           onClick={() => setExpandedDeptId(expanded ? null : d.id)}
@@ -429,65 +462,67 @@ export default function DepartmentsContent() {
             )}
           </div>
 
-          {/* Unassigned panel */}
-          <div
-            onDragOver={(e) => onTargetDragOver(e, 'unassigned')}
-            onDragLeave={onTargetDragLeave}
-            onDrop={(e) => onTargetDrop(e, null)}
-            className={`bg-white rounded-2xl shadow-sm border p-5 h-fit lg:sticky lg:top-5 transition-all ${
-              dragOverTargetId === 'unassigned'
-                ? 'border-primary ring-2 ring-primary/30'
-                : 'border-gray-100'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-foreground">Unassigned</h2>
-              <span className="text-[11px] font-medium text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-                {unassigned.length}
-              </span>
-            </div>
-            {unassigned.length === 0 ? (
-              <p className="text-xs text-foreground/40 italic" style={{ fontFamily: 'var(--font-body)' }}>
-                {dragUserId ? 'Drop here to unassign.' : 'Every user is assigned to a department.'}
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {unassigned.map((u) => (
-                  <div
-                    key={u.id}
-                    draggable
-                    onDragStart={(e) => onUserDragStart(e, u.id)}
-                    onDragEnd={onUserDragEnd}
-                    className={`flex items-center gap-2.5 cursor-grab active:cursor-grabbing ${
-                      dragUserId === u.id ? 'opacity-40' : ''
-                    }`}
-                  >
-                    {u.avatar_url ? (
-                      <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full shrink-0" />
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-foreground/50 text-[10px] font-bold shrink-0">
-                        {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-foreground truncate">{u.full_name || u.email}</p>
-                    </div>
-                    <select
-                      value=""
-                      onChange={(e) => { if (e.target.value) assignUser(u.id, e.target.value); }}
-                      className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-[100px]"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      <option value="">Assign…</option>
-                      {departments.map((d) => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
+          {/* Unassigned panel — only visible when there are unassigned users or during drag */}
+          {(unassigned.length > 0 || dragUserId) && (
+            <div
+              onDragOver={(e) => onTargetDragOver(e, 'unassigned')}
+              onDragLeave={onTargetDragLeave}
+              onDrop={(e) => onTargetDrop(e, null)}
+              className={`bg-white rounded-2xl shadow-sm border p-5 h-fit lg:sticky lg:top-5 transition-all ${
+                dragOverTargetId === 'unassigned'
+                  ? 'border-primary ring-2 ring-primary/30'
+                  : 'border-gray-100'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-foreground">Unassigned</h2>
+                <span className="text-[11px] font-medium text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                  {unassigned.length}
+                </span>
               </div>
-            )}
-          </div>
+              {unassigned.length === 0 ? (
+                <p className="text-xs text-foreground/40 italic" style={{ fontFamily: 'var(--font-body)' }}>
+                  Drop here to unassign.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {unassigned.map((u) => (
+                    <div
+                      key={u.id}
+                      draggable
+                      onDragStart={(e) => onUserDragStart(e, u.id)}
+                      onDragEnd={onUserDragEnd}
+                      className={`flex items-center gap-2.5 cursor-grab active:cursor-grabbing ${
+                        dragUserId === u.id ? 'opacity-40' : ''
+                      }`}
+                    >
+                      {u.avatar_url ? (
+                        <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full shrink-0" />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-foreground/50 text-[10px] font-bold shrink-0">
+                          {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">{u.full_name || u.email}</p>
+                      </div>
+                      <select
+                        value=""
+                        onChange={(e) => { if (e.target.value) assignUser(u.id, e.target.value); }}
+                        className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-[100px]"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        <option value="">Assign…</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
