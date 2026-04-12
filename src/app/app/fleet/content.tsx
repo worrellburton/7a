@@ -21,6 +21,19 @@ interface Vehicle {
   updated_at: string;
 }
 
+interface VehicleDocument {
+  id: string;
+  vehicle_id: string;
+  doc_type: string;
+  file_name: string;
+  file_url: string;
+  file_size: number | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+const DOC_TYPES = ['Insurance', 'Registration & Tag', 'Scheduled Maintenance', 'Title'] as const;
+
 const statusStyles: Record<string, string> = {
   active: 'bg-emerald-50 text-emerald-700',
   inactive: 'bg-gray-100 text-gray-600',
@@ -40,6 +53,8 @@ export default function FleetContent() {
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [docs, setDocs] = useState<Record<string, VehicleDocument[]>>({});
+  const [docsLoading, setDocsLoading] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editField, setEditField] = useState('');
   const [editValue, setEditValue] = useState('');
@@ -92,6 +107,25 @@ export default function FleetContent() {
     await db({ action: 'delete', table: 'fleet_vehicles', match: { id: v.id } });
     setVehicles(prev => prev.filter(x => x.id !== v.id));
     showToast('Vehicle deleted');
+  };
+
+  const loadDocs = async (vehicleId: string) => {
+    if (docs[vehicleId]) return;
+    setDocsLoading(vehicleId);
+    try {
+      const data = await db({ action: 'select', table: 'vehicle_documents', match: { vehicle_id: vehicleId }, order: { column: 'created_at', ascending: false } });
+      if (Array.isArray(data)) setDocs(prev => ({ ...prev, [vehicleId]: data as VehicleDocument[] }));
+    } catch { /* ignore */ }
+    setDocsLoading(null);
+  };
+
+  const toggleExpand = (id: string) => {
+    if (expandedId === id) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(id);
+      loadDocs(id);
+    }
   };
 
   const startEdit = (id: string, field: string, value: string) => {
@@ -277,7 +311,7 @@ export default function FleetContent() {
                   return (
                     <React.Fragment key={v.id}>
                       <tr
-                        onClick={() => setExpandedId(expanded ? null : v.id)}
+                        onClick={() => toggleExpand(v.id)}
                         className={`border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer ${expanded ? 'bg-warm-bg/10' : ''}`}
                       >
                         <td className="px-5 py-3 text-sm font-bold text-foreground whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
@@ -375,10 +409,53 @@ export default function FleetContent() {
                               )}
                             </div>
 
-                            {/* Documents placeholder — Phase 6b/6c */}
+                            {/* Documents by type */}
                             <div className="mt-4 pt-4 border-t border-gray-100">
-                              <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Documents</p>
-                              <p className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>Insurance, Registration &amp; Tag, Scheduled Maintenance, Title</p>
+                              <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-3" style={{ fontFamily: 'var(--font-body)' }}>Documents</p>
+                              {docsLoading === v.id ? (
+                                <div className="flex items-center gap-2 py-2">
+                                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                  <span className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>Loading documents...</span>
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                  {DOC_TYPES.map(docType => {
+                                    const typeDocs = (docs[v.id] || []).filter(d => d.doc_type === docType);
+                                    return (
+                                      <div key={docType} className="rounded-xl border border-gray-100 p-3 bg-white">
+                                        <p className="text-xs font-semibold text-foreground/50 mb-2" style={{ fontFamily: 'var(--font-body)' }}>{docType}</p>
+                                        {typeDocs.length === 0 ? (
+                                          <p className="text-xs text-foreground/20" style={{ fontFamily: 'var(--font-body)' }}>No files</p>
+                                        ) : (
+                                          <div className="space-y-1.5">
+                                            {typeDocs.map(doc => (
+                                              <div key={doc.id} className="flex items-center gap-2 group">
+                                                <svg className="w-3.5 h-3.5 text-foreground/30 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+                                                  <path d="M14 2v6h6" />
+                                                </svg>
+                                                <a
+                                                  href={doc.file_url}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="text-xs text-primary hover:underline truncate flex-1"
+                                                  style={{ fontFamily: 'var(--font-body)' }}
+                                                  onClick={e => e.stopPropagation()}
+                                                >
+                                                  {doc.file_name}
+                                                </a>
+                                                {doc.file_size && (
+                                                  <span className="text-[10px] text-foreground/20 shrink-0">{(doc.file_size / 1024).toFixed(0)}KB</span>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>
