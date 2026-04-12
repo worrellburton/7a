@@ -4,9 +4,16 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
-import { usePagePermissions } from '@/lib/PagePermissions';
+import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
+import { db } from '@/lib/db';
 import PageGuard from '@/lib/PageGuard';
 import PageViewers from './PageViewers';
+
+interface NavDepartment {
+  id: string;
+  name: string;
+  color: string | null;
+}
 
 /* ── Login WebGL Background ─────────────────────────────────────── */
 
@@ -341,9 +348,10 @@ function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
 export { pageIcons };
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, signInWithGoogle, signOut } = useAuth();
+  const { user, loading, isAdmin, departmentId, signInWithGoogle, signOut, session } = useAuth();
   const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
   const pathname = usePathname();
+  const [navDepartments, setNavDepartments] = useState<NavDepartment[]>([]);
 
   // Sidebar/popup links are gated on both admin-only flag and the
   // per-page department allow-list. Admins bypass the department check.
@@ -355,6 +363,29 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [navMounted, setNavMounted] = useState(false);
+
+  // Load departments for sidebar grouping
+  useEffect(() => {
+    if (!session?.access_token) return;
+    async function loadDepts() {
+      try {
+        const data = await db({ action: 'select', table: 'departments', select: 'id, name, color', order: { column: 'name', ascending: true } });
+        if (Array.isArray(data)) setNavDepartments(data as NavDepartment[]);
+      } catch { /* ignore */ }
+    }
+    loadDepts();
+  }, [session]);
+
+  // Group visible nav pages: ungrouped first, then by department
+  const visibleNavPages = navPages.filter(canSeePage);
+  const ungroupedPages = visibleNavPages.filter(p => !p.departmentId);
+  const deptGroups: { dept: NavDepartment; pages: PageConfig[] }[] = [];
+  for (const dept of navDepartments) {
+    const deptPages = visibleNavPages.filter(p => p.departmentId === dept.id);
+    if (deptPages.length > 0) {
+      deptGroups.push({ dept, pages: deptPages });
+    }
+  }
 
   // Restore theme on mount
   useEffect(() => {
@@ -437,26 +468,49 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           </Link>
         </div>
 
-        {/* Nav links */}
-        <nav className="flex-1 p-3 space-y-1">
-          {navPages.filter(canSeePage).map((item, idx) => {
-            const isActive = pathname === item.path;
+        {/* Nav links — grouped by department */}
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+          {(() => {
+            let animIdx = 0;
+            const renderLink = (item: PageConfig) => {
+              const idx = animIdx++;
+              const isActive = pathname === item.path;
+              return (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out ${
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-foreground/60 hover:bg-warm-bg hover:text-foreground'
+                  } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
+                  style={{ fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` }}
+                >
+                  <span className={isActive ? 'text-primary' : 'text-foreground/40'}>{getPageIcon(item.path)}</span>
+                  {item.label}
+                </Link>
+              );
+            };
             return (
-              <Link
-                key={item.path}
-                href={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out ${
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-foreground/60 hover:bg-warm-bg hover:text-foreground'
-                } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
-                style={{ fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` }}
-              >
-                <span className={isActive ? 'text-primary' : 'text-foreground/40'}>{getPageIcon(item.path)}</span>
-                {item.label}
-              </Link>
+              <>
+                {ungroupedPages.map(renderLink)}
+                {deptGroups.map(({ dept, pages }) => {
+                  const hdrIdx = animIdx++;
+                  return (
+                    <div key={dept.id}>
+                      <p
+                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
+                        style={{ fontFamily: 'var(--font-body)', transitionDelay: `${hdrIdx * 50}ms` }}
+                      >
+                        {dept.name}
+                      </p>
+                      {pages.map(renderLink)}
+                    </div>
+                  );
+                })}
+              </>
             );
-          })}
+          })()}
         </nav>
 
         {/* User settings — bottom left */}
@@ -583,9 +637,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </button>
               </div>
 
-              {/* Nav links */}
-              <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-                {navPages.filter(canSeePage).map((item) => {
+              {/* Nav links — grouped by department */}
+              <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+                {ungroupedPages.map((item) => {
                   const isActive = pathname === item.path;
                   return (
                     <Link
@@ -606,6 +660,37 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     </Link>
                   );
                 })}
+                {deptGroups.map(({ dept, pages }) => (
+                  <div key={dept.id}>
+                    <p
+                      className="px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {dept.name}
+                    </p>
+                    {pages.map((item) => {
+                      const isActive = pathname === item.path;
+                      return (
+                        <Link
+                          key={item.path}
+                          href={item.path}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                          }`}
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                            {getPageIcon(item.path)}
+                          </span>
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ))}
 
                 {popupPages.filter(canSeePage).length > 0 && (
                   <>
