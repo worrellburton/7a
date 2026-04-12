@@ -185,24 +185,38 @@ export default function DepartmentBudgetContent() {
 
   useEffect(() => { load(); }, [load]);
 
-  // All accounts belonging to this dept's P&L group: the mapped parent
-  // plus any accounts whose ParentRef points at it. If no parent is
-  // mapped we return just the account itself (or empty).
+  // Every account that rolls up under this dept's mapped parent — the
+  // parent itself plus any descendant at any depth. QBO chart of
+  // accounts can nest arbitrarily (e.g. 6000 Admin → 6080 Admin
+  // Personnel → 6081 Admin Salaries & Wages), so we walk the whole
+  // subtree rather than stopping at two levels.
   const deptAccounts = useMemo<QboAccount[]>(() => {
-    if (!budget?.qbo_account_id) return [];
-    const root = qboAccounts.find((a) => a.Id === budget.qbo_account_id);
-    const children = qboAccounts.filter((a) => a.ParentRef?.value === budget.qbo_account_id);
-    // Recurse one more level — QBO allows nested sub-accounts. In
-    // practice most charts of accounts stop at 2 levels.
-    const grandchildren: QboAccount[] = [];
-    for (const c of children) {
-      grandchildren.push(
-        ...qboAccounts.filter((a) => a.ParentRef?.value === c.Id)
-      );
+    if (!budget?.qbo_account_id || qboAccounts.length === 0) return [];
+
+    // Index children by parent id for O(1) lookup during the walk.
+    const byId = new Map<string, QboAccount>();
+    const byParent = new Map<string, QboAccount[]>();
+    for (const a of qboAccounts) {
+      byId.set(a.Id, a);
+      const p = a.ParentRef?.value;
+      if (!p) continue;
+      const list = byParent.get(p);
+      if (list) list.push(a);
+      else byParent.set(p, [a]);
     }
-    const all = [root, ...children, ...grandchildren].filter(Boolean) as QboAccount[];
-    // Dedup by Id.
-    return Array.from(new Map(all.map((a) => [a.Id, a])).values());
+
+    const out: QboAccount[] = [];
+    const seen = new Set<string>();
+    const stack: string[] = [budget.qbo_account_id];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const a = byId.get(id);
+      if (a) out.push(a);
+      for (const child of byParent.get(id) || []) stack.push(child.Id);
+    }
+    return out;
   }, [budget, qboAccounts]);
 
   const accountListParam = useMemo(
