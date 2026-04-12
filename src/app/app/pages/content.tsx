@@ -23,7 +23,7 @@ interface AppUser {
 
 export default function PagesContent() {
   const { user, session, isAdmin } = useAuth();
-  const { pages, setPageAdminOnly, setPageDepartments, updatePageLayout } = usePagePermissions();
+  const { pages, setPageAdminOnly, setPageDepartments, setPageDepartmentGroup, updatePageLayout } = usePagePermissions();
   const router = useRouter();
   const [toast, setToast] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -177,6 +177,26 @@ export default function PagesContent() {
           <p className="text-sm font-medium text-foreground">{page.label}</p>
           <p className="text-xs text-foreground/30 font-mono">{page.path}</p>
         </div>
+
+        {/* Nav group (department section header) */}
+        {page.section === 'nav' && (
+          <select
+            value={page.departmentId || ''}
+            onChange={(e) => {
+              const val = e.target.value || null;
+              setPageDepartmentGroup(page.path, val);
+              showToast(`${page.label} ${val ? `grouped under ${getDeptName(val)}` : 'ungrouped'}`);
+            }}
+            className="text-[11px] px-2 py-1 rounded-lg border border-gray-200 bg-white text-foreground/60 focus:border-primary focus:outline-none cursor-pointer shrink-0"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="Nav section group"
+          >
+            <option value="">No group</option>
+            {departments.map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+        )}
 
         {/* Super Admin Only toggle */}
         <button
