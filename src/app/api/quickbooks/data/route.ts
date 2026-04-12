@@ -53,6 +53,12 @@ function buildReportPath(
   const end = params.get('end_date');
   if (start) qp.set('start_date', start);
   if (end) qp.set('end_date', end);
+  // Pass-through for account-scoped report filters. QBO accepts
+  // comma-separated lists of Intuit account ids on most reports.
+  const accountList = params.get('account_list');
+  if (accountList) qp.set('account_list', accountList);
+  const dateMacro = params.get('date_macro');
+  if (dateMacro) qp.set('date_macro', dateMacro);
   for (const [k, v] of Object.entries(extras)) qp.set(k, v);
   qp.set('minorversion', MINOR_VERSION);
   return `/reports/${report}?${qp.toString()}`;
