@@ -289,6 +289,15 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M12 17.5v-11" />
     </svg>
   ),
+  '/app/fleet': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="11" width="16" height="7" rx="2" />
+      <path d="M17 11V7a2 2 0 0 1 2-2h1l3 5v7a1 1 0 0 1-1 1h-1" />
+      <circle cx="6" cy="19" r="2" />
+      <circle cx="19" cy="19" r="2" />
+      <path d="M17 18h-3M9 18H1" />
+    </svg>
+  ),
   '/app/calls': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
@@ -345,6 +354,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   };
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [navMounted, setNavMounted] = useState(false);
 
   // Restore theme on mount
   useEffect(() => {
@@ -352,6 +362,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     if (saved === 'dark') {
       document.documentElement.classList.add('dark');
     }
+    // Trigger nav entrance animation after first paint
+    requestAnimationFrame(() => setNavMounted(true));
   }, []);
 
   // Close drawer on Escape + lock body scroll while open
@@ -420,25 +432,25 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       <aside className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 hidden lg:flex">
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
-          <Link href="/app" className="flex items-center gap-2.5">
+          <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
             <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
           </Link>
         </div>
 
         {/* Nav links */}
         <nav className="flex-1 p-3 space-y-1">
-          {navPages.filter(canSeePage).map((item) => {
+          {navPages.filter(canSeePage).map((item, idx) => {
             const isActive = pathname === item.path;
             return (
               <Link
                 key={item.path}
                 href={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out ${
                   isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-foreground/60 hover:bg-warm-bg hover:text-foreground'
-                }`}
-                style={{ fontFamily: 'var(--font-body)' }}
+                } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
+                style={{ fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` }}
               >
                 <span className={isActive ? 'text-primary' : 'text-foreground/40'}>{getPageIcon(item.path)}</span>
                 {item.label}
