@@ -25,11 +25,11 @@ const defaultPages: PageConfig[] = [
   { path: '/app/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6, allowedDepartments: [] },
   { path: '/app/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7, allowedDepartments: [] },
   { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [] },
-  { path: '/app/reports', label: 'Reports', adminOnly: true, section: 'nav', sort_order: 10, allowedDepartments: [] },
   { path: '/app/org-chart', label: 'Org Chart', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [] },
   { path: '/app/users', label: 'Users', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [] },
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [] },
   { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [] },
+  { path: '/app/apis', label: 'APIs', adminOnly: true, section: 'popup', sort_order: 3, allowedDepartments: [] },
 ];
 
 interface PagePermissionsContextType {
