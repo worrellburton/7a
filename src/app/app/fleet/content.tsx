@@ -39,6 +39,9 @@ export default function FleetContent() {
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editField, setEditField] = useState('');
+  const [editValue, setEditValue] = useState('');
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -90,6 +93,62 @@ export default function FleetContent() {
     showToast('Vehicle deleted');
   };
 
+  const startEdit = (id: string, field: string, value: string) => {
+    setEditingId(id);
+    setEditField(field);
+    setEditValue(value || '');
+  };
+
+  const saveEdit = async () => {
+    if (editingId && editField) {
+      setVehicles(prev => prev.map(v => v.id === editingId ? { ...v, [editField]: editValue || null } : v));
+      try {
+        await db({ action: 'update', table: 'fleet_vehicles', data: { [editField]: editValue || null }, match: { id: editingId } });
+      } catch { /* ignore */ }
+    }
+    setEditingId(null);
+    setEditField('');
+    setEditValue('');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditField('');
+    setEditValue('');
+  };
+
+  const updateStatus = async (id: string, status: string) => {
+    setVehicles(prev => prev.map(v => v.id === id ? { ...v, status } : v));
+    try {
+      await db({ action: 'update', table: 'fleet_vehicles', data: { status }, match: { id } });
+    } catch { /* ignore */ }
+  };
+
+  const renderEditableCell = (v: Vehicle, field: keyof Vehicle, className = '') => {
+    const value = (v[field] as string) || '';
+    if (editingId === v.id && editField === field) {
+      return (
+        <input
+          autoFocus
+          value={editValue}
+          onChange={e => setEditValue(e.target.value)}
+          onBlur={saveEdit}
+          onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
+          className="text-sm px-1.5 py-0.5 rounded border border-gray-200 focus:border-primary focus:outline-none w-full bg-white"
+          style={{ fontFamily: 'var(--font-body)' }}
+        />
+      );
+    }
+    return (
+      <span
+        className={`cursor-text hover:text-foreground transition-colors ${className}`}
+        onClick={e => { e.stopPropagation(); startEdit(v.id, field, value); }}
+      >
+        {value || <span className="text-foreground/20">—</span>}
+      </span>
+    );
+  };
+
   if (!user) return null;
 
   if (loading) {
@@ -106,7 +165,7 @@ export default function FleetContent() {
         <div>
           <h1 className="text-2xl font-bold text-foreground mb-1">Fleet</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            {vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''}
+            {vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''}{vehicles.length > 0 ? ' \u00b7 Click any cell to edit' : ''}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -213,18 +272,27 @@ export default function FleetContent() {
               <tbody>
                 {vehicles.map(v => (
                   <tr key={v.id} className="border-b border-gray-50 last:border-b-0 hover:bg-warm-bg/20 transition-colors">
-                    <td className="px-5 py-3 text-sm font-bold text-foreground whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{v.vehicle_name}</td>
-                    <td className="px-5 py-3">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[v.status] || 'bg-gray-100 text-gray-600'}`}>
-                        {statusLabel(v.status)}
-                      </span>
+                    <td className="px-5 py-3 text-sm font-bold text-foreground whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                      {renderEditableCell(v, 'vehicle_name', 'font-bold text-foreground')}
                     </td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden sm:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{v.vehicle_type || <span className="text-foreground/20">—</span>}</td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden md:table-cell font-mono text-xs">{v.vin_code || <span className="text-foreground/20">—</span>}</td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{v.tags || <span className="text-foreground/20">—</span>}</td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{v.tags_expire_on || <span className="text-foreground/20">—</span>}</td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden xl:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{v.next_service || <span className="text-foreground/20">—</span>}</td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden xl:table-cell max-w-[200px] truncate" style={{ fontFamily: 'var(--font-body)' }}>{v.comments || <span className="text-foreground/20">—</span>}</td>
+                    <td className="px-5 py-3">
+                      <select
+                        value={v.status}
+                        onChange={e => updateStatus(v.id, e.target.value)}
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none ${statusStyles[v.status] || 'bg-gray-100 text-gray-600'}`}
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="out of service">Out of Service</option>
+                      </select>
+                    </td>
+                    <td className="px-5 py-3 text-sm text-foreground/60 hidden sm:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'vehicle_type')}</td>
+                    <td className="px-5 py-3 text-sm text-foreground/60 hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'vin_code')}</td>
+                    <td className="px-5 py-3 text-sm text-foreground/60 hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'tags')}</td>
+                    <td className="px-5 py-3 text-sm text-foreground/60 hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'tags_expire_on')}</td>
+                    <td className="px-5 py-3 text-sm text-foreground/60 hidden xl:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'next_service')}</td>
+                    <td className="px-5 py-3 text-sm text-foreground/60 hidden xl:table-cell max-w-[200px]" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'comments')}</td>
                     <td className="px-3 py-3">
                       <button
                         onClick={() => deleteVehicle(v)}
