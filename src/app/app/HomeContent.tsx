@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 interface RecentUser {
@@ -33,6 +34,7 @@ function timeAgo(dateStr: string | null): string {
 export default function HomeContent() {
   const { user, session } = useAuth();
   const { pages } = usePagePermissions();
+  const router = useRouter();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -90,8 +92,17 @@ export default function HomeContent() {
             {recentUsers.map((u) => {
               const online = isOnlineNow(u.last_seen_at || u.last_sign_in);
               const viewing = online ? pathLabel(u.last_path) : null;
+              // Only clickable when they're actually online and on a known
+              // /app/... path. Otherwise the avatar is a plain static chip.
+              const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
+              const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
               return (
-                <div key={u.id} className="relative group">
+                <Wrapper
+                  key={u.id}
+                  onClick={navTarget ? () => router.push(navTarget) : undefined}
+                  className={`relative group ${navTarget ? 'cursor-pointer' : ''}`}
+                  title={navTarget ? `Go to ${viewing}` : undefined}
+                >
                   {u.avatar_url ? (
                     <img
                       src={u.avatar_url}
@@ -109,13 +120,13 @@ export default function HomeContent() {
                       {(u.full_name || '?').charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left">
                     <p className="font-medium">{u.full_name || 'User'}</p>
                     {u.job_title && <p className="text-white/80">{u.job_title}</p>}
                     <p className="text-white/60">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
-                    {viewing && <p className="text-emerald-300">Viewing {viewing}</p>}
+                    {viewing && <p className="text-emerald-300">Viewing {viewing}{navTarget ? ' — click to jump' : ''}</p>}
                   </div>
-                </div>
+                </Wrapper>
               );
             })}
           </div>
