@@ -29,6 +29,7 @@ export default function PagesContent() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [permissionsFor, setPermissionsFor] = useState<string | null>(null); // path being edited
+  const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
   const dragItem = useRef<{ path: string; section: 'nav' | 'popup' } | null>(null);
   const dragOverItem = useRef<{ path: string; section: 'nav' | 'popup' } | null>(null);
 
@@ -157,7 +158,16 @@ export default function PagesContent() {
     dragOverItem.current = null;
   }
 
-  function renderRow(page: PageConfig) {
+  function toggleCollapseDept(deptId: string) {
+    setCollapsedDepts(prev => {
+      const next = new Set(prev);
+      if (next.has(deptId)) next.delete(deptId);
+      else next.add(deptId);
+      return next;
+    });
+  }
+
+  function renderRow(page: PageConfig, indented = false) {
     const locked = page.path === '/app/users' || page.path === '/app/pages';
     const restricted = page.allowedDepartments.length > 0;
     return (
@@ -167,7 +177,7 @@ export default function PagesContent() {
         onDragStart={(e) => handleDragStart(e, page.path, page.section)}
         onDragOver={(e) => handleDragOver(e, page.path, page.section)}
         onDragEnd={() => { dragItem.current = null; dragOverItem.current = null; }}
-        className="flex items-center gap-4 px-5 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors cursor-grab active:cursor-grabbing group"
+        className={`flex items-center gap-4 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors cursor-grab active:cursor-grabbing group ${indented ? 'pl-10 pr-5' : 'px-5'}`}
       >
         <svg className="w-4 h-4 text-foreground/20 shrink-0 group-hover:text-foreground/40 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
@@ -178,18 +188,19 @@ export default function PagesContent() {
           <p className="text-xs text-foreground/30 font-mono">{page.path}</p>
         </div>
 
-        {/* Nav group (department section header) */}
+        {/* Nav group selector */}
         {page.section === 'nav' && (
           <select
             value={page.departmentId || ''}
+            onClick={(e) => e.stopPropagation()}
             onChange={(e) => {
               const val = e.target.value || null;
               setPageDepartmentGroup(page.path, val);
-              showToast(`${page.label} ${val ? `grouped under ${getDeptName(val)}` : 'ungrouped'}`);
+              showToast(`${page.label} ${val ? `moved to ${getDeptName(val)}` : 'ungrouped'}`);
             }}
             className="text-[11px] px-2 py-1 rounded-lg border border-gray-200 bg-white text-foreground/60 focus:border-primary focus:outline-none cursor-pointer shrink-0"
             style={{ fontFamily: 'var(--font-body)' }}
-            title="Nav section group"
+            title="Move to group"
           >
             <option value="">No group</option>
             {departments.map(d => (
@@ -232,7 +243,6 @@ export default function PagesContent() {
         >
           {restricted ? (
             <>
-              {/* Show department names + member avatars */}
               {page.allowedDepartments.map(deptId => {
                 const deptUsers = getUsersInDept(deptId);
                 return (
@@ -257,7 +267,6 @@ export default function PagesContent() {
                                 {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
                               </span>
                             )}
-                            {/* Tooltip */}
                             <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-lg bg-foreground text-white text-[10px] whitespace-nowrap opacity-0 group-hover/avatar:opacity-100 pointer-events-none transition-opacity z-10 shadow-lg">
                               {u.full_name || u.email}
                             </span>
@@ -313,7 +322,55 @@ export default function PagesContent() {
                 Drag pages here to show in the sidebar
               </div>
             ) : (
-              navPages.map(renderRow)
+              (() => {
+                const ungrouped = navPages.filter(p => !p.departmentId);
+                const deptGroupsArr: { dept: Department; pages: PageConfig[] }[] = [];
+                for (const dept of departments) {
+                  const deptPages = navPages.filter(p => p.departmentId === dept.id);
+                  if (deptPages.length > 0) {
+                    deptGroupsArr.push({ dept, pages: deptPages });
+                  }
+                }
+                return (
+                  <>
+                    {/* Ungrouped pages */}
+                    {ungrouped.map(p => renderRow(p))}
+
+                    {/* Department groups */}
+                    {deptGroupsArr.map(({ dept, pages: deptPages }) => {
+                      const isCollapsed = collapsedDepts.has(dept.id);
+                      return (
+                        <div key={dept.id}>
+                          {/* Department header row */}
+                          <div
+                            onClick={() => toggleCollapseDept(dept.id)}
+                            className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 bg-warm-bg/40 cursor-pointer hover:bg-warm-bg/60 transition-colors select-none"
+                          >
+                            <svg
+                              className={`w-3.5 h-3.5 text-foreground/30 transition-transform shrink-0 ${isCollapsed ? '-rotate-90' : ''}`}
+                              fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: dept.color || '#a0522d' }}
+                            />
+                            <span className="text-xs font-semibold uppercase tracking-wider text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                              {dept.name}
+                            </span>
+                            <span className="text-[10px] text-foreground/30 ml-auto" style={{ fontFamily: 'var(--font-body)' }}>
+                              {deptPages.length} page{deptPages.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          {/* Pages in this group */}
+                          {!isCollapsed && deptPages.map(p => renderRow(p, true))}
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              })()
             )}
           </div>
         </div>
@@ -333,7 +390,7 @@ export default function PagesContent() {
                 Drag pages here to show in the popup menu
               </div>
             ) : (
-              popupPages.map(renderRow)
+              popupPages.map(p => renderRow(p))
             )}
           </div>
         </div>
