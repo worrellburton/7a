@@ -3,7 +3,8 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
-import React, { useEffect, useState } from 'react';
+import { uploadFile } from '@/lib/upload';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface Vehicle {
   id: string;
@@ -55,6 +56,9 @@ export default function FleetContent() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [docs, setDocs] = useState<Record<string, VehicleDocument[]>>({});
   const [docsLoading, setDocsLoading] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadTargetRef = useRef<{ vehicleId: string; docType: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editField, setEditField] = useState('');
   const [editValue, setEditValue] = useState('');
@@ -128,6 +132,56 @@ export default function FleetContent() {
     }
   };
 
+  const triggerUpload = (vehicleId: string, docType: string) => {
+    uploadTargetRef.current = { vehicleId, docType };
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const target = uploadTargetRef.current;
+    if (!target || !e.target.files?.length) return;
+    const file = e.target.files[0];
+    setUploading(`${target.vehicleId}-${target.docType}`);
+    const { url } = await uploadFile(file);
+    if (url) {
+      const result = await db({
+        action: 'insert',
+        table: 'vehicle_documents',
+        data: {
+          vehicle_id: target.vehicleId,
+          doc_type: target.docType,
+          file_name: file.name,
+          file_url: url,
+          file_size: file.size,
+        },
+      });
+      if (result && result.id) {
+        setDocs(prev => ({
+          ...prev,
+          [target.vehicleId]: [result as VehicleDocument, ...(prev[target.vehicleId] || [])],
+        }));
+        showToast('Document uploaded');
+      }
+    }
+    setUploading(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const deleteDoc = async (doc: VehicleDocument) => {
+    const ok = await confirm(`Delete "${doc.file_name}"?`, {
+      message: 'This document will be permanently removed.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    await db({ action: 'delete', table: 'vehicle_documents', match: { id: doc.id } });
+    setDocs(prev => ({
+      ...prev,
+      [doc.vehicle_id]: (prev[doc.vehicle_id] || []).filter(d => d.id !== doc.id),
+    }));
+    showToast('Document deleted');
+  };
+
   const startEdit = (id: string, field: string, value: string) => {
     setEditingId(id);
     setEditField(field);
@@ -196,6 +250,8 @@ export default function FleetContent() {
 
   return (
     <div className="p-6 lg:p-10">
+      <input ref={fileInputRef} type="file" accept="*/*" onChange={handleFileUpload} className="hidden" />
+
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground mb-1">Fleet</h1>
@@ -421,11 +477,37 @@ export default function FleetContent() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                   {DOC_TYPES.map(docType => {
                                     const typeDocs = (docs[v.id] || []).filter(d => d.doc_type === docType);
+                                    const isUploading = uploading === `${v.id}-${docType}`;
                                     return (
                                       <div key={docType} className="rounded-xl border border-gray-100 p-3 bg-white">
-                                        <p className="text-xs font-semibold text-foreground/50 mb-2" style={{ fontFamily: 'var(--font-body)' }}>{docType}</p>
+                                        <div className="flex items-center justify-between mb-2">
+                                          <p className="text-xs font-semibold text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{docType}</p>
+                                          <button
+                                            onClick={e => { e.stopPropagation(); triggerUpload(v.id, docType); }}
+                                            disabled={isUploading}
+                                            className="p-0.5 rounded text-foreground/30 hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-40"
+                                            title={`Upload ${docType}`}
+                                          >
+                                            {isUploading ? (
+                                              <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                                <polyline points="17 8 12 3 7 8" />
+                                                <line x1="12" y1="3" x2="12" y2="15" />
+                                              </svg>
+                                            )}
+                                          </button>
+                                        </div>
                                         {typeDocs.length === 0 ? (
-                                          <p className="text-xs text-foreground/20" style={{ fontFamily: 'var(--font-body)' }}>No files</p>
+                                          <button
+                                            onClick={e => { e.stopPropagation(); triggerUpload(v.id, docType); }}
+                                            disabled={isUploading}
+                                            className="text-xs text-foreground/20 hover:text-primary transition-colors w-full text-left"
+                                            style={{ fontFamily: 'var(--font-body)' }}
+                                          >
+                                            + Upload file
+                                          </button>
                                         ) : (
                                           <div className="space-y-1.5">
                                             {typeDocs.map(doc => (
@@ -447,6 +529,15 @@ export default function FleetContent() {
                                                 {doc.file_size && (
                                                   <span className="text-[10px] text-foreground/20 shrink-0">{(doc.file_size / 1024).toFixed(0)}KB</span>
                                                 )}
+                                                <button
+                                                  onClick={e => { e.stopPropagation(); deleteDoc(doc); }}
+                                                  className="p-0.5 rounded text-foreground/0 group-hover:text-foreground/30 hover:!text-red-500 transition-colors shrink-0"
+                                                  title="Delete document"
+                                                >
+                                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M18 6L6 18M6 6l12 12" />
+                                                  </svg>
+                                                </button>
                                               </div>
                                             ))}
                                           </div>
