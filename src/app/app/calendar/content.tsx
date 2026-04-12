@@ -390,6 +390,40 @@ export default function CalendarContent() {
     [events]
   );
 
+  // ---- Resize an event (change start_time or end_time) ----
+  const handleResizeEvent = useCallback(
+    async (eventId: string, newStartHour: number, newEndHour: number) => {
+      const existing = events.find((ev) => ev.id === eventId);
+      if (!existing) return;
+      const clampedStart = Math.max(HOURS[0], Math.min(newStartHour, DAY_END_H - 1));
+      const clampedEnd = Math.max(clampedStart + 1, Math.min(newEndHour, DAY_END_H));
+      const newStart = `${String(clampedStart).padStart(2, '0')}:00:00`;
+      const newEnd = `${String(clampedEnd).padStart(2, '0')}:00:00`;
+      if (existing.start_time === newStart && existing.end_time === newEnd) return;
+      setEvents((prev) =>
+        prev.map((ev) =>
+          ev.id === eventId ? { ...ev, start_time: newStart, end_time: newEnd } : ev
+        )
+      );
+      const result = await db({
+        action: 'update',
+        table: 'calendar_events',
+        data: { start_time: newStart, end_time: newEnd },
+        match: { id: eventId },
+      });
+      if (!result || !(result as { ok?: boolean }).ok) {
+        setEvents((prev) =>
+          prev.map((ev) =>
+            ev.id === eventId
+              ? { ...ev, start_time: existing.start_time, end_time: existing.end_time }
+              : ev
+          )
+        );
+      }
+    },
+    [events]
+  );
+
   // ---- Save edits from the modal ----
   const handleSaveEdit = useCallback(
     async (id: string, patch: Partial<EventRow>) => {
@@ -595,6 +629,7 @@ export default function CalendarContent() {
               usersById={usersById}
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
               onReschedule={(date, hour, eventId) => handleReschedule(eventId, date, hour)}
+              onResize={handleResizeEvent}
               onEventClick={setEditingId}
               onDayClick={handleDayClick}
             />
@@ -608,6 +643,7 @@ export default function CalendarContent() {
               aodByDate={aodByDate}
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
               onReschedule={(date, hour, eventId) => handleReschedule(eventId, date, hour)}
+              onResize={handleResizeEvent}
               onEventClick={setEditingId}
               onSetAod={handleSetAod}
               onClearAod={handleClearAod}
@@ -808,7 +844,7 @@ function DropCell({
   onClick?: () => void;
   className?: string;
   activeClassName?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   const [over, setOver] = useState(false);
 
@@ -1045,6 +1081,127 @@ function TimedEventBlock({
 }
 
 // ------------------------------------------------------------
+// Resizable event overlay — positioned absolutely within a day
+// column, spanning from start_time to end_time. Shows drag
+// handles on top/bottom edges to resize.
+// ------------------------------------------------------------
+
+function ResizableEvent({
+  ev,
+  usersById,
+  onClick,
+  onResize,
+  totalHours,
+}: {
+  ev: EventRow;
+  usersById: Map<string, UserRow>;
+  onClick: (id: string) => void;
+  onResize: (eventId: string, newStart: number, newEnd: number) => void;
+  totalHours: number;
+}) {
+  const startH = parseTime(ev.start_time) ?? HOURS[0];
+  const endH = parseTime(ev.end_time) ?? startH + 1;
+  const color = ev.color || colorFor(ev.subject_id);
+  const isUser = ev.subject_kind === 'user';
+  const u = isUser ? usersById.get(ev.subject_id) : undefined;
+  const label = isUser ? (u ? userLabel(u) : ev.title) : ev.title;
+  const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
+
+  const topPct = ((startH - HOURS[0]) / totalHours) * 100;
+  const heightPct = ((endH - startH) / totalHours) * 100;
+
+  const handlePointerDown = useCallback(
+    (edge: 'top' | 'bottom', e: React.PointerEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const target = e.currentTarget as HTMLElement;
+      const container = target.closest('[data-resize-container]') as HTMLElement;
+      if (!container) return;
+      const containerRect = container.getBoundingClientRect();
+      const containerH = containerRect.height;
+      target.setPointerCapture(e.pointerId);
+
+      let curStart = startH;
+      let curEnd = endH;
+
+      const onMove = (me: PointerEvent) => {
+        const y = me.clientY - containerRect.top;
+        const hour = HOURS[0] + (y / containerH) * totalHours;
+        const snapped = Math.round(hour);
+        if (edge === 'bottom') {
+          curEnd = Math.max(curStart + 1, Math.min(snapped, DAY_END_H));
+        } else {
+          curStart = Math.max(HOURS[0], Math.min(snapped, curEnd - 1));
+        }
+        // Live preview via DOM style mutation (avoids React re-render flood)
+        const parent = target.closest('[data-event-block]') as HTMLElement;
+        if (parent) {
+          parent.style.top = `${((curStart - HOURS[0]) / totalHours) * 100}%`;
+          parent.style.height = `${((curEnd - curStart) / totalHours) * 100}%`;
+        }
+      };
+      const onUp = () => {
+        target.releasePointerCapture(e.pointerId);
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        if (curStart !== startH || curEnd !== endH) {
+          onResize(ev.id, curStart, curEnd);
+        }
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    },
+    [ev.id, startH, endH, totalHours, onResize]
+  );
+
+  return (
+    <div
+      data-event-block
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={(e) => { e.stopPropagation(); onClick(ev.id); }}
+      className={`absolute left-0 right-0 mx-1 rounded-lg cursor-pointer transition-shadow shadow-sm hover:shadow-md z-10 overflow-hidden ${
+        dragging ? 'opacity-40' : ''
+      }`}
+      style={{
+        top: `${topPct}%`,
+        height: `${heightPct}%`,
+        minHeight: 20,
+        backgroundColor: isUser ? color + '1f' : color + '26',
+        borderLeft: isUser ? undefined : `3px solid ${color}`,
+        fontFamily: 'var(--font-body)',
+      }}
+    >
+      {/* Top resize handle */}
+      <div
+        onPointerDown={(e) => handlePointerDown('top', e)}
+        className="absolute top-0 left-0 right-0 h-2 cursor-n-resize hover:bg-black/10 transition-colors z-20"
+      />
+      {/* Content */}
+      <div className="flex items-center gap-1.5 px-1.5 py-1 min-h-0">
+        {isUser && u?.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-white" />
+        ) : isUser ? (
+          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ backgroundColor: color }}>
+            {label.charAt(0).toUpperCase()}
+          </div>
+        ) : null}
+        <span className="text-[11px] font-semibold truncate" style={{ color }}>
+          {label}
+        </span>
+      </div>
+      {/* Bottom resize handle */}
+      <div
+        onPointerDown={(e) => handlePointerDown('bottom', e)}
+        className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize hover:bg-black/10 transition-colors z-20"
+      />
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
 // AOD slot — per-day "Assistant on Duty" drop target in the
 // upper-left of each day cell. Accepts team drags only.
 // ------------------------------------------------------------
@@ -1276,6 +1433,7 @@ function WeekView({
   usersById,
   onCreate,
   onReschedule,
+  onResize,
   onEventClick,
   onDayClick,
 }: {
@@ -1285,6 +1443,7 @@ function WeekView({
   usersById: Map<string, UserRow>;
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
   onReschedule: (date: Date, hour: number, eventId: string) => void;
+  onResize: (eventId: string, newStart: number, newEnd: number) => void;
   onEventClick: (id: string) => void;
   onDayClick: (date: Date) => void;
 }) {
@@ -1395,26 +1554,42 @@ function WeekView({
               >
                 {formatHour(h)}
               </div>
-              {days.map((d, di) => {
-                const dayEvents = eventsByDate.get(toISODate(d)) || [];
-                const slot = dayEvents.filter((ev) => parseTime(ev.start_time) === h);
-                return (
-                  <DropCell
-                    key={di}
-                    onCreate={(payload) => onCreate(d, h, payload)}
-                    onReschedule={(eventId) => onReschedule(d, h, eventId)}
-                    className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative overflow-hidden min-h-0"
-                  >
-                    <div className="flex flex-col gap-0.5 py-0.5">
-                      {slot.map((ev) => (
-                        <TimedEventBlock key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
-                      ))}
-                    </div>
-                  </DropCell>
-                );
-              })}
+              {days.map((d, di) => (
+                <DropCell
+                  key={di}
+                  onCreate={(payload) => onCreate(d, h, payload)}
+                  onReschedule={(eventId) => onReschedule(d, h, eventId)}
+                  className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
+                />
+              ))}
             </React.Fragment>
           ))}
+        </div>
+        {/* Event overlay — positioned events spanning their full duration */}
+        <div
+          className="pointer-events-none absolute inset-0 grid"
+          style={{ gridTemplateColumns: '64px repeat(7, minmax(0, 1fr))' }}
+        >
+          <div />
+          {days.map((d, di) => {
+            const dayEvents = (eventsByDate.get(toISODate(d)) || []).filter(
+              (ev) => parseTime(ev.start_time) != null
+            );
+            return (
+              <div key={di} className="relative pointer-events-auto" data-resize-container>
+                {dayEvents.map((ev) => (
+                  <ResizableEvent
+                    key={ev.id}
+                    ev={ev}
+                    usersById={usersById}
+                    onClick={onEventClick}
+                    onResize={onResize}
+                    totalHours={HOURS.length}
+                  />
+                ))}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1433,6 +1608,7 @@ function DayView({
   aodByDate,
   onCreate,
   onReschedule,
+  onResize,
   onEventClick,
   onSetAod,
   onClearAod,
@@ -1444,6 +1620,7 @@ function DayView({
   aodByDate: Map<string, string>;
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
   onReschedule: (date: Date, hour: number, eventId: string) => void;
+  onResize: (eventId: string, newStart: number, newEnd: number) => void;
   onEventClick: (id: string) => void;
   onSetAod: (date: Date, userId: string) => void;
   onClearAod: (date: Date) => void;
@@ -1451,6 +1628,7 @@ function DayView({
   const isToday = isSameDay(day, today);
   const iso = toISODate(day);
   const dayEvents = eventsByDate.get(iso) || [];
+  const timedEvents = dayEvents.filter((ev) => parseTime(ev.start_time) != null);
   const aodUserId = aodByDate.get(iso);
   const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
 
@@ -1564,30 +1742,40 @@ function DayView({
             gridTemplateRows: `repeat(${HOURS.length}, minmax(0, 1fr))`,
           }}
         >
-          {HOURS.map((h) => {
-            const slot = dayEvents.filter((ev) => parseTime(ev.start_time) === h);
-            return (
-              <React.Fragment key={h}>
-                <div
-                  className="text-xs font-semibold text-foreground/40 pr-3 text-right pt-1 -translate-y-1"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  {formatHour(h)}
-                </div>
-                <DropCell
-                  onCreate={(payload) => onCreate(day, h, payload)}
-                  onReschedule={(eventId) => onReschedule(day, h, eventId)}
-                  className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative overflow-hidden min-h-0"
-                >
-                  <div className="flex flex-col gap-1 p-1">
-                    {slot.map((ev) => (
-                      <TimedEventBlock key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
-                    ))}
-                  </div>
-                </DropCell>
-              </React.Fragment>
-            );
-          })}
+          {HOURS.map((h) => (
+            <React.Fragment key={h}>
+              <div
+                className="text-xs font-semibold text-foreground/40 pr-3 text-right pt-1 -translate-y-1"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {formatHour(h)}
+              </div>
+              <DropCell
+                onCreate={(payload) => onCreate(day, h, payload)}
+                onReschedule={(eventId) => onReschedule(day, h, eventId)}
+                className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
+              />
+            </React.Fragment>
+          ))}
+        </div>
+        {/* Event overlay */}
+        <div
+          className="pointer-events-none absolute inset-0 grid"
+          style={{ gridTemplateColumns: '80px 1fr' }}
+        >
+          <div />
+          <div className="relative pointer-events-auto" data-resize-container>
+            {timedEvents.map((ev) => (
+              <ResizableEvent
+                key={ev.id}
+                ev={ev}
+                usersById={usersById}
+                onClick={onEventClick}
+                onResize={onResize}
+                totalHours={HOURS.length}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

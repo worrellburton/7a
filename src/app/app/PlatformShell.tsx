@@ -277,13 +277,9 @@ const pageIcons: Record<string, React.ReactNode> = {
   ),
   '/app/equine': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 3c-1.5 6.5.5 13 6 18 5.5-5 7.5-11.5 6-18" />
-      <circle cx="6.5" cy="7.5" r="0.6" fill="currentColor" stroke="none" />
-      <circle cx="6.2" cy="11.5" r="0.6" fill="currentColor" stroke="none" />
-      <circle cx="7" cy="15.5" r="0.6" fill="currentColor" stroke="none" />
-      <circle cx="17.5" cy="7.5" r="0.6" fill="currentColor" stroke="none" />
-      <circle cx="17.8" cy="11.5" r="0.6" fill="currentColor" stroke="none" />
-      <circle cx="17" cy="15.5" r="0.6" fill="currentColor" stroke="none" />
+      <path d="M5 21V10a7 7 0 0 1 14 0v11" />
+      <circle cx="5" cy="21" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="21" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   ),
   '/app/billing': (
@@ -311,6 +307,14 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
       <path d="M14 2v4a2 2 0 0 0 2 2h4" />
       <path d="M10 9H8M16 13H8M16 17H8" />
+    </svg>
+  ),
+  '/app/apis': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6h16M4 12h16M4 18h16" />
+      <circle cx="8" cy="6" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="10" cy="18" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   ),
 };
