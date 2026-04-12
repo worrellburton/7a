@@ -3,7 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface Vehicle {
   id: string;
@@ -39,6 +39,7 @@ export default function FleetContent() {
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editField, setEditField] = useState('');
   const [editValue, setEditValue] = useState('');
@@ -267,45 +268,124 @@ export default function FleetContent() {
                   <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden xl:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Next Service</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden xl:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Comments</th>
                   <th className="w-10" />
+                  <th className="w-8" />
                 </tr>
               </thead>
               <tbody>
-                {vehicles.map(v => (
-                  <tr key={v.id} className="border-b border-gray-50 last:border-b-0 hover:bg-warm-bg/20 transition-colors">
-                    <td className="px-5 py-3 text-sm font-bold text-foreground whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
-                      {renderEditableCell(v, 'vehicle_name', 'font-bold text-foreground')}
-                    </td>
-                    <td className="px-5 py-3">
-                      <select
-                        value={v.status}
-                        onChange={e => updateStatus(v.id, e.target.value)}
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none ${statusStyles[v.status] || 'bg-gray-100 text-gray-600'}`}
+                {vehicles.map(v => {
+                  const expanded = expandedId === v.id;
+                  return (
+                    <React.Fragment key={v.id}>
+                      <tr
+                        onClick={() => setExpandedId(expanded ? null : v.id)}
+                        className={`border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer ${expanded ? 'bg-warm-bg/10' : ''}`}
                       >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                        <option value="maintenance">Maintenance</option>
-                        <option value="out of service">Out of Service</option>
-                      </select>
-                    </td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden sm:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'vehicle_type')}</td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'vin_code')}</td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'tags')}</td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'tags_expire_on')}</td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden xl:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'next_service')}</td>
-                    <td className="px-5 py-3 text-sm text-foreground/60 hidden xl:table-cell max-w-[200px]" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'comments')}</td>
-                    <td className="px-3 py-3">
-                      <button
-                        onClick={() => deleteVehicle(v)}
-                        className="p-1 rounded-lg text-foreground/20 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        title="Delete vehicle"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        <td className="px-5 py-3 text-sm font-bold text-foreground whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                          {renderEditableCell(v, 'vehicle_name', 'font-bold text-foreground')}
+                        </td>
+                        <td className="px-5 py-3">
+                          <select
+                            value={v.status}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => updateStatus(v.id, e.target.value)}
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none ${statusStyles[v.status] || 'bg-gray-100 text-gray-600'}`}
+                          >
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="out of service">Out of Service</option>
+                          </select>
+                        </td>
+                        <td className="px-5 py-3 text-sm text-foreground/60 hidden sm:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'vehicle_type')}</td>
+                        <td className="px-5 py-3 text-sm text-foreground/60 hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'vin_code')}</td>
+                        <td className="px-5 py-3 text-sm text-foreground/60 hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'tags')}</td>
+                        <td className="px-5 py-3 text-sm text-foreground/60 hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'tags_expire_on')}</td>
+                        <td className="px-5 py-3 text-sm text-foreground/60 hidden xl:table-cell" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'next_service')}</td>
+                        <td className="px-5 py-3 text-sm text-foreground/60 hidden xl:table-cell max-w-[200px]" style={{ fontFamily: 'var(--font-body)' }}>{renderEditableCell(v, 'comments')}</td>
+                        <td className="px-3 py-3">
+                          <button
+                            onClick={e => { e.stopPropagation(); deleteVehicle(v); }}
+                            className="p-1 rounded-lg text-foreground/20 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            title="Delete vehicle"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </td>
+                        <td className="px-3 py-3">
+                          <svg className={`w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                        </td>
+                      </tr>
+                      {expanded && (
+                        <tr>
+                          <td colSpan={10} className="bg-warm-bg/20 px-5 py-4 border-b border-gray-100">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                              {([
+                                ['purpose', 'Purpose', v.purpose],
+                                ['vehicle_type', 'Type', v.vehicle_type],
+                                ['vin_code', 'VIN', v.vin_code],
+                                ['tags', 'Tags', v.tags],
+                              ] as [string, string, string | null][]).map(([field, label, value]) => (
+                                <div key={field}>
+                                  <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>{label}</p>
+                                  {renderEditableCell(v, field as keyof Vehicle, 'text-sm text-foreground/70')}
+                                </div>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                              {([
+                                ['tags_expire_on', 'Tags Expire', v.tags_expire_on],
+                                ['next_service', 'Next Service', v.next_service],
+                              ] as [string, string, string | null][]).map(([field, label]) => (
+                                <div key={field}>
+                                  <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>{label}</p>
+                                  {renderEditableCell(v, field as keyof Vehicle, 'text-sm text-foreground/70')}
+                                </div>
+                              ))}
+                              <div>
+                                <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Tags Renewed</p>
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${v.tags_renewed ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                                  {v.tags_renewed ? 'Yes' : 'No'}
+                                </span>
+                              </div>
+                            </div>
+                            {/* Comments */}
+                            <div>
+                              <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Comments</p>
+                              {editingId === v.id && editField === 'comments' ? (
+                                <textarea
+                                  autoFocus
+                                  value={editValue}
+                                  onChange={e => setEditValue(e.target.value)}
+                                  onBlur={saveEdit}
+                                  onKeyDown={e => { if (e.key === 'Escape') cancelEdit(); }}
+                                  rows={3}
+                                  className="text-sm w-full px-2 py-1.5 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white"
+                                  style={{ fontFamily: 'var(--font-body)' }}
+                                />
+                              ) : (
+                                <p
+                                  className="text-sm text-foreground/70 cursor-text hover:text-foreground transition-colors whitespace-pre-wrap"
+                                  style={{ fontFamily: 'var(--font-body)' }}
+                                  onClick={e => { e.stopPropagation(); startEdit(v.id, 'comments', v.comments || ''); }}
+                                >
+                                  {v.comments || <span className="text-foreground/20">Click to add comments...</span>}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Documents placeholder — Phase 6b/6c */}
+                            <div className="mt-4 pt-4 border-t border-gray-100">
+                              <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Documents</p>
+                              <p className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>Insurance, Registration &amp; Tag, Scheduled Maintenance, Title</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
