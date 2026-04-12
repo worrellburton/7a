@@ -20,6 +20,7 @@
 // ------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 interface Department {
@@ -148,6 +149,7 @@ interface Props {
 }
 
 export default function BudgetsPanel({ realmId, onUpdated }: Props) {
+  const router = useRouter();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [budgets, setBudgets] = useState<Record<string, BudgetRow>>({});
   const [accounts, setAccounts] = useState<PnLAccount[]>([]);
@@ -333,12 +335,19 @@ export default function BudgetsPanel({ realmId, onUpdated }: Props) {
             const hasSavedOverride = !!budgets[d.id]?.qbo_account_id;
             const isSaving = savingId === d.id;
             return (
-              <tr key={d.id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/20 transition-colors">
+              <tr key={d.id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/20 transition-colors group">
                 <td className="px-6 py-3">
-                  <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/app/finance/department/${d.id}?realm_id=${encodeURIComponent(realmId)}`)}
+                    className="flex items-center gap-2 text-left hover:text-primary transition-colors"
+                  >
                     {d.color && <span className="w-2 h-2 rounded-full" style={{ background: d.color }} />}
-                    <span className="text-sm font-medium text-foreground">{d.name}</span>
-                  </div>
+                    <span className="text-sm font-medium text-foreground group-hover:text-primary underline-offset-2 group-hover:underline">{d.name}</span>
+                    <svg className="w-3 h-3 text-foreground/30 group-hover:text-primary/70" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
                 </td>
                 <td className="px-6 py-3">
                   {accounts.length === 0 ? (
