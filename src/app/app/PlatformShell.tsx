@@ -354,6 +354,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   };
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [navMounted, setNavMounted] = useState(false);
 
   // Restore theme on mount
   useEffect(() => {
@@ -361,6 +362,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     if (saved === 'dark') {
       document.documentElement.classList.add('dark');
     }
+    // Trigger nav entrance animation after first paint
+    requestAnimationFrame(() => setNavMounted(true));
   }, []);
 
   // Close drawer on Escape + lock body scroll while open
@@ -429,25 +432,25 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       <aside className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 hidden lg:flex">
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
-          <Link href="/app" className="flex items-center gap-2.5">
+          <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
             <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
           </Link>
         </div>
 
         {/* Nav links */}
         <nav className="flex-1 p-3 space-y-1">
-          {navPages.filter(canSeePage).map((item) => {
+          {navPages.filter(canSeePage).map((item, idx) => {
             const isActive = pathname === item.path;
             return (
               <Link
                 key={item.path}
                 href={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out ${
                   isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-foreground/60 hover:bg-warm-bg hover:text-foreground'
-                }`}
-                style={{ fontFamily: 'var(--font-body)' }}
+                } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
+                style={{ fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` }}
               >
                 <span className={isActive ? 'text-primary' : 'text-foreground/40'}>{getPageIcon(item.path)}</span>
                 {item.label}
