@@ -161,38 +161,24 @@ export function QuickBooksHeader({
       <div className="flex items-start gap-3">
         {hasCompanies ? (
           <div className="flex flex-col items-end gap-1.5">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-900">
+            <button
+              onClick={onDisconnect}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-900 hover:bg-red-50 hover:border-red-200 hover:text-red-800 transition-colors group cursor-pointer"
+            >
               <span className="relative flex w-2 h-2">
-                <span className="animate-ping absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60" />
-                <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="animate-ping absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 group-hover:bg-red-400" />
+                <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500 group-hover:bg-red-500" />
               </span>
               <span className="text-xs font-semibold" style={{ fontFamily: 'var(--font-body)' }}>
-                Connected to QuickBooks
+                <span className="group-hover:hidden">Connected to QuickBooks</span>
+                <span className="hidden group-hover:inline">Disconnect QuickBooks</span>
               </span>
-            </div>
+            </button>
             {lastUpdated && (
               <p className="text-[11px] text-foreground/40 tabular-nums" style={{ fontFamily: 'var(--font-body)' }}>
                 Updated {fmtRelativeTime(lastUpdated)}
               </p>
             )}
-            <div className="flex items-center gap-2 mt-1">
-              <button
-                onClick={onConnect}
-                className="px-3.5 py-1.5 bg-[#2ca01c] text-white rounded-full text-[11px] font-semibold uppercase tracking-wider hover:bg-[#248a17] transition-colors"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Connect another
-              </button>
-              {selectedRealm && (
-                <button
-                  onClick={onDisconnect}
-                  className="px-3 py-1.5 text-red-600 rounded-full text-[11px] font-semibold uppercase tracking-wider hover:bg-red-50 transition-colors"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  Disconnect
-                </button>
-              )}
-            </div>
           </div>
         ) : (
           <button

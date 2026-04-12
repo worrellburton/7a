@@ -233,6 +233,14 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M6 11h1M6 14h1M6 17h1M17 8h1M17 11h1M17 14h1M17 17h1" />
     </svg>
   ),
+  '/app/fleet': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="10" width="20" height="8" rx="2" />
+      <path d="M6 10V7a2 2 0 0 1 2-2h2l2 3h6a2 2 0 0 1 2 2v0" />
+      <circle cx="7" cy="18" r="2" />
+      <circle cx="17" cy="18" r="2" />
+    </svg>
+  ),
   '/app/finance': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 3v18h18" />

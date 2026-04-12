@@ -475,7 +475,7 @@ export default function OrgChartContent() {
       if (y + CARD_HEIGHT > maxY) maxY = y + CARD_HEIGHT;
     }
     if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 800; maxY = 500; }
-    const pad = 40;
+    const pad = 80;
     const vbX = minX - pad;
     const vbY = minY - pad;
     const vbW = maxX - minX + pad * 2;
@@ -484,74 +484,229 @@ export default function OrgChartContent() {
     const escapeXml = (s: string) =>
       s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-    // Build SVG edge paths
+    // Collect unique departments for legend
+    const usedDepts = new Map<string, { name: string; color: string }>();
+    for (const u of visible) {
+      if (u.department_id) {
+        const dept = deptById.get(u.department_id);
+        if (dept && !usedDepts.has(dept.id)) {
+          usedDepts.set(dept.id, { name: dept.name, color: dept.color || '#94a3b8' });
+        }
+      }
+    }
+
+    // Build SVG edge paths — ultra-thin elegant connectors
     const edgeSvg = visibleEdges
       .map((e) => {
         const from = visible.find((u) => u.id === e.from_user_id);
         const to = visible.find((u) => u.id === e.to_user_id);
         if (!from || !to) return '';
-        return `<path d="${elbowPath(from, to)}" fill="none" stroke="#a0522d" stroke-width="2" marker-end="url(#org-arrow)" />`;
+        return `<path d="${elbowPath(from, to)}" fill="none" stroke="#d4d8e0" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="none" marker-end="url(#org-arrow)" />`;
       })
       .join('\n');
 
-    // Build SVG cards (rect + text; avatars are skipped for print clarity)
+    // Build SVG cards — premium Apple/Tesla-inspired design
     const cardSvg = visible
-      .map((u) => {
+      .map((u, idx) => {
         const x = u.org_x ?? 0;
         const y = u.org_y ?? 0;
         const name = escapeXml(u.full_name || u.email || 'Unknown');
         const title = escapeXml(u.job_title || '');
         const dept = u.department_id ? deptById.get(u.department_id) : null;
-        const deptColor = dept?.color || '#a0522d';
+        const deptColor = dept?.color || '#94a3b8';
         const deptName = dept ? escapeXml(dept.name) : '';
         const initial = escapeXml((u.full_name || u.email || '?').charAt(0).toUpperCase());
+        const clipId = `avatar-clip-${idx}`;
+        const avatarCx = x + 36;
+        const avatarCy = y + 40;
+        const avatarR = 22;
+
+        // Avatar: use <image> with circular clip-path if avatar_url exists, otherwise initial circle
+        const avatarSvg = u.avatar_url
+          ? `<defs>
+              <clipPath id="${clipId}">
+                <circle cx="${avatarCx}" cy="${avatarCy}" r="${avatarR}" />
+              </clipPath>
+            </defs>
+            <circle cx="${avatarCx}" cy="${avatarCy}" r="${avatarR + 1.5}" fill="#f1f5f9" />
+            <circle cx="${avatarCx}" cy="${avatarCy}" r="${avatarR + 0.5}" fill="#e8ecf1" />
+            <image href="${escapeXml(u.avatar_url)}" x="${avatarCx - avatarR}" y="${avatarCy - avatarR}" width="${avatarR * 2}" height="${avatarR * 2}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice" />`
+          : `<circle cx="${avatarCx}" cy="${avatarCy}" r="${avatarR}" fill="${deptColor}" opacity="0.08"/>
+            <circle cx="${avatarCx}" cy="${avatarCy}" r="${avatarR}" fill="none" stroke="${deptColor}" stroke-width="1.2" opacity="0.3"/>
+            <text x="${avatarCx}" y="${avatarCy + 6}" text-anchor="middle" font-family="'SF Pro Display',system-ui,-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="600" fill="${deptColor}" opacity="0.7">${initial}</text>`;
+
+        // Department pill badge
+        const deptBadgeWidth = Math.min(deptName.length * 5.6 + 16, CARD_WIDTH - 80);
+        const deptBadge = deptName
+          ? `<rect x="${x + 66}" y="${y + 68}" width="${deptBadgeWidth}" height="19" rx="9.5" ry="9.5" fill="${deptColor}" opacity="0.1"/>
+             <text x="${x + 66 + deptBadgeWidth / 2}" y="${y + 81}" text-anchor="middle" font-family="'SF Pro Text',system-ui,-apple-system,'Segoe UI',sans-serif" font-size="8.5" font-weight="600" fill="${deptColor}" letter-spacing="0.3">${deptName}</text>`
+          : '';
+
+        // Admin badge — subtle green pill
+        const adminBadge = u.is_admin
+          ? `<rect x="${x + CARD_WIDTH - 50}" y="${y + 9}" width="38" height="17" rx="8.5" ry="8.5" fill="#ecfdf5" stroke="#bbf7d0" stroke-width="0.5"/>
+             <text x="${x + CARD_WIDTH - 31}" y="${y + 20.5}" text-anchor="middle" font-family="'SF Pro Text',system-ui,-apple-system,'Segoe UI',sans-serif" font-size="7.5" font-weight="700" fill="#15803d" letter-spacing="0.4">Admin</text>`
+          : '';
+
         return `
           <g>
-            <rect x="${x}" y="${y}" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" rx="16" ry="16" fill="white" stroke="#e5e7eb" stroke-width="1"/>
-            <circle cx="${x + 32}" cy="${y + 32}" r="20" fill="${deptColor}"/>
-            <text x="${x + 32}" y="${y + 38}" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="14" font-weight="700" fill="white">${initial}</text>
-            <text x="${x + 62}" y="${y + 30}" font-family="system-ui,-apple-system,sans-serif" font-size="13" font-weight="600" fill="#1f2937">${name}</text>
-            <text x="${x + 62}" y="${y + 48}" font-family="system-ui,-apple-system,sans-serif" font-size="11" fill="#6b7280">${title}</text>
-            ${deptName ? `<rect x="${x + 62}" y="${y + 62}" width="${Math.min(deptName.length * 6 + 12, CARD_WIDTH - 78)}" height="18" rx="9" ry="9" fill="${deptColor}"/><text x="${x + 68}" y="${y + 75}" font-family="system-ui,-apple-system,sans-serif" font-size="10" font-weight="600" fill="white">${deptName}</text>` : ''}
+            <!-- Card shadow (layered for depth) -->
+            <rect x="${x + 1}" y="${y + 3}" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" rx="16" ry="16" fill="black" opacity="0.03" filter="url(#card-shadow-soft)"/>
+            <rect x="${x}" y="${y + 1}" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" rx="16" ry="16" fill="black" opacity="0.02" filter="url(#card-shadow-close)"/>
+            <!-- Card background -->
+            <rect x="${x}" y="${y}" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" rx="16" ry="16" fill="white" stroke="#e8ecf1" stroke-width="0.75"/>
+            <!-- Department accent bar at top (full width, clipped to card radius) -->
+            <rect x="${x}" y="${y}" width="${CARD_WIDTH}" height="4" rx="0" ry="0" fill="${deptColor}" opacity="0.85" clip-path="url(#card-top-clip-${idx})"/>
+            <defs>
+              <clipPath id="card-top-clip-${idx}">
+                <rect x="${x}" y="${y}" width="${CARD_WIDTH}" height="16" rx="16" ry="16"/>
+              </clipPath>
+            </defs>
+            <!-- Avatar -->
+            ${avatarSvg}
+            <!-- Name -->
+            <text x="${x + 66}" y="${y + 34}" font-family="'SF Pro Display',system-ui,-apple-system,'Segoe UI',sans-serif" font-size="13" font-weight="700" fill="#0f172a" letter-spacing="-0.3">${name}</text>
+            <!-- Job title -->
+            <text x="${x + 66}" y="${y + 51}" font-family="'SF Pro Text',system-ui,-apple-system,'Segoe UI',sans-serif" font-size="10" fill="#6b7280" letter-spacing="0.1">${title}</text>
+            <!-- Department badge -->
+            ${deptBadge}
+            <!-- Admin badge -->
+            ${adminBadge}
           </g>
         `;
       })
       .join('\n');
 
+    // Build department legend at the bottom of the SVG — horizontal row with colored pills
+    const legendY = maxY + pad + 20;
+    const legendItems = Array.from(usedDepts.values());
+    const legendSvg = legendItems.length > 0
+      ? `<g>
+          <line x1="${minX}" y1="${legendY - 14}" x2="${minX + vbW - pad * 2}" y2="${legendY - 14}" stroke="#f1f5f9" stroke-width="1"/>
+          <text x="${minX}" y="${legendY + 2}" font-family="'SF Pro Text',system-ui,-apple-system,'Segoe UI',sans-serif" font-size="9" font-weight="700" fill="#9ca3af" letter-spacing="1.5">DEPARTMENTS</text>
+          ${legendItems.map((d, i) => {
+            const pillWidth = d.name.length * 5.8 + 22;
+            const lx = minX + i * (pillWidth + 12);
+            const ly = legendY + 16;
+            return `<rect x="${lx}" y="${ly}" width="${pillWidth}" height="20" rx="10" ry="10" fill="${d.color}" opacity="0.1" stroke="${d.color}" stroke-width="0.5" stroke-opacity="0.3"/>
+                    <circle cx="${lx + 10}" cy="${ly + 10}" r="3.5" fill="${d.color}" opacity="0.8"/>
+                    <text x="${lx + 18}" y="${ly + 13.5}" font-family="'SF Pro Text',system-ui,-apple-system,'Segoe UI',sans-serif" font-size="9" font-weight="500" fill="#374151">${escapeXml(d.name)}</text>`;
+          }).join('\n')}
+        </g>`
+      : '';
+
+    // Expand viewBox to include legend
+    const finalVbH = legendItems.length > 0 ? vbH + 80 : vbH;
+
     const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="${vbX} ${vbY} ${vbW} ${vbH}" width="100%" style="max-width:100%;height:auto;">
+      <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${vbX} ${vbY} ${vbW} ${finalVbH}" width="100%" style="max-width:100%;height:auto;">
         <defs>
-          <marker id="org-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#a0522d" />
+          <marker id="org-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#c9cdd5" />
           </marker>
+          <!-- Soft ambient shadow -->
+          <filter id="card-shadow-soft" x="-15%" y="-10%" width="140%" height="150%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur"/>
+            <feOffset in="blur" dx="0" dy="4" result="offsetBlur"/>
+            <feComponentTransfer in="offsetBlur" result="shadow">
+              <feFuncA type="linear" slope="0.06"/>
+            </feComponentTransfer>
+            <feMerge>
+              <feMergeNode in="shadow"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+          <!-- Close contact shadow -->
+          <filter id="card-shadow-close" x="-5%" y="-5%" width="115%" height="120%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="1.5" result="blur"/>
+            <feOffset in="blur" dx="0" dy="1" result="offsetBlur"/>
+            <feComponentTransfer in="offsetBlur" result="shadow">
+              <feFuncA type="linear" slope="0.04"/>
+            </feComponentTransfer>
+            <feMerge>
+              <feMergeNode in="shadow"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
         </defs>
-        <rect x="${vbX}" y="${vbY}" width="${vbW}" height="${vbH}" fill="#fafaf7"/>
+        <!-- Background — warm white -->
+        <rect x="${vbX}" y="${vbY}" width="${vbW}" height="${finalVbH}" fill="#fafafa"/>
+        <!-- Subtle warm gradient overlay -->
+        <defs>
+          <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#fefcfb" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="#faf8f6" stop-opacity="0.4"/>
+          </linearGradient>
+        </defs>
+        <rect x="${vbX}" y="${vbY}" width="${vbW}" height="${finalVbH}" fill="url(#bg-gradient)"/>
         ${edgeSvg}
         ${cardSvg}
+        ${legendSvg}
       </svg>
     `;
 
     const stamp = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const totalPeople = visible.length;
+    const totalDepts = usedDepts.size;
+
     const html = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>Org Chart — ${stamp}</title>
+  <title>Organization Chart — ${stamp}</title>
   <style>
-    @page { size: landscape; margin: 0.4in; }
-    html, body { margin: 0; padding: 0; background: white; font-family: system-ui, -apple-system, sans-serif; color: #1f2937; }
-    .wrap { padding: 24px; }
-    h1 { font-size: 20px; margin: 0 0 4px; }
-    .sub { font-size: 12px; color: #6b7280; margin: 0 0 16px; }
-    svg { display: block; }
-    @media print { .wrap { padding: 0; } h1 { font-size: 16px; } }
+    @page { size: landscape; margin: 0.5in; }
+    html, body { margin: 0; padding: 0; background: #ffffff; font-family: 'SF Pro Display', system-ui, -apple-system, 'Segoe UI', sans-serif; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 36px 44px; min-height: 100vh; display: flex; flex-direction: column; }
+    /* Header */
+    .header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 28px; padding-bottom: 18px; border-bottom: 1.5px solid #f3f4f6; }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .header-logo { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #0f172a 0%, #334155 100%); display: flex; align-items: center; justify-content: center; }
+    .header-logo span { color: white; font-size: 14px; font-weight: 800; letter-spacing: -0.5px; }
+    .header-text h1 { font-size: 21px; font-weight: 700; margin: 0 0 1px; letter-spacing: -0.6px; color: #111827; }
+    .header-text .subtitle { font-size: 11.5px; color: #9ca3af; margin: 0; font-weight: 400; letter-spacing: 0.15px; }
+    .header-right { text-align: right; }
+    .header-right .date { font-size: 10.5px; color: #9ca3af; margin: 0; font-weight: 500; }
+    .header-right .stats { font-size: 9.5px; color: #d1d5db; margin: 3px 0 0; letter-spacing: 0.2px; }
+    /* Chart area */
+    .chart { flex: 1; }
+    .chart svg { display: block; }
+    /* Footer */
+    .footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; }
+    .footer-left { font-size: 8.5px; color: #d1d5db; letter-spacing: 0.8px; text-transform: uppercase; }
+    .footer-center { font-size: 8px; color: #e5e7eb; letter-spacing: 0.3px; }
+    .footer-right { font-size: 8.5px; color: #d1d5db; letter-spacing: 0.3px; }
+    @media print {
+      .page { padding: 0; min-height: auto; }
+      .header { margin-bottom: 18px; padding-bottom: 14px; }
+      .header-text h1 { font-size: 18px; }
+      .footer { margin-top: 14px; padding-top: 10px; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Org Chart</h1>
-    <p class="sub">Generated ${stamp}</p>
-    ${svg}
+  <div class="page">
+    <div class="header">
+      <div class="header-left">
+        <div class="header-logo"><span>ORG</span></div>
+        <div class="header-text">
+          <h1>Organization Chart</h1>
+          <p class="subtitle">Team Structure &amp; Reporting Lines</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <p class="date">Generated ${stamp}</p>
+        <p class="stats">${totalPeople} people &middot; ${totalDepts} department${totalDepts !== 1 ? 's' : ''}</p>
+      </div>
+    </div>
+    <div class="chart">
+      ${svg}
+    </div>
+    <div class="footer">
+      <div class="footer-left">Confidential &mdash; Internal Use Only</div>
+      <div class="footer-center">Organization Chart &middot; ${stamp}</div>
+      <div class="footer-right">Page 1 of 1</div>
+    </div>
   </div>
   <script>
     window.addEventListener('load', function () {

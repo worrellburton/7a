@@ -12,6 +12,7 @@ interface Department {
   description: string | null;
   color: string | null;
   created_at: string;
+  head_user_id: string | null;
 }
 
 interface AppUser {
@@ -52,6 +53,7 @@ export default function DepartmentsContent() {
   const [dragUserId, setDragUserId] = useState<string | null>(null);
   // Drop-target id: a department UUID, 'unassigned', or null.
   const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
+  const [savingHeadId, setSavingHeadId] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -186,6 +188,21 @@ export default function DepartmentsContent() {
     const dept = departments.find((d) => d.id === departmentId);
     const person = users.find((u) => u.id === userId);
     showToast(`${person?.full_name || 'User'} assigned to ${dept?.name || '—'}`);
+  }
+
+  async function saveDepartmentHead(deptId: string, userId: string | null) {
+    setSavingHeadId(deptId);
+    const result = await db({ action: 'update', table: 'departments', data: { head_user_id: userId }, match: { id: deptId } });
+    setSavingHeadId(null);
+    if (result?.error) {
+      showToast(`Failed to update head: ${result.error}`);
+      return;
+    }
+    setDepartments((prev) =>
+      prev.map((d) => (d.id === deptId ? { ...d, head_user_id: userId } : d))
+    );
+    const person = users.find((u) => u.id === userId);
+    showToast(userId ? `${person?.full_name || 'User'} set as department head` : 'Department head removed');
   }
 
   if (!user || !isAdmin) return null;
@@ -339,6 +356,28 @@ export default function DepartmentsContent() {
                           </p>
                         )}
                       </div>
+                      {members.length > 0 && (
+                        <div className="flex items-center shrink-0 -space-x-2">
+                          {members.slice(0, 5).map((m) =>
+                            m.avatar_url ? (
+                              <img key={m.id} src={m.avatar_url} alt="" className="w-6 h-6 rounded-full border-2 border-white" />
+                            ) : (
+                              <div
+                                key={m.id}
+                                className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold"
+                                style={{ backgroundColor: d.color || '#a0522d', color: 'white' }}
+                              >
+                                {(m.full_name || m.email || '?').charAt(0).toUpperCase()}
+                              </div>
+                            )
+                          )}
+                          {members.length > 5 && (
+                            <div className="w-6 h-6 rounded-full border-2 border-white bg-gray-200 flex items-center justify-center text-[9px] font-bold text-foreground/60">
+                              +{members.length - 5}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="text-xs font-medium text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
                           {members.length} {members.length === 1 ? 'member' : 'members'}
@@ -365,6 +404,29 @@ export default function DepartmentsContent() {
                     </div>
                     {expanded && (
                       <div className="border-t border-gray-100 bg-warm-bg/30 p-5">
+                        {/* Department Head */}
+                        <div className="mb-4">
+                          <label className="block text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>
+                            Department Head
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={d.head_user_id || ''}
+                              onChange={(e) => saveDepartmentHead(d.id, e.target.value || null)}
+                              disabled={savingHeadId === d.id}
+                              className="text-xs px-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white w-full max-w-xs disabled:opacity-50"
+                              style={{ fontFamily: 'var(--font-body)' }}
+                            >
+                              <option value="">No head assigned</option>
+                              {members.map((m) => (
+                                <option key={m.id} value={m.id}>{m.full_name || m.email}</option>
+                              ))}
+                            </select>
+                            {savingHeadId === d.id && (
+                              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                            )}
+                          </div>
+                        </div>
                         {members.length === 0 ? (
                           <p className="text-xs text-foreground/40 italic mb-3" style={{ fontFamily: 'var(--font-body)' }}>
                             No members yet. Add someone from the list on the right.
@@ -389,7 +451,14 @@ export default function DepartmentsContent() {
                                   </div>
                                 )}
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium text-foreground truncate">{m.full_name || m.email}</p>
+                                  <p className="text-xs font-medium text-foreground truncate flex items-center gap-1">
+                                    {m.full_name || m.email}
+                                    {d.head_user_id === m.id && (
+                                      <svg className="w-3.5 h-3.5 text-amber-500 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm0 2h14v2H5v-2z" />
+                                      </svg>
+                                    )}
+                                  </p>
                                   {m.job_title && <p className="text-[10px] text-foreground/40 truncate">{m.job_title}</p>}
                                 </div>
                                 <button

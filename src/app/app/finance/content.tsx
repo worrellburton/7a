@@ -4,6 +4,8 @@ import { useAuth } from '@/lib/AuthProvider';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import BudgetsPanel from './BudgetsPanel';
+import BudgetViewPanel from './BudgetViewPanel';
+import BudgetOverviewPanel from './BudgetOverviewPanel';
 import {
   useQuickBooksConnection,
   QuickBooksHeader,
@@ -57,8 +59,6 @@ interface ReportResponse {
 }
 
 type ReportTab =
-  | 'company'
-  | 'accounts'
   | 'profit-loss'
   | 'profit-loss-monthly'
   | 'balance-sheet'
@@ -66,8 +66,6 @@ type ReportTab =
   | 'general-ledger';
 
 const REPORT_TABS: Array<{ id: ReportTab; label: string; report: string }> = [
-  { id: 'company', label: 'Company', report: 'company-info' },
-  { id: 'accounts', label: 'Accounts', report: 'accounts' },
   { id: 'profit-loss', label: 'P&L', report: 'profit-loss' },
   { id: 'profit-loss-monthly', label: 'P&L Monthly', report: 'profit-loss-monthly' },
   { id: 'balance-sheet', label: 'Balance Sheet', report: 'balance-sheet' },
@@ -82,7 +80,7 @@ function fmtMoney(n: number | undefined) {
 
 // ─── Top-level page sections ─────────────────────────────────────
 
-type Section = 'budget' | 'reports';
+type Section = 'budget' | 'reports' | 'company' | 'accounts';
 
 export default function FinanceContent() {
   const { user, session, isAdmin } = useAuth();
@@ -104,7 +102,9 @@ export default function FinanceContent() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   // Reports sub-state
-  const [reportTab, setReportTab] = useState<ReportTab>('company');
+  const [reportTab, setReportTab] = useState<ReportTab>('profit-loss');
+  type BudgetTab = 'set' | 'view' | 'overview';
+  const [budgetTab, setBudgetTab] = useState<BudgetTab>('set');
   const [reportData, setReportData] = useState<unknown>(null);
   const [fetching, setFetching] = useState(false);
 
@@ -150,18 +150,30 @@ export default function FinanceContent() {
 
   // When realm or report tab changes, fetch the matching report.
   useEffect(() => {
-    if (section !== 'reports') return;
     if (!selectedRealm) return;
-    const t = REPORT_TABS.find((x) => x.id === reportTab);
-    if (!t) return;
-    loadReport(selectedRealm, t.report);
+    if (section === 'company') {
+      loadReport(selectedRealm, 'company-info');
+    } else if (section === 'accounts') {
+      loadReport(selectedRealm, 'accounts');
+    } else if (section === 'reports') {
+      const t = REPORT_TABS.find((x) => x.id === reportTab);
+      if (!t) return;
+      loadReport(selectedRealm, t.report);
+    }
   }, [selectedRealm, reportTab, section, loadReport]);
 
   if (!user || !isAdmin) return null;
 
+  const budgetSubtitles: Record<BudgetTab, string> = {
+    set: 'Set a monthly budget for each department and match it to a QuickBooks P&L account.',
+    view: 'View department budgets with team members at a glance.',
+    overview: 'Month-to-month budget vs. actuals comparison pulled live from QuickBooks.',
+  };
   const subtitleMap: Record<Section, string> = {
-    budget: 'Set a monthly budget for each department and match it to a QuickBooks P&L account for live actuals.',
-    reports: 'Company, accounts, P&L, balance sheet, trial balance, and general ledger — pulled live from QuickBooks.',
+    budget: budgetSubtitles[budgetTab],
+    reports: 'P&L, balance sheet, trial balance, and general ledger — pulled live from QuickBooks.',
+    company: 'Company info pulled live from QuickBooks.',
+    accounts: 'Chart of accounts pulled live from QuickBooks.',
   };
 
   return (
@@ -181,6 +193,8 @@ export default function FinanceContent() {
         {([
           { id: 'budget' as Section, label: 'Budget' },
           { id: 'reports' as Section, label: 'Reports' },
+          { id: 'company' as Section, label: 'Company' },
+          { id: 'accounts' as Section, label: 'Accounts' },
         ]).map((s) => (
           <button
             key={s.id}
@@ -223,16 +237,40 @@ export default function FinanceContent() {
           {/* ─── Budget section ─── */}
           {section === 'budget' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="flex flex-wrap gap-1 p-2 border-b border-gray-100 bg-warm-bg/20">
+                {([
+                  { id: 'set' as BudgetTab, label: 'Set Budgets' },
+                  { id: 'view' as BudgetTab, label: 'View Budgets' },
+                  { id: 'overview' as BudgetTab, label: 'Overview' },
+                ] as const).map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setBudgetTab(t.id)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors ${
+                      budgetTab === t.id
+                        ? 'bg-primary text-white'
+                        : 'text-foreground/60 hover:bg-warm-bg'
+                    }`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
               <div className="p-6 min-h-[200px]">
                 {!selectedRealm ? (
                   <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
                     Connect a QuickBooks company to set budgets.
                   </p>
-                ) : (
+                ) : budgetTab === 'set' ? (
                   <BudgetsPanel
                     realmId={selectedRealm}
                     onUpdated={() => setLastUpdated(new Date().toISOString())}
                   />
+                ) : budgetTab === 'view' ? (
+                  <BudgetViewPanel realmId={selectedRealm} />
+                ) : (
+                  <BudgetOverviewPanel realmId={selectedRealm} />
                 )}
               </div>
             </div>
@@ -278,6 +316,44 @@ export default function FinanceContent() {
               </div>
             </div>
           )}
+
+          {/* ─── Company section ─── */}
+          {section === 'company' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 min-h-[200px]">
+                {!selectedRealm ? (
+                  <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
+                    Connect a QuickBooks company to view company info.
+                  </p>
+                ) : fetching ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <ReportBody tab="company" data={reportData} />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ─── Accounts section ─── */}
+          {section === 'accounts' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 min-h-[200px]">
+                {!selectedRealm ? (
+                  <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
+                    Connect a QuickBooks company to view accounts.
+                  </p>
+                ) : fetching ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <ReportBody tab="accounts" data={reportData} />
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -288,7 +364,7 @@ export default function FinanceContent() {
 
 // ─── Report renderers (moved from /app/reports) ──────────────────
 
-function ReportBody({ tab, data }: { tab: ReportTab; data: unknown }) {
+function ReportBody({ tab, data }: { tab: ReportTab | 'company' | 'accounts'; data: unknown }) {
   if (!data) {
     return (
       <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
