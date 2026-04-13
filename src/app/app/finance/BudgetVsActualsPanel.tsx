@@ -100,10 +100,9 @@ function parseRow(cells: ReportColData[]): number[] {
 
 interface Props {
   realmId: string;
-  onUpdated?: () => void;
 }
 
-export default function BudgetVsActualsPanel({ realmId, onUpdated }: Props) {
+export default function BudgetVsActualsPanel({ realmId }: Props) {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [budgets, setBudgets] = useState<Record<string, BudgetRow>>({});
   const [report, setReport] = useState<ReportResponse | null>(null);
@@ -137,13 +136,12 @@ export default function BudgetVsActualsPanel({ realmId, onUpdated }: Props) {
         const body = await plRes.json().catch(() => ({ error: 'Request failed' }));
         setError(body.error || `P&L request failed (${plRes.status})`);
       }
-      onUpdated?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [realmId, onUpdated]);
+  }, [realmId]);
 
   useEffect(() => { load(); }, [load]);
 
