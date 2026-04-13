@@ -60,6 +60,68 @@ interface DragPayload {
   color: string;
 }
 
+// ------------------------------------------------------------
+// Shifts — three named time blocks a team member can land in
+// when dropped onto a day. The defaults cover a 24-hour rotation
+// with the overnight shift wrapping midnight. Users can rename
+// and retime them from the "Shift Settings" modal; persisted per
+// browser via localStorage (a proper table can come later).
+// ------------------------------------------------------------
+
+interface Shift {
+  id: string;
+  name: string;
+  start: string; // 'HH:MM' 24h
+  end: string;   // 'HH:MM' 24h (may be <= start for overnight)
+}
+
+const DEFAULT_SHIFTS: Shift[] = [
+  { id: 'morning', name: 'Morning', start: '06:30', end: '14:30' },
+  { id: 'afternoon', name: 'Afternoon', start: '14:30', end: '22:30' },
+  { id: 'overnight', name: 'Overnight', start: '22:30', end: '06:30' },
+];
+
+const SHIFTS_STORAGE_KEY = 'sa-calendar-shifts-v1';
+
+function hhmmToHours(s: string): number {
+  const [h, m] = s.split(':').map(Number);
+  return (h || 0) + (m || 0) / 60;
+}
+function hhmmToDbTime(s: string): string {
+  const [h, m] = s.split(':').map(Number);
+  return `${String(h || 0).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}:00`;
+}
+function dbTimeToHours(s: string | null): number | null {
+  if (!s) return null;
+  const [h, m] = s.split(':').map(Number);
+  if (!Number.isFinite(h)) return null;
+  return h + (m || 0) / 60;
+}
+function shiftContainsHour(shift: Shift, h: number): boolean {
+  const a = hhmmToHours(shift.start);
+  const b = hhmmToHours(shift.end);
+  if (a < b) return h >= a && h < b;
+  // wraps midnight
+  return h >= a || h < b;
+}
+function shiftForEvent(ev: EventRow, shifts: Shift[]): string | null {
+  const h = dbTimeToHours(ev.start_time);
+  if (h == null) return null;
+  for (const s of shifts) if (shiftContainsHour(s, h)) return s.id;
+  return null;
+}
+function formatShiftRange(s: Shift): string {
+  const fmt = (t: string) => {
+    const [hS, mS] = t.split(':');
+    const h = Number(hS);
+    const m = Number(mS);
+    const period = h >= 12 ? 'pm' : 'am';
+    const dh = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return m === 0 ? `${dh}${period}` : `${dh}:${String(m).padStart(2, '0')}${period}`;
+  };
+  return `${fmt(s.start)}–${fmt(s.end)}`;
+}
+
 // Two subject mimes so the AOD slot can highlight only for team drags.
 const USER_MIME = 'application/x-cal-user';
 const GROUP_MIME = 'application/x-cal-group';
@@ -199,6 +261,30 @@ export default function CalendarContent() {
   const [aodRows, setAodRows] = useState<AodRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [shifts, setShifts] = useState<Shift[]>(DEFAULT_SHIFTS);
+  const [shiftSettingsOpen, setShiftSettingsOpen] = useState(false);
+
+  // Hydrate shifts from localStorage on mount.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(SHIFTS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Shift[];
+      if (Array.isArray(parsed) && parsed.length === 3) setShifts(parsed);
+    } catch {
+      /* ignore malformed storage */
+    }
+  }, []);
+
+  const saveShifts = useCallback((next: Shift[]) => {
+    setShifts(next);
+    try {
+      window.localStorage.setItem(SHIFTS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      /* storage full / private mode — ignore */
+    }
+  }, []);
 
   // Initial data fetch
   useEffect(() => {
@@ -300,15 +386,27 @@ export default function CalendarContent() {
   }
 
   // ---- Create a new event from a palette drop ----
+  // `hour` is a shorthand for 1-hour slots; callers can instead pass explicit
+  // HH:MM:SS `startTime`/`endTime` (used by shift drops) to override.
   const handleCreate = useCallback(
-    async (payload: DragPayload, date: Date, hour: number | null) => {
+    async (
+      payload: DragPayload,
+      date: Date,
+      hour: number | null,
+      startTime?: string,
+      endTime?: string
+    ) => {
       if (!user) return;
+      const resolvedStart =
+        startTime ?? (hour == null ? null : `${String(hour).padStart(2, '0')}:00:00`);
+      const resolvedEnd =
+        endTime ?? (hour == null ? null : `${String(hour + 1).padStart(2, '0')}:00:00`);
       const optimistic: EventRow = {
         id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         title: payload.label,
         event_date: toISODate(date),
-        start_time: hour == null ? null : `${String(hour).padStart(2, '0')}:00:00`,
-        end_time: hour == null ? null : `${String(hour + 1).padStart(2, '0')}:00:00`,
+        start_time: resolvedStart,
+        end_time: resolvedEnd,
         subject_kind: payload.kind,
         subject_id: payload.id,
         color: payload.color,
@@ -584,6 +682,18 @@ export default function CalendarContent() {
               </svg>
             </button>
           </div>
+          <button
+            onClick={() => setShiftSettingsOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-gray-200 hover:border-primary/40 hover:text-primary text-foreground/70 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="Edit shift names and times"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            Shift Settings
+          </button>
         </div>
       </div>
 
@@ -613,7 +723,16 @@ export default function CalendarContent() {
               eventsByDate={eventsByDate}
               usersById={usersById}
               aodByDate={aodByDate}
-              onCreate={(date, payload) => handleCreate(payload, date, null)}
+              shifts={shifts}
+              onCreateInShift={(date, payload, shift) =>
+                handleCreate(
+                  payload,
+                  date,
+                  null,
+                  hhmmToDbTime(shift.start),
+                  hhmmToDbTime(shift.end)
+                )
+              }
               onReschedule={(date, eventId) => handleReschedule(eventId, date, null)}
               onEventClick={setEditingId}
               onDayClick={handleDayClick}
@@ -660,6 +779,17 @@ export default function CalendarContent() {
           onDelete={() => {
             handleDelete(editingEvent.id);
             setEditingId(null);
+          }}
+        />
+      )}
+
+      {shiftSettingsOpen && (
+        <ShiftSettingsModal
+          shifts={shifts}
+          onClose={() => setShiftSettingsOpen(false)}
+          onSave={(next) => {
+            saveShifts(next);
+            setShiftSettingsOpen(false);
           }}
         />
       )}
@@ -760,7 +890,7 @@ function Palette({
       </div>
 
       <div className="p-3 border-t border-gray-100 text-[11px] text-foreground/40 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
-        Drag a group onto a day for an event, or drop a team member on the upper-left AOC slot.
+        Drag a team member into a shift to schedule them, a group onto a day for an event, or drop a team member on the upper-left AOC slot.
       </div>
     </div>
   );
@@ -1322,7 +1452,8 @@ function MonthView({
   eventsByDate,
   usersById,
   aodByDate,
-  onCreate,
+  shifts,
+  onCreateInShift,
   onReschedule,
   onEventClick,
   onDayClick,
@@ -1335,7 +1466,8 @@ function MonthView({
   eventsByDate: Map<string, EventRow[]>;
   usersById: Map<string, UserRow>;
   aodByDate: Map<string, string>;
-  onCreate: (date: Date, payload: DragPayload) => void;
+  shifts: Shift[];
+  onCreateInShift: (date: Date, payload: DragPayload, shift: Shift) => void;
   onReschedule: (date: Date, eventId: string) => void;
   onEventClick: (id: string) => void;
   onDayClick: (date: Date) => void;
@@ -1366,22 +1498,28 @@ function MonthView({
           const isLastRow = i >= 35;
           const iso = toISODate(d);
           const dayEvents = eventsByDate.get(iso) || [];
-          const shown = dayEvents.slice(0, 3);
-          const extra = dayEvents.length - shown.length;
           const aodUserId = aodByDate.get(iso);
           const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
 
+          // Bucket events by shift (and collect "unshifted" all-day / out-of-band).
+          const byShift = new Map<string, EventRow[]>();
+          for (const s of shifts) byShift.set(s.id, []);
+          const unshifted: EventRow[] = [];
+          for (const ev of dayEvents) {
+            const sid = shiftForEvent(ev, shifts);
+            if (sid && byShift.has(sid)) byShift.get(sid)!.push(ev);
+            else unshifted.push(ev);
+          }
+
           return (
-            <DropCell
+            <div
               key={i}
-              onCreate={(payload) => onCreate(d, payload)}
-              onReschedule={(eventId) => onReschedule(d, eventId)}
               onClick={() => onDayClick(d)}
-              className={`relative p-1.5 min-h-0 cursor-pointer transition-colors hover:bg-warm-bg/40 overflow-hidden ${
+              className={`relative flex flex-col min-h-0 cursor-pointer transition-colors overflow-hidden ${
                 isLastCol ? '' : 'border-r'
               } ${isLastRow ? '' : 'border-b'} border-gray-100`}
             >
-              <div className="flex items-center justify-between gap-1 mb-1">
+              <div className="flex items-center justify-between gap-1 px-1.5 pt-1.5 pb-1">
                 <AodSlot
                   user={aodUser}
                   onSet={(userId) => onSetAod(d, userId)}
@@ -1401,20 +1539,63 @@ function MonthView({
                   {d.getDate()}
                 </span>
               </div>
-              <div className="space-y-0.5">
-                {shown.map((ev) => (
-                  <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
-                ))}
-                {extra > 0 && (
-                  <div
-                    className="text-[10px] font-semibold text-foreground/40 px-1"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    +{extra} more
+
+              {/* Three stacked shift buckets — each is its own drop target. */}
+              <div className="flex-1 min-h-0 flex flex-col gap-px px-1 pb-1">
+                {shifts.map((s) => {
+                  const evs = byShift.get(s.id) || [];
+                  const shown = evs.slice(0, 2);
+                  const extra = evs.length - shown.length;
+                  return (
+                    <DropCell
+                      key={s.id}
+                      onCreate={(payload) => onCreateInShift(d, payload, s)}
+                      onReschedule={(eventId) => onReschedule(d, eventId)}
+                      className="flex-1 min-h-0 rounded-md bg-warm-bg/25 hover:bg-warm-bg/60 transition-colors px-1 py-0.5 flex flex-col overflow-hidden"
+                      activeClassName="ring-1 ring-primary/60 bg-primary/10 animate-cal-drop"
+                    >
+                      <div
+                        className="flex items-center justify-between gap-1 text-[9px] font-semibold uppercase tracking-wider text-foreground/40"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        <span className="truncate">{s.name}</span>
+                        <span className="shrink-0 font-medium normal-case tracking-normal text-foreground/30">
+                          {formatShiftRange(s)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-hidden space-y-0.5 mt-0.5">
+                        {shown.map((ev) => (
+                          <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
+                        ))}
+                        {extra > 0 && (
+                          <div
+                            className="text-[9px] font-semibold text-foreground/40 px-0.5"
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          >
+                            +{extra} more
+                          </div>
+                        )}
+                      </div>
+                    </DropCell>
+                  );
+                })}
+                {unshifted.length > 0 && (
+                  <div className="space-y-0.5 pt-0.5">
+                    {unshifted.slice(0, 1).map((ev) => (
+                      <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
+                    ))}
+                    {unshifted.length > 1 && (
+                      <div
+                        className="text-[9px] font-semibold text-foreground/40 px-0.5"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        +{unshifted.length - 1} more
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            </DropCell>
+            </div>
           );
         })}
       </div>
@@ -2021,6 +2202,137 @@ function EditModal({
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// Shift Settings modal — rename shifts and edit their start/end
+// times. Three rows; the last one is allowed to wrap midnight.
+// ------------------------------------------------------------
+
+function ShiftSettingsModal({
+  shifts,
+  onClose,
+  onSave,
+}: {
+  shifts: Shift[];
+  onClose: () => void;
+  onSave: (next: Shift[]) => void;
+}) {
+  const [draft, setDraft] = useState<Shift[]>(() => shifts.map((s) => ({ ...s })));
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  function updateShift(idx: number, patch: Partial<Shift>) {
+    setDraft((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  }
+
+  const valid = draft.every(
+    (s) => s.name.trim().length > 0 && /^\d{2}:\d{2}$/.test(s.start) && /^\d{2}:\d{2}$/.test(s.end)
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-cal-fade"
+      onMouseDown={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-cal-event"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="h-1 bg-primary" />
+        <div className="p-6">
+          <div className="flex items-start justify-between mb-1">
+            <h3
+              className="text-base font-semibold text-foreground tracking-tight"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Shift Settings
+            </h3>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg hover:bg-warm-bg text-foreground/40 hover:text-foreground transition-colors"
+              aria-label="Close"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <p
+            className="text-xs text-foreground/50 mb-5"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Team members dropped onto a day land in one of these shifts. The overnight shift may
+            wrap past midnight.
+          </p>
+
+          <div className="space-y-2.5">
+            {draft.map((s, i) => (
+              <div
+                key={s.id}
+                className="grid grid-cols-[1fr_auto_auto] gap-2 items-center p-2 rounded-xl border border-gray-100 bg-warm-bg/20"
+              >
+                <input
+                  value={s.name}
+                  onChange={(e) => updateShift(i, { name: e.target.value })}
+                  placeholder="Shift name"
+                  className="text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                />
+                <input
+                  type="time"
+                  value={s.start}
+                  onChange={(e) => updateShift(i, { start: e.target.value })}
+                  className="text-sm px-2 py-1.5 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white tabular-nums"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                />
+                <input
+                  type="time"
+                  value={s.end}
+                  onChange={(e) => updateShift(i, { end: e.target.value })}
+                  className="text-sm px-2 py-1.5 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white tabular-nums"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 flex items-center justify-between gap-3">
+            <button
+              onClick={() => setDraft(DEFAULT_SHIFTS.map((s) => ({ ...s })))}
+              className="text-xs font-semibold text-foreground/50 hover:text-foreground transition-colors"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Reset to defaults
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-foreground/60 hover:bg-warm-bg transition-colors"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => onSave(draft)}
+                disabled={!valid}
+                className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Save shifts
               </button>
             </div>
           </div>
