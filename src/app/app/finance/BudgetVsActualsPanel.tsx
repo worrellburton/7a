@@ -256,9 +256,35 @@ function parseRow(cells: ReportColData[]): number[] {
 
 interface Props {
   realmId: string;
+  // When true, render a company-wide roll-up footer (Revenue / Net
+  // Income / Operating Margin + Total Budget / Total Expenses /
+  // Difference). Used on the Finance > Overview tab.
+  showTotals?: boolean;
 }
 
-export default function BudgetVsActualsPanel({ realmId }: Props) {
+// Walk the P&L row tree and find the Summary.ColData for the first
+// row that matches the given `group` name (QBO tags the top-level
+// Income / Expenses / NetIncome etc. rows with a `group` field).
+function findGroupSummary(rows: ReportRow[] | undefined, group: string): number[] | null {
+  if (!rows) return null;
+  for (const r of rows) {
+    if (r.group === group && r.Summary?.ColData) {
+      return parseRow(r.Summary.ColData);
+    }
+    if (r.Rows?.Row) {
+      const nested = findGroupSummary(r.Rows.Row, group);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+function fmtPct(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  return `${n.toFixed(2)}%`;
+}
+
+export default function BudgetVsActualsPanel({ realmId, showTotals = false }: Props) {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [budgets, setBudgets] = useState<Record<string, BudgetRow>>({});
   const [report, setReport] = useState<ReportResponse | null>(null);
@@ -605,6 +631,176 @@ export default function BudgetVsActualsPanel({ realmId }: Props) {
               </Fragment>
             );
           })}
+
+          {showTotals && (() => {
+            // ─── Company roll-up rows ────────────────────────────
+            // Sum every department's budget/expense arrays month-
+            // by-month, plus pull Revenue / Net Income straight
+            // from the QBO P&L group summaries for the same period.
+            const zeros = Array.from({ length: 12 }, () => 0);
+            const totalBudget = [...zeros];
+            const totalExpense = [...zeros];
+            for (const d of departments) {
+              const b = budgets[d.id];
+              if (!b) continue;
+              const monthly = b.monthly_budget ?? 0;
+              const exp = b.qbo_account_id ? rowsById.get(b.qbo_account_id) : undefined;
+              monthSlots.forEach((s, i) => {
+                totalBudget[i] += monthly;
+                if (s.numericIndex !== undefined && exp && Number.isFinite(exp[s.numericIndex])) {
+                  totalExpense[i] += exp[s.numericIndex];
+                }
+              });
+            }
+            const totalDiff = totalBudget.map((b, i) => b - totalExpense[i]);
+
+            // QBO group summaries, remapped onto our 12-month skeleton.
+            const incomeSummary = findGroupSummary(report?.Rows?.Row, 'Income');
+            const netIncomeSummary = findGroupSummary(report?.Rows?.Row, 'NetIncome');
+            const mapToSlots = (arr: number[] | null): number[] =>
+              monthSlots.map((s) => (arr && s.numericIndex !== undefined && Number.isFinite(arr[s.numericIndex]) ? arr[s.numericIndex] : 0));
+            const revenue = mapToSlots(incomeSummary);
+            const netIncome = mapToSlots(netIncomeSummary);
+            const margin = revenue.map((r, i) => (r !== 0 ? (netIncome[i] / r) * 100 : 0));
+
+            // YTD / Avg / Projected roll-ups use the same "complete month" rule.
+            const ytd = (arr: number[]) => arr.slice(0, elapsedMonths).reduce((s, v) => s + v, 0);
+            const avg = (arr: number[]) => (elapsedMonths > 0 ? ytd(arr) / elapsedMonths : 0);
+            const proj = (arr: number[]) => avg(arr) * 12;
+            const ytdRevenue = ytd(revenue);
+            const ytdNetIncome = ytd(netIncome);
+            const ytdMargin = ytdRevenue !== 0 ? (ytdNetIncome / ytdRevenue) * 100 : 0;
+            const avgMargin = ytdMargin; // avg of ratio is the ratio of ytd sums
+            const projMargin = ytdMargin; // run-rate margin = ytd margin
+
+            const summaryCellCls = 'px-3 py-2.5 text-right tabular-nums font-semibold text-white';
+            const summaryLabelCls = 'sticky left-0 z-10 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-white/90';
+
+            return (
+              <>
+                {/* Visual gap between department rows and the roll-up */}
+                <tr>
+                  <td colSpan={17} className="h-3 bg-warm-bg/10" />
+                </tr>
+
+                {/* Revenue */}
+                <tr className="bg-foreground">
+                  <td colSpan={2} className={`${summaryLabelCls} bg-foreground`}>Revenue</td>
+                  {revenue.map((v, i) => (
+                    <td key={i} className={summaryCellCls} style={{ fontFamily: 'var(--font-body)' }}>
+                      {futureMonth(i) ? <span className="text-white/30">—</span> : fmtMoney(v)}
+                    </td>
+                  ))}
+                  <td className={`${summaryCellCls} border-l border-white/20 bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(ytdRevenue)}</td>
+                  <td className={`${summaryCellCls} bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(avg(revenue))}</td>
+                  <td className={`${summaryCellCls} bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(proj(revenue))}</td>
+                </tr>
+
+                {/* Net Income */}
+                <tr className="bg-foreground">
+                  <td colSpan={2} className={`${summaryLabelCls} bg-foreground`}>Net Income</td>
+                  {netIncome.map((v, i) => (
+                    <td key={i} className={summaryCellCls} style={{ fontFamily: 'var(--font-body)' }}>
+                      {futureMonth(i) ? <span className="text-white/30">—</span> : fmtMoney(v)}
+                    </td>
+                  ))}
+                  <td className={`${summaryCellCls} border-l border-white/20 bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(ytdNetIncome)}</td>
+                  <td className={`${summaryCellCls} bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(avg(netIncome))}</td>
+                  <td className={`${summaryCellCls} bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(proj(netIncome))}</td>
+                </tr>
+
+                {/* Operating Margin */}
+                <tr className="bg-foreground border-b-4 border-warm-bg">
+                  <td colSpan={2} className={`${summaryLabelCls} bg-foreground`}>Operating Margin</td>
+                  {margin.map((v, i) => (
+                    <td key={i} className="px-2 py-1.5 text-right bg-foreground" style={{ fontFamily: 'var(--font-body)' }}>
+                      {futureMonth(i) || v === 0 ? (
+                        <span className="text-white/30 text-xs">—</span>
+                      ) : (
+                        <span className="inline-block px-2 py-1 rounded-md tabular-nums font-semibold text-[11px] bg-sky-500 text-white">
+                          {fmtPct(v)}
+                        </span>
+                      )}
+                    </td>
+                  ))}
+                  <td className="px-2 py-1.5 text-right bg-foreground/95 border-l border-white/20" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="inline-block px-2 py-1 rounded-md tabular-nums font-semibold text-[11px] bg-sky-500 text-white">{fmtPct(ytdMargin)}</span>
+                  </td>
+                  <td className="px-2 py-1.5 text-right bg-foreground/95" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="inline-block px-2 py-1 rounded-md tabular-nums font-semibold text-[11px] bg-sky-500 text-white">{fmtPct(avgMargin)}</span>
+                  </td>
+                  <td className="px-2 py-1.5 text-right bg-foreground/95" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="inline-block px-2 py-1 rounded-md tabular-nums font-semibold text-[11px] bg-sky-500 text-white">{fmtPct(projMargin)}</span>
+                  </td>
+                </tr>
+
+                {/* gap row */}
+                <tr>
+                  <td colSpan={17} className="h-3 bg-warm-bg/10" />
+                </tr>
+
+                {/* Total Budget */}
+                <tr className="bg-foreground">
+                  <td colSpan={2} className={`${summaryLabelCls} bg-foreground`}>Total Budget</td>
+                  {totalBudget.map((v, i) => (
+                    <td key={i} className={summaryCellCls} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(v)}</td>
+                  ))}
+                  <td className={`${summaryCellCls} border-l border-white/20 bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(ytd(totalBudget))}</td>
+                  <td className={`${summaryCellCls} bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(avg(totalBudget))}</td>
+                  <td className={`${summaryCellCls} bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(proj(totalBudget))}</td>
+                </tr>
+
+                {/* Total Expenses */}
+                <tr className="bg-foreground">
+                  <td colSpan={2} className={`${summaryLabelCls} bg-foreground`}>Total Expenses</td>
+                  {totalExpense.map((v, i) => (
+                    <td key={i} className={summaryCellCls} style={{ fontFamily: 'var(--font-body)' }}>
+                      {futureMonth(i) ? <span className="text-white/30">—</span> : fmtMoney(v)}
+                    </td>
+                  ))}
+                  <td className={`${summaryCellCls} border-l border-white/20 bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(ytd(totalExpense))}</td>
+                  <td className={`${summaryCellCls} bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(avg(totalExpense))}</td>
+                  <td className={`${summaryCellCls} bg-foreground/95`} style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(proj(totalExpense))}</td>
+                </tr>
+
+                {/* Difference */}
+                <tr className="bg-foreground">
+                  <td colSpan={2} className={`${summaryLabelCls} bg-foreground`}>Difference</td>
+                  {totalDiff.map((v, i) => {
+                    if (futureMonth(i)) {
+                      return (
+                        <td key={i} className="px-2 py-1.5 text-right bg-foreground" style={{ fontFamily: 'var(--font-body)' }}>
+                          <span className="text-white/30 text-xs">—</span>
+                        </td>
+                      );
+                    }
+                    const d2 = fmtDiffFilled(v);
+                    return (
+                      <td key={i} className="px-2 py-1.5 text-right bg-foreground" style={{ fontFamily: 'var(--font-body)' }}>
+                        <span className={`inline-block px-2 py-1 rounded-md tabular-nums font-semibold text-[11px] ${d2.cls}`}>
+                          {d2.label}
+                        </span>
+                      </td>
+                    );
+                  })}
+                  {[ytd(totalDiff), avg(totalDiff), proj(totalDiff)].map((v, i) => {
+                    const d2 = fmtDiffFilled(v);
+                    return (
+                      <td
+                        key={i}
+                        className={`px-2 py-1.5 text-right bg-foreground/95 ${i === 0 ? 'border-l border-white/20' : ''}`}
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        <span className={`inline-block px-2 py-1 rounded-md tabular-nums font-semibold text-[11px] ${d2.cls}`}>
+                          {d2.label}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              </>
+            );
+          })()}
         </tbody>
       </table>
 
