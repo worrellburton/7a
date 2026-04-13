@@ -33,10 +33,9 @@ function fmtMoney(n: number | undefined): string {
 
 interface Props {
   realmId: string;
-  onUpdated?: () => void;
 }
 
-export default function AccountsReceivablesPanel({ realmId, onUpdated }: Props) {
+export default function AccountsReceivablesPanel({ realmId }: Props) {
   const [accounts, setAccounts] = useState<QboAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,13 +56,12 @@ export default function AccountsReceivablesPanel({ realmId, onUpdated }: Props) 
       }
       const data = (await res.json()) as AccountsResponse;
       setAccounts(data.QueryResponse?.Account || []);
-      onUpdated?.();
     } catch (e) {
       setError(String(e));
     } finally {
       setLoading(false);
     }
-  }, [realmId, onUpdated]);
+  }, [realmId]);
 
   useEffect(() => { load(); }, [load]);
 
