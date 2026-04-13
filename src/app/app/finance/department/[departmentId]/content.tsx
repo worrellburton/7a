@@ -267,7 +267,7 @@ export default function DepartmentBudgetContent() {
             {department.color && (
               <span className="w-3 h-3 rounded-full" style={{ background: department.color }} />
             )}
-            <h1 className="text-2xl font-bold text-foreground">{department.name}</h1>
+            <h1 className="text-lg font-semibold text-foreground tracking-tight">{department.name}</h1>
           </div>
           <p className="text-sm text-foreground/50 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
             Department budget, personnel, expenses, and general ledger.
