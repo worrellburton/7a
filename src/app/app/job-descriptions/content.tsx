@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
-import { db } from '@/lib/db';
+import { db, getAuthToken } from '@/lib/db';
 import { useEffect, useState } from 'react';
 
 interface Department {
@@ -119,6 +119,64 @@ export default function JobDescriptionsContent() {
     updateJob(job.id, { requirements: job.requirements.filter((_, i) => i !== idx) });
   }
 
+  // AI generation state — keyed by a target id ('draft' for the new-role form,
+  // or the job id for an existing role). null = idle.
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+  const [genError, setGenError] = useState<string | null>(null);
+
+  async function generateFor(target: 'draft' | JobDescription) {
+    const title = target === 'draft' ? draft.title.trim() : target.title.trim();
+    if (!title) {
+      setGenError('Enter a title first so the AI has something to work with.');
+      return;
+    }
+    const deptId = target === 'draft' ? draft.department_id : target.department_id;
+    const deptName = deptId ? deptById.get(deptId)?.name || '' : '';
+    const existingSummary = target === 'draft' ? draft.summary : target.summary;
+    const id = target === 'draft' ? 'draft' : target.id;
+
+    setGenError(null);
+    setGeneratingFor(id);
+    try {
+      const token = getAuthToken();
+      const res = await fetch('/api/claude/job-description', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ title, department: deptName, existingSummary }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `Generation failed (${res.status})`);
+      }
+      const gen = (await res.json()) as {
+        summary: string;
+        responsibilities: string[];
+        requirements: string[];
+      };
+      if (target === 'draft') {
+        setDraft((prev) => ({
+          ...prev,
+          summary: gen.summary || prev.summary,
+          responsibilities: gen.responsibilities?.length ? gen.responsibilities : prev.responsibilities,
+          requirements: gen.requirements?.length ? gen.requirements : prev.requirements,
+        }));
+      } else {
+        await updateJob(target.id, {
+          summary: gen.summary || target.summary,
+          responsibilities: gen.responsibilities?.length ? gen.responsibilities : target.responsibilities,
+          requirements: gen.requirements?.length ? gen.requirements : target.requirements,
+        });
+      }
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGeneratingFor(null);
+    }
+  }
+
   if (!user) return null;
 
   if (loading) {
@@ -195,7 +253,7 @@ export default function JobDescriptionsContent() {
               style={{ fontFamily: 'var(--font-body)' }}
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={createJob}
               disabled={!draft.title.trim()}
@@ -203,11 +261,28 @@ export default function JobDescriptionsContent() {
               style={{ fontFamily: 'var(--font-body)' }}
             >Create</button>
             <button
-              onClick={() => { setCreating(false); setDraft(emptyDraft); }}
+              onClick={() => { setCreating(false); setDraft(emptyDraft); setGenError(null); }}
               className="px-3 py-1.5 rounded-lg text-xs text-foreground/50 hover:bg-warm-bg"
               style={{ fontFamily: 'var(--font-body)' }}
             >Cancel</button>
+            <button
+              onClick={() => generateFor('draft')}
+              disabled={!draft.title.trim() || generatingFor === 'draft'}
+              className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/5 text-primary text-xs font-medium hover:bg-primary/10 disabled:opacity-40"
+              style={{ fontFamily: 'var(--font-body)' }}
+              title="Generate summary, responsibilities, and requirements with Claude"
+            >
+              {generatingFor === 'draft' ? (
+                <div className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
+              )}
+              {generatingFor === 'draft' ? 'Generating…' : 'Generate with Claude'}
+            </button>
           </div>
+          {genError && generatingFor !== 'draft' && (
+            <p className="text-xs text-red-500 mt-2" style={{ fontFamily: 'var(--font-body)' }}>{genError}</p>
+          )}
         </div>
       )}
 
@@ -375,8 +450,22 @@ export default function JobDescriptionsContent() {
                       </div>
                     </div>
 
-                    {/* Delete */}
-                    <div className="flex justify-end pt-2 border-t border-gray-100">
+                    {/* Generate + Delete */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                      <button
+                        onClick={() => generateFor(job)}
+                        disabled={!job.title.trim() || generatingFor === job.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/5 text-primary text-xs font-medium hover:bg-primary/10 disabled:opacity-40"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                        title="Replace summary, responsibilities, and requirements with an AI-generated draft"
+                      >
+                        {generatingFor === job.id ? (
+                          <div className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
+                        )}
+                        {generatingFor === job.id ? 'Generating…' : 'Generate with Claude'}
+                      </button>
                       <button
                         onClick={() => {
                           if (window.confirm(`Delete "${job.title}"?`)) deleteJob(job.id);
@@ -387,6 +476,9 @@ export default function JobDescriptionsContent() {
                         Delete role
                       </button>
                     </div>
+                    {genError && generatingFor !== job.id && expandedId === job.id && (
+                      <p className="text-xs text-red-500" style={{ fontFamily: 'var(--font-body)' }}>{genError}</p>
+                    )}
                   </div>
                 )}
               </div>
