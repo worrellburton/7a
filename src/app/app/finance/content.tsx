@@ -256,7 +256,7 @@ export default function FinanceContent() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="flex gap-1 px-4 py-2 border-b border-gray-100 bg-warm-bg/10">
                 {([
-                  { id: 'overview' as BudgetView, label: 'Overview' },
+                  { id: 'overview' as BudgetView, label: 'Set Department Budgets' },
                   { id: 'bva' as BudgetView, label: 'Budget vs Actuals' },
                 ]).map((v) => (
                   <button

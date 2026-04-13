@@ -95,7 +95,7 @@ export default function ComplianceContent() {
     <div className="p-6 lg:p-10">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-1">JCAHO Accreditation</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">JCAHO Accreditation</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Joint Commission standards for behavioral health &middot; Residential treatment center
           </p>
