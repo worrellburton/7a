@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import BudgetsPanel from './BudgetsPanel';
 import AccountsReceivablesPanel from './AccountsReceivablesPanel';
 import BudgetVsActualsPanel from './BudgetVsActualsPanel';
+import { DepartmentBudgetBody } from './department/[departmentId]/content';
 import {
   useQuickBooksConnection,
   QuickBooksHeader,
@@ -117,6 +118,9 @@ export default function FinanceContent() {
   const [section, setSection] = useState<Section>('overview');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [departments, setDepartments] = useState<DepartmentRow[]>([]);
+  // null = "Set Budgets" tab; otherwise the id of the department whose
+  // Overview/Personnel/Expenses/Ledger page is rendered inline below.
+  const [selectedBudgetDept, setSelectedBudgetDept] = useState<string | null>(null);
 
   // Load departments once for the Budget-tab sub-navigation.
   useEffect(() => {
@@ -295,44 +299,60 @@ export default function FinanceContent() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="flex gap-1 px-4 py-2 border-b border-gray-100 bg-warm-bg/10 overflow-x-auto">
                 <button
-                  className="px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-foreground text-white whitespace-nowrap"
+                  onClick={() => setSelectedBudgetDept(null)}
+                  className={`px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap transition-colors ${
+                    selectedBudgetDept === null
+                      ? 'bg-foreground text-white'
+                      : 'text-foreground/50 hover:bg-warm-bg'
+                  }`}
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   Set Budgets
                 </button>
-                {departments.map((d) => (
-                  <button
-                    key={d.id}
-                    onClick={() =>
-                      selectedRealm &&
-                      router.push(
-                        `/app/finance/department/${d.id}?realm_id=${encodeURIComponent(selectedRealm)}`
-                      )
-                    }
-                    disabled={!selectedRealm}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider text-foreground/50 hover:bg-warm-bg disabled:text-foreground/25 disabled:cursor-not-allowed whitespace-nowrap transition-colors"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                    title={selectedRealm ? `Open ${d.name} budget` : 'Connect QuickBooks first'}
-                  >
-                    {d.color && (
-                      <span
-                        className="w-1.5 h-1.5 rounded-full shrink-0"
-                        style={{ background: d.color }}
-                      />
-                    )}
-                    {d.name}
-                  </button>
-                ))}
+                {departments.map((d) => {
+                  const active = selectedBudgetDept === d.id;
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => selectedRealm && setSelectedBudgetDept(d.id)}
+                      disabled={!selectedRealm}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap transition-colors ${
+                        active
+                          ? 'bg-foreground text-white'
+                          : 'text-foreground/50 hover:bg-warm-bg disabled:text-foreground/25 disabled:cursor-not-allowed'
+                      }`}
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      title={selectedRealm ? `Open ${d.name} budget` : 'Connect QuickBooks first'}
+                    >
+                      {d.color && (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ background: d.color }}
+                        />
+                      )}
+                      {d.name}
+                    </button>
+                  );
+                })}
               </div>
-              <div className="p-6 min-h-[200px]">
-                {!selectedRealm ? (
+              {!selectedRealm ? (
+                <div className="p-6 min-h-[200px]">
                   <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
                     Connect a QuickBooks company to set budgets.
                   </p>
-                ) : (
+                </div>
+              ) : selectedBudgetDept === null ? (
+                <div className="p-6 min-h-[200px]">
                   <BudgetsPanel realmId={selectedRealm} />
-                )}
-              </div>
+                </div>
+              ) : (
+                <DepartmentBudgetBody
+                  key={selectedBudgetDept}
+                  departmentId={selectedBudgetDept}
+                  realmId={selectedRealm}
+                  embedded
+                />
+              )}
             </div>
           )}
 
