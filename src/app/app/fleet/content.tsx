@@ -254,7 +254,7 @@ export default function FleetContent() {
 
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-1">Fleet</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Fleet</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             {vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''}{vehicles.length > 0 ? ' \u00b7 Click any cell to edit' : ''}
           </p>

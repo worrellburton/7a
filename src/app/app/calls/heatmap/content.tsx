@@ -310,7 +310,7 @@ export default function CallsHeatmapContent() {
               Calls
             </Link>
           </div>
-          <h1 className="text-2xl font-bold text-foreground mb-1">Call Heatmap</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Call Heatmap</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Calendar heatmap of the last {WEEKS} weeks. Hover any day to see a breakdown.
           </p>

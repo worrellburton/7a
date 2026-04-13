@@ -200,7 +200,7 @@ export default function DepartmentsContent() {
     <div className="p-6 lg:p-10">
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-1">Departments</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Departments</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Drag people between departments and the unassigned pool, or use the dropdowns.
           </p>

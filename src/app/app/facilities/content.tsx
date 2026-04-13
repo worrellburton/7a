@@ -310,7 +310,7 @@ export default function FacilitiesContent() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-1">Facilities</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Facilities</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>Track improvements needed across all locations.</p>
         </div>
         <button onClick={() => setShowAddForm(true)} className="w-10 h-10 rounded-xl bg-foreground text-white flex items-center justify-center hover:bg-foreground/80 transition-colors shadow-sm" aria-label="Add new issue">

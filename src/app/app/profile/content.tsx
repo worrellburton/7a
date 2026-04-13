@@ -61,7 +61,7 @@ export default function ProfileContent() {
   return (
     <div className="p-6 lg:p-10">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground mb-1">My Profile</h1>
+        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">My Profile</h1>
         <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
           Manage your account information.
         </p>

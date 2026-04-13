@@ -146,9 +146,20 @@ export async function GET(req: NextRequest) {
       }
 
       case 'profit-loss-monthly': {
-        const path = buildReportPath('ProfitAndLoss', url.searchParams, {
-          summarize_column_by: 'Month',
-        });
+        // Default to the current calendar year (Jan 1 – Dec 31) so the
+        // report always has 12 monthly columns — future months just
+        // return zero. Callers can still override with start/end.
+        const hasRange =
+          url.searchParams.get('start_date') ||
+          url.searchParams.get('end_date') ||
+          url.searchParams.get('date_macro');
+        const extras: Record<string, string> = { summarize_column_by: 'Month' };
+        if (!hasRange) {
+          const year = new Date().getFullYear();
+          extras.start_date = `${year}-01-01`;
+          extras.end_date = `${year}-12-31`;
+        }
+        const path = buildReportPath('ProfitAndLoss', url.searchParams, extras);
         const data = await qbApiFetch<unknown>(realmId, path);
         return NextResponse.json(data);
       }

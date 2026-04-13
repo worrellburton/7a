@@ -212,27 +212,6 @@ export default function PagesContent() {
           <p className="text-xs text-foreground/30 font-mono">{page.path}</p>
         </div>
 
-        {/* Nav group selector */}
-        {page.section === 'nav' && (
-          <select
-            value={page.departmentId || ''}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              const val = e.target.value || null;
-              setPageDepartmentGroup(page.path, val);
-              showToast(`${page.label} ${val ? `moved to ${getDeptName(val)}` : 'ungrouped'}`);
-            }}
-            className="text-[11px] px-2 py-1 rounded-lg border border-gray-200 bg-white text-foreground/60 focus:border-primary focus:outline-none cursor-pointer shrink-0"
-            style={{ fontFamily: 'var(--font-body)' }}
-            title="Move to group"
-          >
-            <option value="">No group</option>
-            {departments.map(d => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </select>
-        )}
-
         {/* Super Admin Only toggle */}
         <button
           onClick={() => !locked && toggleAdminOnly(page.path)}
@@ -323,11 +302,31 @@ export default function PagesContent() {
 
   return (
     <div className="p-6 lg:p-10">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground mb-1">Pages</h1>
-        <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-          Drag pages between sections to reorganize. Reorder by dragging within a section.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-lg font-semibold text-foreground tracking-tight">Pages</h1>
+            <span
+              className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Super Admin
+            </span>
+          </div>
+          <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+            Drag pages between sections to reorganize. Drag onto a department group to move it.
+          </p>
+        </div>
+        <button
+          onClick={() => router.push('/app/departments')}
+          className="px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider bg-foreground text-white hover:bg-foreground/80 transition-colors inline-flex items-center gap-1.5 shrink-0"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add Group
+        </button>
       </div>
 
       <div className="space-y-6">

@@ -532,7 +532,7 @@ export default function CalendarContent() {
       {/* Header */}
       <div className="mb-3 flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-0.5">Calendar</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-0.5">Calendar</h1>
           <p
             className="text-xs text-foreground/50"
             style={{ fontFamily: 'var(--font-body)' }}
@@ -587,10 +587,10 @@ export default function CalendarContent() {
         </div>
       </div>
 
-      <div className="mb-3">
+      <div className="mb-3 text-center">
         <h2
           key={title}
-          className="text-lg font-semibold text-foreground animate-cal-fade"
+          className="text-lg font-semibold text-foreground animate-cal-fade inline-block"
           style={{ fontFamily: 'var(--font-body)' }}
         >
           {title}

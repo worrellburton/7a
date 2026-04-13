@@ -117,7 +117,7 @@ export default function RCMPipelineContent() {
     <div className="p-6 lg:p-10 h-full flex flex-col">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-1">RCM Pipeline</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">RCM Pipeline</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Revenue cycle management &middot; Drag claims between stages
           </p>
