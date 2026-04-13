@@ -703,106 +703,14 @@ export default function CalendarContent() {
     <DragCtx.Provider value={dragCtxValue}>
     <div className="p-4 lg:p-6 h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="mb-3 flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-0.5">Calendar</h1>
-          <p
-            className="text-xs text-foreground/50"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Drag a group or a team member onto a day to schedule it.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
-            {(['month', 'week', 'day'] as View[]).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
-                  view === v
-                    ? 'bg-white shadow-sm text-foreground'
-                    : 'text-foreground/50 hover:text-foreground/80'
-                }`}
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
-            {(['shifts', 'hybrid', 'groups'] as ViewMode[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => saveViewMode(m)}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
-                  viewMode === m
-                    ? 'bg-white shadow-sm text-foreground'
-                    : 'text-foreground/50 hover:text-foreground/80'
-                }`}
-                style={{ fontFamily: 'var(--font-body)' }}
-                title={
-                  m === 'shifts'
-                    ? 'Group events into Morning / Afternoon / Overnight buckets'
-                    : m === 'groups'
-                    ? 'Show a flat list of events per day'
-                    : 'Show shift buckets plus any unshifted events as a list'
-                }
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => navigate(-1)}
-              className="p-2 rounded-lg hover:bg-warm-bg text-foreground/60 transition-colors"
-              aria-label="Previous"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-            </button>
-            <button
-              onClick={() => navigate(0)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-gray-200 hover:border-primary/40 hover:text-primary text-foreground/70 transition-colors"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              Today
-            </button>
-            <button
-              onClick={() => navigate(1)}
-              className="p-2 rounded-lg hover:bg-warm-bg text-foreground/60 transition-colors"
-              aria-label="Next"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-          </div>
-          <button
-            onClick={() => setShiftSettingsOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-gray-200 hover:border-primary/40 hover:text-primary text-foreground/70 transition-colors"
-            style={{ fontFamily: 'var(--font-body)' }}
-            title="Edit shift names and times"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-            Shift Settings
-          </button>
-        </div>
-      </div>
-
-      <div className="mb-3 text-center">
-        <h2
-          key={title}
-          className="text-lg font-semibold text-foreground animate-cal-fade inline-block"
+      <div className="mb-3">
+        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-0.5">Calendar</h1>
+        <p
+          className="text-xs text-foreground/50"
           style={{ fontFamily: 'var(--font-body)' }}
         >
-          {title}
-        </h2>
+          Drag a group or a team member onto a day to schedule it.
+        </p>
       </div>
 
       {/* Body: palette + calendar surface */}
@@ -813,6 +721,96 @@ export default function CalendarContent() {
           key={bodyKey}
           className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-cal-fade min-h-0 flex flex-col"
         >
+          {/* Calendar toolbar — lives directly above the calendar grid. */}
+          <div className="shrink-0 px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+            <h2
+              key={title}
+              className="text-lg font-semibold text-foreground animate-cal-fade"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {title}
+            </h2>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
+                {(['month', 'week', 'day'] as View[]).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
+                      view === v
+                        ? 'bg-white shadow-sm text-foreground'
+                        : 'text-foreground/50 hover:text-foreground/80'
+                    }`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
+                {(['shifts', 'hybrid', 'groups'] as ViewMode[]).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => saveViewMode(m)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
+                      viewMode === m
+                        ? 'bg-white shadow-sm text-foreground'
+                        : 'text-foreground/50 hover:text-foreground/80'
+                    }`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                    title={
+                      m === 'shifts'
+                        ? 'Group events into Morning / Afternoon / Overnight buckets'
+                        : m === 'groups'
+                        ? 'Show a flat list of events per day'
+                        : 'Show shift buckets plus any unshifted events as a list'
+                    }
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => navigate(-1)}
+                  className="p-2 rounded-lg hover:bg-warm-bg text-foreground/60 transition-colors"
+                  aria-label="Previous"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => navigate(0)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-gray-200 hover:border-primary/40 hover:text-primary text-foreground/70 transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => navigate(1)}
+                  className="p-2 rounded-lg hover:bg-warm-bg text-foreground/60 transition-colors"
+                  aria-label="Next"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </button>
+              </div>
+              <button
+                onClick={() => setShiftSettingsOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-gray-200 hover:border-primary/40 hover:text-primary text-foreground/70 transition-colors"
+                style={{ fontFamily: 'var(--font-body)' }}
+                title="Edit shift names and times"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+                Shift Settings
+              </button>
+            </div>
+          </div>
           {view === 'month' && (
             <MonthView
               days={monthDays}
@@ -1835,28 +1833,33 @@ function MonthView({
               </div>
 
               {viewMode === 'groups' ? (
-                // Flat list mode — single drop target for the whole day, no shift buckets.
-                <DropCell
-                  onCreate={(payload) => onCreate(d, payload)}
-                  onReschedule={(eventId) => onReschedule(d, eventId)}
-                  previewTarget={{ date: d, hour: null }}
-                  className="flex-1 min-h-0 mx-1 mb-1 rounded-md bg-warm-bg/20 hover:bg-warm-bg/50 transition-colors px-1 py-0.5 flex flex-col overflow-hidden"
-                  activeClassName="ring-1 ring-primary/60 bg-primary/10 animate-cal-drop"
-                >
-                  <div className="flex-1 min-h-0 overflow-hidden space-y-0.5">
-                    {dayEvents.slice(0, 5).map((ev) => (
-                      <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
-                    ))}
-                    {dayEvents.length > 5 && (
-                      <div
-                        className="text-[9px] font-semibold text-foreground/40 px-0.5"
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        +{dayEvents.length - 5} more
+                // Flat list mode — groups only, no individual team members.
+                (() => {
+                  const groupEvents = dayEvents.filter((ev) => ev.subject_kind === 'group');
+                  return (
+                    <DropCell
+                      onCreate={(payload) => onCreate(d, payload)}
+                      onReschedule={(eventId) => onReschedule(d, eventId)}
+                      previewTarget={{ date: d, hour: null }}
+                      className="flex-1 min-h-0 mx-1 mb-1 rounded-md bg-warm-bg/20 hover:bg-warm-bg/50 transition-colors px-1 py-0.5 flex flex-col overflow-hidden"
+                      activeClassName="ring-1 ring-primary/60 bg-primary/10 animate-cal-drop"
+                    >
+                      <div className="flex-1 min-h-0 overflow-hidden space-y-0.5">
+                        {groupEvents.slice(0, 5).map((ev) => (
+                          <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
+                        ))}
+                        {groupEvents.length > 5 && (
+                          <div
+                            className="text-[9px] font-semibold text-foreground/40 px-0.5"
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          >
+                            +{groupEvents.length - 5} more
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </DropCell>
+                    </DropCell>
+                  );
+                })()
               ) : (
                 /* Three stacked shift buckets — each is its own drop target. */
                 <div className="flex-1 min-h-0 flex flex-col gap-px px-1 pb-1">
