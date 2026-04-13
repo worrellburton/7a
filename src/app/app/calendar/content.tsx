@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 // ------------------------------------------------------------
 // Calendar — Phase 3: polish, edit, reschedule, delete.
@@ -82,6 +82,34 @@ const DEFAULT_SHIFTS: Shift[] = [
 ];
 
 const SHIFTS_STORAGE_KEY = 'sa-calendar-shifts-v1';
+
+// ------------------------------------------------------------
+// Drag preview — while an existing event is being dragged, we
+// surface a floating tooltip near the cursor with the proposed
+// new date/time range and any overlap conflicts. DropCells update
+// the hover location; the event-drag hook seeds/clears the info.
+// ------------------------------------------------------------
+
+interface DragInfo {
+  eventId: string;
+  origDate: string;
+  origStartHours: number | null; // null = all-day
+  origEndHours: number | null;
+  durationHours: number; // default 1 if times are null
+}
+interface HoverInfo {
+  date: Date;
+  hour: number | null; // null = month-level drop (keep original time)
+  mouseX: number;
+  mouseY: number;
+}
+interface DragCtxValue {
+  drag: DragInfo | null;
+  hover: HoverInfo | null;
+  setDrag: (d: DragInfo | null) => void;
+  setHover: (h: HoverInfo | null) => void;
+}
+const DragCtx = createContext<DragCtxValue | null>(null);
 
 function hhmmToHours(s: string): number {
   const [h, m] = s.split(':').map(Number);
@@ -263,6 +291,26 @@ export default function CalendarContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [shifts, setShifts] = useState<Shift[]>(DEFAULT_SHIFTS);
   const [shiftSettingsOpen, setShiftSettingsOpen] = useState(false);
+  const [drag, setDrag] = useState<DragInfo | null>(null);
+  const [hover, setHover] = useState<HoverInfo | null>(null);
+  const dragCtxValue = useMemo<DragCtxValue>(
+    () => ({ drag, hover, setDrag, setHover }),
+    [drag, hover]
+  );
+
+  // Global dragend → always clear preview state, even if drop landed off a cell.
+  useEffect(() => {
+    const onGlobalDragEnd = () => {
+      setDrag(null);
+      setHover(null);
+    };
+    window.addEventListener('dragend', onGlobalDragEnd);
+    window.addEventListener('drop', onGlobalDragEnd);
+    return () => {
+      window.removeEventListener('dragend', onGlobalDragEnd);
+      window.removeEventListener('drop', onGlobalDragEnd);
+    };
+  }, []);
 
   // Hydrate shifts from localStorage on mount.
   useEffect(() => {
@@ -626,6 +674,7 @@ export default function CalendarContent() {
   const bodyKey = `${view}-${current.getFullYear()}-${current.getMonth()}-${current.getDate()}`;
 
   return (
+    <DragCtx.Provider value={dragCtxValue}>
     <div className="p-4 lg:p-6 h-screen flex flex-col overflow-hidden">
       {/* Header */}
       <div className="mb-3 flex items-end justify-between gap-4 flex-wrap">
@@ -793,7 +842,10 @@ export default function CalendarContent() {
           }}
         />
       )}
+
+      <DragPreviewTooltip events={events} usersById={usersById} />
     </div>
+    </DragCtx.Provider>
   );
 }
 
@@ -968,6 +1020,7 @@ function DropCell({
   className = '',
   activeClassName = 'animate-cal-drop',
   children,
+  previewTarget,
 }: {
   onCreate: (p: DragPayload) => void;
   onReschedule: (eventId: string) => void;
@@ -975,7 +1028,9 @@ function DropCell({
   className?: string;
   activeClassName?: string;
   children?: React.ReactNode;
+  previewTarget?: { date: Date; hour: number | null };
 }) {
+  const ctx = useContext(DragCtx);
   const [over, setOver] = useState(false);
 
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -984,6 +1039,15 @@ function DropCell({
       e.preventDefault();
       e.dataTransfer.dropEffect = types.includes(EVENT_MIME) ? 'move' : 'copy';
       if (!over) setOver(true);
+      // Surface live preview info for event-drags (not palette drags).
+      if (ctx?.drag && previewTarget && types.includes(EVENT_MIME)) {
+        ctx.setHover({
+          date: previewTarget.date,
+          hour: previewTarget.hour,
+          mouseX: e.clientX,
+          mouseY: e.clientY,
+        });
+      }
     }
   };
   const onDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
@@ -1029,6 +1093,7 @@ function DropCell({
 // ------------------------------------------------------------
 
 function useEventDrag(ev: EventRow) {
+  const ctx = useContext(DragCtx);
   const [dragging, setDragging] = useState(false);
   const onDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     e.stopPropagation();
@@ -1036,8 +1101,26 @@ function useEventDrag(ev: EventRow) {
     e.dataTransfer.setData(EVENT_MIME, ev.id);
     e.dataTransfer.setData('text/plain', ev.title);
     setDragging(true);
+    if (ctx) {
+      const sH = dbTimeToHours(ev.start_time);
+      const eH = dbTimeToHours(ev.end_time);
+      const duration = sH != null && eH != null ? Math.max(0.5, eH - sH) : 1;
+      ctx.setDrag({
+        eventId: ev.id,
+        origDate: ev.event_date,
+        origStartHours: sH,
+        origEndHours: eH,
+        durationHours: duration,
+      });
+    }
   };
-  const onDragEnd = () => setDragging(false);
+  const onDragEnd = () => {
+    setDragging(false);
+    if (ctx) {
+      ctx.setDrag(null);
+      ctx.setHover(null);
+    }
+  };
   return { dragging, onDragStart, onDragEnd };
 }
 
@@ -1093,7 +1176,6 @@ function EventChip({
           </div>
         )}
         <span className="text-[11px] font-medium truncate" style={{ color }}>
-          {hour != null ? `${formatHour(hour).replace(' ', '')} ` : ''}
           {label}
         </span>
       </div>
@@ -1551,6 +1633,7 @@ function MonthView({
                       key={s.id}
                       onCreate={(payload) => onCreateInShift(d, payload, s)}
                       onReschedule={(eventId) => onReschedule(d, eventId)}
+                      previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
                       className="flex-1 min-h-0 rounded-md bg-warm-bg/25 hover:bg-warm-bg/60 transition-colors px-1 py-0.5 flex flex-col overflow-hidden"
                       activeClassName="ring-1 ring-primary/60 bg-primary/10 animate-cal-drop"
                     >
@@ -1740,6 +1823,7 @@ function WeekView({
                   key={di}
                   onCreate={(payload) => onCreate(d, h, payload)}
                   onReschedule={(eventId) => onReschedule(d, h, eventId)}
+                  previewTarget={{ date: d, hour: h }}
                   className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
                 />
               ))}
@@ -1934,6 +2018,7 @@ function DayView({
               <DropCell
                 onCreate={(payload) => onCreate(day, h, payload)}
                 onReschedule={(eventId) => onReschedule(day, h, eventId)}
+                previewTarget={{ date: day, hour: h }}
                 className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
               />
             </React.Fragment>
@@ -2337,6 +2422,143 @@ function ShiftSettingsModal({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// Floating drag preview — while an event is mid-drag, shows where
+// it would land (date + new start/end) and flags time overlaps with
+// other events on that day. Reads from DragCtx, positions near the
+// cursor, and stays out of the drag's hit-test via pointer-events.
+// ------------------------------------------------------------
+
+function DragPreviewTooltip({
+  events,
+  usersById,
+}: {
+  events: EventRow[];
+  usersById: Map<string, UserRow>;
+}) {
+  const ctx = useContext(DragCtx);
+  if (!ctx?.drag || !ctx.hover) return null;
+  const { drag, hover } = ctx;
+  const ev = events.find((e) => e.id === drag.eventId);
+  if (!ev) return null;
+
+  const newDateIso = toISODate(hover.date);
+  const sameDate = newDateIso === drag.origDate;
+
+  let newStartH: number | null = null;
+  let newEndH: number | null = null;
+  if (hover.hour != null) {
+    newStartH = hover.hour;
+    newEndH = hover.hour + (drag.durationHours || 1);
+  } else if (drag.origStartHours != null && drag.origEndHours != null) {
+    newStartH = drag.origStartHours;
+    newEndH = drag.origEndHours;
+  }
+
+  const sameTime = newStartH === drag.origStartHours && newEndH === drag.origEndHours;
+  const unchanged = sameDate && sameTime;
+
+  // Detect overlaps on the target date (excluding this event).
+  const conflicts: EventRow[] = [];
+  if (newStartH != null && newEndH != null) {
+    for (const other of events) {
+      if (other.id === ev.id) continue;
+      if (other.event_date !== newDateIso) continue;
+      const oS = dbTimeToHours(other.start_time);
+      if (oS == null) continue;
+      const oEnd = dbTimeToHours(other.end_time) ?? oS + 1;
+      if (oS < newEndH && oEnd > newStartH) conflicts.push(other);
+    }
+  }
+
+  const [y, m, dStr] = newDateIso.split('-').map(Number);
+  const dt = new Date(y, m - 1, dStr);
+  const dateLabel = `${DAYS_SHORT[dt.getDay()]} ${MONTHS[dt.getMonth()].slice(0, 3)} ${dt.getDate()}`;
+
+  const fmtTime = (h: number) => {
+    const hh = Math.floor(h);
+    const mm = Math.round((h - hh) * 60);
+    const period = hh >= 12 ? 'pm' : 'am';
+    const dh = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
+    return mm === 0 ? `${dh}${period}` : `${dh}:${String(mm).padStart(2, '0')}${period}`;
+  };
+  const timeLabel =
+    newStartH != null && newEndH != null
+      ? `${fmtTime(newStartH)} – ${fmtTime(newEndH)}`
+      : 'All day';
+  const origLabel =
+    drag.origStartHours != null && drag.origEndHours != null
+      ? `${fmtTime(drag.origStartHours)} – ${fmtTime(drag.origEndHours)}`
+      : 'All day';
+
+  const label =
+    ev.subject_kind === 'user'
+      ? usersById.get(ev.subject_id)
+        ? userLabel(usersById.get(ev.subject_id)!)
+        : ev.title
+      : ev.title;
+
+  return (
+    <div
+      className="fixed z-[60] pointer-events-none"
+      style={{
+        left: Math.min(hover.mouseX + 16, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 280),
+        top: Math.min(hover.mouseY + 16, (typeof window !== 'undefined' ? window.innerHeight : 800) - 160),
+      }}
+    >
+      <div
+        className="min-w-[220px] rounded-xl bg-foreground/95 backdrop-blur-sm text-white shadow-2xl px-3.5 py-2.5"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/50 mb-1">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+          </svg>
+          {unchanged ? 'No change' : 'Move to'}
+        </div>
+        <div className="text-sm font-semibold truncate max-w-[260px]">{label}</div>
+        <div className="mt-1.5 flex items-center gap-2 text-[11px] flex-wrap">
+          <span className="inline-flex items-center gap-1 text-white/85">
+            <svg className="w-3 h-3 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
+            </svg>
+            {dateLabel}
+          </span>
+          <span className="text-white/25">·</span>
+          <span className="inline-flex items-center gap-1 text-white/85 tabular-nums">
+            <svg className="w-3 h-3 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+            {timeLabel}
+          </span>
+        </div>
+        {!unchanged && drag.origStartHours != null && (
+          <div className="mt-1 text-[10px] text-white/40 tabular-nums">was {origLabel}</div>
+        )}
+        {conflicts.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-white/10 flex items-start gap-1.5 text-[11px] text-amber-300">
+            <svg className="w-3.5 h-3.5 shrink-0 mt-px" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <path d="M12 9v4M12 17h.01" />
+            </svg>
+            <div>
+              <div className="font-semibold">
+                {conflicts.length} conflict{conflicts.length === 1 ? '' : 's'}
+              </div>
+              <div className="text-[10px] text-amber-200/80 truncate max-w-[220px]">
+                {conflicts.slice(0, 2).map((c) => c.title).join(', ')}
+                {conflicts.length > 2 ? ` +${conflicts.length - 2}` : ''}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
