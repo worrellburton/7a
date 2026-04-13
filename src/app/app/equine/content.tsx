@@ -369,7 +369,7 @@ export default function EquineContent() {
       <input ref={vetFileInputRef} type="file" accept="*/*" onChange={handleVetDocUpload} className="hidden" />
 
       <div className="mb-8">
-        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Equine Program</h1>
+        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Horses</h1>
         <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
           {horses.length} horses &middot; Click to expand &middot; Click any cell to edit
         </p>
