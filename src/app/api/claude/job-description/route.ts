@@ -11,7 +11,7 @@ import { getUserFromRequest } from '@/lib/supabase-server';
 // Optional env:
 //   ANTHROPIC_MODEL — override the default model id.
 
-const DEFAULT_MODEL = 'claude-sonnet-4-5';
+const DEFAULT_MODEL = 'claude-opus-4-6';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 
