@@ -153,7 +153,7 @@ export function QuickBooksHeader({
   return (
     <div className="mb-6 flex items-start justify-between gap-6 flex-wrap">
       <div>
-        <h1 className="text-2xl font-bold text-foreground mb-1">{title}</h1>
+        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">{title}</h1>
         <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
           {subtitle}
         </p>

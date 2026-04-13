@@ -283,7 +283,7 @@ export default function CallsContent() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-1">Calls</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Calls</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Call tracking powered by CTM
             {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total calls</span>}

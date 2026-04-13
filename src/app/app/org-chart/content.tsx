@@ -596,7 +596,7 @@ export default function OrgChartContent() {
     <div className="p-6 lg:p-10">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-1">Org Chart</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Org Chart</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             {isAdmin
               ? 'Drag any card to rearrange the team. Changes save automatically.'
