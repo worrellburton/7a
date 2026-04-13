@@ -21,6 +21,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 // ------------------------------------------------------------
 
 type View = 'month' | 'week' | 'day';
+type ViewMode = 'shifts' | 'groups' | 'hybrid';
 type SubjectKind = 'group' | 'user';
 
 interface EventRow {
@@ -82,6 +83,7 @@ const DEFAULT_SHIFTS: Shift[] = [
 ];
 
 const SHIFTS_STORAGE_KEY = 'sa-calendar-shifts-v1';
+const VIEWMODE_STORAGE_KEY = 'sa-calendar-viewmode-v1';
 
 // ------------------------------------------------------------
 // Drag preview — while an existing event is being dragged, we
@@ -154,6 +156,7 @@ function formatShiftRange(s: Shift): string {
 const USER_MIME = 'application/x-cal-user';
 const GROUP_MIME = 'application/x-cal-group';
 const EVENT_MIME = 'application/x-cal-event-ref';
+const MULTI_USER_MIME = 'application/x-cal-users';
 
 // ---- Date helpers (local time, no library) ----
 function startOfMonth(d: Date) {
@@ -291,6 +294,7 @@ export default function CalendarContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [shifts, setShifts] = useState<Shift[]>(DEFAULT_SHIFTS);
   const [shiftSettingsOpen, setShiftSettingsOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('shifts');
   const [drag, setDrag] = useState<DragInfo | null>(null);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const dragCtxValue = useMemo<DragCtxValue>(
@@ -331,6 +335,28 @@ export default function CalendarContent() {
       window.localStorage.setItem(SHIFTS_STORAGE_KEY, JSON.stringify(next));
     } catch {
       /* storage full / private mode — ignore */
+    }
+  }, []);
+
+  // Hydrate view mode from localStorage on mount.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(VIEWMODE_STORAGE_KEY);
+      if (raw === 'shifts' || raw === 'groups' || raw === 'hybrid') {
+        setViewMode(raw);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const saveViewMode = useCallback((next: ViewMode) => {
+    setViewMode(next);
+    try {
+      window.localStorage.setItem(VIEWMODE_STORAGE_KEY, next);
+    } catch {
+      /* ignore */
     }
   }, []);
 
@@ -704,6 +730,29 @@ export default function CalendarContent() {
               </button>
             ))}
           </div>
+          <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
+            {(['shifts', 'hybrid', 'groups'] as ViewMode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => saveViewMode(m)}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
+                  viewMode === m
+                    ? 'bg-white shadow-sm text-foreground'
+                    : 'text-foreground/50 hover:text-foreground/80'
+                }`}
+                style={{ fontFamily: 'var(--font-body)' }}
+                title={
+                  m === 'shifts'
+                    ? 'Group events into Morning / Afternoon / Overnight buckets'
+                    : m === 'groups'
+                    ? 'Show a flat list of events per day'
+                    : 'Show shift buckets plus any unshifted events as a list'
+                }
+              >
+                {m}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center gap-1">
             <button
               onClick={() => navigate(-1)}
@@ -773,6 +822,8 @@ export default function CalendarContent() {
               usersById={usersById}
               aodByDate={aodByDate}
               shifts={shifts}
+              viewMode={viewMode}
+              onCreate={(date, payload) => handleCreate(payload, date, null)}
               onCreateInShift={(date, payload, shift) =>
                 handleCreate(
                   payload,
@@ -809,7 +860,17 @@ export default function CalendarContent() {
               eventsByDate={eventsByDate}
               usersById={usersById}
               aodByDate={aodByDate}
+              shifts={shifts}
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
+              onCreateInShift={(date, payload, shift) =>
+                handleCreate(
+                  payload,
+                  date,
+                  null,
+                  hhmmToDbTime(shift.start),
+                  hhmmToDbTime(shift.end)
+                )
+              }
               onReschedule={(date, hour, eventId) => handleReschedule(eventId, date, hour)}
               onResize={handleResizeEvent}
               onEventClick={setEditingId}
@@ -864,6 +925,37 @@ function Palette({
 }) {
   const [tab, setTab] = useState<'groups' | 'team'>('groups');
   const [q, setQ] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [multiSelect, setMultiSelect] = useState(false);
+
+  const selectedPayloads = useMemo(
+    (): DragPayload[] =>
+      users
+        .filter((u) => selectedUsers.has(u.id))
+        .map((u) => ({
+          kind: 'user' as const,
+          id: u.id,
+          label: userLabel(u),
+          color: colorFor(u.id),
+        })),
+    [users, selectedUsers]
+  );
+
+  // Leaving the team tab (or turning multi-select off) clears the selection.
+  useEffect(() => {
+    if (tab !== 'team' || !multiSelect) {
+      setSelectedUsers(new Set());
+    }
+  }, [tab, multiSelect]);
+
+  const toggleUser = useCallback((id: string) => {
+    setSelectedUsers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const filteredGroups = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -923,6 +1015,39 @@ function Palette({
         </div>
       </div>
 
+      {tab === 'team' && (
+        <div
+          className="px-3 pb-2 flex items-center justify-between gap-2 text-[11px]"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          <button
+            onClick={() => setMultiSelect((v) => !v)}
+            className={`px-2 py-1 rounded-md font-semibold transition-colors ${
+              multiSelect
+                ? 'bg-primary/10 text-primary'
+                : 'bg-warm-bg text-foreground/60 hover:text-foreground/80'
+            }`}
+          >
+            {multiSelect ? 'Multi-select on' : 'Multi-select'}
+          </button>
+          {multiSelect && (
+            <div className="flex items-center gap-2">
+              <span className="text-foreground/50">
+                {selectedUsers.size} selected
+              </span>
+              {selectedUsers.size > 0 && (
+                <button
+                  onClick={() => setSelectedUsers(new Set())}
+                  className="text-foreground/40 hover:text-foreground/70 underline"
+                >
+                  clear
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex-1 overflow-auto p-3 space-y-1.5">
         {loading ? (
           <div className="text-xs text-foreground/40 text-center py-8">Loading…</div>
@@ -936,13 +1061,29 @@ function Palette({
           <EmptyMsg text="No team members found" />
         ) : (
           filteredUsers.map((u) => (
-            <DraggableChip key={u.id} kind="user" id={u.id} label={userLabel(u)} avatar={u.avatar_url} />
+            <DraggableChip
+              key={u.id}
+              kind="user"
+              id={u.id}
+              label={userLabel(u)}
+              avatar={u.avatar_url}
+              selectable={multiSelect}
+              selected={selectedUsers.has(u.id)}
+              onToggleSelect={() => toggleUser(u.id)}
+              multiPayloads={
+                multiSelect && selectedUsers.has(u.id) && selectedPayloads.length > 1
+                  ? selectedPayloads
+                  : undefined
+              }
+            />
           ))
         )}
       </div>
 
       <div className="p-3 border-t border-gray-100 text-[11px] text-foreground/40 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
-        Drag a team member into a shift to schedule them, a group onto a day for an event, or drop a team member on the upper-left AOC slot.
+        {tab === 'team' && multiSelect
+          ? 'Check team members to select them, then drag any selected chip to schedule everyone at once.'
+          : 'Drag a team member into a shift to schedule them, a group onto a day for an event, or drop a team member on the upper-left AOC slot.'}
       </div>
     </div>
   );
@@ -957,11 +1098,19 @@ function DraggableChip({
   id,
   label,
   avatar,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
+  multiPayloads,
 }: {
   kind: SubjectKind;
   id: string;
   label: string;
   avatar?: string | null;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+  multiPayloads?: DragPayload[];
 }) {
   const color = colorFor(id);
   const [dragging, setDragging] = useState(false);
@@ -969,24 +1118,59 @@ function DraggableChip({
   const onDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     const payload: DragPayload = { kind, id, label, color };
     e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData(kind === 'user' ? USER_MIME : GROUP_MIME, JSON.stringify(payload));
-    // Fallback mime so this still ~works if something strips the custom one.
-    e.dataTransfer.setData('text/plain', label);
+    // If this chip is part of a selected batch, send the whole batch so the
+    // drop target creates events for all selected users.
+    if (multiPayloads && multiPayloads.length > 1) {
+      e.dataTransfer.setData(MULTI_USER_MIME, JSON.stringify(multiPayloads));
+      e.dataTransfer.setData('text/plain', `${multiPayloads.length} team members`);
+    } else {
+      e.dataTransfer.setData(kind === 'user' ? USER_MIME : GROUP_MIME, JSON.stringify(payload));
+      e.dataTransfer.setData('text/plain', label);
+    }
     setDragging(true);
   };
   const onDragEnd = () => setDragging(false);
+
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (selectable && onToggleSelect) {
+      e.preventDefault();
+      onToggleSelect();
+    }
+  };
+
+  const batchCount = multiPayloads?.length ?? 0;
+  const isBatchLead = batchCount > 1;
 
   return (
     <div
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-grab active:cursor-grabbing transition-all select-none ${
+      onClick={handleClick}
+      className={`group relative flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-grab active:cursor-grabbing transition-all select-none ${
         dragging ? 'opacity-40 scale-95' : 'hover:bg-warm-bg/40 hover:shadow-sm hover:-translate-y-px'
-      }`}
+      } ${selected ? 'bg-primary/5 ring-1 ring-primary/30' : ''}`}
       style={{ borderLeft: `3px solid ${color}` }}
-      title={`Drag ${label} onto the calendar`}
+      title={
+        isBatchLead
+          ? `Drag to schedule ${batchCount} selected team members`
+          : `Drag ${label} onto the calendar`
+      }
     >
+      {selectable && (
+        <span
+          aria-hidden
+          className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+            selected ? 'bg-primary border-primary text-white' : 'border-gray-300 bg-white'
+          }`}
+        >
+          {selected && (
+            <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 6l3 3 5-6" />
+            </svg>
+          )}
+        </span>
+      )}
       {kind === 'user' && avatar ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={avatar} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
@@ -999,11 +1183,20 @@ function DraggableChip({
         </div>
       )}
       <span
-        className="text-sm text-foreground/80 truncate"
+        className="text-sm text-foreground/80 truncate flex-1"
         style={{ fontFamily: 'var(--font-body)' }}
       >
         {label}
       </span>
+      {isBatchLead && selected && (
+        <span
+          className="text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-1.5 py-0.5 shrink-0"
+          style={{ fontFamily: 'var(--font-body)' }}
+          title={`Dragging this chip schedules all ${batchCount} selected team members`}
+        >
+          +{batchCount - 1}
+        </span>
+      )}
     </div>
   );
 }
@@ -1035,7 +1228,12 @@ function DropCell({
 
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     const types = Array.from(e.dataTransfer.types);
-    if (types.includes(USER_MIME) || types.includes(GROUP_MIME) || types.includes(EVENT_MIME)) {
+    if (
+      types.includes(USER_MIME) ||
+      types.includes(GROUP_MIME) ||
+      types.includes(EVENT_MIME) ||
+      types.includes(MULTI_USER_MIME)
+    ) {
       e.preventDefault();
       e.dataTransfer.dropEffect = types.includes(EVENT_MIME) ? 'move' : 'copy';
       if (!over) setOver(true);
@@ -1062,6 +1260,16 @@ function DropCell({
     if (eventRef) {
       onReschedule(eventRef);
       return;
+    }
+    const multi = e.dataTransfer.getData(MULTI_USER_MIME);
+    if (multi) {
+      try {
+        const payloads = JSON.parse(multi) as DragPayload[];
+        for (const p of payloads) onCreate(p);
+        return;
+      } catch {
+        /* fall through to single-payload handling */
+      }
     }
     const raw =
       e.dataTransfer.getData(USER_MIME) || e.dataTransfer.getData(GROUP_MIME);
@@ -1535,6 +1743,8 @@ function MonthView({
   usersById,
   aodByDate,
   shifts,
+  viewMode,
+  onCreate,
   onCreateInShift,
   onReschedule,
   onEventClick,
@@ -1549,6 +1759,8 @@ function MonthView({
   usersById: Map<string, UserRow>;
   aodByDate: Map<string, string>;
   shifts: Shift[];
+  viewMode: ViewMode;
+  onCreate: (date: Date, payload: DragPayload) => void;
   onCreateInShift: (date: Date, payload: DragPayload, shift: Shift) => void;
   onReschedule: (date: Date, eventId: string) => void;
   onEventClick: (id: string) => void;
@@ -1622,62 +1834,87 @@ function MonthView({
                 </span>
               </div>
 
-              {/* Three stacked shift buckets — each is its own drop target. */}
-              <div className="flex-1 min-h-0 flex flex-col gap-px px-1 pb-1">
-                {shifts.map((s) => {
-                  const evs = byShift.get(s.id) || [];
-                  const shown = evs.slice(0, 2);
-                  const extra = evs.length - shown.length;
-                  return (
-                    <DropCell
-                      key={s.id}
-                      onCreate={(payload) => onCreateInShift(d, payload, s)}
-                      onReschedule={(eventId) => onReschedule(d, eventId)}
-                      previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
-                      className="flex-1 min-h-0 rounded-md bg-warm-bg/25 hover:bg-warm-bg/60 transition-colors px-1 py-0.5 flex flex-col overflow-hidden"
-                      activeClassName="ring-1 ring-primary/60 bg-primary/10 animate-cal-drop"
-                    >
-                      <div
-                        className="flex items-center justify-between gap-1 text-[9px] font-semibold uppercase tracking-wider text-foreground/40"
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        <span className="truncate">{s.name}</span>
-                        <span className="shrink-0 font-medium normal-case tracking-normal text-foreground/30">
-                          {formatShiftRange(s)}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-h-0 overflow-hidden space-y-0.5 mt-0.5">
-                        {shown.map((ev) => (
-                          <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
-                        ))}
-                        {extra > 0 && (
-                          <div
-                            className="text-[9px] font-semibold text-foreground/40 px-0.5"
-                            style={{ fontFamily: 'var(--font-body)' }}
-                          >
-                            +{extra} more
-                          </div>
-                        )}
-                      </div>
-                    </DropCell>
-                  );
-                })}
-                {unshifted.length > 0 && (
-                  <div className="space-y-0.5 pt-0.5">
-                    {unshifted.slice(0, 1).map((ev) => (
+              {viewMode === 'groups' ? (
+                // Flat list mode — single drop target for the whole day, no shift buckets.
+                <DropCell
+                  onCreate={(payload) => onCreate(d, payload)}
+                  onReschedule={(eventId) => onReschedule(d, eventId)}
+                  previewTarget={{ date: d, hour: null }}
+                  className="flex-1 min-h-0 mx-1 mb-1 rounded-md bg-warm-bg/20 hover:bg-warm-bg/50 transition-colors px-1 py-0.5 flex flex-col overflow-hidden"
+                  activeClassName="ring-1 ring-primary/60 bg-primary/10 animate-cal-drop"
+                >
+                  <div className="flex-1 min-h-0 overflow-hidden space-y-0.5">
+                    {dayEvents.slice(0, 5).map((ev) => (
                       <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
                     ))}
-                    {unshifted.length > 1 && (
+                    {dayEvents.length > 5 && (
                       <div
                         className="text-[9px] font-semibold text-foreground/40 px-0.5"
                         style={{ fontFamily: 'var(--font-body)' }}
                       >
-                        +{unshifted.length - 1} more
+                        +{dayEvents.length - 5} more
                       </div>
                     )}
                   </div>
-                )}
-              </div>
+                </DropCell>
+              ) : (
+                /* Three stacked shift buckets — each is its own drop target. */
+                <div className="flex-1 min-h-0 flex flex-col gap-px px-1 pb-1">
+                  {shifts.map((s) => {
+                    const evs = byShift.get(s.id) || [];
+                    const shown = evs.slice(0, 2);
+                    const extra = evs.length - shown.length;
+                    return (
+                      <DropCell
+                        key={s.id}
+                        onCreate={(payload) => onCreateInShift(d, payload, s)}
+                        onReschedule={(eventId) => onReschedule(d, eventId)}
+                        previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
+                        className="flex-1 min-h-0 rounded-md bg-warm-bg/25 hover:bg-warm-bg/60 transition-colors px-1 py-0.5 flex flex-col overflow-hidden"
+                        activeClassName="ring-1 ring-primary/60 bg-primary/10 animate-cal-drop"
+                      >
+                        <div
+                          className="flex items-center justify-between gap-1 text-[9px] font-semibold uppercase tracking-wider text-foreground/40"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          <span className="truncate">{s.name}</span>
+                          <span className="shrink-0 font-medium normal-case tracking-normal text-foreground/30">
+                            {formatShiftRange(s)}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-h-0 overflow-hidden space-y-0.5 mt-0.5">
+                          {shown.map((ev) => (
+                            <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
+                          ))}
+                          {extra > 0 && (
+                            <div
+                              className="text-[9px] font-semibold text-foreground/40 px-0.5"
+                              style={{ fontFamily: 'var(--font-body)' }}
+                            >
+                              +{extra} more
+                            </div>
+                          )}
+                        </div>
+                      </DropCell>
+                    );
+                  })}
+                  {unshifted.length > 0 && (
+                    <div className="space-y-0.5 pt-0.5">
+                      {unshifted.slice(0, 1).map((ev) => (
+                        <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
+                      ))}
+                      {unshifted.length > 1 && (
+                        <div
+                          className="text-[9px] font-semibold text-foreground/40 px-0.5"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          +{unshifted.length - 1} more
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -1871,7 +2108,9 @@ function DayView({
   eventsByDate,
   usersById,
   aodByDate,
+  shifts,
   onCreate,
+  onCreateInShift,
   onReschedule,
   onResize,
   onEventClick,
@@ -1883,7 +2122,9 @@ function DayView({
   eventsByDate: Map<string, EventRow[]>;
   usersById: Map<string, UserRow>;
   aodByDate: Map<string, string>;
+  shifts: Shift[];
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
+  onCreateInShift: (date: Date, payload: DragPayload, shift: Shift) => void;
   onReschedule: (date: Date, hour: number, eventId: string) => void;
   onResize: (eventId: string, newStart: number, newEnd: number) => void;
   onEventClick: (id: string) => void;
@@ -1967,6 +2208,35 @@ function DayView({
             {formatDecimalTime(sunset)}
           </span>
         </div>
+      </div>
+      {/* Shift drop rail — drop a group/member here to schedule for the full shift. */}
+      <div
+        className="shrink-0 border-b border-gray-100 bg-warm-bg/10 px-3 py-2 grid gap-2"
+        style={{ gridTemplateColumns: `repeat(${shifts.length}, minmax(0, 1fr))` }}
+      >
+        {shifts.map((s) => (
+          <DropCell
+            key={s.id}
+            onCreate={(payload) => onCreateInShift(day, payload, s)}
+            onReschedule={(eventId) => onReschedule(day, Math.floor(hhmmToHours(s.start)), eventId)}
+            previewTarget={{ date: day, hour: Math.floor(hhmmToHours(s.start)) }}
+            className="rounded-md bg-white border border-gray-200 hover:border-primary/40 px-3 py-1.5 flex items-center justify-between gap-2 transition-colors"
+            activeClassName="ring-1 ring-primary/60 bg-primary/5 animate-cal-drop"
+          >
+            <span
+              className="text-[11px] font-semibold uppercase tracking-wider text-foreground/70"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {s.name}
+            </span>
+            <span
+              className="text-[10px] font-medium text-foreground/40"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {formatShiftRange(s)}
+            </span>
+          </DropCell>
+        ))}
       </div>
       <div className="flex-1 min-h-0 relative">
         {/* Sunrise/sunset gradient overlay — sits behind cells, above bg */}
