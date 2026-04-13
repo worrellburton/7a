@@ -520,8 +520,22 @@ export default function CalendarContent() {
       const existing = events.find((ev) => ev.id === eventId);
       if (!existing) return;
       const newDate = toISODate(date);
-      const newStart = hour == null ? null : `${String(hour).padStart(2, '0')}:00:00`;
-      const newEnd = hour == null ? null : `${String(hour + 1).padStart(2, '0')}:00:00`;
+      // Preserve the event's original duration when moving. If the event
+      // was all-day (no times), a drop with a specific hour defaults to 1h.
+      let newStart: string | null = null;
+      let newEnd: string | null = null;
+      if (hour != null) {
+        const prevStartH = parseTime(existing.start_time);
+        const prevEndH = parseTime(existing.end_time);
+        const durationH =
+          prevStartH != null && prevEndH != null
+            ? Math.max(1, Math.round(prevEndH - prevStartH))
+            : 1;
+        const startH = Math.max(HOURS[0], Math.min(hour, DAY_END_H - 1));
+        const endH = Math.max(startH + 1, Math.min(startH + durationH, DAY_END_H));
+        newStart = `${String(startH).padStart(2, '0')}:00:00`;
+        newEnd = `${String(endH).padStart(2, '0')}:00:00`;
+      }
       if (
         existing.event_date === newDate &&
         existing.start_time === newStart &&
@@ -1579,7 +1593,7 @@ function ResizableEvent({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={(e) => { e.stopPropagation(); onClick(ev.id); }}
-      className={`absolute left-0 right-0 mx-1 rounded-lg cursor-pointer transition-shadow shadow-sm hover:shadow-md z-10 overflow-hidden ${
+      className={`absolute left-0 right-0 mx-1 rounded-lg cursor-move pointer-events-auto transition-shadow shadow-sm hover:shadow-md z-10 overflow-hidden ${
         dragging ? 'opacity-40' : ''
       }`}
       style={{
@@ -2297,13 +2311,14 @@ function DayView({
             </React.Fragment>
           ))}
         </div>
-        {/* Event overlay */}
+        {/* Event overlay — pointer-events-none so drops reach hour cells;
+            individual ResizableEvent blocks re-enable pointer events. */}
         <div
           className="pointer-events-none absolute inset-0 grid"
           style={{ gridTemplateColumns: '80px 1fr' }}
         >
           <div />
-          <div className="relative pointer-events-auto" data-resize-container>
+          <div className="relative" data-resize-container>
             {timedEvents.map((ev) => (
               <ResizableEvent
                 key={ev.id}
