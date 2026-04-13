@@ -29,6 +29,7 @@ const defaultPages: PageConfig[] = [
   { path: '/app/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7, allowedDepartments: [], departmentId: null },
   { path: '/app/fleet', label: 'Fleet', adminOnly: false, section: 'nav', sort_order: 8, allowedDepartments: [], departmentId: null },
   { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [], departmentId: null },
+  { path: '/app/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },
   { path: '/app/org-chart', label: 'Org Chart', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: null },
   { path: '/app/users', label: 'Users', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
