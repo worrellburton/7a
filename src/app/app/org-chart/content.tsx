@@ -57,6 +57,19 @@ function elbowMidpoint(
   from: { x: number; y: number },
   to: { x: number; y: number }
 ): { x: number; y: number } {
+  const overlapTop = Math.max(from.y, to.y);
+  const overlapBottom = Math.min(from.y + CARD_HEIGHT, to.y + CARD_HEIGHT);
+  const vOverlap = overlapBottom - overlapTop;
+  const horizGap = Math.abs(
+    from.x + CARD_WIDTH / 2 - (to.x + CARD_WIDTH / 2)
+  );
+  if (vOverlap > CARD_HEIGHT * 0.5 && horizGap > CARD_WIDTH * 0.8) {
+    // Side-by-side — midpoint between inner edges at their shared axis.
+    const fromLeft = from.x < to.x;
+    const startX = fromLeft ? from.x + CARD_WIDTH : from.x;
+    const endX = fromLeft ? to.x : to.x + CARD_WIDTH;
+    return { x: (startX + endX) / 2, y: (from.y + to.y) / 2 + CARD_HEIGHT / 2 };
+  }
   const sx = from.x + CARD_WIDTH / 2;
   const sy = from.y + CARD_HEIGHT;
   const tx = to.x + CARD_WIDTH / 2;
@@ -404,12 +417,36 @@ export default function OrgChartContent() {
     showToast(nextHidden ? 'Card hidden' : 'Card shown');
   }
 
-  // Build elbow-connector path (bottom-center → top-center via mid-Y)
+  // Build elbow-connector path. When two cards sit roughly on the same
+  // horizontal axis (vertical overlap > half a card height and clearly
+  // separated horizontally), the edge routes from side-to-side instead
+  // of bottom→top so siblings read as peers.
   function elbowPath(from: OrgUser, to: OrgUser): string {
-    const sx = (from.org_x ?? 0) + CARD_WIDTH / 2;
-    const sy = (from.org_y ?? 0) + CARD_HEIGHT;
-    const tx = (to.org_x ?? 0) + CARD_WIDTH / 2;
-    const ty = to.org_y ?? 0;
+    const fx = from.org_x ?? 0;
+    const fy = from.org_y ?? 0;
+    const tx_ = to.org_x ?? 0;
+    const ty_ = to.org_y ?? 0;
+
+    const overlapTop = Math.max(fy, ty_);
+    const overlapBottom = Math.min(fy + CARD_HEIGHT, ty_ + CARD_HEIGHT);
+    const vOverlap = overlapBottom - overlapTop;
+    const horizGap = Math.abs((fx + CARD_WIDTH / 2) - (tx_ + CARD_WIDTH / 2));
+    const sideBySide = vOverlap > CARD_HEIGHT * 0.5 && horizGap > CARD_WIDTH * 0.8;
+
+    if (sideBySide) {
+      const fromLeft = fx < tx_;
+      const startX = fromLeft ? fx + CARD_WIDTH : fx;
+      const endX = fromLeft ? tx_ : tx_ + CARD_WIDTH;
+      const startY = fy + CARD_HEIGHT / 2;
+      const endY = ty_ + CARD_HEIGHT / 2;
+      const midX = (startX + endX) / 2;
+      return `M ${startX},${startY} L ${midX},${startY} L ${midX},${endY} L ${endX},${endY}`;
+    }
+
+    const sx = fx + CARD_WIDTH / 2;
+    const sy = fy + CARD_HEIGHT;
+    const tx = tx_ + CARD_WIDTH / 2;
+    const ty = ty_;
     // If target is above source, route sideways instead of downward.
     if (ty < sy) {
       const midX = (sx + tx) / 2;
@@ -831,8 +868,9 @@ export default function OrgChartContent() {
                       </p>
                       {dept && (
                         <span
-                          className="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
+                          className="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] font-medium text-white whitespace-nowrap truncate max-w-full align-bottom"
                           style={{ backgroundColor: dept.color || '#a0522d' }}
+                          title={dept.name}
                         >
                           {dept.name}
                         </span>
