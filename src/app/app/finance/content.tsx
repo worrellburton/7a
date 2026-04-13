@@ -187,9 +187,7 @@ export default function FinanceContent() {
 
   const subtitleMap: Record<Section, string> = {
     overview:
-      budgetView === 'bva'
-        ? 'Month-by-month budget vs. actual spend, with trailing totals, averages, and projected annual run rate.'
-        : 'Set a monthly budget for each department and match it to a QuickBooks P&L account for live actuals.',
+      'Department budget vs. actual spend with a company-wide roll-up of revenue, expenses, and margin at the bottom.',
     budget:
       budgetView === 'bva'
         ? 'Month-by-month budget vs. actual spend, with trailing totals, averages, and projected annual run rate.'
@@ -256,39 +254,16 @@ export default function FinanceContent() {
 
           {!hasCompanies && !error && <QuickBooksGettingStarted />}
 
-          {/* ─── Overview section (duplicate of Budget for now) ─── */}
+          {/* ─── Overview section — BvA grid with company totals ─── */}
           {section === 'overview' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="flex gap-1 px-4 py-2 border-b border-gray-100 bg-warm-bg/10">
-                {([
-                  { id: 'overview' as BudgetView, label: 'Set Department Budgets' },
-                  { id: 'bva' as BudgetView, label: 'Budget vs Actuals' },
-                ]).map((v) => (
-                  <button
-                    key={v.id}
-                    onClick={() => setBudgetView(v.id)}
-                    className={`px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider transition-colors ${
-                      budgetView === v.id
-                        ? 'bg-foreground text-white'
-                        : 'text-foreground/50 hover:bg-warm-bg'
-                    }`}
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {v.label}
-                  </button>
-                ))}
-              </div>
               <div className="p-6 min-h-[200px]">
                 {!selectedRealm ? (
                   <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
-                    {budgetView === 'bva'
-                      ? 'Connect a QuickBooks company to view budget vs. actuals.'
-                      : 'Connect a QuickBooks company to set budgets.'}
+                    Connect a QuickBooks company to view the overview.
                   </p>
-                ) : budgetView === 'bva' ? (
-                  <BudgetVsActualsPanel realmId={selectedRealm} />
                 ) : (
-                  <BudgetsPanel realmId={selectedRealm} />
+                  <BudgetVsActualsPanel realmId={selectedRealm} showTotals />
                 )}
               </div>
             </div>
