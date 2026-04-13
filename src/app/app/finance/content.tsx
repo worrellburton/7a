@@ -210,8 +210,8 @@ export default function FinanceContent() {
       <div className="flex gap-1 mb-5">
         {([
           { id: 'budget' as Section, label: 'Budget' },
-          { id: 'ar' as Section, label: 'Accounts Receivables' },
           { id: 'reports' as Section, label: 'Reports' },
+          { id: 'ar' as Section, label: 'AR' },
         ]).map((s) => (
           <button
             key={s.id}
