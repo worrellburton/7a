@@ -201,15 +201,17 @@ export default function JobDescriptionsContent() {
             </p>
           )}
         </div>
-        {!creating && (
-          <button
-            onClick={() => setCreating(true)}
-            className="px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 transition-colors"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            + New Job Description
-          </button>
-        )}
+        <button
+          onClick={() => setCreating(true)}
+          disabled={creating}
+          className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add New Job Description
+        </button>
       </div>
 
       {creating && (
