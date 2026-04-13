@@ -359,19 +359,30 @@ export default function BudgetVsActualsPanel({ realmId }: Props) {
 
   const rowsById = useMemo(() => indexRowsById(report?.Rows?.Row), [report]);
 
-  const monthsShown = 12;
-
-  // For the Difference row we want future months blank (but totals and
-  // projections still use the full diff array so they stay accurate).
-  // A month is "future" when its slot is past today in the report year.
-  const futureMonth = useMemo(() => {
+  // How many months of the report year are "complete" for the purpose of
+  // YTD totals / averages / projections.
+  //
+  // A month only counts as complete once we're at least 20 days into the
+  // NEXT month — this gives QuickBooks time to have month-end entries
+  // settled. So on 2026-04-13 only Jan & Feb count; on 2026-04-21 Jan–Mar
+  // count. For past years this is 12, for future years 0.
+  const { elapsedMonths, futureMonth } = useMemo(() => {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth(); // 0-11
-    return (i: number) => {
-      if (year > currentYear) return true;
-      if (year < currentYear) return false;
-      return i > currentMonth;
+    const day = now.getDate();
+    let elapsed = 12;
+    if (year > currentYear) {
+      elapsed = 0;
+    } else if (year === currentYear) {
+      // Last complete month is (currentMonth - 1) if we're past day 20 of
+      // the current month, otherwise (currentMonth - 2).
+      const lastCompleteIdx = day >= 20 ? currentMonth - 1 : currentMonth - 2;
+      elapsed = Math.max(0, lastCompleteIdx + 1);
+    }
+    return {
+      elapsedMonths: elapsed,
+      futureMonth: (i: number) => i >= elapsed,
     };
   }, [year]);
 
@@ -412,8 +423,8 @@ export default function BudgetVsActualsPanel({ realmId }: Props) {
                 {s.label}
               </th>
             ))}
-            <th className="text-right px-3 py-3 text-[11px] font-semibold text-foreground/60 uppercase tracking-wider border-l border-gray-200 bg-warm-bg/60" style={{ fontFamily: 'var(--font-body)' }}>Totals</th>
-            <th className="text-right px-3 py-3 text-[11px] font-semibold text-foreground/60 uppercase tracking-wider bg-warm-bg/60" style={{ fontFamily: 'var(--font-body)' }}>Averages</th>
+            <th className="text-right px-3 py-3 text-[11px] font-semibold text-foreground/60 uppercase tracking-wider border-l border-gray-200 bg-warm-bg/60" style={{ fontFamily: 'var(--font-body)' }}>YTD</th>
+            <th className="text-right px-3 py-3 text-[11px] font-semibold text-foreground/60 uppercase tracking-wider bg-warm-bg/60" style={{ fontFamily: 'var(--font-body)' }}>Avg / Mo</th>
             <th className="text-right px-3 py-3 text-[11px] font-semibold text-foreground/60 uppercase tracking-wider bg-warm-bg/60" style={{ fontFamily: 'var(--font-body)' }}>Projected</th>
           </tr>
         </thead>
@@ -431,17 +442,19 @@ export default function BudgetVsActualsPanel({ realmId }: Props) {
             );
             const diffRow = budgetRow.map((b, i) => b - expenseRow[i]);
 
-            const budgetTotal = budgetRow.reduce((s, v) => s + v, 0);
-            const expenseTotal = expenseRow.reduce((s, v) => s + v, 0);
-            const diffTotal = diffRow.reduce((s, v) => s + v, 0);
+            // YTD totals — only sum months that have actually elapsed so
+            // the number matches "what we've done so far", not a mix of
+            // full-year budget vs partial-year spend.
+            const budgetTotal = budgetRow.slice(0, elapsedMonths).reduce((s, v) => s + v, 0);
+            const expenseTotal = expenseRow.slice(0, elapsedMonths).reduce((s, v) => s + v, 0);
+            const diffTotal = budgetTotal - expenseTotal;
 
-            // Averages/projection are based on months with actuals only so
-            // future months don't drag the run-rate down to zero.
-            const activeMonths = expenseRow.filter((v) => v !== 0).length || monthsShown;
-            const budgetAvg = monthsShown > 0 ? budgetTotal / monthsShown : 0;
-            const expenseAvg = activeMonths > 0 ? expenseTotal / activeMonths : 0;
+            // Averages are YTD / months elapsed — apples-to-apples.
+            const budgetAvg = elapsedMonths > 0 ? budgetTotal / elapsedMonths : 0;
+            const expenseAvg = elapsedMonths > 0 ? expenseTotal / elapsedMonths : 0;
             const diffAvg = budgetAvg - expenseAvg;
 
+            // Projected = YTD run-rate × 12 (annualized).
             const budgetProj = budgetAvg * 12;
             const expenseProj = expenseAvg * 12;
             const diffProj = budgetProj - expenseProj;
@@ -519,16 +532,29 @@ export default function BudgetVsActualsPanel({ realmId }: Props) {
                 </tr>
                 <tr className="border-b border-gray-50 hover:bg-warm-bg/10">
                   <td className="px-3 py-2 text-[11px] font-semibold text-foreground/60 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Expense</td>
-                  {expenseRow.map((v, i) => (
-                    <td
-                      key={i}
-                      onClick={(e) => openInsight(e, 'Expense', i)}
-                      className="px-3 py-2 text-right tabular-nums text-foreground/70 cursor-pointer hover:bg-primary/5"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {fmtMoney(v)}
-                    </td>
-                  ))}
+                  {expenseRow.map((v, i) => {
+                    if (futureMonth(i)) {
+                      return (
+                        <td
+                          key={i}
+                          className="px-3 py-2 text-right tabular-nums text-foreground/30"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          —
+                        </td>
+                      );
+                    }
+                    return (
+                      <td
+                        key={i}
+                        onClick={(e) => openInsight(e, 'Expense', i)}
+                        className="px-3 py-2 text-right tabular-nums text-foreground/70 cursor-pointer hover:bg-primary/5"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {fmtMoney(v)}
+                      </td>
+                    );
+                  })}
                   <td className="px-3 py-2 text-right tabular-nums font-semibold text-foreground border-l border-gray-200 bg-warm-bg/20" style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(expenseTotal)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-foreground/70 bg-warm-bg/20" style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(expenseAvg)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-foreground/70 bg-warm-bg/20" style={{ fontFamily: 'var(--font-body)' }}>{fmtMoney(expenseProj)}</td>
