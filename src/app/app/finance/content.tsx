@@ -89,7 +89,7 @@ function fmtMoney(n: number | undefined) {
 
 // ─── Top-level page sections ─────────────────────────────────────
 
-type Section = 'budget' | 'ar' | 'reports';
+type Section = 'overview' | 'budget' | 'ar' | 'reports';
 type BudgetView = 'overview' | 'bva';
 
 export default function FinanceContent() {
@@ -108,7 +108,7 @@ export default function FinanceContent() {
     handleDisconnect,
   } = useQuickBooksConnection();
 
-  const [section, setSection] = useState<Section>('budget');
+  const [section, setSection] = useState<Section>('overview');
   const [budgetView, setBudgetView] = useState<BudgetView>('overview');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
@@ -186,6 +186,10 @@ export default function FinanceContent() {
   if (!user || !isAdmin) return null;
 
   const subtitleMap: Record<Section, string> = {
+    overview:
+      budgetView === 'bva'
+        ? 'Month-by-month budget vs. actual spend, with trailing totals, averages, and projected annual run rate.'
+        : 'Set a monthly budget for each department and match it to a QuickBooks P&L account for live actuals.',
     budget:
       budgetView === 'bva'
         ? 'Month-by-month budget vs. actual spend, with trailing totals, averages, and projected annual run rate.'
@@ -209,6 +213,7 @@ export default function FinanceContent() {
       {/* Section tabs */}
       <div className="flex gap-1 mb-5">
         {([
+          { id: 'overview' as Section, label: 'Overview' },
           { id: 'budget' as Section, label: 'Budget' },
           { id: 'reports' as Section, label: 'Reports' },
           { id: 'ar' as Section, label: 'AR' },
@@ -250,6 +255,44 @@ export default function FinanceContent() {
           )}
 
           {!hasCompanies && !error && <QuickBooksGettingStarted />}
+
+          {/* ─── Overview section (duplicate of Budget for now) ─── */}
+          {section === 'overview' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="flex gap-1 px-4 py-2 border-b border-gray-100 bg-warm-bg/10">
+                {([
+                  { id: 'overview' as BudgetView, label: 'Set Department Budgets' },
+                  { id: 'bva' as BudgetView, label: 'Budget vs Actuals' },
+                ]).map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => setBudgetView(v.id)}
+                    className={`px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+                      budgetView === v.id
+                        ? 'bg-foreground text-white'
+                        : 'text-foreground/50 hover:bg-warm-bg'
+                    }`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+              <div className="p-6 min-h-[200px]">
+                {!selectedRealm ? (
+                  <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
+                    {budgetView === 'bva'
+                      ? 'Connect a QuickBooks company to view budget vs. actuals.'
+                      : 'Connect a QuickBooks company to set budgets.'}
+                  </p>
+                ) : budgetView === 'bva' ? (
+                  <BudgetVsActualsPanel realmId={selectedRealm} />
+                ) : (
+                  <BudgetsPanel realmId={selectedRealm} />
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ─── Budget section (with Overview / Budget vs Actuals sub-tabs) ─── */}
           {section === 'budget' && (

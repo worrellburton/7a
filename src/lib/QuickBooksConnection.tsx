@@ -9,7 +9,7 @@
 // to get the state + actions, and render <QuickBooksHeader /> inline.
 // ------------------------------------------------------------
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useModal } from '@/lib/ModalProvider';
 
@@ -158,52 +158,129 @@ export function QuickBooksHeader({
           {subtitle}
         </p>
       </div>
-      <div className="flex items-start gap-3">
+      <div className="flex items-center">
         {hasCompanies ? (
-          <div className="flex flex-col items-end gap-1.5">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-900">
-              <span className="relative flex w-2 h-2">
-                <span className="animate-ping absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60" />
-                <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" />
-              </span>
-              <span className="text-xs font-semibold" style={{ fontFamily: 'var(--font-body)' }}>
-                Connected to QuickBooks
-              </span>
-            </div>
-            {lastUpdated && (
-              <p className="text-[11px] text-foreground/40 tabular-nums" style={{ fontFamily: 'var(--font-body)' }}>
-                Updated {fmtRelativeTime(lastUpdated)}
-              </p>
-            )}
-            <div className="flex items-center gap-2 mt-1">
-              <button
-                onClick={onConnect}
-                className="px-3.5 py-1.5 bg-[#2ca01c] text-white rounded-full text-[11px] font-semibold uppercase tracking-wider hover:bg-[#248a17] transition-colors"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Connect another
-              </button>
-              {selectedRealm && (
-                <button
-                  onClick={onDisconnect}
-                  className="px-3 py-1.5 text-red-600 rounded-full text-[11px] font-semibold uppercase tracking-wider hover:bg-red-50 transition-colors"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  Disconnect
-                </button>
-              )}
-            </div>
-          </div>
+          <QuickBooksConnectionPill
+            lastUpdated={lastUpdated}
+            canDisconnect={!!selectedRealm}
+            onConnect={onConnect}
+            onDisconnect={onDisconnect}
+          />
         ) : (
           <button
             onClick={onConnect}
-            className="px-5 py-2.5 bg-[#2ca01c] text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-[#248a17] transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#2ca01c] text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-[#248a17] transition-colors"
             style={{ fontFamily: 'var(--font-body)' }}
           >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+            </svg>
             Connect to QuickBooks
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// Compact connection pill with overflow menu for connect-another /
+// disconnect. Replaces the old three-row stack (pill + updated line +
+// two buttons) which felt loud and cluttered.
+function QuickBooksConnectionPill({
+  lastUpdated,
+  canDisconnect,
+  onConnect,
+  onDisconnect,
+}: {
+  lastUpdated: string | null;
+  canDisconnect: boolean;
+  onConnect: () => void;
+  onDisconnect: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <div className="inline-flex items-center gap-2 pl-3 pr-1 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-900">
+        <span className="relative flex w-2 h-2 shrink-0">
+          <span className="animate-ping absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60" />
+          <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" />
+        </span>
+        <span className="text-xs font-semibold" style={{ fontFamily: 'var(--font-body)' }}>
+          Connected
+        </span>
+        {lastUpdated && (
+          <span
+            className="text-[11px] text-emerald-700/60 tabular-nums font-medium"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            · {fmtRelativeTime(lastUpdated)}
+          </span>
+        )}
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-label="Connection options"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          className="ml-1 w-6 h-6 rounded-full inline-flex items-center justify-center text-emerald-800/60 hover:bg-emerald-100 hover:text-emerald-900 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <circle cx="5" cy="12" r="1.8" />
+            <circle cx="12" cy="12" r="1.8" />
+            <circle cx="19" cy="12" r="1.8" />
+          </svg>
+        </button>
+      </div>
+
+      {menuOpen && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-1.5 z-30 w-56 py-1.5 rounded-xl bg-white shadow-xl border border-gray-100 animate-[fadeSlideUp_0.15s_ease-out]"
+        >
+          <button
+            role="menuitem"
+            onClick={() => { setMenuOpen(false); onConnect(); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-foreground hover:bg-warm-bg/60 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-3.5 h-3.5 text-foreground/50 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Connect another company
+          </button>
+          {canDisconnect && (
+            <button
+              role="menuitem"
+              onClick={() => { setMenuOpen(false); onDisconnect(); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5L21 3m0 0h-5.25M21 3v5.25M9 4.5H6a2.25 2.25 0 00-2.25 2.25v12a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-3" />
+              </svg>
+              Disconnect this company
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
