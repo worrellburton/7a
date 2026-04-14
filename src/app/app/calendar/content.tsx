@@ -732,8 +732,8 @@ export default function CalendarContent() {
   return (
     <DragCtx.Provider value={dragCtxValue}>
     <div className="p-4 lg:p-6 h-screen flex flex-col overflow-hidden">
-      {/* Top-center Groups/Team toggle */}
-      <div className="mb-3 flex justify-center">
+      {/* Top-center Groups/Team toggle, with Month/Week/Day directly below. */}
+      <div className="mb-3 flex flex-col items-center gap-2">
         <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
           {(['groups', 'team'] as ViewMode[]).map((m) => (
             <button
@@ -752,6 +752,22 @@ export default function CalendarContent() {
               }
             >
               {m}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
+          {(['month', 'week', 'day'] as View[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
+                view === v
+                  ? 'bg-white shadow-sm text-foreground'
+                  : 'text-foreground/50 hover:text-foreground/80'
+              }`}
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {v}
             </button>
           ))}
         </div>
@@ -788,22 +804,6 @@ export default function CalendarContent() {
               {title}
             </h2>
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
-                {(['month', 'week', 'day'] as View[]).map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setView(v)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
-                      view === v
-                        ? 'bg-white shadow-sm text-foreground'
-                        : 'text-foreground/50 hover:text-foreground/80'
-                    }`}
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {v}
-                  </button>
-                ))}
-              </div>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => navigate(-1)}
@@ -2346,6 +2346,40 @@ function DayView({
           style={{ background: gradient, left: '80px' }}
           aria-hidden="true"
         />
+        {/* Shift bands — subtle horizontal zones marking each shift's time
+            range inside the hour grid. Team mode only. */}
+        {viewMode === 'team' && shifts.map((s, i) => {
+          const startH = hhmmToHours(s.start);
+          const endH = hhmmToHours(s.end);
+          // If the shift wraps past midnight (e.g. overnight), clamp to the
+          // visible window; otherwise render the intersecting portion.
+          const wraps = endH <= startH;
+          const visStart = Math.max(DAY_START_H, Math.min(DAY_END_H, startH));
+          const visEnd = wraps ? DAY_END_H : Math.max(DAY_START_H, Math.min(DAY_END_H, endH));
+          if (visEnd <= visStart) return null;
+          const topPct = pctFor(visStart);
+          const botPct = pctFor(visEnd);
+          return (
+            <div
+              key={s.id}
+              className="pointer-events-none absolute left-[80px] right-0 flex items-start"
+              style={{
+                top: `${topPct}%`,
+                height: `${botPct - topPct}%`,
+                background: `linear-gradient(90deg, rgba(160,82,45,${0.03 + (i % 3) * 0.015}), rgba(160,82,45,0))`,
+                borderTop: '1px dashed rgba(160,82,45,0.22)',
+              }}
+              aria-hidden="true"
+            >
+              <span
+                className="ml-2 mt-1 text-[9px] font-semibold uppercase tracking-wider text-primary/70 bg-white/70 px-1.5 py-0.5 rounded"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {s.name}
+              </span>
+            </div>
+          );
+        })}
         {/* Sunrise marker line */}
         {sunrise > DAY_START_H && sunrise < DAY_END_H && (
           <div
