@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { logActivity } from '@/lib/activity';
 import { useEffect, useMemo, useState } from 'react';
 
 interface AppUser {
@@ -41,6 +42,16 @@ export default function SuperAdminContent() {
     if (!res || (typeof res === 'object' && 'error' in res)) {
       // revert on failure
       setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_admin: !next } : x)));
+    } else if (user?.id) {
+      logActivity({
+        userId: user.id,
+        type: 'user.role_changed',
+        targetKind: 'user',
+        targetId: u.id,
+        targetLabel: u.full_name || u.email,
+        targetPath: '/app/super-admin',
+        metadata: { is_admin: next },
+      });
     }
     setBusyId(null);
   }
