@@ -222,10 +222,9 @@ const MONTHS = [
 const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-// 6am–11pm — wide enough to expose the full span of the default shifts
-// (Morning starts 6:30, Afternoon ends 22:30, Overnight starts 22:30)
-// so every shift is droppable directly inside the calendar grid.
-const HOURS = Array.from({ length: 17 }, (_, i) => i + 6);
+// Full 24-hour day so every shift (including overnight 22:30–06:30)
+// is fully visible and droppable inside the calendar grid.
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const DAY_START_H = HOURS[0];
 const DAY_END_H = HOURS[HOURS.length - 1] + 1; // exclusive upper bound
 function formatHour(h: number) {
@@ -1539,6 +1538,71 @@ function TimedEventBlock({
 }
 
 // ------------------------------------------------------------
+// Overlap layout — when several events share a time range (common
+// after a multi-select drop), arrange them side-by-side in lanes
+// instead of stacking on top of each other. Returns per-event
+// { lane, laneCount } so the renderer can assign a column.
+// ------------------------------------------------------------
+
+function computeEventLayout(
+  events: EventRow[]
+): Map<string, { lane: number; laneCount: number }> {
+  const result = new Map<string, { lane: number; laneCount: number }>();
+  if (events.length === 0) return result;
+  const timed = events.filter((ev) => parseTime(ev.start_time) != null);
+  // Stable sort by start time (then end time, then id for determinism).
+  const sorted = [...timed].sort((a, b) => {
+    const sa = parseTime(a.start_time) ?? 0;
+    const sb = parseTime(b.start_time) ?? 0;
+    if (sa !== sb) return sa - sb;
+    const ea = parseTime(a.end_time) ?? sa + 1;
+    const eb = parseTime(b.end_time) ?? sb + 1;
+    if (ea !== eb) return ea - eb;
+    return a.id.localeCompare(b.id);
+  });
+
+  // Walk in order; whenever the current event starts after every open lane's
+  // end we flush the cluster and finalize its lane count.
+  let cluster: EventRow[] = [];
+  let lanes: number[] = []; // per-lane current end-time
+  let clusterMax = -Infinity;
+
+  const flush = () => {
+    const laneCount = lanes.length;
+    for (const ev of cluster) {
+      const cur = result.get(ev.id);
+      if (cur) cur.laneCount = laneCount;
+    }
+    cluster = [];
+    lanes = [];
+    clusterMax = -Infinity;
+  };
+
+  for (const ev of sorted) {
+    const s = parseTime(ev.start_time) ?? 0;
+    const e = parseTime(ev.end_time) ?? s + 1;
+    if (s >= clusterMax && cluster.length > 0) flush();
+    let placed = -1;
+    for (let i = 0; i < lanes.length; i++) {
+      if (lanes[i] <= s) {
+        lanes[i] = e;
+        placed = i;
+        break;
+      }
+    }
+    if (placed === -1) {
+      lanes.push(e);
+      placed = lanes.length - 1;
+    }
+    cluster.push(ev);
+    clusterMax = Math.max(clusterMax, e);
+    result.set(ev.id, { lane: placed, laneCount: 1 });
+  }
+  if (cluster.length > 0) flush();
+  return result;
+}
+
+// ------------------------------------------------------------
 // Resizable event overlay — positioned absolutely within a day
 // column, spanning from start_time to end_time. Shows drag
 // handles on top/bottom edges to resize.
@@ -1550,12 +1614,16 @@ function ResizableEvent({
   onClick,
   onResize,
   totalHours,
+  lane = 0,
+  laneCount = 1,
 }: {
   ev: EventRow;
   usersById: Map<string, UserRow>;
   onClick: (id: string) => void;
   onResize: (eventId: string, newStart: number, newEnd: number) => void;
   totalHours: number;
+  lane?: number;
+  laneCount?: number;
 }) {
   const startH = parseTime(ev.start_time) ?? HOURS[0];
   const endH = parseTime(ev.end_time) ?? startH + 1;
@@ -1567,6 +1635,11 @@ function ResizableEvent({
 
   const topPct = ((startH - HOURS[0]) / totalHours) * 100;
   const heightPct = ((endH - startH) / totalHours) * 100;
+  // Lay lanes side-by-side across the day column. A 1px-ish gap between
+  // lanes keeps neighboring events visually distinct.
+  const lanes = Math.max(1, laneCount);
+  const widthPct = 100 / lanes;
+  const leftPct = lane * widthPct;
 
   const handlePointerDown = useCallback(
     (edge: 'top' | 'bottom', e: React.PointerEvent) => {
@@ -1619,12 +1692,14 @@ function ResizableEvent({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={(e) => { e.stopPropagation(); onClick(ev.id); }}
-      className={`absolute left-0 right-0 mx-1 rounded-lg cursor-move pointer-events-auto transition-shadow shadow-sm hover:shadow-md z-10 overflow-hidden ${
+      className={`absolute rounded-lg cursor-move pointer-events-auto transition-shadow shadow-sm hover:shadow-md z-10 overflow-hidden ${
         dragging ? 'opacity-40' : ''
       }`}
       style={{
         top: `${topPct}%`,
         height: `${heightPct}%`,
+        left: `calc(${leftPct}% + 2px)`,
+        width: `calc(${widthPct}% - 4px)`,
         minHeight: 20,
         backgroundColor: isUser ? color + '1f' : color + '26',
         borderLeft: isUser ? undefined : `3px solid ${color}`,
@@ -2133,7 +2208,7 @@ function WeekView({
           >
             <div />
             {days.map((d, di) => (
-              <div key={di} className="relative">
+              <div key={di} className="relative pointer-events-none">
                 {shifts.map((s) => {
                   const startH = hhmmToHours(s.start);
                   const endH = hhmmToHours(s.end);
@@ -2209,18 +2284,24 @@ function WeekView({
               // individual (user/shift) events. Keeps each view uncluttered.
               viewMode === 'groups' ? ev.subject_kind === 'group' : ev.subject_kind !== 'group'
             );
+            const layout = computeEventLayout(dayEvents);
             return (
               <div key={di} className="relative pointer-events-auto" data-resize-container>
-                {dayEvents.map((ev) => (
-                  <ResizableEvent
-                    key={ev.id}
-                    ev={ev}
-                    usersById={usersById}
-                    onClick={onEventClick}
-                    onResize={onResize}
-                    totalHours={HOURS.length}
-                  />
-                ))}
+                {dayEvents.map((ev) => {
+                  const spot = layout.get(ev.id);
+                  return (
+                    <ResizableEvent
+                      key={ev.id}
+                      ev={ev}
+                      usersById={usersById}
+                      onClick={onEventClick}
+                      onResize={onResize}
+                      totalHours={HOURS.length}
+                      lane={spot?.lane ?? 0}
+                      laneCount={spot?.laneCount ?? 1}
+                    />
+                  );
+                })}
               </div>
             );
           })}
@@ -2468,16 +2549,24 @@ function DayView({
         >
           <div />
           <div className="relative" data-resize-container>
-            {timedEvents.map((ev) => (
-              <ResizableEvent
-                key={ev.id}
-                ev={ev}
-                usersById={usersById}
-                onClick={onEventClick}
-                onResize={onResize}
-                totalHours={HOURS.length}
-              />
-            ))}
+            {(() => {
+              const layout = computeEventLayout(timedEvents);
+              return timedEvents.map((ev) => {
+                const spot = layout.get(ev.id);
+                return (
+                  <ResizableEvent
+                    key={ev.id}
+                    ev={ev}
+                    usersById={usersById}
+                    onClick={onEventClick}
+                    onResize={onResize}
+                    totalHours={HOURS.length}
+                    lane={spot?.lane ?? 0}
+                    laneCount={spot?.laneCount ?? 1}
+                  />
+                );
+              });
+            })()}
           </div>
         </div>
       </div>
