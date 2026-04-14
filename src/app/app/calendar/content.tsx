@@ -1007,8 +1007,11 @@ export default function CalendarContent() {
               today={today}
               eventsByDate={eventsByDate}
               usersById={usersById}
+              aodByDate={aodByDate}
               shifts={shifts}
               viewMode={viewMode}
+              onSetAod={handleSetAod}
+              onClearAod={handleClearAod}
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
               onCreateInShift={(date, payload, shift) =>
                 handleCreate(
@@ -1228,9 +1231,15 @@ function Palette({
               avatar={u.avatar_url}
               selectable={multiSelect}
               selected={selectedUsers.has(u.id)}
-              onToggleSelect={() => toggleUser(u.id)}
+              // Always wire the toggle — shift-click triggers it even when the
+              // sidebar isn't in explicit multi-select mode. The first
+              // shift-click auto-enables the mode so the checkmarks surface.
+              onToggleSelect={() => {
+                if (!multiSelect) setMultiSelect(true);
+                toggleUser(u.id);
+              }}
               multiPayloads={
-                multiSelect && selectedUsers.has(u.id) && selectedPayloads.length > 1
+                selectedUsers.has(u.id) && selectedPayloads.length > 1
                   ? selectedPayloads
                   : undefined
               }
@@ -1241,8 +1250,8 @@ function Palette({
 
       <div className="p-3 border-t border-gray-100 text-[11px] text-foreground/40 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
         {tab === 'team' && multiSelect
-          ? 'Check team members to select them, then drag any selected chip to schedule everyone at once.'
-          : 'Drag a team member into a shift to schedule them, a group onto a day for an event, or drop a team member on the upper-left AOC slot.'}
+          ? 'Shift-click or tick team members to select multiple, then drag any selected chip to schedule everyone at once.'
+          : 'Drag a team member into a shift, or shift-click several to batch-schedule them. Drop a team member on the upper-left AOC slot to set Assistant on Duty.'}
       </div>
     </div>
   );
@@ -1291,7 +1300,9 @@ function DraggableChip({
   const onDragEnd = () => setDragging(false);
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (selectable && onToggleSelect) {
+    // Shift-click always toggles selection (implicit multi-select); regular
+    // click only toggles when the sidebar is in explicit multi-select mode.
+    if ((e.shiftKey || selectable) && onToggleSelect) {
       e.preventDefault();
       onToggleSelect();
     }
@@ -1520,7 +1531,7 @@ function ShiftAvatar({
   const u = usersById.get(ev.subject_id);
   const label = u ? userLabel(u) : ev.title;
   const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
-  const dim = size === 'sm' ? 'w-5 h-5 text-[9px]' : 'w-7 h-7 text-[11px]';
+  const dim = size === 'sm' ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-xs';
   return (
     <div
       draggable
@@ -2292,8 +2303,11 @@ function WeekView({
   today,
   eventsByDate,
   usersById,
+  aodByDate,
   shifts,
   viewMode,
+  onSetAod,
+  onClearAod,
   onCreate,
   onCreateInShift,
   onReschedule,
@@ -2305,8 +2319,11 @@ function WeekView({
   today: Date;
   eventsByDate: Map<string, EventRow[]>;
   usersById: Map<string, UserRow>;
+  aodByDate: Map<string, string>;
   shifts: Shift[];
   viewMode: ViewMode;
+  onSetAod: (date: Date, userId: string) => void;
+  onClearAod: (date: Date) => void;
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
   onCreateInShift: (date: Date, payload: DragPayload, shift: Shift) => void;
   onReschedule: (date: Date, hour: number, eventId: string) => void;
@@ -2346,6 +2363,9 @@ function WeekView({
         {days.map((d, i) => {
           const isToday = isSameDay(d, today);
           const { sunrise, sunset } = daySun[i];
+          const iso = toISODate(d);
+          const aodUserId = aodByDate.get(iso);
+          const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
           return (
             <button
               key={i}
@@ -2389,6 +2409,19 @@ function WeekView({
                 </svg>
                 {formatDecimalTime(sunset)}
               </div>
+              {viewMode === 'team' && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-1 flex justify-center"
+                >
+                  <AodSlot
+                    user={aodUser}
+                    onSet={(userId) => onSetAod(d, userId)}
+                    onClear={() => onClearAod(d)}
+                    compact
+                  />
+                </div>
+              )}
             </button>
           );
         })}
