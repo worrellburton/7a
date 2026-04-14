@@ -64,7 +64,7 @@ export default function SuperAdminContent() {
   const adminCount = users.filter((u) => u.is_admin).length;
 
   return (
-    <div className="p-6 lg:p-10 max-w-4xl">
+    <div className="p-4 sm:p-6 lg:p-10 max-w-4xl">
       <div className="flex items-baseline justify-between mb-6 gap-4">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Super Admin</h1>

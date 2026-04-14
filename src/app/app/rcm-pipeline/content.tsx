@@ -103,7 +103,7 @@ export default function RCMPipelineContent() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-10 flex items-center justify-center min-h-[60vh]">
+      <div className="p-4 sm:p-6 lg:p-10 flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -114,7 +114,7 @@ export default function RCMPipelineContent() {
   const paidAmount = paidClaims.reduce((sum, c) => sum + (c.charge_amount || 0), 0);
 
   return (
-    <div className="p-6 lg:p-10 h-full flex flex-col">
+    <div className="p-4 sm:p-6 lg:p-10 h-full flex flex-col">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">RCM Pipeline</h1>

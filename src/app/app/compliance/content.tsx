@@ -92,7 +92,7 @@ export default function ComplianceContent() {
   })();
 
   return (
-    <div className="p-6 lg:p-10">
+    <div className="p-4 sm:p-6 lg:p-10">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">JCAHO Accreditation</h1>

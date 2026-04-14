@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { uploadFile } from '@/lib/upload';
+import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -326,13 +327,24 @@ export default function SignContent() {
     setSig({ ...sig, signed_at: nowIso, signature_data_url: dataUrl, signature_typed: typed, pdf_storage_path: pdfPath, job_description_version: job.version });
     setSigned(true);
     setSaving(false);
+    if (user) {
+      logActivity({
+        userId: user.id,
+        type: 'jd.signed',
+        targetKind: 'job_description',
+        targetId: job.id,
+        targetLabel: job.title,
+        targetPath: `/app/job-descriptions/${job.id}`,
+        metadata: { version: job.version, pdfPath },
+      });
+    }
   }
 
   if (!user) return null;
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-10 flex items-center justify-center min-h-[60vh]">
+      <div className="p-4 sm:p-6 lg:p-10 flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -340,7 +352,7 @@ export default function SignContent() {
 
   if (notFound || !sig || !job) {
     return (
-      <div className="p-6 lg:p-10 max-w-3xl">
+      <div className="p-4 sm:p-6 lg:p-10 max-w-3xl">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center">
           <p className="text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>
             This signature request could not be found.
@@ -358,7 +370,7 @@ export default function SignContent() {
   }
 
   return (
-    <div className="p-6 lg:p-10 max-w-3xl">
+    <div className="p-4 sm:p-6 lg:p-10 max-w-3xl">
       <Link
         href="/app"
         className="text-xs text-foreground/50 hover:text-foreground inline-flex items-center gap-1 mb-4"

@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { logActivity } from '@/lib/activity';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 // ------------------------------------------------------------
@@ -366,7 +367,7 @@ function userLabel(u: UserRow) {
 
 export default function CalendarContent() {
   const { user, session } = useAuth();
-  const [view, setView] = useState<View>('month');
+  const [view, setView] = useState<View>('week');
   const [current, setCurrent] = useState<Date>(() => new Date());
 
   const [groups, setGroups] = useState<GroupRow[]>([]);
@@ -625,6 +626,15 @@ export default function CalendarContent() {
       if (inserted && (inserted as EventRow).id) {
         // Swap optimistic row for the server version (real id, timestamps, etc.)
         setEvents((prev) => prev.map((ev) => (ev.id === optimistic.id ? (inserted as EventRow) : ev)));
+        logActivity({
+          userId: user.id,
+          type: 'calendar_event.created',
+          targetKind: 'calendar_event',
+          targetId: (inserted as EventRow).id,
+          targetLabel: optimistic.title,
+          targetPath: '/app/calendar',
+          metadata: { date: optimistic.event_date, subject_kind: optimistic.subject_kind },
+        });
       } else {
         // Insert failed — roll back the optimistic row.
         setEvents((prev) => prev.filter((ev) => ev.id !== optimistic.id));
@@ -780,9 +790,43 @@ export default function CalendarContent() {
       const result = await db({ action: 'delete', table: 'calendar_events', match: { id: masterId } });
       if (!result || !(result as { ok?: boolean }).ok) {
         setEvents((prev) => [...prev, existing]);
+      } else if (user) {
+        logActivity({
+          userId: user.id,
+          type: 'calendar_event.deleted',
+          targetKind: 'calendar_event',
+          targetId: masterId,
+          targetLabel: existing.title,
+          targetPath: '/app/calendar',
+        });
       }
     },
-    [events]
+    [events, user]
+  );
+
+  // ---- Clear every user event from a shift on a given date ----
+  const handleClearShift = useCallback(
+    async (date: Date, shift: Shift) => {
+      const iso = toISODate(date);
+      const toClear = events.filter(
+        (ev) =>
+          ev.event_date === iso &&
+          ev.subject_kind === 'user' &&
+          shiftForEvent(ev, shifts) === shift.id
+      );
+      if (toClear.length === 0) return;
+      const ids = toClear.map((e) => masterEventId(e.id));
+      const prev = events;
+      setEvents((rows) => rows.filter((ev) => !ids.includes(masterEventId(ev.id))));
+      const results = await Promise.all(
+        Array.from(new Set(ids)).map((id) =>
+          db({ action: 'delete', table: 'calendar_events', match: { id } })
+        )
+      );
+      const allOk = results.every((r) => r && (r as { ok?: boolean }).ok);
+      if (!allOk) setEvents(prev);
+    },
+    [events, shifts]
   );
 
   // ---- Set AOD (Assistant on Duty) for a given day ----
@@ -860,7 +904,7 @@ export default function CalendarContent() {
         zoom: 0.82 container. Scale up so the calendar body truly fills
         the viewport and the scheduler doesn't leave a blank band at
         the bottom of the page. */}
-    <div className="p-4 lg:p-6 flex flex-col overflow-hidden" style={{ height: 'calc(100vh / 0.82)' }}>
+    <div className="p-3 sm:p-4 lg:p-6 flex flex-col overflow-hidden h-[calc(100vh-3.5rem)] lg:h-[calc(100vh/0.82)]">
       {/* Top-center Groups/Team toggle, with Month/Week/Day directly below. */}
       <div className="mb-3 flex flex-col items-center gap-2">
         <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
@@ -916,8 +960,12 @@ export default function CalendarContent() {
       </div>
 
       {/* Body: palette + calendar surface */}
-      <div className="flex-1 min-h-0 grid gap-3" style={{ gridTemplateColumns: 'minmax(220px, 260px) 1fr' }}>
-        <Palette groups={groups} users={users} loading={loading} mode={viewMode} />
+      <div
+        className="flex-1 min-h-0 grid gap-3 grid-cols-1 md:grid-cols-[minmax(220px,260px)_1fr]"
+      >
+        <div className="hidden md:flex min-h-0">
+          <Palette groups={groups} users={users} loading={loading} mode={viewMode} />
+        </div>
 
         <div
           key={bodyKey}
@@ -1007,8 +1055,11 @@ export default function CalendarContent() {
               today={today}
               eventsByDate={eventsByDate}
               usersById={usersById}
+              aodByDate={aodByDate}
               shifts={shifts}
               viewMode={viewMode}
+              onSetAod={handleSetAod}
+              onClearAod={handleClearAod}
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
               onCreateInShift={(date, payload, shift) =>
                 handleCreate(
@@ -1023,6 +1074,7 @@ export default function CalendarContent() {
               onResize={handleResizeEvent}
               onEventClick={setEditingId}
               onDayClick={handleDayClick}
+              onClearShift={handleClearShift}
             />
           )}
           {view === 'day' && (
@@ -1049,6 +1101,7 @@ export default function CalendarContent() {
               onEventClick={setEditingId}
               onSetAod={handleSetAod}
               onClearAod={handleClearAod}
+              onClearShift={handleClearShift}
             />
           )}
         </div>
@@ -1228,9 +1281,15 @@ function Palette({
               avatar={u.avatar_url}
               selectable={multiSelect}
               selected={selectedUsers.has(u.id)}
-              onToggleSelect={() => toggleUser(u.id)}
+              // Always wire the toggle — shift-click triggers it even when the
+              // sidebar isn't in explicit multi-select mode. The first
+              // shift-click auto-enables the mode so the checkmarks surface.
+              onToggleSelect={() => {
+                if (!multiSelect) setMultiSelect(true);
+                toggleUser(u.id);
+              }}
               multiPayloads={
-                multiSelect && selectedUsers.has(u.id) && selectedPayloads.length > 1
+                selectedUsers.has(u.id) && selectedPayloads.length > 1
                   ? selectedPayloads
                   : undefined
               }
@@ -1241,8 +1300,8 @@ function Palette({
 
       <div className="p-3 border-t border-gray-100 text-[11px] text-foreground/40 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
         {tab === 'team' && multiSelect
-          ? 'Check team members to select them, then drag any selected chip to schedule everyone at once.'
-          : 'Drag a team member into a shift to schedule them, a group onto a day for an event, or drop a team member on the upper-left AOC slot.'}
+          ? 'Shift-click or tick team members to select multiple, then drag any selected chip to schedule everyone at once.'
+          : 'Drag a team member into a shift, or shift-click several to batch-schedule them. Drop a team member on the upper-left AOC slot to set Assistant on Duty.'}
       </div>
     </div>
   );
@@ -1291,7 +1350,9 @@ function DraggableChip({
   const onDragEnd = () => setDragging(false);
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (selectable && onToggleSelect) {
+    // Shift-click always toggles selection (implicit multi-select); regular
+    // click only toggles when the sidebar is in explicit multi-select mode.
+    if ((e.shiftKey || selectable) && onToggleSelect) {
       e.preventDefault();
       onToggleSelect();
     }
@@ -1520,7 +1581,7 @@ function ShiftAvatar({
   const u = usersById.get(ev.subject_id);
   const label = u ? userLabel(u) : ev.title;
   const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
-  const dim = size === 'sm' ? 'w-5 h-5 text-[9px]' : 'w-7 h-7 text-[11px]';
+  const dim = size === 'sm' ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-xs';
   return (
     <div
       draggable
@@ -2292,27 +2353,35 @@ function WeekView({
   today,
   eventsByDate,
   usersById,
+  aodByDate,
   shifts,
   viewMode,
+  onSetAod,
+  onClearAod,
   onCreate,
   onCreateInShift,
   onReschedule,
   onResize,
   onEventClick,
   onDayClick,
+  onClearShift,
 }: {
   days: Date[];
   today: Date;
   eventsByDate: Map<string, EventRow[]>;
   usersById: Map<string, UserRow>;
+  aodByDate: Map<string, string>;
   shifts: Shift[];
   viewMode: ViewMode;
+  onSetAod: (date: Date, userId: string) => void;
+  onClearAod: (date: Date) => void;
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
   onCreateInShift: (date: Date, payload: DragPayload, shift: Shift) => void;
   onReschedule: (date: Date, hour: number, eventId: string) => void;
   onResize: (eventId: string, newStart: number, newEnd: number) => void;
   onEventClick: (id: string) => void;
   onDayClick: (date: Date) => void;
+  onClearShift: (date: Date, shift: Shift) => void;
 }) {
   // Per-day sunrise/sunset so each column shows its own light band.
   const daySun = useMemo(
@@ -2323,14 +2392,12 @@ function WeekView({
         const sunrisePct = Math.max(0, Math.min(100, ((sunrise - DAY_START_H) / span) * 100));
         const sunsetPct = Math.max(0, Math.min(100, ((sunset - DAY_START_H) / span) * 100));
         const gradient = `linear-gradient(to bottom,
-          rgba(45, 38, 30, 0.22) 0%,
-          rgba(80, 72, 62, 0.18) ${Math.max(0, sunrisePct - 4)}%,
-          rgba(140, 130, 118, 0.05) ${Math.min(100, sunrisePct + 4)}%,
-          rgba(255, 255, 255, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
-          rgba(140, 130, 118, 0.06) ${Math.max(0, sunsetPct - 6)}%,
-          rgba(80, 72, 62, 0.22) ${sunsetPct}%,
-          rgba(55, 48, 40, 0.28) ${Math.min(100, sunsetPct + 6)}%,
-          rgba(35, 28, 22, 0.38) 100%)`;
+          rgba(0, 0, 0, 0.55) 0%,
+          rgba(0, 0, 0, 0.55) ${sunrisePct}%,
+          rgba(0, 0, 0, 0.00) ${sunrisePct}%,
+          rgba(0, 0, 0, 0.00) ${sunsetPct}%,
+          rgba(0, 0, 0, 0.55) ${sunsetPct}%,
+          rgba(0, 0, 0, 0.55) 100%)`;
         return { sunrise, sunset, sunrisePct, sunsetPct, gradient };
       }),
     [days]
@@ -2346,6 +2413,9 @@ function WeekView({
         {days.map((d, i) => {
           const isToday = isSameDay(d, today);
           const { sunrise, sunset } = daySun[i];
+          const iso = toISODate(d);
+          const aodUserId = aodByDate.get(iso);
+          const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
           return (
             <button
               key={i}
@@ -2389,6 +2459,19 @@ function WeekView({
                 </svg>
                 {formatDecimalTime(sunset)}
               </div>
+              {viewMode === 'team' && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-1 flex justify-center"
+                >
+                  <AodSlot
+                    user={aodUser}
+                    onSet={(userId) => onSetAod(d, userId)}
+                    onClear={() => onClearAod(d)}
+                    compact
+                  />
+                </div>
+              )}
             </button>
           );
         })}
@@ -2403,7 +2486,20 @@ function WeekView({
         >
           <div />
           {daySun.map((s, i) => (
-            <div key={i} style={{ background: s.gradient }} />
+            <div key={i} className="relative" style={{ background: s.gradient }}>
+              {s.sunrise > DAY_START_H && s.sunrise < DAY_END_H && (
+                <div
+                  className="absolute left-0 right-0 border-t border-foreground/40"
+                  style={{ top: `${s.sunrisePct}%` }}
+                />
+              )}
+              {s.sunset > DAY_START_H && s.sunset < DAY_END_H && (
+                <div
+                  className="absolute left-0 right-0 border-t border-foreground/40"
+                  style={{ top: `${s.sunsetPct}%` }}
+                />
+              )}
+            </div>
           ))}
         </div>
         <div
@@ -2427,7 +2523,7 @@ function WeekView({
                   onCreate={(payload) => onCreate(d, h, payload)}
                   onReschedule={(eventId) => onReschedule(d, h, eventId)}
                   previewTarget={{ date: d, hour: h }}
-                  className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
+                  className="border-l border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
                 />
               ))}
             </React.Fragment>
@@ -2488,11 +2584,28 @@ function WeekView({
                           onReschedule(d, Math.floor(hhmmToHours(s.start)), eventId)
                         }
                         previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
-                        className="absolute left-0.5 right-0.5 z-10 rounded-sm border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors pointer-events-auto flex flex-col gap-1 px-1 py-0.5 overflow-hidden"
+                        className="group/shift absolute left-0.5 right-0.5 z-10 rounded-sm border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors pointer-events-auto flex flex-col gap-1 px-1 py-0.5 overflow-hidden"
                         activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
                         style={{ top: `${topPct}%`, height: `${heightPct}%` }}
                         title={`${s.name} · ${formatShiftRange(s)}`}
                       >
+                        {si === largestSi && shiftUserEvents.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onClearShift(d, s);
+                            }}
+                            className="absolute top-0.5 right-0.5 z-20 hidden group-hover/shift:flex items-center gap-0.5 px-1 py-0.5 rounded bg-white/90 border border-foreground/10 shadow-sm text-[9px] font-semibold text-foreground/70 hover:text-red-600 hover:border-red-300"
+                            title={`Clear all from ${s.name}`}
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          >
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M6 18L18 6" />
+                            </svg>
+                            Clear
+                          </button>
+                        )}
                         {si === largestSi && (
                           <>
                             <div className="flex items-start justify-between gap-1">
@@ -2590,6 +2703,7 @@ function DayView({
   onEventClick,
   onSetAod,
   onClearAod,
+  onClearShift,
 }: {
   day: Date;
   today: Date;
@@ -2605,6 +2719,7 @@ function DayView({
   onEventClick: (id: string) => void;
   onSetAod: (date: Date, userId: string) => void;
   onClearAod: (date: Date) => void;
+  onClearShift: (date: Date, shift: Shift) => void;
 }) {
   const isToday = isSameDay(day, today);
   const iso = toISODate(day);
@@ -2638,14 +2753,12 @@ function DayView({
 
   // Gradient stops — dawn / day / dusk / night with soft transitions.
   const gradient = `linear-gradient(to bottom,
-    rgba(45, 38, 30, 0.24) 0%,
-    rgba(80, 72, 62, 0.18) ${Math.max(0, sunrisePct - 4)}%,
-    rgba(140, 130, 118, 0.05) ${Math.min(100, sunrisePct + 4)}%,
-    rgba(255, 255, 255, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
-    rgba(140, 130, 118, 0.06) ${Math.max(0, sunsetPct - 6)}%,
-    rgba(80, 72, 62, 0.22) ${sunsetPct}%,
-    rgba(55, 48, 40, 0.28) ${Math.min(100, sunsetPct + 6)}%,
-    rgba(35, 28, 22, 0.42) 100%)`;
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0.55) ${sunrisePct}%,
+    rgba(0, 0, 0, 0.00) ${sunrisePct}%,
+    rgba(0, 0, 0, 0.00) ${sunsetPct}%,
+    rgba(0, 0, 0, 0.55) ${sunsetPct}%,
+    rgba(0, 0, 0, 0.55) 100%)`;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -2748,11 +2861,28 @@ function DayView({
                   onReschedule(day, Math.floor(hhmmToHours(s.start)), eventId)
                 }
                 previewTarget={{ date: day, hour: Math.floor(hhmmToHours(s.start)) }}
-                className="absolute left-[82px] right-1 z-10 rounded-md border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors flex flex-col gap-2 px-3 py-1.5 overflow-hidden"
+                className="group/shift absolute left-[82px] right-1 z-10 rounded-md border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors flex flex-col gap-2 px-3 py-1.5 overflow-hidden"
                 activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
                 style={{ top: `${topPct}%`, height: `${botPct - topPct}%` }}
                 title={`${s.name} · ${formatShiftRange(s)}`}
               >
+                {si === largestSi && shiftUserEvents.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClearShift(day, s);
+                    }}
+                    className="absolute top-1.5 right-1.5 z-20 hidden group-hover/shift:flex items-center gap-1 px-2 py-0.5 rounded bg-white/90 border border-foreground/10 shadow-sm text-[10px] font-semibold text-foreground/70 hover:text-red-600 hover:border-red-300"
+                    title={`Clear all from ${s.name}`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M6 18L18 6" />
+                    </svg>
+                    Clear all
+                  </button>
+                )}
                 {si === largestSi && (
                   <>
                     <div className="flex items-start justify-between gap-2">
@@ -2824,7 +2954,7 @@ function DayView({
                 onCreate={(payload) => onCreate(day, h, payload)}
                 onReschedule={(eventId) => onReschedule(day, h, eventId)}
                 previewTarget={{ date: day, hour: h }}
-                className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
+                className="border-l border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
               />
             </React.Fragment>
           ))}

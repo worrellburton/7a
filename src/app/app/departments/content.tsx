@@ -197,7 +197,7 @@ export default function DepartmentsContent() {
   const unassigned = users.filter((u) => !u.department_id);
 
   return (
-    <div className="p-6 lg:p-10">
+    <div className="p-4 sm:p-6 lg:p-10">
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Departments</h1>

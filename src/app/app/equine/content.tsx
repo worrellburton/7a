@@ -228,7 +228,7 @@ export default function EquineContent() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-10 flex items-center justify-center min-h-[60vh]">
+      <div className="p-4 sm:p-6 lg:p-10 flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -348,7 +348,7 @@ export default function EquineContent() {
   const ecProps = { editingId, editField, editValue, setEditValue, setEditingId, saveEdit, startEdit };
 
   return (
-    <div className="p-6 lg:p-10">
+    <div className="p-4 sm:p-6 lg:p-10">
       <input ref={fileInputRef} type="file" accept="*/*" onChange={handleDocUpload} className="hidden" />
 
       <div className="mb-8">

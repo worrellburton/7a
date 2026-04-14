@@ -111,6 +111,8 @@ export default function UsersContent() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [jobDescriptions, setJobDescriptions] = useState<JobDescriptionLite[]>([]);
+  // Map userId -> Set<jobDescriptionId> of JDs they have signed.
+  const [signedByUser, setSignedByUser] = useState<Map<string, Set<string>>>(new Map());
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('created_at');
@@ -156,9 +158,24 @@ export default function UsersContent() {
       }
     }
 
+    async function fetchSignatures() {
+      const data = await db({ action: 'select', table: 'jd_signatures', select: 'signer_user_id, job_description_id, signed_at' });
+      if (Array.isArray(data)) {
+        const map = new Map<string, Set<string>>();
+        for (const row of data as Array<{ signer_user_id: string; job_description_id: string; signed_at: string | null }>) {
+          if (!row.signed_at) continue;
+          const set = map.get(row.signer_user_id) || new Set<string>();
+          set.add(row.job_description_id);
+          map.set(row.signer_user_id, set);
+        }
+        setSignedByUser(map);
+      }
+    }
+
     fetchUsers();
     fetchDepartments();
     fetchJobDescriptions();
+    fetchSignatures();
     // Refresh every 30s so presence stays fresh for the admin watching
     const refreshInterval = setInterval(fetchUsers, 30 * 1000);
     return () => clearInterval(refreshInterval);
@@ -244,7 +261,7 @@ export default function UsersContent() {
   if (!user || !isAdmin) return null;
 
   return (
-    <div className="p-6 lg:p-10">
+    <div className="p-4 sm:p-6 lg:p-10">
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Team</h1>
@@ -365,12 +382,20 @@ export default function UsersContent() {
                     <td className="px-6 py-4 hidden sm:table-cell">
                       {(() => {
                         const matchedJd = jobDescriptions.find((j) => j.title === u.job_title);
+                        const signed = matchedJd ? signedByUser.get(u.id)?.has(matchedJd.id) ?? false : false;
                         return (
                           <div className="flex items-center gap-1.5">
+                            {matchedJd && (
+                              <span
+                                className={`shrink-0 w-2.5 h-2.5 rounded-full ${signed ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]' : 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]'}`}
+                                title={signed ? `${u.full_name || 'This user'} has signed the ${matchedJd.title} job description.` : `${u.full_name || 'This user'} has not yet signed the ${matchedJd.title} job description.`}
+                                aria-label={signed ? 'Signed' : 'Not signed'}
+                              />
+                            )}
                             <select
                               value={u.job_title || ''}
                               onChange={(e) => updateJobTitle(u.id, e.target.value || null)}
-                              className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-[180px] ${u.job_title ? 'text-foreground' : 'text-foreground/30 italic'}`}
+                              className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-full sm:max-w-[180px] ${u.job_title ? 'text-foreground' : 'text-foreground/30 italic'}`}
                               style={{ fontFamily: 'var(--font-body)' }}
                             >
                               <option value="">Add title...</option>

@@ -97,7 +97,7 @@ export default function APIsContent() {
   const total = integrations.filter(i => i.status !== 'coming-soon').length;
 
   return (
-    <div className="p-6 lg:p-10">
+    <div className="p-4 sm:p-6 lg:p-10">
       <div className="mb-8">
         <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">APIs</h1>
         <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
