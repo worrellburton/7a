@@ -343,6 +343,12 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="10" cy="18" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   ),
+  '/app/super-admin': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z" />
+      <path d="m9.5 12 2 2 3.5-4" />
+    </svg>
+  ),
 };
 
 function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {

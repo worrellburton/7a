@@ -2323,14 +2323,14 @@ function WeekView({
         const sunrisePct = Math.max(0, Math.min(100, ((sunrise - DAY_START_H) / span) * 100));
         const sunsetPct = Math.max(0, Math.min(100, ((sunset - DAY_START_H) / span) * 100));
         const gradient = `linear-gradient(to bottom,
-          rgba(28, 32, 68, 0.20) 0%,
-          rgba(255, 168, 96, 0.16) ${Math.max(0, sunrisePct - 4)}%,
-          rgba(255, 220, 160, 0.04) ${Math.min(100, sunrisePct + 4)}%,
-          rgba(255, 245, 220, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
-          rgba(255, 200, 130, 0.05) ${Math.max(0, sunsetPct - 6)}%,
-          rgba(232, 110, 60, 0.20) ${sunsetPct}%,
-          rgba(70, 45, 90, 0.25) ${Math.min(100, sunsetPct + 6)}%,
-          rgba(18, 20, 55, 0.36) 100%)`;
+          rgba(20, 20, 20, 0.22) 0%,
+          rgba(60, 60, 60, 0.18) ${Math.max(0, sunrisePct - 4)}%,
+          rgba(120, 120, 120, 0.05) ${Math.min(100, sunrisePct + 4)}%,
+          rgba(255, 255, 255, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
+          rgba(120, 120, 120, 0.06) ${Math.max(0, sunsetPct - 6)}%,
+          rgba(60, 60, 60, 0.22) ${sunsetPct}%,
+          rgba(30, 30, 30, 0.28) ${Math.min(100, sunsetPct + 6)}%,
+          rgba(10, 10, 10, 0.38) 100%)`;
         return { sunrise, sunset, sunrisePct, sunsetPct, gradient };
       }),
     [days]
@@ -2374,14 +2374,14 @@ function WeekView({
                 className="mt-0.5 flex items-center justify-center gap-1 text-[9px] text-foreground/45"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                <svg className="w-2.5 h-2.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-2.5 h-2.5 text-foreground/60" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 3v3" />
                   <path d="M3 18h18" />
                   <path d="M6 18a6 6 0 0 1 12 0" />
                 </svg>
                 {formatDecimalTime(sunrise)}
                 <span className="text-foreground/25">·</span>
-                <svg className="w-2.5 h-2.5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-2.5 h-2.5 text-foreground/60" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 10V3" />
                   <path d="M3 18h18" />
                   <path d="M6 18a6 6 0 0 1 12 0" />
@@ -2638,14 +2638,14 @@ function DayView({
 
   // Gradient stops — dawn / day / dusk / night with soft transitions.
   const gradient = `linear-gradient(to bottom,
-    rgba(28, 32, 68, 0.22) 0%,
-    rgba(255, 168, 96, 0.18) ${Math.max(0, sunrisePct - 4)}%,
-    rgba(255, 220, 160, 0.05) ${Math.min(100, sunrisePct + 4)}%,
-    rgba(255, 245, 220, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
-    rgba(255, 200, 130, 0.06) ${Math.max(0, sunsetPct - 6)}%,
-    rgba(232, 110, 60, 0.22) ${sunsetPct}%,
-    rgba(70, 45, 90, 0.28) ${Math.min(100, sunsetPct + 6)}%,
-    rgba(18, 20, 55, 0.40) 100%)`;
+    rgba(20, 20, 20, 0.24) 0%,
+    rgba(60, 60, 60, 0.18) ${Math.max(0, sunrisePct - 4)}%,
+    rgba(120, 120, 120, 0.05) ${Math.min(100, sunrisePct + 4)}%,
+    rgba(255, 255, 255, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
+    rgba(120, 120, 120, 0.06) ${Math.max(0, sunsetPct - 6)}%,
+    rgba(60, 60, 60, 0.22) ${sunsetPct}%,
+    rgba(30, 30, 30, 0.28) ${Math.min(100, sunsetPct + 6)}%,
+    rgba(10, 10, 10, 0.42) 100%)`;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -2675,7 +2675,7 @@ function DayView({
         </div>
         <div className="flex-1 flex items-center justify-end gap-3 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
           <span className="inline-flex items-center gap-1 text-foreground/60" title="Sunrise">
-            <svg className="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-3.5 h-3.5 text-foreground/70" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3v3" />
               <path d="m5.6 9.6 2 2" />
               <path d="m16.4 11.6 2-2" />
@@ -2685,7 +2685,7 @@ function DayView({
             {formatDecimalTime(sunrise)}
           </span>
           <span className="inline-flex items-center gap-1 text-foreground/60" title="Sunset">
-            <svg className="w-3.5 h-3.5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-3.5 h-3.5 text-foreground/70" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 10V3" />
               <path d="m5.6 9.6 2 2" />
               <path d="m16.4 11.6 2-2" />
@@ -2784,11 +2784,11 @@ function DayView({
         {/* Sunrise marker line */}
         {sunrise > DAY_START_H && sunrise < DAY_END_H && (
           <div
-            className="pointer-events-none absolute left-[80px] right-0 border-t border-dashed border-amber-400/40 flex items-center"
+            className="pointer-events-none absolute left-[80px] right-0 border-t border-dashed border-foreground/30 flex items-center"
             style={{ top: `${sunrisePct}%` }}
             aria-hidden="true"
           >
-            <span className="ml-2 text-[9px] font-semibold uppercase tracking-wider text-amber-600/80 bg-white/60 px-1 rounded">
+            <span className="ml-2 text-[9px] font-semibold uppercase tracking-wider text-foreground/70 bg-white/70 px-1 rounded">
               Sunrise {formatDecimalTime(sunrise)}
             </span>
           </div>
@@ -2796,11 +2796,11 @@ function DayView({
         {/* Sunset marker line */}
         {sunset > DAY_START_H && sunset < DAY_END_H && (
           <div
-            className="pointer-events-none absolute left-[80px] right-0 border-t border-dashed border-orange-500/40 flex items-center z-10"
+            className="pointer-events-none absolute left-[80px] right-0 border-t border-dashed border-foreground/40 flex items-center z-10"
             style={{ top: `${sunsetPct}%` }}
             aria-hidden="true"
           >
-            <span className="ml-2 text-[9px] font-semibold uppercase tracking-wider text-orange-600/80 bg-white/60 px-1 rounded">
+            <span className="ml-2 text-[9px] font-semibold uppercase tracking-wider text-foreground/70 bg-white/70 px-1 rounded">
               Sunset {formatDecimalTime(sunset)}
             </span>
           </div>
