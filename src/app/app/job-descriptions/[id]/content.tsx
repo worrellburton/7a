@@ -337,6 +337,19 @@ export default function JobDescriptionDetailContent() {
     router.push('/app/job-descriptions');
   }
 
+  async function deletePermanently() {
+    if (!job) return;
+    if (!job.archived_at) return;
+    if (!window.confirm(`Permanently delete "${job.title}"? This cannot be undone.`)) return;
+    try {
+      await db({ action: 'delete', table: 'jd_signatures', match: { job_description_id: job.id } }).catch(() => {});
+      await db({ action: 'delete', table: 'job_descriptions', match: { id: job.id } });
+      router.push('/app/job-descriptions');
+    } catch (err) {
+      window.alert(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   async function markReviewed() {
     if (!job) return;
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD for Postgres date column
@@ -1061,7 +1074,16 @@ export default function JobDescriptionDetailContent() {
           </div>
 
           {/* Archive */}
-          <div className="flex justify-end pt-4 border-t border-gray-100 jd-print-hide">
+          <div className="flex justify-end items-center gap-4 pt-4 border-t border-gray-100 jd-print-hide">
+            {job.archived_at && (
+              <button
+                onClick={deletePermanently}
+                className="text-xs font-medium text-red-500 hover:text-red-700"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Delete permanently
+              </button>
+            )}
             <button
               onClick={archiveRole}
               className={`text-xs font-medium ${job.archived_at ? 'text-emerald-600 hover:text-emerald-700' : 'text-red-500 hover:text-red-700'}`}
