@@ -222,8 +222,10 @@ const MONTHS = [
 const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-// 7am–9pm covers a therapy day comfortably.
-const HOURS = Array.from({ length: 15 }, (_, i) => i + 7);
+// 6am–11pm — wide enough to expose the full span of the default shifts
+// (Morning starts 6:30, Afternoon ends 22:30, Overnight starts 22:30)
+// so every shift is droppable directly inside the calendar grid.
+const HOURS = Array.from({ length: 17 }, (_, i) => i + 6);
 const DAY_START_H = HOURS[0];
 const DAY_END_H = HOURS[HOURS.length - 1] + 1; // exclusive upper bound
 function formatHour(h: number) {
@@ -1244,6 +1246,8 @@ function DropCell({
   activeClassName = 'animate-cal-drop',
   children,
   previewTarget,
+  style,
+  title,
 }: {
   onCreate: (p: DragPayload) => void;
   onReschedule: (eventId: string) => void;
@@ -1252,6 +1256,8 @@ function DropCell({
   activeClassName?: string;
   children?: React.ReactNode;
   previewTarget?: { date: Date; hour: number | null };
+  style?: React.CSSProperties;
+  title?: string;
 }) {
   const ctx = useContext(DragCtx);
   const [over, setOver] = useState(false);
@@ -1320,6 +1326,8 @@ function DropCell({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       className={`${className} ${over ? activeClassName : ''}`}
+      style={style}
+      title={title}
     >
       {children}
     </div>
@@ -2074,45 +2082,6 @@ function WeekView({
           );
         })}
       </div>
-      {/* Shift rail — one row of shift drop cells per day, only in Team view
-          (shifts don't apply to Group events). */}
-      {viewMode === 'team' && shifts.length > 0 && (
-        <div
-          className="shrink-0 border-b border-gray-100 bg-warm-bg/15 grid"
-          style={{ gridTemplateColumns: '64px repeat(7, minmax(0, 1fr))' }}
-        >
-          <div className="flex items-center justify-end pr-2 text-[9px] font-semibold uppercase tracking-wider text-foreground/35">
-            Shifts
-          </div>
-          {days.map((d, di) => (
-            <div key={di} className="border-l border-gray-100 p-1 space-y-0.5">
-              {shifts.map((s) => (
-                <DropCell
-                  key={s.id}
-                  onCreate={(payload) => onCreateInShift(d, payload, s)}
-                  onReschedule={(eventId) => onReschedule(d, Math.floor(hhmmToHours(s.start)), eventId)}
-                  previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
-                  className="rounded bg-white border border-gray-200 hover:border-primary/40 px-1.5 py-0.5 flex items-center justify-between gap-1 transition-colors"
-                  activeClassName="ring-1 ring-primary/60 bg-primary/5 animate-cal-drop"
-                >
-                  <span
-                    className="text-[9px] font-semibold uppercase tracking-wider text-foreground/60 truncate"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {s.name}
-                  </span>
-                  <span
-                    className="shrink-0 text-[8px] font-medium text-foreground/35"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {formatShiftRange(s)}
-                  </span>
-                </DropCell>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
       <div className="flex-1 min-h-0 relative">
         {/* Per-day gradient overlays sit behind the grid cells. */}
         <div
@@ -2153,6 +2122,79 @@ function WeekView({
             </React.Fragment>
           ))}
         </div>
+        {/* Shift overlay — each shift rendered as a drop zone inside its
+            own day column, positioned by the shift's actual time range.
+            Team view only (groups don't live inside shifts). */}
+        {viewMode === 'team' && shifts.length > 0 && (
+          <div
+            className="pointer-events-none absolute inset-0 grid"
+            style={{ gridTemplateColumns: '64px repeat(7, minmax(0, 1fr))' }}
+            aria-hidden="false"
+          >
+            <div />
+            {days.map((d, di) => (
+              <div key={di} className="relative">
+                {shifts.map((s) => {
+                  const startH = hhmmToHours(s.start);
+                  const endH = hhmmToHours(s.end);
+                  const span = DAY_END_H - DAY_START_H;
+                  const wraps = endH <= startH;
+                  // Render visible portion(s) of the shift. Wrapping shifts
+                  // (overnight) show their pre-midnight slab; the post-midnight
+                  // slab is rendered as a second block pinned to the top of
+                  // the column so users can still drop into it.
+                  const segments: Array<{ a: number; b: number }> = [];
+                  if (wraps) {
+                    const a = Math.max(DAY_START_H, startH);
+                    if (a < DAY_END_H) segments.push({ a, b: DAY_END_H });
+                    const b = Math.min(DAY_END_H, endH);
+                    if (b > DAY_START_H) segments.push({ a: DAY_START_H, b });
+                  } else {
+                    const a = Math.max(DAY_START_H, startH);
+                    const b = Math.min(DAY_END_H, endH);
+                    if (b > a) segments.push({ a, b });
+                  }
+                  if (segments.length === 0) return null;
+                  return segments.map((seg, si) => {
+                    const topPct = ((seg.a - DAY_START_H) / span) * 100;
+                    const heightPct = ((seg.b - seg.a) / span) * 100;
+                    return (
+                      <DropCell
+                        key={`${s.id}-${si}`}
+                        onCreate={(payload) => onCreateInShift(d, payload, s)}
+                        onReschedule={(eventId) =>
+                          onReschedule(d, Math.floor(hhmmToHours(s.start)), eventId)
+                        }
+                        previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
+                        className="absolute left-0.5 right-0.5 rounded-sm border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors pointer-events-auto flex items-start justify-between gap-1 px-1 py-0.5 overflow-hidden"
+                        activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
+                        style={{ top: `${topPct}%`, height: `${heightPct}%` }}
+                        title={`${s.name} · ${formatShiftRange(s)}`}
+                      >
+                        {si === 0 && (
+                          <>
+                            <span
+                              className="text-[8px] font-semibold uppercase tracking-wider text-primary/70 truncate"
+                              style={{ fontFamily: 'var(--font-body)' }}
+                            >
+                              {s.name}
+                            </span>
+                            <span
+                              className="shrink-0 text-[8px] font-medium text-foreground/35"
+                              style={{ fontFamily: 'var(--font-body)' }}
+                            >
+                              {formatShiftRange(s)}
+                            </span>
+                          </>
+                        )}
+                      </DropCell>
+                    );
+                  });
+                })}
+              </div>
+            ))}
+          </div>
+        )}
         {/* Event overlay — positioned events spanning their full duration */}
         <div
           className="pointer-events-none absolute inset-0 grid"
@@ -2306,38 +2348,6 @@ function DayView({
           </span>
         </div>
       </div>
-      {/* Shift drop rail — only meaningful in Team view (groups don't
-          live inside shift buckets). */}
-      {viewMode === 'team' && (
-        <div
-          className="shrink-0 border-b border-gray-100 bg-warm-bg/10 px-3 py-2 grid gap-2"
-          style={{ gridTemplateColumns: `repeat(${shifts.length}, minmax(0, 1fr))` }}
-        >
-          {shifts.map((s) => (
-            <DropCell
-              key={s.id}
-              onCreate={(payload) => onCreateInShift(day, payload, s)}
-              onReschedule={(eventId) => onReschedule(day, Math.floor(hhmmToHours(s.start)), eventId)}
-              previewTarget={{ date: day, hour: Math.floor(hhmmToHours(s.start)) }}
-              className="rounded-md bg-white border border-gray-200 hover:border-primary/40 px-3 py-1.5 flex items-center justify-between gap-2 transition-colors"
-              activeClassName="ring-1 ring-primary/60 bg-primary/5 animate-cal-drop"
-            >
-              <span
-                className="text-[11px] font-semibold uppercase tracking-wider text-foreground/70"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                {s.name}
-              </span>
-              <span
-                className="text-[10px] font-medium text-foreground/40"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                {formatShiftRange(s)}
-              </span>
-            </DropCell>
-          ))}
-        </div>
-      )}
       <div className="flex-1 min-h-0 relative">
         {/* Sunrise/sunset gradient overlay — sits behind cells, above bg */}
         <div
@@ -2346,39 +2356,61 @@ function DayView({
           style={{ background: gradient, left: '80px' }}
           aria-hidden="true"
         />
-        {/* Shift bands — subtle horizontal zones marking each shift's time
-            range inside the hour grid. Team mode only. */}
-        {viewMode === 'team' && shifts.map((s, i) => {
+        {/* Shift drop zones — each shift rendered as an interactive drop
+            block positioned at its actual time range inside the hour grid.
+            Wrapping shifts (overnight) render as two segments so both the
+            pre- and post-midnight portions are droppable. Team mode only. */}
+        {viewMode === 'team' && shifts.map((s) => {
           const startH = hhmmToHours(s.start);
           const endH = hhmmToHours(s.end);
-          // If the shift wraps past midnight (e.g. overnight), clamp to the
-          // visible window; otherwise render the intersecting portion.
           const wraps = endH <= startH;
-          const visStart = Math.max(DAY_START_H, Math.min(DAY_END_H, startH));
-          const visEnd = wraps ? DAY_END_H : Math.max(DAY_START_H, Math.min(DAY_END_H, endH));
-          if (visEnd <= visStart) return null;
-          const topPct = pctFor(visStart);
-          const botPct = pctFor(visEnd);
-          return (
-            <div
-              key={s.id}
-              className="pointer-events-none absolute left-[80px] right-0 flex items-start"
-              style={{
-                top: `${topPct}%`,
-                height: `${botPct - topPct}%`,
-                background: `linear-gradient(90deg, rgba(160,82,45,${0.03 + (i % 3) * 0.015}), rgba(160,82,45,0))`,
-                borderTop: '1px dashed rgba(160,82,45,0.22)',
-              }}
-              aria-hidden="true"
-            >
-              <span
-                className="ml-2 mt-1 text-[9px] font-semibold uppercase tracking-wider text-primary/70 bg-white/70 px-1.5 py-0.5 rounded"
-                style={{ fontFamily: 'var(--font-body)' }}
+          const segments: Array<{ a: number; b: number }> = [];
+          if (wraps) {
+            const a = Math.max(DAY_START_H, startH);
+            if (a < DAY_END_H) segments.push({ a, b: DAY_END_H });
+            const b = Math.min(DAY_END_H, endH);
+            if (b > DAY_START_H) segments.push({ a: DAY_START_H, b });
+          } else {
+            const a = Math.max(DAY_START_H, startH);
+            const b = Math.min(DAY_END_H, endH);
+            if (b > a) segments.push({ a, b });
+          }
+          if (segments.length === 0) return null;
+          return segments.map((seg, si) => {
+            const topPct = pctFor(seg.a);
+            const botPct = pctFor(seg.b);
+            return (
+              <DropCell
+                key={`${s.id}-${si}`}
+                onCreate={(payload) => onCreateInShift(day, payload, s)}
+                onReschedule={(eventId) =>
+                  onReschedule(day, Math.floor(hhmmToHours(s.start)), eventId)
+                }
+                previewTarget={{ date: day, hour: Math.floor(hhmmToHours(s.start)) }}
+                className="absolute left-[82px] right-1 rounded-md border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors flex items-start justify-between gap-2 px-3 py-1.5"
+                activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
+                style={{ top: `${topPct}%`, height: `${botPct - topPct}%` }}
+                title={`${s.name} · ${formatShiftRange(s)}`}
               >
-                {s.name}
-              </span>
-            </div>
-          );
+                {si === 0 && (
+                  <>
+                    <span
+                      className="text-[11px] font-semibold uppercase tracking-wider text-primary/75 bg-white/70 px-1.5 py-0.5 rounded"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {s.name}
+                    </span>
+                    <span
+                      className="text-[10px] font-medium text-foreground/45 bg-white/70 px-1.5 py-0.5 rounded"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {formatShiftRange(s)}
+                    </span>
+                  </>
+                )}
+              </DropCell>
+            );
+          });
         })}
         {/* Sunrise marker line */}
         {sunrise > DAY_START_H && sunrise < DAY_END_H && (
