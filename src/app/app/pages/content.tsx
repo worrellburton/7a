@@ -213,23 +213,25 @@ export default function PagesContent() {
         </div>
 
         {/* Super Admin Only toggle */}
-        <button
-          onClick={() => !locked && toggleAdminOnly(page.path)}
-          disabled={locked}
-          className={`relative w-5 h-5 rounded-full border-2 transition-all shrink-0 ${
-            page.adminOnly
-              ? 'bg-primary border-primary'
-              : 'border-gray-300 hover:border-primary/50'
-          } ${locked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-          aria-label={`${page.adminOnly ? 'Remove' : 'Set'} super admin only for ${page.label}`}
-          title={locked ? 'Always super admin only' : page.adminOnly ? 'Super admin only — click to open' : 'Click to restrict to super admins'}
-        >
-          {page.adminOnly && (
-            <svg className="w-3 h-3 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-        </button>
+        <div className="shrink-0 w-20 flex justify-center">
+          <button
+            onClick={() => !locked && toggleAdminOnly(page.path)}
+            disabled={locked}
+            className={`relative w-5 h-5 rounded-full border-2 transition-all ${
+              page.adminOnly
+                ? 'bg-primary border-primary'
+                : 'border-gray-300 hover:border-primary/50'
+            } ${locked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+            aria-label={`${page.adminOnly ? 'Remove' : 'Set'} super admin only for ${page.label}`}
+            title={locked ? 'Always super admin only' : page.adminOnly ? 'Super admin only — click to open' : 'Click to restrict to super admins'}
+          >
+            {page.adminOnly && (
+              <svg className="w-3 h-3 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </button>
+        </div>
 
         {/* Department permissions chip */}
         <button
@@ -340,6 +342,13 @@ export default function PagesContent() {
             onDragOver={(e) => handleDragOverSection(e, 'nav')}
             onDrop={(e) => handleDrop(e, 'nav')}
           >
+            <div className="flex items-center gap-4 px-5 py-2 bg-warm-bg/40 border-b border-gray-100 text-[10px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+              <span className="w-4 shrink-0" />
+              <span className="shrink-0 w-4" />
+              <span className="flex-1">Page</span>
+              <span className="shrink-0 w-20 text-center">Super Admin</span>
+              <span className="shrink-0 w-32 text-center">Permissions</span>
+            </div>
             {navPages.length === 0 ? (
               <div className="px-5 py-8 text-center text-sm text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
                 Drag pages here to show in the sidebar
@@ -418,6 +427,13 @@ export default function PagesContent() {
             onDragOver={(e) => handleDragOverSection(e, 'popup')}
             onDrop={(e) => handleDrop(e, 'popup')}
           >
+            <div className="flex items-center gap-4 px-5 py-2 bg-warm-bg/40 border-b border-gray-100 text-[10px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+              <span className="w-4 shrink-0" />
+              <span className="shrink-0 w-4" />
+              <span className="flex-1">Page</span>
+              <span className="shrink-0 w-20 text-center">Super Admin</span>
+              <span className="shrink-0 w-32 text-center">Permissions</span>
+            </div>
             {popupPages.length === 0 ? (
               <div className="px-5 py-8 text-center text-sm text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
                 Drag pages here to show in the popup menu

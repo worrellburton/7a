@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { uploadFile } from '@/lib/upload';
+import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
 interface VetVisit {
@@ -106,23 +107,18 @@ const defaultHorses: Omit<Horse, 'id' | 'created_at'>[] = [
 
 export default function EquineContent() {
   const { user, session } = useAuth();
+  const router = useRouter();
   const [horses, setHorses] = useState<Horse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editField, setEditField] = useState<string>('');
   const [editValue, setEditValue] = useState<string>('');
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const vetFileInputRef = useRef<HTMLInputElement>(null);
   const uploadHorseRef = useRef<string | null>(null);
-  const uploadVetVisitRef = useRef<{ horseId: string; visitIndex: number } | null>(null);
   const [dbAvailable, setDbAvailable] = useState(true);
-  const [showVetForm, setShowVetForm] = useState<string | null>(null);
-  const [vetFormDate, setVetFormDate] = useState('');
-  const [vetFormReason, setVetFormReason] = useState('');
-  const [vetFormNotes, setVetFormNotes] = useState('');
-  const [vetViewHorseId, setVetViewHorseId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [columns, setColumns] = useState<ColDef[]>(() => {
     if (typeof window === 'undefined') return defaultColumnOrder;
     try {
@@ -212,63 +208,6 @@ export default function EquineContent() {
     setHorses(prev => prev.map(h => h.id === horseId ? { ...h, document_urls: newUrls } : h));
   };
 
-  const addVetVisit = async (horseId: string) => {
-    if (!vetFormDate) return;
-    const horse = horses.find(h => h.id === horseId);
-    if (!horse) return;
-    const visit: VetVisit = { date: vetFormDate, reason: vetFormReason, notes: vetFormNotes, doc_urls: [] };
-    const newVisits = [...(horse.vet_visits || []), visit].sort((a, b) => b.date.localeCompare(a.date));
-    if (dbAvailable && !horseId.startsWith('local-')) {
-      await db({ action: 'update', table: 'equine', data: { vet_visits: newVisits }, match: { id: horseId } });
-    }
-    setHorses(prev => prev.map(h => h.id === horseId ? { ...h, vet_visits: newVisits } : h));
-    setShowVetForm(null);
-    setVetFormDate('');
-    setVetFormReason('');
-    setVetFormNotes('');
-  };
-
-  const removeVetVisit = async (horseId: string, visitIndex: number) => {
-    const horse = horses.find(h => h.id === horseId);
-    if (!horse) return;
-    const newVisits = horse.vet_visits.filter((_, i) => i !== visitIndex);
-    if (dbAvailable && !horseId.startsWith('local-')) {
-      await db({ action: 'update', table: 'equine', data: { vet_visits: newVisits }, match: { id: horseId } });
-    }
-    setHorses(prev => prev.map(h => h.id === horseId ? { ...h, vet_visits: newVisits } : h));
-  };
-
-  const handleVetDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const ref = uploadVetVisitRef.current;
-    if (!ref || !e.target.files?.length) return;
-    setUploading(`vet-${ref.horseId}-${ref.visitIndex}`);
-    const file = e.target.files[0];
-    const { url } = await uploadFile(file);
-    if (url) {
-      const horse = horses.find(h => h.id === ref.horseId);
-      if (horse) {
-        const newVisits = [...horse.vet_visits];
-        newVisits[ref.visitIndex] = { ...newVisits[ref.visitIndex], doc_urls: [...newVisits[ref.visitIndex].doc_urls, url] };
-        if (dbAvailable && !ref.horseId.startsWith('local-')) {
-          await db({ action: 'update', table: 'equine', data: { vet_visits: newVisits }, match: { id: ref.horseId } });
-        }
-        setHorses(prev => prev.map(h => h.id === ref.horseId ? { ...h, vet_visits: newVisits } : h));
-      }
-    }
-    setUploading(null);
-    if (vetFileInputRef.current) vetFileInputRef.current.value = '';
-  };
-
-  const removeVetDoc = async (horseId: string, visitIndex: number, docIndex: number) => {
-    const horse = horses.find(h => h.id === horseId);
-    if (!horse) return;
-    const newVisits = [...horse.vet_visits];
-    newVisits[visitIndex] = { ...newVisits[visitIndex], doc_urls: newVisits[visitIndex].doc_urls.filter((_, i) => i !== docIndex) };
-    if (dbAvailable && !horseId.startsWith('local-')) {
-      await db({ action: 'update', table: 'equine', data: { vet_visits: newVisits }, match: { id: horseId } });
-    }
-    setHorses(prev => prev.map(h => h.id === horseId ? { ...h, vet_visits: newVisits } : h));
-  };
 
   const startEdit = (id: string, field: string, currentValue: string) => {
     setEditingId(id);
@@ -326,6 +265,51 @@ export default function EquineContent() {
     setDragOverColIdx(null);
   };
 
+  // Click a column header to sort. Cycle: none → asc → desc → none.
+  const toggleSort = (key: string) => {
+    if (sortKey !== key) { setSortKey(key); setSortDir('asc'); return; }
+    if (sortDir === 'asc') { setSortDir('desc'); return; }
+    setSortKey(null);
+    setSortDir('asc');
+  };
+
+  // Extract a comparable value for a given column.
+  const sortValue = (horse: Horse, key: string): string | number => {
+    switch (key) {
+      case 'name': return horse.name?.toLowerCase() || '';
+      case 'age': return horse.age ?? -Infinity;
+      case 'body_score': return horse.body_score ?? -Infinity;
+      case 'weight': {
+        const n = parseFloat((horse.weight || '').replace(/[^0-9.]/g, ''));
+        return isNaN(n) ? -Infinity : n;
+      }
+      case 'works_in': return (horse.works_in || '').toLowerCase();
+      case 'rideable': return (horse.rideable || '').toLowerCase();
+      case 'shoe_schedule': {
+        const n = parseFloat((horse.shoe_schedule || '').replace(/[^0-9.]/g, ''));
+        return isNaN(n) ? -Infinity : n;
+      }
+      case 'behavior': return (horse.behavior || '').toLowerCase();
+      case 'owner': return (horse.owner || '').toLowerCase();
+      case 'last_vet': {
+        const last = (horse.vet_visits || []).slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+        return last?.date || '';
+      }
+      case 'docs': return (horse.document_urls || []).length;
+      default: return '';
+    }
+  };
+
+  const sortedHorses = sortKey
+    ? [...horses].sort((a, b) => {
+        const av = sortValue(a, sortKey);
+        const bv = sortValue(b, sortKey);
+        if (av < bv) return sortDir === 'asc' ? -1 : 1;
+        if (av > bv) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      })
+    : horses;
+
   const renderCell = (horse: Horse, col: ColDef) => {
     switch (col.key) {
       case 'name':
@@ -349,8 +333,8 @@ export default function EquineContent() {
       case 'last_vet': {
         const lastVisit = (horse.vet_visits || []).sort((a, b) => b.date.localeCompare(a.date))[0];
         return lastVisit
-          ? <button onClick={e => { e.stopPropagation(); setVetViewHorseId(vetViewHorseId === horse.id ? null : horse.id); }} className="text-xs text-primary hover:underline whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{lastVisit.date}</button>
-          : <button onClick={e => { e.stopPropagation(); setShowVetForm(horse.id); setVetViewHorseId(horse.id); }} className="text-xs text-foreground/20 hover:text-primary" style={{ fontFamily: 'var(--font-body)' }}>+ Add</button>;
+          ? <button onClick={e => { e.stopPropagation(); router.push(`/app/equine/${horse.id}`); }} className="text-xs text-primary hover:underline whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>{lastVisit.date}</button>
+          : <button onClick={e => { e.stopPropagation(); router.push(`/app/equine/${horse.id}`); }} className="text-xs text-foreground/20 hover:text-primary" style={{ fontFamily: 'var(--font-body)' }}>+ Add</button>;
       }
       case 'docs':
         return (horse.document_urls || []).length > 0
@@ -366,12 +350,11 @@ export default function EquineContent() {
   return (
     <div className="p-6 lg:p-10">
       <input ref={fileInputRef} type="file" accept="*/*" onChange={handleDocUpload} className="hidden" />
-      <input ref={vetFileInputRef} type="file" accept="*/*" onChange={handleVetDocUpload} className="hidden" />
 
       <div className="mb-8">
-        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Equine Program</h1>
+        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Horses</h1>
         <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-          {horses.length} horses &middot; Click to expand &middot; Click any cell to edit
+          {horses.length} horses &middot; Click a row to open &middot; Click any cell to edit
         </p>
         {!dbAvailable && (
           <p className="text-xs text-amber-600 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
@@ -394,23 +377,30 @@ export default function EquineContent() {
                     onDragLeave={() => setDragOverColIdx(null)}
                     onDrop={e => handleColDrop(e, idx)}
                     onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null); }}
-                    className={`text-left px-4 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider cursor-grab active:cursor-grabbing select-none transition-colors ${col.hidden || ''} ${dragOverColIdx === idx ? 'bg-primary/10' : ''} ${dragColIdx === idx ? 'opacity-40' : ''}`}
+                    onClick={() => toggleSort(col.key)}
+                    className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors hover:text-foreground ${sortKey === col.key ? 'text-foreground' : 'text-foreground/40'} ${col.hidden || ''} ${dragOverColIdx === idx ? 'bg-primary/10' : ''} ${dragColIdx === idx ? 'opacity-40' : ''}`}
                     style={{ fontFamily: 'var(--font-body)' }}
                   >
-                    {col.label}
+                    <span className="inline-flex items-center gap-1">
+                      {col.label}
+                      {sortKey === col.key && (
+                        <svg className={`w-3 h-3 transition-transform ${sortDir === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                        </svg>
+                      )}
+                    </span>
                   </th>
                 ))}
                 <th className="w-8" />
               </tr>
             </thead>
             <tbody>
-              {horses.map(horse => {
-                const expanded = expandedId === horse.id;
+              {sortedHorses.map(horse => {
                 return (
                   <React.Fragment key={horse.id}>
                     <tr
-                      onClick={() => setExpandedId(expanded ? null : horse.id)}
-                      className={`border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer ${expanded ? 'bg-warm-bg/10' : ''}`}
+                      onClick={() => router.push(`/app/equine/${horse.id}`)}
+                      className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer"
                     >
                       {columns.map(col => (
                         <td key={col.key} className={`px-4 py-3 text-sm text-foreground/60 whitespace-nowrap ${col.hidden || ''} ${col.key === 'works_in' ? 'max-w-[160px] truncate' : ''} ${col.key === 'behavior' ? 'max-w-[180px] truncate' : ''}`} style={{ fontFamily: 'var(--font-body)' }}>
@@ -418,191 +408,9 @@ export default function EquineContent() {
                         </td>
                       ))}
                       <td className="px-3 py-3">
-                        <svg className={`w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                        <svg className="w-4 h-4 text-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                       </td>
                     </tr>
-                    {expanded && (
-                      <tr>
-                        <td colSpan={columns.length + 1} className="bg-warm-bg/20 px-5 py-4 border-b border-gray-100">
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                            {[
-                              ['needs_next_steps', 'Needs / Next Steps', horse.needs_next_steps],
-                              ['behavior', 'Behavior', horse.behavior],
-                              ['rideable', 'Rideable', horse.rideable],
-                              ['ownership_papers', 'Ownership Papers', horse.ownership_papers],
-                            ].map(([field, label, value]) => (
-                              <div key={field}>
-                                <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>{label}</p>
-                                <EditableCell {...ecProps} horseId={horse.id} field={field} value={value} className="text-sm text-foreground/70" />
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Internal Info */}
-                          <div className="mb-4">
-                            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Internal Info</p>
-                            {editingId === horse.id && editField === 'internal_info' ? (
-                              <textarea
-                                autoFocus
-                                value={editValue}
-                                onChange={e => setEditValue(e.target.value)}
-                                onBlur={saveEdit}
-                                rows={3}
-                                className="text-sm px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none w-full resize-none bg-white"
-                                style={{ fontFamily: 'var(--font-body)' }}
-                              />
-                            ) : (
-                              <p
-                                className="text-sm text-foreground/70 cursor-text hover:text-foreground transition-colors"
-                                style={{ fontFamily: 'var(--font-body)' }}
-                                onClick={() => startEdit(horse.id, 'internal_info', horse.internal_info)}
-                              >
-                                {horse.internal_info || <span className="text-foreground/20 italic">No notes</span>}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Notes */}
-                          <div className="mb-4">
-                            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Notes</p>
-                            {editingId === horse.id && editField === 'notes' ? (
-                              <textarea
-                                autoFocus
-                                value={editValue}
-                                onChange={e => setEditValue(e.target.value)}
-                                onBlur={saveEdit}
-                                rows={3}
-                                className="text-sm px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none w-full resize-none bg-white"
-                                style={{ fontFamily: 'var(--font-body)' }}
-                              />
-                            ) : (
-                              <p
-                                className="text-sm text-foreground/70 cursor-text hover:text-foreground transition-colors"
-                                style={{ fontFamily: 'var(--font-body)' }}
-                                onClick={() => startEdit(horse.id, 'notes', horse.notes)}
-                              >
-                                {horse.notes || <span className="text-foreground/20 italic">Click to add notes...</span>}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Vet Visits */}
-                          <div className="mb-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Vet Visits ({(horse.vet_visits || []).length})</p>
-                              <button
-                                onClick={e => { e.stopPropagation(); setShowVetForm(showVetForm === horse.id ? null : horse.id); }}
-                                className="text-xs text-primary hover:underline font-medium"
-                                style={{ fontFamily: 'var(--font-body)' }}
-                              >+ Add Visit</button>
-                            </div>
-                            {showVetForm === horse.id && (
-                              <div className="bg-white rounded-xl p-3 border border-gray-100 mb-2" onClick={e => e.stopPropagation()}>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
-                                  <div>
-                                    <label className="text-[10px] text-foreground/40 block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Date</label>
-                                    <input type="date" value={vetFormDate} onChange={e => setVetFormDate(e.target.value)} className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-warm-bg/50" style={{ fontFamily: 'var(--font-body)' }} />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-foreground/40 block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Reason</label>
-                                    <input type="text" value={vetFormReason} onChange={e => setVetFormReason(e.target.value)} placeholder="Checkup, vaccines..." className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-warm-bg/50" style={{ fontFamily: 'var(--font-body)' }} />
-                                  </div>
-                                  <div className="col-span-2 sm:col-span-1">
-                                    <label className="text-[10px] text-foreground/40 block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Notes</label>
-                                    <input type="text" value={vetFormNotes} onChange={e => setVetFormNotes(e.target.value)} placeholder="Details..." className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-warm-bg/50" style={{ fontFamily: 'var(--font-body)' }} />
-                                  </div>
-                                </div>
-                                <div className="flex gap-2">
-                                  <button onClick={() => addVetVisit(horse.id)} disabled={!vetFormDate} className="px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40" style={{ fontFamily: 'var(--font-body)' }}>Save Visit</button>
-                                  <button onClick={() => setShowVetForm(null)} className="px-3 py-1.5 rounded-lg text-xs text-foreground/50 hover:bg-warm-bg" style={{ fontFamily: 'var(--font-body)' }}>Cancel</button>
-                                </div>
-                              </div>
-                            )}
-                            {(horse.vet_visits || []).length > 0 && (
-                              <div className="space-y-1.5">
-                                {horse.vet_visits.map((visit, vi) => (
-                                  <div key={vi} className="bg-white rounded-xl px-3 py-2.5 border border-gray-100 group" onClick={e => e.stopPropagation()}>
-                                    <div className="flex items-center justify-between mb-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-sm font-bold text-foreground">{visit.date}</span>
-                                        {visit.reason && <span className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{visit.reason}</span>}
-                                      </div>
-                                      <button onClick={() => removeVetVisit(horse.id, vi)} className="text-foreground/20 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
-                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                      </button>
-                                    </div>
-                                    {visit.notes && <p className="text-xs text-foreground/50 mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>{visit.notes}</p>}
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {visit.doc_urls.map((url, di) => {
-                                        const fname = decodeURIComponent(url.split('/').pop() || 'Doc');
-                                        return (
-                                          <div key={di} className="flex items-center gap-1 px-2 py-1 bg-warm-bg rounded-lg text-xs group/doc">
-                                            <svg className="w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-                                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-foreground/50 hover:text-primary truncate max-w-[120px]" style={{ fontFamily: 'var(--font-body)' }}>{fname}</a>
-                                            <button onClick={() => removeVetDoc(horse.id, vi, di)} className="text-foreground/20 hover:text-red-500 opacity-0 group-hover/doc:opacity-100">
-                                              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                            </button>
-                                          </div>
-                                        );
-                                      })}
-                                      <button
-                                        onClick={() => { uploadVetVisitRef.current = { horseId: horse.id, visitIndex: vi }; vetFileInputRef.current?.click(); }}
-                                        disabled={uploading === `vet-${horse.id}-${vi}`}
-                                        className="flex items-center gap-1 px-2 py-1 rounded-lg border border-dashed border-gray-300 text-[10px] text-foreground/30 hover:border-primary hover:text-primary disabled:opacity-50"
-                                        style={{ fontFamily: 'var(--font-body)' }}
-                                      >
-                                        {uploading === `vet-${horse.id}-${vi}` ? (
-                                          <div className="w-2.5 h-2.5 border border-primary border-t-transparent rounded-full animate-spin" />
-                                        ) : (
-                                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                                        )}
-                                        Attach
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Documents */}
-                          <div>
-                            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Documents</p>
-                            <div className="flex flex-wrap gap-2">
-                              {(horse.document_urls || []).map((url, i) => {
-                                const filename = decodeURIComponent(url.split('/').pop() || 'Document');
-                                return (
-                                  <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg border border-gray-100 group">
-                                    <svg className="w-3.5 h-3.5 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                    </svg>
-                                    <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-foreground/60 hover:text-primary transition-colors truncate max-w-[150px]" style={{ fontFamily: 'var(--font-body)' }}>{filename}</a>
-                                    <button onClick={(e) => { e.stopPropagation(); removeDoc(horse.id, i); }} className="text-foreground/20 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
-                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                              <button
-                                onClick={(e) => { e.stopPropagation(); uploadHorseRef.current = horse.id; fileInputRef.current?.click(); }}
-                                disabled={uploading === horse.id}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-xs text-foreground/40 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
-                                style={{ fontFamily: 'var(--font-body)' }}
-                              >
-                                {uploading === horse.id ? (
-                                  <div className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                  </svg>
-                                )}
-                                Attach Document
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
                   </React.Fragment>
                 );
               })}

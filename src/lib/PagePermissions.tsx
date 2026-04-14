@@ -24,16 +24,18 @@ const defaultPages: PageConfig[] = [
   { path: '/app/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2, allowedDepartments: [], departmentId: null },
   { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3, allowedDepartments: [], departmentId: null },
   { path: '/app/calendar', label: 'Calendar', adminOnly: false, section: 'nav', sort_order: 4, allowedDepartments: [], departmentId: null },
-  { path: '/app/equine', label: 'Equine', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [], departmentId: null },
+  { path: '/app/equine', label: 'Horses', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [], departmentId: null },
   { path: '/app/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6, allowedDepartments: [], departmentId: null },
   { path: '/app/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7, allowedDepartments: [], departmentId: null },
   { path: '/app/fleet', label: 'Fleet', adminOnly: false, section: 'nav', sort_order: 8, allowedDepartments: [], departmentId: null },
   { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [], departmentId: null },
-  { path: '/app/org-chart', label: 'Org Chart', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: null },
-  { path: '/app/users', label: 'Users', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
+  { path: '/app/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },
+  // Org Chart is now accessed from inside another page (no longer in the popup menu).
+  { path: '/app/users', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
   { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [], departmentId: null },
   { path: '/app/apis', label: 'APIs', adminOnly: true, section: 'popup', sort_order: 3, allowedDepartments: [], departmentId: null },
+  { path: '/app/super-admin', label: 'Super Admin', adminOnly: true, section: 'popup', sort_order: 4, allowedDepartments: [], departmentId: null },
 ];
 
 interface PagePermissionsContextType {

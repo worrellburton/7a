@@ -27,12 +27,68 @@ interface Department {
   color: string | null;
 }
 
+interface JobDescriptionLite {
+  id: string;
+  title: string;
+}
+
+type SortKey = 'user' | 'viewing' | 'department' | 'job_title' | 'created_at';
+type SortDir = 'asc' | 'desc';
+
 function pageLabelFromPath(path: string | null): string {
   if (!path) return '';
   if (path === '/app' || path === '/app/') return 'Home';
+  // Any job-description detail view (e.g. /app/job-descriptions/<uuid>) should
+  // just read as "Job Descriptions" — otherwise we'd dump the raw UUID into
+  // the column, which looks broken.
+  if (path.startsWith('/app/job-descriptions')) return 'Job Descriptions';
+  if (path.startsWith('/app/sign')) return 'Signing';
   const parts = path.split('/').filter(Boolean); // ['app','calendar']
   const last = parts[parts.length - 1] || '';
-  return last.charAt(0).toUpperCase() + last.slice(1).replace(/-/g, ' ');
+  // If the last segment looks like a UUID, walk back to the previous segment
+  // so we don't print the raw ID.
+  const looksLikeId = /^[0-9a-f-]{8,}$/i.test(last) || /^\d+$/.test(last);
+  const pick = looksLikeId && parts.length > 1 ? parts[parts.length - 2] : last;
+  return pick.charAt(0).toUpperCase() + pick.slice(1).replace(/-/g, ' ');
+}
+
+function SortableTh({
+  label,
+  sortKey,
+  currentKey,
+  currentDir,
+  onClick,
+  className,
+  align,
+}: {
+  label: string;
+  sortKey: SortKey;
+  currentKey: SortKey;
+  currentDir: SortDir;
+  onClick: (key: SortKey) => void;
+  className?: string;
+  align?: 'left' | 'center';
+}) {
+  const isActive = currentKey === sortKey;
+  const alignClass = align === 'center' ? 'text-center' : 'text-left';
+  return (
+    <th
+      className={`${alignClass} px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider ${className || ''}`}
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      <button
+        type="button"
+        onClick={() => onClick(sortKey)}
+        className={`inline-flex items-center gap-1 hover:text-foreground/80 transition-colors ${isActive ? 'text-foreground/80' : ''}`}
+      >
+        {label}
+        <span className="inline-flex flex-col leading-none text-[8px]">
+          <span className={isActive && currentDir === 'asc' ? 'text-foreground' : 'text-foreground/20'}>▲</span>
+          <span className={isActive && currentDir === 'desc' ? 'text-foreground' : 'text-foreground/20'}>▼</span>
+        </span>
+      </button>
+    </th>
+  );
 }
 
 function presenceLabel(lastSeenAt: string | null): { online: boolean; text: string } {
@@ -54,10 +110,11 @@ export default function UsersContent() {
   const { confirm } = useModal();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [jobDescriptions, setJobDescriptions] = useState<JobDescriptionLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
-  const [editingJobTitle, setEditingJobTitle] = useState<string | null>(null);
-  const [jobTitleDraft, setJobTitleDraft] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('created_at');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   // force presence labels to re-render every 15s
   const [, setNowTick] = useState(0);
   useEffect(() => {
@@ -92,8 +149,16 @@ export default function UsersContent() {
       }
     }
 
+    async function fetchJobDescriptions() {
+      const data = await db({ action: 'select', table: 'job_descriptions', order: { column: 'title', ascending: true } });
+      if (Array.isArray(data)) {
+        setJobDescriptions(data.map((j: { id: string; title: string }) => ({ id: j.id, title: j.title })));
+      }
+    }
+
     fetchUsers();
     fetchDepartments();
+    fetchJobDescriptions();
     // Refresh every 30s so presence stays fresh for the admin watching
     const refreshInterval = setInterval(fetchUsers, 30 * 1000);
     return () => clearInterval(refreshInterval);
@@ -106,29 +171,6 @@ export default function UsersContent() {
       return;
     }
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, department_id: departmentId } : u)));
-  }
-
-  async function toggleAdmin(userId: string, currentValue: boolean) {
-    const result = await db({ action: 'update', table: 'users', data: { is_admin: !currentValue }, match: { id: userId } });
-
-    if (result?.error) {
-      console.error('Toggle admin error:', result.error);
-      showToast(`Failed to update: ${result.error}`);
-      return;
-    }
-
-    // Verify the update actually persisted
-    const verify = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin' });
-
-    if (Array.isArray(verify) && verify[0] && verify[0].is_admin === !currentValue) {
-      const updated = users.find((u) => u.id === userId);
-      setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, is_admin: !currentValue } : u))
-      );
-      showToast(`${updated?.full_name || 'User'} ${!currentValue ? 'granted' : 'removed'} admin access`);
-    } else {
-      showToast('Update blocked by database permissions — check RLS policies');
-    }
   }
 
   async function deleteUser(userId: string, userName: string) {
@@ -153,27 +195,78 @@ export default function UsersContent() {
     showToast(`${userName} has been removed`);
   }
 
-  async function saveJobTitle(userId: string) {
-    const trimmed = jobTitleDraft.trim() || null;
-    const result = await db({ action: 'update', table: 'users', data: { job_title: trimmed }, match: { id: userId } });
+  async function updateJobTitle(userId: string, jobTitle: string | null) {
+    const result = await db({ action: 'update', table: 'users', data: { job_title: jobTitle }, match: { id: userId } });
 
     if (result?.error) {
       showToast(`Failed to update job title: ${result.error}`);
-    } else {
-      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, job_title: trimmed } : u)));
+      return;
     }
-    setEditingJobTitle(null);
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, job_title: jobTitle } : u)));
   }
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  const sortedUsers = [...users].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const cmp = (va: string | number | null, vb: string | number | null) => {
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    };
+    switch (sortKey) {
+      case 'user':
+        return cmp((a.full_name || a.email || '').toLowerCase(), (b.full_name || b.email || '').toLowerCase());
+      case 'viewing':
+        return cmp(a.last_seen_at ? new Date(a.last_seen_at).getTime() : null, b.last_seen_at ? new Date(b.last_seen_at).getTime() : null);
+      case 'department': {
+        const da = departments.find((d) => d.id === a.department_id)?.name?.toLowerCase() || null;
+        const db2 = departments.find((d) => d.id === b.department_id)?.name?.toLowerCase() || null;
+        return cmp(da, db2);
+      }
+      case 'job_title':
+        return cmp((a.job_title || '').toLowerCase() || null, (b.job_title || '').toLowerCase() || null);
+      case 'created_at':
+        return cmp(new Date(a.created_at).getTime(), new Date(b.created_at).getTime());
+    }
+  });
 
   if (!user || !isAdmin) return null;
 
   return (
     <div className="p-6 lg:p-10">
-      <div className="mb-8">
-        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Users</h1>
-        <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-          People who have signed into the patient portal.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Team</h1>
+          <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+            People who have signed into the patient portal.
+          </p>
+        </div>
+        <button
+          onClick={() => router.push('/app/org-chart')}
+          className="inline-flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold bg-primary text-white hover:bg-primary-dark shadow-sm hover:shadow-md transition-all"
+          style={{ fontFamily: 'var(--font-body)' }}
+          title="View organization chart"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="9" y="3" width="6" height="4" rx="1" />
+            <rect x="3" y="15" width="6" height="4" rx="1" />
+            <rect x="15" y="15" width="6" height="4" rx="1" />
+            <path d="M12 7v4" />
+            <path d="M6 15v-2h12v2" />
+          </svg>
+          Org Chart
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -202,17 +295,16 @@ export default function UsersContent() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 bg-warm-bg/50">
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>User</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Viewing</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Department</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden sm:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Job Title</th>
-                  <th className="text-center px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Super Admin</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Joined</th>
+                  <SortableTh label="User" sortKey="user" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                  <SortableTh label="Viewing" sortKey="viewing" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                  <SortableTh label="Department" sortKey="department" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden md:table-cell" />
+                  <SortableTh label="Job Title" sortKey="job_title" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden sm:table-cell" />
+                  <SortableTh label="Joined" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden lg:table-cell" />
                   <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider w-12" style={{ fontFamily: 'var(--font-body)' }}></th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
+                {sortedUsers.map((u) => (
                   <tr key={u.id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -249,62 +341,83 @@ export default function UsersContent() {
                       })()}
                     </td>
                     <td className="px-6 py-4 hidden md:table-cell">
-                      <select
-                        value={u.department_id || ''}
-                        onChange={(e) => updateDepartment(u.id, e.target.value || null)}
-                        className="text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-[160px]"
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        <option value="">—</option>
-                        {departments.map((d) => (
-                          <option key={d.id} value={d.id}>{d.name}</option>
-                        ))}
-                      </select>
+                      {(() => {
+                        const userDept = departments.find((d) => d.id === u.department_id) || null;
+                        return (
+                          <select
+                            value={u.department_id || ''}
+                            onChange={(e) => updateDepartment(u.id, e.target.value || null)}
+                            className={`text-xs px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[180px] ${userDept ? 'font-medium' : 'text-foreground/40 bg-white border border-gray-200'}`}
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              backgroundColor: userDept ? (userDept.color || '#a0522d') + '1f' : undefined,
+                              color: userDept ? (userDept.color || '#a0522d') : undefined,
+                            }}
+                          >
+                            <option value="">—</option>
+                            {departments.map((d) => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 hidden sm:table-cell">
-                      {editingJobTitle === u.id ? (
-                        <input
-                          autoFocus
-                          value={jobTitleDraft}
-                          onChange={(e) => setJobTitleDraft(e.target.value)}
-                          onBlur={() => saveJobTitle(u.id)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') saveJobTitle(u.id); if (e.key === 'Escape') setEditingJobTitle(null); }}
-                          className="text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none w-full max-w-[160px]"
-                          style={{ fontFamily: 'var(--font-body)' }}
-                          placeholder="Add job title..."
-                        />
-                      ) : (
-                        <button
-                          onClick={() => { setEditingJobTitle(u.id); setJobTitleDraft(u.job_title || ''); }}
-                          className="text-xs text-foreground/50 hover:text-foreground transition-colors text-left"
-                          style={{ fontFamily: 'var(--font-body)' }}
-                        >
-                          {u.job_title || <span className="text-foreground/25 italic">Add title...</span>}
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => toggleAdmin(u.id, u.is_admin)}
-                        className={`w-5 h-5 rounded-full border-2 transition-all inline-flex items-center justify-center ${
-                          u.is_admin
-                            ? 'bg-primary border-primary text-white'
-                            : 'border-gray-300 hover:border-primary/50'
-                        }`}
-                        aria-label={`${u.is_admin ? 'Remove' : 'Grant'} super admin for ${u.full_name || u.email}`}
-                        title={u.is_admin ? 'Super admin — click to revoke' : 'Click to grant super admin'}
-                      >
-                        {u.is_admin && (
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </button>
+                      {(() => {
+                        const matchedJd = jobDescriptions.find((j) => j.title === u.job_title);
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={u.job_title || ''}
+                              onChange={(e) => updateJobTitle(u.id, e.target.value || null)}
+                              className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-[180px] ${u.job_title ? 'text-foreground' : 'text-foreground/30 italic'}`}
+                              style={{ fontFamily: 'var(--font-body)' }}
+                            >
+                              <option value="">Add title...</option>
+                              {jobDescriptions.map((j) => (
+                                <option key={j.id} value={j.title}>{j.title}</option>
+                              ))}
+                              {u.job_title && !jobDescriptions.some((j) => j.title === u.job_title) && (
+                                <option value={u.job_title}>{u.job_title}</option>
+                              )}
+                            </select>
+                            {matchedJd && (
+                              <button
+                                onClick={() => router.push(`/app/job-descriptions/${matchedJd.id}`)}
+                                className="shrink-0 p-1 rounded text-foreground/30 hover:text-primary hover:bg-primary/5 transition-colors"
+                                title={`Open ${matchedJd.title} job description`}
+                                aria-label={`Open ${matchedJd.title} job description`}
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M7 17L17 7" />
+                                  <path d="M7 7h10v10" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 hidden lg:table-cell">
-                      <span className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-                        {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </span>
+                      {(() => {
+                        const d = new Date(u.created_at);
+                        const now = new Date();
+                        const sameYear = d.getFullYear() === now.getFullYear();
+                        // Within the current year, drop the year to shorten
+                        // the cell; older joins keep the year for clarity.
+                        const text = sameYear
+                          ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                          : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        return (
+                          <span
+                            className="text-xs text-foreground/50 whitespace-nowrap"
+                            style={{ fontFamily: 'var(--font-body)' }}
+                            title={d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                          >
+                            {text}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-center">
                       {u.id !== user?.id && (

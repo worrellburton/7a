@@ -22,14 +22,32 @@ body {
   line-height: 1.6;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-sans), system-ui, sans-serif;
+/* Admin portal: zoom everything ~20% smaller across the board.
+   Using `zoom` scales Tailwind rem utilities, px values, spacing, and
+   images together so pages feel 2-3 type-scale steps tighter without
+   touching every component. Public marketing pages are unaffected.
+
+   The min-height compensates for zoom so the shell still fills the full
+   viewport after scaling — otherwise zoom: 0.82 on a 100vh element would
+   render at only 82vh, leaving an empty white band at the bottom. */
+.app-shell {
+  zoom: 0.82;
+  min-height: calc(100vh / 0.82);
 }
 
-/* Fluid heading sizes */
-h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
-h2 { font-size: clamp(1.5rem, 3.5vw, 2.5rem); }
-h3 { font-size: clamp(1.15rem, 2vw, 1.5rem); }
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans), system-ui, sans-serif;
+  }
+
+  /* Fluid heading sizes for the marketing site. Scoped to @layer base
+     so admin-portal Tailwind utilities (text-lg, text-xl, …) override
+     them — otherwise an unlayered `h1 { font-size: clamp(...) }` out-
+     ranks utilities and forces every page heading to marketing-hero size. */
+  h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
+  h2 { font-size: clamp(1.5rem, 3.5vw, 2.5rem); }
+  h3 { font-size: clamp(1.15rem, 2vw, 1.5rem); }
+}
 
 .section-label {
   display: inline-flex;

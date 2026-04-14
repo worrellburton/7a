@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
@@ -192,11 +192,12 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      className="fixed bottom-5 right-5 z-50 w-10 h-10 rounded-full bg-white dark:bg-[#2a2118] border border-gray-200 dark:border-white/10 shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
+      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-foreground/70 hover:bg-warm-bg/40 dark:hover:bg-white/5 transition-colors"
+      style={{ fontFamily: 'var(--font-body)' }}
       aria-label="Toggle theme"
     >
       {dark ? (
-        <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="5" />
           <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
           <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
@@ -204,10 +205,11 @@ function ThemeToggle() {
           <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
         </svg>
       ) : (
-        <svg className="w-5 h-5 text-foreground/50" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className="w-5 h-5 text-foreground/50" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="transparent" stroke="currentColor" />
         </svg>
       )}
+      {dark ? 'Light mode' : 'Dark mode'}
     </button>
   );
 }
@@ -252,6 +254,14 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
       <path d="M14 2v6h6" />
       <path d="M8 13h2v5H8zM12 10h2v8h-2zM16 15h2v3h-2z" />
+    </svg>
+  ),
+  '/app/job-descriptions': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+      <path d="M2 13h20" />
+      <path d="M10 13v2h4v-2" />
     </svg>
   ),
   '/app/org-chart': (
@@ -333,6 +343,12 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="10" cy="18" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   ),
+  '/app/super-admin': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z" />
+      <path d="m9.5 12 2 2 3.5-4" />
+    </svg>
+  ),
 };
 
 function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
@@ -351,6 +367,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   const { user, loading, isAdmin, departmentId, signInWithGoogle, signOut, session } = useAuth();
   const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
   const pathname = usePathname();
+  const router = useRouter();
   const [navDepartments, setNavDepartments] = useState<NavDepartment[]>([]);
 
   // Sidebar/popup links are gated on both admin-only flag and the
@@ -363,6 +380,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [navMounted, setNavMounted] = useState(false);
+  const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
 
   // Load departments for sidebar grouping
   useEffect(() => {
@@ -375,6 +393,42 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     }
     loadDepts();
   }, [session]);
+
+  // Latest signed JD — shown under user name in sidebar chip
+  useEffect(() => {
+    if (!session?.access_token || !user?.id) return;
+    let cancelled = false;
+    async function loadLatestSigned() {
+      try {
+        const sigs = await db({
+          action: 'select',
+          table: 'jd_signatures',
+          match: { signer_user_id: user!.id },
+          select: 'id, job_description_id, signed_at',
+          order: { column: 'signed_at', ascending: false },
+        });
+        if (cancelled || !Array.isArray(sigs)) return;
+        const signed = (sigs as Array<{ job_description_id: string; signed_at: string | null }>).find((s) => !!s.signed_at);
+        if (!signed) {
+          setLatestSignedJd(null);
+          return;
+        }
+        const jd = await db({
+          action: 'select',
+          table: 'job_descriptions',
+          match: { id: signed.job_description_id },
+          select: 'id, title',
+        });
+        if (cancelled) return;
+        if (Array.isArray(jd) && jd.length > 0) {
+          const row = jd[0] as { id: string; title: string };
+          setLatestSignedJd({ id: row.id, title: row.title });
+        }
+      } catch { /* ignore */ }
+    }
+    loadLatestSigned();
+    return () => { cancelled = true; };
+  }, [session, user?.id]);
 
   // Group visible nav pages: ungrouped first, then by department
   const visibleNavPages = navPages.filter(canSeePage);
@@ -396,6 +450,43 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     // Trigger nav entrance animation after first paint
     requestAnimationFrame(() => setNavMounted(true));
   }, []);
+
+  // Preload the Finance page so it renders instantly when the user
+  // opens it. Two layers of warming:
+  //   1. `router.prefetch` asks Next to fetch the Finance route bundle
+  //      and its RSC payload in the background.
+  //   2. We fire a no-await GET for the QuickBooks company list so
+  //      the HTTP response is already sitting in the browser cache
+  //      (credentials + same URL) by the time FinanceContent mounts
+  //      and asks for it. The Finance sub-panels fetch their own
+  //      reports lazily per tab; this covers the initial company
+  //      picker + Overview handshake that used to show a spinner.
+  // Skipped when the user is already on /app/finance (pointless) or
+  // when there is no session yet (the API will 401).
+  useEffect(() => {
+    if (!session?.access_token) return;
+    if (pathname?.startsWith('/app/finance')) return;
+    try { router.prefetch('/app/finance'); } catch { /* noop */ }
+    const controller = new AbortController();
+    const warm = window.requestIdleCallback
+      ? window.requestIdleCallback(() => {
+          fetch('/api/quickbooks/data?report=list', {
+            credentials: 'include',
+            signal: controller.signal,
+          }).catch(() => { /* ignore — this is opportunistic */ });
+        })
+      : window.setTimeout(() => {
+          fetch('/api/quickbooks/data?report=list', {
+            credentials: 'include',
+            signal: controller.signal,
+          }).catch(() => { /* ignore */ });
+        }, 400);
+    return () => {
+      controller.abort();
+      if (typeof warm === 'number') window.clearTimeout(warm);
+      else if (window.cancelIdleCallback) window.cancelIdleCallback(warm);
+    };
+  }, [session?.access_token, pathname, router]);
 
   // Close drawer on Escape + lock body scroll while open
   useEffect(() => {
@@ -458,7 +549,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
   // Signed in — platform with sidebar
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen app-shell">
       {/* Left Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 hidden lg:flex">
         {/* Logo / Brand */}
@@ -579,7 +670,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <p className="text-sm font-medium text-foreground truncate">
                 {user.user_metadata?.full_name || 'User'}
               </p>
-              <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+              {latestSignedJd ? (
+                <p className="text-xs text-foreground/50 truncate" title={`Signed: ${latestSignedJd.title}`}>
+                  {latestSignedJd.title}
+                </p>
+              ) : (
+                <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+              )}
             </div>
             <svg className="w-4 h-4 text-foreground/30 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
@@ -752,9 +849,16 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     <p className="text-sm font-medium text-foreground truncate">
                       {user.user_metadata?.full_name || 'User'}
                     </p>
-                    <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+                    {latestSignedJd ? (
+                      <p className="text-xs text-foreground/50 truncate" title={`Signed: ${latestSignedJd.title}`}>
+                        {latestSignedJd.title}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+                    )}
                   </div>
                 </div>
+                <ThemeToggle />
                 <button
                   onClick={() => { setMobileMenuOpen(false); signOut(); }}
                   className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -775,8 +879,6 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         {/* Same-page viewers — shown on every /app/* page */}
         <PageViewers />
 
-        {/* Theme toggle — fixed bottom right */}
-        <ThemeToggle />
       </div>
     </div>
   );

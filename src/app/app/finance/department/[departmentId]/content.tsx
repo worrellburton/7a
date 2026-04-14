@@ -127,12 +127,30 @@ function flattenReportRows(rows: ReportRow[] | undefined, depth = 0, out: Array<
 // ─── Component ───────────────────────────────────────────────────
 
 export default function DepartmentBudgetContent() {
-  const { user, session, isAdmin } = useAuth();
-  const router = useRouter();
   const params = useParams<{ departmentId: string }>();
   const searchParams = useSearchParams();
-  const departmentId = params?.departmentId;
-  const realmId = searchParams.get('realm_id');
+  return (
+    <DepartmentBudgetBody
+      departmentId={params?.departmentId}
+      realmId={searchParams.get('realm_id')}
+    />
+  );
+}
+
+// Renders the department's budget/personnel/expenses/ledger surface.
+// Passing `embedded` drops the outer page chrome (breadcrumb + padding)
+// so Finance can inline this under its Budget section.
+export function DepartmentBudgetBody({
+  departmentId,
+  realmId,
+  embedded = false,
+}: {
+  departmentId: string | undefined;
+  realmId: string | null;
+  embedded?: boolean;
+}) {
+  const { user, session, isAdmin } = useAuth();
+  const router = useRouter();
 
   const [tab, setTab] = useState<Tab>('overview');
   const [department, setDepartment] = useState<Department | null>(null);
@@ -228,7 +246,7 @@ export default function DepartmentBudgetContent() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-10 flex items-center justify-center min-h-[60vh]">
+      <div className={`${embedded ? 'p-6' : 'p-6 lg:p-10'} flex items-center justify-center min-h-[200px]`}>
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -236,9 +254,11 @@ export default function DepartmentBudgetContent() {
 
   if (error || !department) {
     return (
-      <div className="p-6 lg:p-10">
-        <Link href="/app/finance" className="text-xs font-semibold text-primary hover:underline">← Back to Finance</Link>
-        <div className="mt-4 p-4 rounded-xl bg-red-50 border border-red-200">
+      <div className={embedded ? 'p-6' : 'p-6 lg:p-10'}>
+        {!embedded && (
+          <Link href="/app/finance" className="text-xs font-semibold text-primary hover:underline">← Back to Finance</Link>
+        )}
+        <div className={`${embedded ? '' : 'mt-4'} p-4 rounded-xl bg-red-50 border border-red-200`}>
           <p className="text-xs font-medium text-red-800" style={{ fontFamily: 'var(--font-body)' }}>
             {error || 'Department not found'}
           </p>
@@ -250,65 +270,78 @@ export default function DepartmentBudgetContent() {
   const monthly = budget?.monthly_budget ?? 0;
   const annual = monthly * 12;
 
-  return (
-    <div className="p-6 lg:p-10">
-      {/* Breadcrumb */}
-      <Link href="/app/finance" className="inline-flex items-center gap-1 text-xs font-semibold text-foreground/50 hover:text-primary transition-colors mb-3" style={{ fontFamily: 'var(--font-body)' }}>
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-        </svg>
-        Finance
-      </Link>
+  const body = (
+    <>
+      {!embedded && (
+        <>
+          {/* Breadcrumb */}
+          <Link href="/app/finance" className="inline-flex items-center gap-1 text-xs font-semibold text-foreground/50 hover:text-primary transition-colors mb-3" style={{ fontFamily: 'var(--font-body)' }}>
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Finance
+          </Link>
 
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between gap-6 flex-wrap">
-        <div>
-          <div className="flex items-center gap-3">
-            {department.color && (
-              <span className="w-3 h-3 rounded-full" style={{ background: department.color }} />
-            )}
-            <h1 className="text-lg font-semibold text-foreground tracking-tight">{department.name}</h1>
-          </div>
-          <p className="text-sm text-foreground/50 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-            Department budget, personnel, expenses, and general ledger.
-          </p>
-        </div>
-        <div className="flex gap-4">
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold" style={{ fontFamily: 'var(--font-body)' }}>Monthly</p>
-            <p className="text-lg font-bold text-foreground tabular-nums">{fmtMoney(monthly)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold" style={{ fontFamily: 'var(--font-body)' }}>Annual</p>
-            <p className="text-lg font-bold text-foreground tabular-nums">{fmtMoney(annual)}</p>
-          </div>
-          {budget?.qbo_account_name && (
+          {/* Header */}
+          <div className="mb-6 flex items-start justify-between gap-6 flex-wrap">
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold" style={{ fontFamily: 'var(--font-body)' }}>P&amp;L Account</p>
-              <p className="text-sm font-semibold text-foreground">{budget.qbo_account_name}</p>
+              <div className="flex items-center gap-3">
+                {department.color && (
+                  <span className="w-3 h-3 rounded-full" style={{ background: department.color }} />
+                )}
+                <h1 className="text-lg font-semibold text-foreground tracking-tight">{department.name}</h1>
+              </div>
+              <p className="text-sm text-foreground/50 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                Department budget, personnel, expenses, and general ledger.
+              </p>
             </div>
-          )}
-        </div>
-      </div>
+            <div className="flex gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold" style={{ fontFamily: 'var(--font-body)' }}>Monthly</p>
+                <p className="text-lg font-bold text-foreground tabular-nums">{fmtMoney(monthly)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold" style={{ fontFamily: 'var(--font-body)' }}>Annual</p>
+                <p className="text-lg font-bold text-foreground tabular-nums">{fmtMoney(annual)}</p>
+              </div>
+              {budget?.qbo_account_name && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold" style={{ fontFamily: 'var(--font-body)' }}>P&amp;L Account</p>
+                  <p className="text-sm font-semibold text-foreground">{budget.qbo_account_name}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-5">
+      <div className={`flex gap-1 ${embedded ? 'px-4 py-2 border-b border-gray-100 bg-warm-bg/10 overflow-x-auto' : 'mb-5'}`}>
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-              tab === t.id
-                ? 'bg-foreground text-white'
-                : 'text-foreground/50 hover:bg-warm-bg'
-            }`}
+            className={
+              embedded
+                ? `px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap transition-colors ${
+                    tab === t.id
+                      ? 'bg-foreground text-white'
+                      : 'text-foreground/50 hover:bg-warm-bg'
+                  }`
+                : `px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                    tab === t.id
+                      ? 'bg-foreground text-white'
+                      : 'text-foreground/50 hover:bg-warm-bg'
+                  }`
+            }
+            style={{ fontFamily: 'var(--font-body)' }}
           >
             {t.label}
           </button>
         ))}
       </div>
 
-      {!realmId && (
+      {!realmId && !embedded && (
         <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 mb-5">
           <p className="text-xs text-amber-800" style={{ fontFamily: 'var(--font-body)' }}>
             No QuickBooks company selected. Return to <Link href="/app/finance" className="font-semibold underline">Finance</Link> and pick a realm to see live account data.
@@ -316,7 +349,7 @@ export default function DepartmentBudgetContent() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className={embedded ? '' : 'bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'}>
         {tab === 'overview' && (
           <OverviewTab
             budget={budget}
@@ -341,8 +374,12 @@ export default function DepartmentBudgetContent() {
           />
         )}
       </div>
-    </div>
+    </>
   );
+
+  if (embedded) return body;
+
+  return <div className="p-6 lg:p-10">{body}</div>;
 }
 
 // ─── Overview Tab ────────────────────────────────────────────────

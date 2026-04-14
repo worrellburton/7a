@@ -3,9 +3,11 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 import BudgetsPanel from './BudgetsPanel';
 import AccountsReceivablesPanel from './AccountsReceivablesPanel';
 import BudgetVsActualsPanel from './BudgetVsActualsPanel';
+import { DepartmentBudgetBody } from './department/[departmentId]/content';
 import {
   useQuickBooksConnection,
   QuickBooksHeader,
@@ -90,7 +92,12 @@ function fmtMoney(n: number | undefined) {
 // ─── Top-level page sections ─────────────────────────────────────
 
 type Section = 'overview' | 'budget' | 'ar' | 'reports';
-type BudgetView = 'overview' | 'bva';
+
+interface DepartmentRow {
+  id: string;
+  name: string;
+  color: string | null;
+}
 
 export default function FinanceContent() {
   const { user, session, isAdmin } = useAuth();
@@ -109,8 +116,28 @@ export default function FinanceContent() {
   } = useQuickBooksConnection();
 
   const [section, setSection] = useState<Section>('overview');
-  const [budgetView, setBudgetView] = useState<BudgetView>('overview');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<DepartmentRow[]>([]);
+  // null = "Set Budgets" tab; otherwise the id of the department whose
+  // Overview/Personnel/Expenses/Ledger page is rendered inline below.
+  const [selectedBudgetDept, setSelectedBudgetDept] = useState<string | null>(null);
+
+  // Load departments once for the Budget-tab sub-navigation.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let alive = true;
+    (async () => {
+      const { data } = await supabase
+        .from('departments')
+        .select('id, name, color')
+        .order('name');
+      if (!alive || !data) return;
+      setDepartments(data as DepartmentRow[]);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [session]);
 
   // Reports sub-state
   const [reportTab, setReportTab] = useState<ReportTab>('company');
@@ -189,9 +216,7 @@ export default function FinanceContent() {
     overview:
       'Department budget vs. actual spend with a company-wide roll-up of revenue, expenses, and margin at the bottom.',
     budget:
-      budgetView === 'bva'
-        ? 'Month-by-month budget vs. actual spend, with trailing totals, averages, and projected annual run rate.'
-        : 'Set a monthly budget for each department and match it to a QuickBooks P&L account for live actuals.',
+      'Set a monthly budget for each department and match it to a QuickBooks P&L account for live actuals.',
     ar: 'Every income-classified account pulled live from QuickBooks.',
     reports: 'Company, accounts, P&L, balance sheet, trial balance, and general ledger — pulled live from QuickBooks.',
   };
@@ -269,41 +294,65 @@ export default function FinanceContent() {
             </div>
           )}
 
-          {/* ─── Budget section (with Overview / Budget vs Actuals sub-tabs) ─── */}
+          {/* ─── Budget section — "Set Budgets" + one tab per department ─── */}
           {section === 'budget' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="flex gap-1 px-4 py-2 border-b border-gray-100 bg-warm-bg/10">
-                {([
-                  { id: 'overview' as BudgetView, label: 'Set Department Budgets' },
-                  { id: 'bva' as BudgetView, label: 'Budget vs Actuals' },
-                ]).map((v) => (
-                  <button
-                    key={v.id}
-                    onClick={() => setBudgetView(v.id)}
-                    className={`px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider transition-colors ${
-                      budgetView === v.id
-                        ? 'bg-foreground text-white'
-                        : 'text-foreground/50 hover:bg-warm-bg'
-                    }`}
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {v.label}
-                  </button>
-                ))}
+              <div className="flex gap-1 px-4 py-2 border-b border-gray-100 bg-warm-bg/10 overflow-x-auto">
+                <button
+                  onClick={() => setSelectedBudgetDept(null)}
+                  className={`px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap transition-colors ${
+                    selectedBudgetDept === null
+                      ? 'bg-foreground text-white'
+                      : 'text-foreground/50 hover:bg-warm-bg'
+                  }`}
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Set Budgets
+                </button>
+                {departments.map((d) => {
+                  const active = selectedBudgetDept === d.id;
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => selectedRealm && setSelectedBudgetDept(d.id)}
+                      disabled={!selectedRealm}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap transition-colors ${
+                        active
+                          ? 'bg-foreground text-white'
+                          : 'text-foreground/50 hover:bg-warm-bg disabled:text-foreground/25 disabled:cursor-not-allowed'
+                      }`}
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      title={selectedRealm ? `Open ${d.name} budget` : 'Connect QuickBooks first'}
+                    >
+                      {d.color && (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ background: d.color }}
+                        />
+                      )}
+                      {d.name}
+                    </button>
+                  );
+                })}
               </div>
-              <div className="p-6 min-h-[200px]">
-                {!selectedRealm ? (
+              {!selectedRealm ? (
+                <div className="p-6 min-h-[200px]">
                   <p className="text-sm text-foreground/40 text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
-                    {budgetView === 'bva'
-                      ? 'Connect a QuickBooks company to view budget vs. actuals.'
-                      : 'Connect a QuickBooks company to set budgets.'}
+                    Connect a QuickBooks company to set budgets.
                   </p>
-                ) : budgetView === 'bva' ? (
-                  <BudgetVsActualsPanel realmId={selectedRealm} />
-                ) : (
+                </div>
+              ) : selectedBudgetDept === null ? (
+                <div className="p-6 min-h-[200px]">
                   <BudgetsPanel realmId={selectedRealm} />
-                )}
-              </div>
+                </div>
+              ) : (
+                <DepartmentBudgetBody
+                  key={selectedBudgetDept}
+                  departmentId={selectedBudgetDept}
+                  realmId={selectedRealm}
+                  embedded
+                />
+              )}
             </div>
           )}
 

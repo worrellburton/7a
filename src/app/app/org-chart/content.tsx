@@ -57,6 +57,19 @@ function elbowMidpoint(
   from: { x: number; y: number },
   to: { x: number; y: number }
 ): { x: number; y: number } {
+  const overlapTop = Math.max(from.y, to.y);
+  const overlapBottom = Math.min(from.y + CARD_HEIGHT, to.y + CARD_HEIGHT);
+  const vOverlap = overlapBottom - overlapTop;
+  const horizGap = Math.abs(
+    from.x + CARD_WIDTH / 2 - (to.x + CARD_WIDTH / 2)
+  );
+  if (vOverlap > CARD_HEIGHT * 0.5 && horizGap > CARD_WIDTH * 0.8) {
+    // Side-by-side — midpoint between inner edges at their shared axis.
+    const fromLeft = from.x < to.x;
+    const startX = fromLeft ? from.x + CARD_WIDTH : from.x;
+    const endX = fromLeft ? to.x : to.x + CARD_WIDTH;
+    return { x: (startX + endX) / 2, y: (from.y + to.y) / 2 + CARD_HEIGHT / 2 };
+  }
   const sx = from.x + CARD_WIDTH / 2;
   const sy = from.y + CARD_HEIGHT;
   const tx = to.x + CARD_WIDTH / 2;
@@ -78,6 +91,18 @@ export default function OrgChartContent() {
   const [connectMode, setConnectMode] = useState<ConnectMode>({ kind: 'off' });
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
+  // Active endpoint-drag for rerouting a connector. When set, one end of
+  // the edge follows the cursor until dropped on another card.
+  const [edgeDrag, setEdgeDrag] = useState<
+    | {
+        edgeId: string;
+        endpoint: 'from' | 'to';
+        cursorX: number;
+        cursorY: number;
+        hoverUserId: string | null;
+      }
+    | null
+  >(null);
   // Multi-selection state. Cards and edges can be selected independently
   // via click-drag box select, shift-click, or shift-click on edges.
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
@@ -365,18 +390,34 @@ export default function OrgChartContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boxSelect?.startX, boxSelect?.startY, users, edges, showHidden]);
 
-  // Escape clears any active selection.
+  // Escape clears any active selection; Delete/Backspace removes any
+  // currently selected connectors.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setSelectedUserIds(new Set());
         setSelectedEdgeIds(new Set());
         setBoxSelect(null);
+        setEdgeDrag(null);
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && isAdmin) {
+        // Don't hijack deletes while the user is typing into an input.
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+          return;
+        }
+        if (selectedEdgeIds.size === 0) return;
+        e.preventDefault();
+        const ids = Array.from(selectedEdgeIds);
+        setSelectedEdgeIds(new Set());
+        // Fire the deletes in parallel — each updates local state on success.
+        for (const id of ids) void deleteEdge(id);
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, selectedEdgeIds]);
 
   async function deleteEdge(edgeId: string) {
     if (!isAdmin) return;
@@ -387,6 +428,109 @@ export default function OrgChartContent() {
     }
     setEdges((prev) => prev.filter((e) => e.id !== edgeId));
   }
+
+  // Click on an edge selects just it (shift-click toggles within the
+  // existing selection so multi-delete still works).
+  const handleEdgeClick = useCallback(
+    (edgeId: string, shift: boolean) => {
+      if (shift) {
+        setSelectedEdgeIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(edgeId)) next.delete(edgeId);
+          else next.add(edgeId);
+          return next;
+        });
+      } else {
+        setSelectedUserIds(new Set());
+        setSelectedEdgeIds(new Set([edgeId]));
+      }
+    },
+    []
+  );
+
+  // Rerouting an edge endpoint: on mousedown on a handle, start tracking
+  // the cursor. On mouseup over a card, rewrite the edge's from/to;
+  // otherwise cancel.
+  useEffect(() => {
+    if (!edgeDrag) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const pickUserUnderPointer = (clientX: number, clientY: number): string | null => {
+      const rect = canvas.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      for (const u of users) {
+        if (u.org_hidden && !showHidden) continue;
+        const ux = u.org_x ?? 0;
+        const uy = u.org_y ?? 0;
+        if (x >= ux && x <= ux + CARD_WIDTH && y >= uy && y <= uy + CARD_HEIGHT) {
+          return u.id;
+        }
+      }
+      return null;
+    };
+
+    const onMove = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const cursorY = e.clientY - rect.top;
+      const hoverUserId = pickUserUnderPointer(e.clientX, e.clientY);
+      setEdgeDrag((prev) =>
+        prev ? { ...prev, cursorX, cursorY, hoverUserId } : prev
+      );
+    };
+
+    const onUp = async (e: MouseEvent) => {
+      const dropOn = pickUserUnderPointer(e.clientX, e.clientY);
+      const current = edgeDrag;
+      setEdgeDrag(null);
+      if (!current || !dropOn) return;
+      const edge = edges.find((x) => x.id === current.edgeId);
+      if (!edge) return;
+      const otherEndpoint =
+        current.endpoint === 'from' ? edge.to_user_id : edge.from_user_id;
+      if (dropOn === otherEndpoint) {
+        showToast('Pick a different card for the other end');
+        return;
+      }
+      const patch =
+        current.endpoint === 'from'
+          ? { from_user_id: dropOn }
+          : { to_user_id: dropOn };
+      // Prevent duplicates — if the rerouted edge would collide with an
+      // existing one, drop the old edge instead of inserting a dup.
+      const nextFrom = current.endpoint === 'from' ? dropOn : edge.from_user_id;
+      const nextTo = current.endpoint === 'to' ? dropOn : edge.to_user_id;
+      const dup = edges.find(
+        (x) => x.id !== edge.id && x.from_user_id === nextFrom && x.to_user_id === nextTo
+      );
+      if (dup) {
+        showToast('Connection already exists');
+        return;
+      }
+      const result = await db({
+        action: 'update',
+        table: 'org_chart_edges',
+        data: patch,
+        match: { id: edge.id },
+      });
+      if (result?.error) {
+        showToast(`Failed to reroute: ${result.error}`);
+        return;
+      }
+      setEdges((prev) =>
+        prev.map((x) => (x.id === edge.id ? { ...x, ...patch } : x))
+      );
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [edgeDrag, users, edges, showHidden]);
 
   async function toggleHidden(userId: string, nextHidden: boolean) {
     if (!isAdmin) return;
@@ -404,12 +548,36 @@ export default function OrgChartContent() {
     showToast(nextHidden ? 'Card hidden' : 'Card shown');
   }
 
-  // Build elbow-connector path (bottom-center → top-center via mid-Y)
+  // Build elbow-connector path. When two cards sit roughly on the same
+  // horizontal axis (vertical overlap > half a card height and clearly
+  // separated horizontally), the edge routes from side-to-side instead
+  // of bottom→top so siblings read as peers.
   function elbowPath(from: OrgUser, to: OrgUser): string {
-    const sx = (from.org_x ?? 0) + CARD_WIDTH / 2;
-    const sy = (from.org_y ?? 0) + CARD_HEIGHT;
-    const tx = (to.org_x ?? 0) + CARD_WIDTH / 2;
-    const ty = to.org_y ?? 0;
+    const fx = from.org_x ?? 0;
+    const fy = from.org_y ?? 0;
+    const tx_ = to.org_x ?? 0;
+    const ty_ = to.org_y ?? 0;
+
+    const overlapTop = Math.max(fy, ty_);
+    const overlapBottom = Math.min(fy + CARD_HEIGHT, ty_ + CARD_HEIGHT);
+    const vOverlap = overlapBottom - overlapTop;
+    const horizGap = Math.abs((fx + CARD_WIDTH / 2) - (tx_ + CARD_WIDTH / 2));
+    const sideBySide = vOverlap > CARD_HEIGHT * 0.5 && horizGap > CARD_WIDTH * 0.8;
+
+    if (sideBySide) {
+      const fromLeft = fx < tx_;
+      const startX = fromLeft ? fx + CARD_WIDTH : fx;
+      const endX = fromLeft ? tx_ : tx_ + CARD_WIDTH;
+      const startY = fy + CARD_HEIGHT / 2;
+      const endY = ty_ + CARD_HEIGHT / 2;
+      const midX = (startX + endX) / 2;
+      return `M ${startX},${startY} L ${midX},${startY} L ${midX},${endY} L ${endX},${endY}`;
+    }
+
+    const sx = fx + CARD_WIDTH / 2;
+    const sy = fy + CARD_HEIGHT;
+    const tx = tx_ + CARD_WIDTH / 2;
+    const ty = ty_;
     // If target is above source, route sideways instead of downward.
     if (ty < sy) {
       const midX = (sx + tx) / 2;
@@ -719,19 +887,36 @@ export default function OrgChartContent() {
                 if (!from || !to) return null;
                 // Skip edges whose endpoints are hidden
                 if (!displayedUserIds.has(from.id) || !displayedUserIds.has(to.id)) return null;
-                const d = elbowPath(from, to);
                 const isHovered = hoveredEdgeId === edge.id;
                 const isSelected = selectedEdgeIds.has(edge.id);
+                const beingDragged = edgeDrag?.edgeId === edge.id;
+                // Endpoint coordinates at the card centers/edges. We use
+                // simple center-top/center-bottom handles for every edge
+                // so the user always has a visible grab point when the
+                // connector is selected.
+                const fromCx = (from.org_x ?? 0) + CARD_WIDTH / 2;
+                const fromCy = (from.org_y ?? 0) + CARD_HEIGHT;
+                const toCx = (to.org_x ?? 0) + CARD_WIDTH / 2;
+                const toCy = to.org_y ?? 0;
                 // Midpoint for delete handle — use approximate center of path.
-                const sx = (from.org_x ?? 0) + CARD_WIDTH / 2;
-                const sy = (from.org_y ?? 0) + CARD_HEIGHT;
-                const tx = (to.org_x ?? 0) + CARD_WIDTH / 2;
-                const ty = to.org_y ?? 0;
-                const midX = (sx + tx) / 2;
-                const midY = ty < sy ? sy + 20 : (sy + ty) / 2;
+                const midX = (fromCx + toCx) / 2;
+                const midY = toCy < fromCy ? fromCy + 20 : (fromCy + toCy) / 2;
+                // When the user is dragging an endpoint, replace that
+                // endpoint's coordinates with the cursor so the line
+                // follows the mouse in real time.
+                const ghostPath = (() => {
+                  if (!beingDragged || !edgeDrag) return null;
+                  const startX = edgeDrag.endpoint === 'from' ? edgeDrag.cursorX : fromCx;
+                  const startY = edgeDrag.endpoint === 'from' ? edgeDrag.cursorY : fromCy;
+                  const endX = edgeDrag.endpoint === 'to' ? edgeDrag.cursorX : toCx;
+                  const endY = edgeDrag.endpoint === 'to' ? edgeDrag.cursorY : toCy;
+                  const midY2 = (startY + endY) / 2;
+                  return `M ${startX},${startY} L ${startX},${midY2} L ${endX},${midY2} L ${endX},${endY}`;
+                })();
+                const d = ghostPath ?? elbowPath(from, to);
                 return (
                   <g key={edge.id} className="pointer-events-auto">
-                    {/* Wide transparent hit area */}
+                    {/* Wide transparent hit area — click to select, drag disabled here */}
                     <path
                       d={d}
                       fill="none"
@@ -739,19 +924,76 @@ export default function OrgChartContent() {
                       strokeWidth={14}
                       onMouseEnter={() => setHoveredEdgeId(edge.id)}
                       onMouseLeave={() => setHoveredEdgeId(null)}
+                      onClick={(e) => {
+                        if (!isAdmin) return;
+                        e.stopPropagation();
+                        handleEdgeClick(edge.id, e.shiftKey);
+                      }}
                       className={isAdmin ? 'cursor-pointer' : ''}
                     />
                     {/* Visible line */}
                     <path
                       d={d}
                       fill="none"
-                      stroke={isHovered ? '#ef4444' : isSelected ? '#2563eb' : '#a0522d'}
-                      strokeWidth={isHovered || isSelected ? 2.5 : 2}
+                      stroke={beingDragged ? '#2563eb' : isHovered ? '#ef4444' : isSelected ? '#2563eb' : '#a0522d'}
+                      strokeWidth={isHovered || isSelected || beingDragged ? 2.5 : 2}
+                      strokeDasharray={beingDragged ? '6 4' : undefined}
                       markerEnd={isHovered ? 'url(#org-arrow-hover)' : 'url(#org-arrow)'}
-                      style={{ transition: 'stroke 120ms, stroke-width 120ms' }}
+                      style={{ transition: beingDragged ? 'none' : 'stroke 120ms, stroke-width 120ms' }}
                     />
-                    {/* Delete handle (admin only, visible on hover) */}
-                    {isAdmin && isHovered && (
+                    {/* Endpoint drag handles — shown when the edge is selected or hovered. */}
+                    {isAdmin && (isSelected || isHovered || beingDragged) && (
+                      <>
+                        <circle
+                          cx={fromCx}
+                          cy={fromCy}
+                          r={6}
+                          fill="white"
+                          stroke="#2563eb"
+                          strokeWidth={2}
+                          className="cursor-grab"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            const rect = canvasRef.current?.getBoundingClientRect();
+                            if (!rect) return;
+                            setSelectedUserIds(new Set());
+                            setSelectedEdgeIds(new Set([edge.id]));
+                            setEdgeDrag({
+                              edgeId: edge.id,
+                              endpoint: 'from',
+                              cursorX: e.clientX - rect.left,
+                              cursorY: e.clientY - rect.top,
+                              hoverUserId: null,
+                            });
+                          }}
+                        />
+                        <circle
+                          cx={toCx}
+                          cy={toCy}
+                          r={6}
+                          fill="white"
+                          stroke="#2563eb"
+                          strokeWidth={2}
+                          className="cursor-grab"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            const rect = canvasRef.current?.getBoundingClientRect();
+                            if (!rect) return;
+                            setSelectedUserIds(new Set());
+                            setSelectedEdgeIds(new Set([edge.id]));
+                            setEdgeDrag({
+                              edgeId: edge.id,
+                              endpoint: 'to',
+                              cursorX: e.clientX - rect.left,
+                              cursorY: e.clientY - rect.top,
+                              hoverUserId: null,
+                            });
+                          }}
+                        />
+                      </>
+                    )}
+                    {/* Delete handle — visible on hover or when selected. */}
+                    {isAdmin && (isHovered || isSelected) && !beingDragged && (
                       <g
                         transform={`translate(${midX - 10}, ${midY - 10})`}
                         onMouseEnter={() => setHoveredEdgeId(edge.id)}
@@ -831,8 +1073,9 @@ export default function OrgChartContent() {
                       </p>
                       {dept && (
                         <span
-                          className="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
+                          className="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] font-medium text-white whitespace-nowrap truncate max-w-full align-bottom"
                           style={{ backgroundColor: dept.color || '#a0522d' }}
+                          title={dept.name}
                         >
                           {dept.name}
                         </span>
