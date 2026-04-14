@@ -732,17 +732,8 @@ export default function CalendarContent() {
   return (
     <DragCtx.Provider value={dragCtxValue}>
     <div className="p-4 lg:p-6 h-screen flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="mb-3 flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-0.5">Calendar</h1>
-          <p
-            className="text-xs text-foreground/50"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Drag a group or a team member onto a day to schedule it.
-          </p>
-        </div>
+      {/* Top-center Groups/Team toggle */}
+      <div className="mb-3 flex justify-center">
         <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
           {(['groups', 'team'] as ViewMode[]).map((m) => (
             <button
@@ -763,6 +754,19 @@ export default function CalendarContent() {
               {m}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Header */}
+      <div className="mb-3 flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-0.5">Calendar</h1>
+          <p
+            className="text-xs text-foreground/50"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Drag a group or a team member onto a day to schedule it.
+          </p>
         </div>
       </div>
 
