@@ -4,7 +4,50 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db, getAuthToken } from '@/lib/db';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+
+// A textarea that grows with its content. Used for responsibilities and
+// requirements so long sentences wrap cleanly instead of overflowing a
+// single-line input.
+function AutoTextarea({
+  value,
+  onChange,
+  onBlur,
+  onKeyDown,
+  placeholder,
+  className,
+  disabled,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onBlur?: (value: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  className?: string;
+  disabled?: boolean;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur ? (e) => onBlur(e.target.value) : undefined}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      className={className}
+      style={{ fontFamily: 'var(--font-body)', overflow: 'hidden', resize: 'none' }}
+    />
+  );
+}
 
 interface Department {
   id: string;
@@ -19,7 +62,15 @@ interface JobDescription {
   summary: string;
   responsibilities: string[];
   requirements: string[];
+  date_revised: string | null;
   created_at: string;
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 interface AppUserLite {
@@ -81,6 +132,7 @@ export default function JobDescriptionDetailContent() {
           summary: (raw.summary as string) || '',
           responsibilities: Array.isArray(raw.responsibilities) ? (raw.responsibilities as string[]) : [],
           requirements: Array.isArray(raw.requirements) ? (raw.requirements as string[]) : [],
+          date_revised: (raw.date_revised as string | null) || null,
           created_at: (raw.created_at as string) || '',
         });
       } else {
@@ -196,6 +248,12 @@ export default function JobDescriptionDetailContent() {
     router.push('/app/job-descriptions');
   }
 
+  async function markReviewed() {
+    if (!job) return;
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD for Postgres date column
+    await patchJob({ date_revised: today });
+  }
+
   function downloadPdf() {
     // Browsers' built-in "Save as PDF" off window.print() is the simplest way
     // to get a clean one-page PDF without adding a dependency. The print
@@ -292,34 +350,135 @@ export default function JobDescriptionDetailContent() {
 
   return (
     <>
-      {/* Print stylesheet — hides app chrome and trims the page for a clean PDF. */}
+      {/* Print stylesheet — hides everything except the dedicated print
+          view, which is laid out for a clean PDF export. */}
       <style jsx global>{`
+        @media screen {
+          .jd-print-view { display: none; }
+        }
         @media print {
-          body { background: #fff !important; }
-          aside, nav, header, [data-platform-shell-chrome] { display: none !important; }
-          .jd-print-hide { display: none !important; }
-          .jd-print-root {
-            padding: 0 !important;
-            margin: 0 !important;
-            max-width: none !important;
-            box-shadow: none !important;
-            border: none !important;
-            background: #fff !important;
+          @page { margin: 0.75in; size: Letter; }
+          html, body { background: #fff !important; }
+          body * { visibility: hidden !important; }
+          .jd-print-view, .jd-print-view * { visibility: visible !important; }
+          .jd-print-view {
+            display: block !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            color: #111;
+            font-family: var(--font-body), Georgia, 'Times New Roman', serif;
+            font-size: 11pt;
+            line-height: 1.45;
           }
-          .jd-print-card {
-            box-shadow: none !important;
-            border: none !important;
+          .jd-print-view h1 {
+            font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+            font-size: 22pt;
+            font-weight: 700;
+            margin: 0 0 4pt;
+            letter-spacing: -0.01em;
           }
-          input, textarea, select {
-            border: none !important;
-            background: transparent !important;
-            padding: 0 !important;
-            color: #111 !important;
+          .jd-print-view .jd-org {
+            font-size: 9pt;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #a0522d;
+            font-weight: 600;
+            margin-bottom: 10pt;
           }
-          textarea { resize: none !important; }
-          .jd-print-bullet::before { content: '• '; }
+          .jd-print-view .jd-meta {
+            font-size: 10pt;
+            color: #555;
+            margin-bottom: 18pt;
+            border-bottom: 1px solid #e5dcce;
+            padding-bottom: 10pt;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18pt;
+          }
+          .jd-print-view .jd-meta div span { display: block; font-size: 8pt; letter-spacing: 0.12em; text-transform: uppercase; color: #888; margin-bottom: 2pt; }
+          .jd-print-view h2 {
+            font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+            font-size: 13pt;
+            font-weight: 700;
+            margin: 18pt 0 6pt;
+            color: #2d1b0f;
+            border-bottom: 1px solid #e5dcce;
+            padding-bottom: 3pt;
+          }
+          .jd-print-view p { margin: 0 0 8pt; }
+          .jd-print-view ul { margin: 0 0 6pt; padding-left: 18pt; }
+          .jd-print-view li { margin: 0 0 4pt; page-break-inside: avoid; }
+          .jd-print-view .jd-assignees { font-size: 10pt; color: #333; }
+          .jd-print-view .jd-assignees strong { font-weight: 600; }
+          .jd-print-view .jd-footer {
+            margin-top: 24pt;
+            padding-top: 10pt;
+            border-top: 1px solid #e5dcce;
+            font-size: 8pt;
+            color: #888;
+            font-style: italic;
+          }
         }
       `}</style>
+
+      {/* Semantic print-only layout — this is what lands in the PDF. */}
+      <div className="jd-print-view" aria-hidden="true">
+        <div className="jd-org">Seven Arrows Recovery</div>
+        <h1>{job.title || 'Untitled Role'}</h1>
+        <div className="jd-meta">
+          {dept && (
+            <div>
+              <span>Department</span>
+              {dept.name}
+            </div>
+          )}
+          <div>
+            <span>Last Reviewed</span>
+            {job.date_revised ? formatDate(job.date_revised) : '—'}
+          </div>
+          <div>
+            <span>Assigned To</span>
+            {assignedUsers.length > 0 ? assignedUsers.map((u) => u.full_name || 'Unnamed').join(', ') : 'No one assigned'}
+          </div>
+        </div>
+
+        {job.summary.trim() && (
+          <>
+            <h2>Position Summary</h2>
+            {job.summary.split(/\n+/).filter(Boolean).map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </>
+        )}
+
+        {job.responsibilities.length > 0 && (
+          <>
+            <h2>Responsibilities</h2>
+            <ul>
+              {job.responsibilities.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {job.requirements.length > 0 && (
+          <>
+            <h2>Requirements</h2>
+            <ul>
+              {job.requirements.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        <div className="jd-footer">
+          Seven Arrows Recovery &middot; Confidential &middot; Generated {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+        </div>
+      </div>
 
       <div className="p-6 lg:p-10 max-w-4xl jd-print-root">
         {/* Top bar */}
@@ -362,18 +521,25 @@ export default function JobDescriptionDetailContent() {
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
-                {dept && (
-                  <span
-                    className="hidden print:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
-                    style={{
-                      fontFamily: 'var(--font-body)',
-                      backgroundColor: (dept.color || '#a0522d') + '1f',
-                      color: dept.color || '#a0522d',
-                    }}
-                  >
-                    {dept.name}
-                  </span>
-                )}
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] text-foreground/50"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                  title={job.date_revised ? `Last reviewed ${formatDate(job.date_revised)}` : 'Not yet reviewed'}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <path d="M16 2v4M8 2v4M3 10h18" />
+                  </svg>
+                  {job.date_revised ? `Reviewed ${formatDate(job.date_revised)}` : 'Not reviewed yet'}
+                </span>
+                <button
+                  onClick={markReviewed}
+                  className="text-[11px] text-primary hover:text-primary/80 font-medium underline-offset-2 hover:underline jd-print-hide"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                  title="Stamp today's date as the last reviewed date"
+                >
+                  Mark reviewed
+                </button>
               </div>
             </div>
 
@@ -517,22 +683,21 @@ export default function JobDescriptionDetailContent() {
               Responsibilities ({job.responsibilities.length})
             </p>
             {job.responsibilities.length > 0 && (
-              <ul className="space-y-1 mb-2">
+              <ul className="space-y-2 mb-3">
                 {job.responsibilities.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2 group jd-print-bullet">
-                    <span className="text-foreground/30 mt-1.5 jd-print-hide">•</span>
-                    <input
+                  <li key={i} className="flex items-start gap-2 group">
+                    <span className="text-foreground/40 mt-1.5 text-sm leading-none select-none">•</span>
+                    <AutoTextarea
                       value={r}
-                      onChange={(e) => {
-                        setJob({ ...job, responsibilities: job.responsibilities.map((x, idx) => (idx === i ? e.target.value : x)) });
+                      onChange={(value) => {
+                        setJob({ ...job, responsibilities: job.responsibilities.map((x, idx) => (idx === i ? value : x)) });
                       }}
-                      onBlur={(e) => updateResponsibility(i, e.target.value)}
-                      className="flex-1 text-sm text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0"
-                      style={{ fontFamily: 'var(--font-body)' }}
+                      onBlur={(value) => updateResponsibility(i, value)}
+                      className="flex-1 text-sm leading-6 text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0"
                     />
                     <button
                       onClick={() => removeResponsibility(i)}
-                      className="text-foreground/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity jd-print-hide"
+                      className="text-foreground/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity mt-1.5"
                       aria-label="Remove"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -541,19 +706,18 @@ export default function JobDescriptionDetailContent() {
                 ))}
               </ul>
             )}
-            <div className="flex gap-2 jd-print-hide">
-              <input
+            <div className="flex gap-2 items-start">
+              <AutoTextarea
                 value={newRespText}
-                onChange={(e) => setNewRespText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addResponsibility(); }}
-                placeholder="Add a responsibility…"
-                className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white"
-                style={{ fontFamily: 'var(--font-body)' }}
+                onChange={(v) => setNewRespText(v)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addResponsibility(); } }}
+                placeholder="Add a responsibility…  (⌘/Ctrl + Enter to add)"
+                className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm leading-6 focus:outline-none focus:border-primary bg-white"
               />
               <button
                 onClick={addResponsibility}
                 disabled={!newRespText.trim()}
-                className="px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40"
+                className="shrink-0 px-3 py-2 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40"
                 style={{ fontFamily: 'var(--font-body)' }}
               >Add</button>
             </div>
@@ -565,22 +729,21 @@ export default function JobDescriptionDetailContent() {
               Requirements ({job.requirements.length})
             </p>
             {job.requirements.length > 0 && (
-              <ul className="space-y-1 mb-2">
+              <ul className="space-y-2 mb-3">
                 {job.requirements.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2 group jd-print-bullet">
-                    <span className="text-foreground/30 mt-1.5 jd-print-hide">•</span>
-                    <input
+                  <li key={i} className="flex items-start gap-2 group">
+                    <span className="text-foreground/40 mt-1.5 text-sm leading-none select-none">•</span>
+                    <AutoTextarea
                       value={r}
-                      onChange={(e) => {
-                        setJob({ ...job, requirements: job.requirements.map((x, idx) => (idx === i ? e.target.value : x)) });
+                      onChange={(value) => {
+                        setJob({ ...job, requirements: job.requirements.map((x, idx) => (idx === i ? value : x)) });
                       }}
-                      onBlur={(e) => updateRequirement(i, e.target.value)}
-                      className="flex-1 text-sm text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0"
-                      style={{ fontFamily: 'var(--font-body)' }}
+                      onBlur={(value) => updateRequirement(i, value)}
+                      className="flex-1 text-sm leading-6 text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0"
                     />
                     <button
                       onClick={() => removeRequirement(i)}
-                      className="text-foreground/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity jd-print-hide"
+                      className="text-foreground/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity mt-1.5"
                       aria-label="Remove"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -589,19 +752,18 @@ export default function JobDescriptionDetailContent() {
                 ))}
               </ul>
             )}
-            <div className="flex gap-2 jd-print-hide">
-              <input
+            <div className="flex gap-2 items-start">
+              <AutoTextarea
                 value={newReqText}
-                onChange={(e) => setNewReqText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addRequirement(); }}
-                placeholder="Add a requirement…"
-                className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white"
-                style={{ fontFamily: 'var(--font-body)' }}
+                onChange={(v) => setNewReqText(v)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addRequirement(); } }}
+                placeholder="Add a requirement…  (⌘/Ctrl + Enter to add)"
+                className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm leading-6 focus:outline-none focus:border-primary bg-white"
               />
               <button
                 onClick={addRequirement}
                 disabled={!newReqText.trim()}
-                className="px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40"
+                className="shrink-0 px-3 py-2 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40"
                 style={{ fontFamily: 'var(--font-body)' }}
               >Add</button>
             </div>

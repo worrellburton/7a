@@ -19,7 +19,15 @@ interface JobDescription {
   summary: string;
   responsibilities: string[];
   requirements: string[];
+  date_revised: string | null;
   created_at: string;
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 interface AppUserLite {
@@ -52,6 +60,29 @@ export default function JobDescriptionsContent() {
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [schemaHint, setSchemaHint] = useState<{ columns: string[]; sql: string } | null>(null);
 
+  // Per-row assign popover state: which job row is showing its picker, + filter.
+  const [assignOpenFor, setAssignOpenFor] = useState<string | null>(null);
+  const [assignFilter, setAssignFilter] = useState('');
+
+  useEffect(() => {
+    if (!assignOpenFor) return;
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') setAssignOpenFor(null);
+    }
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [assignOpenFor]);
+
+  async function assignUserToTitle(title: string, u: AppUserLite) {
+    await db({ action: 'update', table: 'users', data: { job_title: title }, match: { id: u.id } });
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, job_title: title } : x)));
+  }
+
+  async function unassignUserFromTitle(u: AppUserLite) {
+    await db({ action: 'update', table: 'users', data: { job_title: null }, match: { id: u.id } });
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, job_title: null } : x)));
+  }
+
   useEffect(() => {
     if (!session?.access_token) return;
     async function load() {
@@ -74,6 +105,7 @@ export default function JobDescriptionsContent() {
             summary: (j.summary as string) || '',
             responsibilities: Array.isArray(j.responsibilities) ? (j.responsibilities as string[]) : [],
             requirements: Array.isArray(j.requirements) ? (j.requirements as string[]) : [],
+            date_revised: (j.date_revised as string | null) || null,
             created_at: (j.created_at as string) || '',
           }))
         );
@@ -120,6 +152,7 @@ export default function JobDescriptionsContent() {
         const local: JobDescription = {
           id: `local-${Date.now()}`,
           created_at: new Date().toISOString(),
+          date_revised: null,
           ...payload,
         };
         setJobs((prev) => [...prev, local].sort((a, b) => a.title.localeCompare(b.title)));
@@ -207,6 +240,7 @@ export default function JobDescriptionsContent() {
         created = {
           id: `local-${Date.now()}`,
           created_at: new Date().toISOString(),
+          date_revised: null,
           title: parsed.title,
           department_id: deptId,
           summary: parsed.summary,
@@ -345,7 +379,7 @@ export default function JobDescriptionsContent() {
 
   return (
     <div
-      className="p-6 lg:p-10 max-w-6xl relative"
+      className="p-6 lg:p-10 w-full relative"
       onDragEnter={onDragEnter}
       onDragLeave={onDragLeave}
       onDragOver={onDragOver}
@@ -373,7 +407,7 @@ export default function JobDescriptionsContent() {
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Job Descriptions</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            {jobs.length} {jobs.length === 1 ? 'role' : 'roles'} &middot; Drop a PDF anywhere to import
+            {jobs.length} {jobs.length === 1 ? 'role' : 'roles'} &middot; Click “Add New” or drop a PDF anywhere to import
           </p>
           {!dbAvailable && (
             <p className="text-xs text-amber-600 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
@@ -393,53 +427,6 @@ export default function JobDescriptionsContent() {
           Add New Job Description
         </button>
       </div>
-
-      {/* PDF upload zone */}
-      <label
-        htmlFor="jd-pdf-input"
-        className={`mb-6 block rounded-2xl border-2 border-dashed px-5 py-4 cursor-pointer transition-colors ${
-          uploading
-            ? 'border-primary/40 bg-primary/5'
-            : 'border-gray-200 bg-white hover:border-primary/40 hover:bg-primary/5'
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          {uploading ? (
-            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
-          ) : (
-            <svg className="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-              <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
-              <path d="M12 18v-6" />
-              <path d="m9 15 3-3 3 3" />
-            </svg>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground">
-              {uploading ? 'Parsing PDF with Claude…' : 'Drag & drop a job description PDF'}
-            </p>
-            <p className="text-xs text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-              {uploading
-                ? uploadStatus || 'This can take a few seconds for long documents.'
-                : 'Or click to choose a file. Named team members in the PDF will be assigned automatically.'}
-            </p>
-          </div>
-        </div>
-        <input
-          id="jd-pdf-input"
-          type="file"
-          accept="application/pdf,.pdf"
-          multiple
-          className="hidden"
-          disabled={uploading}
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length > 0) {
-              importPdfs(e.target.files);
-              e.target.value = '';
-            }
-          }}
-        />
-      </label>
 
       {!uploading && uploadStatus && (
         <div className="mb-4 px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-100 text-xs text-emerald-800 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
@@ -484,11 +471,75 @@ export default function JobDescriptionsContent() {
         </div>
       )}
 
-      {/* New-role modal */}
+      {/* New-role modal — includes drag-and-drop PDF import so a role can
+          be created either by typing a title or by dropping a PDF that
+          Claude will parse. */}
       {creating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => !createBusy && setCreating(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => !createBusy && !uploading && setCreating(false)}>
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-sm font-semibold text-foreground mb-3">New Role</h2>
+
+            <label
+              htmlFor="jd-pdf-input-modal"
+              className={`mb-4 block rounded-xl border-2 border-dashed px-4 py-3 cursor-pointer transition-colors ${
+                uploading
+                  ? 'border-primary/40 bg-primary/5'
+                  : 'border-gray-200 bg-white hover:border-primary/40 hover:bg-primary/5'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                {uploading ? (
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+                ) : (
+                  <svg className="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                    <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+                    <path d="M12 18v-6" />
+                    <path d="m9 15 3-3 3 3" />
+                  </svg>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    {uploading ? 'Parsing PDF with Claude…' : 'Drag & drop a job description PDF'}
+                  </p>
+                  <p className="text-xs text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                    {uploading
+                      ? uploadStatus || 'This can take a few seconds for long documents.'
+                      : 'Or click to choose a file. Named team members will be assigned automatically.'}
+                  </p>
+                </div>
+              </div>
+              <input
+                id="jd-pdf-input-modal"
+                type="file"
+                accept="application/pdf,.pdf"
+                multiple
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    importPdfs(e.target.files).then(() => {
+                      // After a successful import, close the modal so the
+                      // new row is visible in the list.
+                      setCreating(false);
+                    });
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </label>
+
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-100" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-white px-2 text-[10px] uppercase tracking-wider text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                  or create manually
+                </span>
+              </div>
+            </div>
+
             <div className="mb-3">
               <label className="text-[10px] text-foreground/40 uppercase tracking-wider block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Title</label>
               <input
@@ -521,13 +572,13 @@ export default function JobDescriptionsContent() {
             <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() => setCreating(false)}
-                disabled={createBusy}
+                disabled={createBusy || uploading}
                 className="px-3 py-1.5 rounded-lg text-xs text-foreground/50 hover:bg-warm-bg disabled:opacity-40"
                 style={{ fontFamily: 'var(--font-body)' }}
               >Cancel</button>
               <button
                 onClick={createAndOpen}
-                disabled={!newTitle.trim() || createBusy}
+                disabled={!newTitle.trim() || createBusy || uploading}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
@@ -550,20 +601,26 @@ export default function JobDescriptionsContent() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div
             className="grid items-center text-[10px] uppercase tracking-wider text-foreground/40 px-5 py-2.5 border-b border-gray-100 bg-warm-bg/20"
-            style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1.4fr) auto' }}
+            style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,2fr) minmax(0,2fr) minmax(130px,auto) auto' }}
           >
             <div>Title</div>
             <div>Assigned To</div>
+            <div>Last Reviewed</div>
             <div className="text-right pr-1">View</div>
           </div>
           {jobs.map((job, idx) => {
             const dept = job.department_id ? deptById.get(job.department_id) : null;
             const assigned = usersByTitle.get(job.title.trim().toLowerCase()) || [];
+            const pickerOpen = assignOpenFor === job.id;
+            const pickerFilter = pickerOpen ? assignFilter.trim().toLowerCase() : '';
+            const pickerCandidates = users
+              .filter((u) => !assigned.some((a) => a.id === u.id))
+              .filter((u) => !pickerFilter || (u.full_name || '').toLowerCase().includes(pickerFilter));
             return (
               <div
                 key={job.id}
                 className={`grid items-center px-5 py-3 hover:bg-warm-bg/20 transition-colors ${idx > 0 ? 'border-t border-gray-100' : ''}`}
-                style={{ gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1.4fr) auto' }}
+                style={{ gridTemplateColumns: 'minmax(0,2fr) minmax(0,2fr) minmax(130px,auto) auto' }}
               >
                 <div className="min-w-0 flex items-center gap-2 pr-3">
                   <span className="text-sm font-semibold text-foreground truncate">{job.title}</span>
@@ -580,29 +637,97 @@ export default function JobDescriptionsContent() {
                     </span>
                   )}
                 </div>
-                <div className="min-w-0 flex items-center gap-1.5 flex-wrap pr-3">
-                  {assigned.length === 0 ? (
-                    <span className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>Unassigned</span>
-                  ) : (
-                    assigned.map((u) => (
-                      <span
-                        key={u.id}
-                        className="inline-flex items-center gap-1 pl-0.5 pr-2 py-0.5 rounded-full bg-warm-bg/60 border border-gray-100 text-[11px]"
-                        style={{ fontFamily: 'var(--font-body)' }}
-                        title={u.full_name || ''}
+                <div className="min-w-0 flex items-center gap-1.5 flex-wrap pr-3 relative">
+                  {assigned.map((u) => (
+                    <span
+                      key={u.id}
+                      className="inline-flex items-center gap-1 pl-0.5 pr-1 py-0.5 rounded-full bg-warm-bg/60 border border-gray-100 text-[11px] group"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      title={u.full_name || ''}
+                    >
+                      {u.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={u.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                      ) : (
+                        <span className="w-4 h-4 rounded-full bg-foreground/10 flex items-center justify-center text-[8px] font-semibold text-foreground/60">
+                          {(u.full_name || '?').charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <span className="truncate max-w-[120px]">{u.full_name || 'Unnamed'}</span>
+                      <button
+                        onClick={() => unassignUserFromTitle(u)}
+                        className="text-foreground/30 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label={`Unassign ${u.full_name}`}
                       >
-                        {u.avatar_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={u.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
-                        ) : (
-                          <span className="w-4 h-4 rounded-full bg-foreground/10 flex items-center justify-center text-[8px] font-semibold text-foreground/60">
-                            {(u.full_name || '?').charAt(0).toUpperCase()}
-                          </span>
-                        )}
-                        <span className="truncate max-w-[120px]">{u.full_name || 'Unnamed'}</span>
-                      </span>
-                    ))
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    onClick={() => {
+                      setAssignOpenFor(pickerOpen ? null : job.id);
+                      setAssignFilter('');
+                    }}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-dashed text-[11px] transition-colors ${
+                      assigned.length === 0
+                        ? 'border-gray-300 text-foreground/50 hover:border-primary hover:text-primary'
+                        : 'border-gray-300 text-foreground/40 hover:border-primary hover:text-primary'
+                    }`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    {assigned.length === 0 ? 'Assign' : 'Add'}
+                  </button>
+                  {pickerOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setAssignOpenFor(null)} />
+                      <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-100 z-20 w-64 max-h-72 overflow-hidden flex flex-col">
+                        <input
+                          autoFocus
+                          value={assignFilter}
+                          onChange={(e) => setAssignFilter(e.target.value)}
+                          placeholder="Search team…"
+                          className="px-3 py-2 text-xs border-b border-gray-100 focus:outline-none"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        />
+                        <div className="overflow-y-auto flex-1">
+                          {pickerCandidates.length === 0 && (
+                            <p className="px-3 py-4 text-xs text-foreground/40 text-center" style={{ fontFamily: 'var(--font-body)' }}>
+                              No matching team members
+                            </p>
+                          )}
+                          {pickerCandidates.map((u) => (
+                            <button
+                              key={u.id}
+                              onClick={() => {
+                                assignUserToTitle(job.title, u);
+                                setAssignOpenFor(null);
+                                setAssignFilter('');
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-warm-bg/40 text-left"
+                              style={{ fontFamily: 'var(--font-body)' }}
+                            >
+                              {u.avatar_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                              ) : (
+                                <span className="w-5 h-5 rounded-full bg-foreground/10 flex items-center justify-center text-[9px] font-semibold text-foreground/60">
+                                  {(u.full_name || '?').charAt(0).toUpperCase()}
+                                </span>
+                              )}
+                              <span className="flex-1 truncate">{u.full_name || 'Unnamed'}</span>
+                              {u.job_title && (
+                                <span className="text-[10px] text-foreground/40 truncate max-w-[90px]">{u.job_title}</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
                   )}
+                </div>
+                <div className="text-xs text-foreground/50 pr-3" style={{ fontFamily: 'var(--font-body)' }}>
+                  {job.date_revised ? formatDate(job.date_revised) : <span className="text-foreground/30">—</span>}
                 </div>
                 <div className="flex justify-end">
                   <Link
