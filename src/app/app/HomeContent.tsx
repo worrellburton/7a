@@ -52,13 +52,27 @@ export default function HomeContent() {
     const map = new Map<string, string>();
     for (const p of pages) map.set(p.path, p.label);
     map.set('/app/profile', 'My Profile');
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     return (path: string | null): string | null => {
       if (!path) return null;
+      // Any job-description view (list or detail) always reads as "Job Descriptions".
+      if (path.startsWith('/app/job-descriptions') || path.startsWith('/app/jd/') || path === '/app/jd') {
+        return 'Job Descriptions';
+      }
+      if (path.startsWith('/app/sign/')) return 'Job Descriptions';
       if (map.has(path)) return map.get(path)!;
-      // Any job-description detail view still reads as "Job Descriptions".
-      if (path.startsWith('/app/job-descriptions')) return 'Job Descriptions';
-      // Fall back to last segment if it's a nested route we don't know
-      const last = path.split('/').filter(Boolean).pop();
+      // Fall back to last segment if it's a nested route we don't know.
+      const segments = path.split('/').filter(Boolean);
+      // Strip any trailing id-like segments (UUIDs, numeric) so we don't end up with "Fe0383a4 Fa86..."
+      while (segments.length > 0) {
+        const tail = segments[segments.length - 1];
+        if (uuidRe.test(tail) || /^\d+$/.test(tail)) segments.pop();
+        else break;
+      }
+      // After stripping, try the parent route again.
+      const parent = '/' + segments.join('/');
+      if (map.has(parent)) return map.get(parent)!;
+      const last = segments[segments.length - 1];
       if (!last) return null;
       return last.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     };
@@ -154,9 +168,59 @@ export default function HomeContent() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Active-now avatars — centered at the top of the dashboard. */}
+      {recentUsers.length > 0 && (
+        <div
+          className={`flex items-center justify-center gap-2 px-4 sm:px-6 lg:px-10 pt-6 transition-all duration-500 ease-out ${
+            loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
+          }`}
+        >
+          <div className="flex -space-x-2">
+            {recentUsers.map((u) => {
+              const online = isOnlineNow(u.last_seen_at || u.last_sign_in);
+              const viewing = online ? pathLabel(u.last_path) : null;
+              const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
+              const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
+              return (
+                <Wrapper
+                  key={u.id}
+                  onClick={navTarget ? () => router.push(navTarget) : undefined}
+                  className={`relative group ${navTarget ? 'cursor-pointer' : ''}`}
+                  title={navTarget ? `Go to ${viewing}` : undefined}
+                >
+                  {u.avatar_url ? (
+                    <img
+                      src={u.avatar_url}
+                      alt={u.full_name || ''}
+                      className={`w-9 h-9 rounded-full border-2 transition-transform hover:scale-110 hover:z-10 ${
+                        online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'border-white'
+                      }`}
+                    />
+                  ) : (
+                    <div
+                      className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-transform hover:scale-110 hover:z-10 ${
+                        online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] bg-primary text-white' : 'border-white bg-primary text-white'
+                      }`}
+                    >
+                      {(u.full_name || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left">
+                    <p className="font-semibold text-white">{u.full_name || 'User'}</p>
+                    {u.job_title && <p className="text-white/90">{u.job_title}</p>}
+                    <p className="text-white/80">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
+                    {viewing && <p className="text-emerald-300">Viewing {viewing}{navTarget ? ' — click to jump' : ''}</p>}
+                  </div>
+                </Wrapper>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Centered welcome */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 py-10">
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-3">
           <h1 className="text-3xl font-bold text-foreground">
             Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
           </h1>
@@ -166,21 +230,21 @@ export default function HomeContent() {
                 href={latestSignedJd.pdfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                className="inline-flex items-center gap-2.5 px-5 py-3 rounded-full border border-primary/30 bg-primary/5 text-base font-semibold text-primary hover:bg-primary/10 hover:shadow-sm transition-all"
                 style={{ fontFamily: 'var(--font-body)' }}
                 title="Open signed PDF"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M14 3v4a1 1 0 0 0 1 1h4" />
                   <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
                 </svg>
-                <span className="truncate max-w-[320px]">{latestSignedJd.title}</span>
-                <span className="uppercase tracking-wider text-[9px] text-primary/60">PDF</span>
+                <span className="truncate max-w-[420px]">{latestSignedJd.title}</span>
+                <span className="uppercase tracking-wider text-[11px] font-bold text-primary/70">PDF</span>
               </a>
             ) : (
               <button
                 onClick={() => router.push(`/app/job-descriptions/${latestSignedJd.id}`)}
-                className="text-sm text-foreground/50 hover:text-primary transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-gray-200 bg-white text-base font-semibold text-foreground/80 hover:border-primary/40 hover:text-primary transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
                 title="Open my signed job description"
               >
@@ -211,61 +275,6 @@ export default function HomeContent() {
           </div>
         )}
       </div>
-
-      {/* Active today bar — pinned to bottom, slides up */}
-      {recentUsers.length > 0 && (
-        <div
-          className={`flex items-center gap-3 px-6 lg:px-10 pb-6 transition-all duration-500 ease-out ${
-            loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-          }`}
-        >
-          <span className="text-xs font-medium text-foreground/40 uppercase tracking-wider mr-1" style={{ fontFamily: 'var(--font-body)' }}>
-            Active today
-          </span>
-          <div className="flex -space-x-2">
-            {recentUsers.map((u) => {
-              const online = isOnlineNow(u.last_seen_at || u.last_sign_in);
-              const viewing = online ? pathLabel(u.last_path) : null;
-              // Only clickable when they're actually online and on a known
-              // /app/... path. Otherwise the avatar is a plain static chip.
-              const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
-              const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
-              return (
-                <Wrapper
-                  key={u.id}
-                  onClick={navTarget ? () => router.push(navTarget) : undefined}
-                  className={`relative group ${navTarget ? 'cursor-pointer' : ''}`}
-                  title={navTarget ? `Go to ${viewing}` : undefined}
-                >
-                  {u.avatar_url ? (
-                    <img
-                      src={u.avatar_url}
-                      alt={u.full_name || ''}
-                      className={`w-9 h-9 rounded-full border-2 transition-transform hover:scale-110 hover:z-10 ${
-                        online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'border-white'
-                      }`}
-                    />
-                  ) : (
-                    <div
-                      className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-transform hover:scale-110 hover:z-10 ${
-                        online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] bg-primary text-white' : 'border-white bg-primary text-white'
-                      }`}
-                    >
-                      {(u.full_name || '?').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left">
-                    <p className="font-semibold text-white">{u.full_name || 'User'}</p>
-                    {u.job_title && <p className="text-white/90">{u.job_title}</p>}
-                    <p className="text-white/80">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
-                    {viewing && <p className="text-emerald-300">Viewing {viewing}{navTarget ? ' — click to jump' : ''}</p>}
-                  </div>
-                </Wrapper>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

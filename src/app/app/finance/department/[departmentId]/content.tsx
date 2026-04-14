@@ -246,7 +246,7 @@ export function DepartmentBudgetBody({
 
   if (loading) {
     return (
-      <div className={`${embedded ? 'p-6' : 'p-6 lg:p-10'} flex items-center justify-center min-h-[200px]`}>
+      <div className={`${embedded ? 'p-6' : 'p-4 sm:p-6 lg:p-10'} flex items-center justify-center min-h-[200px]`}>
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -254,7 +254,7 @@ export function DepartmentBudgetBody({
 
   if (error || !department) {
     return (
-      <div className={embedded ? 'p-6' : 'p-6 lg:p-10'}>
+      <div className={embedded ? 'p-6' : 'p-4 sm:p-6 lg:p-10'}>
         {!embedded && (
           <Link href="/app/finance" className="text-xs font-semibold text-primary hover:underline">← Back to Finance</Link>
         )}
@@ -379,7 +379,7 @@ export function DepartmentBudgetBody({
 
   if (embedded) return body;
 
-  return <div className="p-6 lg:p-10">{body}</div>;
+  return <div className="p-4 sm:p-6 lg:p-10">{body}</div>;
 }
 
 // ─── Overview Tab ────────────────────────────────────────────────

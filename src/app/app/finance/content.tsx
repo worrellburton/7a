@@ -222,7 +222,7 @@ export default function FinanceContent() {
   };
 
   return (
-    <div className="p-6 lg:p-10">
+    <div className="p-4 sm:p-6 lg:p-10">
       <QuickBooksHeader
         title="Finance"
         subtitle={subtitleMap[section]}
