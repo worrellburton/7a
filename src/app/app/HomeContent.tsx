@@ -44,7 +44,7 @@ export default function HomeContent() {
   const router = useRouter();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [pendingSignatures, setPendingSignatures] = useState<PendingSignature[]>([]);
-  const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
+  const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string; pdfUrl: string | null } | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   // Map /app/... path → friendly label ("Calendar", "Org Chart", etc.)
@@ -128,11 +128,11 @@ export default function HomeContent() {
         action: 'select',
         table: 'jd_signatures',
         match: { signer_user_id: user!.id },
-        select: 'id, job_description_id, signed_at',
+        select: 'id, job_description_id, signed_at, pdf_storage_path',
         order: { column: 'signed_at', ascending: false },
       }).catch(() => []);
       if (cancelled || !Array.isArray(sigs)) return;
-      const signed = (sigs as Array<{ job_description_id: string; signed_at: string | null }>).find((s) => !!s.signed_at);
+      const signed = (sigs as Array<{ job_description_id: string; signed_at: string | null; pdf_storage_path: string | null }>).find((s) => !!s.signed_at);
       if (!signed) return;
       const jd = await db({
         action: 'select',
@@ -143,7 +143,7 @@ export default function HomeContent() {
       if (cancelled) return;
       if (Array.isArray(jd) && jd.length > 0) {
         const row = jd[0] as { id: string; title: string };
-        setLatestSignedJd({ id: row.id, title: row.title });
+        setLatestSignedJd({ id: row.id, title: row.title, pdfUrl: signed.pdf_storage_path || null });
       }
     }
     loadLatestSigned();
@@ -161,14 +161,32 @@ export default function HomeContent() {
             Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
           </h1>
           {latestSignedJd && (
-            <button
-              onClick={() => router.push(`/app/job-descriptions/${latestSignedJd.id}`)}
-              className="text-sm text-foreground/50 hover:text-primary transition-colors"
-              style={{ fontFamily: 'var(--font-body)' }}
-              title="Open my signed job description"
-            >
-              {latestSignedJd.title}
-            </button>
+            latestSignedJd.pdfUrl ? (
+              <a
+                href={latestSignedJd.pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                style={{ fontFamily: 'var(--font-body)' }}
+                title="Open signed PDF"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                  <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+                </svg>
+                <span className="truncate max-w-[320px]">{latestSignedJd.title}</span>
+                <span className="uppercase tracking-wider text-[9px] text-primary/60">PDF</span>
+              </a>
+            ) : (
+              <button
+                onClick={() => router.push(`/app/job-descriptions/${latestSignedJd.id}`)}
+                className="text-sm text-foreground/50 hover:text-primary transition-colors"
+                style={{ fontFamily: 'var(--font-body)' }}
+                title="Open my signed job description"
+              >
+                {latestSignedJd.title}
+              </button>
+            )
           )}
         </div>
         {pendingSignatures.length > 0 && (
