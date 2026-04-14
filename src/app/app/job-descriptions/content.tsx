@@ -1285,22 +1285,21 @@ function InsightCard({
   subtitle,
   detail,
   icon,
-  tone,
 }: {
   label: string;
   count: number;
   subtitle: string;
   detail: string[];
   icon: React.ReactNode;
-  tone: 'amber' | 'rose' | 'sky' | 'emerald';
+  // `tone` is kept in callers for back-compat but ignored — colour
+  // is now a pure function of `count`: red when outstanding, green
+  // when the metric has cleared to zero ("good and complete").
+  tone?: 'amber' | 'rose' | 'sky' | 'emerald';
 }) {
-  const tones: Record<string, { bg: string; text: string; border: string }> = {
-    amber: { bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-100' },
-    rose: { bg: 'bg-rose-50', text: 'text-rose-800', border: 'border-rose-100' },
-    sky: { bg: 'bg-sky-50', text: 'text-sky-800', border: 'border-sky-100' },
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-100' },
-  };
-  const t = tones[tone];
+  const complete = count === 0;
+  const t = complete
+    ? { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' }
+    : { bg: 'bg-rose-50', text: 'text-rose-800', border: 'border-rose-200' };
   return (
     <div className={`rounded-xl border ${t.border} ${t.bg} px-4 py-3 flex flex-col gap-1 min-w-0`} style={{ fontFamily: 'var(--font-body)' }}>
       <div className="flex items-center gap-2">

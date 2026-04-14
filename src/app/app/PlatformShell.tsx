@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
@@ -361,6 +361,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   const { user, loading, isAdmin, departmentId, signInWithGoogle, signOut, session } = useAuth();
   const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
   const pathname = usePathname();
+  const router = useRouter();
   const [navDepartments, setNavDepartments] = useState<NavDepartment[]>([]);
 
   // Sidebar/popup links are gated on both admin-only flag and the
@@ -443,6 +444,43 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     // Trigger nav entrance animation after first paint
     requestAnimationFrame(() => setNavMounted(true));
   }, []);
+
+  // Preload the Finance page so it renders instantly when the user
+  // opens it. Two layers of warming:
+  //   1. `router.prefetch` asks Next to fetch the Finance route bundle
+  //      and its RSC payload in the background.
+  //   2. We fire a no-await GET for the QuickBooks company list so
+  //      the HTTP response is already sitting in the browser cache
+  //      (credentials + same URL) by the time FinanceContent mounts
+  //      and asks for it. The Finance sub-panels fetch their own
+  //      reports lazily per tab; this covers the initial company
+  //      picker + Overview handshake that used to show a spinner.
+  // Skipped when the user is already on /app/finance (pointless) or
+  // when there is no session yet (the API will 401).
+  useEffect(() => {
+    if (!session?.access_token) return;
+    if (pathname?.startsWith('/app/finance')) return;
+    try { router.prefetch('/app/finance'); } catch { /* noop */ }
+    const controller = new AbortController();
+    const warm = window.requestIdleCallback
+      ? window.requestIdleCallback(() => {
+          fetch('/api/quickbooks/data?report=list', {
+            credentials: 'include',
+            signal: controller.signal,
+          }).catch(() => { /* ignore — this is opportunistic */ });
+        })
+      : window.setTimeout(() => {
+          fetch('/api/quickbooks/data?report=list', {
+            credentials: 'include',
+            signal: controller.signal,
+          }).catch(() => { /* ignore */ });
+        }, 400);
+    return () => {
+      controller.abort();
+      if (typeof warm === 'number') window.clearTimeout(warm);
+      else if (window.cancelIdleCallback) window.cancelIdleCallback(warm);
+    };
+  }, [session?.access_token, pathname, router]);
 
   // Close drawer on Escape + lock body scroll while open
   useEffect(() => {
