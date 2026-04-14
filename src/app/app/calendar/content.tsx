@@ -878,6 +878,7 @@ export default function CalendarContent() {
               today={today}
               eventsByDate={eventsByDate}
               usersById={usersById}
+              viewMode={viewMode}
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
               onReschedule={(date, hour, eventId) => handleReschedule(eventId, date, hour)}
               onResize={handleResizeEvent}
@@ -893,6 +894,7 @@ export default function CalendarContent() {
               usersById={usersById}
               aodByDate={aodByDate}
               shifts={shifts}
+              viewMode={viewMode}
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
               onCreateInShift={(date, payload, shift) =>
                 handleCreate(
@@ -1955,6 +1957,7 @@ function WeekView({
   today,
   eventsByDate,
   usersById,
+  viewMode,
   onCreate,
   onReschedule,
   onResize,
@@ -1965,6 +1968,7 @@ function WeekView({
   today: Date;
   eventsByDate: Map<string, EventRow[]>;
   usersById: Map<string, UserRow>;
+  viewMode: ViewMode;
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
   onReschedule: (date: Date, hour: number, eventId: string) => void;
   onResize: (eventId: string, newStart: number, newEnd: number) => void;
@@ -2099,6 +2103,10 @@ function WeekView({
           {days.map((d, di) => {
             const dayEvents = (eventsByDate.get(toISODate(d)) || []).filter(
               (ev) => parseTime(ev.start_time) != null
+            ).filter((ev) =>
+              // Groups view shows only group events; Team view shows only
+              // individual (user/shift) events. Keeps each view uncluttered.
+              viewMode === 'groups' ? ev.subject_kind === 'group' : ev.subject_kind !== 'group'
             );
             return (
               <div key={di} className="relative pointer-events-auto" data-resize-container>
@@ -2132,6 +2140,7 @@ function DayView({
   usersById,
   aodByDate,
   shifts,
+  viewMode,
   onCreate,
   onCreateInShift,
   onReschedule,
@@ -2146,6 +2155,7 @@ function DayView({
   usersById: Map<string, UserRow>;
   aodByDate: Map<string, string>;
   shifts: Shift[];
+  viewMode: ViewMode;
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
   onCreateInShift: (date: Date, payload: DragPayload, shift: Shift) => void;
   onReschedule: (date: Date, hour: number, eventId: string) => void;
@@ -2156,7 +2166,12 @@ function DayView({
 }) {
   const isToday = isSameDay(day, today);
   const iso = toISODate(day);
-  const dayEvents = eventsByDate.get(iso) || [];
+  const allDayEvents = eventsByDate.get(iso) || [];
+  // Groups view shows only group events (no shift rail); Team view shows only
+  // user/shift events plus the shift rail.
+  const dayEvents = allDayEvents.filter((ev) =>
+    viewMode === 'groups' ? ev.subject_kind === 'group' : ev.subject_kind !== 'group'
+  );
   const timedEvents = dayEvents.filter((ev) => parseTime(ev.start_time) != null);
   const aodUserId = aodByDate.get(iso);
   const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
@@ -2232,35 +2247,38 @@ function DayView({
           </span>
         </div>
       </div>
-      {/* Shift drop rail — drop a group/member here to schedule for the full shift. */}
-      <div
-        className="shrink-0 border-b border-gray-100 bg-warm-bg/10 px-3 py-2 grid gap-2"
-        style={{ gridTemplateColumns: `repeat(${shifts.length}, minmax(0, 1fr))` }}
-      >
-        {shifts.map((s) => (
-          <DropCell
-            key={s.id}
-            onCreate={(payload) => onCreateInShift(day, payload, s)}
-            onReschedule={(eventId) => onReschedule(day, Math.floor(hhmmToHours(s.start)), eventId)}
-            previewTarget={{ date: day, hour: Math.floor(hhmmToHours(s.start)) }}
-            className="rounded-md bg-white border border-gray-200 hover:border-primary/40 px-3 py-1.5 flex items-center justify-between gap-2 transition-colors"
-            activeClassName="ring-1 ring-primary/60 bg-primary/5 animate-cal-drop"
-          >
-            <span
-              className="text-[11px] font-semibold uppercase tracking-wider text-foreground/70"
-              style={{ fontFamily: 'var(--font-body)' }}
+      {/* Shift drop rail — only meaningful in Team view (groups don't
+          live inside shift buckets). */}
+      {viewMode === 'team' && (
+        <div
+          className="shrink-0 border-b border-gray-100 bg-warm-bg/10 px-3 py-2 grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${shifts.length}, minmax(0, 1fr))` }}
+        >
+          {shifts.map((s) => (
+            <DropCell
+              key={s.id}
+              onCreate={(payload) => onCreateInShift(day, payload, s)}
+              onReschedule={(eventId) => onReschedule(day, Math.floor(hhmmToHours(s.start)), eventId)}
+              previewTarget={{ date: day, hour: Math.floor(hhmmToHours(s.start)) }}
+              className="rounded-md bg-white border border-gray-200 hover:border-primary/40 px-3 py-1.5 flex items-center justify-between gap-2 transition-colors"
+              activeClassName="ring-1 ring-primary/60 bg-primary/5 animate-cal-drop"
             >
-              {s.name}
-            </span>
-            <span
-              className="text-[10px] font-medium text-foreground/40"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              {formatShiftRange(s)}
-            </span>
-          </DropCell>
-        ))}
-      </div>
+              <span
+                className="text-[11px] font-semibold uppercase tracking-wider text-foreground/70"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {s.name}
+              </span>
+              <span
+                className="text-[10px] font-medium text-foreground/40"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {formatShiftRange(s)}
+              </span>
+            </DropCell>
+          ))}
+        </div>
+      )}
       <div className="flex-1 min-h-0 relative">
         {/* Sunrise/sunset gradient overlay — sits behind cells, above bg */}
         <div
