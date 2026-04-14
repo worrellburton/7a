@@ -505,7 +505,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
   // Signed in — platform with sidebar
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen app-shell">
       {/* Left Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 hidden lg:flex">
         {/* Logo / Brand */}
