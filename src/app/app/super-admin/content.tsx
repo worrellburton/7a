@@ -117,7 +117,7 @@ export default function SuperAdminContent() {
                 </div>
                 <label className={`inline-flex items-center gap-2 cursor-pointer select-none ${busyId === u.id ? 'opacity-50' : ''}`}>
                   <span className={`text-xs font-medium ${u.is_admin ? 'text-primary' : 'text-foreground/40'}`}>
-                    {u.is_admin ? 'Admin' : 'Not admin'}
+                    {u.is_admin ? 'Super Admin' : 'Not super admin'}
                   </span>
                   <span className="relative inline-block w-9 h-5">
                     <input

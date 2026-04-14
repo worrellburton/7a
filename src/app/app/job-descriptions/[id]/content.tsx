@@ -81,6 +81,21 @@ interface JobDescription {
   last_edited_by_name: string | null;
   activity: ActivityEntry[];
   archived_at: string | null;
+  version: number;
+}
+
+interface JdVersion {
+  id: string;
+  job_description_id: string;
+  version: number;
+  title: string;
+  department_id: string | null;
+  summary: string;
+  responsibilities: string[];
+  requirements: string[];
+  saved_at: string;
+  saved_by: string | null;
+  saved_by_name: string | null;
 }
 
 function formatDate(iso: string | null): string {
@@ -108,6 +123,7 @@ interface SignatureRow {
   sent_at: string;
   signed_at: string | null;
   pdf_storage_path: string | null;
+  job_description_version: number | null;
 }
 
 export default function JobDescriptionDetailContent() {
@@ -146,11 +162,18 @@ export default function JobDescriptionDetailContent() {
   const [sigStatus, setSigStatus] = useState<string | null>(null);
   const [signatures, setSignatures] = useState<SignatureRow[]>([]);
 
+  // Version history
+  const [versions, setVersions] = useState<JdVersion[]>([]);
+  const [versionSaving, setVersionSaving] = useState(false);
+  const [versionError, setVersionError] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [expandedVersion, setExpandedVersion] = useState<number | null>(null);
+
   useEffect(() => {
     if (!session?.access_token || !id) return;
     let cancelled = false;
     async function load() {
-      const [jobRows, deptData, userData, sigData] = await Promise.all([
+      const [jobRows, deptData, userData, sigData, versionData] = await Promise.all([
         db({ action: 'select', table: 'job_descriptions', match: { id } }),
         db({ action: 'select', table: 'departments', order: { column: 'name', ascending: true } }),
         db({
@@ -164,6 +187,12 @@ export default function JobDescriptionDetailContent() {
           table: 'jd_signatures',
           match: { job_description_id: id },
           order: { column: 'sent_at', ascending: false },
+        }).catch(() => []),
+        db({
+          action: 'select',
+          table: 'jd_versions',
+          match: { job_description_id: id },
+          order: { column: 'version', ascending: false },
         }).catch(() => []),
       ]);
       if (cancelled) return;
@@ -183,6 +212,7 @@ export default function JobDescriptionDetailContent() {
           last_edited_by_name: (raw.last_edited_by_name as string | null) || null,
           activity: Array.isArray(raw.activity) ? (raw.activity as ActivityEntry[]) : [],
           archived_at: (raw.archived_at as string | null) || null,
+          version: typeof raw.version === 'number' ? (raw.version as number) : 1,
         });
       } else {
         setNotFound(true);
@@ -190,6 +220,7 @@ export default function JobDescriptionDetailContent() {
       if (Array.isArray(deptData)) setDepartments(deptData as Department[]);
       if (Array.isArray(userData)) setUsers(userData as AppUserLite[]);
       if (Array.isArray(sigData)) setSignatures(sigData as SignatureRow[]);
+      if (Array.isArray(versionData)) setVersions(versionData as JdVersion[]);
       setLoading(false);
     }
     load();
@@ -379,6 +410,7 @@ export default function JobDescriptionDetailContent() {
           signer_email: target.email || null,
           sent_by: user?.id || null,
           sent_by_name: editorName,
+          job_description_version: job.version,
         },
       });
       const row = Array.isArray(created) ? (created[0] as SignatureRow) : (created as SignatureRow);
@@ -403,6 +435,96 @@ export default function JobDescriptionDetailContent() {
   async function removeSignature(sigId: string) {
     await db({ action: 'delete', table: 'jd_signatures', match: { id: sigId } });
     setSignatures((prev) => prev.filter((s) => s.id !== sigId));
+  }
+
+  // Latest saved version snapshot (highest version number).
+  const latestVersion = versions.length > 0 ? versions[0] : null;
+
+  // Are the current working edits different from the latest saved version?
+  // When no versions exist yet, we treat the JD as dirty so the first
+  // "Save new version" stamps a baseline v1.
+  const isDirtyFromLatest = useMemo(() => {
+    if (!job) return false;
+    if (!latestVersion) return true;
+    if (job.title !== latestVersion.title) return true;
+    if ((job.department_id || null) !== (latestVersion.department_id || null)) return true;
+    if ((job.summary || '') !== (latestVersion.summary || '')) return true;
+    const a = job.responsibilities || [];
+    const b = latestVersion.responsibilities || [];
+    if (a.length !== b.length || a.some((v, i) => v !== b[i])) return true;
+    const c = job.requirements || [];
+    const d = latestVersion.requirements || [];
+    if (c.length !== d.length || c.some((v, i) => v !== d[i])) return true;
+    return false;
+  }, [job, latestVersion]);
+
+  async function saveNewVersion() {
+    if (!job) return;
+    if (!isDirtyFromLatest) return;
+    setVersionSaving(true);
+    setVersionError(null);
+    try {
+      const nextVersion = (latestVersion?.version || 0) + 1;
+      const editorName = (user?.user_metadata as { full_name?: string } | undefined)?.full_name || user?.email || 'Someone';
+      const nowIso = new Date().toISOString();
+      const created = await db({
+        action: 'insert',
+        table: 'jd_versions',
+        data: {
+          job_description_id: job.id,
+          version: nextVersion,
+          title: job.title,
+          department_id: job.department_id,
+          summary: job.summary,
+          responsibilities: job.responsibilities,
+          requirements: job.requirements,
+          saved_by: user?.id || null,
+          saved_by_name: editorName,
+        },
+      });
+      const row: JdVersion = Array.isArray(created)
+        ? (created[0] as JdVersion)
+        : ({
+            id: '',
+            job_description_id: job.id,
+            version: nextVersion,
+            title: job.title,
+            department_id: job.department_id,
+            summary: job.summary,
+            responsibilities: job.responsibilities,
+            requirements: job.requirements,
+            saved_at: nowIso,
+            saved_by: user?.id || null,
+            saved_by_name: editorName,
+          } as JdVersion);
+      setVersions((prev) => [row, ...prev]);
+      await patchJob({ version: nextVersion } as Partial<JobDescription>, `Saved version ${nextVersion}`);
+    } catch (err) {
+      setVersionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setVersionSaving(false);
+    }
+  }
+
+  // Signers grouped by version number for the history panel.
+  const signersByVersion = useMemo(() => {
+    const map = new Map<number, SignatureRow[]>();
+    for (const s of signatures) {
+      if (!s.signed_at) continue;
+      const v = s.job_description_version ?? 0;
+      if (!map.has(v)) map.set(v, []);
+      map.get(v)!.push(s);
+    }
+    return map;
+  }, [signatures]);
+
+  // Diff helpers for the history panel.
+  function diffArrays(prev: string[], next: string[]): { added: string[]; removed: string[]; changed: { from: string; to: string }[] } {
+    const prevSet = new Set(prev);
+    const nextSet = new Set(next);
+    const removed = prev.filter((v) => !nextSet.has(v));
+    const added = next.filter((v) => !prevSet.has(v));
+    return { added, removed, changed: [] };
   }
 
   async function runClaudeRating() {
@@ -719,9 +841,19 @@ export default function JobDescriptionDetailContent() {
           {/* Header: title + dept + actions */}
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground/40 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
-                Seven Arrows Recovery
-              </p>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                  Seven Arrows Recovery
+                </p>
+                <span
+                  className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tabular-nums"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                  title={latestVersion ? `Version ${latestVersion.version} saved ${new Date(latestVersion.saved_at).toLocaleString()}` : 'No versions saved yet'}
+                >
+                  v{job.version}
+                  {isDirtyFromLatest && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" title="Unsaved changes" />}
+                </span>
+              </div>
               <input
                 value={job.title}
                 onChange={(e) => setJob({ ...job, title: e.target.value })}
@@ -1120,6 +1252,150 @@ export default function JobDescriptionDetailContent() {
             )}
           </div>
 
+          {/* Version history */}
+          <div className="mb-6 jd-print-hide">
+            <button
+              onClick={() => setHistoryOpen((v) => !v)}
+              className="flex items-center gap-2 text-xs font-semibold text-foreground/40 uppercase tracking-wider hover:text-foreground/70 transition-colors"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <svg className={`w-3 h-3 transition-transform ${historyOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+              Version History ({versions.length})
+            </button>
+            {historyOpen && (
+              <div className="mt-2 border border-gray-100 rounded-xl bg-white divide-y divide-gray-100">
+                {versions.length === 0 && (
+                  <p className="px-3 py-4 text-xs text-foreground/40 italic" style={{ fontFamily: 'var(--font-body)' }}>
+                    No versions saved yet. Edits are still persisted but not snapshotted — click &ldquo;Save new version&rdquo; below to stamp v1.
+                  </p>
+                )}
+                {versions.map((v, idx) => {
+                  const prior = versions[idx + 1] || null;
+                  const signers = signersByVersion.get(v.version) || [];
+                  const isExpanded = expandedVersion === v.version;
+                  const respDiff = prior ? diffArrays(prior.responsibilities || [], v.responsibilities || []) : null;
+                  const reqDiff = prior ? diffArrays(prior.requirements || [], v.requirements || []) : null;
+                  const titleChanged = prior ? prior.title !== v.title : false;
+                  const summaryChanged = prior ? (prior.summary || '') !== (v.summary || '') : false;
+                  const deptChanged = prior ? (prior.department_id || null) !== (v.department_id || null) : false;
+                  return (
+                    <div key={v.id || v.version} className="px-3 py-2 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
+                      <button
+                        onClick={() => setExpandedVersion(isExpanded ? null : v.version)}
+                        className="w-full flex items-center gap-3 text-left hover:bg-warm-bg/30 -mx-3 -my-2 px-3 py-2 rounded-lg"
+                      >
+                        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tabular-nums shrink-0">
+                          v{v.version}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-foreground/80 truncate">{v.title}</p>
+                          <p className="text-[10px] text-foreground/40">
+                            {v.saved_by_name ? `${v.saved_by_name} · ` : ''}
+                            {new Date(v.saved_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                          </p>
+                        </div>
+                        {signers.length > 0 && (
+                          <span className="text-[10px] text-emerald-700 shrink-0">
+                            {signers.length} signed
+                          </span>
+                        )}
+                        <svg className={`w-3 h-3 text-foreground/30 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {isExpanded && (
+                        <div className="mt-3 pl-8 space-y-3">
+                          {signers.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1">Signed by</p>
+                              <ul className="space-y-1">
+                                {signers.map((s) => (
+                                  <li key={s.id} className="flex items-center gap-2 text-[11px] text-foreground/80">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    <span className="flex-1 truncate">{s.signer_name || 'Unnamed'}</span>
+                                    <span className="text-foreground/40">
+                                      {s.signed_at ? new Date(s.signed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                                    </span>
+                                    {s.pdf_storage_path && (
+                                      <a href={s.pdf_storage_path} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                                        PDF
+                                      </a>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {prior && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1">
+                                Changes from v{prior.version}
+                              </p>
+                              {!titleChanged && !summaryChanged && !deptChanged &&
+                                (!respDiff || (respDiff.added.length === 0 && respDiff.removed.length === 0)) &&
+                                (!reqDiff || (reqDiff.added.length === 0 && reqDiff.removed.length === 0)) && (
+                                  <p className="text-[11px] text-foreground/40 italic">No field changes (metadata-only snapshot).</p>
+                                )}
+                              {titleChanged && (
+                                <div className="mb-2">
+                                  <p className="text-[10px] text-foreground/50">Title</p>
+                                  <p className="text-[11px] text-red-600 line-through">{prior.title}</p>
+                                  <p className="text-[11px] text-emerald-700">{v.title}</p>
+                                </div>
+                              )}
+                              {deptChanged && (
+                                <div className="mb-2">
+                                  <p className="text-[10px] text-foreground/50">Department</p>
+                                  <p className="text-[11px] text-red-600 line-through">
+                                    {deptById.get(prior.department_id || '')?.name || '—'}
+                                  </p>
+                                  <p className="text-[11px] text-emerald-700">
+                                    {deptById.get(v.department_id || '')?.name || '—'}
+                                  </p>
+                                </div>
+                              )}
+                              {summaryChanged && (
+                                <div className="mb-2">
+                                  <p className="text-[10px] text-foreground/50">Summary</p>
+                                  <p className="text-[11px] text-red-600 whitespace-pre-wrap bg-red-50 rounded px-1.5 py-1 line-through">{prior.summary || '(empty)'}</p>
+                                  <p className="text-[11px] text-emerald-700 whitespace-pre-wrap bg-emerald-50 rounded px-1.5 py-1 mt-1">{v.summary || '(empty)'}</p>
+                                </div>
+                              )}
+                              {respDiff && (respDiff.added.length > 0 || respDiff.removed.length > 0) && (
+                                <div className="mb-2">
+                                  <p className="text-[10px] text-foreground/50">Responsibilities</p>
+                                  {respDiff.removed.map((r, i) => (
+                                    <p key={`r-${i}`} className="text-[11px] text-red-600 line-through">− {r}</p>
+                                  ))}
+                                  {respDiff.added.map((r, i) => (
+                                    <p key={`a-${i}`} className="text-[11px] text-emerald-700">+ {r}</p>
+                                  ))}
+                                </div>
+                              )}
+                              {reqDiff && (reqDiff.added.length > 0 || reqDiff.removed.length > 0) && (
+                                <div className="mb-2">
+                                  <p className="text-[10px] text-foreground/50">Requirements</p>
+                                  {reqDiff.removed.map((r, i) => (
+                                    <p key={`r-${i}`} className="text-[11px] text-red-600 line-through">− {r}</p>
+                                  ))}
+                                  {reqDiff.added.map((r, i) => (
+                                    <p key={`a-${i}`} className="text-[11px] text-emerald-700">+ {r}</p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Archive */}
           <div className="flex justify-end items-center gap-4 pt-4 border-t border-gray-100 jd-print-hide">
             {job.archived_at && (
@@ -1140,6 +1416,36 @@ export default function JobDescriptionDetailContent() {
             </button>
           </div>
         </div>
+
+        {/* Sticky Save New Version footer — appears when working state differs
+            from the latest snapshot. Persists edits as a new immutable version. */}
+        {isDirtyFromLatest && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 jd-print-hide" style={{ animation: 'fadeSlideUp 180ms ease-out both' }}>
+            <div className="bg-white rounded-full shadow-xl border border-gray-200 flex items-center gap-3 pl-4 pr-2 py-2" style={{ fontFamily: 'var(--font-body)' }}>
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className="text-xs text-foreground/80">
+                {latestVersion ? (
+                  <>Unsaved changes since <span className="font-semibold">v{latestVersion.version}</span></>
+                ) : (
+                  <>No version saved yet — stamp v1</>
+                )}
+              </span>
+              {versionError && (
+                <span className="text-[10px] text-red-600 max-w-[240px] truncate" title={versionError}>
+                  {versionError}
+                </span>
+              )}
+              <button
+                onClick={saveNewVersion}
+                disabled={versionSaving}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-40"
+              >
+                {versionSaving && <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />}
+                {versionSaving ? 'Saving…' : `Save v${(latestVersion?.version || 0) + 1}`}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Send-for-signature modal */}
         {sigOpen && (

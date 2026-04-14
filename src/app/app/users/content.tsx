@@ -298,7 +298,6 @@ export default function UsersContent() {
                   <SortableTh label="Viewing" sortKey="viewing" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
                   <SortableTh label="Department" sortKey="department" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden md:table-cell" />
                   <SortableTh label="Job Title" sortKey="job_title" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden sm:table-cell" />
-                  <SortableTh label="Super Admin" sortKey="is_admin" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} align="center" />
                   <SortableTh label="Joined" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden lg:table-cell" />
                   <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider w-12" style={{ fontFamily: 'var(--font-body)' }}></th>
                 </tr>

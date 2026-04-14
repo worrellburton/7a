@@ -15,6 +15,7 @@ interface JobDescription {
   responsibilities: string[];
   requirements: string[];
   department_id: string | null;
+  version: number;
 }
 
 interface Signature {
@@ -29,6 +30,7 @@ interface Signature {
   signature_data_url: string | null;
   signature_typed: string | null;
   pdf_storage_path: string | null;
+  job_description_version: number | null;
 }
 
 interface Department {
@@ -81,6 +83,7 @@ export default function SignContent() {
           responsibilities: Array.isArray(j.responsibilities) ? (j.responsibilities as string[]) : [],
           requirements: Array.isArray(j.requirements) ? (j.requirements as string[]) : [],
           department_id: (j.department_id as string | null) || null,
+          version: typeof j.version === 'number' ? (j.version as number) : 1,
         };
         setJob(loaded);
         if (loaded.department_id) {
@@ -141,6 +144,7 @@ export default function SignContent() {
     signatureImg: string | null;
     typedName: string | null;
     deptName: string | null;
+    version: number;
   }): Blob {
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
     const pageW = doc.internal.pageSize.getWidth();
@@ -153,9 +157,17 @@ export default function SignContent() {
     doc.setFontSize(9);
     doc.setTextColor('#a0522d');
     doc.text('SEVEN ARROWS RECOVERY', marginX, y);
+    // Version stamp — top right
+    doc.setFontSize(9);
+    doc.setTextColor('#555');
+    doc.setFont('helvetica', 'normal');
+    const versionLabel = `Version ${opts.version}`;
+    const vw = doc.getTextWidth(versionLabel);
+    doc.text(versionLabel, pageW - marginX - vw, y);
     y += 20;
 
     doc.setTextColor('#111');
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
     doc.text(j.title || 'Untitled Role', marginX, y);
     y += 18;
@@ -245,6 +257,8 @@ export default function SignContent() {
     doc.text(`Signed by: ${opts.signerName}`, marginX, y);
     y += lineHeight;
     doc.text(`Signed at: ${new Date(opts.signedAt).toLocaleString()}`, marginX, y);
+    y += lineHeight;
+    doc.text(`Document version: v${opts.version}`, marginX, y);
     y += lineHeight + 6;
 
     if (opts.signatureImg) {
@@ -286,6 +300,7 @@ export default function SignContent() {
         signatureImg: dataUrl,
         typedName: typed || null,
         deptName: dept?.name || null,
+        version: job.version,
       });
       const file = new File([blob], `signed-${job.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'jd'}.pdf`, {
         type: 'application/pdf',
@@ -304,10 +319,11 @@ export default function SignContent() {
         signature_data_url: dataUrl,
         signature_typed: typed || null,
         pdf_storage_path: pdfPath,
+        job_description_version: job.version,
       },
       match: { id: sig.id },
     });
-    setSig({ ...sig, signed_at: nowIso, signature_data_url: dataUrl, signature_typed: typed, pdf_storage_path: pdfPath });
+    setSig({ ...sig, signed_at: nowIso, signature_data_url: dataUrl, signature_typed: typed, pdf_storage_path: pdfPath, job_description_version: job.version });
     setSigned(true);
     setSaving(false);
   }
@@ -359,7 +375,16 @@ export default function SignContent() {
           <p className="text-[10px] text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>
             Job Description for Signature
           </p>
-          <h1 className="text-xl lg:text-2xl font-semibold text-foreground tracking-tight">{job.title}</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl lg:text-2xl font-semibold text-foreground tracking-tight">{job.title}</h1>
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tabular-nums"
+              style={{ fontFamily: 'var(--font-body)' }}
+              title={`Version ${job.version}`}
+            >
+              v{job.version}
+            </span>
+          </div>
           {dept && (
             <span
               className="inline-block mt-2 text-[11px] font-medium px-2 py-0.5 rounded-full"
