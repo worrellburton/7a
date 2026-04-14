@@ -35,7 +35,20 @@ interface EventRow {
   color: string | null;
   notes: string | null;
   created_by: string | null;
+  repeat_rule?: RepeatRule | null;
 }
+
+type RepeatRule = 'daily' | 'weekdays' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
+
+const REPEAT_OPTIONS: { value: '' | RepeatRule; label: string }[] = [
+  { value: '', label: 'Does not repeat' },
+  { value: 'daily', label: 'Every day' },
+  { value: 'weekdays', label: 'Every weekday (Mon–Fri)' },
+  { value: 'weekly', label: 'Every week' },
+  { value: 'biweekly', label: 'Every 2 weeks' },
+  { value: 'monthly', label: 'Every month' },
+  { value: 'yearly', label: 'Every year' },
+];
 
 interface GroupRow {
   id: string;
@@ -2359,15 +2372,9 @@ function EditModal({
   const initialEnd = parseTime(event.end_time) ?? initialStart + 1;
   const [startHour, setStartHour] = useState(initialStart);
   const [endHour, setEndHour] = useState(initialEnd);
+  const [repeatRule, setRepeatRule] = useState<'' | RepeatRule>((event.repeat_rule as RepeatRule) || '');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const color = event.color || colorFor(event.subject_id);
-
-  const dirty =
-    title !== event.title ||
-    (notes || '') !== (event.notes || '') ||
-    allDay !== (event.start_time == null) ||
-    (!allDay && parseTime(event.start_time) !== startHour) ||
-    (!allDay && parseTime(event.end_time) !== endHour);
 
   function handleSave() {
     if (!title.trim()) return;
@@ -2376,6 +2383,7 @@ function EditModal({
       notes,
       start_time: allDay ? null : `${String(startHour).padStart(2, '0')}:00:00`,
       end_time: allDay ? null : `${String(endHour).padStart(2, '0')}:00:00`,
+      repeat_rule: repeatRule || null,
     };
     onSave(patch);
     onClose();
@@ -2429,7 +2437,7 @@ function EditModal({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && dirty) handleSave();
+              if (e.key === 'Enter' && title.trim()) handleSave();
             }}
             placeholder="Event title"
             className="w-full text-lg font-semibold text-foreground px-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:outline-none mb-4"
@@ -2570,7 +2578,7 @@ function EditModal({
               </button>
               <button
                 onClick={handleSave}
-                disabled={!dirty || !title.trim()}
+                disabled={!title.trim()}
                 className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ fontFamily: 'var(--font-body)' }}
               >

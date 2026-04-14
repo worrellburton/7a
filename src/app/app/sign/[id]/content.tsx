@@ -2,9 +2,11 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { uploadFile } from '@/lib/upload';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { jsPDF } from 'jspdf';
 
 interface JobDescription {
   id: string;
@@ -26,6 +28,7 @@ interface Signature {
   signed_at: string | null;
   signature_data_url: string | null;
   signature_typed: string | null;
+  pdf_storage_path: string | null;
 }
 
 interface Department {
@@ -132,13 +135,167 @@ export default function SignContent() {
     hasInk.current = false;
   }
 
+  function buildSignedPdf(j: JobDescription, opts: {
+    signerName: string;
+    signedAt: string;
+    signatureImg: string | null;
+    typedName: string | null;
+    deptName: string | null;
+  }): Blob {
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const marginX = 54;
+    let y = 54;
+    const lineHeight = 13;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor('#a0522d');
+    doc.text('SEVEN ARROWS RECOVERY', marginX, y);
+    y += 20;
+
+    doc.setTextColor('#111');
+    doc.setFontSize(18);
+    doc.text(j.title || 'Untitled Role', marginX, y);
+    y += 18;
+    if (opts.deptName) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor('#555');
+      doc.text(opts.deptName, marginX, y);
+      y += 14;
+    }
+    doc.setDrawColor(229, 220, 206);
+    doc.line(marginX, y, pageW - marginX, y);
+    y += 14;
+
+    const writeHeading = (label: string) => {
+      if (y > pageH - 120) { doc.addPage(); y = 54; }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor('#2d1b0f');
+      doc.text(label, marginX, y);
+      y += lineHeight + 2;
+      doc.setDrawColor(229, 220, 206);
+      doc.line(marginX, y - 8, pageW - marginX, y - 8);
+    };
+
+    const writeBody = (text: string) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.setTextColor('#111');
+      const lines = doc.splitTextToSize(text, pageW - marginX * 2);
+      for (const line of lines) {
+        if (y > pageH - 120) { doc.addPage(); y = 54; }
+        doc.text(line, marginX, y);
+        y += lineHeight;
+      }
+    };
+
+    const writeNumbered = (items: string[]) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      items.forEach((item, i) => {
+        const num = `${i + 1}.`;
+        const lines = doc.splitTextToSize(item, pageW - marginX * 2 - 22);
+        if (y > pageH - 120) { doc.addPage(); y = 54; }
+        doc.setTextColor('#a0522d');
+        doc.text(num, marginX, y);
+        doc.setTextColor('#111');
+        lines.forEach((line: string, idx: number) => {
+          if (idx > 0 && y > pageH - 120) { doc.addPage(); y = 54; }
+          doc.text(line, marginX + 22, y);
+          y += lineHeight;
+        });
+        y += 2;
+      });
+    };
+
+    if ((j.summary || '').trim()) {
+      writeHeading('Position Summary');
+      writeBody(j.summary);
+      y += 6;
+    }
+    if (j.responsibilities.length > 0) {
+      writeHeading('Responsibilities');
+      writeNumbered(j.responsibilities);
+      y += 6;
+    }
+    if (j.requirements.length > 0) {
+      writeHeading('Requirements');
+      writeNumbered(j.requirements);
+      y += 6;
+    }
+
+    // Signature block — always on the last page, leave ~140pt clearance.
+    if (y > pageH - 160) { doc.addPage(); y = 54; }
+    y = Math.max(y + 20, pageH - 160);
+    doc.setDrawColor(229, 220, 206);
+    doc.line(marginX, y, pageW - marginX, y);
+    y += 18;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor('#2d1b0f');
+    doc.text('Signature', marginX, y);
+    y += lineHeight;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor('#333');
+    doc.text(`Signed by: ${opts.signerName}`, marginX, y);
+    y += lineHeight;
+    doc.text(`Signed at: ${new Date(opts.signedAt).toLocaleString()}`, marginX, y);
+    y += lineHeight + 6;
+
+    if (opts.signatureImg) {
+      try {
+        doc.addImage(opts.signatureImg, 'PNG', marginX, y, 180, 60);
+        y += 68;
+      } catch {
+        // ignore image errors, fall back to typed
+      }
+    }
+    if (opts.typedName) {
+      doc.setFont('times', 'italic');
+      doc.setFontSize(16);
+      doc.setTextColor('#2d1b0f');
+      doc.text(opts.typedName, marginX, y);
+      y += lineHeight + 4;
+    }
+
+    return doc.output('blob');
+  }
+
   async function submitSignature() {
-    if (!sig) return;
+    if (!sig || !job) return;
     const dataUrl = hasInk.current ? canvasRef.current?.toDataURL('image/png') || null : null;
     const typed = typedName.trim();
     if (!dataUrl && !typed) return;
     setSaving(true);
     const nowIso = new Date().toISOString();
+    const signerName = sig.signer_name || user?.user_metadata?.full_name || user?.email || 'Team member';
+
+    // Build signed PDF and upload to Supabase Storage; path is stored on the
+    // signature row so admins can download the signed copy later. If the
+    // upload fails we still persist the raw signature data so nothing is lost.
+    let pdfPath: string | null = null;
+    try {
+      const blob = buildSignedPdf(job, {
+        signerName,
+        signedAt: nowIso,
+        signatureImg: dataUrl,
+        typedName: typed || null,
+        deptName: dept?.name || null,
+      });
+      const file = new File([blob], `signed-${job.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'jd'}.pdf`, {
+        type: 'application/pdf',
+      });
+      const { url } = await uploadFile(file, 'jd-signatures');
+      if (url) pdfPath = url;
+    } catch {
+      // swallow — row still saves without pdf
+    }
+
     await db({
       action: 'update',
       table: 'jd_signatures',
@@ -146,10 +303,11 @@ export default function SignContent() {
         signed_at: nowIso,
         signature_data_url: dataUrl,
         signature_typed: typed || null,
+        pdf_storage_path: pdfPath,
       },
       match: { id: sig.id },
     });
-    setSig({ ...sig, signed_at: nowIso, signature_data_url: dataUrl, signature_typed: typed });
+    setSig({ ...sig, signed_at: nowIso, signature_data_url: dataUrl, signature_typed: typed, pdf_storage_path: pdfPath });
     setSigned(true);
     setSaving(false);
   }
@@ -268,6 +426,20 @@ export default function SignContent() {
               <p className="mt-2 text-[11px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
                 {sig.signer_name || user.email}
               </p>
+              {sig.pdf_storage_path && (
+                <a
+                  href={sig.pdf_storage_path}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-primary hover:underline"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                  Download signed PDF
+                </a>
+              )}
             </div>
           ) : (
             <>

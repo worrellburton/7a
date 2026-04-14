@@ -30,6 +30,7 @@ interface JobDescription {
   last_edited_at: string | null;
   last_edited_by_name: string | null;
   activity: ActivityEntry[];
+  archived_at: string | null;
 }
 
 function formatDate(iso: string | null): string {
@@ -99,6 +100,15 @@ export default function JobDescriptionsContent() {
   const [assignOpenFor, setAssignOpenFor] = useState<string | null>(null);
   const [assignFilter, setAssignFilter] = useState('');
 
+  // Sort + archive filter state
+  type SortKey = 'title' | 'department' | 'assigned' | 'last_edited' | 'date_revised';
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'title', dir: 'asc' });
+  const [archivedFilter, setArchivedFilter] = useState<'active' | 'archived' | 'all'>('active');
+
+  function toggleSort(key: SortKey) {
+    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  }
+
   useEffect(() => {
     if (!assignOpenFor) return;
     function onEsc(e: KeyboardEvent) {
@@ -167,6 +177,7 @@ export default function JobDescriptionsContent() {
             last_edited_at: (j.last_edited_at as string | null) || null,
             last_edited_by_name: (j.last_edited_by_name as string | null) || null,
             activity: Array.isArray(j.activity) ? (j.activity as ActivityEntry[]) : [],
+            archived_at: (j.archived_at as string | null) || null,
           }))
         );
       } else {
@@ -181,6 +192,48 @@ export default function JobDescriptionsContent() {
   }, [session]);
 
   const deptById = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
+
+  // Filter + sort the list for the table render.
+  const visibleJobs = useMemo(() => {
+    const filtered = jobs.filter((j) => {
+      if (archivedFilter === 'active') return !j.archived_at;
+      if (archivedFilter === 'archived') return !!j.archived_at;
+      return true;
+    });
+    const firstAssigned = (job: JobDescription): string => {
+      const arr = users
+        .filter((u) => (u.job_title || '').trim().toLowerCase() === job.title.trim().toLowerCase())
+        .map((u) => u.full_name || '')
+        .sort((a, b) => a.localeCompare(b));
+      return arr[0] || '';
+    };
+    const cmp = (a: JobDescription, b: JobDescription): number => {
+      switch (sort.key) {
+        case 'title':
+          return a.title.localeCompare(b.title);
+        case 'department': {
+          const da = a.department_id ? deptById.get(a.department_id)?.name || '' : '';
+          const db_ = b.department_id ? deptById.get(b.department_id)?.name || '' : '';
+          return da.localeCompare(db_);
+        }
+        case 'assigned':
+          return firstAssigned(a).localeCompare(firstAssigned(b));
+        case 'last_edited': {
+          const ta = a.last_edited_at ? Date.parse(a.last_edited_at) : 0;
+          const tb = b.last_edited_at ? Date.parse(b.last_edited_at) : 0;
+          return ta - tb;
+        }
+        case 'date_revised': {
+          const ta = a.date_revised ? Date.parse(a.date_revised) : 0;
+          const tb = b.date_revised ? Date.parse(b.date_revised) : 0;
+          return ta - tb;
+        }
+      }
+    };
+    const sorted = [...filtered].sort(cmp);
+    if (sort.dir === 'desc') sorted.reverse();
+    return sorted;
+  }, [jobs, archivedFilter, sort, users, deptById]);
 
   // Insights for the top bar
   const insights = useMemo(() => {
@@ -250,6 +303,7 @@ export default function JobDescriptionsContent() {
           last_edited_at: null,
           last_edited_by_name: null,
           activity: [],
+          archived_at: null,
           ...payload,
         };
         setJobs((prev) => [...prev, local].sort((a, b) => a.title.localeCompare(b.title)));
@@ -341,6 +395,7 @@ export default function JobDescriptionsContent() {
           last_edited_at: null,
           last_edited_by_name: null,
           activity: [],
+          archived_at: null,
           title: parsed.title,
           department_id: deptId,
           summary: parsed.summary,
@@ -507,7 +562,7 @@ export default function JobDescriptionsContent() {
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Job Descriptions</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            {jobs.length} {jobs.length === 1 ? 'role' : 'roles'} &middot; Click “Add New” or drop a PDF anywhere to import
+            {visibleJobs.length} {visibleJobs.length === 1 ? 'role' : 'roles'} &middot; Click “Add New” or drop a PDF anywhere to import
           </p>
           {!dbAvailable && (
             <p className="text-xs text-amber-600 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
@@ -769,16 +824,47 @@ export default function JobDescriptionsContent() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex items-center gap-1 px-5 py-2 border-b border-gray-100 bg-warm-bg/10">
+            <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5" role="tablist" aria-label="Archive filter">
+              {(['active', 'archived', 'all'] as const).map((k) => (
+                <button
+                  key={k}
+                  onClick={() => setArchivedFilter(k)}
+                  aria-pressed={archivedFilter === k}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium capitalize transition-colors ${
+                    archivedFilter === k ? 'bg-warm-bg text-foreground' : 'text-foreground/50 hover:text-foreground'
+                  }`}
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {k}
+                </button>
+              ))}
+            </div>
+          </div>
           <div
             className="grid items-center text-[10px] uppercase tracking-wider text-foreground/40 px-5 py-2.5 border-b border-gray-100 bg-warm-bg/20"
-            style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,2fr) minmax(140px,1fr) minmax(0,2fr) minmax(180px,auto)' }}
+            style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,2fr) minmax(140px,1fr) minmax(0,2fr) minmax(150px,auto) minmax(130px,auto)' }}
           >
-            <div>Title</div>
-            <div>Department</div>
-            <div>Assigned To</div>
-            <div>Last Changed</div>
+            {([
+              { k: 'title' as const, label: 'Title' },
+              { k: 'department' as const, label: 'Department' },
+              { k: 'assigned' as const, label: 'Assigned To' },
+              { k: 'last_edited' as const, label: 'Last Changed' },
+              { k: 'date_revised' as const, label: 'Last Reviewed' },
+            ]).map((col) => (
+              <button
+                key={col.k}
+                onClick={() => toggleSort(col.k)}
+                className="inline-flex items-center gap-1 text-left hover:text-foreground/80 transition-colors"
+              >
+                {col.label}
+                {sort.key === col.k && (
+                  <span className="text-foreground/60">{sort.dir === 'asc' ? '▲' : '▼'}</span>
+                )}
+              </button>
+            ))}
           </div>
-          {jobs.map((job, idx) => {
+          {visibleJobs.map((job, idx) => {
             const dept = job.department_id ? deptById.get(job.department_id) : null;
             const assigned = usersByTitle.get(job.title.trim().toLowerCase()) || [];
             const pickerOpen = assignOpenFor === job.id;
@@ -793,11 +879,14 @@ export default function JobDescriptionsContent() {
                 tabIndex={0}
                 onClick={() => router.push(`/app/job-descriptions/${job.id}`)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/app/job-descriptions/${job.id}`); } }}
-                className={`grid items-center px-5 py-3 hover:bg-warm-bg/30 cursor-pointer transition-colors ${idx > 0 ? 'border-t border-gray-100' : ''}`}
-                style={{ gridTemplateColumns: 'minmax(0,2fr) minmax(140px,1fr) minmax(0,2fr) minmax(180px,auto)' }}
+                className={`grid items-center px-5 py-3 hover:bg-warm-bg/30 cursor-pointer transition-colors ${idx > 0 ? 'border-t border-gray-100' : ''} ${job.archived_at ? 'opacity-60' : ''}`}
+                style={{ gridTemplateColumns: 'minmax(0,2fr) minmax(140px,1fr) minmax(0,2fr) minmax(150px,auto) minmax(130px,auto)' }}
               >
                 <div className="min-w-0 flex items-center gap-2 pr-3">
-                  <span className="text-sm font-semibold text-foreground truncate">{job.title}</span>
+                  <span className={`text-sm font-semibold text-foreground truncate ${job.archived_at ? 'italic' : ''}`}>{job.title}</span>
+                  {job.archived_at && (
+                    <span className="text-[9px] uppercase tracking-wider text-foreground/40 shrink-0" style={{ fontFamily: 'var(--font-body)' }}>Archived</span>
+                  )}
                 </div>
                 <div className="min-w-0 pr-3" onClick={(e) => e.stopPropagation()}>
                   <select
@@ -917,6 +1006,13 @@ export default function JobDescriptionsContent() {
                         <span className="text-[10px] text-foreground/40 truncate">by {job.last_edited_by_name}</span>
                       )}
                     </div>
+                  ) : (
+                    <span className="text-foreground/30">—</span>
+                  )}
+                </div>
+                <div className="text-xs text-foreground/60 min-w-0" style={{ fontFamily: 'var(--font-body)' }}>
+                  {job.date_revised ? (
+                    <span className="truncate">{formatDate(job.date_revised)}</span>
                   ) : (
                     <span className="text-foreground/30">—</span>
                   )}
