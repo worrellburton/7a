@@ -215,6 +215,75 @@ function parseTime(s: string | null): number | null {
   return Number.isFinite(h) ? h : null;
 }
 
+// --- Recurrence expansion -----------------------------------------------
+// Events carry a `repeat_rule`; when set, we project virtual occurrences
+// forward from the event's anchor date into the visible window. Virtual
+// occurrences get an id of the form `<masterId>@<iso>` so they stay
+// distinct in React keys but can be resolved back to the master row for
+// edit / delete / reschedule. The anchor row is always included.
+function masterEventId(id: string): string {
+  const i = id.indexOf('@');
+  return i === -1 ? id : id.slice(0, i);
+}
+
+function expandRepeat(
+  ev: EventRow,
+  rangeStart: Date,
+  rangeEnd: Date
+): EventRow[] {
+  if (!ev.repeat_rule) return [ev];
+  const [ay, am, ad] = ev.event_date.split('-').map(Number);
+  const anchor = new Date(ay, am - 1, ad);
+  // Start the cursor at whichever is later: the anchor, or the range start
+  // rewound to the previous matching occurrence. For simplicity we walk
+  // from the anchor forward, capping iterations for safety.
+  let cursor = new Date(anchor);
+  const out: EventRow[] = [];
+  let safety = 0;
+  while (cursor <= rangeEnd && safety++ < 800) {
+    if (cursor >= rangeStart) {
+      const iso = toISODate(cursor);
+      out.push(
+        iso === ev.event_date
+          ? ev
+          : { ...ev, id: `${ev.id}@${iso}`, event_date: iso }
+      );
+    }
+    switch (ev.repeat_rule) {
+      case 'daily':
+        cursor = addDays(cursor, 1);
+        break;
+      case 'weekdays':
+        cursor = addDays(cursor, 1);
+        while (cursor.getDay() === 0 || cursor.getDay() === 6) {
+          cursor = addDays(cursor, 1);
+        }
+        break;
+      case 'weekly':
+        cursor = addDays(cursor, 7);
+        break;
+      case 'biweekly':
+        cursor = addDays(cursor, 14);
+        break;
+      case 'monthly': {
+        const c = new Date(cursor);
+        c.setMonth(c.getMonth() + 1);
+        cursor = c;
+        break;
+      }
+      case 'yearly': {
+        const c = new Date(cursor);
+        c.setFullYear(c.getFullYear() + 1);
+        cursor = c;
+        break;
+      }
+      default:
+        return out;
+    }
+  }
+  return out;
+}
+
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -413,11 +482,20 @@ export default function CalendarContent() {
   }, [current]);
 
   // Group events by ISO date for O(1) lookup when rendering cells.
+  // Repeating events are projected forward into a ±92-day window around
+  // `current` so the rule actually shows on the calendar — virtual rows
+  // get a synthetic id (`<masterId>@<iso>`) that resolves back to the
+  // master row for edits / deletes / reschedules.
   const eventsByDate = useMemo(() => {
+    const rangeStart = addDays(current, -92);
+    const rangeEnd = addDays(current, 92);
     const map = new Map<string, EventRow[]>();
     for (const ev of events) {
-      if (!map.has(ev.event_date)) map.set(ev.event_date, []);
-      map.get(ev.event_date)!.push(ev);
+      const occurrences = expandRepeat(ev, rangeStart, rangeEnd);
+      for (const occ of occurrences) {
+        if (!map.has(occ.event_date)) map.set(occ.event_date, []);
+        map.get(occ.event_date)!.push(occ);
+      }
     }
     // Sort each day's events by time (all-day first, then by hour).
     for (const arr of map.values()) {
@@ -431,7 +509,7 @@ export default function CalendarContent() {
       });
     }
     return map;
-  }, [events]);
+  }, [events, current]);
 
   // Quick lookup from user id → UserRow for avatar rendering on chips.
   const usersById = useMemo(() => {
@@ -503,11 +581,14 @@ export default function CalendarContent() {
           targetH == null ? null : shifts.find((s) => shiftContainsHour(s, targetH));
         if (targetShift) {
           const iso = toISODate(date);
-          const clash = events.some(
+          // Include projected repeat occurrences via eventsByDate, so a
+          // daily-repeating user can't also be dropped ad-hoc into the
+          // same shift on any other day.
+          const dayEvents = eventsByDate.get(iso) || [];
+          const clash = dayEvents.some(
             (ev) =>
               ev.subject_kind === 'user' &&
               ev.subject_id === payload.id &&
-              ev.event_date === iso &&
               shiftForEvent(ev, shifts) === targetShift.id
           );
           if (clash) return;
@@ -549,12 +630,13 @@ export default function CalendarContent() {
         setEvents((prev) => prev.filter((ev) => ev.id !== optimistic.id));
       }
     },
-    [user, events, shifts]
+    [user, events, shifts, eventsByDate]
   );
 
   // ---- Reschedule an existing event by dragging it ----
   const handleReschedule = useCallback(
-    async (eventId: string, date: Date, hour: number | null) => {
+    async (eventIdIn: string, date: Date, hour: number | null) => {
+      const eventId = masterEventId(eventIdIn);
       const existing = events.find((ev) => ev.id === eventId);
       if (!existing) return;
       const newDate = toISODate(date);
@@ -588,12 +670,12 @@ export default function CalendarContent() {
         const targetShift =
           targetH == null ? null : shifts.find((s) => shiftContainsHour(s, targetH));
         if (targetShift) {
-          const clash = events.some(
+          const dayEvents = eventsByDate.get(newDate) || [];
+          const clash = dayEvents.some(
             (ev) =>
-              ev.id !== eventId &&
+              masterEventId(ev.id) !== eventId &&
               ev.subject_kind === 'user' &&
               ev.subject_id === existing.subject_id &&
-              ev.event_date === newDate &&
               shiftForEvent(ev, shifts) === targetShift.id
           );
           if (clash) return;
@@ -629,12 +711,13 @@ export default function CalendarContent() {
         );
       }
     },
-    [events, shifts]
+    [events, shifts, eventsByDate]
   );
 
   // ---- Resize an event (change start_time or end_time) ----
   const handleResizeEvent = useCallback(
-    async (eventId: string, newStartHour: number, newEndHour: number) => {
+    async (eventIdIn: string, newStartHour: number, newEndHour: number) => {
+      const eventId = masterEventId(eventIdIn);
       const existing = events.find((ev) => ev.id === eventId);
       if (!existing) return;
       const clampedStart = Math.max(HOURS[0], Math.min(newStartHour, DAY_END_H - 1));
@@ -669,18 +752,19 @@ export default function CalendarContent() {
   // ---- Save edits from the modal ----
   const handleSaveEdit = useCallback(
     async (id: string, patch: Partial<EventRow>) => {
-      const existing = events.find((ev) => ev.id === id);
+      const masterId = masterEventId(id);
+      const existing = events.find((ev) => ev.id === masterId);
       if (!existing) return;
-      setEvents((prev) => prev.map((ev) => (ev.id === id ? { ...ev, ...patch } : ev)));
+      setEvents((prev) => prev.map((ev) => (ev.id === masterId ? { ...ev, ...patch } : ev)));
       const result = await db({
         action: 'update',
         table: 'calendar_events',
         data: patch as Record<string, unknown>,
-        match: { id },
+        match: { id: masterId },
       });
       if (!result || !(result as { ok?: boolean }).ok) {
         // Roll back on failure
-        setEvents((prev) => prev.map((ev) => (ev.id === id ? existing : ev)));
+        setEvents((prev) => prev.map((ev) => (ev.id === masterId ? existing : ev)));
       }
     },
     [events]
@@ -689,10 +773,11 @@ export default function CalendarContent() {
   // ---- Delete ----
   const handleDelete = useCallback(
     async (id: string) => {
-      const existing = events.find((ev) => ev.id === id);
+      const masterId = masterEventId(id);
+      const existing = events.find((ev) => ev.id === masterId);
       if (!existing) return;
-      setEvents((prev) => prev.filter((ev) => ev.id !== id));
-      const result = await db({ action: 'delete', table: 'calendar_events', match: { id } });
+      setEvents((prev) => prev.filter((ev) => ev.id !== masterId));
+      const result = await db({ action: 'delete', table: 'calendar_events', match: { id: masterId } });
       if (!result || !(result as { ok?: boolean }).ok) {
         setEvents((prev) => [...prev, existing]);
       }
@@ -750,7 +835,7 @@ export default function CalendarContent() {
   }, []);
 
   const editingEvent = useMemo(
-    () => (editingId ? events.find((ev) => ev.id === editingId) || null : null),
+    () => (editingId ? events.find((ev) => ev.id === masterEventId(editingId)) || null : null),
     [editingId, events]
   );
 
