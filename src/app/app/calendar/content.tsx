@@ -21,7 +21,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 // ------------------------------------------------------------
 
 type View = 'month' | 'week' | 'day';
-type ViewMode = 'shifts' | 'groups' | 'hybrid';
+type ViewMode = 'groups' | 'team';
 type SubjectKind = 'group' | 'user';
 
 interface EventRow {
@@ -307,7 +307,7 @@ export default function CalendarContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [shifts, setShifts] = useState<Shift[]>(DEFAULT_SHIFTS);
   const [shiftSettingsOpen, setShiftSettingsOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('shifts');
+  const [viewMode, setViewMode] = useState<ViewMode>('team');
   const [drag, setDrag] = useState<DragInfo | null>(null);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const dragCtxValue = useMemo<DragCtxValue>(
@@ -356,8 +356,11 @@ export default function CalendarContent() {
     if (typeof window === 'undefined') return;
     try {
       const raw = window.localStorage.getItem(VIEWMODE_STORAGE_KEY);
-      if (raw === 'shifts' || raw === 'groups' || raw === 'hybrid') {
+      if (raw === 'groups' || raw === 'team') {
         setViewMode(raw);
+      } else if (raw === 'shifts' || raw === 'hybrid') {
+        // Legacy values — collapse to the new 'team' mode.
+        setViewMode('team');
       }
     } catch {
       /* ignore */
@@ -730,19 +733,42 @@ export default function CalendarContent() {
     <DragCtx.Provider value={dragCtxValue}>
     <div className="p-4 lg:p-6 h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="mb-3">
-        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-0.5">Calendar</h1>
-        <p
-          className="text-xs text-foreground/50"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          Drag a group or a team member onto a day to schedule it.
-        </p>
+      <div className="mb-3 flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-0.5">Calendar</h1>
+          <p
+            className="text-xs text-foreground/50"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Drag a group or a team member onto a day to schedule it.
+          </p>
+        </div>
+        <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
+          {(['groups', 'team'] as ViewMode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => saveViewMode(m)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
+                viewMode === m
+                  ? 'bg-white shadow-sm text-foreground'
+                  : 'text-foreground/50 hover:text-foreground/80'
+              }`}
+              style={{ fontFamily: 'var(--font-body)' }}
+              title={
+                m === 'groups'
+                  ? 'Show group events; drag from Groups panel'
+                  : 'Show shift buckets with team members; drag from Team panel'
+              }
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Body: palette + calendar surface */}
       <div className="flex-1 min-h-0 grid gap-3" style={{ gridTemplateColumns: 'minmax(220px, 260px) 1fr' }}>
-        <Palette groups={groups} users={users} loading={loading} />
+        <Palette groups={groups} users={users} loading={loading} mode={viewMode} />
 
         <div
           key={bodyKey}
@@ -771,29 +797,6 @@ export default function CalendarContent() {
                     style={{ fontFamily: 'var(--font-body)' }}
                   >
                     {v}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
-                {(['shifts', 'hybrid', 'groups'] as ViewMode[]).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => saveViewMode(m)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
-                      viewMode === m
-                        ? 'bg-white shadow-sm text-foreground'
-                        : 'text-foreground/50 hover:text-foreground/80'
-                    }`}
-                    style={{ fontFamily: 'var(--font-body)' }}
-                    title={
-                      m === 'shifts'
-                        ? 'Group events into Morning / Afternoon / Overnight buckets'
-                        : m === 'groups'
-                        ? 'Show a flat list of events per day'
-                        : 'Show shift buckets plus any unshifted events as a list'
-                    }
-                  >
-                    {m}
                   </button>
                 ))}
               </div>
@@ -943,12 +946,14 @@ function Palette({
   groups,
   users,
   loading,
+  mode,
 }: {
   groups: GroupRow[];
   users: UserRow[];
   loading: boolean;
+  mode: 'groups' | 'team';
 }) {
-  const [tab, setTab] = useState<'groups' | 'team'>('groups');
+  const tab = mode;
   const [q, setQ] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [multiSelect, setMultiSelect] = useState(false);
@@ -968,10 +973,10 @@ function Palette({
 
   // Leaving the team tab (or turning multi-select off) clears the selection.
   useEffect(() => {
-    if (tab !== 'team' || !multiSelect) {
+    if (mode !== 'team' || !multiSelect) {
       setSelectedUsers(new Set());
     }
-  }, [tab, multiSelect]);
+  }, [mode, multiSelect]);
 
   const toggleUser = useCallback((id: string) => {
     setSelectedUsers((prev) => {
@@ -1001,22 +1006,6 @@ function Palette({
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
       <div className="p-3 border-b border-gray-100">
-        <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1 mb-3">
-          {(['groups', 'team'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${
-                tab === t
-                  ? 'bg-white shadow-sm text-foreground'
-                  : 'text-foreground/50 hover:text-foreground/80'
-              }`}
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
         <div className="relative">
           <input
             value={q}
