@@ -1064,7 +1064,7 @@ export default function JobDescriptionsContent() {
           ) : (
           <>
           <div
-            className="grid items-center text-[10px] uppercase tracking-wider text-foreground/40 px-5 py-2.5 border-b border-gray-100 bg-warm-bg/20"
+            className="hidden md:grid items-center text-[10px] uppercase tracking-wider text-foreground/40 px-5 py-2.5 border-b border-gray-100 bg-warm-bg/20"
             style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,3fr) minmax(120px,0.9fr) minmax(0,1.6fr) 120px 120px' }}
           >
             {([
@@ -1085,6 +1085,29 @@ export default function JobDescriptionsContent() {
                 )}
               </button>
             ))}
+          </div>
+          {/* Mobile sort bar — condenses the sortable headers into a dropdown
+              so the row list can use its full width for the title. */}
+          <div className="md:hidden px-4 py-2 border-b border-gray-100 bg-warm-bg/20 flex items-center gap-2 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
+            <span className="text-foreground/40 uppercase tracking-wider text-[10px]">Sort</span>
+            <select
+              value={sort.key}
+              onChange={(e) => toggleSort(e.target.value as typeof sort.key)}
+              className="flex-1 px-2 py-1 rounded-md border border-gray-200 bg-white text-xs"
+            >
+              <option value="title">Title</option>
+              <option value="department">Department</option>
+              <option value="assigned">Assigned To</option>
+              <option value="last_edited">Last Changed</option>
+              <option value="date_revised">Last Reviewed</option>
+            </select>
+            <button
+              onClick={() => toggleSort(sort.key)}
+              className="px-2 py-1 rounded-md border border-gray-200 bg-white text-xs"
+              aria-label="Toggle direction"
+            >
+              {sort.dir === 'asc' ? '▲' : '▼'}
+            </button>
           </div>
           {visibleJobs.map((job, idx) => {
             const dept = job.department_id ? deptById.get(job.department_id) : null;

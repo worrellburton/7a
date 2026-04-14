@@ -32,7 +32,7 @@ interface JobDescriptionLite {
   title: string;
 }
 
-type SortKey = 'user' | 'viewing' | 'department' | 'job_title' | 'is_admin' | 'created_at';
+type SortKey = 'user' | 'viewing' | 'department' | 'job_title' | 'created_at';
 type SortDir = 'asc' | 'desc';
 
 function pageLabelFromPath(path: string | null): string {
@@ -173,29 +173,6 @@ export default function UsersContent() {
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, department_id: departmentId } : u)));
   }
 
-  async function toggleAdmin(userId: string, currentValue: boolean) {
-    const result = await db({ action: 'update', table: 'users', data: { is_admin: !currentValue }, match: { id: userId } });
-
-    if (result?.error) {
-      console.error('Toggle admin error:', result.error);
-      showToast(`Failed to update: ${result.error}`);
-      return;
-    }
-
-    // Verify the update actually persisted
-    const verify = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin' });
-
-    if (Array.isArray(verify) && verify[0] && verify[0].is_admin === !currentValue) {
-      const updated = users.find((u) => u.id === userId);
-      setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, is_admin: !currentValue } : u))
-      );
-      showToast(`${updated?.full_name || 'User'} ${!currentValue ? 'granted' : 'removed'} admin access`);
-    } else {
-      showToast('Update blocked by database permissions — check RLS policies');
-    }
-  }
-
   async function deleteUser(userId: string, userName: string) {
     if (userId === user?.id) {
       showToast("You can't delete yourself");
@@ -259,8 +236,6 @@ export default function UsersContent() {
       }
       case 'job_title':
         return cmp((a.job_title || '').toLowerCase() || null, (b.job_title || '').toLowerCase() || null);
-      case 'is_admin':
-        return cmp(a.is_admin ? 1 : 0, b.is_admin ? 1 : 0);
       case 'created_at':
         return cmp(new Date(a.created_at).getTime(), new Date(b.created_at).getTime());
     }
@@ -424,9 +399,25 @@ export default function UsersContent() {
                       })()}
                     </td>
                     <td className="px-6 py-4 hidden lg:table-cell">
-                      <span className="text-xs text-foreground/50 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
-                        {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </span>
+                      {(() => {
+                        const d = new Date(u.created_at);
+                        const now = new Date();
+                        const sameYear = d.getFullYear() === now.getFullYear();
+                        // Within the current year, drop the year to shorten
+                        // the cell; older joins keep the year for clarity.
+                        const text = sameYear
+                          ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                          : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        return (
+                          <span
+                            className="text-xs text-foreground/50 whitespace-nowrap"
+                            style={{ fontFamily: 'var(--font-body)' }}
+                            title={d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                          >
+                            {text}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-center">
                       {u.id !== user?.id && (
