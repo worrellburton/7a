@@ -192,11 +192,12 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      className="fixed bottom-5 right-5 z-50 w-10 h-10 rounded-full bg-white dark:bg-[#2a2118] border border-gray-200 dark:border-white/10 shadow-lg flex items-center justify-center hover:scale-105 transition-transform"
+      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-foreground/70 hover:bg-warm-bg/40 dark:hover:bg-white/5 transition-colors"
+      style={{ fontFamily: 'var(--font-body)' }}
       aria-label="Toggle theme"
     >
       {dark ? (
-        <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="5" />
           <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
           <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
@@ -204,10 +205,11 @@ function ThemeToggle() {
           <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
         </svg>
       ) : (
-        <svg className="w-5 h-5 text-foreground/50" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className="w-5 h-5 text-foreground/50" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="transparent" stroke="currentColor" />
         </svg>
       )}
+      {dark ? 'Light mode' : 'Dark mode'}
     </button>
   );
 }
@@ -812,6 +814,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     )}
                   </div>
                 </div>
+                <ThemeToggle />
                 <button
                   onClick={() => { setMobileMenuOpen(false); signOut(); }}
                   className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -832,8 +835,6 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         {/* Same-page viewers — shown on every /app/* page */}
         <PageViewers />
 
-        {/* Theme toggle — fixed bottom right */}
-        <ThemeToggle />
       </div>
     </div>
   );
