@@ -559,7 +559,7 @@ export default function JobDescriptionDetailContent() {
         recommendations: string[];
       };
       setRating(result);
-      await patchJob({}, `Claude rated this ${result.score}/10`);
+      await patchJob({}, `Kaizen'ed with a rating of ${result.score}/10`);
     } catch (err) {
       setRatingError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -826,7 +826,7 @@ export default function JobDescriptionDetailContent() {
         document.body
       )}
 
-      <div className="p-6 lg:p-10 max-w-4xl jd-print-root">
+      <div className="p-6 lg:p-10 max-w-5xl mx-auto jd-print-root">
         {/* Top bar */}
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap jd-print-hide">
           <Link
@@ -839,13 +839,13 @@ export default function JobDescriptionDetailContent() {
             </svg>
             Back to Job Descriptions
           </Link>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button
               onClick={() => {
                 setRatingOpen(true);
                 if (!rating && !ratingBusy) runClaudeRating();
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/5 text-primary text-xs font-medium hover:bg-primary/10"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-primary text-white text-xs font-semibold shadow-sm hover:bg-primary-dark hover:-translate-y-px hover:shadow transition-all"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
@@ -853,7 +853,7 @@ export default function JobDescriptionDetailContent() {
             </button>
             <button
               onClick={downloadPdf}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-foreground/80 text-xs font-medium hover:bg-warm-bg"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-foreground/70 text-xs font-medium hover:bg-warm-bg hover:text-foreground transition-colors"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -865,7 +865,7 @@ export default function JobDescriptionDetailContent() {
             </button>
             <button
               onClick={() => { setSigOpen(true); setSigFilter(''); setSigStatus(null); }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-foreground/80 text-xs font-medium hover:bg-warm-bg"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-foreground/70 text-xs font-medium hover:bg-warm-bg hover:text-foreground transition-colors"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
