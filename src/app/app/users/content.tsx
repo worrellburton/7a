@@ -38,9 +38,18 @@ type SortDir = 'asc' | 'desc';
 function pageLabelFromPath(path: string | null): string {
   if (!path) return '';
   if (path === '/app' || path === '/app/') return 'Home';
+  // Any job-description detail view (e.g. /app/job-descriptions/<uuid>) should
+  // just read as "Job Descriptions" — otherwise we'd dump the raw UUID into
+  // the column, which looks broken.
+  if (path.startsWith('/app/job-descriptions')) return 'Job Descriptions';
+  if (path.startsWith('/app/sign')) return 'Signing';
   const parts = path.split('/').filter(Boolean); // ['app','calendar']
   const last = parts[parts.length - 1] || '';
-  return last.charAt(0).toUpperCase() + last.slice(1).replace(/-/g, ' ');
+  // If the last segment looks like a UUID, walk back to the previous segment
+  // so we don't print the raw ID.
+  const looksLikeId = /^[0-9a-f-]{8,}$/i.test(last) || /^\d+$/.test(last);
+  const pick = looksLikeId && parts.length > 1 ? parts[parts.length - 2] : last;
+  return pick.charAt(0).toUpperCase() + pick.slice(1).replace(/-/g, ' ');
 }
 
 function SortableTh({
@@ -261,11 +270,28 @@ export default function UsersContent() {
 
   return (
     <div className="p-6 lg:p-10">
-      <div className="mb-8">
-        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Team</h1>
-        <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-          People who have signed into the patient portal.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Team</h1>
+          <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+            People who have signed into the patient portal.
+          </p>
+        </div>
+        <button
+          onClick={() => router.push('/app/org-chart')}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-gray-200 hover:border-primary/40 hover:text-primary text-foreground/70 transition-colors"
+          style={{ fontFamily: 'var(--font-body)' }}
+          title="View organization chart"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="9" y="3" width="6" height="4" rx="1" />
+            <rect x="3" y="15" width="6" height="4" rx="1" />
+            <rect x="15" y="15" width="6" height="4" rx="1" />
+            <path d="M12 7v4" />
+            <path d="M6 15v-2h12v2" />
+          </svg>
+          Org Chart
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -397,26 +423,8 @@ export default function UsersContent() {
                         );
                       })()}
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => toggleAdmin(u.id, u.is_admin)}
-                        className={`w-5 h-5 rounded-full border-2 transition-all inline-flex items-center justify-center ${
-                          u.is_admin
-                            ? 'bg-primary border-primary text-white'
-                            : 'border-gray-300 hover:border-primary/50'
-                        }`}
-                        aria-label={`${u.is_admin ? 'Remove' : 'Grant'} super admin for ${u.full_name || u.email}`}
-                        title={u.is_admin ? 'Super admin — click to revoke' : 'Click to grant super admin'}
-                      >
-                        {u.is_admin && (
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </button>
-                    </td>
                     <td className="px-6 py-4 hidden lg:table-cell">
-                      <span className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                      <span className="text-xs text-foreground/50 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
                         {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
                     </td>
