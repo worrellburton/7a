@@ -241,24 +241,44 @@ export default function JobDescriptionsContent() {
 
   // Rows for the Signed / Waiting list views. Each row carries the
   // pre-resolved job title and signer name so the renderer stays dumb.
+  // For Signed view, each signer's *latest* signed_at is marked active —
+  // everything else for that signer is "previous" (historical).
   const visibleSignatures = useMemo(() => {
     if (archivedFilter !== 'signed' && archivedFilter !== 'waiting') return [];
     const jobById = new Map(jobs.map((j) => [j.id, j]));
     const userById = new Map(users.map((u) => [u.id, u]));
+
+    // Compute active-signature-id per signer using ALL signed signatures.
+    const activeByUser = new Map<string, string>();
+    if (archivedFilter === 'signed') {
+      const latestByUser = new Map<string, { id: string; ts: string }>();
+      for (const s of signatures) {
+        if (!s.signed_at || !s.signer_user_id) continue;
+        const prev = latestByUser.get(s.signer_user_id);
+        if (!prev || (s.signed_at > prev.ts)) {
+          latestByUser.set(s.signer_user_id, { id: s.id, ts: s.signed_at });
+        }
+      }
+      for (const [uid, v] of latestByUser) activeByUser.set(uid, v.id);
+    }
+
     const rows = signatures
       .filter((s) => (archivedFilter === 'signed' ? !!s.signed_at : !s.signed_at))
       .map((s) => {
         const j = jobById.get(s.job_description_id);
         const u = s.signer_user_id ? userById.get(s.signer_user_id) : null;
+        const isActive = !!(s.signer_user_id && activeByUser.get(s.signer_user_id) === s.id);
         return {
           id: s.id,
           job_description_id: s.job_description_id,
+          signer_user_id: s.signer_user_id,
           job_title: j?.title || '(deleted role)',
           signer_name: u?.full_name || '—',
           signer_avatar: u?.avatar_url || null,
           sent_at: s.sent_at,
           signed_at: s.signed_at,
           pdf_storage_path: s.pdf_storage_path,
+          is_active: isActive,
         };
       });
     // Newest first by relevant timestamp.
@@ -269,6 +289,14 @@ export default function JobDescriptionsContent() {
     });
     return rows;
   }, [signatures, jobs, users, archivedFilter]);
+
+  async function deleteSignature(sigId: string) {
+    if (!window.confirm('Delete this signed job description? This cannot be undone.')) return;
+    setSignatures((prev) => prev.filter((s) => s.id !== sigId));
+    await db({ action: 'delete', table: 'jd_signatures', match: { id: sigId } }).catch((err) => {
+      console.warn('deleteSignature failed', err);
+    });
+  }
 
   // Insights for the top bar
   const insights = useMemo(() => {
@@ -874,38 +902,58 @@ export default function JobDescriptionsContent() {
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="flex items-center gap-1 px-5 py-2 border-b border-gray-100 bg-warm-bg/10">
-            <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 flex-wrap" role="tablist" aria-label="List filter">
-              {([
-                { k: 'active' as const, label: 'Active' },
-                { k: 'archived' as const, label: 'Archived' },
-                { k: 'all' as const, label: 'All' },
-                { k: 'signed' as const, label: 'All signed' },
-                { k: 'waiting' as const, label: 'Waiting for signature' },
-              ]).map((o) => (
-                <button
-                  key={o.k}
-                  onClick={() => setArchivedFilter(o.k)}
-                  aria-pressed={archivedFilter === o.k}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                    archivedFilter === o.k ? 'bg-warm-bg text-foreground' : 'text-foreground/50 hover:text-foreground'
-                  }`}
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  {o.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5" role="tablist" aria-label="Archive filter">
+                {([
+                  { k: 'active' as const, label: 'Active' },
+                  { k: 'archived' as const, label: 'Archived' },
+                  { k: 'all' as const, label: 'All' },
+                ]).map((o) => (
+                  <button
+                    key={o.k}
+                    onClick={() => setArchivedFilter(o.k)}
+                    aria-pressed={archivedFilter === o.k}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                      archivedFilter === o.k ? 'bg-warm-bg text-foreground' : 'text-foreground/50 hover:text-foreground'
+                    }`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5" role="tablist" aria-label="Signature filter">
+                {([
+                  { k: 'signed' as const, label: 'All signed' },
+                  { k: 'waiting' as const, label: 'Waiting for signature' },
+                ]).map((o) => (
+                  <button
+                    key={o.k}
+                    onClick={() => setArchivedFilter(o.k)}
+                    aria-pressed={archivedFilter === o.k}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                      archivedFilter === o.k ? 'bg-warm-bg text-foreground' : 'text-foreground/50 hover:text-foreground'
+                    }`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           {archivedFilter === 'signed' || archivedFilter === 'waiting' ? (
             <>
               <div
                 className="grid items-center text-[10px] uppercase tracking-wider text-foreground/40 px-5 py-2.5 border-b border-gray-100 bg-warm-bg/20"
-                style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,2.4fr) minmax(0,2fr) 150px 120px' }}
+                style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: archivedFilter === 'signed' ? 'minmax(0,2.2fr) minmax(0,1.8fr) 100px 130px 100px 40px' : 'minmax(0,2.4fr) minmax(0,2fr) 150px 120px' }}
               >
                 <span>Job Description</span>
                 <span>Signer</span>
+                {archivedFilter === 'signed' && <span>Status</span>}
                 <span>{archivedFilter === 'signed' ? 'Signed' : 'Sent'}</span>
                 <span>{archivedFilter === 'signed' ? 'PDF' : 'Status'}</span>
+                {archivedFilter === 'signed' && <span />}
               </div>
               {visibleSignatures.length === 0 ? (
                 <div className="px-5 py-10 text-center text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
@@ -920,21 +968,31 @@ export default function JobDescriptionsContent() {
                     role="button"
                     tabIndex={0}
                     onClick={() => {
-                      if (archivedFilter === 'waiting') router.push(`/app/sign/${s.id}`);
-                      else router.push(`/app/job-descriptions/${s.job_description_id}`);
+                      if (archivedFilter === 'waiting') {
+                        router.push(`/app/sign/${s.id}`);
+                      } else if (s.pdf_storage_path) {
+                        window.open(s.pdf_storage_path, '_blank', 'noopener,noreferrer');
+                      } else {
+                        router.push(`/app/job-descriptions/${s.job_description_id}`);
+                      }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        if (archivedFilter === 'waiting') router.push(`/app/sign/${s.id}`);
-                        else router.push(`/app/job-descriptions/${s.job_description_id}`);
+                        if (archivedFilter === 'waiting') {
+                          router.push(`/app/sign/${s.id}`);
+                        } else if (s.pdf_storage_path) {
+                          window.open(s.pdf_storage_path, '_blank', 'noopener,noreferrer');
+                        } else {
+                          router.push(`/app/job-descriptions/${s.job_description_id}`);
+                        }
                       }
                     }}
-                    className={`grid items-center px-5 py-3 hover:bg-warm-bg/30 cursor-pointer transition-colors ${idx > 0 ? 'border-t border-gray-100' : ''}`}
-                    style={{ gridTemplateColumns: 'minmax(0,2.4fr) minmax(0,2fr) 150px 120px', fontFamily: 'var(--font-body)' }}
+                    className={`grid items-center px-5 py-3 hover:bg-warm-bg/30 cursor-pointer transition-colors ${idx > 0 ? 'border-t border-gray-100' : ''} ${archivedFilter === 'signed' && !s.is_active ? 'opacity-60' : ''}`}
+                    style={{ gridTemplateColumns: archivedFilter === 'signed' ? 'minmax(0,2.2fr) minmax(0,1.8fr) 100px 130px 100px 40px' : 'minmax(0,2.4fr) minmax(0,2fr) 150px 120px', fontFamily: 'var(--font-body)' }}
                   >
                     <div className="min-w-0 pr-3">
-                      <span className="text-sm font-semibold text-foreground truncate block">{s.job_title}</span>
+                      <span className={`text-sm font-semibold text-foreground truncate block ${archivedFilter === 'signed' && !s.is_active ? 'italic' : ''}`}>{s.job_title}</span>
                     </div>
                     <div className="min-w-0 pr-3 flex items-center gap-2">
                       {s.signer_avatar ? (
@@ -947,6 +1005,19 @@ export default function JobDescriptionsContent() {
                       )}
                       <span className="text-sm text-foreground truncate">{s.signer_name}</span>
                     </div>
+                    {archivedFilter === 'signed' && (
+                      <div className="text-xs min-w-0">
+                        {s.is_active ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-medium">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-foreground/5 border border-foreground/10 text-foreground/50 text-[11px] font-medium">
+                            Previous
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="text-xs text-foreground/60 min-w-0 truncate">
                       {archivedFilter === 'signed'
                         ? (s.signed_at ? formatDate(s.signed_at) : '—')
@@ -972,6 +1043,20 @@ export default function JobDescriptionsContent() {
                         </span>
                       )}
                     </div>
+                    {archivedFilter === 'signed' && (
+                      <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => deleteSignature(s.id)}
+                          className="p-1 rounded text-foreground/30 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          title="Delete signed job description"
+                          aria-label="Delete signed job description"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -1086,8 +1171,7 @@ export default function JobDescriptionsContent() {
                     }`}
                     style={{ fontFamily: 'var(--font-body)' }}
                   >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                    {assigned.length === 0 ? 'Assign' : 'Add'}
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" aria-label={assigned.length === 0 ? 'Assign' : 'Add'}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                   </button>
                   {pickerOpen && (
                     <>
