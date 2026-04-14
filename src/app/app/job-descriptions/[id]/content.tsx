@@ -74,6 +74,7 @@ interface JobDescription {
   responsibilities: string[];
   requirements: string[];
   date_revised: string | null;
+  date_revised_by_name?: string | null;
   created_at: string;
   last_edited_at: string | null;
   last_edited_by_name: string | null;
@@ -175,6 +176,7 @@ export default function JobDescriptionDetailContent() {
           responsibilities: Array.isArray(raw.responsibilities) ? (raw.responsibilities as string[]) : [],
           requirements: Array.isArray(raw.requirements) ? (raw.requirements as string[]) : [],
           date_revised: (raw.date_revised as string | null) || null,
+          date_revised_by_name: (raw.date_revised_by_name as string | null) || null,
           created_at: (raw.created_at as string) || '',
           last_edited_at: (raw.last_edited_at as string | null) || null,
           last_edited_by_name: (raw.last_edited_by_name as string | null) || null,
@@ -337,7 +339,8 @@ export default function JobDescriptionDetailContent() {
   async function markReviewed() {
     if (!job) return;
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD for Postgres date column
-    await patchJob({ date_revised: today }, 'Marked as reviewed');
+    const reviewer = (user?.user_metadata as { full_name?: string } | undefined)?.full_name || user?.email || null;
+    await patchJob({ date_revised: today, date_revised_by_name: reviewer } as Partial<JobDescription>, 'Marked as reviewed');
   }
 
   function downloadPdf() {
@@ -988,9 +991,19 @@ export default function JobDescriptionDetailContent() {
               </p>
             ) : (
               <ul className="border border-gray-100 rounded-xl bg-white divide-y divide-gray-100">
-                {signatures.map((s) => (
+                {signatures.map((s) => {
+                  const signerUser = s.signer_user_id ? users.find((u) => u.id === s.signer_user_id) : null;
+                  return (
                   <li key={s.id} className="px-3 py-2 flex items-center gap-3 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
                     <span className={`w-2 h-2 rounded-full shrink-0 ${s.signed_at ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                    {signerUser?.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={signerUser.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <span className="w-7 h-7 rounded-full bg-foreground/10 flex items-center justify-center text-[11px] font-semibold text-foreground/60 shrink-0">
+                        {(s.signer_name || signerUser?.full_name || '?').charAt(0).toUpperCase()}
+                      </span>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-foreground/80 truncate">{s.signer_name || 'Unnamed'}</p>
                       <p className="text-[10px] text-foreground/40">
@@ -1027,7 +1040,8 @@ export default function JobDescriptionDetailContent() {
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
             {sigStatus && (
@@ -1067,7 +1081,12 @@ export default function JobDescriptionDetailContent() {
                 style={{ fontFamily: 'var(--font-body)' }}
               />
               <div className="max-h-72 overflow-y-auto border border-gray-100 rounded-lg">
-                {users
+                {assignedUsers.length === 0 && (
+                  <p className="text-xs text-foreground/50 italic px-3 py-4" style={{ fontFamily: 'var(--font-body)' }}>
+                    No one is assigned to this role yet. Assign a team member first, then send for signature.
+                  </p>
+                )}
+                {assignedUsers
                   .filter((u) => !sigFilter.trim() || (u.full_name || '').toLowerCase().includes(sigFilter.trim().toLowerCase()))
                   .map((u) => (
                     <button
@@ -1093,7 +1112,23 @@ export default function JobDescriptionDetailContent() {
                     </button>
                   ))}
               </div>
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex items-center justify-between gap-2">
+                {assignedUsers.length > 1 ? (
+                  <button
+                    onClick={async () => {
+                      for (const u of assignedUsers) {
+                        // eslint-disable-next-line no-await-in-loop
+                        await sendForSignature(u);
+                      }
+                      setSigOpen(false);
+                    }}
+                    disabled={sigBusy}
+                    className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 disabled:opacity-40"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Send to everybody
+                  </button>
+                ) : <span />}
                 <button
                   onClick={() => setSigOpen(false)}
                   disabled={sigBusy}

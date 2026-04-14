@@ -44,6 +44,7 @@ export default function HomeContent() {
   const router = useRouter();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [pendingSignatures, setPendingSignatures] = useState<PendingSignature[]>([]);
+  const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   // Map /app/... path → friendly label ("Calendar", "Org Chart", etc.)
@@ -119,15 +120,57 @@ export default function HomeContent() {
     };
   }, [session, user?.id]);
 
+  useEffect(() => {
+    if (!session?.access_token || !user?.id) return;
+    let cancelled = false;
+    async function loadLatestSigned() {
+      const sigs = await db({
+        action: 'select',
+        table: 'jd_signatures',
+        match: { signer_user_id: user!.id },
+        select: 'id, job_description_id, signed_at',
+        order: { column: 'signed_at', ascending: false },
+      }).catch(() => []);
+      if (cancelled || !Array.isArray(sigs)) return;
+      const signed = (sigs as Array<{ job_description_id: string; signed_at: string | null }>).find((s) => !!s.signed_at);
+      if (!signed) return;
+      const jd = await db({
+        action: 'select',
+        table: 'job_descriptions',
+        match: { id: signed.job_description_id },
+        select: 'id, title',
+      }).catch(() => null);
+      if (cancelled) return;
+      if (Array.isArray(jd) && jd.length > 0) {
+        const row = jd[0] as { id: string; title: string };
+        setLatestSignedJd({ id: row.id, title: row.title });
+      }
+    }
+    loadLatestSigned();
+    return () => { cancelled = true; };
+  }, [session, user?.id]);
+
   if (!user) return null;
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-80px)]">
       {/* Centered welcome */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6">
-        <h1 className="text-3xl font-bold text-foreground">
-          Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
-        </h1>
+        <div className="flex flex-col items-center gap-1">
+          <h1 className="text-3xl font-bold text-foreground">
+            Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
+          </h1>
+          {latestSignedJd && (
+            <button
+              onClick={() => router.push(`/app/job-descriptions/${latestSignedJd.id}`)}
+              className="text-sm text-foreground/50 hover:text-primary transition-colors"
+              style={{ fontFamily: 'var(--font-body)' }}
+              title="Open my signed job description"
+            >
+              {latestSignedJd.title}
+            </button>
+          )}
+        </div>
         {pendingSignatures.length > 0 && (
           <div className="w-full max-w-md flex flex-col gap-2 px-6">
             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>

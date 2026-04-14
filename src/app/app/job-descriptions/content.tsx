@@ -26,6 +26,7 @@ interface JobDescription {
   responsibilities: string[];
   requirements: string[];
   date_revised: string | null;
+  date_revised_by_name: string | null;
   created_at: string;
   last_edited_at: string | null;
   last_edited_by_name: string | null;
@@ -173,6 +174,7 @@ export default function JobDescriptionsContent() {
             responsibilities: Array.isArray(j.responsibilities) ? (j.responsibilities as string[]) : [],
             requirements: Array.isArray(j.requirements) ? (j.requirements as string[]) : [],
             date_revised: (j.date_revised as string | null) || null,
+            date_revised_by_name: (j.date_revised_by_name as string | null) || null,
             created_at: (j.created_at as string) || '',
             last_edited_at: (j.last_edited_at as string | null) || null,
             last_edited_by_name: (j.last_edited_by_name as string | null) || null,
@@ -281,25 +283,60 @@ export default function JobDescriptionsContent() {
     return map;
   }, [users]);
 
-  // ---- Create new role, then navigate to its detail page ----
+  // ---- Generate new role via Claude, insert, then navigate to detail ----
   async function createAndOpen() {
     const title = newTitle.trim();
     if (!title) return;
     setCreateBusy(true);
     setCreateError(null);
     try {
+      const deptName = newDeptId ? departments.find((d) => d.id === newDeptId)?.name || '' : '';
+      let summary = '';
+      let responsibilities: string[] = [];
+      let requirements: string[] = [];
+      try {
+        const token = getAuthToken();
+        const res = await fetch('/api/claude/job-description/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ title, department: deptName }),
+        });
+        if (res.ok) {
+          const parsed = (await res.json()) as {
+            summary?: string;
+            responsibilities?: string[];
+            requirements?: string[];
+          };
+          summary = parsed.summary || '';
+          responsibilities = Array.isArray(parsed.responsibilities) ? parsed.responsibilities : [];
+          requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
+        } else {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error || `Generation failed (${res.status})`);
+        }
+      } catch (genErr) {
+        // Surface the error but still create a blank role so the user isn't blocked.
+        setCreateError(
+          `Claude generation failed: ${genErr instanceof Error ? genErr.message : String(genErr)}. Saved as a blank role.`
+        );
+      }
+
       const payload = {
         title,
         department_id: newDeptId || null,
-        summary: '',
-        responsibilities: [],
-        requirements: [],
+        summary,
+        responsibilities,
+        requirements,
       };
       if (!dbAvailable) {
         const local: JobDescription = {
           id: `local-${Date.now()}`,
           created_at: new Date().toISOString(),
           date_revised: null,
+          date_revised_by_name: null,
           last_edited_at: null,
           last_edited_by_name: null,
           activity: [],
@@ -392,6 +429,7 @@ export default function JobDescriptionsContent() {
           id: `local-${Date.now()}`,
           created_at: new Date().toISOString(),
           date_revised: null,
+          date_revised_by_name: null,
           last_edited_at: null,
           last_edited_by_name: null,
           activity: [],
@@ -807,7 +845,7 @@ export default function JobDescriptionsContent() {
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {createBusy && <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />}
-                  Create & Open
+                  {createBusy ? 'Generating…' : 'Generate'}
                 </button>
               </div>
             </div>
@@ -1012,7 +1050,12 @@ export default function JobDescriptionsContent() {
                 </div>
                 <div className="text-xs text-foreground/60 min-w-0" style={{ fontFamily: 'var(--font-body)' }}>
                   {job.date_revised ? (
-                    <span className="truncate">{formatDate(job.date_revised)}</span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate">{formatDate(job.date_revised)}</span>
+                      {job.date_revised_by_name && (
+                        <span className="text-[10px] text-foreground/40 truncate">by {job.date_revised_by_name}</span>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-foreground/30">—</span>
                   )}
