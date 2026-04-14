@@ -761,7 +761,7 @@ export default function OrgChartContent() {
   if (!user) return null;
 
   return (
-    <div className="p-6 lg:p-10">
+    <div className="p-4 sm:p-6 lg:p-10">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Org Chart</h1>

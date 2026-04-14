@@ -134,30 +134,30 @@ export default function ActivityContent() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="shrink-0 px-6 lg:px-10 pt-6 pb-3 flex items-center justify-between gap-4 flex-wrap">
+      <div className="shrink-0 px-4 sm:px-6 lg:px-10 pt-6 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Activity</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Live feed of every actionable event across the platform.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <input
             type="text"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Filter by person, type, or target…"
-            className="text-sm px-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white w-72"
+            className="text-sm px-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white flex-1 sm:w-72 sm:flex-none"
             style={{ fontFamily: 'var(--font-body)' }}
           />
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">
+          <span className="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             Live
           </span>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 lg:px-10 pb-10">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 lg:px-10 pb-10">
         {loading && rows.length === 0 ? (
           <div className="text-sm text-foreground/50 py-10 text-center">Loading activity…</div>
         ) : filtered.length === 0 ? (

@@ -904,7 +904,7 @@ export default function CalendarContent() {
         zoom: 0.82 container. Scale up so the calendar body truly fills
         the viewport and the scheduler doesn't leave a blank band at
         the bottom of the page. */}
-    <div className="p-4 lg:p-6 flex flex-col overflow-hidden" style={{ height: 'calc(100vh / 0.82)' }}>
+    <div className="p-3 sm:p-4 lg:p-6 flex flex-col overflow-hidden h-[calc(100vh-3.5rem)] lg:h-[calc(100vh/0.82)]">
       {/* Top-center Groups/Team toggle, with Month/Week/Day directly below. */}
       <div className="mb-3 flex flex-col items-center gap-2">
         <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
@@ -960,8 +960,12 @@ export default function CalendarContent() {
       </div>
 
       {/* Body: palette + calendar surface */}
-      <div className="flex-1 min-h-0 grid gap-3" style={{ gridTemplateColumns: 'minmax(220px, 260px) 1fr' }}>
-        <Palette groups={groups} users={users} loading={loading} mode={viewMode} />
+      <div
+        className="flex-1 min-h-0 grid gap-3 grid-cols-1 md:grid-cols-[minmax(220px,260px)_1fr]"
+      >
+        <div className="hidden md:flex min-h-0">
+          <Palette groups={groups} users={users} loading={loading} mode={viewMode} />
+        </div>
 
         <div
           key={bodyKey}

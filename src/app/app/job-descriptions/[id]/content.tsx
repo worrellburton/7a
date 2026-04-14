@@ -672,7 +672,7 @@ export default function JobDescriptionDetailContent() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-10 flex items-center justify-center min-h-[60vh]">
+      <div className="p-4 sm:p-6 lg:p-10 flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -680,7 +680,7 @@ export default function JobDescriptionDetailContent() {
 
   if (notFound || !job) {
     return (
-      <div className="p-6 lg:p-10 max-w-3xl">
+      <div className="p-4 sm:p-6 lg:p-10 max-w-3xl">
         <Link href="/app/job-descriptions" className="text-xs text-foreground/50 hover:text-foreground inline-flex items-center gap-1 mb-4" style={{ fontFamily: 'var(--font-body)' }}>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
           Back to Job Descriptions
@@ -843,7 +843,7 @@ export default function JobDescriptionDetailContent() {
         document.body
       )}
 
-      <div className="p-6 lg:p-10 max-w-5xl mx-auto jd-print-root">
+      <div className="p-4 sm:p-6 lg:p-10 max-w-5xl mx-auto jd-print-root">
         {/* Top bar */}
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap jd-print-hide">
           <Link

@@ -188,7 +188,7 @@ export default function HorseContent() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-10 flex items-center justify-center min-h-[60vh]">
+      <div className="p-4 sm:p-6 lg:p-10 flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -196,7 +196,7 @@ export default function HorseContent() {
 
   if (notFound || !horse) {
     return (
-      <div className="p-6 lg:p-10">
+      <div className="p-4 sm:p-6 lg:p-10">
         <Link href="/app/equine" className="text-sm text-primary hover:underline" style={{ fontFamily: 'var(--font-body)' }}>
           &larr; Back to Horses
         </Link>
@@ -257,7 +257,7 @@ export default function HorseContent() {
   };
 
   return (
-    <div className="p-6 lg:p-10 max-w-5xl">
+    <div className="p-4 sm:p-6 lg:p-10 max-w-5xl">
       <input ref={fileInputRef} type="file" accept="*/*" onChange={handleDocUpload} className="hidden" />
       <input ref={vetFileInputRef} type="file" accept="*/*" onChange={handleVetDocUpload} className="hidden" />
 

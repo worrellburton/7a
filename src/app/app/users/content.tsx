@@ -261,7 +261,7 @@ export default function UsersContent() {
   if (!user || !isAdmin) return null;
 
   return (
-    <div className="p-6 lg:p-10">
+    <div className="p-4 sm:p-6 lg:p-10">
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Team</h1>
@@ -395,7 +395,7 @@ export default function UsersContent() {
                             <select
                               value={u.job_title || ''}
                               onChange={(e) => updateJobTitle(u.id, e.target.value || null)}
-                              className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-[180px] ${u.job_title ? 'text-foreground' : 'text-foreground/30 italic'}`}
+                              className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-full sm:max-w-[180px] ${u.job_title ? 'text-foreground' : 'text-foreground/30 italic'}`}
                               style={{ fontFamily: 'var(--font-body)' }}
                             >
                               <option value="">Add title...</option>

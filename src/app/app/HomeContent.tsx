@@ -171,7 +171,7 @@ export default function HomeContent() {
       {/* Active-now avatars — centered at the top of the dashboard. */}
       {recentUsers.length > 0 && (
         <div
-          className={`flex items-center justify-center gap-2 px-6 lg:px-10 pt-6 transition-all duration-500 ease-out ${
+          className={`flex items-center justify-center gap-2 px-4 sm:px-6 lg:px-10 pt-6 transition-all duration-500 ease-out ${
             loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
           }`}
         >
