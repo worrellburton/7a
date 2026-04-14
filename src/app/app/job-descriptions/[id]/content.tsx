@@ -4,12 +4,66 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db, getAuthToken } from '@/lib/db';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+
+// A textarea that grows with its content. Used for responsibilities and
+// requirements so long sentences wrap cleanly instead of overflowing a
+// single-line input.
+function AutoTextarea({
+  value,
+  onChange,
+  onBlur,
+  onKeyDown,
+  placeholder,
+  className,
+  disabled,
+  dataAttr,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onBlur?: (value: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  className?: string;
+  disabled?: boolean;
+  dataAttr?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  const extra: Record<string, string> = {};
+  if (dataAttr) extra[`data-${dataAttr}`] = '';
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur ? (e) => onBlur(e.target.value) : undefined}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      className={className}
+      style={{ fontFamily: 'var(--font-body)', overflow: 'hidden', resize: 'none' }}
+      {...extra}
+    />
+  );
+}
 
 interface Department {
   id: string;
   name: string;
   color: string | null;
+}
+
+interface ActivityEntry {
+  at: string;
+  by_name: string | null;
+  summary: string;
 }
 
 interface JobDescription {
@@ -19,7 +73,18 @@ interface JobDescription {
   summary: string;
   responsibilities: string[];
   requirements: string[];
+  date_revised: string | null;
   created_at: string;
+  last_edited_at: string | null;
+  last_edited_by_name: string | null;
+  activity: ActivityEntry[];
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 interface AppUserLite {
@@ -42,8 +107,6 @@ export default function JobDescriptionDetailContent() {
   const [notFound, setNotFound] = useState(false);
 
   // Inline add inputs
-  const [newRespText, setNewRespText] = useState('');
-  const [newReqText, setNewReqText] = useState('');
 
   // Claude-edit panel
   const [aiOpen, setAiOpen] = useState(false);
@@ -81,7 +144,11 @@ export default function JobDescriptionDetailContent() {
           summary: (raw.summary as string) || '',
           responsibilities: Array.isArray(raw.responsibilities) ? (raw.responsibilities as string[]) : [],
           requirements: Array.isArray(raw.requirements) ? (raw.requirements as string[]) : [],
+          date_revised: (raw.date_revised as string | null) || null,
           created_at: (raw.created_at as string) || '',
+          last_edited_at: (raw.last_edited_at as string | null) || null,
+          last_edited_by_name: (raw.last_edited_by_name as string | null) || null,
+          activity: Array.isArray(raw.activity) ? (raw.activity as ActivityEntry[]) : [],
         });
       } else {
         setNotFound(true);
@@ -106,11 +173,29 @@ export default function JobDescriptionDetailContent() {
     return users.filter((u) => (u.job_title || '').trim().toLowerCase() === t);
   }, [users, job]);
 
-  async function patchJob(patch: Partial<JobDescription>) {
+  async function patchJob(patch: Partial<JobDescription>, activitySummary?: string) {
     if (!job) return;
-    const next = { ...job, ...patch };
+    const nowIso = new Date().toISOString();
+    const editorName = (user?.user_metadata as { full_name?: string } | undefined)?.full_name || user?.email || 'Someone';
+    const nextActivity = activitySummary
+      ? [...(job.activity || []), { at: nowIso, by_name: editorName, summary: activitySummary }].slice(-50)
+      : job.activity;
+    const next: JobDescription = {
+      ...job,
+      ...patch,
+      last_edited_at: nowIso,
+      last_edited_by_name: editorName,
+      activity: nextActivity,
+    };
     setJob(next);
-    await db({ action: 'update', table: 'job_descriptions', data: patch, match: { id: job.id } });
+    const dbPatch: Record<string, unknown> = {
+      ...patch,
+      last_edited_at: nowIso,
+      last_edited_by: user?.id || null,
+      last_edited_by_name: editorName,
+    };
+    if (activitySummary) dbPatch.activity = nextActivity;
+    await db({ action: 'update', table: 'job_descriptions', data: dbPatch, match: { id: job.id } });
   }
 
   // Retitling should move any currently-assigned users to the new title so
@@ -136,38 +221,45 @@ export default function JobDescriptionDetailContent() {
 
   function addResponsibility() {
     if (!job) return;
-    const text = newRespText.trim();
-    if (!text) return;
-    patchJob({ responsibilities: [...job.responsibilities, text] });
-    setNewRespText('');
+    patchJob({ responsibilities: [...job.responsibilities, ''] }, 'Added a responsibility');
+    // Focus the newly added row after the DOM updates
+    setTimeout(() => {
+      const items = document.querySelectorAll<HTMLTextAreaElement>('[data-resp-item]');
+      items[items.length - 1]?.focus();
+    }, 30);
   }
 
   function removeResponsibility(i: number) {
     if (!job) return;
-    patchJob({ responsibilities: job.responsibilities.filter((_, idx) => idx !== i) });
+    patchJob({ responsibilities: job.responsibilities.filter((_, idx) => idx !== i) }, 'Removed a responsibility');
   }
 
   function updateResponsibility(i: number, value: string) {
     if (!job) return;
-    patchJob({ responsibilities: job.responsibilities.map((r, idx) => (idx === i ? value : r)) });
+    const prior = job.responsibilities[i];
+    if (prior === value) return;
+    patchJob({ responsibilities: job.responsibilities.map((r, idx) => (idx === i ? value : r)) }, 'Edited a responsibility');
   }
 
   function addRequirement() {
     if (!job) return;
-    const text = newReqText.trim();
-    if (!text) return;
-    patchJob({ requirements: [...job.requirements, text] });
-    setNewReqText('');
+    patchJob({ requirements: [...job.requirements, ''] }, 'Added a requirement');
+    setTimeout(() => {
+      const items = document.querySelectorAll<HTMLTextAreaElement>('[data-req-item]');
+      items[items.length - 1]?.focus();
+    }, 30);
   }
 
   function removeRequirement(i: number) {
     if (!job) return;
-    patchJob({ requirements: job.requirements.filter((_, idx) => idx !== i) });
+    patchJob({ requirements: job.requirements.filter((_, idx) => idx !== i) }, 'Removed a requirement');
   }
 
   function updateRequirement(i: number, value: string) {
     if (!job) return;
-    patchJob({ requirements: job.requirements.map((r, idx) => (idx === i ? value : r)) });
+    const prior = job.requirements[i];
+    if (prior === value) return;
+    patchJob({ requirements: job.requirements.map((r, idx) => (idx === i ? value : r)) }, 'Edited a requirement');
   }
 
   async function assignUser(u: AppUserLite) {
@@ -194,6 +286,12 @@ export default function JobDescriptionDetailContent() {
     }
     await db({ action: 'delete', table: 'job_descriptions', match: { id: job.id } });
     router.push('/app/job-descriptions');
+  }
+
+  async function markReviewed() {
+    if (!job) return;
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD for Postgres date column
+    await patchJob({ date_revised: today }, 'Marked as reviewed');
   }
 
   function downloadPdf() {
@@ -241,13 +339,12 @@ export default function JobDescriptionDetailContent() {
       if (titleChanged) {
         await renameTitle(edited.title.trim());
       }
+      const summary = summarizeChanges(job, edited);
       await patchJob({
         summary: edited.summary,
         responsibilities: edited.responsibilities,
         requirements: edited.requirements,
-      });
-
-      const summary = summarizeChanges(job, edited);
+      }, `Claude edit — ${summary}`);
       setAiLog((prev) => [...prev, { instruction, summary }]);
       setAiInstruction('');
       // Refocus the textarea so the user can keep iterating.
@@ -292,38 +389,139 @@ export default function JobDescriptionDetailContent() {
 
   return (
     <>
-      {/* Print stylesheet — hides app chrome and trims the page for a clean PDF. */}
+      {/* Print stylesheet — hides everything except the dedicated print
+          view, which is laid out for a clean PDF export. */}
       <style jsx global>{`
+        @media screen {
+          .jd-print-view { display: none; }
+        }
         @media print {
-          body { background: #fff !important; }
-          aside, nav, header, [data-platform-shell-chrome] { display: none !important; }
-          .jd-print-hide { display: none !important; }
-          .jd-print-root {
-            padding: 0 !important;
-            margin: 0 !important;
-            max-width: none !important;
-            box-shadow: none !important;
-            border: none !important;
-            background: #fff !important;
+          @page { margin: 0.75in; size: Letter; }
+          html, body { background: #fff !important; }
+          body * { visibility: hidden !important; }
+          .jd-print-view, .jd-print-view * { visibility: visible !important; }
+          .jd-print-view {
+            display: block !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            color: #111;
+            font-family: var(--font-body), Georgia, 'Times New Roman', serif;
+            font-size: 11pt;
+            line-height: 1.45;
           }
-          .jd-print-card {
-            box-shadow: none !important;
-            border: none !important;
+          .jd-print-view h1 {
+            font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+            font-size: 22pt;
+            font-weight: 700;
+            margin: 0 0 4pt;
+            letter-spacing: -0.01em;
           }
-          input, textarea, select {
-            border: none !important;
-            background: transparent !important;
-            padding: 0 !important;
-            color: #111 !important;
+          .jd-print-view .jd-org {
+            font-size: 9pt;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #a0522d;
+            font-weight: 600;
+            margin-bottom: 10pt;
           }
-          textarea { resize: none !important; }
-          .jd-print-bullet::before { content: '• '; }
+          .jd-print-view .jd-meta {
+            font-size: 10pt;
+            color: #555;
+            margin-bottom: 18pt;
+            border-bottom: 1px solid #e5dcce;
+            padding-bottom: 10pt;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18pt;
+          }
+          .jd-print-view .jd-meta div span { display: block; font-size: 8pt; letter-spacing: 0.12em; text-transform: uppercase; color: #888; margin-bottom: 2pt; }
+          .jd-print-view h2 {
+            font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+            font-size: 13pt;
+            font-weight: 700;
+            margin: 18pt 0 6pt;
+            color: #2d1b0f;
+            border-bottom: 1px solid #e5dcce;
+            padding-bottom: 3pt;
+          }
+          .jd-print-view p { margin: 0 0 8pt; }
+          .jd-print-view ul { margin: 0 0 6pt; padding-left: 18pt; }
+          .jd-print-view li { margin: 0 0 4pt; page-break-inside: avoid; }
+          .jd-print-view .jd-assignees { font-size: 10pt; color: #333; }
+          .jd-print-view .jd-assignees strong { font-weight: 600; }
+          .jd-print-view .jd-footer {
+            margin-top: 24pt;
+            padding-top: 10pt;
+            border-top: 1px solid #e5dcce;
+            font-size: 8pt;
+            color: #888;
+            font-style: italic;
+          }
         }
       `}</style>
 
+      {/* Semantic print-only layout — this is what lands in the PDF. */}
+      <div className="jd-print-view" aria-hidden="true">
+        <div className="jd-org">Seven Arrows Recovery</div>
+        <h1>{job.title || 'Untitled Role'}</h1>
+        <div className="jd-meta">
+          {dept && (
+            <div>
+              <span>Department</span>
+              {dept.name}
+            </div>
+          )}
+          <div>
+            <span>Last Reviewed</span>
+            {job.date_revised ? formatDate(job.date_revised) : '—'}
+          </div>
+          <div>
+            <span>Assigned To</span>
+            {assignedUsers.length > 0 ? assignedUsers.map((u) => u.full_name || 'Unnamed').join(', ') : 'No one assigned'}
+          </div>
+        </div>
+
+        {job.summary.trim() && (
+          <>
+            <h2>Position Summary</h2>
+            {job.summary.split(/\n+/).filter(Boolean).map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </>
+        )}
+
+        {job.responsibilities.length > 0 && (
+          <>
+            <h2>Responsibilities</h2>
+            <ul>
+              {job.responsibilities.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {job.requirements.length > 0 && (
+          <>
+            <h2>Requirements</h2>
+            <ul>
+              {job.requirements.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        <div className="jd-footer">
+          Seven Arrows Recovery &middot; Confidential &middot; Generated {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+        </div>
+      </div>
+
       <div className="p-6 lg:p-10 max-w-4xl jd-print-root">
         {/* Top bar */}
-        <div className="mb-6 jd-print-hide">
+        <div className="mb-6 flex items-center justify-between gap-3 flex-wrap jd-print-hide">
           <Link
             href="/app/job-descriptions"
             className="text-xs text-foreground/50 hover:text-foreground inline-flex items-center gap-1"
@@ -334,6 +532,28 @@ export default function JobDescriptionDetailContent() {
             </svg>
             Back to Job Descriptions
           </Link>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setAiOpen((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/5 text-primary text-xs font-medium hover:bg-primary/10"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
+              Edit with Claude
+            </button>
+            <button
+              onClick={downloadPdf}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-foreground/80 text-xs font-medium hover:bg-warm-bg"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v12" />
+                <path d="m7 10 5 5 5-5" />
+                <path d="M5 21h14" />
+              </svg>
+              Download PDF
+            </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 lg:p-8 jd-print-card">
@@ -353,7 +573,11 @@ export default function JobDescriptionDetailContent() {
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <select
                   value={job.department_id || ''}
-                  onChange={(e) => patchJob({ department_id: e.target.value || null })}
+                  onChange={(e) => {
+                    const next = e.target.value || null;
+                    const nextDept = next ? deptById.get(next)?.name : null;
+                    patchJob({ department_id: next }, nextDept ? `Moved to ${nextDept}` : 'Cleared department');
+                  }}
                   className="text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-primary jd-print-hide"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
@@ -362,43 +586,28 @@ export default function JobDescriptionDetailContent() {
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
-                {dept && (
-                  <span
-                    className="hidden print:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
-                    style={{
-                      fontFamily: 'var(--font-body)',
-                      backgroundColor: (dept.color || '#a0522d') + '1f',
-                      color: dept.color || '#a0522d',
-                    }}
-                  >
-                    {dept.name}
-                  </span>
-                )}
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] text-foreground/50"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                  title={job.date_revised ? `Last reviewed ${formatDate(job.date_revised)}` : 'Not yet reviewed'}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <path d="M16 2v4M8 2v4M3 10h18" />
+                  </svg>
+                  {job.date_revised ? `Reviewed ${formatDate(job.date_revised)}` : 'Not reviewed yet'}
+                </span>
+                <button
+                  onClick={markReviewed}
+                  className="text-[11px] text-primary hover:text-primary/80 font-medium underline-offset-2 hover:underline jd-print-hide"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                  title="Stamp today's date as the last reviewed date"
+                >
+                  Mark reviewed
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap jd-print-hide">
-              <button
-                onClick={() => setAiOpen((v) => !v)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/5 text-primary text-xs font-medium hover:bg-primary/10"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
-                Edit with Claude
-              </button>
-              <button
-                onClick={downloadPdf}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-foreground/80 text-xs font-medium hover:bg-warm-bg"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 3v12" />
-                  <path d="m7 10 5 5 5-5" />
-                  <path d="M5 21h14" />
-                </svg>
-                Download PDF
-              </button>
-            </div>
           </div>
 
           {/* Assigned team members */}
@@ -502,7 +711,7 @@ export default function JobDescriptionDetailContent() {
               value={job.summary}
               onChange={(e) => setJob({ ...job, summary: e.target.value })}
               onBlur={(e) => {
-                if (e.target.value !== job.summary) patchJob({ summary: e.target.value });
+                if (e.target.value !== job.summary) patchJob({ summary: e.target.value }, 'Edited summary');
               }}
               rows={4}
               placeholder="A short overview of the role…"
@@ -513,26 +722,37 @@ export default function JobDescriptionDetailContent() {
 
           {/* Responsibilities */}
           <div className="mb-6">
-            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>
-              Responsibilities ({job.responsibilities.length})
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+                Responsibilities ({job.responsibilities.length})
+              </p>
+              <button
+                onClick={addResponsibility}
+                className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                Add
+              </button>
+            </div>
             {job.responsibilities.length > 0 && (
-              <ul className="space-y-1 mb-2">
+              <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl bg-white overflow-hidden mb-3">
                 {job.responsibilities.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2 group jd-print-bullet">
-                    <span className="text-foreground/30 mt-1.5 jd-print-hide">•</span>
-                    <input
+                  <li key={i} className="flex items-start gap-2 group hover:bg-warm-bg/40 transition-colors px-3 py-2">
+                    <span className="text-foreground/30 text-[10px] font-medium mt-2 select-none w-5 text-right tabular-nums shrink-0">{i + 1}</span>
+                    <AutoTextarea
                       value={r}
-                      onChange={(e) => {
-                        setJob({ ...job, responsibilities: job.responsibilities.map((x, idx) => (idx === i ? e.target.value : x)) });
+                      onChange={(value) => {
+                        setJob({ ...job, responsibilities: job.responsibilities.map((x, idx) => (idx === i ? value : x)) });
                       }}
-                      onBlur={(e) => updateResponsibility(i, e.target.value)}
-                      className="flex-1 text-sm text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0"
-                      style={{ fontFamily: 'var(--font-body)' }}
+                      onBlur={(value) => updateResponsibility(i, value)}
+                      placeholder="Describe this responsibility…"
+                      dataAttr="resp-item"
+                      className="flex-1 min-w-0 w-full text-sm leading-6 text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0 block"
                     />
                     <button
                       onClick={() => removeResponsibility(i)}
-                      className="text-foreground/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity jd-print-hide"
+                      className="shrink-0 text-foreground/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity mt-1.5"
                       aria-label="Remove"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -541,46 +761,50 @@ export default function JobDescriptionDetailContent() {
                 ))}
               </ul>
             )}
-            <div className="flex gap-2 jd-print-hide">
-              <input
-                value={newRespText}
-                onChange={(e) => setNewRespText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addResponsibility(); }}
-                placeholder="Add a responsibility…"
-                className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white"
-                style={{ fontFamily: 'var(--font-body)' }}
-              />
+            {job.responsibilities.length === 0 && (
               <button
                 onClick={addResponsibility}
-                disabled={!newRespText.trim()}
-                className="px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40"
+                className="w-full px-3 py-3 rounded-xl border border-dashed border-gray-200 text-xs text-foreground/40 hover:border-primary hover:text-primary transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
-              >Add</button>
-            </div>
+              >
+                + Add your first responsibility
+              </button>
+            )}
           </div>
 
           {/* Requirements */}
           <div className="mb-6">
-            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>
-              Requirements ({job.requirements.length})
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+                Requirements ({job.requirements.length})
+              </p>
+              <button
+                onClick={addRequirement}
+                className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                Add
+              </button>
+            </div>
             {job.requirements.length > 0 && (
-              <ul className="space-y-1 mb-2">
+              <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl bg-white overflow-hidden mb-3">
                 {job.requirements.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2 group jd-print-bullet">
-                    <span className="text-foreground/30 mt-1.5 jd-print-hide">•</span>
-                    <input
+                  <li key={i} className="flex items-start gap-2 group hover:bg-warm-bg/40 transition-colors px-3 py-2">
+                    <span className="text-foreground/30 text-[10px] font-medium mt-2 select-none w-5 text-right tabular-nums shrink-0">{i + 1}</span>
+                    <AutoTextarea
                       value={r}
-                      onChange={(e) => {
-                        setJob({ ...job, requirements: job.requirements.map((x, idx) => (idx === i ? e.target.value : x)) });
+                      onChange={(value) => {
+                        setJob({ ...job, requirements: job.requirements.map((x, idx) => (idx === i ? value : x)) });
                       }}
-                      onBlur={(e) => updateRequirement(i, e.target.value)}
-                      className="flex-1 text-sm text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0"
-                      style={{ fontFamily: 'var(--font-body)' }}
+                      onBlur={(value) => updateRequirement(i, value)}
+                      placeholder="Describe this requirement…"
+                      dataAttr="req-item"
+                      className="flex-1 min-w-0 w-full text-sm leading-6 text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0 block"
                     />
                     <button
                       onClick={() => removeRequirement(i)}
-                      className="text-foreground/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity jd-print-hide"
+                      className="shrink-0 text-foreground/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity mt-1.5"
                       aria-label="Remove"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -589,22 +813,46 @@ export default function JobDescriptionDetailContent() {
                 ))}
               </ul>
             )}
-            <div className="flex gap-2 jd-print-hide">
-              <input
-                value={newReqText}
-                onChange={(e) => setNewReqText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addRequirement(); }}
-                placeholder="Add a requirement…"
-                className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white"
-                style={{ fontFamily: 'var(--font-body)' }}
-              />
+            {job.requirements.length === 0 && (
               <button
                 onClick={addRequirement}
-                disabled={!newReqText.trim()}
-                className="px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40"
+                className="w-full px-3 py-3 rounded-xl border border-dashed border-gray-200 text-xs text-foreground/40 hover:border-primary hover:text-primary transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
-              >Add</button>
-            </div>
+              >
+                + Add your first requirement
+              </button>
+            )}
+          </div>
+
+          {/* Activity log */}
+          <div className="mb-6 jd-print-hide">
+            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>
+              Activity ({job.activity.length})
+            </p>
+            {job.activity.length === 0 ? (
+              <p className="text-xs text-foreground/40 italic" style={{ fontFamily: 'var(--font-body)' }}>
+                No changes recorded yet.
+              </p>
+            ) : (
+              <ul className="border border-gray-100 rounded-xl bg-white divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                {[...job.activity].reverse().map((entry, i) => (
+                  <li key={i} className="px-3 py-2 flex items-start gap-3 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="text-foreground/30 mt-0.5 shrink-0">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 7v5l3 2" />
+                      </svg>
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-foreground/80">{entry.summary}</p>
+                      <p className="text-[10px] text-foreground/40 mt-0.5">
+                        {entry.by_name ? `${entry.by_name} · ` : ''}{new Date(entry.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Delete */}

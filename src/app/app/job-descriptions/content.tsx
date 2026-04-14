@@ -12,6 +12,12 @@ interface Department {
   color: string | null;
 }
 
+interface ActivityEntry {
+  at: string; // ISO timestamp
+  by_name: string | null;
+  summary: string;
+}
+
 interface JobDescription {
   id: string;
   title: string;
@@ -19,7 +25,34 @@ interface JobDescription {
   summary: string;
   responsibilities: string[];
   requirements: string[];
+  date_revised: string | null;
   created_at: string;
+  last_edited_at: string | null;
+  last_edited_by_name: string | null;
+  activity: ActivityEntry[];
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatRelative(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const diff = Date.now() - d.getTime();
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 interface AppUserLite {
@@ -40,6 +73,8 @@ export default function JobDescriptionsContent() {
 
   // Add-new
   const [creating, setCreating] = useState(false);
+  const [modalDragOver, setModalDragOver] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [newTitle, setNewTitle] = useState('');
   const [newDeptId, setNewDeptId] = useState<string>('');
   const [createBusy, setCreateBusy] = useState(false);
@@ -51,6 +86,50 @@ export default function JobDescriptionsContent() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [schemaHint, setSchemaHint] = useState<{ columns: string[]; sql: string } | null>(null);
+
+  // Per-row assign popover state: which job row is showing its picker, + filter.
+  const [assignOpenFor, setAssignOpenFor] = useState<string | null>(null);
+  const [assignFilter, setAssignFilter] = useState('');
+
+  useEffect(() => {
+    if (!assignOpenFor) return;
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') setAssignOpenFor(null);
+    }
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [assignOpenFor]);
+
+  async function assignUserToTitle(title: string, u: AppUserLite) {
+    await db({ action: 'update', table: 'users', data: { job_title: title }, match: { id: u.id } });
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, job_title: title } : x)));
+  }
+
+  async function unassignUserFromTitle(u: AppUserLite) {
+    await db({ action: 'update', table: 'users', data: { job_title: null }, match: { id: u.id } });
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, job_title: null } : x)));
+  }
+
+  async function patchJob(jobId: string, updates: Partial<JobDescription>, activitySummary?: string) {
+    const nowIso = new Date().toISOString();
+    const editorName = (user?.user_metadata as { full_name?: string } | undefined)?.full_name || user?.email || 'Someone';
+    const current = jobs.find((j) => j.id === jobId);
+    const nextActivity = activitySummary
+      ? [...(current?.activity || []), { at: nowIso, by_name: editorName, summary: activitySummary }].slice(-50)
+      : current?.activity;
+    const fullUpdate: Record<string, unknown> = {
+      ...updates,
+      last_edited_at: nowIso,
+      last_edited_by: user?.id || null,
+      last_edited_by_name: editorName,
+    };
+    if (activitySummary) fullUpdate.activity = nextActivity;
+    setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, ...updates, last_edited_at: nowIso, last_edited_by_name: editorName, activity: nextActivity || j.activity } as JobDescription : j)));
+    const res = await db({ action: 'update', table: 'job_descriptions', data: fullUpdate, match: { id: jobId } });
+    if (res && typeof res === 'object' && 'error' in res) {
+      console.warn('patchJob failed', (res as { error?: string }).error);
+    }
+  }
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -74,7 +153,11 @@ export default function JobDescriptionsContent() {
             summary: (j.summary as string) || '',
             responsibilities: Array.isArray(j.responsibilities) ? (j.responsibilities as string[]) : [],
             requirements: Array.isArray(j.requirements) ? (j.requirements as string[]) : [],
+            date_revised: (j.date_revised as string | null) || null,
             created_at: (j.created_at as string) || '',
+            last_edited_at: (j.last_edited_at as string | null) || null,
+            last_edited_by_name: (j.last_edited_by_name as string | null) || null,
+            activity: Array.isArray(j.activity) ? (j.activity as ActivityEntry[]) : [],
           }))
         );
       } else {
@@ -120,6 +203,10 @@ export default function JobDescriptionsContent() {
         const local: JobDescription = {
           id: `local-${Date.now()}`,
           created_at: new Date().toISOString(),
+          date_revised: null,
+          last_edited_at: null,
+          last_edited_by_name: null,
+          activity: [],
           ...payload,
         };
         setJobs((prev) => [...prev, local].sort((a, b) => a.title.localeCompare(b.title)));
@@ -207,6 +294,10 @@ export default function JobDescriptionsContent() {
         created = {
           id: `local-${Date.now()}`,
           created_at: new Date().toISOString(),
+          date_revised: null,
+          last_edited_at: null,
+          last_edited_by_name: null,
+          activity: [],
           title: parsed.title,
           department_id: deptId,
           summary: parsed.summary,
@@ -345,7 +436,7 @@ export default function JobDescriptionsContent() {
 
   return (
     <div
-      className="p-6 lg:p-10 max-w-6xl relative"
+      className="p-6 lg:p-10 w-full relative"
       onDragEnter={onDragEnter}
       onDragLeave={onDragLeave}
       onDragOver={onDragOver}
@@ -373,7 +464,7 @@ export default function JobDescriptionsContent() {
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Job Descriptions</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            {jobs.length} {jobs.length === 1 ? 'role' : 'roles'} &middot; Drop a PDF anywhere to import
+            {jobs.length} {jobs.length === 1 ? 'role' : 'roles'} &middot; Click “Add New” or drop a PDF anywhere to import
           </p>
           {!dbAvailable && (
             <p className="text-xs text-amber-600 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
@@ -381,65 +472,42 @@ export default function JobDescriptionsContent() {
             </p>
           )}
         </div>
-        <button
-          onClick={() => { setCreating(true); setNewTitle(''); setNewDeptId(''); setCreateError(null); }}
-          disabled={creating}
-          className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Add New Job Description
-        </button>
-      </div>
-
-      {/* PDF upload zone */}
-      <label
-        htmlFor="jd-pdf-input"
-        className={`mb-6 block rounded-2xl border-2 border-dashed px-5 py-4 cursor-pointer transition-colors ${
-          uploading
-            ? 'border-primary/40 bg-primary/5'
-            : 'border-gray-200 bg-white hover:border-primary/40 hover:bg-primary/5'
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          {uploading ? (
-            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
-          ) : (
-            <svg className="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-              <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
-              <path d="M12 18v-6" />
-              <path d="m9 15 3-3 3 3" />
-            </svg>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground">
-              {uploading ? 'Parsing PDF with Claude…' : 'Drag & drop a job description PDF'}
-            </p>
-            <p className="text-xs text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-              {uploading
-                ? uploadStatus || 'This can take a few seconds for long documents.'
-                : 'Or click to choose a file. Named team members in the PDF will be assigned automatically.'}
-            </p>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="inline-flex items-center rounded-lg border border-gray-200 bg-white p-0.5" role="tablist" aria-label="View mode">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === 'list' ? 'bg-warm-bg text-foreground' : 'text-foreground/50 hover:text-foreground'}`}
+              style={{ fontFamily: 'var(--font-body)' }}
+              aria-pressed={viewMode === 'list'}
+              title="List view"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+              List
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === 'grid' ? 'bg-warm-bg text-foreground' : 'text-foreground/50 hover:text-foreground'}`}
+              style={{ fontFamily: 'var(--font-body)' }}
+              aria-pressed={viewMode === 'grid'}
+              title="Grid view"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" /></svg>
+              Grid
+            </button>
           </div>
+          <button
+            onClick={() => { setCreating(true); setNewTitle(''); setNewDeptId(''); setCreateError(null); }}
+            disabled={creating}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Add New Job Description
+          </button>
         </div>
-        <input
-          id="jd-pdf-input"
-          type="file"
-          accept="application/pdf,.pdf"
-          multiple
-          className="hidden"
-          disabled={uploading}
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length > 0) {
-              importPdfs(e.target.files);
-              e.target.value = '';
-            }
-          }}
-        />
-      </label>
+      </div>
 
       {!uploading && uploadStatus && (
         <div className="mb-4 px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-100 text-xs text-emerald-800 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
@@ -484,11 +552,29 @@ export default function JobDescriptionsContent() {
         </div>
       )}
 
-      {/* New-role modal */}
+      {/* New-role modal — includes drag-and-drop PDF import so a role can
+          be created either by typing a title or by dropping a PDF that
+          Claude will parse. */}
       {creating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => !createBusy && setCreating(false)}>
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => !createBusy && !uploading && setCreating(false)}>
+          <div
+            className={`bg-white rounded-2xl shadow-xl border p-5 w-full max-w-md transition-colors ${modalDragOver ? 'border-primary border-2' : 'border-gray-100'}`}
+            onClick={(e) => e.stopPropagation()}
+            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setModalDragOver(true); }}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setModalDragOver(true); }}
+            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setModalDragOver(false); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setModalDragOver(false);
+              const files = e.dataTransfer.files;
+              if (files && files.length > 0) {
+                importPdfs(files).then(() => setCreating(false));
+              }
+            }}
+          >
             <h2 className="text-sm font-semibold text-foreground mb-3">New Role</h2>
+
             <div className="mb-3">
               <label className="text-[10px] text-foreground/40 uppercase tracking-wider block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Title</label>
               <input
@@ -518,22 +604,56 @@ export default function JobDescriptionsContent() {
             {createError && (
               <p className="text-xs text-red-500 mb-3" style={{ fontFamily: 'var(--font-body)' }}>{createError}</p>
             )}
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setCreating(false)}
-                disabled={createBusy}
-                className="px-3 py-1.5 rounded-lg text-xs text-foreground/50 hover:bg-warm-bg disabled:opacity-40"
+            <div className="flex items-center justify-between gap-2">
+              <label
+                htmlFor="jd-pdf-input-modal"
+                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-foreground/60 hover:text-foreground hover:bg-warm-bg transition-colors cursor-pointer"
                 style={{ fontFamily: 'var(--font-body)' }}
-              >Cancel</button>
-              <button
-                onClick={createAndOpen}
-                disabled={!newTitle.trim() || createBusy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40"
-                style={{ fontFamily: 'var(--font-body)' }}
+                title="Drag a PDF onto this window, or click to choose one"
               >
-                {createBusy && <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />}
-                Create & Open
-              </button>
+                {uploading ? (
+                  <div className="w-3.5 h-3.5 border border-primary border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                    <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+                    <path d="M12 18v-6" />
+                    <path d="m9 15 3-3 3 3" />
+                  </svg>
+                )}
+                {uploading ? (uploadStatus || 'Parsing PDF…') : 'Upload PDF'}
+                <input
+                  id="jd-pdf-input-modal"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  multiple
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      importPdfs(e.target.files).then(() => setCreating(false));
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCreating(false)}
+                  disabled={createBusy || uploading}
+                  className="px-3 py-1.5 rounded-lg text-xs text-foreground/50 hover:bg-warm-bg disabled:opacity-40"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >Cancel</button>
+                <button
+                  onClick={createAndOpen}
+                  disabled={!newTitle.trim() || createBusy || uploading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {createBusy && <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />}
+                  Create & Open
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -543,76 +663,162 @@ export default function JobDescriptionsContent() {
       {jobs.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center">
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            No job descriptions yet. Drop a PDF above or add one manually to get started.
+            No job descriptions yet. Drop a PDF anywhere or add one manually to get started.
           </p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div
             className="grid items-center text-[10px] uppercase tracking-wider text-foreground/40 px-5 py-2.5 border-b border-gray-100 bg-warm-bg/20"
-            style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1.4fr) auto' }}
+            style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,2fr) minmax(140px,1fr) minmax(0,2fr) minmax(180px,auto)' }}
           >
             <div>Title</div>
+            <div>Department</div>
             <div>Assigned To</div>
-            <div className="text-right pr-1">View</div>
+            <div>Last Changed</div>
           </div>
           {jobs.map((job, idx) => {
             const dept = job.department_id ? deptById.get(job.department_id) : null;
             const assigned = usersByTitle.get(job.title.trim().toLowerCase()) || [];
+            const pickerOpen = assignOpenFor === job.id;
+            const pickerFilter = pickerOpen ? assignFilter.trim().toLowerCase() : '';
+            const pickerCandidates = users
+              .filter((u) => !assigned.some((a) => a.id === u.id))
+              .filter((u) => !pickerFilter || (u.full_name || '').toLowerCase().includes(pickerFilter));
             return (
               <div
                 key={job.id}
-                className={`grid items-center px-5 py-3 hover:bg-warm-bg/20 transition-colors ${idx > 0 ? 'border-t border-gray-100' : ''}`}
-                style={{ gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1.4fr) auto' }}
+                role="button"
+                tabIndex={0}
+                onClick={() => router.push(`/app/job-descriptions/${job.id}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/app/job-descriptions/${job.id}`); } }}
+                className={`grid items-center px-5 py-3 hover:bg-warm-bg/30 cursor-pointer transition-colors ${idx > 0 ? 'border-t border-gray-100' : ''}`}
+                style={{ gridTemplateColumns: 'minmax(0,2fr) minmax(140px,1fr) minmax(0,2fr) minmax(180px,auto)' }}
               >
                 <div className="min-w-0 flex items-center gap-2 pr-3">
                   <span className="text-sm font-semibold text-foreground truncate">{job.title}</span>
-                  {dept && (
+                </div>
+                <div className="min-w-0 pr-3" onClick={(e) => e.stopPropagation()}>
+                  <select
+                    value={job.department_id || ''}
+                    onChange={(e) => {
+                      const next = e.target.value || null;
+                      const nextDept = next ? deptById.get(next)?.name : null;
+                      patchJob(job.id, { department_id: next }, nextDept ? `Moved to ${nextDept}` : 'Cleared department');
+                    }}
+                    className={`text-[11px] px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-primary/40 w-full max-w-[180px] ${dept ? 'font-medium' : 'text-foreground/40'}`}
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      backgroundColor: dept ? (dept.color || '#a0522d') + '1f' : 'transparent',
+                      color: dept ? (dept.color || '#a0522d') : undefined,
+                    }}
+                  >
+                    <option value="">— None —</option>
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-0 flex items-center gap-1.5 flex-wrap pr-3 relative" onClick={(e) => e.stopPropagation()}>
+                  {assigned.map((u) => (
                     <span
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0"
-                      style={{
-                        fontFamily: 'var(--font-body)',
-                        backgroundColor: (dept.color || '#a0522d') + '1f',
-                        color: dept.color || '#a0522d',
-                      }}
+                      key={u.id}
+                      className="inline-flex items-center gap-1 pl-0.5 pr-1 py-0.5 rounded-full bg-warm-bg/60 border border-gray-100 text-[11px] group"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      title={u.full_name || ''}
                     >
-                      {dept.name}
-                    </span>
-                  )}
-                </div>
-                <div className="min-w-0 flex items-center gap-1.5 flex-wrap pr-3">
-                  {assigned.length === 0 ? (
-                    <span className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>Unassigned</span>
-                  ) : (
-                    assigned.map((u) => (
-                      <span
-                        key={u.id}
-                        className="inline-flex items-center gap-1 pl-0.5 pr-2 py-0.5 rounded-full bg-warm-bg/60 border border-gray-100 text-[11px]"
-                        style={{ fontFamily: 'var(--font-body)' }}
-                        title={u.full_name || ''}
+                      {u.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={u.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                      ) : (
+                        <span className="w-4 h-4 rounded-full bg-foreground/10 flex items-center justify-center text-[8px] font-semibold text-foreground/60">
+                          {(u.full_name || '?').charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <span className="truncate max-w-[120px]">{u.full_name || 'Unnamed'}</span>
+                      <button
+                        onClick={() => unassignUserFromTitle(u)}
+                        className="text-foreground/30 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label={`Unassign ${u.full_name}`}
                       >
-                        {u.avatar_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={u.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
-                        ) : (
-                          <span className="w-4 h-4 rounded-full bg-foreground/10 flex items-center justify-center text-[8px] font-semibold text-foreground/60">
-                            {(u.full_name || '?').charAt(0).toUpperCase()}
-                          </span>
-                        )}
-                        <span className="truncate max-w-[120px]">{u.full_name || 'Unnamed'}</span>
-                      </span>
-                    ))
-                  )}
-                </div>
-                <div className="flex justify-end">
-                  <Link
-                    href={`/app/job-descriptions/${job.id}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-foreground/80 text-xs font-medium hover:border-primary hover:text-primary transition-colors"
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    onClick={() => {
+                      setAssignOpenFor(pickerOpen ? null : job.id);
+                      setAssignFilter('');
+                    }}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-dashed text-[11px] transition-colors ${
+                      assigned.length === 0
+                        ? 'border-gray-300 text-foreground/50 hover:border-primary hover:text-primary'
+                        : 'border-gray-300 text-foreground/40 hover:border-primary hover:text-primary'
+                    }`}
                     style={{ fontFamily: 'var(--font-body)' }}
                   >
-                    View Job Description
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                  </Link>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    {assigned.length === 0 ? 'Assign' : 'Add'}
+                  </button>
+                  {pickerOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setAssignOpenFor(null)} />
+                      <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-100 z-20 w-64 max-h-72 overflow-hidden flex flex-col">
+                        <input
+                          autoFocus
+                          value={assignFilter}
+                          onChange={(e) => setAssignFilter(e.target.value)}
+                          placeholder="Search team…"
+                          className="px-3 py-2 text-xs border-b border-gray-100 focus:outline-none"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        />
+                        <div className="overflow-y-auto flex-1">
+                          {pickerCandidates.length === 0 && (
+                            <p className="px-3 py-4 text-xs text-foreground/40 text-center" style={{ fontFamily: 'var(--font-body)' }}>
+                              No matching team members
+                            </p>
+                          )}
+                          {pickerCandidates.map((u) => (
+                            <button
+                              key={u.id}
+                              onClick={() => {
+                                assignUserToTitle(job.title, u);
+                                setAssignOpenFor(null);
+                                setAssignFilter('');
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-warm-bg/40 text-left"
+                              style={{ fontFamily: 'var(--font-body)' }}
+                            >
+                              {u.avatar_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                              ) : (
+                                <span className="w-5 h-5 rounded-full bg-foreground/10 flex items-center justify-center text-[9px] font-semibold text-foreground/60">
+                                  {(u.full_name || '?').charAt(0).toUpperCase()}
+                                </span>
+                              )}
+                              <span className="flex-1 truncate">{u.full_name || 'Unnamed'}</span>
+                              {u.job_title && (
+                                <span className="text-[10px] text-foreground/40 truncate max-w-[90px]">{u.job_title}</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="text-xs text-foreground/60 min-w-0 pr-3" style={{ fontFamily: 'var(--font-body)' }}>
+                  {job.last_edited_at ? (
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate">{formatRelative(job.last_edited_at)}</span>
+                      {job.last_edited_by_name && (
+                        <span className="text-[10px] text-foreground/40 truncate">by {job.last_edited_by_name}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-foreground/30">—</span>
+                  )}
                 </div>
               </div>
             );
