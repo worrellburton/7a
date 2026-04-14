@@ -121,9 +121,9 @@ export default function HomeContent() {
                     </div>
                   )}
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left">
-                    <p className="font-medium">{u.full_name || 'User'}</p>
-                    {u.job_title && <p className="text-white/80">{u.job_title}</p>}
-                    <p className="text-white/60">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
+                    <p className="font-semibold text-white">{u.full_name || 'User'}</p>
+                    {u.job_title && <p className="text-white/90">{u.job_title}</p>}
+                    <p className="text-white/80">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
                     {viewing && <p className="text-emerald-300">Viewing {viewing}{navTarget ? ' — click to jump' : ''}</p>}
                   </div>
                 </Wrapper>

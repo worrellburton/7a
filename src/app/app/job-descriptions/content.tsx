@@ -62,12 +62,20 @@ interface AppUserLite {
   job_title: string | null;
 }
 
+interface SignatureLite {
+  id: string;
+  job_description_id: string;
+  signer_user_id: string | null;
+  signed_at: string | null;
+}
+
 export default function JobDescriptionsContent() {
   const { user, session } = useAuth();
   const router = useRouter();
   const [jobs, setJobs] = useState<JobDescription[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [users, setUsers] = useState<AppUserLite[]>([]);
+  const [signatures, setSignatures] = useState<SignatureLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [dbAvailable, setDbAvailable] = useState(true);
 
@@ -134,7 +142,7 @@ export default function JobDescriptionsContent() {
   useEffect(() => {
     if (!session?.access_token) return;
     async function load() {
-      const [jobData, deptData, userData] = await Promise.all([
+      const [jobData, deptData, userData, sigData] = await Promise.all([
         db({ action: 'select', table: 'job_descriptions', order: { column: 'title', ascending: true } }),
         db({ action: 'select', table: 'departments', order: { column: 'name', ascending: true } }),
         db({
@@ -143,6 +151,7 @@ export default function JobDescriptionsContent() {
           select: 'id, full_name, avatar_url, job_title',
           order: { column: 'full_name', ascending: true },
         }),
+        db({ action: 'select', table: 'jd_signatures', select: 'id, job_description_id, signer_user_id, signed_at' }).catch(() => []),
       ]);
       if (Array.isArray(jobData)) {
         setJobs(
@@ -165,12 +174,46 @@ export default function JobDescriptionsContent() {
       }
       if (Array.isArray(deptData)) setDepartments(deptData as Department[]);
       if (Array.isArray(userData)) setUsers(userData as AppUserLite[]);
+      if (Array.isArray(sigData)) setSignatures(sigData as SignatureLite[]);
       setLoading(false);
     }
     load();
   }, [session]);
 
   const deptById = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
+
+  // Insights for the top bar
+  const insights = useMemo(() => {
+    const assignedUserIds = new Set<string>();
+    const titleToJobId = new Map<string, string>();
+    for (const j of jobs) titleToJobId.set(j.title.trim().toLowerCase(), j.id);
+    for (const u of users) {
+      const t = (u.job_title || '').trim().toLowerCase();
+      if (t && titleToJobId.has(t)) assignedUserIds.add(u.id);
+    }
+
+    // Signed = user has a signed_at for their assigned JD
+    const signedPairs = new Set(
+      signatures.filter((s) => s.signed_at && s.signer_user_id).map((s) => `${s.signer_user_id}:${s.job_description_id}`)
+    );
+    const peopleWithJd = users.filter((u) => assignedUserIds.has(u.id));
+    const peopleNeedSignature: AppUserLite[] = [];
+    for (const u of peopleWithJd) {
+      const jid = titleToJobId.get((u.job_title || '').trim().toLowerCase())!;
+      if (!signedPairs.has(`${u.id}:${jid}`)) peopleNeedSignature.push(u);
+    }
+
+    const unassignedJds = jobs.filter((j) => {
+      const assigned = users.some((u) => (u.job_title || '').trim().toLowerCase() === j.title.trim().toLowerCase());
+      return !assigned;
+    });
+
+    const notReviewed = jobs.filter((j) => !j.date_revised);
+
+    const teamWithoutJd = users.filter((u) => !assignedUserIds.has(u.id) && (u.full_name || '').trim());
+
+    return { peopleNeedSignature, unassignedJds, notReviewed, teamWithoutJd };
+  }, [jobs, users, signatures]);
 
   // Group users by lowercased job_title for fast lookup on each row.
   const usersByTitle = useMemo(() => {
@@ -509,6 +552,64 @@ export default function JobDescriptionsContent() {
         </div>
       </div>
 
+      {/* Insights */}
+      {jobs.length > 0 && (
+        <div className="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <InsightCard
+            label="Unsigned JDs"
+            count={insights.peopleNeedSignature.length}
+            tone="amber"
+            detail={insights.peopleNeedSignature.slice(0, 6).map((u) => u.full_name || 'Unnamed')}
+            icon={(
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 17l6-6 4 4 8-8" />
+                <path d="M14 7h7v7" />
+              </svg>
+            )}
+            subtitle="Team members with no signed JD"
+          />
+          <InsightCard
+            label="No Role"
+            count={insights.teamWithoutJd.length}
+            tone="rose"
+            detail={insights.teamWithoutJd.slice(0, 6).map((u) => u.full_name || 'Unnamed')}
+            icon={(
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21a8 8 0 0 1 16 0" />
+              </svg>
+            )}
+            subtitle="Team members with no JD assigned"
+          />
+          <InsightCard
+            label="Unassigned"
+            count={insights.unassignedJds.length}
+            tone="sky"
+            detail={insights.unassignedJds.slice(0, 6).map((j) => j.title)}
+            icon={(
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M8 2v4M16 2v4M3 10h18" />
+              </svg>
+            )}
+            subtitle="Job descriptions with no team"
+          />
+          <InsightCard
+            label="Needs Review"
+            count={insights.notReviewed.length}
+            tone="emerald"
+            detail={insights.notReviewed.slice(0, 6).map((j) => j.title)}
+            icon={(
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+            )}
+            subtitle="Not reviewed yet"
+          />
+        </div>
+      )}
+
       {!uploading && uploadStatus && (
         <div className="mb-4 px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-100 text-xs text-emerald-800 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
           <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
@@ -824,6 +925,47 @@ export default function JobDescriptionsContent() {
             );
           })}
         </div>
+      )}
+    </div>
+  );
+}
+
+function InsightCard({
+  label,
+  count,
+  subtitle,
+  detail,
+  icon,
+  tone,
+}: {
+  label: string;
+  count: number;
+  subtitle: string;
+  detail: string[];
+  icon: React.ReactNode;
+  tone: 'amber' | 'rose' | 'sky' | 'emerald';
+}) {
+  const tones: Record<string, { bg: string; text: string; border: string }> = {
+    amber: { bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-100' },
+    rose: { bg: 'bg-rose-50', text: 'text-rose-800', border: 'border-rose-100' },
+    sky: { bg: 'bg-sky-50', text: 'text-sky-800', border: 'border-sky-100' },
+    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-100' },
+  };
+  const t = tones[tone];
+  return (
+    <div className={`rounded-xl border ${t.border} ${t.bg} px-4 py-3 flex flex-col gap-1 min-w-0`} style={{ fontFamily: 'var(--font-body)' }}>
+      <div className="flex items-center gap-2">
+        <span className={`${t.text}`}>{icon}</span>
+        <span className={`text-[10px] font-semibold uppercase tracking-wider ${t.text}`}>{label}</span>
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span className={`text-2xl font-semibold ${t.text}`}>{count}</span>
+        <span className="text-[11px] text-foreground/60 truncate">{subtitle}</span>
+      </div>
+      {detail.length > 0 && (
+        <p className="text-[11px] text-foreground/50 truncate">
+          {detail.join(', ')}{count > detail.length ? `, +${count - detail.length} more` : ''}
+        </p>
       )}
     </div>
   );
