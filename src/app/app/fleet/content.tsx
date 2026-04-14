@@ -58,7 +58,7 @@ export default function FleetContent() {
   const [docsLoading, setDocsLoading] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadTargetRef = useRef<{ vehicleId: string; docType: string } | null>(null);
+  const uploadTargetRef = useRef<{ vehicleId: string; docType: string; replaceDocId?: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editField, setEditField] = useState('');
   const [editValue, setEditValue] = useState('');
@@ -132,8 +132,8 @@ export default function FleetContent() {
     }
   };
 
-  const triggerUpload = (vehicleId: string, docType: string) => {
-    uploadTargetRef.current = { vehicleId, docType };
+  const triggerUpload = (vehicleId: string, docType: string, replaceDocId?: string) => {
+    uploadTargetRef.current = { vehicleId, docType, replaceDocId };
     fileInputRef.current?.click();
   };
 
@@ -156,15 +156,23 @@ export default function FleetContent() {
         },
       });
       if (result && result.id) {
+        // If this was a replace, remove the old document row from the DB.
+        if (target.replaceDocId) {
+          await db({ action: 'delete', table: 'vehicle_documents', match: { id: target.replaceDocId } });
+        }
         setDocs(prev => ({
           ...prev,
-          [target.vehicleId]: [result as VehicleDocument, ...(prev[target.vehicleId] || [])],
+          [target.vehicleId]: [
+            result as VehicleDocument,
+            ...(prev[target.vehicleId] || []).filter((d) => d.id !== target.replaceDocId),
+          ],
         }));
-        showToast('Document uploaded');
+        showToast(target.replaceDocId ? 'Document replaced' : 'Document uploaded');
       }
     }
     setUploading(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    uploadTargetRef.current = null;
   };
 
   const deleteDoc = async (doc: VehicleDocument) => {
@@ -530,12 +538,27 @@ export default function FleetContent() {
                                                   <span className="text-[10px] text-foreground/20 shrink-0">{(doc.file_size / 1024).toFixed(0)}KB</span>
                                                 )}
                                                 <button
-                                                  onClick={e => { e.stopPropagation(); deleteDoc(doc); }}
-                                                  className="p-0.5 rounded text-foreground/0 group-hover:text-foreground/30 hover:!text-red-500 transition-colors shrink-0"
-                                                  title="Delete document"
+                                                  onClick={e => { e.stopPropagation(); triggerUpload(v.id, docType, doc.id); }}
+                                                  disabled={isUploading}
+                                                  className="p-0.5 rounded text-foreground/40 hover:text-primary hover:bg-primary/5 transition-colors shrink-0 disabled:opacity-40"
+                                                  title="Replace document"
+                                                  aria-label={`Replace ${doc.file_name}`}
                                                 >
-                                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <path d="M18 6L6 18M6 6l12 12" />
+                                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M21 12a9 9 0 1 1-3-6.7" />
+                                                    <polyline points="21 3 21 9 15 9" />
+                                                  </svg>
+                                                </button>
+                                                <button
+                                                  onClick={e => { e.stopPropagation(); deleteDoc(doc); }}
+                                                  className="p-0.5 rounded text-foreground/40 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                                                  title="Delete document"
+                                                  aria-label={`Delete ${doc.file_name}`}
+                                                >
+                                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M3 6h18" />
+                                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
                                                   </svg>
                                                 </button>
                                               </div>
