@@ -78,6 +78,7 @@ interface JobDescription {
   last_edited_at: string | null;
   last_edited_by_name: string | null;
   activity: ActivityEntry[];
+  archived_at: string | null;
 }
 
 function formatDate(iso: string | null): string {
@@ -104,6 +105,7 @@ interface SignatureRow {
   sent_by_name: string | null;
   sent_at: string;
   signed_at: string | null;
+  pdf_storage_path: string | null;
 }
 
 export default function JobDescriptionDetailContent() {
@@ -177,6 +179,7 @@ export default function JobDescriptionDetailContent() {
           last_edited_at: (raw.last_edited_at as string | null) || null,
           last_edited_by_name: (raw.last_edited_by_name as string | null) || null,
           activity: Array.isArray(raw.activity) ? (raw.activity as ActivityEntry[]) : [],
+          archived_at: (raw.archived_at as string | null) || null,
         });
       } else {
         setNotFound(true);
@@ -320,18 +323,14 @@ export default function JobDescriptionDetailContent() {
     setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, job_title: null } : x)));
   }
 
-  async function deleteRole() {
+  async function archiveRole() {
     if (!job) return;
-    if (!window.confirm(`Delete "${job.title}"? This cannot be undone.`)) return;
-    // Clear assignments first so we don't leave dangling job_title references.
-    if (assignedUsers.length > 0) {
-      await Promise.all(
-        assignedUsers.map((u) =>
-          db({ action: 'update', table: 'users', data: { job_title: null }, match: { id: u.id } })
-        )
-      );
+    if (job.archived_at) {
+      await patchJob({ archived_at: null }, 'Unarchived role');
+      return;
     }
-    await db({ action: 'delete', table: 'job_descriptions', match: { id: job.id } });
+    if (!window.confirm(`Archive "${job.title}"? It will be hidden from the default list but not deleted.`)) return;
+    await patchJob({ archived_at: new Date().toISOString() }, 'Archived role');
     router.push('/app/job-descriptions');
   }
 
@@ -481,18 +480,18 @@ export default function JobDescriptionDetailContent() {
             width: 100%;
             color: #111;
             font-family: var(--font-body), Georgia, 'Times New Roman', serif;
-            font-size: 11pt;
-            line-height: 1.45;
+            font-size: 9.5pt;
+            line-height: 1.35;
           }
           .jd-print-view h1 {
             font-family: var(--font-display), Georgia, 'Times New Roman', serif;
-            font-size: 22pt;
+            font-size: 18pt;
             font-weight: 700;
             margin: 0 0 4pt;
             letter-spacing: -0.01em;
           }
           .jd-print-view .jd-org {
-            font-size: 9pt;
+            font-size: 8pt;
             letter-spacing: 0.18em;
             text-transform: uppercase;
             color: #a0522d;
@@ -500,29 +499,30 @@ export default function JobDescriptionDetailContent() {
             margin-bottom: 10pt;
           }
           .jd-print-view .jd-meta {
-            font-size: 10pt;
+            font-size: 9pt;
             color: #555;
-            margin-bottom: 18pt;
+            margin-bottom: 16pt;
             border-bottom: 1px solid #e5dcce;
-            padding-bottom: 10pt;
+            padding-bottom: 8pt;
             display: flex;
             flex-wrap: wrap;
-            gap: 18pt;
+            gap: 16pt;
           }
-          .jd-print-view .jd-meta div span { display: block; font-size: 8pt; letter-spacing: 0.12em; text-transform: uppercase; color: #888; margin-bottom: 2pt; }
+          .jd-print-view .jd-meta div span { display: block; font-size: 7pt; letter-spacing: 0.12em; text-transform: uppercase; color: #888; margin-bottom: 2pt; }
           .jd-print-view h2 {
             font-family: var(--font-display), Georgia, 'Times New Roman', serif;
-            font-size: 13pt;
+            font-size: 11pt;
             font-weight: 700;
-            margin: 18pt 0 6pt;
+            margin: 14pt 0 5pt;
             color: #2d1b0f;
             border-bottom: 1px solid #e5dcce;
             padding-bottom: 3pt;
           }
-          .jd-print-view p { margin: 0 0 8pt; }
-          .jd-print-view ul { margin: 0 0 6pt; padding-left: 18pt; }
-          .jd-print-view li { margin: 0 0 4pt; page-break-inside: avoid; }
-          .jd-print-view .jd-assignees { font-size: 10pt; color: #333; }
+          .jd-print-view p { margin: 0 0 6pt; }
+          .jd-print-view ol { margin: 0 0 6pt; padding-left: 22pt; list-style: decimal; }
+          .jd-print-view ol li { margin: 0 0 3pt; page-break-inside: avoid; padding-left: 2pt; }
+          .jd-print-view ol li::marker { color: #a0522d; font-weight: 700; }
+          .jd-print-view .jd-assignees { font-size: 9pt; color: #333; }
           .jd-print-view .jd-assignees strong { font-weight: 600; }
           .jd-print-view .jd-footer {
             margin-top: 24pt;
@@ -568,22 +568,22 @@ export default function JobDescriptionDetailContent() {
         {job.responsibilities.length > 0 && (
           <>
             <h2>Responsibilities</h2>
-            <ul>
+            <ol>
               {job.responsibilities.map((r, i) => (
                 <li key={i}>{r}</li>
               ))}
-            </ul>
+            </ol>
           </>
         )}
 
         {job.requirements.length > 0 && (
           <>
             <h2>Requirements</h2>
-            <ul>
+            <ol>
               {job.requirements.map((r, i) => (
                 <li key={i}>{r}</li>
               ))}
-            </ul>
+            </ol>
           </>
         )}
 
@@ -999,6 +999,16 @@ export default function JobDescriptionDetailContent() {
                           : `Sent ${new Date(s.sent_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}${s.sent_by_name ? ` by ${s.sent_by_name}` : ''}`}
                       </p>
                     </div>
+                    {s.pdf_storage_path && (
+                      <a
+                        href={s.pdf_storage_path}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-primary hover:underline"
+                      >
+                        View PDF
+                      </a>
+                    )}
                     <button
                       onClick={() => {
                         const link = `${window.location.origin}/app/sign/${s.id}`;
@@ -1025,14 +1035,14 @@ export default function JobDescriptionDetailContent() {
             )}
           </div>
 
-          {/* Delete */}
+          {/* Archive */}
           <div className="flex justify-end pt-4 border-t border-gray-100 jd-print-hide">
             <button
-              onClick={deleteRole}
-              className="text-xs text-red-500 hover:text-red-700 font-medium"
+              onClick={archiveRole}
+              className={`text-xs font-medium ${job.archived_at ? 'text-emerald-600 hover:text-emerald-700' : 'text-red-500 hover:text-red-700'}`}
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Delete role
+              {job.archived_at ? 'Unarchive job' : 'Archive job'}
             </button>
           </div>
         </div>

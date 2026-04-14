@@ -16,6 +16,13 @@ interface RecentUser {
   last_seen_at: string | null;
 }
 
+interface PendingSignature {
+  id: string;
+  job_description_id: string;
+  sent_at: string;
+  title: string;
+}
+
 function isOnlineNow(lastSeen: string | null): boolean {
   if (!lastSeen) return false;
   return Date.now() - new Date(lastSeen).getTime() < 6 * 60 * 1000;
@@ -36,6 +43,7 @@ export default function HomeContent() {
   const { pages } = usePagePermissions();
   const router = useRouter();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
+  const [pendingSignatures, setPendingSignatures] = useState<PendingSignature[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   // Map /app/... path → friendly label ("Calendar", "Org Chart", etc.)
@@ -69,15 +77,78 @@ export default function HomeContent() {
     fetchRecentUsers();
   }, [session]);
 
+  useEffect(() => {
+    if (!session?.access_token || !user?.id) return;
+    let cancelled = false;
+    async function fetchPending() {
+      const sigs = await db({
+        action: 'select',
+        table: 'jd_signatures',
+        match: { signer_user_id: user!.id },
+        select: 'id, job_description_id, sent_at, signed_at',
+        order: { column: 'sent_at', ascending: false },
+      }).catch(() => []);
+      if (cancelled || !Array.isArray(sigs)) return;
+      const pending = (sigs as Array<{ id: string; job_description_id: string; sent_at: string; signed_at: string | null }>).filter(
+        (s) => !s.signed_at
+      );
+      if (pending.length === 0) {
+        setPendingSignatures([]);
+        return;
+      }
+      const jobs = await Promise.all(
+        pending.map((p) =>
+          db({ action: 'select', table: 'job_descriptions', match: { id: p.job_description_id }, select: 'id, title' })
+            .then((r) => (Array.isArray(r) && r.length > 0 ? (r[0] as { id: string; title: string }) : null))
+            .catch(() => null)
+        )
+      );
+      if (cancelled) return;
+      const merged: PendingSignature[] = pending
+        .map((p, i) => {
+          const j = jobs[i];
+          if (!j) return null;
+          return { id: p.id, job_description_id: p.job_description_id, sent_at: p.sent_at, title: j.title };
+        })
+        .filter((x): x is PendingSignature => x !== null);
+      setPendingSignatures(merged);
+    }
+    fetchPending();
+    return () => {
+      cancelled = true;
+    };
+  }, [session, user?.id]);
+
   if (!user) return null;
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-80px)]">
       {/* Centered welcome */}
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex flex-col items-center justify-center gap-6">
         <h1 className="text-3xl font-bold text-foreground">
           Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
         </h1>
+        {pendingSignatures.length > 0 && (
+          <div className="w-full max-w-md flex flex-col gap-2 px-6">
+            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+              Waiting for your signature
+            </p>
+            {pendingSignatures.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => router.push(`/app/sign/${p.id}`)}
+                className="w-full text-left bg-white rounded-2xl border border-gray-100 px-4 py-3 hover:border-primary/40 hover:shadow-sm transition-all flex items-center justify-between gap-3"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{p.title}</p>
+                  <p className="text-xs text-foreground/50">is waiting to be signed</p>
+                </div>
+                <span className="text-xs font-medium text-primary whitespace-nowrap">Sign now →</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Active today bar — pinned to bottom, slides up */}

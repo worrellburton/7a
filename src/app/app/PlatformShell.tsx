@@ -385,6 +385,42 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     loadDepts();
   }, [session]);
 
+  // Latest signed JD — shown under user name in sidebar chip
+  useEffect(() => {
+    if (!session?.access_token || !user?.id) return;
+    let cancelled = false;
+    async function loadLatestSigned() {
+      try {
+        const sigs = await db({
+          action: 'select',
+          table: 'jd_signatures',
+          match: { signer_user_id: user!.id },
+          select: 'id, job_description_id, signed_at',
+          order: { column: 'signed_at', ascending: false },
+        });
+        if (cancelled || !Array.isArray(sigs)) return;
+        const signed = (sigs as Array<{ job_description_id: string; signed_at: string | null }>).find((s) => !!s.signed_at);
+        if (!signed) {
+          setLatestSignedJd(null);
+          return;
+        }
+        const jd = await db({
+          action: 'select',
+          table: 'job_descriptions',
+          match: { id: signed.job_description_id },
+          select: 'id, title',
+        });
+        if (cancelled) return;
+        if (Array.isArray(jd) && jd.length > 0) {
+          const row = jd[0] as { id: string; title: string };
+          setLatestSignedJd({ id: row.id, title: row.title });
+        }
+      } catch { /* ignore */ }
+    }
+    loadLatestSigned();
+    return () => { cancelled = true; };
+  }, [session, user?.id]);
+
   // Group visible nav pages: ungrouped first, then by department
   const visibleNavPages = navPages.filter(canSeePage);
   const ungroupedPages = visibleNavPages.filter(p => !p.departmentId);
@@ -588,7 +624,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <p className="text-sm font-medium text-foreground truncate">
                 {user.user_metadata?.full_name || 'User'}
               </p>
-              <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+              {latestSignedJd ? (
+                <p className="text-xs text-foreground/50 truncate" title={`Signed: ${latestSignedJd.title}`}>
+                  {latestSignedJd.title}
+                </p>
+              ) : (
+                <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+              )}
             </div>
             <svg className="w-4 h-4 text-foreground/30 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
@@ -761,7 +803,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     <p className="text-sm font-medium text-foreground truncate">
                       {user.user_metadata?.full_name || 'User'}
                     </p>
-                    <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+                    {latestSignedJd ? (
+                      <p className="text-xs text-foreground/50 truncate" title={`Signed: ${latestSignedJd.title}`}>
+                        {latestSignedJd.title}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+                    )}
                   </div>
                 </div>
                 <button
