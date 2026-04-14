@@ -341,17 +341,26 @@ export default function UsersContent() {
                       })()}
                     </td>
                     <td className="px-6 py-4 hidden md:table-cell">
-                      <select
-                        value={u.department_id || ''}
-                        onChange={(e) => updateDepartment(u.id, e.target.value || null)}
-                        className="text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-[160px]"
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        <option value="">—</option>
-                        {departments.map((d) => (
-                          <option key={d.id} value={d.id}>{d.name}</option>
-                        ))}
-                      </select>
+                      {(() => {
+                        const userDept = departments.find((d) => d.id === u.department_id) || null;
+                        return (
+                          <select
+                            value={u.department_id || ''}
+                            onChange={(e) => updateDepartment(u.id, e.target.value || null)}
+                            className={`text-xs px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[180px] ${userDept ? 'font-medium' : 'text-foreground/40 bg-white border border-gray-200'}`}
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              backgroundColor: userDept ? (userDept.color || '#a0522d') + '1f' : undefined,
+                              color: userDept ? (userDept.color || '#a0522d') : undefined,
+                            }}
+                          >
+                            <option value="">—</option>
+                            {departments.map((d) => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 hidden sm:table-cell">
                       {(() => {

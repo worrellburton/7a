@@ -92,6 +92,18 @@ interface AppUserLite {
   full_name: string | null;
   avatar_url: string | null;
   job_title: string | null;
+  email?: string | null;
+}
+
+interface SignatureRow {
+  id: string;
+  job_description_id: string;
+  signer_user_id: string | null;
+  signer_name: string | null;
+  signer_email: string | null;
+  sent_by_name: string | null;
+  sent_at: string;
+  signed_at: string | null;
 }
 
 export default function JobDescriptionDetailContent() {
@@ -108,31 +120,47 @@ export default function JobDescriptionDetailContent() {
 
   // Inline add inputs
 
-  // Claude-edit panel
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiInstruction, setAiInstruction] = useState('');
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [aiLog, setAiLog] = useState<{ instruction: string; summary: string }[]>([]);
-  const aiInputRef = useRef<HTMLTextAreaElement>(null);
+  // Claude rating panel
+  const [ratingOpen, setRatingOpen] = useState(false);
+  const [ratingBusy, setRatingBusy] = useState(false);
+  const [ratingError, setRatingError] = useState<string | null>(null);
+  const [rating, setRating] = useState<{
+    score: number;
+    headline: string;
+    strengths: string[];
+    recommendations: string[];
+  } | null>(null);
 
   // Assign user picker
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignFilter, setAssignFilter] = useState('');
 
+  // Send-for-signature modal
+  const [sigOpen, setSigOpen] = useState(false);
+  const [sigFilter, setSigFilter] = useState('');
+  const [sigBusy, setSigBusy] = useState(false);
+  const [sigStatus, setSigStatus] = useState<string | null>(null);
+  const [signatures, setSignatures] = useState<SignatureRow[]>([]);
+
   useEffect(() => {
     if (!session?.access_token || !id) return;
     let cancelled = false;
     async function load() {
-      const [jobRows, deptData, userData] = await Promise.all([
+      const [jobRows, deptData, userData, sigData] = await Promise.all([
         db({ action: 'select', table: 'job_descriptions', match: { id } }),
         db({ action: 'select', table: 'departments', order: { column: 'name', ascending: true } }),
         db({
           action: 'select',
           table: 'users',
-          select: 'id, full_name, avatar_url, job_title',
+          select: 'id, full_name, avatar_url, job_title, email',
           order: { column: 'full_name', ascending: true },
         }),
+        db({
+          action: 'select',
+          table: 'jd_signatures',
+          match: { job_description_id: id },
+          order: { column: 'sent_at', ascending: false },
+        }).catch(() => []),
       ]);
       if (cancelled) return;
       if (Array.isArray(jobRows) && jobRows.length > 0) {
@@ -155,6 +183,7 @@ export default function JobDescriptionDetailContent() {
       }
       if (Array.isArray(deptData)) setDepartments(deptData as Department[]);
       if (Array.isArray(userData)) setUsers(userData as AppUserLite[]);
+      if (Array.isArray(sigData)) setSignatures(sigData as SignatureRow[]);
       setLoading(false);
     }
     load();
@@ -241,6 +270,15 @@ export default function JobDescriptionDetailContent() {
     patchJob({ responsibilities: job.responsibilities.map((r, idx) => (idx === i ? value : r)) }, 'Edited a responsibility');
   }
 
+  function moveResponsibility(i: number, dir: -1 | 1) {
+    if (!job) return;
+    const j = i + dir;
+    if (j < 0 || j >= job.responsibilities.length) return;
+    const next = [...job.responsibilities];
+    [next[i], next[j]] = [next[j], next[i]];
+    patchJob({ responsibilities: next }, 'Reordered responsibilities');
+  }
+
   function addRequirement() {
     if (!job) return;
     patchJob({ requirements: [...job.requirements, ''] }, 'Added a requirement');
@@ -260,6 +298,15 @@ export default function JobDescriptionDetailContent() {
     const prior = job.requirements[i];
     if (prior === value) return;
     patchJob({ requirements: job.requirements.map((r, idx) => (idx === i ? value : r)) }, 'Edited a requirement');
+  }
+
+  function moveRequirement(i: number, dir: -1 | 1) {
+    if (!job) return;
+    const j = i + dir;
+    if (j < 0 || j >= job.requirements.length) return;
+    const next = [...job.requirements];
+    [next[i], next[j]] = [next[j], next[i]];
+    patchJob({ requirements: next }, 'Reordered requirements');
   }
 
   async function assignUser(u: AppUserLite) {
@@ -301,15 +348,55 @@ export default function JobDescriptionDetailContent() {
     window.print();
   }
 
-  async function runClaudeEdit() {
+  async function sendForSignature(target: AppUserLite) {
     if (!job) return;
-    const instruction = aiInstruction.trim();
-    if (!instruction) return;
-    setAiBusy(true);
-    setAiError(null);
+    setSigBusy(true);
+    try {
+      const editorName = (user?.user_metadata as { full_name?: string } | undefined)?.full_name || user?.email || 'Someone';
+      const created = await db({
+        action: 'insert',
+        table: 'jd_signatures',
+        data: {
+          job_description_id: job.id,
+          signer_user_id: target.id,
+          signer_name: target.full_name,
+          signer_email: target.email || null,
+          sent_by: user?.id || null,
+          sent_by_name: editorName,
+        },
+      });
+      const row = Array.isArray(created) ? (created[0] as SignatureRow) : (created as SignatureRow);
+      if (row && row.id) {
+        setSignatures((prev) => [row, ...prev]);
+        const link = `${window.location.origin}/app/sign/${row.id}`;
+        try {
+          await navigator.clipboard.writeText(link);
+          setSigStatus(`Signature link copied for ${target.full_name || 'team member'}`);
+        } catch {
+          setSigStatus(`Signature link: ${link}`);
+        }
+        await patchJob({}, `Sent for signature to ${target.full_name || 'team member'}`);
+      }
+    } catch (err) {
+      setSigStatus(err instanceof Error ? `Failed: ${err.message}` : 'Failed to send');
+    } finally {
+      setSigBusy(false);
+    }
+  }
+
+  async function removeSignature(sigId: string) {
+    await db({ action: 'delete', table: 'jd_signatures', match: { id: sigId } });
+    setSignatures((prev) => prev.filter((s) => s.id !== sigId));
+  }
+
+  async function runClaudeRating() {
+    if (!job) return;
+    setRatingBusy(true);
+    setRatingError(null);
+    setRating(null);
     try {
       const token = getAuthToken();
-      const res = await fetch('/api/claude/job-description/edit', {
+      const res = await fetch('/api/claude/job-description/rate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -321,38 +408,24 @@ export default function JobDescriptionDetailContent() {
           summary: job.summary,
           responsibilities: job.responsibilities,
           requirements: job.requirements,
-          instruction,
         }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error || `Edit failed (${res.status})`);
+        throw new Error(body?.error || `Rating failed (${res.status})`);
       }
-      const edited = (await res.json()) as {
-        title: string;
-        summary: string;
-        responsibilities: string[];
-        requirements: string[];
+      const result = (await res.json()) as {
+        score: number;
+        headline: string;
+        strengths: string[];
+        recommendations: string[];
       };
-
-      const titleChanged = edited.title.trim() && edited.title.trim() !== job.title.trim();
-      if (titleChanged) {
-        await renameTitle(edited.title.trim());
-      }
-      const summary = summarizeChanges(job, edited);
-      await patchJob({
-        summary: edited.summary,
-        responsibilities: edited.responsibilities,
-        requirements: edited.requirements,
-      }, `Claude edit — ${summary}`);
-      setAiLog((prev) => [...prev, { instruction, summary }]);
-      setAiInstruction('');
-      // Refocus the textarea so the user can keep iterating.
-      setTimeout(() => aiInputRef.current?.focus(), 0);
+      setRating(result);
+      await patchJob({}, `Claude rated this ${result.score}/10`);
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : String(err));
+      setRatingError(err instanceof Error ? err.message : String(err));
     } finally {
-      setAiBusy(false);
+      setRatingBusy(false);
     }
   }
 
@@ -534,12 +607,15 @@ export default function JobDescriptionDetailContent() {
           </Link>
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={() => setAiOpen((v) => !v)}
+              onClick={() => {
+                setRatingOpen(true);
+                if (!rating && !ratingBusy) runClaudeRating();
+              }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/5 text-primary text-xs font-medium hover:bg-primary/10"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
-              Edit with Claude
+              Have Claude rate this out of 10
             </button>
             <button
               onClick={downloadPdf}
@@ -552,6 +628,18 @@ export default function JobDescriptionDetailContent() {
                 <path d="M5 21h14" />
               </svg>
               Download PDF
+            </button>
+            <button
+              onClick={() => { setSigOpen(true); setSigFilter(''); setSigStatus(null); }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-foreground/80 text-xs font-medium hover:bg-warm-bg"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 17l6-6 4 4 8-8" />
+                <path d="M14 7h7v7" />
+                <path d="M3 21h18" />
+              </svg>
+              Send for Signature
             </button>
           </div>
         </div>
@@ -707,16 +795,14 @@ export default function JobDescriptionDetailContent() {
             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>
               Position Summary
             </p>
-            <textarea
+            <AutoTextarea
               value={job.summary}
-              onChange={(e) => setJob({ ...job, summary: e.target.value })}
-              onBlur={(e) => {
-                if (e.target.value !== job.summary) patchJob({ summary: e.target.value }, 'Edited summary');
+              onChange={(v) => setJob({ ...job, summary: v })}
+              onBlur={(v) => {
+                if (v !== job.summary) patchJob({ summary: v }, 'Edited summary');
               }}
-              rows={4}
               placeholder="A short overview of the role…"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white resize-y"
-              style={{ fontFamily: 'var(--font-body)' }}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white min-h-[16rem] leading-6"
             />
           </div>
 
@@ -738,8 +824,8 @@ export default function JobDescriptionDetailContent() {
             {job.responsibilities.length > 0 && (
               <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl bg-white overflow-hidden mb-3">
                 {job.responsibilities.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2 group hover:bg-warm-bg/40 transition-colors px-3 py-2">
-                    <span className="text-foreground/30 text-[10px] font-medium mt-2 select-none w-5 text-right tabular-nums shrink-0">{i + 1}</span>
+                  <li key={i} className="flex items-center gap-2.5 group hover:bg-warm-bg/40 transition-colors px-2.5 py-1.5">
+                    <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tabular-nums select-none self-start mt-0.5">{i + 1}</span>
                     <AutoTextarea
                       value={r}
                       onChange={(value) => {
@@ -748,15 +834,33 @@ export default function JobDescriptionDetailContent() {
                       onBlur={(value) => updateResponsibility(i, value)}
                       placeholder="Describe this responsibility…"
                       dataAttr="resp-item"
-                      className="flex-1 min-w-0 w-full text-sm leading-6 text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0 block"
+                      className="flex-1 min-w-0 w-full text-xs leading-5 text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0 block"
                     />
-                    <button
-                      onClick={() => removeResponsibility(i)}
-                      className="shrink-0 text-foreground/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity mt-1.5"
-                      aria-label="Remove"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
+                    <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                      <button
+                        onClick={() => moveResponsibility(i, -1)}
+                        disabled={i === 0}
+                        className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
+                        aria-label="Move up"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+                      </button>
+                      <button
+                        onClick={() => moveResponsibility(i, 1)}
+                        disabled={i === job.responsibilities.length - 1}
+                        className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
+                        aria-label="Move down"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                      </button>
+                      <button
+                        onClick={() => removeResponsibility(i)}
+                        className="text-foreground/30 hover:text-red-500 p-0.5"
+                        aria-label="Remove"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -790,8 +894,8 @@ export default function JobDescriptionDetailContent() {
             {job.requirements.length > 0 && (
               <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl bg-white overflow-hidden mb-3">
                 {job.requirements.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2 group hover:bg-warm-bg/40 transition-colors px-3 py-2">
-                    <span className="text-foreground/30 text-[10px] font-medium mt-2 select-none w-5 text-right tabular-nums shrink-0">{i + 1}</span>
+                  <li key={i} className="flex items-center gap-2.5 group hover:bg-warm-bg/40 transition-colors px-2.5 py-1.5">
+                    <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tabular-nums select-none self-start mt-0.5">{i + 1}</span>
                     <AutoTextarea
                       value={r}
                       onChange={(value) => {
@@ -800,15 +904,33 @@ export default function JobDescriptionDetailContent() {
                       onBlur={(value) => updateRequirement(i, value)}
                       placeholder="Describe this requirement…"
                       dataAttr="req-item"
-                      className="flex-1 min-w-0 w-full text-sm leading-6 text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0 block"
+                      className="flex-1 min-w-0 w-full text-xs leading-5 text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0 block"
                     />
-                    <button
-                      onClick={() => removeRequirement(i)}
-                      className="shrink-0 text-foreground/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity mt-1.5"
-                      aria-label="Remove"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
+                    <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                      <button
+                        onClick={() => moveRequirement(i, -1)}
+                        disabled={i === 0}
+                        className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
+                        aria-label="Move up"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+                      </button>
+                      <button
+                        onClick={() => moveRequirement(i, 1)}
+                        disabled={i === job.requirements.length - 1}
+                        className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
+                        aria-label="Move down"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                      </button>
+                      <button
+                        onClick={() => removeRequirement(i)}
+                        className="text-foreground/30 hover:text-red-500 p-0.5"
+                        aria-label="Remove"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -855,6 +977,54 @@ export default function JobDescriptionDetailContent() {
             )}
           </div>
 
+          {/* Signatures */}
+          <div className="mb-6 jd-print-hide">
+            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>
+              Signatures ({signatures.length})
+            </p>
+            {signatures.length === 0 ? (
+              <p className="text-xs text-foreground/40 italic" style={{ fontFamily: 'var(--font-body)' }}>
+                No signatures requested yet. Use “Send for Signature” above.
+              </p>
+            ) : (
+              <ul className="border border-gray-100 rounded-xl bg-white divide-y divide-gray-100">
+                {signatures.map((s) => (
+                  <li key={s.id} className="px-3 py-2 flex items-center gap-3 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${s.signed_at ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-foreground/80 truncate">{s.signer_name || 'Unnamed'}</p>
+                      <p className="text-[10px] text-foreground/40">
+                        {s.signed_at
+                          ? `Signed ${new Date(s.signed_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
+                          : `Sent ${new Date(s.sent_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}${s.sent_by_name ? ` by ${s.sent_by_name}` : ''}`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const link = `${window.location.origin}/app/sign/${s.id}`;
+                        navigator.clipboard.writeText(link).catch(() => {});
+                        setSigStatus('Signature link copied');
+                      }}
+                      className="text-[10px] text-primary hover:underline"
+                    >
+                      Copy link
+                    </button>
+                    <button
+                      onClick={() => removeSignature(s.id)}
+                      className="text-foreground/30 hover:text-red-500"
+                      aria-label="Remove"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {sigStatus && (
+              <p className="mt-2 text-[11px] text-emerald-700" style={{ fontFamily: 'var(--font-body)' }}>{sigStatus}</p>
+            )}
+          </div>
+
           {/* Delete */}
           <div className="flex justify-end pt-4 border-t border-gray-100 jd-print-hide">
             <button
@@ -867,22 +1037,82 @@ export default function JobDescriptionDetailContent() {
           </div>
         </div>
 
-        {/* Claude-edit side panel */}
-        {aiOpen && (
+        {/* Send-for-signature modal */}
+        {sigOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 jd-print-hide" onClick={() => !sigBusy && setSigOpen(false)}>
+            <div
+              className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-sm font-semibold text-foreground mb-1">Send for Signature</h2>
+              <p className="text-xs text-foreground/60 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
+                Choose a team member. They&apos;ll get a link to review and sign this job description.
+              </p>
+              <input
+                autoFocus
+                value={sigFilter}
+                onChange={(e) => setSigFilter(e.target.value)}
+                placeholder="Search team…"
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white mb-2"
+                style={{ fontFamily: 'var(--font-body)' }}
+              />
+              <div className="max-h-72 overflow-y-auto border border-gray-100 rounded-lg">
+                {users
+                  .filter((u) => !sigFilter.trim() || (u.full_name || '').toLowerCase().includes(sigFilter.trim().toLowerCase()))
+                  .map((u) => (
+                    <button
+                      key={u.id}
+                      disabled={sigBusy}
+                      onClick={async () => {
+                        await sendForSignature(u);
+                        setSigOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-warm-bg/40 text-left border-b border-gray-100 last:border-b-0 disabled:opacity-50"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {u.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                      ) : (
+                        <span className="w-6 h-6 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-semibold text-foreground/60">
+                          {(u.full_name || '?').charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <span className="flex-1 truncate">{u.full_name || 'Unnamed'}</span>
+                      {u.job_title && <span className="text-[10px] text-foreground/40 truncate max-w-[120px]">{u.job_title}</span>}
+                    </button>
+                  ))}
+              </div>
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={() => setSigOpen(false)}
+                  disabled={sigBusy}
+                  className="px-3 py-1.5 rounded-lg text-xs text-foreground/60 hover:bg-warm-bg"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Claude-rating side panel */}
+        {ratingOpen && (
           <div className="fixed inset-0 z-50 flex jd-print-hide">
             <div
               className="flex-1 bg-black/20"
-              onClick={() => !aiBusy && setAiOpen(false)}
+              onClick={() => !ratingBusy && setRatingOpen(false)}
             />
             <div className="w-full max-w-md bg-white border-l border-gray-100 flex flex-col shadow-xl">
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <div className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
-                  <h3 className="text-sm font-semibold text-foreground">Edit with Claude</h3>
+                  <h3 className="text-sm font-semibold text-foreground">Claude&apos;s Rating</h3>
                 </div>
                 <button
-                  onClick={() => !aiBusy && setAiOpen(false)}
-                  disabled={aiBusy}
+                  onClick={() => !ratingBusy && setRatingOpen(false)}
+                  disabled={ratingBusy}
                   className="text-foreground/40 hover:text-foreground disabled:opacity-40"
                   aria-label="Close"
                 >
@@ -890,80 +1120,102 @@ export default function JobDescriptionDetailContent() {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-                <p className="text-xs text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>
-                  Tell Claude how to change this role. Claude will rewrite the summary, responsibilities, and requirements to match.
-                </p>
-                {aiLog.map((entry, i) => (
-                  <div key={i} className="space-y-1">
-                    <div className="inline-block max-w-full px-3 py-2 rounded-2xl bg-primary/10 text-primary text-xs" style={{ fontFamily: 'var(--font-body)' }}>
-                      {entry.instruction}
-                    </div>
-                    <div className="text-[11px] text-emerald-700 flex items-start gap-1" style={{ fontFamily: 'var(--font-body)' }}>
-                      <svg className="w-3 h-3 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                      <span>{entry.summary}</span>
-                    </div>
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ fontFamily: 'var(--font-body)' }}>
+                {ratingBusy && (
+                  <div className="flex flex-col items-center justify-center py-12 gap-2 text-foreground/50 text-xs">
+                    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    Claude is reviewing the job description…
                   </div>
-                ))}
-                {aiError && (
-                  <p className="text-xs text-red-500" style={{ fontFamily: 'var(--font-body)' }}>{aiError}</p>
+                )}
+
+                {!ratingBusy && ratingError && (
+                  <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-3">
+                    {ratingError}
+                    <button
+                      onClick={runClaudeRating}
+                      className="block mt-2 text-red-700 underline hover:text-red-800"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+
+                {!ratingBusy && !ratingError && rating && (
+                  <>
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-warm-bg/40 border border-gray-100">
+                      <div className="shrink-0 w-20 h-20 rounded-full bg-white border-2 border-primary flex flex-col items-center justify-center">
+                        <span className="text-3xl font-semibold text-primary leading-none">{rating.score}</span>
+                        <span className="text-[10px] uppercase tracking-wider text-foreground/40 mt-1">out of 10</span>
+                      </div>
+                      <p className="text-sm text-foreground/80 leading-5 flex-1">{rating.headline}</p>
+                    </div>
+
+                    {rating.strengths.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-2">Strengths</p>
+                        <ul className="space-y-1.5">
+                          {rating.strengths.map((s, i) => (
+                            <li key={i} className="flex items-start gap-2 text-xs text-foreground/80">
+                              <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                              <span>{s}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {rating.recommendations.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">How to get to 10</p>
+                        <ul className="space-y-1.5">
+                          {rating.recommendations.map((r, i) => (
+                            <li key={i} className="flex items-start gap-2 text-xs text-foreground/80">
+                              <span className="shrink-0 w-4 h-4 rounded-full bg-primary/10 text-primary text-[10px] font-semibold flex items-center justify-center mt-0.5">{i + 1}</span>
+                              <span>{r}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {!ratingBusy && !ratingError && !rating && (
+                  <div className="text-center py-12">
+                    <p className="text-xs text-foreground/60 mb-4">
+                      Claude will review the title, summary, responsibilities, and requirements and give a score out of 10 with concrete recommendations.
+                    </p>
+                    <button
+                      onClick={runClaudeRating}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" /></svg>
+                      Rate this job description
+                    </button>
+                  </div>
                 )}
               </div>
 
-              <div className="border-t border-gray-100 p-3">
-                <textarea
-                  ref={aiInputRef}
-                  value={aiInstruction}
-                  onChange={(e) => setAiInstruction(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                      e.preventDefault();
-                      runClaudeEdit();
-                    }
-                  }}
-                  disabled={aiBusy}
-                  placeholder="e.g. Add CPR certification as a requirement and clarify the role reports to the Clinical Director."
-                  rows={3}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white resize-none disabled:opacity-60"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                />
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-                    ⌘/Ctrl + Enter to send
-                  </span>
+              {!ratingBusy && rating && (
+                <div className="border-t border-gray-100 p-3 flex justify-end">
                   <button
-                    onClick={runClaudeEdit}
-                    disabled={aiBusy || !aiInstruction.trim()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 disabled:opacity-40"
-                    style={{ fontFamily: 'var(--font-body)' }}
+                    onClick={runClaudeRating}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-foreground/70 hover:bg-warm-bg"
                   >
-                    {aiBusy && <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />}
-                    {aiBusy ? 'Applying…' : 'Apply change'}
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 12a9 9 0 0 1 15.5-6.3L21 8" />
+                      <path d="M21 3v5h-5" />
+                      <path d="M21 12a9 9 0 0 1-15.5 6.3L3 16" />
+                      <path d="M3 21v-5h5" />
+                    </svg>
+                    Re-rate
                   </button>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}
       </div>
     </>
   );
-}
-
-function summarizeChanges(
-  before: { title: string; summary: string; responsibilities: string[]; requirements: string[] },
-  after: { title: string; summary: string; responsibilities: string[]; requirements: string[] }
-): string {
-  const parts: string[] = [];
-  if (after.title.trim() !== before.title.trim()) parts.push(`renamed to "${after.title}"`);
-  if (after.summary.trim() !== before.summary.trim()) parts.push('summary updated');
-  const rd = after.responsibilities.length - before.responsibilities.length;
-  if (rd !== 0) parts.push(`${rd > 0 ? '+' : ''}${rd} responsibilit${Math.abs(rd) === 1 ? 'y' : 'ies'}`);
-  else if (JSON.stringify(after.responsibilities) !== JSON.stringify(before.responsibilities))
-    parts.push('responsibilities revised');
-  const qd = after.requirements.length - before.requirements.length;
-  if (qd !== 0) parts.push(`${qd > 0 ? '+' : ''}${qd} requirement${Math.abs(qd) === 1 ? '' : 's'}`);
-  else if (JSON.stringify(after.requirements) !== JSON.stringify(before.requirements))
-    parts.push('requirements revised');
-  return parts.length > 0 ? parts.join(' · ') : 'No changes';
 }
