@@ -445,6 +445,53 @@ export default function JobDescriptionDetailContent() {
     }
   }
 
+  // Apply one Kaizen recommendation — hand it to Claude's /edit endpoint
+  // as an instruction, then patch the JD with the returned fields.
+  const [applyingIdx, setApplyingIdx] = useState<number | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  async function applyRecommendation(text: string, idx: number) {
+    if (!job) return;
+    setApplyingIdx(idx);
+    setApplyError(null);
+    try {
+      const token = getAuthToken();
+      const deptName = job.department_id ? departments.find((d) => d.id === job.department_id)?.name || '' : '';
+      const res = await fetch('/api/claude/job-description/edit', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          title: job.title,
+          department: deptName,
+          summary: job.summary,
+          responsibilities: job.responsibilities,
+          requirements: job.requirements,
+          instruction: text,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `Apply failed (${res.status})`);
+      }
+      const edited = (await res.json()) as { title?: string; summary?: string; responsibilities?: string[]; requirements?: string[] };
+      await patchJob(
+        {
+          title: typeof edited.title === 'string' && edited.title.trim() ? edited.title : job.title,
+          summary: typeof edited.summary === 'string' ? edited.summary : job.summary,
+          responsibilities: Array.isArray(edited.responsibilities) ? edited.responsibilities : job.responsibilities,
+          requirements: Array.isArray(edited.requirements) ? edited.requirements : job.requirements,
+        },
+        `Applied Kaizen suggestion: ${text.slice(0, 80)}${text.length > 80 ? '…' : ''}`
+      );
+    } catch (err) {
+      setApplyError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setApplyingIdx(null);
+    }
+  }
+
   if (!user) return null;
 
   if (loading) {
@@ -1262,11 +1309,25 @@ export default function JobDescriptionDetailContent() {
                     {rating.recommendations.length > 0 && (
                       <div>
                         <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">How to get to 10</p>
+                        {applyError && (
+                          <p className="text-[11px] text-red-600 mb-2">{applyError}</p>
+                        )}
                         <ul className="space-y-1.5">
                           {rating.recommendations.map((r, i) => (
-                            <li key={i} className="flex items-start gap-2 text-xs text-foreground/80">
+                            <li
+                              key={i}
+                              className="group relative flex items-start gap-2 text-xs text-foreground/80 rounded-md px-1.5 py-1 hover:bg-warm-bg/50 transition-colors"
+                            >
                               <span className="shrink-0 w-4 h-4 rounded-full bg-primary/10 text-primary text-[10px] font-semibold flex items-center justify-center mt-0.5">{i + 1}</span>
-                              <span>{r}</span>
+                              <span className="flex-1 pr-16">{r}</span>
+                              <button
+                                onClick={() => applyRecommendation(r, i)}
+                                disabled={applyingIdx !== null}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary text-white opacity-0 group-hover:opacity-100 hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                                title="Apply this change to the job description"
+                              >
+                                {applyingIdx === i ? 'Applying…' : 'Apply'}
+                              </button>
                             </li>
                           ))}
                         </ul>

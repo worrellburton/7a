@@ -22,6 +22,14 @@ body {
   line-height: 1.6;
 }
 
+/* Admin portal: zoom everything ~20% smaller across the board.
+   Using `zoom` scales Tailwind rem utilities, px values, spacing, and
+   images together so pages feel 2-3 type-scale steps tighter without
+   touching every component. Public marketing pages are unaffected. */
+.app-shell {
+  zoom: 0.82;
+}
+
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
