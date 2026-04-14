@@ -878,8 +878,18 @@ export default function CalendarContent() {
               today={today}
               eventsByDate={eventsByDate}
               usersById={usersById}
+              shifts={shifts}
               viewMode={viewMode}
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
+              onCreateInShift={(date, payload, shift) =>
+                handleCreate(
+                  payload,
+                  date,
+                  null,
+                  hhmmToDbTime(shift.start),
+                  hhmmToDbTime(shift.end)
+                )
+              }
               onReschedule={(date, hour, eventId) => handleReschedule(eventId, date, hour)}
               onResize={handleResizeEvent}
               onEventClick={setEditingId}
@@ -1729,6 +1739,12 @@ function AodSlot({
       }}
       title={`AOC: ${user.full_name || user.email} — click to clear`}
     >
+      <span
+        className="font-bold tracking-wider pl-1.5 pr-0.5 shrink-0"
+        style={{ color: String(color) }}
+      >
+        AOC
+      </span>
       {user.avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -1957,8 +1973,10 @@ function WeekView({
   today,
   eventsByDate,
   usersById,
+  shifts,
   viewMode,
   onCreate,
+  onCreateInShift,
   onReschedule,
   onResize,
   onEventClick,
@@ -1968,8 +1986,10 @@ function WeekView({
   today: Date;
   eventsByDate: Map<string, EventRow[]>;
   usersById: Map<string, UserRow>;
+  shifts: Shift[];
   viewMode: ViewMode;
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
+  onCreateInShift: (date: Date, payload: DragPayload, shift: Shift) => void;
   onReschedule: (date: Date, hour: number, eventId: string) => void;
   onResize: (eventId: string, newStart: number, newEnd: number) => void;
   onEventClick: (id: string) => void;
@@ -2054,6 +2074,45 @@ function WeekView({
           );
         })}
       </div>
+      {/* Shift rail — one row of shift drop cells per day, only in Team view
+          (shifts don't apply to Group events). */}
+      {viewMode === 'team' && shifts.length > 0 && (
+        <div
+          className="shrink-0 border-b border-gray-100 bg-warm-bg/15 grid"
+          style={{ gridTemplateColumns: '64px repeat(7, minmax(0, 1fr))' }}
+        >
+          <div className="flex items-center justify-end pr-2 text-[9px] font-semibold uppercase tracking-wider text-foreground/35">
+            Shifts
+          </div>
+          {days.map((d, di) => (
+            <div key={di} className="border-l border-gray-100 p-1 space-y-0.5">
+              {shifts.map((s) => (
+                <DropCell
+                  key={s.id}
+                  onCreate={(payload) => onCreateInShift(d, payload, s)}
+                  onReschedule={(eventId) => onReschedule(d, Math.floor(hhmmToHours(s.start)), eventId)}
+                  previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
+                  className="rounded bg-white border border-gray-200 hover:border-primary/40 px-1.5 py-0.5 flex items-center justify-between gap-1 transition-colors"
+                  activeClassName="ring-1 ring-primary/60 bg-primary/5 animate-cal-drop"
+                >
+                  <span
+                    className="text-[9px] font-semibold uppercase tracking-wider text-foreground/60 truncate"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {s.name}
+                  </span>
+                  <span
+                    className="shrink-0 text-[8px] font-medium text-foreground/35"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {formatShiftRange(s)}
+                  </span>
+                </DropCell>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex-1 min-h-0 relative">
         {/* Per-day gradient overlays sit behind the grid cells. */}
         <div
@@ -2385,7 +2444,7 @@ function EditModal({
   const [endHour, setEndHour] = useState(initialEnd);
   const [repeatRule, setRepeatRule] = useState<'' | RepeatRule>((event.repeat_rule as RepeatRule) || '');
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const color = event.color || colorFor(event.subject_id);
+  const [color, setColor] = useState<string>(event.color || colorFor(event.subject_id));
 
   function handleSave() {
     if (!title.trim()) return;
@@ -2395,10 +2454,26 @@ function EditModal({
       start_time: allDay ? null : `${String(startHour).padStart(2, '0')}:00:00`,
       end_time: allDay ? null : `${String(endHour).padStart(2, '0')}:00:00`,
       repeat_rule: repeatRule || null,
+      color,
     };
     onSave(patch);
     onClose();
   }
+
+  // A small preset palette + native picker fallback so users can tag events
+  // with a brand or personal color that shows up on the accent bar + chips.
+  const COLOR_SWATCHES = [
+    '#a0522d', // primary
+    '#c67a4a', // accent
+    '#3d1a0e', // primary-dark
+    '#2563eb', // blue
+    '#059669', // emerald
+    '#d97706', // amber
+    '#7c3aed', // violet
+    '#db2777', // pink
+    '#dc2626', // red
+    '#475569', // slate
+  ];
 
   const dateLabel = (() => {
     const [y, m, d] = event.event_date.split('-').map(Number);
@@ -2527,6 +2602,69 @@ function EditModal({
               </div>
             </div>
           )}
+
+          <div className="mb-4">
+            <label
+              className="block text-[11px] font-semibold text-foreground/50 uppercase tracking-wider mb-1.5"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Color
+            </label>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {COLOR_SWATCHES.map((c) => {
+                const isSelected = color.toLowerCase() === c.toLowerCase();
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setColor(c)}
+                    className={`w-7 h-7 rounded-full transition-all ${
+                      isSelected ? 'ring-2 ring-offset-2 ring-foreground/60 scale-110' : 'hover:scale-110'
+                    }`}
+                    style={{ backgroundColor: c }}
+                    aria-label={`Pick color ${c}`}
+                    title={c}
+                  />
+                );
+              })}
+              {/* Native color picker for custom colors. */}
+              <label
+                className="w-7 h-7 rounded-full overflow-hidden cursor-pointer border border-dashed border-foreground/30 flex items-center justify-center hover:border-foreground/60 transition-colors"
+                title="Pick a custom color"
+              >
+                <svg className="w-3.5 h-3.5 text-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                </svg>
+                <input
+                  type="color"
+                  value={color.startsWith('#') ? color : '#a0522d'}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="sr-only"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label
+              className="block text-[11px] font-semibold text-foreground/50 uppercase tracking-wider mb-1"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Repeats
+            </label>
+            <select
+              value={repeatRule}
+              onChange={(e) => setRepeatRule(e.target.value as '' | RepeatRule)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:outline-none text-sm bg-white"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {REPEAT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="mb-5">
             <label
