@@ -492,6 +492,27 @@ export default function CalendarContent() {
         startTime ?? (hour == null ? null : `${String(hour).padStart(2, '0')}:00:00`);
       const resolvedEnd =
         endTime ?? (hour == null ? null : `${String(hour + 1).padStart(2, '0')}:00:00`);
+      // Guard: the same person cannot be in the same shift on the same day
+      // twice. Derive the target shift from the resolved start time and
+      // bail out silently if an existing user-event for this subject_id on
+      // this date already sits in that shift. Group drops and all-day rows
+      // (no start time) are unaffected.
+      if (payload.kind === 'user' && resolvedStart) {
+        const targetH = dbTimeToHours(resolvedStart);
+        const targetShift =
+          targetH == null ? null : shifts.find((s) => shiftContainsHour(s, targetH));
+        if (targetShift) {
+          const iso = toISODate(date);
+          const clash = events.some(
+            (ev) =>
+              ev.subject_kind === 'user' &&
+              ev.subject_id === payload.id &&
+              ev.event_date === iso &&
+              shiftForEvent(ev, shifts) === targetShift.id
+          );
+          if (clash) return;
+        }
+      }
       const optimistic: EventRow = {
         id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         title: payload.label,
@@ -528,7 +549,7 @@ export default function CalendarContent() {
         setEvents((prev) => prev.filter((ev) => ev.id !== optimistic.id));
       }
     },
-    [user]
+    [user, events, shifts]
   );
 
   // ---- Reschedule an existing event by dragging it ----
@@ -560,6 +581,24 @@ export default function CalendarContent() {
       ) {
         return; // No-op drop on its own slot.
       }
+      // Guard: reschedule cannot put the same user into the same shift twice
+      // on the same day. Only applies to user events with a resolved start.
+      if (existing.subject_kind === 'user' && newStart) {
+        const targetH = dbTimeToHours(newStart);
+        const targetShift =
+          targetH == null ? null : shifts.find((s) => shiftContainsHour(s, targetH));
+        if (targetShift) {
+          const clash = events.some(
+            (ev) =>
+              ev.id !== eventId &&
+              ev.subject_kind === 'user' &&
+              ev.subject_id === existing.subject_id &&
+              ev.event_date === newDate &&
+              shiftForEvent(ev, shifts) === targetShift.id
+          );
+          if (clash) return;
+        }
+      }
       // Optimistic update
       setEvents((prev) =>
         prev.map((ev) =>
@@ -590,7 +629,7 @@ export default function CalendarContent() {
         );
       }
     },
-    [events]
+    [events, shifts]
   );
 
   // ---- Resize an event (change start_time or end_time) ----
@@ -732,7 +771,11 @@ export default function CalendarContent() {
 
   return (
     <DragCtx.Provider value={dragCtxValue}>
-    <div className="p-4 lg:p-6 h-screen flex flex-col overflow-hidden">
+    {/* h-screen gets visually squished to 82vh inside the admin shell's
+        zoom: 0.82 container. Scale up so the calendar body truly fills
+        the viewport and the scheduler doesn't leave a blank band at
+        the bottom of the page. */}
+    <div className="p-4 lg:p-6 flex flex-col overflow-hidden" style={{ height: 'calc(100vh / 0.82)' }}>
       {/* Top-center Groups/Team toggle, with Month/Week/Day directly below. */}
       <div className="mb-3 flex flex-col items-center gap-2">
         <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
@@ -1369,6 +1412,93 @@ function useEventDrag(ev: EventRow) {
   return { dragging, onDragStart, onDragEnd };
 }
 
+// ------------------------------------------------------------
+// ShiftAvatar — compact circular rendering of a user inside a
+// shift block. Draggable (to reschedule to another shift) and
+// clickable (to open the event editor). No positioning or name
+// label — shift assignment is a boolean "this person is on this
+// shift today", so we just cluster the circles.
+// ------------------------------------------------------------
+
+function ShiftAvatar({
+  ev,
+  usersById,
+  onClick,
+  size = 'md',
+}: {
+  ev: EventRow;
+  usersById: Map<string, UserRow>;
+  onClick: (id: string) => void;
+  size?: 'sm' | 'md';
+}) {
+  const color = ev.color || colorFor(ev.subject_id);
+  const u = usersById.get(ev.subject_id);
+  const label = u ? userLabel(u) : ev.title;
+  const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
+  const dim = size === 'sm' ? 'w-5 h-5 text-[9px]' : 'w-7 h-7 text-[11px]';
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(ev.id);
+      }}
+      className={`${dim} rounded-full cursor-grab active:cursor-grabbing shrink-0 ring-2 ring-white/80 shadow-sm hover:-translate-y-px hover:shadow-md transition-all ${
+        dragging ? 'opacity-40' : ''
+      }`}
+      title={label}
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      {u?.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={u.avatar_url}
+          alt={label}
+          className="w-full h-full rounded-full object-cover"
+        />
+      ) : (
+        <div
+          className="w-full h-full rounded-full flex items-center justify-center font-bold text-white"
+          style={{ backgroundColor: color }}
+        >
+          {label.charAt(0).toUpperCase()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Cluster of user avatars for a shift — shown inside each shift
+// drop block. Wraps onto multiple rows so a full shift still fits.
+function ShiftAvatarCluster({
+  events,
+  usersById,
+  onEventClick,
+  size = 'md',
+}: {
+  events: EventRow[];
+  usersById: Map<string, UserRow>;
+  onEventClick: (id: string) => void;
+  size?: 'sm' | 'md';
+}) {
+  if (events.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1 pointer-events-auto">
+      {events.map((ev) => (
+        <ShiftAvatar
+          key={ev.id}
+          ev={ev}
+          usersById={usersById}
+          onClick={onEventClick}
+          size={size}
+        />
+      ))}
+    </div>
+  );
+}
+
 function EventChip({
   ev,
   usersById,
@@ -1986,8 +2116,6 @@ function MonthView({
                 <div className="flex-1 min-h-0 flex flex-col gap-px px-1 pb-1">
                   {shifts.map((s) => {
                     const evs = byShift.get(s.id) || [];
-                    const shown = evs.slice(0, 2);
-                    const extra = evs.length - shown.length;
                     return (
                       <DropCell
                         key={s.id}
@@ -2006,18 +2134,34 @@ function MonthView({
                             {formatShiftRange(s)}
                           </span>
                         </div>
-                        <div className="flex-1 min-h-0 overflow-hidden space-y-0.5 mt-0.5">
-                          {shown.map((ev) => (
-                            <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
-                          ))}
-                          {extra > 0 && (
-                            <div
-                              className="text-[9px] font-semibold text-foreground/40 px-0.5"
-                              style={{ fontFamily: 'var(--font-body)' }}
-                            >
-                              +{extra} more
-                            </div>
-                          )}
+                        <div className="flex-1 min-h-0 overflow-hidden mt-0.5">
+                          {(() => {
+                            const userEvs = evs.filter((ev) => ev.subject_kind === 'user');
+                            const nonUser = evs.filter((ev) => ev.subject_kind !== 'user');
+                            const chipShown = nonUser.slice(0, 2);
+                            const chipExtra = nonUser.length - chipShown.length;
+                            return (
+                              <div className="space-y-0.5">
+                                {chipShown.map((ev) => (
+                                  <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
+                                ))}
+                                {chipExtra > 0 && (
+                                  <div
+                                    className="text-[9px] font-semibold text-foreground/40 px-0.5"
+                                    style={{ fontFamily: 'var(--font-body)' }}
+                                  >
+                                    +{chipExtra} more
+                                  </div>
+                                )}
+                                <ShiftAvatarCluster
+                                  events={userEvs}
+                                  usersById={usersById}
+                                  onEventClick={onEventClick}
+                                  size="sm"
+                                />
+                              </div>
+                            );
+                          })()}
                         </div>
                       </DropCell>
                     );
@@ -2230,6 +2374,9 @@ function WeekView({
                     if (b > a) segments.push({ a, b });
                   }
                   if (segments.length === 0) return null;
+                  const shiftUserEvents = (eventsByDate.get(toISODate(d)) || []).filter(
+                    (ev) => ev.subject_kind === 'user' && shiftForEvent(ev, shifts) === s.id
+                  );
                   return segments.map((seg, si) => {
                     const topPct = ((seg.a - DAY_START_H) / span) * 100;
                     const heightPct = ((seg.b - seg.a) / span) * 100;
@@ -2241,25 +2388,33 @@ function WeekView({
                           onReschedule(d, Math.floor(hhmmToHours(s.start)), eventId)
                         }
                         previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
-                        className="absolute left-0.5 right-0.5 rounded-sm border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors pointer-events-auto flex items-start justify-between gap-1 px-1 py-0.5 overflow-hidden"
+                        className="absolute left-0.5 right-0.5 rounded-sm border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors pointer-events-auto flex flex-col gap-1 px-1 py-0.5 overflow-hidden"
                         activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
                         style={{ top: `${topPct}%`, height: `${heightPct}%` }}
                         title={`${s.name} · ${formatShiftRange(s)}`}
                       >
                         {si === 0 && (
                           <>
-                            <span
-                              className="text-[8px] font-semibold uppercase tracking-wider text-primary/70 truncate"
-                              style={{ fontFamily: 'var(--font-body)' }}
-                            >
-                              {s.name}
-                            </span>
-                            <span
-                              className="shrink-0 text-[8px] font-medium text-foreground/35"
-                              style={{ fontFamily: 'var(--font-body)' }}
-                            >
-                              {formatShiftRange(s)}
-                            </span>
+                            <div className="flex items-start justify-between gap-1">
+                              <span
+                                className="text-[8px] font-semibold uppercase tracking-wider text-primary/70 truncate"
+                                style={{ fontFamily: 'var(--font-body)' }}
+                              >
+                                {s.name}
+                              </span>
+                              <span
+                                className="shrink-0 text-[8px] font-medium text-foreground/35"
+                                style={{ fontFamily: 'var(--font-body)' }}
+                              >
+                                {formatShiftRange(s)}
+                              </span>
+                            </div>
+                            <ShiftAvatarCluster
+                              events={shiftUserEvents}
+                              usersById={usersById}
+                              onEventClick={onEventClick}
+                              size="sm"
+                            />
                           </>
                         )}
                       </DropCell>
@@ -2279,11 +2434,16 @@ function WeekView({
           {days.map((d, di) => {
             const dayEvents = (eventsByDate.get(toISODate(d)) || []).filter(
               (ev) => parseTime(ev.start_time) != null
-            ).filter((ev) =>
-              // Groups view shows only group events; Team view shows only
-              // individual (user/shift) events. Keeps each view uncluttered.
-              viewMode === 'groups' ? ev.subject_kind === 'group' : ev.subject_kind !== 'group'
-            );
+            ).filter((ev) => {
+              // Groups view shows only group events.
+              if (viewMode === 'groups') return ev.subject_kind === 'group';
+              // Team view: user events are rendered as avatars inside their
+              // shift block, not time-positioned. Only render user events
+              // that fall outside any shift (fallback) plus non-user events.
+              if (ev.subject_kind === 'group') return false;
+              if (ev.subject_kind === 'user') return shiftForEvent(ev, shifts) == null;
+              return true;
+            });
             const layout = computeEventLayout(dayEvents);
             return (
               <div key={di} className="relative pointer-events-auto" data-resize-container>
@@ -2354,7 +2514,15 @@ function DayView({
   const dayEvents = allDayEvents.filter((ev) =>
     viewMode === 'groups' ? ev.subject_kind === 'group' : ev.subject_kind !== 'group'
   );
-  const timedEvents = dayEvents.filter((ev) => parseTime(ev.start_time) != null);
+  const timedEvents = dayEvents.filter((ev) => {
+    if (parseTime(ev.start_time) == null) return false;
+    // In team view, user events are rendered as avatars inside their shift
+    // block. Skip them here unless they fall outside every shift.
+    if (viewMode === 'team' && ev.subject_kind === 'user') {
+      return shiftForEvent(ev, shifts) == null;
+    }
+    return true;
+  });
   const aodUserId = aodByDate.get(iso);
   const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
 
@@ -2457,6 +2625,9 @@ function DayView({
             if (b > a) segments.push({ a, b });
           }
           if (segments.length === 0) return null;
+          const shiftUserEvents = allDayEvents.filter(
+            (ev) => ev.subject_kind === 'user' && shiftForEvent(ev, shifts) === s.id
+          );
           return segments.map((seg, si) => {
             const topPct = pctFor(seg.a);
             const botPct = pctFor(seg.b);
@@ -2468,25 +2639,33 @@ function DayView({
                   onReschedule(day, Math.floor(hhmmToHours(s.start)), eventId)
                 }
                 previewTarget={{ date: day, hour: Math.floor(hhmmToHours(s.start)) }}
-                className="absolute left-[82px] right-1 rounded-md border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors flex items-start justify-between gap-2 px-3 py-1.5"
+                className="absolute left-[82px] right-1 rounded-md border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors flex flex-col gap-2 px-3 py-1.5 overflow-hidden"
                 activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
                 style={{ top: `${topPct}%`, height: `${botPct - topPct}%` }}
                 title={`${s.name} · ${formatShiftRange(s)}`}
               >
                 {si === 0 && (
                   <>
-                    <span
-                      className="text-[11px] font-semibold uppercase tracking-wider text-primary/75 bg-white/70 px-1.5 py-0.5 rounded"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {s.name}
-                    </span>
-                    <span
-                      className="text-[10px] font-medium text-foreground/45 bg-white/70 px-1.5 py-0.5 rounded"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {formatShiftRange(s)}
-                    </span>
+                    <div className="flex items-start justify-between gap-2">
+                      <span
+                        className="text-[11px] font-semibold uppercase tracking-wider text-primary/75 bg-white/70 px-1.5 py-0.5 rounded"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {s.name}
+                      </span>
+                      <span
+                        className="text-[10px] font-medium text-foreground/45 bg-white/70 px-1.5 py-0.5 rounded"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {formatShiftRange(s)}
+                      </span>
+                    </div>
+                    <ShiftAvatarCluster
+                      events={shiftUserEvents}
+                      usersById={usersById}
+                      onEventClick={onEventClick}
+                      size="md"
+                    />
                   </>
                 )}
               </DropCell>
