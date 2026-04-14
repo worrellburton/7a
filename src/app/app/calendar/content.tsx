@@ -2118,8 +2118,11 @@ function MonthView({
                   );
                 })()
               ) : (
-                /* Three stacked shift buckets — each is its own drop target. */
-                <div className="flex-1 min-h-0 flex flex-col gap-px px-1 pb-1">
+                /* Three stacked shift buckets — each is its own drop target.
+                   Labels kept intentionally quiet so avatars/events read
+                   first; the order is always morning / afternoon / overnight
+                   so a tiny single-letter marker is enough to disambiguate. */
+                <div className="flex-1 min-h-0 flex flex-col gap-0.5 px-1 pb-1">
                   {shifts.map((s) => {
                     const evs = byShift.get(s.id) || [];
                     return (
@@ -2128,19 +2131,17 @@ function MonthView({
                         onCreate={(payload) => onCreateInShift(d, payload, s)}
                         onReschedule={(eventId) => onReschedule(d, eventId)}
                         previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
-                        className="flex-1 min-h-0 rounded-md bg-warm-bg/25 hover:bg-warm-bg/60 transition-colors px-1 py-0.5 flex flex-col overflow-hidden"
+                        className="flex-1 min-h-0 rounded-md hover:bg-warm-bg/40 transition-colors px-1 py-0.5 flex gap-1 overflow-hidden"
                         activeClassName="ring-1 ring-primary/60 bg-primary/10 animate-cal-drop"
                       >
-                        <div
-                          className="flex items-center justify-between gap-1 text-[9px] font-semibold uppercase tracking-wider text-foreground/40"
+                        <span
+                          className="shrink-0 w-3 text-[9px] font-semibold uppercase text-foreground/25 leading-tight pt-0.5"
                           style={{ fontFamily: 'var(--font-body)' }}
+                          title={`${s.name} · ${formatShiftRange(s)}`}
                         >
-                          <span className="truncate">{s.name}</span>
-                          <span className="shrink-0 font-medium normal-case tracking-normal text-foreground/30">
-                            {formatShiftRange(s)}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-h-0 overflow-hidden mt-0.5">
+                          {s.name.charAt(0)}
+                        </span>
+                        <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
                           {(() => {
                             const userEvs = evs.filter((ev) => ev.subject_kind === 'user');
                             const nonUser = evs.filter((ev) => ev.subject_kind !== 'user');
