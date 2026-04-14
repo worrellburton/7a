@@ -5,6 +5,7 @@ import { db, getAuthToken } from '@/lib/db';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 // A textarea that grows with its content. Used for responsibilities and
 // requirements so long sentences wrap cleanly instead of overflowing a
@@ -471,21 +472,21 @@ export default function JobDescriptionDetailContent() {
           .jd-print-view { display: none; }
         }
         @media print {
-          @page { margin: 0.75in; size: Letter; }
-          html, body { background: #fff !important; }
-          body * { visibility: hidden !important; }
-          .jd-print-view, .jd-print-view * { visibility: visible !important; }
+          @page { margin: 0.6in; size: Letter; }
+          html, body { background: #fff !important; height: auto !important; overflow: visible !important; }
+          /* Collapse all app chrome so it contributes no pages to the PDF. */
+          body > *:not(.jd-print-portal) { display: none !important; }
+          .jd-print-hide { display: none !important; }
           .jd-print-view {
             display: block !important;
-            position: absolute;
-            left: 0;
-            top: 0;
+            position: static !important;
             width: 100%;
             color: #111;
             font-family: var(--font-body), Georgia, 'Times New Roman', serif;
             font-size: 9.5pt;
             line-height: 1.35;
           }
+          .jd-print-view, .jd-print-view * { visibility: visible !important; }
           .jd-print-view h1 {
             font-family: var(--font-display), Georgia, 'Times New Roman', serif;
             font-size: 18pt;
@@ -538,62 +539,69 @@ export default function JobDescriptionDetailContent() {
         }
       `}</style>
 
-      {/* Semantic print-only layout — this is what lands in the PDF. */}
-      <div className="jd-print-view" aria-hidden="true">
-        <div className="jd-org">Seven Arrows Recovery</div>
-        <h1>{job.title || 'Untitled Role'}</h1>
-        <div className="jd-meta">
-          {dept && (
-            <div>
-              <span>Department</span>
-              {dept.name}
+      {/* Semantic print-only layout — portaled to body so @media print can
+          isolate it as the ONLY body child, eliminating blank pages from
+          hidden app chrome still contributing to document height. */}
+      {typeof document !== 'undefined' && createPortal(
+        <div className="jd-print-portal">
+          <div className="jd-print-view" aria-hidden="true">
+            <div className="jd-org">Seven Arrows Recovery</div>
+            <h1>{job.title || 'Untitled Role'}</h1>
+            <div className="jd-meta">
+              {dept && (
+                <div>
+                  <span>Department</span>
+                  {dept.name}
+                </div>
+              )}
+              <div>
+                <span>Last Reviewed</span>
+                {job.date_revised ? formatDate(job.date_revised) : '—'}
+              </div>
+              <div>
+                <span>Assigned To</span>
+                {assignedUsers.length > 0 ? assignedUsers.map((u) => u.full_name || 'Unnamed').join(', ') : 'No one assigned'}
+              </div>
             </div>
-          )}
-          <div>
-            <span>Last Reviewed</span>
-            {job.date_revised ? formatDate(job.date_revised) : '—'}
+
+            {job.summary.trim() && (
+              <>
+                <h2>Position Summary</h2>
+                {job.summary.split(/\n+/).filter(Boolean).map((para, i) => (
+                  <p key={i}>{para}</p>
+                ))}
+              </>
+            )}
+
+            {job.responsibilities.length > 0 && (
+              <>
+                <h2>Responsibilities</h2>
+                <ol>
+                  {job.responsibilities.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ol>
+              </>
+            )}
+
+            {job.requirements.length > 0 && (
+              <>
+                <h2>Requirements</h2>
+                <ol>
+                  {job.requirements.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ol>
+              </>
+            )}
+
+            <div className="jd-footer">
+              Seven Arrows Recovery &middot; Confidential &middot; Generated {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
           </div>
-          <div>
-            <span>Assigned To</span>
-            {assignedUsers.length > 0 ? assignedUsers.map((u) => u.full_name || 'Unnamed').join(', ') : 'No one assigned'}
-          </div>
-        </div>
-
-        {job.summary.trim() && (
-          <>
-            <h2>Position Summary</h2>
-            {job.summary.split(/\n+/).filter(Boolean).map((para, i) => (
-              <p key={i}>{para}</p>
-            ))}
-          </>
-        )}
-
-        {job.responsibilities.length > 0 && (
-          <>
-            <h2>Responsibilities</h2>
-            <ol>
-              {job.responsibilities.map((r, i) => (
-                <li key={i}>{r}</li>
-              ))}
-            </ol>
-          </>
-        )}
-
-        {job.requirements.length > 0 && (
-          <>
-            <h2>Requirements</h2>
-            <ol>
-              {job.requirements.map((r, i) => (
-                <li key={i}>{r}</li>
-              ))}
-            </ol>
-          </>
-        )}
-
-        <div className="jd-footer">
-          Seven Arrows Recovery &middot; Confidential &middot; Generated {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
 
       <div className="p-6 lg:p-10 max-w-4xl jd-print-root">
         {/* Top bar */}
@@ -618,7 +626,7 @@ export default function JobDescriptionDetailContent() {
               style={{ fontFamily: 'var(--font-body)' }}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
-              Have Claude rate this out of 10
+              Kaizen
             </button>
             <button
               onClick={downloadPdf}
@@ -651,6 +659,9 @@ export default function JobDescriptionDetailContent() {
           {/* Header: title + dept + actions */}
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
             <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground/40 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
+                Seven Arrows Recovery
+              </p>
               <input
                 value={job.title}
                 onChange={(e) => setJob({ ...job, title: e.target.value })}
@@ -1088,47 +1099,64 @@ export default function JobDescriptionDetailContent() {
                 )}
                 {assignedUsers
                   .filter((u) => !sigFilter.trim() || (u.full_name || '').toLowerCase().includes(sigFilter.trim().toLowerCase()))
-                  .map((u) => (
-                    <button
-                      key={u.id}
-                      disabled={sigBusy}
-                      onClick={async () => {
-                        await sendForSignature(u);
-                        setSigOpen(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-warm-bg/40 text-left border-b border-gray-100 last:border-b-0 disabled:opacity-50"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {u.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
-                      ) : (
-                        <span className="w-6 h-6 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-semibold text-foreground/60">
-                          {(u.full_name || '?').charAt(0).toUpperCase()}
-                        </span>
-                      )}
-                      <span className="flex-1 truncate">{u.full_name || 'Unnamed'}</span>
-                      {u.job_title && <span className="text-[10px] text-foreground/40 truncate max-w-[120px]">{u.job_title}</span>}
-                    </button>
-                  ))}
+                  .map((u) => {
+                    const existing = signatures.find((s) => s.signer_user_id === u.id);
+                    const signed = !!existing?.signed_at;
+                    const pending = !!existing && !signed;
+                    const disabled = sigBusy || signed || pending;
+                    return (
+                      <button
+                        key={u.id}
+                        disabled={disabled}
+                        onClick={async () => {
+                          await sendForSignature(u);
+                          setSigOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-warm-bg/40 text-left border-b border-gray-100 last:border-b-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                        title={signed ? 'Already signed' : pending ? 'Waiting to be signed' : ''}
+                      >
+                        {u.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          <span className="w-6 h-6 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-semibold text-foreground/60">
+                            {(u.full_name || '?').charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        <span className="flex-1 truncate">{u.full_name || 'Unnamed'}</span>
+                        {signed ? (
+                          <span className="text-[10px] font-medium text-emerald-600 whitespace-nowrap">Signed</span>
+                        ) : pending ? (
+                          <span className="text-[10px] font-medium text-amber-600 whitespace-nowrap">Waiting to be signed</span>
+                        ) : u.job_title ? (
+                          <span className="text-[10px] text-foreground/40 truncate max-w-[120px]">{u.job_title}</span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
               </div>
               <div className="mt-3 flex items-center justify-between gap-2">
-                {assignedUsers.length > 1 ? (
-                  <button
-                    onClick={async () => {
-                      for (const u of assignedUsers) {
-                        // eslint-disable-next-line no-await-in-loop
-                        await sendForSignature(u);
-                      }
-                      setSigOpen(false);
-                    }}
-                    disabled={sigBusy}
-                    className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 disabled:opacity-40"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    Send to everybody
-                  </button>
-                ) : <span />}
+                {(() => {
+                  const unsent = assignedUsers.filter((u) => !signatures.some((s) => s.signer_user_id === u.id));
+                  if (unsent.length < 2) return <span />;
+                  return (
+                    <button
+                      onClick={async () => {
+                        for (const u of unsent) {
+                          // eslint-disable-next-line no-await-in-loop
+                          await sendForSignature(u);
+                        }
+                        setSigOpen(false);
+                      }}
+                      disabled={sigBusy}
+                      className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 disabled:opacity-40"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Send to everybody
+                    </button>
+                  );
+                })()}
                 <button
                   onClick={() => setSigOpen(false)}
                   disabled={sigBusy}

@@ -881,7 +881,7 @@ export default function JobDescriptionsContent() {
           </div>
           <div
             className="grid items-center text-[10px] uppercase tracking-wider text-foreground/40 px-5 py-2.5 border-b border-gray-100 bg-warm-bg/20"
-            style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,2fr) minmax(140px,1fr) minmax(0,2fr) minmax(150px,auto) minmax(130px,auto)' }}
+            style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,3fr) minmax(120px,0.9fr) minmax(0,1.6fr) 120px 120px' }}
           >
             {([
               { k: 'title' as const, label: 'Title' },
@@ -918,7 +918,7 @@ export default function JobDescriptionsContent() {
                 onClick={() => router.push(`/app/job-descriptions/${job.id}`)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/app/job-descriptions/${job.id}`); } }}
                 className={`grid items-center px-5 py-3 hover:bg-warm-bg/30 cursor-pointer transition-colors ${idx > 0 ? 'border-t border-gray-100' : ''} ${job.archived_at ? 'opacity-60' : ''}`}
-                style={{ gridTemplateColumns: 'minmax(0,2fr) minmax(140px,1fr) minmax(0,2fr) minmax(150px,auto) minmax(130px,auto)' }}
+                style={{ gridTemplateColumns: 'minmax(0,3fr) minmax(120px,0.9fr) minmax(0,1.6fr) 120px 120px' }}
               >
                 <div className="min-w-0 flex items-center gap-2 pr-3">
                   <span className={`text-sm font-semibold text-foreground truncate ${job.archived_at ? 'italic' : ''}`}>{job.title}</span>
@@ -951,25 +951,27 @@ export default function JobDescriptionsContent() {
                   {assigned.map((u) => (
                     <span
                       key={u.id}
-                      className="inline-flex items-center gap-1 pl-0.5 pr-1 py-0.5 rounded-full bg-warm-bg/60 border border-gray-100 text-[11px] group"
+                      className="relative inline-flex items-center group"
                       style={{ fontFamily: 'var(--font-body)' }}
                       title={u.full_name || ''}
                     >
                       {u.avatar_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={u.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                        <img src={u.avatar_url} alt={u.full_name || ''} className="w-6 h-6 rounded-full object-cover border border-gray-100" />
                       ) : (
-                        <span className="w-4 h-4 rounded-full bg-foreground/10 flex items-center justify-center text-[8px] font-semibold text-foreground/60">
+                        <span className="w-6 h-6 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-semibold text-foreground/60 border border-gray-100">
                           {(u.full_name || '?').charAt(0).toUpperCase()}
                         </span>
                       )}
-                      <span className="truncate max-w-[120px]">{u.full_name || 'Unnamed'}</span>
+                      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-0.5 rounded bg-foreground text-white text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                        {u.full_name || 'Unnamed'}
+                      </span>
                       <button
                         onClick={() => unassignUserFromTitle(u)}
-                        className="text-foreground/30 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-white border border-gray-200 text-foreground/40 hover:text-red-500 hover:border-red-300 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                         aria-label={`Unassign ${u.full_name}`}
                       >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        <svg className="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                       </button>
                     </span>
                   ))}
