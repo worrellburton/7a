@@ -25,9 +25,14 @@ body {
 /* Admin portal: zoom everything ~20% smaller across the board.
    Using `zoom` scales Tailwind rem utilities, px values, spacing, and
    images together so pages feel 2-3 type-scale steps tighter without
-   touching every component. Public marketing pages are unaffected. */
+   touching every component. Public marketing pages are unaffected.
+
+   The min-height compensates for zoom so the shell still fills the full
+   viewport after scaling — otherwise zoom: 0.82 on a 100vh element would
+   render at only 82vh, leaving an empty white band at the bottom. */
 .app-shell {
   zoom: 0.82;
+  min-height: calc(100vh / 0.82);
 }
 
 h1, h2, h3, h4, h5, h6 {
