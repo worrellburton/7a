@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { logActivity } from '@/lib/activity';
 import { useModal } from '@/lib/ModalProvider';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -188,6 +189,19 @@ export default function UsersContent() {
       return;
     }
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, department_id: departmentId } : u)));
+    if (user?.id) {
+      const target = users.find((u) => u.id === userId);
+      const dept = departments.find((d) => d.id === departmentId);
+      logActivity({
+        userId: user.id,
+        type: 'user.department_changed',
+        targetKind: 'user',
+        targetId: userId,
+        targetLabel: target?.full_name || target?.email || 'user',
+        targetPath: '/app/users',
+        metadata: { department_id: departmentId, department_name: dept?.name || null },
+      });
+    }
   }
 
   async function deleteUser(userId: string, userName: string) {
@@ -210,6 +224,16 @@ export default function UsersContent() {
     }
     setUsers((prev) => prev.filter((u) => u.id !== userId));
     showToast(`${userName} has been removed`);
+    if (user?.id) {
+      logActivity({
+        userId: user.id,
+        type: 'user.deleted',
+        targetKind: 'user',
+        targetId: userId,
+        targetLabel: userName,
+        targetPath: '/app/users',
+      });
+    }
   }
 
   async function updateJobTitle(userId: string, jobTitle: string | null) {
@@ -220,6 +244,18 @@ export default function UsersContent() {
       return;
     }
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, job_title: jobTitle } : u)));
+    if (user?.id) {
+      const target = users.find((u) => u.id === userId);
+      logActivity({
+        userId: user.id,
+        type: 'user.job_title_changed',
+        targetKind: 'user',
+        targetId: userId,
+        targetLabel: target?.full_name || target?.email || 'user',
+        targetPath: '/app/users',
+        metadata: { job_title: jobTitle },
+      });
+    }
   }
 
   function toggleSort(key: SortKey) {
