@@ -571,6 +571,16 @@ export default function JobDescriptionDetailContent() {
   // as an instruction, then patch the JD with the returned fields.
   const [applyingIdx, setApplyingIdx] = useState<number | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
+  // Diff state — shown after an Apply so the user can see what Claude changed.
+  // Added items render with a green "added" chip, removed items appear as
+  // strikethrough rows below the list. Cleared with the "Dismiss" button.
+  const [kaizenDiff, setKaizenDiff] = useState<{
+    title: { before: string; after: string } | null;
+    summary: { before: string; after: string } | null;
+    responsibilities: { added: string[]; removed: string[] };
+    requirements: { added: string[]; removed: string[] };
+    note: string;
+  } | null>(null);
   async function applyRecommendation(text: string, idx: number) {
     if (!job) return;
     setApplyingIdx(idx);
@@ -578,6 +588,12 @@ export default function JobDescriptionDetailContent() {
     try {
       const token = getAuthToken();
       const deptName = job.department_id ? departments.find((d) => d.id === job.department_id)?.name || '' : '';
+      const before = {
+        title: job.title,
+        summary: job.summary,
+        responsibilities: [...job.responsibilities],
+        requirements: [...job.requirements],
+      };
       const res = await fetch('/api/claude/job-description/edit', {
         method: 'POST',
         headers: {
@@ -585,11 +601,11 @@ export default function JobDescriptionDetailContent() {
           ...(token ? { authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          title: job.title,
+          title: before.title,
           department: deptName,
-          summary: job.summary,
-          responsibilities: job.responsibilities,
-          requirements: job.requirements,
+          summary: before.summary,
+          responsibilities: before.responsibilities,
+          requirements: before.requirements,
           instruction: text,
         }),
       });
@@ -598,15 +614,36 @@ export default function JobDescriptionDetailContent() {
         throw new Error(body?.error || `Apply failed (${res.status})`);
       }
       const edited = (await res.json()) as { title?: string; summary?: string; responsibilities?: string[]; requirements?: string[] };
+      const nextTitle = typeof edited.title === 'string' && edited.title.trim() ? edited.title : before.title;
+      const nextSummary = typeof edited.summary === 'string' ? edited.summary : before.summary;
+      const nextResp = Array.isArray(edited.responsibilities) ? edited.responsibilities : before.responsibilities;
+      const nextReq = Array.isArray(edited.requirements) ? edited.requirements : before.requirements;
       await patchJob(
         {
-          title: typeof edited.title === 'string' && edited.title.trim() ? edited.title : job.title,
-          summary: typeof edited.summary === 'string' ? edited.summary : job.summary,
-          responsibilities: Array.isArray(edited.responsibilities) ? edited.responsibilities : job.responsibilities,
-          requirements: Array.isArray(edited.requirements) ? edited.requirements : job.requirements,
+          title: nextTitle,
+          summary: nextSummary,
+          responsibilities: nextResp,
+          requirements: nextReq,
         },
         `Applied Kaizen suggestion: ${text.slice(0, 80)}${text.length > 80 ? '…' : ''}`
       );
+      const beforeRespSet = new Set(before.responsibilities);
+      const afterRespSet = new Set(nextResp);
+      const beforeReqSet = new Set(before.requirements);
+      const afterReqSet = new Set(nextReq);
+      setKaizenDiff({
+        title: before.title !== nextTitle ? { before: before.title, after: nextTitle } : null,
+        summary: before.summary !== nextSummary ? { before: before.summary, after: nextSummary } : null,
+        responsibilities: {
+          added: nextResp.filter((r) => !beforeRespSet.has(r)),
+          removed: before.responsibilities.filter((r) => !afterRespSet.has(r)),
+        },
+        requirements: {
+          added: nextReq.filter((r) => !beforeReqSet.has(r)),
+          removed: before.requirements.filter((r) => !afterReqSet.has(r)),
+        },
+        note: text,
+      });
     } catch (err) {
       setApplyError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -736,6 +773,10 @@ export default function JobDescriptionDetailContent() {
                   {dept.name}
                 </div>
               )}
+              <div>
+                <span>Version</span>
+                v{job.version}
+              </div>
               <div>
                 <span>Last Reviewed</span>
                 {job.date_revised ? formatDate(job.date_revised) : '—'}
@@ -1012,6 +1053,55 @@ export default function JobDescriptionDetailContent() {
             />
           </div>
 
+          {/* Kaizen diff banner — shows added/removed rows from the most recent
+              "Apply" so the user can audit exactly what Claude changed. */}
+          {kaizenDiff && (
+            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 jd-print-hide" style={{ fontFamily: 'var(--font-body)' }}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
+                    Applied change
+                  </p>
+                  <p className="text-xs text-foreground/70 mt-0.5 line-clamp-2">{kaizenDiff.note}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-medium">
+                    {kaizenDiff.title && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                        Title changed
+                      </span>
+                    )}
+                    {kaizenDiff.summary && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                        Summary rewritten
+                      </span>
+                    )}
+                    {(kaizenDiff.responsibilities.added.length > 0 || kaizenDiff.requirements.added.length > 0) && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                        +{kaizenDiff.responsibilities.added.length + kaizenDiff.requirements.added.length} added
+                      </span>
+                    )}
+                    {(kaizenDiff.responsibilities.removed.length > 0 || kaizenDiff.requirements.removed.length > 0) && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                        −{kaizenDiff.responsibilities.removed.length + kaizenDiff.requirements.removed.length} removed
+                      </span>
+                    )}
+                  </div>
+                  {kaizenDiff.title && (
+                    <div className="mt-2 text-xs">
+                      <span className="line-through text-rose-700/80 mr-2">{kaizenDiff.title.before}</span>
+                      <span className="text-emerald-800 font-medium">{kaizenDiff.title.after}</span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setKaizenDiff(null)}
+                  className="shrink-0 text-[11px] font-medium text-foreground/50 hover:text-foreground px-2 py-1 rounded-md hover:bg-white/60 transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Responsibilities */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -1029,8 +1119,10 @@ export default function JobDescriptionDetailContent() {
             </div>
             {job.responsibilities.length > 0 && (
               <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl bg-white overflow-hidden mb-3">
-                {job.responsibilities.map((r, i) => (
-                  <li key={i} className="flex items-center gap-2.5 group hover:bg-warm-bg/40 transition-colors px-2.5 py-1.5">
+                {job.responsibilities.map((r, i) => {
+                  const isAdded = kaizenDiff?.responsibilities.added.includes(r);
+                  return (
+                  <li key={i} className={`flex items-center gap-2.5 group hover:bg-warm-bg/40 transition-colors px-2.5 py-1.5 ${isAdded ? 'bg-emerald-50/70 border-l-2 border-emerald-400' : ''}`}>
                     <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tabular-nums select-none self-start mt-0.5">{i + 1}</span>
                     <AutoTextarea
                       value={r}
@@ -1042,6 +1134,11 @@ export default function JobDescriptionDetailContent() {
                       dataAttr="resp-item"
                       className="flex-1 min-w-0 w-full text-xs leading-5 text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0 block"
                     />
+                    {isAdded && (
+                      <span className="shrink-0 self-start mt-0.5 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-semibold uppercase tracking-wider jd-print-hide">
+                        Added
+                      </span>
+                    )}
                     <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
                       <button
                         onClick={() => moveResponsibility(i, -1)}
@@ -1067,6 +1164,21 @@ export default function JobDescriptionDetailContent() {
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                       </button>
                     </div>
+                  </li>
+                  );
+                })}
+              </ul>
+            )}
+            {/* Removed responsibilities from the most recent Apply — strikethrough
+                so the user can see what Claude dropped. */}
+            {kaizenDiff && kaizenDiff.responsibilities.removed.length > 0 && (
+              <ul className="mb-3 divide-y divide-rose-100 border border-rose-100 rounded-xl bg-rose-50/40 overflow-hidden jd-print-hide">
+                {kaizenDiff.responsibilities.removed.map((r, i) => (
+                  <li key={`rm-${i}`} className="flex items-start gap-2.5 px-2.5 py-1.5" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[9px] font-semibold uppercase tracking-wider mt-0.5">
+                      Removed
+                    </span>
+                    <span className="flex-1 min-w-0 text-xs leading-5 line-through text-rose-700/70">{r}</span>
                   </li>
                 ))}
               </ul>
@@ -1099,8 +1211,10 @@ export default function JobDescriptionDetailContent() {
             </div>
             {job.requirements.length > 0 && (
               <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl bg-white overflow-hidden mb-3">
-                {job.requirements.map((r, i) => (
-                  <li key={i} className="flex items-center gap-2.5 group hover:bg-warm-bg/40 transition-colors px-2.5 py-1.5">
+                {job.requirements.map((r, i) => {
+                  const isAdded = kaizenDiff?.requirements.added.includes(r);
+                  return (
+                  <li key={i} className={`flex items-center gap-2.5 group hover:bg-warm-bg/40 transition-colors px-2.5 py-1.5 ${isAdded ? 'bg-emerald-50/70 border-l-2 border-emerald-400' : ''}`}>
                     <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tabular-nums select-none self-start mt-0.5">{i + 1}</span>
                     <AutoTextarea
                       value={r}
@@ -1112,6 +1226,11 @@ export default function JobDescriptionDetailContent() {
                       dataAttr="req-item"
                       className="flex-1 min-w-0 w-full text-xs leading-5 text-foreground/80 bg-transparent border-0 focus:outline-none focus:ring-0 p-0 block"
                     />
+                    {isAdded && (
+                      <span className="shrink-0 self-start mt-0.5 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-semibold uppercase tracking-wider jd-print-hide">
+                        Added
+                      </span>
+                    )}
                     <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
                       <button
                         onClick={() => moveRequirement(i, -1)}
@@ -1137,6 +1256,20 @@ export default function JobDescriptionDetailContent() {
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                       </button>
                     </div>
+                  </li>
+                  );
+                })}
+              </ul>
+            )}
+            {/* Removed requirements from the most recent Apply — strikethrough. */}
+            {kaizenDiff && kaizenDiff.requirements.removed.length > 0 && (
+              <ul className="mb-3 divide-y divide-rose-100 border border-rose-100 rounded-xl bg-rose-50/40 overflow-hidden jd-print-hide">
+                {kaizenDiff.requirements.removed.map((r, i) => (
+                  <li key={`rm-${i}`} className="flex items-start gap-2.5 px-2.5 py-1.5" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[9px] font-semibold uppercase tracking-wider mt-0.5">
+                      Removed
+                    </span>
+                    <span className="flex-1 min-w-0 text-xs leading-5 line-through text-rose-700/70">{r}</span>
                   </li>
                 ))}
               </ul>
