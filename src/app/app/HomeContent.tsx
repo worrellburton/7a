@@ -46,6 +46,8 @@ export default function HomeContent() {
     return (path: string | null): string | null => {
       if (!path) return null;
       if (map.has(path)) return map.get(path)!;
+      // Any job-description detail view still reads as "Job Descriptions".
+      if (path.startsWith('/app/job-descriptions')) return 'Job Descriptions';
       // Fall back to last segment if it's a nested route we don't know
       const last = path.split('/').filter(Boolean).pop();
       if (!last) return null;

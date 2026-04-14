@@ -371,6 +371,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [navMounted, setNavMounted] = useState(false);
+  const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
 
   // Load departments for sidebar grouping
   useEffect(() => {
