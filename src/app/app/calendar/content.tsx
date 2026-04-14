@@ -2040,7 +2040,13 @@ function MonthView({
           const isLastCol = (i + 1) % 7 === 0;
           const isLastRow = i >= 35;
           const iso = toISODate(d);
-          const dayEvents = eventsByDate.get(iso) || [];
+          const rawDayEvents = eventsByDate.get(iso) || [];
+          // Team mode shows only user events in shift buckets (no group chips);
+          // Groups mode filters further inside the Groups branch.
+          const dayEvents =
+            viewMode === 'team'
+              ? rawDayEvents.filter((ev) => ev.subject_kind !== 'group')
+              : rawDayEvents;
           const aodUserId = aodByDate.get(iso);
           const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
 
@@ -2112,8 +2118,11 @@ function MonthView({
                   );
                 })()
               ) : (
-                /* Three stacked shift buckets — each is its own drop target. */
-                <div className="flex-1 min-h-0 flex flex-col gap-px px-1 pb-1">
+                /* Three stacked shift buckets — each is its own drop target.
+                   Labels kept intentionally quiet so avatars/events read
+                   first; the order is always morning / afternoon / overnight
+                   so a tiny single-letter marker is enough to disambiguate. */
+                <div className="flex-1 min-h-0 flex flex-col gap-0.5 px-1 pb-1">
                   {shifts.map((s) => {
                     const evs = byShift.get(s.id) || [];
                     return (
@@ -2122,19 +2131,17 @@ function MonthView({
                         onCreate={(payload) => onCreateInShift(d, payload, s)}
                         onReschedule={(eventId) => onReschedule(d, eventId)}
                         previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
-                        className="flex-1 min-h-0 rounded-md bg-warm-bg/25 hover:bg-warm-bg/60 transition-colors px-1 py-0.5 flex flex-col overflow-hidden"
+                        className="flex-1 min-h-0 rounded-md hover:bg-warm-bg/40 transition-colors px-1 py-0.5 flex gap-1 overflow-hidden"
                         activeClassName="ring-1 ring-primary/60 bg-primary/10 animate-cal-drop"
                       >
-                        <div
-                          className="flex items-center justify-between gap-1 text-[9px] font-semibold uppercase tracking-wider text-foreground/40"
+                        <span
+                          className="shrink-0 w-3 text-[9px] font-semibold uppercase text-foreground/25 leading-tight pt-0.5"
                           style={{ fontFamily: 'var(--font-body)' }}
+                          title={`${s.name} · ${formatShiftRange(s)}`}
                         >
-                          <span className="truncate">{s.name}</span>
-                          <span className="shrink-0 font-medium normal-case tracking-normal text-foreground/30">
-                            {formatShiftRange(s)}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-h-0 overflow-hidden mt-0.5">
+                          {s.name.charAt(0)}
+                        </span>
+                        <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
                           {(() => {
                             const userEvs = evs.filter((ev) => ev.subject_kind === 'user');
                             const nonUser = evs.filter((ev) => ev.subject_kind !== 'user');
@@ -2377,6 +2384,14 @@ function WeekView({
                   const shiftUserEvents = (eventsByDate.get(toISODate(d)) || []).filter(
                     (ev) => ev.subject_kind === 'user' && shiftForEvent(ev, shifts) === s.id
                   );
+                  // Put label + avatars in the largest visible segment so
+                  // overnight shifts headline their post-midnight slab.
+                  let largestSi = 0;
+                  for (let i = 1; i < segments.length; i++) {
+                    if (segments[i].b - segments[i].a > segments[largestSi].b - segments[largestSi].a) {
+                      largestSi = i;
+                    }
+                  }
                   return segments.map((seg, si) => {
                     const topPct = ((seg.a - DAY_START_H) / span) * 100;
                     const heightPct = ((seg.b - seg.a) / span) * 100;
@@ -2388,12 +2403,12 @@ function WeekView({
                           onReschedule(d, Math.floor(hhmmToHours(s.start)), eventId)
                         }
                         previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
-                        className="absolute left-0.5 right-0.5 rounded-sm border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors pointer-events-auto flex flex-col gap-1 px-1 py-0.5 overflow-hidden"
+                        className="absolute left-0.5 right-0.5 z-10 rounded-sm border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors pointer-events-auto flex flex-col gap-1 px-1 py-0.5 overflow-hidden"
                         activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
                         style={{ top: `${topPct}%`, height: `${heightPct}%` }}
                         title={`${s.name} · ${formatShiftRange(s)}`}
                       >
-                        {si === 0 && (
+                        {si === largestSi && (
                           <>
                             <div className="flex items-start justify-between gap-1">
                               <span
@@ -2628,6 +2643,15 @@ function DayView({
           const shiftUserEvents = allDayEvents.filter(
             (ev) => ev.subject_kind === 'user' && shiftForEvent(ev, shifts) === s.id
           );
+          // Render the label + avatar cluster in the *largest* visible
+          // segment so overnight shifts show their headline content in the
+          // post-midnight (00:00-06:30) slab instead of the tiny tail.
+          let largestSi = 0;
+          for (let i = 1; i < segments.length; i++) {
+            if (segments[i].b - segments[i].a > segments[largestSi].b - segments[largestSi].a) {
+              largestSi = i;
+            }
+          }
           return segments.map((seg, si) => {
             const topPct = pctFor(seg.a);
             const botPct = pctFor(seg.b);
@@ -2639,12 +2663,12 @@ function DayView({
                   onReschedule(day, Math.floor(hhmmToHours(s.start)), eventId)
                 }
                 previewTarget={{ date: day, hour: Math.floor(hhmmToHours(s.start)) }}
-                className="absolute left-[82px] right-1 rounded-md border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors flex flex-col gap-2 px-3 py-1.5 overflow-hidden"
+                className="absolute left-[82px] right-1 z-10 rounded-md border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors flex flex-col gap-2 px-3 py-1.5 overflow-hidden"
                 activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
                 style={{ top: `${topPct}%`, height: `${botPct - topPct}%` }}
                 title={`${s.name} · ${formatShiftRange(s)}`}
               >
-                {si === 0 && (
+                {si === largestSi && (
                   <>
                     <div className="flex items-start justify-between gap-2">
                       <span
