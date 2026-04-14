@@ -20,6 +20,12 @@ interface JobDescription {
   created_at: string;
 }
 
+interface AppUserLite {
+  id: string;
+  full_name: string | null;
+  job_title: string | null;
+}
+
 const emptyDraft: Omit<JobDescription, 'id' | 'created_at'> = {
   title: '',
   department_id: null,
@@ -32,12 +38,19 @@ export default function JobDescriptionsContent() {
   const { user, session } = useAuth();
   const [jobs, setJobs] = useState<JobDescription[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [users, setUsers] = useState<AppUserLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [dbAvailable, setDbAvailable] = useState(true);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState(emptyDraft);
+
+  // Drag-and-drop PDF import state
+  const [dragDepth, setDragDepth] = useState(0); // counts dragenter/leave for nested children
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
 
   // For add-item inputs inside expanded cards.
   const [newRespText, setNewRespText] = useState<Record<string, string>>({});
@@ -46,9 +59,10 @@ export default function JobDescriptionsContent() {
   useEffect(() => {
     if (!session?.access_token) return;
     async function load() {
-      const [jobData, deptData] = await Promise.all([
+      const [jobData, deptData, userData] = await Promise.all([
         db({ action: 'select', table: 'job_descriptions', order: { column: 'title', ascending: true } }),
         db({ action: 'select', table: 'departments', order: { column: 'name', ascending: true } }),
+        db({ action: 'select', table: 'users', select: 'id, full_name, job_title', order: { column: 'full_name', ascending: true } }),
       ]);
       if (Array.isArray(jobData)) {
         setJobs(
@@ -62,6 +76,7 @@ export default function JobDescriptionsContent() {
         setDbAvailable(false);
       }
       if (Array.isArray(deptData)) setDepartments(deptData as Department[]);
+      if (Array.isArray(userData)) setUsers(userData as AppUserLite[]);
       setLoading(false);
     }
     load();
@@ -177,6 +192,156 @@ export default function JobDescriptionsContent() {
     }
   }
 
+  // ---- PDF drag-and-drop import ---------------------------------------
+
+  function matchDepartmentId(name: string): string | null {
+    const n = name.trim().toLowerCase();
+    if (!n) return null;
+    // Exact (case-insensitive) match first, then looser "startsWith" fallback.
+    const exact = departments.find((d) => d.name.toLowerCase() === n);
+    if (exact) return exact.id;
+    const loose = departments.find((d) => n.startsWith(d.name.toLowerCase()) || d.name.toLowerCase().startsWith(n));
+    return loose?.id ?? null;
+  }
+
+  function matchUserByName(name: string): AppUserLite | null {
+    const target = name.trim().toLowerCase();
+    if (!target) return null;
+    const exact = users.find((u) => (u.full_name || '').trim().toLowerCase() === target);
+    if (exact) return exact;
+    // Loose: every token of the target appears in the user's full name.
+    const tokens = target.split(/\s+/).filter(Boolean);
+    return (
+      users.find((u) => {
+        const name = (u.full_name || '').toLowerCase();
+        return tokens.length > 0 && tokens.every((t) => name.includes(t));
+      }) || null
+    );
+  }
+
+  async function importPdf(file: File) {
+    setUploadError(null);
+    setUploadStatus(`Reading ${file.name}…`);
+    setUploading(true);
+    try {
+      const token = getAuthToken();
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/claude/job-description/from-pdf', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `Import failed (${res.status})`);
+      }
+      const parsed = (await res.json()) as {
+        title: string;
+        department: string;
+        summary: string;
+        responsibilities: string[];
+        requirements: string[];
+        assignees: string[];
+      };
+
+      const deptId = parsed.department ? matchDepartmentId(parsed.department) : null;
+      const payload: Omit<JobDescription, 'id' | 'created_at'> = {
+        title: parsed.title,
+        department_id: deptId,
+        summary: parsed.summary,
+        responsibilities: parsed.responsibilities,
+        requirements: parsed.requirements,
+      };
+
+      let created: JobDescription;
+      if (!dbAvailable) {
+        created = { id: `local-${Date.now()}`, created_at: new Date().toISOString(), ...payload };
+      } else {
+        const result = await db({ action: 'insert', table: 'job_descriptions', data: payload });
+        if (!result || !(result as JobDescription).id) {
+          throw new Error((result as { error?: string } | null)?.error || 'Could not save the imported role.');
+        }
+        created = result as JobDescription;
+      }
+
+      setJobs((prev) => [...prev, created].sort((a, b) => a.title.localeCompare(b.title)));
+      setExpandedId(created.id);
+
+      // Assign the role to any named team members we can match.
+      const matched: { user: AppUserLite }[] = [];
+      const unmatched: string[] = [];
+      for (const name of parsed.assignees) {
+        const u = matchUserByName(name);
+        if (u) matched.push({ user: u });
+        else unmatched.push(name);
+      }
+
+      if (matched.length > 0 && dbAvailable) {
+        await Promise.all(
+          matched.map(({ user: u }) =>
+            db({ action: 'update', table: 'users', data: { job_title: created.title }, match: { id: u.id } })
+          )
+        );
+        setUsers((prev) =>
+          prev.map((u) => (matched.some((m) => m.user.id === u.id) ? { ...u, job_title: created.title } : u))
+        );
+      }
+
+      const parts: string[] = [`Added "${created.title}"`];
+      if (matched.length > 0) {
+        parts.push(`· assigned ${matched.length} team member${matched.length === 1 ? '' : 's'}`);
+      }
+      if (unmatched.length > 0) {
+        parts.push(`· ${unmatched.length} name${unmatched.length === 1 ? '' : 's'} not matched (${unmatched.join(', ')})`);
+      }
+      setUploadStatus(parts.join(' '));
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : String(err));
+      setUploadStatus(null);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function importPdfs(files: FileList | File[]) {
+    const list = Array.from(files).filter(
+      (f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+    );
+    if (list.length === 0) {
+      setUploadError('Only PDF files are supported.');
+      return;
+    }
+    for (const f of list) {
+      // eslint-disable-next-line no-await-in-loop
+      await importPdf(f);
+    }
+  }
+
+  function onDragEnter(e: React.DragEvent) {
+    if (!Array.from(e.dataTransfer.types || []).includes('Files')) return;
+    e.preventDefault();
+    setDragDepth((d) => d + 1);
+  }
+  function onDragLeave(e: React.DragEvent) {
+    if (!Array.from(e.dataTransfer.types || []).includes('Files')) return;
+    e.preventDefault();
+    setDragDepth((d) => Math.max(0, d - 1));
+  }
+  function onDragOver(e: React.DragEvent) {
+    if (!Array.from(e.dataTransfer.types || []).includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+  function onDrop(e: React.DragEvent) {
+    if (!Array.from(e.dataTransfer.types || []).includes('Files')) return;
+    e.preventDefault();
+    setDragDepth(0);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      importPdfs(e.dataTransfer.files);
+    }
+  }
+
   if (!user) return null;
 
   if (loading) {
@@ -187,13 +352,38 @@ export default function JobDescriptionsContent() {
     );
   }
 
+  const isDragging = dragDepth > 0;
+
   return (
-    <div className="p-6 lg:p-10 max-w-5xl">
+    <div
+      className="p-6 lg:p-10 max-w-5xl relative"
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      {isDragging && (
+        <div className="fixed inset-0 z-40 bg-primary/10 backdrop-blur-sm pointer-events-none flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-xl border-2 border-dashed border-primary px-8 py-6 text-center">
+            <svg className="w-10 h-10 mx-auto mb-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+              <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+              <path d="M12 18v-6" />
+              <path d="m9 15 3-3 3 3" />
+            </svg>
+            <p className="text-sm font-semibold text-foreground">Drop PDF to import as a job description</p>
+            <p className="text-xs text-foreground/60 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+              Claude will parse the role and assign named team members.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Job Descriptions</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            {jobs.length} {jobs.length === 1 ? 'role' : 'roles'} &middot; Click to expand
+            {jobs.length} {jobs.length === 1 ? 'role' : 'roles'} &middot; Click to expand &middot; Drop a PDF anywhere to import
           </p>
           {!dbAvailable && (
             <p className="text-xs text-amber-600 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
@@ -213,6 +403,71 @@ export default function JobDescriptionsContent() {
           Add New Job Description
         </button>
       </div>
+
+      <label
+        htmlFor="jd-pdf-input"
+        className={`mb-6 block rounded-2xl border-2 border-dashed px-5 py-4 cursor-pointer transition-colors ${
+          uploading
+            ? 'border-primary/40 bg-primary/5'
+            : 'border-gray-200 bg-white hover:border-primary/40 hover:bg-primary/5'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          {uploading ? (
+            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+          ) : (
+            <svg className="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+              <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+              <path d="M12 18v-6" />
+              <path d="m9 15 3-3 3 3" />
+            </svg>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              {uploading ? 'Parsing PDF with Claude…' : 'Drag & drop a job description PDF'}
+            </p>
+            <p className="text-xs text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+              {uploading
+                ? uploadStatus || 'This can take a few seconds for long documents.'
+                : 'Or click to choose a file. Named team members in the PDF will be assigned automatically.'}
+            </p>
+          </div>
+        </div>
+        <input
+          id="jd-pdf-input"
+          type="file"
+          accept="application/pdf,.pdf"
+          multiple
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => {
+            if (e.target.files && e.target.files.length > 0) {
+              importPdfs(e.target.files);
+              e.target.value = '';
+            }
+          }}
+        />
+      </label>
+
+      {!uploading && uploadStatus && (
+        <div className="mb-4 px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-100 text-xs text-emerald-800 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
+          <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+          <span className="flex-1">{uploadStatus}</span>
+          <button onClick={() => setUploadStatus(null)} className="text-emerald-700/60 hover:text-emerald-800" aria-label="Dismiss">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      )}
+      {uploadError && (
+        <div className="mb-4 px-4 py-2 rounded-lg bg-red-50 border border-red-100 text-xs text-red-700 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
+          <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 3h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+          <span className="flex-1">{uploadError}</span>
+          <button onClick={() => setUploadError(null)} className="text-red-700/60 hover:text-red-800" aria-label="Dismiss">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      )}
 
       {creating && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
