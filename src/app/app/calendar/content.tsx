@@ -2323,14 +2323,14 @@ function WeekView({
         const sunrisePct = Math.max(0, Math.min(100, ((sunrise - DAY_START_H) / span) * 100));
         const sunsetPct = Math.max(0, Math.min(100, ((sunset - DAY_START_H) / span) * 100));
         const gradient = `linear-gradient(to bottom,
-          rgba(20, 20, 20, 0.22) 0%,
-          rgba(60, 60, 60, 0.18) ${Math.max(0, sunrisePct - 4)}%,
-          rgba(120, 120, 120, 0.05) ${Math.min(100, sunrisePct + 4)}%,
+          rgba(45, 38, 30, 0.22) 0%,
+          rgba(80, 72, 62, 0.18) ${Math.max(0, sunrisePct - 4)}%,
+          rgba(140, 130, 118, 0.05) ${Math.min(100, sunrisePct + 4)}%,
           rgba(255, 255, 255, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
-          rgba(120, 120, 120, 0.06) ${Math.max(0, sunsetPct - 6)}%,
-          rgba(60, 60, 60, 0.22) ${sunsetPct}%,
-          rgba(30, 30, 30, 0.28) ${Math.min(100, sunsetPct + 6)}%,
-          rgba(10, 10, 10, 0.38) 100%)`;
+          rgba(140, 130, 118, 0.06) ${Math.max(0, sunsetPct - 6)}%,
+          rgba(80, 72, 62, 0.22) ${sunsetPct}%,
+          rgba(55, 48, 40, 0.28) ${Math.min(100, sunsetPct + 6)}%,
+          rgba(35, 28, 22, 0.38) 100%)`;
         return { sunrise, sunset, sunrisePct, sunsetPct, gradient };
       }),
     [days]
@@ -2638,14 +2638,14 @@ function DayView({
 
   // Gradient stops — dawn / day / dusk / night with soft transitions.
   const gradient = `linear-gradient(to bottom,
-    rgba(20, 20, 20, 0.24) 0%,
-    rgba(60, 60, 60, 0.18) ${Math.max(0, sunrisePct - 4)}%,
-    rgba(120, 120, 120, 0.05) ${Math.min(100, sunrisePct + 4)}%,
+    rgba(45, 38, 30, 0.24) 0%,
+    rgba(80, 72, 62, 0.18) ${Math.max(0, sunrisePct - 4)}%,
+    rgba(140, 130, 118, 0.05) ${Math.min(100, sunrisePct + 4)}%,
     rgba(255, 255, 255, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
-    rgba(120, 120, 120, 0.06) ${Math.max(0, sunsetPct - 6)}%,
-    rgba(60, 60, 60, 0.22) ${sunsetPct}%,
-    rgba(30, 30, 30, 0.28) ${Math.min(100, sunsetPct + 6)}%,
-    rgba(10, 10, 10, 0.42) 100%)`;
+    rgba(140, 130, 118, 0.06) ${Math.max(0, sunsetPct - 6)}%,
+    rgba(80, 72, 62, 0.22) ${sunsetPct}%,
+    rgba(55, 48, 40, 0.28) ${Math.min(100, sunsetPct + 6)}%,
+    rgba(35, 28, 22, 0.42) 100%)`;
 
   return (
     <div className="flex flex-col h-full min-h-0">
