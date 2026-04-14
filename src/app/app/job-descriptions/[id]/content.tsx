@@ -127,7 +127,9 @@ interface SignatureRow {
 }
 
 export default function JobDescriptionDetailContent() {
-  const { user, session } = useAuth();
+  const { user, session, isAdmin } = useAuth();
+  // Editing is superadmin-only. Everyone else sees a read-only view.
+  const canEdit = isAdmin;
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = params?.id || '';
@@ -241,6 +243,7 @@ export default function JobDescriptionDetailContent() {
 
   async function patchJob(patch: Partial<JobDescription>, activitySummary?: string) {
     if (!job) return;
+    if (!canEdit) return;
     const nowIso = new Date().toISOString();
     const editorName = (user?.user_metadata as { full_name?: string } | undefined)?.full_name || user?.email || 'Someone';
     const nextActivity = activitySummary
@@ -268,6 +271,7 @@ export default function JobDescriptionDetailContent() {
   // they stay linked.
   async function renameTitle(newTitle: string) {
     if (!job) return;
+    if (!canEdit) return;
     const oldTitle = job.title;
     const trimmed = newTitle;
     setJob({ ...job, title: trimmed });
@@ -460,6 +464,7 @@ export default function JobDescriptionDetailContent() {
 
   async function saveNewVersion() {
     if (!job) return;
+    if (!canEdit) return;
     if (!isDirtyFromLatest) return;
     setVersionSaving(true);
     setVersionError(null);
@@ -840,17 +845,19 @@ export default function JobDescriptionDetailContent() {
             Back to Job Descriptions
           </Link>
           <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              onClick={() => {
-                setRatingOpen(true);
-                if (!rating && !ratingBusy) runClaudeRating();
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-primary text-white text-xs font-semibold shadow-sm hover:bg-primary-dark hover:-translate-y-px hover:shadow transition-all"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
-              Kaizen
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => {
+                  setRatingOpen(true);
+                  if (!rating && !ratingBusy) runClaudeRating();
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-primary text-white text-xs font-semibold shadow-sm hover:bg-primary-dark hover:-translate-y-px hover:shadow transition-all"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
+                Kaizen
+              </button>
+            )}
             <button
               onClick={downloadPdf}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-foreground/70 text-xs font-medium hover:bg-warm-bg hover:text-foreground transition-colors"
@@ -863,18 +870,20 @@ export default function JobDescriptionDetailContent() {
               </svg>
               Download PDF
             </button>
-            <button
-              onClick={() => { setSigOpen(true); setSigFilter(''); setSigStatus(null); }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-foreground/70 text-xs font-medium hover:bg-warm-bg hover:text-foreground transition-colors"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 17l6-6 4 4 8-8" />
-                <path d="M14 7h7v7" />
-                <path d="M3 21h18" />
-              </svg>
-              Send for Signature
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => { setSigOpen(true); setSigFilter(''); setSigStatus(null); }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-foreground/70 text-xs font-medium hover:bg-warm-bg hover:text-foreground transition-colors"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 17l6-6 4 4 8-8" />
+                  <path d="M14 7h7v7" />
+                  <path d="M3 21h18" />
+                </svg>
+                Send for Signature
+              </button>
+            )}
           </div>
         </div>
 
@@ -897,6 +906,7 @@ export default function JobDescriptionDetailContent() {
               </div>
               <input
                 value={job.title}
+                readOnly={!canEdit}
                 onChange={(e) => setJob({ ...job, title: e.target.value })}
                 onBlur={(e) => {
                   if (e.target.value.trim() !== job.title.trim()) {
@@ -908,12 +918,13 @@ export default function JobDescriptionDetailContent() {
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <select
                   value={job.department_id || ''}
+                  disabled={!canEdit}
                   onChange={(e) => {
                     const next = e.target.value || null;
                     const nextDept = next ? deptById.get(next)?.name : null;
                     patchJob({ department_id: next }, nextDept ? `Moved to ${nextDept}` : 'Cleared department');
                   }}
-                  className="text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-primary jd-print-hide"
+                  className="text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-primary jd-print-hide disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   <option value="">No department</option>
@@ -932,14 +943,16 @@ export default function JobDescriptionDetailContent() {
                   </svg>
                   {job.date_revised ? `Reviewed ${formatDate(job.date_revised)}` : 'Not reviewed yet'}
                 </span>
-                <button
-                  onClick={markReviewed}
-                  className="text-[11px] text-primary hover:text-primary/80 font-medium underline-offset-2 hover:underline jd-print-hide"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                  title="Stamp today's date as the last reviewed date"
-                >
-                  Mark reviewed
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={markReviewed}
+                    className="text-[11px] text-primary hover:text-primary/80 font-medium underline-offset-2 hover:underline jd-print-hide"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                    title="Stamp today's date as the last reviewed date"
+                  >
+                    Mark reviewed
+                  </button>
+                )}
               </div>
             </div>
 
@@ -971,15 +984,18 @@ export default function JobDescriptionDetailContent() {
                     </span>
                   )}
                   <span>{u.full_name || 'Unnamed'}</span>
-                  <button
-                    onClick={() => unassignUser(u)}
-                    className="text-foreground/30 hover:text-red-500 ml-0.5 jd-print-hide"
-                    aria-label={`Remove ${u.full_name}`}
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => unassignUser(u)}
+                      className="text-foreground/30 hover:text-red-500 ml-0.5 jd-print-hide"
+                      aria-label={`Remove ${u.full_name}`}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  )}
                 </span>
               ))}
+              {canEdit && (
               <div className="relative jd-print-hide">
                 <button
                   onClick={() => setAssignOpen((v) => !v)}
@@ -1034,6 +1050,7 @@ export default function JobDescriptionDetailContent() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           </div>
 
@@ -1044,6 +1061,7 @@ export default function JobDescriptionDetailContent() {
             </p>
             <AutoTextarea
               value={job.summary}
+              disabled={!canEdit}
               onChange={(v) => setJob({ ...job, summary: v })}
               onBlur={(v) => {
                 if (v !== job.summary) patchJob({ summary: v }, 'Edited summary');
@@ -1108,14 +1126,16 @@ export default function JobDescriptionDetailContent() {
               <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
                 Responsibilities ({job.responsibilities.length})
               </p>
-              <button
-                onClick={addResponsibility}
-                className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                Add
-              </button>
+              {canEdit && (
+                <button
+                  onClick={addResponsibility}
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                  Add
+                </button>
+              )}
             </div>
             {job.responsibilities.length > 0 && (
               <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl bg-white overflow-hidden mb-3">
@@ -1126,6 +1146,7 @@ export default function JobDescriptionDetailContent() {
                     <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tabular-nums select-none self-start mt-0.5">{i + 1}</span>
                     <AutoTextarea
                       value={r}
+                      disabled={!canEdit}
                       onChange={(value) => {
                         setJob({ ...job, responsibilities: job.responsibilities.map((x, idx) => (idx === i ? value : x)) });
                       }}
@@ -1139,31 +1160,33 @@ export default function JobDescriptionDetailContent() {
                         Added
                       </span>
                     )}
-                    <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
-                      <button
-                        onClick={() => moveResponsibility(i, -1)}
-                        disabled={i === 0}
-                        className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
-                        aria-label="Move up"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
-                      </button>
-                      <button
-                        onClick={() => moveResponsibility(i, 1)}
-                        disabled={i === job.responsibilities.length - 1}
-                        className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
-                        aria-label="Move down"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                      </button>
-                      <button
-                        onClick={() => removeResponsibility(i)}
-                        className="text-foreground/30 hover:text-red-500 p-0.5"
-                        aria-label="Remove"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                        <button
+                          onClick={() => moveResponsibility(i, -1)}
+                          disabled={i === 0}
+                          className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
+                          aria-label="Move up"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+                        </button>
+                        <button
+                          onClick={() => moveResponsibility(i, 1)}
+                          disabled={i === job.responsibilities.length - 1}
+                          className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
+                          aria-label="Move down"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        <button
+                          onClick={() => removeResponsibility(i)}
+                          className="text-foreground/30 hover:text-red-500 p-0.5"
+                          aria-label="Remove"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                    )}
                   </li>
                   );
                 })}
@@ -1183,7 +1206,7 @@ export default function JobDescriptionDetailContent() {
                 ))}
               </ul>
             )}
-            {job.responsibilities.length === 0 && (
+            {job.responsibilities.length === 0 && canEdit && (
               <button
                 onClick={addResponsibility}
                 className="w-full px-3 py-3 rounded-xl border border-dashed border-gray-200 text-xs text-foreground/40 hover:border-primary hover:text-primary transition-colors"
@@ -1200,14 +1223,16 @@ export default function JobDescriptionDetailContent() {
               <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
                 Requirements ({job.requirements.length})
               </p>
-              <button
-                onClick={addRequirement}
-                className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                Add
-              </button>
+              {canEdit && (
+                <button
+                  onClick={addRequirement}
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                  Add
+                </button>
+              )}
             </div>
             {job.requirements.length > 0 && (
               <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl bg-white overflow-hidden mb-3">
@@ -1218,6 +1243,7 @@ export default function JobDescriptionDetailContent() {
                     <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tabular-nums select-none self-start mt-0.5">{i + 1}</span>
                     <AutoTextarea
                       value={r}
+                      disabled={!canEdit}
                       onChange={(value) => {
                         setJob({ ...job, requirements: job.requirements.map((x, idx) => (idx === i ? value : x)) });
                       }}
@@ -1231,31 +1257,33 @@ export default function JobDescriptionDetailContent() {
                         Added
                       </span>
                     )}
-                    <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
-                      <button
-                        onClick={() => moveRequirement(i, -1)}
-                        disabled={i === 0}
-                        className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
-                        aria-label="Move up"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
-                      </button>
-                      <button
-                        onClick={() => moveRequirement(i, 1)}
-                        disabled={i === job.requirements.length - 1}
-                        className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
-                        aria-label="Move down"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                      </button>
-                      <button
-                        onClick={() => removeRequirement(i)}
-                        className="text-foreground/30 hover:text-red-500 p-0.5"
-                        aria-label="Remove"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                        <button
+                          onClick={() => moveRequirement(i, -1)}
+                          disabled={i === 0}
+                          className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
+                          aria-label="Move up"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+                        </button>
+                        <button
+                          onClick={() => moveRequirement(i, 1)}
+                          disabled={i === job.requirements.length - 1}
+                          className="text-foreground/30 hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
+                          aria-label="Move down"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        <button
+                          onClick={() => removeRequirement(i)}
+                          className="text-foreground/30 hover:text-red-500 p-0.5"
+                          aria-label="Remove"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                    )}
                   </li>
                   );
                 })}
@@ -1274,7 +1302,7 @@ export default function JobDescriptionDetailContent() {
                 ))}
               </ul>
             )}
-            {job.requirements.length === 0 && (
+            {job.requirements.length === 0 && canEdit && (
               <button
                 onClick={addRequirement}
                 className="w-full px-3 py-3 rounded-xl border border-dashed border-gray-200 text-xs text-foreground/40 hover:border-primary hover:text-primary transition-colors"
@@ -1552,7 +1580,7 @@ export default function JobDescriptionDetailContent() {
 
         {/* Sticky Save New Version footer — appears when working state differs
             from the latest snapshot. Persists edits as a new immutable version. */}
-        {isDirtyFromLatest && (
+        {canEdit && isDirtyFromLatest && (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 jd-print-hide" style={{ animation: 'fadeSlideUp 180ms ease-out both' }}>
             <div className="bg-white rounded-full shadow-xl border border-gray-200 flex items-center gap-3 pl-4 pr-2 py-2" style={{ fontFamily: 'var(--font-body)' }}>
               <span className="w-2 h-2 rounded-full bg-amber-500" />
