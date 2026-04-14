@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db, getAuthToken } from '@/lib/db';
+import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -412,6 +413,16 @@ export default function JobDescriptionsContent() {
       if (result && (result as JobDescription).id) {
         const created = result as JobDescription;
         setJobs((prev) => [...prev, created].sort((a, b) => a.title.localeCompare(b.title)));
+        if (user) {
+          logActivity({
+            userId: user.id,
+            type: 'jd.created',
+            targetKind: 'job_description',
+            targetId: created.id,
+            targetLabel: created.title,
+            targetPath: `/app/job-descriptions/${created.id}`,
+          });
+        }
         router.push(`/app/job-descriptions/${created.id}`);
       } else {
         throw new Error((result as { error?: string })?.error || 'Could not create role.');

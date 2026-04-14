@@ -59,7 +59,7 @@ export default function PageViewers() {
   if (viewers.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#2a2118]/90 backdrop-blur border border-gray-100 dark:border-white/10 shadow-sm">
+    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#2a2118]/90 backdrop-blur border border-gray-100 dark:border-white/10 shadow-sm">
       <span
         className="text-[10px] font-semibold text-foreground/70 dark:text-white/80 uppercase tracking-wider"
         style={{ fontFamily: 'var(--font-body)' }}

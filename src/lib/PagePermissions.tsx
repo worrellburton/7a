@@ -36,6 +36,7 @@ const defaultPages: PageConfig[] = [
   { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [], departmentId: null },
   { path: '/app/apis', label: 'APIs', adminOnly: true, section: 'popup', sort_order: 3, allowedDepartments: [], departmentId: null },
   { path: '/app/super-admin', label: 'Super Admin', adminOnly: true, section: 'popup', sort_order: 4, allowedDepartments: [], departmentId: null },
+  { path: '/app/activity', label: 'Activity', adminOnly: true, section: 'popup', sort_order: 5, allowedDepartments: [], departmentId: null },
 ];
 
 interface PagePermissionsContextType {

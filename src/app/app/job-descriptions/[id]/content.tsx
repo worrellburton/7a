@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db, getAuthToken } from '@/lib/db';
+import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -265,6 +266,17 @@ export default function JobDescriptionDetailContent() {
     };
     if (activitySummary) dbPatch.activity = nextActivity;
     await db({ action: 'update', table: 'job_descriptions', data: dbPatch, match: { id: job.id } });
+    if (activitySummary && user) {
+      logActivity({
+        userId: user.id,
+        type: 'jd.updated',
+        targetKind: 'job_description',
+        targetId: job.id,
+        targetLabel: next.title,
+        targetPath: `/app/job-descriptions/${job.id}`,
+        metadata: { summary: activitySummary },
+      });
+    }
   }
 
   // Retitling should move any currently-assigned users to the new title so

@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { uploadFile } from '@/lib/upload';
+import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -326,6 +327,17 @@ export default function SignContent() {
     setSig({ ...sig, signed_at: nowIso, signature_data_url: dataUrl, signature_typed: typed, pdf_storage_path: pdfPath, job_description_version: job.version });
     setSigned(true);
     setSaving(false);
+    if (user) {
+      logActivity({
+        userId: user.id,
+        type: 'jd.signed',
+        targetKind: 'job_description',
+        targetId: job.id,
+        targetLabel: job.title,
+        targetPath: `/app/job-descriptions/${job.id}`,
+        metadata: { version: job.version, pdfPath },
+      });
+    }
   }
 
   if (!user) return null;

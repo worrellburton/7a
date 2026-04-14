@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { logActivity } from '@/lib/activity';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 // ------------------------------------------------------------
@@ -366,7 +367,7 @@ function userLabel(u: UserRow) {
 
 export default function CalendarContent() {
   const { user, session } = useAuth();
-  const [view, setView] = useState<View>('month');
+  const [view, setView] = useState<View>('week');
   const [current, setCurrent] = useState<Date>(() => new Date());
 
   const [groups, setGroups] = useState<GroupRow[]>([]);
@@ -625,6 +626,15 @@ export default function CalendarContent() {
       if (inserted && (inserted as EventRow).id) {
         // Swap optimistic row for the server version (real id, timestamps, etc.)
         setEvents((prev) => prev.map((ev) => (ev.id === optimistic.id ? (inserted as EventRow) : ev)));
+        logActivity({
+          userId: user.id,
+          type: 'calendar_event.created',
+          targetKind: 'calendar_event',
+          targetId: (inserted as EventRow).id,
+          targetLabel: optimistic.title,
+          targetPath: '/app/calendar',
+          metadata: { date: optimistic.event_date, subject_kind: optimistic.subject_kind },
+        });
       } else {
         // Insert failed — roll back the optimistic row.
         setEvents((prev) => prev.filter((ev) => ev.id !== optimistic.id));
@@ -780,9 +790,43 @@ export default function CalendarContent() {
       const result = await db({ action: 'delete', table: 'calendar_events', match: { id: masterId } });
       if (!result || !(result as { ok?: boolean }).ok) {
         setEvents((prev) => [...prev, existing]);
+      } else if (user) {
+        logActivity({
+          userId: user.id,
+          type: 'calendar_event.deleted',
+          targetKind: 'calendar_event',
+          targetId: masterId,
+          targetLabel: existing.title,
+          targetPath: '/app/calendar',
+        });
       }
     },
-    [events]
+    [events, user]
+  );
+
+  // ---- Clear every user event from a shift on a given date ----
+  const handleClearShift = useCallback(
+    async (date: Date, shift: Shift) => {
+      const iso = toISODate(date);
+      const toClear = events.filter(
+        (ev) =>
+          ev.event_date === iso &&
+          ev.subject_kind === 'user' &&
+          shiftForEvent(ev, shifts) === shift.id
+      );
+      if (toClear.length === 0) return;
+      const ids = toClear.map((e) => masterEventId(e.id));
+      const prev = events;
+      setEvents((rows) => rows.filter((ev) => !ids.includes(masterEventId(ev.id))));
+      const results = await Promise.all(
+        Array.from(new Set(ids)).map((id) =>
+          db({ action: 'delete', table: 'calendar_events', match: { id } })
+        )
+      );
+      const allOk = results.every((r) => r && (r as { ok?: boolean }).ok);
+      if (!allOk) setEvents(prev);
+    },
+    [events, shifts]
   );
 
   // ---- Set AOD (Assistant on Duty) for a given day ----
@@ -1026,6 +1070,7 @@ export default function CalendarContent() {
               onResize={handleResizeEvent}
               onEventClick={setEditingId}
               onDayClick={handleDayClick}
+              onClearShift={handleClearShift}
             />
           )}
           {view === 'day' && (
@@ -1052,6 +1097,7 @@ export default function CalendarContent() {
               onEventClick={setEditingId}
               onSetAod={handleSetAod}
               onClearAod={handleClearAod}
+              onClearShift={handleClearShift}
             />
           )}
         </div>
@@ -2314,6 +2360,7 @@ function WeekView({
   onResize,
   onEventClick,
   onDayClick,
+  onClearShift,
 }: {
   days: Date[];
   today: Date;
@@ -2330,6 +2377,7 @@ function WeekView({
   onResize: (eventId: string, newStart: number, newEnd: number) => void;
   onEventClick: (id: string) => void;
   onDayClick: (date: Date) => void;
+  onClearShift: (date: Date, shift: Shift) => void;
 }) {
   // Per-day sunrise/sunset so each column shows its own light band.
   const daySun = useMemo(
@@ -2340,14 +2388,12 @@ function WeekView({
         const sunrisePct = Math.max(0, Math.min(100, ((sunrise - DAY_START_H) / span) * 100));
         const sunsetPct = Math.max(0, Math.min(100, ((sunset - DAY_START_H) / span) * 100));
         const gradient = `linear-gradient(to bottom,
-          rgba(45, 38, 30, 0.22) 0%,
-          rgba(80, 72, 62, 0.18) ${Math.max(0, sunrisePct - 4)}%,
-          rgba(140, 130, 118, 0.05) ${Math.min(100, sunrisePct + 4)}%,
-          rgba(255, 255, 255, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
-          rgba(140, 130, 118, 0.06) ${Math.max(0, sunsetPct - 6)}%,
-          rgba(80, 72, 62, 0.22) ${sunsetPct}%,
-          rgba(55, 48, 40, 0.28) ${Math.min(100, sunsetPct + 6)}%,
-          rgba(35, 28, 22, 0.38) 100%)`;
+          rgba(0, 0, 0, 0.55) 0%,
+          rgba(0, 0, 0, 0.55) ${sunrisePct}%,
+          rgba(0, 0, 0, 0.00) ${sunrisePct}%,
+          rgba(0, 0, 0, 0.00) ${sunsetPct}%,
+          rgba(0, 0, 0, 0.55) ${sunsetPct}%,
+          rgba(0, 0, 0, 0.55) 100%)`;
         return { sunrise, sunset, sunrisePct, sunsetPct, gradient };
       }),
     [days]
@@ -2436,7 +2482,20 @@ function WeekView({
         >
           <div />
           {daySun.map((s, i) => (
-            <div key={i} style={{ background: s.gradient }} />
+            <div key={i} className="relative" style={{ background: s.gradient }}>
+              {s.sunrise > DAY_START_H && s.sunrise < DAY_END_H && (
+                <div
+                  className="absolute left-0 right-0 border-t border-foreground/40"
+                  style={{ top: `${s.sunrisePct}%` }}
+                />
+              )}
+              {s.sunset > DAY_START_H && s.sunset < DAY_END_H && (
+                <div
+                  className="absolute left-0 right-0 border-t border-foreground/40"
+                  style={{ top: `${s.sunsetPct}%` }}
+                />
+              )}
+            </div>
           ))}
         </div>
         <div
@@ -2460,7 +2519,7 @@ function WeekView({
                   onCreate={(payload) => onCreate(d, h, payload)}
                   onReschedule={(eventId) => onReschedule(d, h, eventId)}
                   previewTarget={{ date: d, hour: h }}
-                  className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
+                  className="border-l border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
                 />
               ))}
             </React.Fragment>
@@ -2521,11 +2580,28 @@ function WeekView({
                           onReschedule(d, Math.floor(hhmmToHours(s.start)), eventId)
                         }
                         previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
-                        className="absolute left-0.5 right-0.5 z-10 rounded-sm border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors pointer-events-auto flex flex-col gap-1 px-1 py-0.5 overflow-hidden"
+                        className="group/shift absolute left-0.5 right-0.5 z-10 rounded-sm border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors pointer-events-auto flex flex-col gap-1 px-1 py-0.5 overflow-hidden"
                         activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
                         style={{ top: `${topPct}%`, height: `${heightPct}%` }}
                         title={`${s.name} · ${formatShiftRange(s)}`}
                       >
+                        {si === largestSi && shiftUserEvents.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onClearShift(d, s);
+                            }}
+                            className="absolute top-0.5 right-0.5 z-20 hidden group-hover/shift:flex items-center gap-0.5 px-1 py-0.5 rounded bg-white/90 border border-foreground/10 shadow-sm text-[9px] font-semibold text-foreground/70 hover:text-red-600 hover:border-red-300"
+                            title={`Clear all from ${s.name}`}
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          >
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M6 18L18 6" />
+                            </svg>
+                            Clear
+                          </button>
+                        )}
                         {si === largestSi && (
                           <>
                             <div className="flex items-start justify-between gap-1">
@@ -2623,6 +2699,7 @@ function DayView({
   onEventClick,
   onSetAod,
   onClearAod,
+  onClearShift,
 }: {
   day: Date;
   today: Date;
@@ -2638,6 +2715,7 @@ function DayView({
   onEventClick: (id: string) => void;
   onSetAod: (date: Date, userId: string) => void;
   onClearAod: (date: Date) => void;
+  onClearShift: (date: Date, shift: Shift) => void;
 }) {
   const isToday = isSameDay(day, today);
   const iso = toISODate(day);
@@ -2671,14 +2749,12 @@ function DayView({
 
   // Gradient stops — dawn / day / dusk / night with soft transitions.
   const gradient = `linear-gradient(to bottom,
-    rgba(45, 38, 30, 0.24) 0%,
-    rgba(80, 72, 62, 0.18) ${Math.max(0, sunrisePct - 4)}%,
-    rgba(140, 130, 118, 0.05) ${Math.min(100, sunrisePct + 4)}%,
-    rgba(255, 255, 255, 0.00) ${Math.max(0, (sunrisePct + sunsetPct) / 2)}%,
-    rgba(140, 130, 118, 0.06) ${Math.max(0, sunsetPct - 6)}%,
-    rgba(80, 72, 62, 0.22) ${sunsetPct}%,
-    rgba(55, 48, 40, 0.28) ${Math.min(100, sunsetPct + 6)}%,
-    rgba(35, 28, 22, 0.42) 100%)`;
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0.55) ${sunrisePct}%,
+    rgba(0, 0, 0, 0.00) ${sunrisePct}%,
+    rgba(0, 0, 0, 0.00) ${sunsetPct}%,
+    rgba(0, 0, 0, 0.55) ${sunsetPct}%,
+    rgba(0, 0, 0, 0.55) 100%)`;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -2781,11 +2857,28 @@ function DayView({
                   onReschedule(day, Math.floor(hhmmToHours(s.start)), eventId)
                 }
                 previewTarget={{ date: day, hour: Math.floor(hhmmToHours(s.start)) }}
-                className="absolute left-[82px] right-1 z-10 rounded-md border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors flex flex-col gap-2 px-3 py-1.5 overflow-hidden"
+                className="group/shift absolute left-[82px] right-1 z-10 rounded-md border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors flex flex-col gap-2 px-3 py-1.5 overflow-hidden"
                 activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
                 style={{ top: `${topPct}%`, height: `${botPct - topPct}%` }}
                 title={`${s.name} · ${formatShiftRange(s)}`}
               >
+                {si === largestSi && shiftUserEvents.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClearShift(day, s);
+                    }}
+                    className="absolute top-1.5 right-1.5 z-20 hidden group-hover/shift:flex items-center gap-1 px-2 py-0.5 rounded bg-white/90 border border-foreground/10 shadow-sm text-[10px] font-semibold text-foreground/70 hover:text-red-600 hover:border-red-300"
+                    title={`Clear all from ${s.name}`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M6 18L18 6" />
+                    </svg>
+                    Clear all
+                  </button>
+                )}
                 {si === largestSi && (
                   <>
                     <div className="flex items-start justify-between gap-2">
@@ -2857,7 +2950,7 @@ function DayView({
                 onCreate={(payload) => onCreate(day, h, payload)}
                 onReschedule={(eventId) => onReschedule(day, h, eventId)}
                 previewTarget={{ date: day, hour: h }}
-                className="border-l border-t border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
+                className="border-l border-gray-100 hover:bg-warm-bg/20 transition-colors relative min-h-0"
               />
             </React.Fragment>
           ))}
