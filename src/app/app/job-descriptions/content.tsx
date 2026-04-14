@@ -51,6 +51,7 @@ export default function JobDescriptionsContent() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [schemaHint, setSchemaHint] = useState<{ columns: string[]; sql: string } | null>(null);
 
   // For add-item inputs inside expanded cards.
   const [newRespText, setNewRespText] = useState<Record<string, string>>({});
@@ -246,7 +247,7 @@ export default function JobDescriptionsContent() {
       };
 
       const deptId = parsed.department ? matchDepartmentId(parsed.department) : null;
-      const payload: Omit<JobDescription, 'id' | 'created_at'> = {
+      const fullPayload: Record<string, unknown> = {
         title: parsed.title,
         department_id: deptId,
         summary: parsed.summary,
@@ -255,14 +256,61 @@ export default function JobDescriptionsContent() {
       };
 
       let created: JobDescription;
+      const droppedColumns: string[] = [];
       if (!dbAvailable) {
-        created = { id: `local-${Date.now()}`, created_at: new Date().toISOString(), ...payload };
+        created = {
+          id: `local-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          title: parsed.title,
+          department_id: deptId,
+          summary: parsed.summary,
+          responsibilities: parsed.responsibilities,
+          requirements: parsed.requirements,
+        };
       } else {
-        const result = await db({ action: 'insert', table: 'job_descriptions', data: payload });
+        // Retry-on-missing-column: PostgREST returns
+        //   "Could not find the 'X' column of 'job_descriptions' in the schema cache"
+        // when the table was created without it. Fold dropped list-columns
+        // into the summary so the imported content isn't lost, and keep a
+        // note of what was missing so we can tell the user.
+        let attempt: Record<string, unknown> = { ...fullPayload };
+        let result = await db({ action: 'insert', table: 'job_descriptions', data: attempt });
+        const rx = /Could not find the '(\w+)' column/i;
+        while (result && typeof (result as { error?: string }).error === 'string') {
+          const err = (result as { error: string }).error;
+          const m = err.match(rx);
+          if (!m) {
+            throw new Error(err || 'Could not save the imported role.');
+          }
+          const col = m[1];
+          droppedColumns.push(col);
+          delete attempt[col];
+          // For the list columns we drop, fold their content into summary.
+          if (col === 'responsibilities' && parsed.responsibilities.length > 0) {
+            attempt.summary = [
+              String(attempt.summary || '').trim(),
+              '',
+              'Responsibilities:',
+              ...parsed.responsibilities.map((r) => `• ${r}`),
+            ].filter(Boolean).join('\n');
+          } else if (col === 'requirements' && parsed.requirements.length > 0) {
+            attempt.summary = [
+              String(attempt.summary || '').trim(),
+              '',
+              'Requirements:',
+              ...parsed.requirements.map((r) => `• ${r}`),
+            ].filter(Boolean).join('\n');
+          }
+          result = await db({ action: 'insert', table: 'job_descriptions', data: attempt });
+        }
         if (!result || !(result as JobDescription).id) {
           throw new Error((result as { error?: string } | null)?.error || 'Could not save the imported role.');
         }
         created = result as JobDescription;
+        // Make sure the in-memory row has the arrays the UI expects, even if
+        // the DB didn't persist them.
+        if (!Array.isArray(created.responsibilities)) created.responsibilities = parsed.responsibilities;
+        if (!Array.isArray(created.requirements)) created.requirements = parsed.requirements;
       }
 
       setJobs((prev) => [...prev, created].sort((a, b) => a.title.localeCompare(b.title)));
@@ -296,6 +344,12 @@ export default function JobDescriptionsContent() {
         parts.push(`· ${unmatched.length} name${unmatched.length === 1 ? '' : 's'} not matched (${unmatched.join(', ')})`);
       }
       setUploadStatus(parts.join(' '));
+      if (droppedColumns.length > 0) {
+        const sql = droppedColumns
+          .map((c) => `ALTER TABLE job_descriptions ADD COLUMN IF NOT EXISTS ${c} text[] NOT NULL DEFAULT '{}';`)
+          .join('\n');
+        setSchemaHint({ columns: droppedColumns, sql });
+      }
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : String(err));
       setUploadStatus(null);
@@ -457,6 +511,32 @@ export default function JobDescriptionsContent() {
           <button onClick={() => setUploadStatus(null)} className="text-emerald-700/60 hover:text-emerald-800" aria-label="Dismiss">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
+        </div>
+      )}
+      {schemaHint && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900" style={{ fontFamily: 'var(--font-body)' }}>
+          <div className="flex items-start gap-2">
+            <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 3h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold">
+                Your <code>job_descriptions</code> table is missing{' '}
+                {schemaHint.columns.map((c, i) => (
+                  <span key={c}>
+                    {i > 0 && (i === schemaHint.columns.length - 1 ? ' and ' : ', ')}
+                    <code>{c}</code>
+                  </span>
+                ))}
+                . Those bullets were saved inside <code>summary</code> for now.
+              </p>
+              <p className="mt-1 text-amber-900/80">
+                Run this in the Supabase SQL editor to store them properly:
+              </p>
+              <pre className="mt-2 p-2 rounded bg-amber-100/60 text-[11px] overflow-x-auto whitespace-pre">{schemaHint.sql}</pre>
+            </div>
+            <button onClick={() => setSchemaHint(null)} className="text-amber-900/60 hover:text-amber-900 shrink-0" aria-label="Dismiss">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
         </div>
       )}
       {uploadError && (
