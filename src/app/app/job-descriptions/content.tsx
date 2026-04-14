@@ -69,6 +69,8 @@ interface SignatureLite {
   job_description_id: string;
   signer_user_id: string | null;
   signed_at: string | null;
+  sent_at: string | null;
+  pdf_storage_path: string | null;
 }
 
 export default function JobDescriptionsContent() {
@@ -84,7 +86,6 @@ export default function JobDescriptionsContent() {
   // Add-new
   const [creating, setCreating] = useState(false);
   const [modalDragOver, setModalDragOver] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [newTitle, setNewTitle] = useState('');
   const [newDeptId, setNewDeptId] = useState<string>('');
   const [createBusy, setCreateBusy] = useState(false);
@@ -104,7 +105,8 @@ export default function JobDescriptionsContent() {
   // Sort + archive filter state
   type SortKey = 'title' | 'department' | 'assigned' | 'last_edited' | 'date_revised';
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'title', dir: 'asc' });
-  const [archivedFilter, setArchivedFilter] = useState<'active' | 'archived' | 'all'>('active');
+  type ListFilter = 'active' | 'archived' | 'all' | 'signed' | 'waiting';
+  const [archivedFilter, setArchivedFilter] = useState<ListFilter>('active');
 
   function toggleSort(key: SortKey) {
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
@@ -162,7 +164,7 @@ export default function JobDescriptionsContent() {
           select: 'id, full_name, avatar_url, job_title',
           order: { column: 'full_name', ascending: true },
         }),
-        db({ action: 'select', table: 'jd_signatures', select: 'id, job_description_id, signer_user_id, signed_at' }).catch(() => []),
+        db({ action: 'select', table: 'jd_signatures', select: 'id, job_description_id, signer_user_id, signed_at, sent_at, pdf_storage_path' }).catch(() => []),
       ]);
       if (Array.isArray(jobData)) {
         setJobs(
@@ -236,6 +238,37 @@ export default function JobDescriptionsContent() {
     if (sort.dir === 'desc') sorted.reverse();
     return sorted;
   }, [jobs, archivedFilter, sort, users, deptById]);
+
+  // Rows for the Signed / Waiting list views. Each row carries the
+  // pre-resolved job title and signer name so the renderer stays dumb.
+  const visibleSignatures = useMemo(() => {
+    if (archivedFilter !== 'signed' && archivedFilter !== 'waiting') return [];
+    const jobById = new Map(jobs.map((j) => [j.id, j]));
+    const userById = new Map(users.map((u) => [u.id, u]));
+    const rows = signatures
+      .filter((s) => (archivedFilter === 'signed' ? !!s.signed_at : !s.signed_at))
+      .map((s) => {
+        const j = jobById.get(s.job_description_id);
+        const u = s.signer_user_id ? userById.get(s.signer_user_id) : null;
+        return {
+          id: s.id,
+          job_description_id: s.job_description_id,
+          job_title: j?.title || '(deleted role)',
+          signer_name: u?.full_name || '—',
+          signer_avatar: u?.avatar_url || null,
+          sent_at: s.sent_at,
+          signed_at: s.signed_at,
+          pdf_storage_path: s.pdf_storage_path,
+        };
+      });
+    // Newest first by relevant timestamp.
+    rows.sort((a, b) => {
+      const ta = (archivedFilter === 'signed' ? a.signed_at : a.sent_at) || '';
+      const tb = (archivedFilter === 'signed' ? b.signed_at : b.sent_at) || '';
+      return tb.localeCompare(ta);
+    });
+    return rows;
+  }, [signatures, jobs, users, archivedFilter]);
 
   // Insights for the top bar
   const insights = useMemo(() => {
@@ -609,28 +642,6 @@ export default function JobDescriptionsContent() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <div className="inline-flex items-center rounded-lg border border-gray-200 bg-white p-0.5" role="tablist" aria-label="View mode">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === 'list' ? 'bg-warm-bg text-foreground' : 'text-foreground/50 hover:text-foreground'}`}
-              style={{ fontFamily: 'var(--font-body)' }}
-              aria-pressed={viewMode === 'list'}
-              title="List view"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
-              List
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === 'grid' ? 'bg-warm-bg text-foreground' : 'text-foreground/50 hover:text-foreground'}`}
-              style={{ fontFamily: 'var(--font-body)' }}
-              aria-pressed={viewMode === 'grid'}
-              title="Grid view"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" /></svg>
-              Grid
-            </button>
-          </div>
           <button
             onClick={() => { setCreating(true); setNewTitle(''); setNewDeptId(''); setCreateError(null); }}
             disabled={creating}
@@ -863,22 +874,110 @@ export default function JobDescriptionsContent() {
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="flex items-center gap-1 px-5 py-2 border-b border-gray-100 bg-warm-bg/10">
-            <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5" role="tablist" aria-label="Archive filter">
-              {(['active', 'archived', 'all'] as const).map((k) => (
+            <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 flex-wrap" role="tablist" aria-label="List filter">
+              {([
+                { k: 'active' as const, label: 'Active' },
+                { k: 'archived' as const, label: 'Archived' },
+                { k: 'all' as const, label: 'All' },
+                { k: 'signed' as const, label: 'All signed' },
+                { k: 'waiting' as const, label: 'Waiting for signature' },
+              ]).map((o) => (
                 <button
-                  key={k}
-                  onClick={() => setArchivedFilter(k)}
-                  aria-pressed={archivedFilter === k}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium capitalize transition-colors ${
-                    archivedFilter === k ? 'bg-warm-bg text-foreground' : 'text-foreground/50 hover:text-foreground'
+                  key={o.k}
+                  onClick={() => setArchivedFilter(o.k)}
+                  aria-pressed={archivedFilter === o.k}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                    archivedFilter === o.k ? 'bg-warm-bg text-foreground' : 'text-foreground/50 hover:text-foreground'
                   }`}
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  {k}
+                  {o.label}
                 </button>
               ))}
             </div>
           </div>
+          {archivedFilter === 'signed' || archivedFilter === 'waiting' ? (
+            <>
+              <div
+                className="grid items-center text-[10px] uppercase tracking-wider text-foreground/40 px-5 py-2.5 border-b border-gray-100 bg-warm-bg/20"
+                style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,2.4fr) minmax(0,2fr) 150px 120px' }}
+              >
+                <span>Job Description</span>
+                <span>Signer</span>
+                <span>{archivedFilter === 'signed' ? 'Signed' : 'Sent'}</span>
+                <span>{archivedFilter === 'signed' ? 'PDF' : 'Status'}</span>
+              </div>
+              {visibleSignatures.length === 0 ? (
+                <div className="px-5 py-10 text-center text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                  {archivedFilter === 'signed'
+                    ? 'No signed job descriptions yet.'
+                    : 'Nobody is waiting to sign a job description.'}
+                </div>
+              ) : (
+                visibleSignatures.map((s, idx) => (
+                  <div
+                    key={s.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (archivedFilter === 'waiting') router.push(`/app/sign/${s.id}`);
+                      else router.push(`/app/job-descriptions/${s.job_description_id}`);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        if (archivedFilter === 'waiting') router.push(`/app/sign/${s.id}`);
+                        else router.push(`/app/job-descriptions/${s.job_description_id}`);
+                      }
+                    }}
+                    className={`grid items-center px-5 py-3 hover:bg-warm-bg/30 cursor-pointer transition-colors ${idx > 0 ? 'border-t border-gray-100' : ''}`}
+                    style={{ gridTemplateColumns: 'minmax(0,2.4fr) minmax(0,2fr) 150px 120px', fontFamily: 'var(--font-body)' }}
+                  >
+                    <div className="min-w-0 pr-3">
+                      <span className="text-sm font-semibold text-foreground truncate block">{s.job_title}</span>
+                    </div>
+                    <div className="min-w-0 pr-3 flex items-center gap-2">
+                      {s.signer_avatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={s.signer_avatar} alt={s.signer_name} className="w-6 h-6 rounded-full object-cover border border-gray-100" />
+                      ) : (
+                        <span className="w-6 h-6 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-semibold text-foreground/60 border border-gray-100">
+                          {(s.signer_name || '?').charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <span className="text-sm text-foreground truncate">{s.signer_name}</span>
+                    </div>
+                    <div className="text-xs text-foreground/60 min-w-0 truncate">
+                      {archivedFilter === 'signed'
+                        ? (s.signed_at ? formatDate(s.signed_at) : '—')
+                        : (s.sent_at ? formatDate(s.sent_at) : '—')}
+                    </div>
+                    <div className="text-xs min-w-0" onClick={(e) => e.stopPropagation()}>
+                      {archivedFilter === 'signed' ? (
+                        s.pdf_storage_path ? (
+                          <a
+                            href={s.pdf_storage_path}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-primary/30 bg-primary/5 text-primary text-[11px] font-medium hover:bg-primary/10 transition-colors"
+                          >
+                            View PDF
+                          </a>
+                        ) : (
+                          <span className="text-foreground/30">—</span>
+                        )
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-medium">
+                          Waiting
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </>
+          ) : (
+          <>
           <div
             className="grid items-center text-[10px] uppercase tracking-wider text-foreground/40 px-5 py-2.5 border-b border-gray-100 bg-warm-bg/20"
             style={{ fontFamily: 'var(--font-body)', gridTemplateColumns: 'minmax(0,3fr) minmax(120px,0.9fr) minmax(0,1.6fr) 120px 120px' }}
@@ -1065,6 +1164,8 @@ export default function JobDescriptionsContent() {
               </div>
             );
           })}
+          </>
+          )}
         </div>
       )}
     </div>
