@@ -2040,7 +2040,13 @@ function MonthView({
           const isLastCol = (i + 1) % 7 === 0;
           const isLastRow = i >= 35;
           const iso = toISODate(d);
-          const dayEvents = eventsByDate.get(iso) || [];
+          const rawDayEvents = eventsByDate.get(iso) || [];
+          // Team mode shows only user events in shift buckets (no group chips);
+          // Groups mode filters further inside the Groups branch.
+          const dayEvents =
+            viewMode === 'team'
+              ? rawDayEvents.filter((ev) => ev.subject_kind !== 'group')
+              : rawDayEvents;
           const aodUserId = aodByDate.get(iso);
           const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
 
@@ -2377,6 +2383,14 @@ function WeekView({
                   const shiftUserEvents = (eventsByDate.get(toISODate(d)) || []).filter(
                     (ev) => ev.subject_kind === 'user' && shiftForEvent(ev, shifts) === s.id
                   );
+                  // Put label + avatars in the largest visible segment so
+                  // overnight shifts headline their post-midnight slab.
+                  let largestSi = 0;
+                  for (let i = 1; i < segments.length; i++) {
+                    if (segments[i].b - segments[i].a > segments[largestSi].b - segments[largestSi].a) {
+                      largestSi = i;
+                    }
+                  }
                   return segments.map((seg, si) => {
                     const topPct = ((seg.a - DAY_START_H) / span) * 100;
                     const heightPct = ((seg.b - seg.a) / span) * 100;
@@ -2388,12 +2402,12 @@ function WeekView({
                           onReschedule(d, Math.floor(hhmmToHours(s.start)), eventId)
                         }
                         previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
-                        className="absolute left-0.5 right-0.5 rounded-sm border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors pointer-events-auto flex flex-col gap-1 px-1 py-0.5 overflow-hidden"
+                        className="absolute left-0.5 right-0.5 z-10 rounded-sm border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors pointer-events-auto flex flex-col gap-1 px-1 py-0.5 overflow-hidden"
                         activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
                         style={{ top: `${topPct}%`, height: `${heightPct}%` }}
                         title={`${s.name} · ${formatShiftRange(s)}`}
                       >
-                        {si === 0 && (
+                        {si === largestSi && (
                           <>
                             <div className="flex items-start justify-between gap-1">
                               <span
@@ -2628,6 +2642,15 @@ function DayView({
           const shiftUserEvents = allDayEvents.filter(
             (ev) => ev.subject_kind === 'user' && shiftForEvent(ev, shifts) === s.id
           );
+          // Render the label + avatar cluster in the *largest* visible
+          // segment so overnight shifts show their headline content in the
+          // post-midnight (00:00-06:30) slab instead of the tiny tail.
+          let largestSi = 0;
+          for (let i = 1; i < segments.length; i++) {
+            if (segments[i].b - segments[i].a > segments[largestSi].b - segments[largestSi].a) {
+              largestSi = i;
+            }
+          }
           return segments.map((seg, si) => {
             const topPct = pctFor(seg.a);
             const botPct = pctFor(seg.b);
@@ -2639,12 +2662,12 @@ function DayView({
                   onReschedule(day, Math.floor(hhmmToHours(s.start)), eventId)
                 }
                 previewTarget={{ date: day, hour: Math.floor(hhmmToHours(s.start)) }}
-                className="absolute left-[82px] right-1 rounded-md border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors flex flex-col gap-2 px-3 py-1.5 overflow-hidden"
+                className="absolute left-[82px] right-1 z-10 rounded-md border border-dashed border-primary/25 bg-primary/[0.04] hover:bg-primary/10 hover:border-primary/60 transition-colors flex flex-col gap-2 px-3 py-1.5 overflow-hidden"
                 activeClassName="ring-1 ring-primary/60 bg-primary/15 animate-cal-drop"
                 style={{ top: `${topPct}%`, height: `${botPct - topPct}%` }}
                 title={`${s.name} · ${formatShiftRange(s)}`}
               >
-                {si === 0 && (
+                {si === largestSi && (
                   <>
                     <div className="flex items-start justify-between gap-2">
                       <span
