@@ -959,13 +959,16 @@ export default function CalendarContent() {
         </div>
       </div>
 
-      {/* Body: palette + calendar surface */}
+      {/* Body: palette + calendar surface. Palette is hidden in month view
+          since month is read-only (no drag/drop). */}
       <div
-        className="flex-1 min-h-0 grid gap-3 grid-cols-1 md:grid-cols-[minmax(220px,260px)_1fr]"
+        className={`flex-1 min-h-0 grid gap-3 grid-cols-1 ${view === 'month' ? '' : 'md:grid-cols-[minmax(220px,260px)_1fr]'}`}
       >
-        <div className="hidden md:flex min-h-0">
-          <Palette groups={groups} users={users} loading={loading} mode={viewMode} />
-        </div>
+        {view !== 'month' && (
+          <div className="hidden md:flex min-h-0">
+            <Palette groups={groups} users={users} loading={loading} mode={viewMode} />
+          </div>
+        )}
 
         <div
           key={bodyKey}
