@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
 import { uploadFile } from '@/lib/upload';
+import { IssueChat } from '@/components/IssueChat';
 
 // Alphabetical by name, with "Other" forced to the bottom so it doesn't get
 // buried in the middle of the list.
@@ -529,6 +530,7 @@ export default function FacilitiesContent() {
                             </div>
                             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Notes</p>
                             <p className="text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>{item.notes || 'No additional notes.'}</p>
+                            <IssueChat issueId={item.id} />
                           </div>
                         </td>
                       </tr>
