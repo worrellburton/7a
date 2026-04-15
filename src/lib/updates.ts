@@ -12,6 +12,15 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-15T23:10:00Z',
+    title: 'Live collaboration',
+    items: [
+      'See teammates\' cursors in realtime with their profile picture and name.',
+      'Cursors only show on the same page you\'re both viewing.',
+      'Facilities issues now flip status, priority, and edits live for everyone watching.',
+    ],
+  },
+  {
     at: '2026-04-15T22:50:00Z',
     title: 'Activity feed: facilities events',
     items: [
