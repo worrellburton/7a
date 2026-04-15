@@ -31,7 +31,7 @@ const defaultPages: PageConfig[] = [
   { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [], departmentId: null },
   { path: '/app/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
-  { path: '/app/users', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
+  { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
   { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [], departmentId: null },
   { path: '/app/apis', label: 'APIs', adminOnly: true, section: 'popup', sort_order: 3, allowedDepartments: [], departmentId: null },
@@ -121,7 +121,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   }, [session]);
 
   const setPageAdminOnly = async (path: string, adminOnly: boolean) => {
-    if (path === '/app/users' || path === '/app/pages') return;
+    if (path === '/app/team' || path === '/app/pages') return;
 
     setPages((prev) => prev.map((p) => (p.path === path ? { ...p, adminOnly } : p)));
 
