@@ -168,22 +168,61 @@ export default function HomeContent() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Work-in-progress notice */}
-      <div className="px-4 sm:px-6 lg:px-10 pt-4">
+      {/* Online today — centered at the top of the dashboard. */}
+      {recentUsers.length > 0 && (
         <div
-          className="mx-auto max-w-2xl rounded-xl border border-amber-200/70 bg-amber-50/70 px-4 py-2.5 flex items-center justify-center gap-2.5 text-amber-900 shadow-sm"
-          role="status"
+          className={`flex flex-col items-center justify-center gap-2 px-4 sm:px-6 lg:px-10 pt-6 transition-all duration-500 ease-out ${
+            loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
+          }`}
         >
-          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 9v4" />
-            <path d="M12 17h.01" />
-            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          </svg>
-          <p className="text-xs sm:text-sm text-center" style={{ fontFamily: 'var(--font-body)' }}>
-            This is a work in progress and is constantly being updated — some things might not work yet.
+          <p
+            className="text-[10px] font-semibold text-foreground/40 uppercase tracking-[0.18em]"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Online today
           </p>
+          <div className="flex -space-x-2">
+            {recentUsers.map((u) => {
+              const online = isOnlineNow(u.last_seen_at || u.last_sign_in);
+              const viewing = online ? pathLabel(u.last_path) : null;
+              const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
+              const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
+              return (
+                <Wrapper
+                  key={u.id}
+                  onClick={navTarget ? () => router.push(navTarget) : undefined}
+                  className={`relative group ${navTarget ? 'cursor-pointer' : ''}`}
+                  title={navTarget ? `Go to ${viewing}` : undefined}
+                >
+                  {u.avatar_url ? (
+                    <img
+                      src={u.avatar_url}
+                      alt={u.full_name || ''}
+                      className={`w-9 h-9 rounded-full border-2 transition-transform hover:scale-110 hover:z-10 ${
+                        online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'border-white'
+                      }`}
+                    />
+                  ) : (
+                    <div
+                      className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-transform hover:scale-110 hover:z-10 ${
+                        online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] bg-primary text-white' : 'border-white bg-primary text-white'
+                      }`}
+                    >
+                      {(u.full_name || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left">
+                    <p className="font-semibold text-white">{u.full_name || 'User'}</p>
+                    {u.job_title && <p className="text-white/90">{u.job_title}</p>}
+                    <p className="text-white/80">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
+                    {viewing && <p className="text-emerald-300">Viewing {viewing}{navTarget ? ' — click to jump' : ''}</p>}
+                  </div>
+                </Wrapper>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Centered welcome */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 py-10">
@@ -243,61 +282,22 @@ export default function HomeContent() {
         )}
       </div>
 
-      {/* Online today — centered at the bottom of the dashboard. */}
-      {recentUsers.length > 0 && (
+      {/* Work-in-progress notice — pinned to the bottom of the dashboard. */}
+      <div className="px-4 sm:px-6 lg:px-10 pb-6">
         <div
-          className={`flex flex-col items-center justify-center gap-2 px-4 sm:px-6 lg:px-10 pb-6 transition-all duration-500 ease-out ${
-            loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-          }`}
+          className="mx-auto max-w-2xl rounded-xl border border-amber-200/70 bg-amber-50/70 px-4 py-2.5 flex items-center justify-center gap-2.5 text-amber-900 shadow-sm"
+          role="status"
         >
-          <p
-            className="text-[10px] font-semibold text-foreground/40 uppercase tracking-[0.18em]"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Online today
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          </svg>
+          <p className="text-xs sm:text-sm text-center" style={{ fontFamily: 'var(--font-body)' }}>
+            This is a work in progress and is constantly being updated — some things might not work yet.
           </p>
-          <div className="flex -space-x-2">
-            {recentUsers.map((u) => {
-              const online = isOnlineNow(u.last_seen_at || u.last_sign_in);
-              const viewing = online ? pathLabel(u.last_path) : null;
-              const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
-              const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
-              return (
-                <Wrapper
-                  key={u.id}
-                  onClick={navTarget ? () => router.push(navTarget) : undefined}
-                  className={`relative group ${navTarget ? 'cursor-pointer' : ''}`}
-                  title={navTarget ? `Go to ${viewing}` : undefined}
-                >
-                  {u.avatar_url ? (
-                    <img
-                      src={u.avatar_url}
-                      alt={u.full_name || ''}
-                      className={`w-9 h-9 rounded-full border-2 transition-transform hover:scale-110 hover:z-10 ${
-                        online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'border-white'
-                      }`}
-                    />
-                  ) : (
-                    <div
-                      className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-transform hover:scale-110 hover:z-10 ${
-                        online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] bg-primary text-white' : 'border-white bg-primary text-white'
-                      }`}
-                    >
-                      {(u.full_name || '?').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left">
-                    <p className="font-semibold text-white">{u.full_name || 'User'}</p>
-                    {u.job_title && <p className="text-white/90">{u.job_title}</p>}
-                    <p className="text-white/80">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
-                    {viewing && <p className="text-emerald-300">Viewing {viewing}{navTarget ? ' — click to jump' : ''}</p>}
-                  </div>
-                </Wrapper>
-              );
-            })}
-          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
