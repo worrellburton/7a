@@ -184,15 +184,13 @@ export function IssueChat({ issueId, issueLabel }: { issueId: string; issueLabel
               const initial = (author?.full_name || '?').charAt(0).toUpperCase();
               const AvatarBubble = (
                 <div className="w-6 h-6 shrink-0">
-                  {showAuthor ? (
-                    author?.avatar_url ? (
-                      <img src={author.avatar_url} alt="" className="w-6 h-6 rounded-full" />
-                    ) : (
-                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
-                        {initial}
-                      </div>
-                    )
-                  ) : null}
+                  {author?.avatar_url ? (
+                    <img src={author.avatar_url} alt="" className="w-6 h-6 rounded-full" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
+                      {initial}
+                    </div>
+                  )}
                 </div>
               );
               return (
