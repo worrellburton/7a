@@ -230,6 +230,17 @@ export default function HomeContent() {
           <h1 className="text-3xl font-bold text-foreground">
             Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
           </h1>
+          <button
+            onClick={() => router.push('/app/facilities?new=1')}
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-foreground text-white text-sm font-semibold hover:bg-foreground/85 transition-colors shadow-sm"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="Report a new facilities issue"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            New facilities request
+          </button>
           {latestSignedJd && (
             latestSignedJd.pdfUrl ? (
               <a
