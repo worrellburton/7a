@@ -12,6 +12,13 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-15T23:25:00Z',
+    title: 'Avatars on every chat bubble',
+    items: [
+      'Each facilities chat message now shows the author\'s profile picture, not just the first in a streak.',
+    ],
+  },
+  {
     at: '2026-04-15T23:10:00Z',
     title: 'Live collaboration',
     items: [
