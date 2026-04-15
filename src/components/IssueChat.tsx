@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/lib/ModalProvider';
+import { logActivity } from '@/lib/activity';
 
 // Per-issue chat thread. Bubbles on the right are the current user's
 // messages; everyone else's bubbles sit on the left, iMessage-style.
@@ -38,7 +39,7 @@ function formatTime(iso: string): string {
   }
 }
 
-export function IssueChat({ issueId }: { issueId: string }) {
+export function IssueChat({ issueId, issueLabel }: { issueId: string; issueLabel?: string }) {
   const { user } = useAuth();
   const { confirm } = useModal();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -60,7 +61,11 @@ export function IssueChat({ issueId }: { issueId: string }) {
       if (cancelled) return;
       if (Array.isArray(rows)) {
         setMessages(rows as Message[]);
-        await ensureUsers((rows as Message[]).map((m) => m.user_id));
+        const ids = (rows as Message[]).map((m) => m.user_id);
+        if (user?.id) ids.push(user.id);
+        await ensureUsers(ids);
+      } else if (user?.id) {
+        await ensureUsers([user.id]);
       }
     }
     load();
@@ -132,6 +137,15 @@ export function IssueChat({ issueId }: { issueId: string }) {
     if (inserted && (inserted as Message).id) {
       // Swap optimistic row for the canonical server row (real id, timestamp).
       setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? (inserted as Message) : m)));
+      logActivity({
+        userId: user.id,
+        type: 'facilities.chat_message',
+        targetKind: 'facilities_issue',
+        targetId: issueId,
+        targetLabel: issueLabel || 'facilities issue',
+        targetPath: '/app/facilities',
+        metadata: { preview: body.slice(0, 140) },
+      });
     } else {
       // Roll back on failure.
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
@@ -166,23 +180,24 @@ export function IssueChat({ issueId }: { issueId: string }) {
               const mine = user?.id === m.user_id;
               const author = users[m.user_id];
               const prev = i > 0 ? messages[i - 1] : null;
-              const showAuthor = !mine && (!prev || prev.user_id !== m.user_id);
+              const showAuthor = (!prev || prev.user_id !== m.user_id);
               const initial = (author?.full_name || '?').charAt(0).toUpperCase();
+              const AvatarBubble = (
+                <div className="w-6 h-6 shrink-0">
+                  {showAuthor ? (
+                    author?.avatar_url ? (
+                      <img src={author.avatar_url} alt="" className="w-6 h-6 rounded-full" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
+                        {initial}
+                      </div>
+                    )
+                  ) : null}
+                </div>
+              );
               return (
                 <div key={m.id} className={`flex items-end gap-2 group/msg ${mine ? 'justify-end' : 'justify-start'}`}>
-                  {!mine && (
-                    <div className="w-6 h-6 shrink-0">
-                      {showAuthor ? (
-                        author?.avatar_url ? (
-                          <img src={author.avatar_url} alt="" className="w-6 h-6 rounded-full" />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
-                            {initial}
-                          </div>
-                        )
-                      ) : null}
-                    </div>
-                  )}
+                  {!mine && AvatarBubble}
                   <div className={`flex flex-col ${mine ? 'items-end' : 'items-start'} max-w-[78%]`}>
                     {showAuthor && !mine && (
                       <span className="text-[10px] text-foreground/40 mb-0.5 px-2" style={{ fontFamily: 'var(--font-body)' }}>
@@ -217,6 +232,7 @@ export function IssueChat({ issueId }: { issueId: string }) {
                       {formatTime(m.created_at)}
                     </span>
                   </div>
+                  {mine && AvatarBubble}
                 </div>
               );
             })

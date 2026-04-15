@@ -58,6 +58,10 @@ function describe(row: ActivityRow): { verb: string; accent: string } {
       return { verb: 'deleted calendar event', accent: 'text-red-600' };
     case 'user.role_changed':
       return { verb: 'changed admin role for', accent: 'text-foreground' };
+    case 'facilities.created':
+      return { verb: 'reported facilities issue', accent: 'text-primary' };
+    case 'facilities.chat_message':
+      return { verb: 'commented on facilities issue', accent: 'text-foreground' };
     default:
       return { verb: row.type.replace(/[._]/g, ' '), accent: 'text-foreground' };
   }

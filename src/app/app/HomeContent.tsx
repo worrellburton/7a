@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
+import { updates } from '@/lib/updates';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -36,6 +37,22 @@ function timeAgo(dateStr: string | null): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function formatUpdateTime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'America/Phoenix',
+    });
+  } catch {
+    return iso;
+  }
 }
 
 export default function HomeContent() {
@@ -167,7 +184,20 @@ export default function HomeContent() {
   if (!user) return null;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
+      {/* New facilities request — pinned to the upper right of the dashboard. */}
+      <button
+        onClick={() => router.push('/app/facilities?new=1')}
+        className="absolute top-5 right-5 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors shadow-sm"
+        style={{ fontFamily: 'var(--font-body)' }}
+        title="Report a new facilities issue"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        New facilities request
+      </button>
+
       {/* Online today — centered at the top of the dashboard. */}
       {recentUsers.length > 0 && (
         <div
@@ -230,17 +260,6 @@ export default function HomeContent() {
           <h1 className="text-3xl font-bold text-foreground">
             Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
           </h1>
-          <button
-            onClick={() => router.push('/app/facilities?new=1')}
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-foreground text-white text-sm font-semibold hover:bg-foreground/85 transition-colors shadow-sm"
-            style={{ fontFamily: 'var(--font-body)' }}
-            title="Report a new facilities issue"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            New facilities request
-          </button>
           {latestSignedJd && (
             latestSignedJd.pdfUrl ? (
               <a
@@ -291,6 +310,38 @@ export default function HomeContent() {
             ))}
           </div>
         )}
+
+        {/* Update log — scrollable list of recent shipped changes. */}
+        <div className="w-full max-w-md flex flex-col gap-2 px-6">
+          <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+            What&apos;s new
+          </p>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
+              {updates.length === 0 ? (
+                <p className="text-xs text-foreground/40 text-center py-6" style={{ fontFamily: 'var(--font-body)' }}>
+                  No updates yet.
+                </p>
+              ) : (
+                updates.map((u) => (
+                  <div key={u.at} className="px-4 py-3">
+                    <div className="flex items-baseline justify-between gap-3 mb-1.5">
+                      <p className="text-sm font-semibold text-foreground">{u.title}</p>
+                      <span className="text-[10px] text-foreground/40 shrink-0 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                        {formatUpdateTime(u.at)}
+                      </span>
+                    </div>
+                    <ul className="text-xs text-foreground/60 space-y-1 list-disc pl-4" style={{ fontFamily: 'var(--font-body)' }}>
+                      {u.items.map((it, i) => (
+                        <li key={i}>{it}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Work-in-progress notice — pinned to the bottom of the dashboard. */}
