@@ -12,6 +12,15 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-15T23:55:00Z',
+    title: 'Profile, cursors, and sign-ins',
+    items: [
+      'Pick your own cursor color in My Profile — it updates live for everyone.',
+      'Signed job description now lives in its own card just above What\'s new.',
+      'Sign-ins are now logged to the Activity feed.',
+    ],
+  },
+  {
     at: '2026-04-15T23:35:00Z',
     title: 'Cleaner cursors',
     items: [

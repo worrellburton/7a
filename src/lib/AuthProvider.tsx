@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { db, setAuthToken } from '@/lib/db';
+import { logActivity } from '@/lib/activity';
 
 interface AuthContextType {
   user: User | null;
@@ -54,12 +55,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setAuthToken(session?.access_token ?? null);
         if (session?.user) {
           loadProfile(session.user.id);
+          // Log a signed-in event on real sign-ins (not on token refreshes
+          // or initial-session restores from another tab).
+          if (event === 'SIGNED_IN') {
+            const meta = session.user.user_metadata || {};
+            const name = (meta.full_name as string) || session.user.email || 'User';
+            logActivity({
+              userId: session.user.id,
+              type: 'user.signed_in',
+              targetKind: 'user',
+              targetId: session.user.id,
+              targetLabel: name,
+              targetPath: '/app',
+            });
+          }
         } else {
           setIsAdmin(false);
           setDepartmentId(null);

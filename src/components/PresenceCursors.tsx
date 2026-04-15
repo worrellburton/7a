@@ -19,6 +19,7 @@ interface CursorPayload {
   user_id: string;
   name: string;
   avatar_url: string | null;
+  color: string | null; // user-chosen hex/HSL; falls back to hue
   x: number; // viewport-relative px
   y: number;
   vw: number; // sender viewport size for proportional placement
@@ -28,7 +29,7 @@ interface CursorPayload {
 }
 
 interface RemoteCursor extends CursorPayload {
-  // Stable color per user, derived from id hash.
+  // Stable hue derived from id hash, used when no explicit color is set.
   hue: number;
 }
 
@@ -52,7 +53,7 @@ export function PresenceCursors() {
   // Cache the freshest profile for the current user — pulled from the `users`
   // table so we get the same avatar/name everyone else sees, not just whatever
   // happens to be in the auth metadata.
-  const profileRef = useRef<{ name: string; avatar_url: string | null } | null>(null);
+  const profileRef = useRef<{ name: string; avatar_url: string | null; color: string | null } | null>(null);
 
   // Track viewport for proportional rescaling of remote cursors.
   useEffect(() => {
@@ -71,24 +72,36 @@ export function PresenceCursors() {
         action: 'select',
         table: 'users',
         match: { id: user.id },
-        select: 'full_name, avatar_url',
+        select: 'full_name, avatar_url, cursor_color',
       }).catch(() => null);
       if (cancelled) return;
       const meta = user.user_metadata || {};
       const fallbackName = (meta.full_name as string) || user.email || 'User';
       const fallbackAvatar = (meta.avatar_url as string) || null;
       if (Array.isArray(rows) && rows.length > 0) {
-        const r = rows[0] as { full_name: string | null; avatar_url: string | null };
+        const r = rows[0] as { full_name: string | null; avatar_url: string | null; cursor_color: string | null };
         profileRef.current = {
           name: r.full_name || fallbackName,
           avatar_url: r.avatar_url || fallbackAvatar,
+          color: r.cursor_color || null,
         };
       } else {
-        profileRef.current = { name: fallbackName, avatar_url: fallbackAvatar };
+        profileRef.current = { name: fallbackName, avatar_url: fallbackAvatar, color: null };
       }
     })();
     return () => { cancelled = true; };
   }, [user]);
+
+  // Listen for in-app color changes (broadcast from the profile page) so we
+  // pick up new colors without a reload.
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ color: string | null }>).detail;
+      if (profileRef.current) profileRef.current.color = detail?.color ?? null;
+    };
+    window.addEventListener('cursor-color-change', onChange);
+    return () => window.removeEventListener('cursor-color-change', onChange);
+  }, []);
 
   // Subscribe to the channel and clean up stale cursors every second.
   useEffect(() => {
@@ -163,6 +176,7 @@ export function PresenceCursors() {
           user_id: user.id,
           name: profile.name,
           avatar_url: profile.avatar_url,
+          color: profile.color,
           x: e.clientX,
           y: e.clientY,
           vw: window.innerWidth,
@@ -191,7 +205,7 @@ export function PresenceCursors() {
         const x = (c.x / Math.max(1, c.vw)) * viewport.w;
         const y = (c.y / Math.max(1, c.vh)) * viewport.h;
         const initial = (c.name || '?').charAt(0).toUpperCase();
-        const color = `hsl(${c.hue}, 70%, 50%)`;
+        const color = c.color || `hsl(${c.hue}, 70%, 50%)`;
         return (
           <div
             key={c.user_id}
