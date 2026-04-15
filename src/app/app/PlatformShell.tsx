@@ -8,6 +8,7 @@ import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
 import PageGuard from '@/lib/PageGuard';
 import PageViewers from './PageViewers';
+import { PresenceCursors } from '@/components/PresenceCursors';
 
 interface NavDepartment {
   id: string;
@@ -555,6 +556,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // Signed in — platform with sidebar
   return (
     <div className="flex min-h-screen app-shell">
+      <PresenceCursors />
       {/* Left Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 hidden lg:flex">
         {/* Logo / Brand */}

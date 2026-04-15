@@ -209,6 +209,30 @@ export default function FacilitiesContent() {
     if (expandedId) markChatRead(expandedId);
   }, [expandedId, markChatRead]);
 
+  // Realtime: when anyone updates an issue (status, priority, text, photos),
+  // flip it in our local list so all viewers see the change immediately.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const channel = supabase
+      .channel('facilities-issues-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'facilities_issues' }, (payload) => {
+        const row = payload.new as Issue;
+        setItems((prev) => (prev.some((i) => i.id === row.id) ? prev : [row, ...prev]));
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'facilities_issues' }, (payload) => {
+        const row = payload.new as Issue;
+        setItems((prev) => prev.map((i) => (i.id === row.id ? { ...i, ...row } : i)));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'facilities_issues' }, (payload) => {
+        const row = payload.old as { id: string };
+        setItems((prev) => prev.filter((i) => i.id !== row.id));
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
+
   useEffect(() => {
     if (!session?.access_token) return;
     fetchIssues();
