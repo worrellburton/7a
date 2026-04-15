@@ -1,4 +1,3 @@
-import { getAuthToken } from './db';
 import { logActivity } from './activity';
 import { supabase } from './supabase';
 
@@ -48,49 +47,51 @@ export async function compressImage(
   }
 }
 
-// Upload a file through the server-side API (bypasses storage RLS).
-// Image files are transparently downscaled/recompressed first so phone-sized
-// photos don't trip Vercel's ~4.5 MB body limit (HTTP 413).
+// Upload a file directly to Supabase Storage from the browser. This bypasses
+// the Next.js API route entirely, so we are not constrained by Vercel's
+// ~4.5 MB serverless body limit — Supabase's per-bucket file_size_limit
+// applies instead (currently uncapped on these public buckets). Image files
+// are still compressed first so we don't waste bandwidth on multi-MB phone
+// photos for what end up as ~80 KB issue thumbnails. Storage RLS scopes
+// uploads to the caller's own user-id folder (see migration
+// `storage_direct_upload_policies`).
 export async function uploadFile(file: File, bucket?: string): Promise<{ url: string | null; error: string | null }> {
   try {
-    const token = getAuthToken();
-    if (!token) {
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData?.user?.id;
+    if (!uid) {
       return { url: null, error: 'Not authenticated — please sign in again.' };
     }
 
     const prepared = await compressImage(file);
-    const formData = new FormData();
-    formData.append('file', prepared);
-    if (bucket) formData.append('bucket', bucket);
+    const targetBucket = bucket || 'issue-photos';
+    const ext = (prepared.name.split('.').pop() || 'bin').toLowerCase();
+    const path = `${uid}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` },
-      body: formData,
-    });
+    const { error } = await supabase.storage
+      .from(targetBucket)
+      .upload(path, prepared, {
+        contentType: prepared.type || 'application/octet-stream',
+        cacheControl: '3600',
+        upsert: false,
+      });
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      const msg = body?.error || `Upload failed (${res.status})`;
-      return { url: null, error: msg };
+    if (error) {
+      return { url: null, error: error.message };
     }
 
-    const data = await res.json();
-    const url = data.url || null;
+    const { data: urlData } = supabase.storage.from(targetBucket).getPublicUrl(path);
+    const url = urlData?.publicUrl || null;
 
     // Fire-and-forget activity log so admins can see every upload.
     if (url) {
-      supabase.auth.getUser().then(({ data: userData }) => {
-        const uid = userData?.user?.id;
-        if (!uid) return;
-        logActivity({
-          userId: uid,
-          type: 'doc.uploaded',
-          targetKind: 'file',
-          targetLabel: file.name,
-          metadata: { bucket: bucket || null, size: file.size, mime: file.type, url },
-        });
-      }).catch(() => {});
+      logActivity({
+        userId: uid,
+        type: 'doc.uploaded',
+        targetKind: 'file',
+        targetLabel: file.name,
+        metadata: { bucket: targetBucket, size: prepared.size, mime: prepared.type, url },
+      });
     }
 
     return { url, error: url ? null : 'No URL returned from upload.' };
