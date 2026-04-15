@@ -7,6 +7,7 @@ import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
 import { uploadFile } from '@/lib/upload';
+import { logActivity } from '@/lib/activity';
 import { IssueChat } from '@/components/IssueChat';
 
 // Per-issue chat read state — persisted in localStorage so each browser
@@ -290,6 +291,17 @@ export default function FacilitiesContent() {
     if (data && data.id) {
       setItems((prev) => [data as Issue, ...prev]);
       showToast('Issue reported');
+      if (user?.id) {
+        logActivity({
+          userId: user.id,
+          type: 'facilities.created',
+          targetKind: 'facilities_issue',
+          targetId: data.id,
+          targetLabel: `${row.location} — ${row.issue}`,
+          targetPath: '/app/facilities',
+          metadata: { location: row.location, priority: row.priority },
+        });
+      }
     } else {
       showToast(`Failed to save: ${data?.error || 'Unknown error'}`);
     }
@@ -644,7 +656,7 @@ export default function FacilitiesContent() {
                             </div>
                             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Notes</p>
                             <p className="text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>{item.notes || 'No additional notes.'}</p>
-                            <IssueChat issueId={item.id} />
+                            <IssueChat issueId={item.id} issueLabel={`${item.location} — ${item.issue}`} />
                           </div>
                         </td>
                       </tr>

@@ -12,6 +12,14 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-15T22:50:00Z',
+    title: 'Activity feed: facilities events',
+    items: [
+      'New facilities requests now show up in the Activity feed.',
+      'Chat messages on facilities issues are logged to Activity too.',
+    ],
+  },
+  {
     at: '2026-04-15T22:30:00Z',
     title: 'Facilities chat upgrades',
     items: [

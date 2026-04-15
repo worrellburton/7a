@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/lib/ModalProvider';
+import { logActivity } from '@/lib/activity';
 
 // Per-issue chat thread. Bubbles on the right are the current user's
 // messages; everyone else's bubbles sit on the left, iMessage-style.
@@ -38,7 +39,7 @@ function formatTime(iso: string): string {
   }
 }
 
-export function IssueChat({ issueId }: { issueId: string }) {
+export function IssueChat({ issueId, issueLabel }: { issueId: string; issueLabel?: string }) {
   const { user } = useAuth();
   const { confirm } = useModal();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -136,6 +137,15 @@ export function IssueChat({ issueId }: { issueId: string }) {
     if (inserted && (inserted as Message).id) {
       // Swap optimistic row for the canonical server row (real id, timestamp).
       setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? (inserted as Message) : m)));
+      logActivity({
+        userId: user.id,
+        type: 'facilities.chat_message',
+        targetKind: 'facilities_issue',
+        targetId: issueId,
+        targetLabel: issueLabel || 'facilities issue',
+        targetPath: '/app/facilities',
+        metadata: { preview: body.slice(0, 140) },
+      });
     } else {
       // Roll back on failure.
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
