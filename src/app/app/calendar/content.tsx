@@ -2391,17 +2391,25 @@ function WeekView({
         const span = DAY_END_H - DAY_START_H;
         const sunrisePct = Math.max(0, Math.min(100, ((sunrise - DAY_START_H) / span) * 100));
         const sunsetPct = Math.max(0, Math.min(100, ((sunset - DAY_START_H) / span) * 100));
-        // ~45 min soft fade on either side of sunrise/sunset for dawn/dusk glow.
-        const fade = (0.75 / span) * 100;
+        // Twilight band ~1.5h, golden-hour glow band ~30 min.
+        const twilight = (1.5 / span) * 100;
+        const glow = (0.5 / span) * 100;
+        const nightColor = 'rgba(20, 18, 45, 0.62)';
+        const twilightColor = 'rgba(107, 70, 140, 0.40)';
+        const dawnColor = 'rgba(255, 180, 120, 0.28)';
+        const duskColor = 'rgba(255, 130, 100, 0.32)';
+        const dayColor = 'rgba(0, 0, 0, 0)';
         const gradient = `linear-gradient(to bottom,
-          rgba(0, 0, 0, 0.55) 0%,
-          rgba(0, 0, 0, 0.55) ${Math.max(0, sunrisePct - fade)}%,
-          rgba(251, 191, 36, 0.35) ${sunrisePct}%,
-          rgba(0, 0, 0, 0.00) ${Math.min(100, sunrisePct + fade)}%,
-          rgba(0, 0, 0, 0.00) ${Math.max(0, sunsetPct - fade)}%,
-          rgba(251, 191, 36, 0.35) ${sunsetPct}%,
-          rgba(0, 0, 0, 0.55) ${Math.min(100, sunsetPct + fade)}%,
-          rgba(0, 0, 0, 0.55) 100%)`;
+          ${nightColor} 0%,
+          ${nightColor} ${Math.max(0, sunrisePct - twilight)}%,
+          ${twilightColor} ${Math.max(0, sunrisePct - glow)}%,
+          ${dawnColor} ${sunrisePct}%,
+          ${dayColor} ${Math.min(100, sunrisePct + glow)}%,
+          ${dayColor} ${Math.max(0, sunsetPct - glow)}%,
+          ${duskColor} ${sunsetPct}%,
+          ${twilightColor} ${Math.min(100, sunsetPct + glow)}%,
+          ${nightColor} ${Math.min(100, sunsetPct + twilight)}%,
+          ${nightColor} 100%)`;
         return { sunrise, sunset, sunrisePct, sunsetPct, gradient };
       }),
     [days]
@@ -2755,19 +2763,28 @@ function DayView({
   const sunrisePct = pctFor(sunrise);
   const sunsetPct = pctFor(sunset);
 
-  // ~45 min soft fade on either side of sunrise/sunset for dawn/dusk glow.
-  const fade = (0.75 / (DAY_END_H - DAY_START_H)) * 100;
+  // Twilight band ~1.5h, golden-hour glow band ~30 min.
+  const span = DAY_END_H - DAY_START_H;
+  const twilight = (1.5 / span) * 100;
+  const glow = (0.5 / span) * 100;
+  const nightColor = 'rgba(20, 18, 45, 0.62)';
+  const twilightColor = 'rgba(107, 70, 140, 0.40)';
+  const dawnColor = 'rgba(255, 180, 120, 0.28)';
+  const duskColor = 'rgba(255, 130, 100, 0.32)';
+  const dayColor = 'rgba(0, 0, 0, 0)';
 
-  // Gradient: night → warm amber dawn → day → warm amber dusk → night.
+  // Gradient: night → indigo twilight → warm dawn → day → coral dusk → indigo twilight → night.
   const gradient = `linear-gradient(to bottom,
-    rgba(0, 0, 0, 0.55) 0%,
-    rgba(0, 0, 0, 0.55) ${Math.max(0, sunrisePct - fade)}%,
-    rgba(251, 191, 36, 0.35) ${sunrisePct}%,
-    rgba(0, 0, 0, 0.00) ${Math.min(100, sunrisePct + fade)}%,
-    rgba(0, 0, 0, 0.00) ${Math.max(0, sunsetPct - fade)}%,
-    rgba(251, 191, 36, 0.35) ${sunsetPct}%,
-    rgba(0, 0, 0, 0.55) ${Math.min(100, sunsetPct + fade)}%,
-    rgba(0, 0, 0, 0.55) 100%)`;
+    ${nightColor} 0%,
+    ${nightColor} ${Math.max(0, sunrisePct - twilight)}%,
+    ${twilightColor} ${Math.max(0, sunrisePct - glow)}%,
+    ${dawnColor} ${sunrisePct}%,
+    ${dayColor} ${Math.min(100, sunrisePct + glow)}%,
+    ${dayColor} ${Math.max(0, sunsetPct - glow)}%,
+    ${duskColor} ${sunsetPct}%,
+    ${twilightColor} ${Math.min(100, sunsetPct + glow)}%,
+    ${nightColor} ${Math.min(100, sunsetPct + twilight)}%,
+    ${nightColor} 100%)`;
 
   return (
     <div className="flex flex-col h-full min-h-0">
