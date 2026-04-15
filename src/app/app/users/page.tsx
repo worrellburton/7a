@@ -1,10 +1,5 @@
-import type { Metadata } from 'next';
-import UsersContent from './content';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'Team - Patient Portal',
-};
-
-export default function UsersPage() {
-  return <UsersContent />;
+export default function UsersRedirect() {
+  redirect('/app/team');
 }

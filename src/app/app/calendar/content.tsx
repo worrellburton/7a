@@ -959,13 +959,16 @@ export default function CalendarContent() {
         </div>
       </div>
 
-      {/* Body: palette + calendar surface */}
+      {/* Body: palette + calendar surface. Palette is hidden in month view
+          since month is read-only (no drag/drop). */}
       <div
-        className="flex-1 min-h-0 grid gap-3 grid-cols-1 md:grid-cols-[minmax(220px,260px)_1fr]"
+        className={`flex-1 min-h-0 grid gap-3 grid-cols-1 ${view === 'month' ? '' : 'md:grid-cols-[minmax(220px,260px)_1fr]'}`}
       >
-        <div className="hidden md:flex min-h-0">
-          <Palette groups={groups} users={users} loading={loading} mode={viewMode} />
-        </div>
+        {view !== 'month' && (
+          <div className="hidden md:flex min-h-0">
+            <Palette groups={groups} users={users} loading={loading} mode={viewMode} />
+          </div>
+        )}
 
         <div
           key={bodyKey}
@@ -1032,21 +1035,8 @@ export default function CalendarContent() {
               aodByDate={aodByDate}
               shifts={shifts}
               viewMode={viewMode}
-              onCreate={(date, payload) => handleCreate(payload, date, null)}
-              onCreateInShift={(date, payload, shift) =>
-                handleCreate(
-                  payload,
-                  date,
-                  null,
-                  hhmmToDbTime(shift.start),
-                  hhmmToDbTime(shift.end)
-                )
-              }
-              onReschedule={(date, eventId) => handleReschedule(eventId, date, null)}
               onEventClick={setEditingId}
               onDayClick={handleDayClick}
-              onSetAod={handleSetAod}
-              onClearAod={handleClearAod}
             />
           )}
           {view === 'week' && (
@@ -2139,13 +2129,8 @@ function MonthView({
   aodByDate,
   shifts,
   viewMode,
-  onCreate,
-  onCreateInShift,
-  onReschedule,
   onEventClick,
   onDayClick,
-  onSetAod,
-  onClearAod,
 }: {
   days: Date[];
   current: Date;
@@ -2155,13 +2140,8 @@ function MonthView({
   aodByDate: Map<string, string>;
   shifts: Shift[];
   viewMode: ViewMode;
-  onCreate: (date: Date, payload: DragPayload) => void;
-  onCreateInShift: (date: Date, payload: DragPayload, shift: Shift) => void;
-  onReschedule: (date: Date, eventId: string) => void;
   onEventClick: (id: string) => void;
   onDayClick: (date: Date) => void;
-  onSetAod: (date: Date, userId: string) => void;
-  onClearAod: (date: Date) => void;
 }) {
   return (
     <div className="h-full flex flex-col">
@@ -2206,21 +2186,33 @@ function MonthView({
             else unshifted.push(ev);
           }
 
+          // Read-only summary — no drag/drop in month view.
+          const groupEvents = dayEvents.filter((ev) => ev.subject_kind === 'group');
+          const totalUsers = dayEvents.filter((ev) => ev.subject_kind === 'user').length;
           return (
             <div
               key={i}
               onClick={() => onDayClick(d)}
-              className={`relative flex flex-col min-h-0 cursor-pointer transition-colors overflow-hidden ${
+              className={`relative flex flex-col min-h-0 cursor-pointer hover:bg-warm-bg/40 transition-colors overflow-hidden ${
                 isLastCol ? '' : 'border-r'
               } ${isLastRow ? '' : 'border-b'} border-gray-100`}
             >
               <div className="flex items-center justify-between gap-1 px-1.5 pt-1.5 pb-1">
-                <AodSlot
-                  user={aodUser}
-                  onSet={(userId) => onSetAod(d, userId)}
-                  onClear={() => onClearAod(d)}
-                  compact
-                />
+                {aodUser ? (
+                  <div
+                    className="w-5 h-5 rounded-full bg-primary text-white flex items-center justify-center text-[10px] font-bold shrink-0 ring-1 ring-primary/30"
+                    title={`AOC: ${aodUser.full_name || aodUser.email}`}
+                  >
+                    {aodUser.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={aodUser.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                    ) : (
+                      (aodUser.full_name || aodUser.email || '?').charAt(0).toUpperCase()
+                    )}
+                  </div>
+                ) : (
+                  <span />
+                )}
                 <span
                   className={`inline-flex items-center justify-center text-xs font-semibold w-6 h-6 rounded-full transition-colors shrink-0 ${
                     isToday
@@ -2236,102 +2228,79 @@ function MonthView({
               </div>
 
               {viewMode === 'groups' ? (
-                // Flat list mode — groups only, no individual team members.
-                (() => {
-                  const groupEvents = dayEvents.filter((ev) => ev.subject_kind === 'group');
-                  return (
-                    <DropCell
-                      onCreate={(payload) => onCreate(d, payload)}
-                      onReschedule={(eventId) => onReschedule(d, eventId)}
-                      previewTarget={{ date: d, hour: null }}
-                      className="flex-1 min-h-0 mx-1 mb-1 rounded-md bg-warm-bg/20 hover:bg-warm-bg/50 transition-colors px-1 py-0.5 flex flex-col overflow-hidden"
-                      activeClassName="ring-1 ring-primary/60 bg-primary/10 animate-cal-drop"
+                <div className="flex-1 min-h-0 mx-1 mb-1 px-1 py-0.5 overflow-hidden space-y-0.5">
+                  {groupEvents.slice(0, 5).map((ev) => (
+                    <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
+                  ))}
+                  {groupEvents.length > 5 && (
+                    <div
+                      className="text-[9px] font-semibold text-foreground/40 px-0.5"
+                      style={{ fontFamily: 'var(--font-body)' }}
                     >
-                      <div className="flex-1 min-h-0 overflow-hidden space-y-0.5">
-                        {groupEvents.slice(0, 5).map((ev) => (
-                          <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
-                        ))}
-                        {groupEvents.length > 5 && (
-                          <div
-                            className="text-[9px] font-semibold text-foreground/40 px-0.5"
-                            style={{ fontFamily: 'var(--font-body)' }}
-                          >
-                            +{groupEvents.length - 5} more
-                          </div>
-                        )}
-                      </div>
-                    </DropCell>
-                  );
-                })()
+                      +{groupEvents.length - 5} more
+                    </div>
+                  )}
+                  {groupEvents.length === 0 && inMonth && (
+                    <div
+                      className="text-[10px] text-foreground/25 px-0.5"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      No groups
+                    </div>
+                  )}
+                </div>
               ) : (
-                /* Three stacked shift buckets — each is its own drop target.
-                   Labels kept intentionally quiet so avatars/events read
-                   first; the order is always morning / afternoon / overnight
-                   so a tiny single-letter marker is enough to disambiguate. */
-                <div className="flex-1 min-h-0 flex flex-col gap-0.5 px-1 pb-1">
+                <div className="flex-1 min-h-0 flex flex-col gap-0.5 px-1.5 pb-1.5">
                   {shifts.map((s) => {
                     const evs = byShift.get(s.id) || [];
+                    const userEvs = evs.filter((ev) => ev.subject_kind === 'user');
+                    const nonUser = evs.filter((ev) => ev.subject_kind !== 'user');
+                    if (userEvs.length === 0 && nonUser.length === 0) return null;
                     return (
-                      <DropCell
-                        key={s.id}
-                        onCreate={(payload) => onCreateInShift(d, payload, s)}
-                        onReschedule={(eventId) => onReschedule(d, eventId)}
-                        previewTarget={{ date: d, hour: Math.floor(hhmmToHours(s.start)) }}
-                        className="flex-1 min-h-0 rounded-md hover:bg-warm-bg/40 transition-colors px-1 py-0.5 flex gap-1 overflow-hidden"
-                        activeClassName="ring-1 ring-primary/60 bg-primary/10 animate-cal-drop"
-                      >
+                      <div key={s.id} className="flex items-center gap-1.5 min-w-0">
                         <span
-                          className="shrink-0 w-3 text-[9px] font-semibold uppercase text-foreground/25 leading-tight pt-0.5"
+                          className="shrink-0 text-[9px] font-semibold uppercase text-foreground/40 tracking-wider w-[14px]"
                           style={{ fontFamily: 'var(--font-body)' }}
                           title={`${s.name} · ${formatShiftRange(s)}`}
                         >
                           {s.name.charAt(0)}
                         </span>
-                        <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
-                          {(() => {
-                            const userEvs = evs.filter((ev) => ev.subject_kind === 'user');
-                            const nonUser = evs.filter((ev) => ev.subject_kind !== 'user');
-                            const chipShown = nonUser.slice(0, 2);
-                            const chipExtra = nonUser.length - chipShown.length;
-                            return (
-                              <div className="space-y-0.5">
-                                {chipShown.map((ev) => (
-                                  <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
-                                ))}
-                                {chipExtra > 0 && (
-                                  <div
-                                    className="text-[9px] font-semibold text-foreground/40 px-0.5"
-                                    style={{ fontFamily: 'var(--font-body)' }}
-                                  >
-                                    +{chipExtra} more
-                                  </div>
-                                )}
-                                <ShiftAvatarCluster
-                                  events={userEvs}
-                                  usersById={usersById}
-                                  onEventClick={onEventClick}
-                                  size="sm"
-                                />
-                              </div>
-                            );
-                          })()}
+                        <div className="flex items-center gap-1 min-w-0 flex-1">
+                          {userEvs.length > 0 && (
+                            <ShiftAvatarCluster
+                              events={userEvs}
+                              usersById={usersById}
+                              onEventClick={onEventClick}
+                              size="sm"
+                            />
+                          )}
+                          {nonUser.length > 0 && (
+                            <span
+                              className="text-[10px] font-semibold text-foreground/55 truncate"
+                              style={{ fontFamily: 'var(--font-body)' }}
+                              title={nonUser.map((ev) => ev.subject_kind === 'group' ? (ev.subject_id || 'group') : 'event').join(', ')}
+                            >
+                              {nonUser.length === 1 ? '1 event' : `${nonUser.length} events`}
+                            </span>
+                          )}
                         </div>
-                      </DropCell>
+                      </div>
                     );
                   })}
                   {unshifted.length > 0 && (
-                    <div className="space-y-0.5 pt-0.5">
-                      {unshifted.slice(0, 1).map((ev) => (
-                        <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
-                      ))}
-                      {unshifted.length > 1 && (
-                        <div
-                          className="text-[9px] font-semibold text-foreground/40 px-0.5"
-                          style={{ fontFamily: 'var(--font-body)' }}
-                        >
-                          +{unshifted.length - 1} more
-                        </div>
-                      )}
+                    <div
+                      className="text-[10px] text-foreground/50"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {unshifted.length === 1 ? '1 other' : `${unshifted.length} others`}
+                    </div>
+                  )}
+                  {totalUsers === 0 && groupEvents.length === 0 && unshifted.length === 0 && inMonth && (
+                    <div
+                      className="text-[10px] text-foreground/25 pt-0.5"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      —
                     </div>
                   )}
                 </div>
