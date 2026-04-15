@@ -12,6 +12,13 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-15T23:35:00Z',
+    title: 'Cleaner cursors',
+    items: [
+      'Cursor labels are now just the profile picture — no name pill.',
+    ],
+  },
+  {
     at: '2026-04-15T23:25:00Z',
     title: 'Avatars on every chat bubble',
     items: [

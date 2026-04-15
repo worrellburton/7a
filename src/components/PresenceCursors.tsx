@@ -215,27 +215,23 @@ export function PresenceCursors() {
               />
             </svg>
 
-            {/* Avatar + name pill */}
-            <div
-              className="absolute top-4 left-4 flex items-center gap-1.5 pl-0.5 pr-2 py-0.5 rounded-full shadow-md whitespace-nowrap text-white"
-              style={{ backgroundColor: color, fontFamily: 'var(--font-body)' }}
-            >
-              {c.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={c.avatar_url}
-                  alt=""
-                  className="w-4 h-4 rounded-full ring-1 ring-white/70"
-                />
-              ) : (
-                <div className="w-4 h-4 rounded-full bg-white/30 text-white text-[8px] font-bold flex items-center justify-center ring-1 ring-white/70">
-                  {initial}
-                </div>
-              )}
-              <span className="text-[10px] font-semibold leading-none">
-                {c.name.split(' ')[0]}
-              </span>
-            </div>
+            {/* Avatar only */}
+            {c.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={c.avatar_url}
+                alt=""
+                className="absolute top-4 left-4 w-6 h-6 rounded-full shadow-md ring-2"
+                style={{ borderColor: color, boxShadow: `0 0 0 2px ${color}` }}
+              />
+            ) : (
+              <div
+                className="absolute top-4 left-4 w-6 h-6 rounded-full text-white text-[10px] font-bold flex items-center justify-center shadow-md ring-2 ring-white"
+                style={{ backgroundColor: color }}
+              >
+                {initial}
+              </div>
+            )}
           </div>
         );
       })}
