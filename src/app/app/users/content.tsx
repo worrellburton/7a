@@ -423,10 +423,32 @@ export default function UsersContent() {
                           <div className="flex items-center gap-1.5">
                             {matchedJd && (
                               <span
-                                className={`shrink-0 w-2.5 h-2.5 rounded-full ${signed ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]' : 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]'}`}
-                                title={signed ? `${u.full_name || 'This user'} has signed the ${matchedJd.title} job description.` : `${u.full_name || 'This user'} has not yet signed the ${matchedJd.title} job description.`}
+                                className="relative group/sig shrink-0"
                                 aria-label={signed ? 'Signed' : 'Not signed'}
-                              />
+                              >
+                                <svg
+                                  className={`w-4 h-4 ${signed ? 'text-emerald-500 drop-shadow-[0_0_3px_rgba(16,185,129,0.55)]' : 'text-red-500 drop-shadow-[0_0_3px_rgba(239,68,68,0.55)]'}`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                                  <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+                                  <text x="12" y="17" textAnchor="middle" fontSize="5.5" fontWeight="700" fill="currentColor" stroke="none">PDF</text>
+                                </svg>
+                                <span
+                                  role="tooltip"
+                                  className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-30 px-2.5 py-1.5 rounded-lg bg-foreground text-white text-[11px] leading-snug whitespace-normal opacity-0 group-hover/sig:opacity-100 transition-opacity w-56 text-center shadow-lg"
+                                  style={{ fontFamily: 'var(--font-body)' }}
+                                >
+                                  {signed
+                                    ? `${u.full_name || 'This user'} has signed the ${matchedJd.title} job description.`
+                                    : `${u.full_name || 'This user'} has not yet signed the ${matchedJd.title} job description.`}
+                                </span>
+                              </span>
                             )}
                             <select
                               value={u.job_title || ''}
