@@ -1,10 +1,12 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
 import { uploadFile } from '@/lib/upload';
+import { IssueChat } from '@/components/IssueChat';
 
 // Alphabetical by name, with "Other" forced to the bottom so it doesn't get
 // buried in the middle of the list.
@@ -72,6 +74,7 @@ const statusStyle: Record<Status, string> = {
 export default function FacilitiesContent() {
   const { user, session } = useAuth();
   const { confirm, alert } = useModal();
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'table' | 'list'>('table');
@@ -113,6 +116,12 @@ export default function FacilitiesContent() {
     }
     setLoading(false);
   }, []);
+
+  // Auto-open the new-issue form when arriving via /app/facilities?new=1
+  // (e.g. from the "New facilities request" button on the home dashboard).
+  useEffect(() => {
+    if (searchParams?.get('new') === '1') setShowAddForm(true);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -529,6 +538,7 @@ export default function FacilitiesContent() {
                             </div>
                             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Notes</p>
                             <p className="text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>{item.notes || 'No additional notes.'}</p>
+                            <IssueChat issueId={item.id} />
                           </div>
                         </td>
                       </tr>
