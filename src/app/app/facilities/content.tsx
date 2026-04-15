@@ -5,8 +5,23 @@ import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
+import { supabase } from '@/lib/supabase';
 import { uploadFile } from '@/lib/upload';
 import { IssueChat } from '@/components/IssueChat';
+
+// Per-issue chat read state — persisted in localStorage so each browser
+// remembers what you've already seen across reloads.
+const READ_KEY = 'facilities_chat_read';
+function getReadMap(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try { return JSON.parse(localStorage.getItem(READ_KEY) || '{}'); } catch { return {}; }
+}
+function setReadAt(issueId: string, isoTs: string) {
+  if (typeof window === 'undefined') return;
+  const m = getReadMap();
+  m[issueId] = isoTs;
+  try { localStorage.setItem(READ_KEY, JSON.stringify(m)); } catch {}
+}
 
 // Alphabetical by name, with "Other" forced to the bottom so it doesn't get
 // buried in the middle of the list.
@@ -94,6 +109,10 @@ export default function FacilitiesContent() {
   const [editingIssueId, setEditingIssueId] = useState<string | null>(null);
   const [editingIssueDraft, setEditingIssueDraft] = useState('');
   const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
+  // Latest chat message timestamp per issue (used for unread indicator).
+  const [chatLatest, setChatLatest] = useState<Record<string, string>>({});
+  const [chatCounts, setChatCounts] = useState<Record<string, number>>({});
+  const [chatRead, setChatRead] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const existingPhotoInputRef = useRef<HTMLInputElement>(null);
   const existingPhotoTargetId = useRef<string | null>(null);
@@ -122,6 +141,72 @@ export default function FacilitiesContent() {
   useEffect(() => {
     if (searchParams?.get('new') === '1') setShowAddForm(true);
   }, [searchParams]);
+
+  // Load chat metadata (latest timestamp + count per issue) and subscribe to
+  // realtime inserts so the unread dot lights up the moment a teammate posts.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    setChatRead(getReadMap());
+    let cancelled = false;
+    async function loadChatMeta() {
+      const rows = await db({
+        action: 'select',
+        table: 'facilities_issue_messages',
+        select: 'issue_id, created_at',
+        order: { column: 'created_at', ascending: false },
+      }).catch(() => null);
+      if (cancelled || !Array.isArray(rows)) return;
+      const latest: Record<string, string> = {};
+      const counts: Record<string, number> = {};
+      for (const r of rows as Array<{ issue_id: string; created_at: string }>) {
+        if (!latest[r.issue_id]) latest[r.issue_id] = r.created_at;
+        counts[r.issue_id] = (counts[r.issue_id] || 0) + 1;
+      }
+      setChatLatest(latest);
+      setChatCounts(counts);
+    }
+    loadChatMeta();
+    const channel = supabase
+      .channel('facilities-chat-meta')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'facilities_issue_messages' }, (payload) => {
+        const row = payload.new as { issue_id: string; created_at: string };
+        setChatLatest((prev) => ({ ...prev, [row.issue_id]: row.created_at }));
+        setChatCounts((prev) => ({ ...prev, [row.issue_id]: (prev[row.issue_id] || 0) + 1 }));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'facilities_issue_messages' }, (payload) => {
+        const row = payload.old as { issue_id: string };
+        setChatCounts((prev) => {
+          const next = { ...prev };
+          if (next[row.issue_id]) next[row.issue_id] = Math.max(0, next[row.issue_id] - 1);
+          return next;
+        });
+      })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
+
+  // Mark an issue's chat as read up to the latest known message.
+  const markChatRead = useCallback((issueId: string) => {
+    const ts = chatLatest[issueId] || new Date().toISOString();
+    setReadAt(issueId, ts);
+    setChatRead((prev) => ({ ...prev, [issueId]: ts }));
+  }, [chatLatest]);
+
+  const isUnread = (issueId: string): boolean => {
+    const latest = chatLatest[issueId];
+    if (!latest) return false;
+    const read = chatRead[issueId];
+    if (!read) return true;
+    return new Date(latest).getTime() > new Date(read).getTime();
+  };
+
+  // Whenever the user expands a row, treat its chat as read.
+  useEffect(() => {
+    if (expandedId) markChatRead(expandedId);
+  }, [expandedId, markChatRead]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -436,6 +521,7 @@ export default function FacilitiesContent() {
                       {label}<SortIcon column={key} />
                     </th>
                   ))}
+                  <th className="px-3 py-3.5 w-14 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Chat</th>
                   <th className="px-3 py-3.5 w-10" />
                 </tr>
               </thead>
@@ -499,11 +585,31 @@ export default function FacilitiesContent() {
                       <td className="px-5 py-3.5 text-sm font-medium text-foreground/60 text-center">
                         {item.status === 'Completed' ? <span className="text-emerald-600">Done</span> : <span className={daysOutstanding(item.reported) > 14 ? 'text-red-600' : ''}>{daysOutstanding(item.reported)}</span>}
                       </td>
+                      <td className="px-3 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                          className="relative inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-foreground/40 hover:text-primary hover:bg-primary/5 transition-colors"
+                          aria-label="Open chat"
+                          title="Open chat"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                          {chatCounts[item.id] > 0 && (
+                            <span className="text-[10px] font-semibold text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>
+                              {chatCounts[item.id]}
+                            </span>
+                          )}
+                          {isUnread(item.id) && (
+                            <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" aria-label="Unread messages" />
+                          )}
+                        </button>
+                      </td>
                       <td className="px-3 py-3.5 opacity-0 group-hover:opacity-100 transition-opacity"><TrashButton id={item.id} /></td>
                     </tr>
                     {expandedId === item.id && (
                       <tr className="bg-warm-bg/30">
-                        <td colSpan={9} className="px-5 py-4">
+                        <td colSpan={10} className="px-5 py-4">
                           <div className="flex-1">
                             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Photos</p>
                             <div className="flex gap-2 flex-wrap items-center mb-4">
