@@ -2640,7 +2640,8 @@ function WeekView({
             ))}
           </div>
         )}
-        {/* Event overlay — positioned events spanning their full duration */}
+        {/* Event overlay — pointer-events-none so drops reach hour cells;
+            individual ResizableEvent blocks re-enable pointer events. */}
         <div
           className="pointer-events-none absolute inset-0 grid"
           style={{ gridTemplateColumns: '64px repeat(7, minmax(0, 1fr))' }}
@@ -2661,7 +2662,7 @@ function WeekView({
             });
             const layout = computeEventLayout(dayEvents);
             return (
-              <div key={di} className="relative pointer-events-auto" data-resize-container>
+              <div key={di} className="relative" data-resize-container>
                 {dayEvents.map((ev) => {
                   const spot = layout.get(ev.id);
                   return (
