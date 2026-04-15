@@ -2391,13 +2391,15 @@ function WeekView({
         const span = DAY_END_H - DAY_START_H;
         const sunrisePct = Math.max(0, Math.min(100, ((sunrise - DAY_START_H) / span) * 100));
         const sunsetPct = Math.max(0, Math.min(100, ((sunset - DAY_START_H) / span) * 100));
-        // ~45 min soft fade on either side of sunrise/sunset for dawn/dusk.
+        // ~45 min soft fade on either side of sunrise/sunset for dawn/dusk glow.
         const fade = (0.75 / span) * 100;
         const gradient = `linear-gradient(to bottom,
           rgba(0, 0, 0, 0.55) 0%,
           rgba(0, 0, 0, 0.55) ${Math.max(0, sunrisePct - fade)}%,
+          rgba(251, 191, 36, 0.35) ${sunrisePct}%,
           rgba(0, 0, 0, 0.00) ${Math.min(100, sunrisePct + fade)}%,
           rgba(0, 0, 0, 0.00) ${Math.max(0, sunsetPct - fade)}%,
+          rgba(251, 191, 36, 0.35) ${sunsetPct}%,
           rgba(0, 0, 0, 0.55) ${Math.min(100, sunsetPct + fade)}%,
           rgba(0, 0, 0, 0.55) 100%)`;
         return { sunrise, sunset, sunrisePct, sunsetPct, gradient };
@@ -2753,15 +2755,17 @@ function DayView({
   const sunrisePct = pctFor(sunrise);
   const sunsetPct = pctFor(sunset);
 
-  // ~45 min soft fade on either side of sunrise/sunset for dawn/dusk.
+  // ~45 min soft fade on either side of sunrise/sunset for dawn/dusk glow.
   const fade = (0.75 / (DAY_END_H - DAY_START_H)) * 100;
 
-  // Gradient stops — dawn / day / dusk / night with soft transitions.
+  // Gradient: night → warm amber dawn → day → warm amber dusk → night.
   const gradient = `linear-gradient(to bottom,
     rgba(0, 0, 0, 0.55) 0%,
     rgba(0, 0, 0, 0.55) ${Math.max(0, sunrisePct - fade)}%,
+    rgba(251, 191, 36, 0.35) ${sunrisePct}%,
     rgba(0, 0, 0, 0.00) ${Math.min(100, sunrisePct + fade)}%,
     rgba(0, 0, 0, 0.00) ${Math.max(0, sunsetPct - fade)}%,
+    rgba(251, 191, 36, 0.35) ${sunsetPct}%,
     rgba(0, 0, 0, 0.55) ${Math.min(100, sunsetPct + fade)}%,
     rgba(0, 0, 0, 0.55) 100%)`;
 
