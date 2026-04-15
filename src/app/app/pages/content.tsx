@@ -192,7 +192,7 @@ export default function PagesContent() {
   }
 
   function renderRow(page: PageConfig, indented = false) {
-    const locked = page.path === '/app/users' || page.path === '/app/pages';
+    const locked = page.path === '/app/team' || page.path === '/app/pages';
     const restricted = page.allowedDepartments.length > 0;
     return (
       <div

@@ -198,7 +198,7 @@ export default function UsersContent() {
         targetKind: 'user',
         targetId: userId,
         targetLabel: target?.full_name || target?.email || 'user',
-        targetPath: '/app/users',
+        targetPath: '/app/team',
         metadata: { department_id: departmentId, department_name: dept?.name || null },
       });
     }
@@ -231,7 +231,7 @@ export default function UsersContent() {
         targetKind: 'user',
         targetId: userId,
         targetLabel: userName,
-        targetPath: '/app/users',
+        targetPath: '/app/team',
       });
     }
   }
@@ -252,7 +252,7 @@ export default function UsersContent() {
         targetKind: 'user',
         targetId: userId,
         targetLabel: target?.full_name || target?.email || 'user',
-        targetPath: '/app/users',
+        targetPath: '/app/team',
         metadata: { job_title: jobTitle },
       });
     }
