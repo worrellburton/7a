@@ -4,10 +4,28 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useEffect, useState } from 'react';
 
+// Curated palette for the cursor color picker. Bright enough to read against
+// any background; "Auto" maps to null and falls back to the per-user hash hue.
+const CURSOR_COLORS: { label: string; value: string }[] = [
+  { label: 'Red', value: '#ef4444' },
+  { label: 'Orange', value: '#f97316' },
+  { label: 'Amber', value: '#f59e0b' },
+  { label: 'Lime', value: '#84cc16' },
+  { label: 'Emerald', value: '#10b981' },
+  { label: 'Teal', value: '#14b8a6' },
+  { label: 'Cyan', value: '#06b6d4' },
+  { label: 'Blue', value: '#3b82f6' },
+  { label: 'Indigo', value: '#6366f1' },
+  { label: 'Violet', value: '#8b5cf6' },
+  { label: 'Pink', value: '#ec4899' },
+  { label: 'Rose', value: '#f43f5e' },
+];
+
 export default function ProfileContent() {
   const { user, session } = useAuth();
   const [jobTitle, setJobTitle] = useState('');
   const [fullName, setFullName] = useState('');
+  const [cursorColor, setCursorColor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -20,16 +38,31 @@ export default function ProfileContent() {
   useEffect(() => {
     if (!session?.access_token || !user) return;
     async function load() {
-      const data = await db({ action: 'select', table: 'users', match: { id: user!.id }, select: 'full_name, job_title' });
+      const data = await db({ action: 'select', table: 'users', match: { id: user!.id }, select: 'full_name, job_title, cursor_color' });
 
       if (Array.isArray(data) && data[0]) {
         setFullName(data[0].full_name || '');
         setJobTitle(data[0].job_title || '');
+        setCursorColor(data[0].cursor_color || null);
       }
       setLoaded(true);
     }
     load();
   }, [session, user]);
+
+  // Persist a color choice immediately and notify the cursor layer so it can
+  // pick up the change without waiting for the next reload.
+  async function pickCursorColor(value: string | null) {
+    if (!user) return;
+    setCursorColor(value);
+    window.dispatchEvent(new CustomEvent('cursor-color-change', { detail: { color: value } }));
+    await db({
+      action: 'update',
+      table: 'users',
+      data: { cursor_color: value },
+      match: { id: user.id },
+    });
+  }
 
   async function saveProfile() {
     if (!user) return;
@@ -126,6 +159,39 @@ export default function ProfileContent() {
                   disabled
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-100 text-sm bg-warm-bg/50 text-foreground/50 cursor-not-allowed"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Cursor Color</label>
+                <p className="text-xs text-foreground/40 mb-2" style={{ fontFamily: 'var(--font-body)' }}>
+                  This is the color your cursor shows up as for everyone else.
+                </p>
+                <div className="flex items-center flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => pickCursorColor(null)}
+                    aria-label="Auto color"
+                    title="Auto"
+                    className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-[9px] font-bold uppercase tracking-wider transition-transform hover:scale-110 ${
+                      cursorColor === null ? 'border-foreground text-foreground bg-white' : 'border-gray-200 text-foreground/50 bg-white'
+                    }`}
+                  >
+                    A
+                  </button>
+                  {CURSOR_COLORS.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() => pickCursorColor(c.value)}
+                      aria-label={c.label}
+                      title={c.label}
+                      className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${
+                        cursorColor === c.value ? 'border-foreground' : 'border-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]'
+                      }`}
+                      style={{ backgroundColor: c.value }}
+                    />
+                  ))}
+                </div>
               </div>
 
               <button

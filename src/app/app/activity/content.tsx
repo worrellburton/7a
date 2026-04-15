@@ -62,6 +62,8 @@ function describe(row: ActivityRow): { verb: string; accent: string } {
       return { verb: 'reported facilities issue', accent: 'text-primary' };
     case 'facilities.chat_message':
       return { verb: 'commented on facilities issue', accent: 'text-foreground' };
+    case 'user.signed_in':
+      return { verb: 'signed in', accent: 'text-emerald-600' };
     default:
       return { verb: row.type.replace(/[._]/g, ' '), accent: 'text-foreground' };
   }
