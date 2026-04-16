@@ -12,6 +12,15 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-16T06:00:00Z',
+    title: 'Policies & Procedures',
+    items: [
+      'New Policies page — paste raw policy text and we format it with a proper header, section tag, and date strip.',
+      'List view shows Section, Name, Date Created, Date Reviewed, and Date Revised columns. Filter by section or search by name.',
+      'One-click Mark Reviewed and Mark Revised on the detail view.',
+    ],
+  },
+  {
     at: '2026-04-16T05:00:00Z',
     title: 'Notes: clinical documentation templates',
     items: [
