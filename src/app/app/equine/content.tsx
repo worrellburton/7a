@@ -30,6 +30,7 @@ interface Horse {
   notes: string;
   vet_visits: VetVisit[];
   document_urls: string[];
+  image_url: string | null;
   created_at: string;
 }
 
@@ -74,6 +75,7 @@ function EditableCell({ horseId, field, value, className = '', editingId, editFi
 type ColDef = { key: string; label: string; hidden?: string };
 
 const defaultColumnOrder: ColDef[] = [
+  { key: 'photo', label: '' },
   { key: 'name', label: 'Name' },
   { key: 'age', label: 'Age' },
   { key: 'body_score', label: 'Rate my Body' },
@@ -87,7 +89,7 @@ const defaultColumnOrder: ColDef[] = [
   { key: 'docs', label: 'Docs', hidden: 'hidden xl:table-cell' },
 ];
 
-const defaultHorses: Omit<Horse, 'id' | 'created_at'>[] = [
+const defaultHorses: Omit<Horse, 'id' | 'created_at' | 'image_url'>[] = [
   { name: 'Arrow', age: 10, body_score: 5, weight: '1015 lbs', works_in: 'EAP only / Not broken', rideable: 'No', shoe_schedule: '16 weeks', behavior: 'Less spooky / Good', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Boots off, doing good, no noticeable pain', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
   { name: 'Chika', age: 6, body_score: 5, weight: '865 lbs', works_in: 'EAP only / Not broken', rideable: 'No', shoe_schedule: '16 weeks', behavior: 'Good', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Check scab, is dried and closed, starting to peel. Slight limp', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
   { name: 'Wanda', age: 12, body_score: 5, weight: '835 lbs', works_in: 'EAP / TR', rideable: 'Yes', shoe_schedule: '8 weeks', behavior: 'Tight Lead for Cinch / Good', needs_next_steps: 'Lunge', internal_info: 'Healthier weight. Can go on rides', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
@@ -114,8 +116,11 @@ export default function EquineContent() {
   const [editField, setEditField] = useState<string>('');
   const [editValue, setEditValue] = useState<string>('');
   const [uploading, setUploading] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const uploadHorseRef = useRef<string | null>(null);
+  const imageHorseRef = useRef<string | null>(null);
   const [dbAvailable, setDbAvailable] = useState(true);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -149,6 +154,7 @@ export default function EquineContent() {
             notes: (h.notes as string) || '',
             vet_visits: Array.isArray(h.vet_visits) ? h.vet_visits : [],
             document_urls: Array.isArray(h.document_urls) ? h.document_urls : [],
+            image_url: (h.image_url as string) || null,
           })) as Horse[];
           setHorses(updated);
         } else if (Array.isArray(data) && data.length === 0) {
@@ -160,11 +166,11 @@ export default function EquineContent() {
           }
         } else {
           setDbAvailable(false);
-          setHorses(defaultHorses.map((h, i) => ({ ...h, id: `local-${i}`, created_at: new Date().toISOString() })));
+          setHorses(defaultHorses.map((h, i) => ({ ...h, id: `local-${i}`, created_at: new Date().toISOString(), image_url: null })));
         }
       } catch {
         setDbAvailable(false);
-        setHorses(defaultHorses.map((h, i) => ({ ...h, id: `local-${i}`, created_at: new Date().toISOString() })));
+        setHorses(defaultHorses.map((h, i) => ({ ...h, id: `local-${i}`, created_at: new Date().toISOString(), image_url: null })));
       }
       setLoading(false);
     }
@@ -196,6 +202,23 @@ export default function EquineContent() {
     }
     setUploading(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const horseId = imageHorseRef.current;
+    if (!horseId || !e.target.files?.length) return;
+    const file = e.target.files[0];
+    if (!file.type.startsWith('image/')) return;
+    setUploadingImage(horseId);
+    const { url } = await uploadFile(file);
+    if (url) {
+      if (dbAvailable && !horseId.startsWith('local-')) {
+        await db({ action: 'update', table: 'equine', data: { image_url: url }, match: { id: horseId } });
+      }
+      setHorses(prev => prev.map(h => h.id === horseId ? { ...h, image_url: url } : h));
+    }
+    setUploadingImage(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
   const removeDoc = async (horseId: string, docIndex: number) => {
@@ -312,6 +335,35 @@ export default function EquineContent() {
 
   const renderCell = (horse: Horse, col: ColDef) => {
     switch (col.key) {
+      case 'photo': {
+        const initial = (horse.name || '?').charAt(0).toUpperCase();
+        const isUploading = uploadingImage === horse.id;
+        return (
+          <button
+            type="button"
+            onClick={e => {
+              e.stopPropagation();
+              imageHorseRef.current = horse.id;
+              imageInputRef.current?.click();
+            }}
+            disabled={isUploading}
+            className="relative w-9 h-9 rounded-full overflow-hidden border border-gray-200 bg-warm-bg flex items-center justify-center group/photo shrink-0 hover:ring-2 hover:ring-primary/40 transition-all"
+            aria-label={`${horse.name} photo`}
+          >
+            {isUploading ? (
+              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            ) : horse.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={horse.image_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-xs font-bold text-foreground/40">{initial}</span>
+            )}
+            <span className="absolute inset-0 bg-black/40 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25z" /></svg>
+            </span>
+          </button>
+        );
+      }
       case 'name':
         return <span className="text-sm font-bold text-foreground whitespace-nowrap">{horse.name}</span>;
       case 'age':
@@ -350,6 +402,7 @@ export default function EquineContent() {
   return (
     <div className="p-4 sm:p-6 lg:p-10">
       <input ref={fileInputRef} type="file" accept="*/*" onChange={handleDocUpload} className="hidden" />
+      <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
 
       <div className="mb-8">
         <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Horses</h1>

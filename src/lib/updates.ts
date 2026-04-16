@@ -12,6 +12,14 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-16T01:00:00Z',
+    title: 'Horses: profile pictures',
+    items: [
+      'Upload a photo for each horse — click the new avatar circle on any row to pick an image.',
+      'Horse detail page now shows a big avatar you can tap to replace the photo.',
+    ],
+  },
+  {
     at: '2026-04-16T00:30:00Z',
     title: 'Calendar: Events tab',
     items: [
