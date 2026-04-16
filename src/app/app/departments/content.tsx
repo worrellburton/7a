@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
+import { logActivity } from '@/lib/activity';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -135,6 +136,7 @@ export default function DepartmentsContent() {
       return;
     }
     setDepartments((prev) => [...prev, result as Department].sort((a, b) => a.name.localeCompare(b.name)));
+    if (user) logActivity({ userId: user.id, type: 'org.department_created', targetKind: 'department', targetId: (result as Department).id, targetLabel: name, targetPath: '/app/departments' });
     setNewName('');
     setNewDescription('');
     setNewColor(palette[0]);
@@ -156,6 +158,7 @@ export default function DepartmentsContent() {
     }
     setDepartments((prev) => prev.filter((d) => d.id !== id));
     setUsers((prev) => prev.map((u) => (u.department_id === id ? { ...u, department_id: null } : u)));
+    if (user) logActivity({ userId: user.id, type: 'org.department_deleted', targetKind: 'department', targetId: id, targetLabel: name, targetPath: '/app/departments' });
     showToast(`${name} deleted`);
   }
 
@@ -173,6 +176,7 @@ export default function DepartmentsContent() {
     setDepartments((prev) =>
       prev.map((d) => (d.id === id ? { ...d, name: trimmed } : d)).sort((a, b) => a.name.localeCompare(b.name))
     );
+    if (user) logActivity({ userId: user.id, type: 'org.department_renamed', targetKind: 'department', targetId: id, targetLabel: trimmed, targetPath: '/app/departments' });
     setEditingId(null);
   }
 

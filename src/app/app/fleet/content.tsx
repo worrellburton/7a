@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
 import { uploadFile } from '@/lib/upload';
+import { logActivity } from '@/lib/activity';
 import React, { useEffect, useRef, useState } from 'react';
 
 interface Vehicle {
@@ -94,6 +95,7 @@ export default function FleetContent() {
     });
     if (result && result.id) {
       setVehicles(prev => [...prev, result as Vehicle].sort((a, b) => a.vehicle_name.localeCompare(b.vehicle_name)));
+      if (user) logActivity({ userId: user.id, type: 'fleet.vehicle_added', targetKind: 'fleet_vehicle', targetId: result.id, targetLabel: newName.trim(), targetPath: '/app/fleet' });
       setNewName('');
       setNewType('');
       setShowAddForm(false);
@@ -110,6 +112,7 @@ export default function FleetContent() {
     if (!ok) return;
     await db({ action: 'delete', table: 'fleet_vehicles', match: { id: v.id } });
     setVehicles(prev => prev.filter(x => x.id !== v.id));
+    if (user) logActivity({ userId: user.id, type: 'fleet.vehicle_removed', targetKind: 'fleet_vehicle', targetId: v.id, targetLabel: v.vehicle_name, targetPath: '/app/fleet' });
     showToast('Vehicle deleted');
   };
 
@@ -168,6 +171,10 @@ export default function FleetContent() {
           ],
         }));
         showToast(target.replaceDocId ? 'Document replaced' : 'Document uploaded');
+        if (user) {
+          const v = vehicles.find((x) => x.id === target.vehicleId);
+          logActivity({ userId: user.id, type: target.replaceDocId ? 'fleet.doc_replaced' : 'fleet.doc_uploaded', targetKind: 'fleet_vehicle', targetId: target.vehicleId, targetLabel: `${v?.vehicle_name || 'Vehicle'} · ${target.docType}`, targetPath: '/app/fleet', metadata: { doc_type: target.docType, file_name: file.name } });
+        }
       }
     }
     setUploading(null);
@@ -188,6 +195,10 @@ export default function FleetContent() {
       [doc.vehicle_id]: (prev[doc.vehicle_id] || []).filter(d => d.id !== doc.id),
     }));
     showToast('Document deleted');
+    if (user) {
+      const v = vehicles.find((x) => x.id === doc.vehicle_id);
+      logActivity({ userId: user.id, type: 'fleet.doc_removed', targetKind: 'fleet_vehicle', targetId: doc.vehicle_id, targetLabel: `${v?.vehicle_name || 'Vehicle'} · ${doc.file_name}`, targetPath: '/app/fleet' });
+    }
   };
 
   const startEdit = (id: string, field: string, value: string) => {
@@ -215,10 +226,12 @@ export default function FleetContent() {
   };
 
   const updateStatus = async (id: string, status: string) => {
+    const v = vehicles.find((x) => x.id === id);
     setVehicles(prev => prev.map(v => v.id === id ? { ...v, status } : v));
     try {
       await db({ action: 'update', table: 'fleet_vehicles', data: { status }, match: { id } });
     } catch { /* ignore */ }
+    if (user) logActivity({ userId: user.id, type: 'fleet.vehicle_status_changed', targetKind: 'fleet_vehicle', targetId: id, targetLabel: `${v?.vehicle_name || 'Vehicle'} → ${status}`, targetPath: '/app/fleet', metadata: { status } });
   };
 
   const renderEditableCell = (v: Vehicle, field: keyof Vehicle, className = '') => {

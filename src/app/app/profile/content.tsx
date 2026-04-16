@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { logActivity } from '@/lib/activity';
 import { useEffect, useState } from 'react';
 
 // Curated palette for the cursor color picker. Bright enough to read against
@@ -81,6 +82,7 @@ export default function ProfileContent() {
       showToast(`Failed to save: ${result.error}`);
     } else {
       showToast('Profile updated');
+      logActivity({ userId: user.id, type: 'user.profile_updated', targetKind: 'user', targetId: user.id, targetLabel: fullName.trim() || user.email || 'Profile', targetPath: '/app/profile' });
     }
     setSaving(false);
   }

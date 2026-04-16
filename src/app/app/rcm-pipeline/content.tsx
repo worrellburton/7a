@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { logActivity } from '@/lib/activity';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 
 interface Patient {
@@ -63,9 +64,11 @@ export default function RCMPipelineContent() {
   const getPatient = (id: string) => patients.find(p => p.id === id);
 
   const moveClaimToStage = useCallback(async (claimId: string, newStatus: string) => {
+    const claim = claims.find((c) => c.id === claimId);
     setClaims(prev => prev.map(c => c.id === claimId ? { ...c, status: newStatus } : c));
     await db({ action: 'update', table: 'billing_claims', data: { status: newStatus }, match: { id: claimId } });
-  }, []);
+    if (user?.id) logActivity({ userId: user.id, type: 'billing.claim_status_changed', targetKind: 'billing_claim', targetId: claimId, targetLabel: `$${claim?.charge_amount ?? ''} · ${newStatus}`, targetPath: '/app/rcm-pipeline', metadata: { status: newStatus } });
+  }, [claims, user]);
 
   const handleDragStart = (e: React.DragEvent, claimId: string) => {
     e.dataTransfer.setData('text/plain', claimId);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
 import { useAuth } from '@/lib/AuthProvider';
+import { logActivity } from '@/lib/activity';
 import {
   SCHEDULE_KINDS,
   approvalStyle,
@@ -110,20 +111,24 @@ export function TourDetailPanel({
     if (inserted && inserted.id) {
       setGuests((prev) => [...prev, inserted as TourGuest]);
       setNewGuest({ name: '', company: '', title: '', linkedin_url: '' });
+      if (user) logActivity({ userId: user.id, type: 'tour.guest_added', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name} · ${newGuest.name.trim()}`, targetPath: `/app/tours` });
     }
-  }, [newGuest, guests.length, tour.id]);
+  }, [newGuest, guests.length, tour.id, tour.tour_name, user]);
 
   const updateGuest = useCallback(async (id: string, patch: Partial<TourGuest>) => {
     setGuests((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
     await db({ action: 'update', table: 'tour_guests', data: patch, match: { id } });
-  }, []);
+    if (user) logActivity({ userId: user.id, type: 'tour.guest_updated', targetKind: 'tour', targetId: tour.id, targetLabel: tour.tour_name, targetPath: `/app/tours` });
+  }, [tour.id, tour.tour_name, user]);
 
   const deleteGuest = useCallback(async (id: string) => {
     const ok = await confirm('Remove this guest?', { confirmLabel: 'Remove', tone: 'danger' });
     if (!ok) return;
+    const removed = guests.find((g) => g.id === id);
     setGuests((prev) => prev.filter((g) => g.id !== id));
     await db({ action: 'delete', table: 'tour_guests', match: { id } });
-  }, [confirm]);
+    if (user) logActivity({ userId: user.id, type: 'tour.guest_removed', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name}${removed?.name ? ' · ' + removed.name : ''}`, targetPath: `/app/tours` });
+  }, [confirm, guests, tour.id, tour.tour_name, user]);
 
   // ── Presentations ─────────────────────────────────────────────────────
   const [newPres, setNewPres] = useState({ title: '', presenter_name: '', scheduled_at: '' });
@@ -143,24 +148,29 @@ export function TourDetailPanel({
     if (inserted && inserted.id) {
       setPresentations((prev) => [...prev, inserted as TourPresentation]);
       setNewPres({ title: '', presenter_name: '', scheduled_at: '' });
+      if (user) logActivity({ userId: user.id, type: 'tour.presentation_added', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name} · ${newPres.title.trim()}`, targetPath: `/app/tours` });
     }
-  }, [newPres, tour.id]);
+  }, [newPres, tour.id, tour.tour_name, user]);
 
   const deletePresentation = useCallback(async (id: string) => {
     const ok = await confirm('Remove this presentation?', { confirmLabel: 'Remove', tone: 'danger' });
     if (!ok) return;
+    const removed = presentations.find((p) => p.id === id);
     setPresentations((prev) => prev.filter((p) => p.id !== id));
     setSignups((prev) => { const n = { ...prev }; delete n[id]; return n; });
     await db({ action: 'delete', table: 'tour_presentations', match: { id } });
-  }, [confirm]);
+    if (user) logActivity({ userId: user.id, type: 'tour.presentation_removed', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name}${removed?.title ? ' · ' + removed.title : ''}`, targetPath: `/app/tours` });
+  }, [confirm, presentations, tour.id, tour.tour_name, user]);
 
   const togglePresentationSignup = useCallback(async (presentationId: string) => {
     if (!user) return;
+    const pres = presentations.find((p) => p.id === presentationId);
     const current = signups[presentationId] || [];
     const mine = current.find((s) => s.user_id === user.id);
     if (mine) {
       setSignups((prev) => ({ ...prev, [presentationId]: current.filter((s) => s.id !== mine.id) }));
       await db({ action: 'delete', table: 'tour_presentation_signups', match: { id: mine.id } });
+      logActivity({ userId: user.id, type: 'tour.presentation_signup_removed', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name}${pres?.title ? ' · ' + pres.title : ''}`, targetPath: `/app/tours` });
     } else {
       const name = (user.user_metadata?.full_name as string | undefined) || user.email || 'Me';
       const inserted = await db({
@@ -173,9 +183,10 @@ export function TourDetailPanel({
           ...prev,
           [presentationId]: [...(prev[presentationId] || []), inserted as PresentationSignup],
         }));
+        logActivity({ userId: user.id, type: 'tour.presentation_signup_added', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name}${pres?.title ? ' · ' + pres.title : ''}`, targetPath: `/app/tours` });
       }
     }
-  }, [user, signups]);
+  }, [user, signups, presentations, tour.id, tour.tour_name]);
 
   // ── BD Staff ──────────────────────────────────────────────────────────
   const [newBdUserId, setNewBdUserId] = useState<string>('');
@@ -198,13 +209,16 @@ export function TourDetailPanel({
       setBdStaff((prev) => [...prev, inserted as BdStaff]);
       setNewBdUserId('');
       setNewBdRole('');
+      if (user) logActivity({ userId: user.id, type: 'tour.staff_added', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name} · ${u.full_name || 'Staff'}`, targetPath: `/app/tours` });
     }
-  }, [newBdUserId, newBdRole, teamUsers, tour.id]);
+  }, [newBdUserId, newBdRole, teamUsers, tour.id, tour.tour_name, user]);
 
   const removeBdStaff = useCallback(async (id: string) => {
+    const removed = bdStaff.find((b) => b.id === id);
     setBdStaff((prev) => prev.filter((b) => b.id !== id));
     await db({ action: 'delete', table: 'tour_bd_staff', match: { id } });
-  }, []);
+    if (user) logActivity({ userId: user.id, type: 'tour.staff_removed', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name}${removed?.staff_name ? ' · ' + removed.staff_name : ''}`, targetPath: `/app/tours` });
+  }, [bdStaff, tour.id, tour.tour_name, user]);
 
   // ── Schedule items ─────────────────────────────────────────────────────
   const scheduleByKind = new Map(schedule.map((s) => [s.kind, s] as const));
@@ -232,14 +246,22 @@ export function TourDetailPanel({
     const patch = { assigned_user_id: userId || null, assigned_name: u?.full_name || null };
     setSchedule((prev) => prev.map((s) => (s.id === item.id ? { ...s, ...patch } : s)));
     await db({ action: 'update', table: 'tour_schedule_items', data: patch, match: { id: item.id } });
-  }, [ensureScheduleItem, teamUsers]);
+    if (user) {
+      const kindLabel = SCHEDULE_KINDS.find((k) => k.kind === kind)?.label || kind;
+      logActivity({ userId: user.id, type: 'tour.schedule_assigned', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name} · ${kindLabel} → ${u?.full_name || 'Unassigned'}`, targetPath: `/app/tours` });
+    }
+  }, [ensureScheduleItem, teamUsers, tour.id, tour.tour_name, user]);
 
   const setScheduleStatus = useCallback(async (kind: ScheduleKind, status: ScheduleItem['approval_status']) => {
     const item = await ensureScheduleItem(kind);
     if (!item) return;
     setSchedule((prev) => prev.map((s) => (s.id === item.id ? { ...s, approval_status: status } : s)));
     await db({ action: 'update', table: 'tour_schedule_items', data: { approval_status: status }, match: { id: item.id } });
-  }, [ensureScheduleItem]);
+    if (user) {
+      const kindLabel = SCHEDULE_KINDS.find((k) => k.kind === kind)?.label || kind;
+      logActivity({ userId: user.id, type: 'tour.schedule_status_changed', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name} · ${kindLabel} → ${status}`, targetPath: `/app/tours`, metadata: { status } });
+    }
+  }, [ensureScheduleItem, tour.id, tour.tour_name, user]);
 
   // ── Rooms ──────────────────────────────────────────────────────────────
   const [newRoomName, setNewRoomName] = useState('');
@@ -253,20 +275,33 @@ export function TourDetailPanel({
     if (inserted && inserted.id) {
       setRooms((prev) => [...prev, inserted as TourRoom]);
       setNewRoomName('');
+      if (user) logActivity({ userId: user.id, type: 'tour.room_added', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name} · ${(inserted as TourRoom).room_name}`, targetPath: `/app/tours` });
     }
-  }, [newRoomName, tour.id]);
+  }, [newRoomName, tour.id, tour.tour_name, user]);
 
   const updateRoom = useCallback(async (id: string, patch: Partial<TourRoom>) => {
-    setRooms((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    const prev = rooms.find((r) => r.id === id);
+    setRooms((prevRooms) => prevRooms.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     await db({ action: 'update', table: 'tour_rooms', data: patch, match: { id } });
-  }, []);
+    if (user && prev) {
+      // Highlight toggle-style changes (selectable / ready / approved_by_pam).
+      const changed: string[] = [];
+      if (patch.selectable !== undefined && patch.selectable !== prev.selectable) changed.push(patch.selectable ? 'selectable' : 'not selectable');
+      if (patch.ready !== undefined && patch.ready !== prev.ready) changed.push(patch.ready ? 'ready' : 'not ready');
+      if (patch.approved_by_pam !== undefined && patch.approved_by_pam !== prev.approved_by_pam) changed.push(patch.approved_by_pam ? 'approved by Pam' : 'approval cleared');
+      const summary = changed.length ? ` → ${changed.join(', ')}` : '';
+      logActivity({ userId: user.id, type: 'tour.room_updated', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name} · ${prev.room_name}${summary}`, targetPath: `/app/tours` });
+    }
+  }, [rooms, tour.id, tour.tour_name, user]);
 
   const deleteRoom = useCallback(async (id: string) => {
     const ok = await confirm('Remove this room?', { confirmLabel: 'Remove', tone: 'danger' });
     if (!ok) return;
+    const removed = rooms.find((r) => r.id === id);
     setRooms((prev) => prev.filter((r) => r.id !== id));
     await db({ action: 'delete', table: 'tour_rooms', match: { id } });
-  }, [confirm]);
+    if (user) logActivity({ userId: user.id, type: 'tour.room_removed', targetKind: 'tour', targetId: tour.id, targetLabel: `${tour.tour_name}${removed?.room_name ? ' · ' + removed.room_name : ''}`, targetPath: `/app/tours` });
+  }, [confirm, rooms, tour.id, tour.tour_name, user]);
 
   // ── Delete tour ────────────────────────────────────────────────────────
   const handleDeleteTour = useCallback(async () => {
@@ -281,6 +316,7 @@ export function TourDetailPanel({
       await db({ action: 'delete', table: 'calendar_events', match: { id: tour.calendar_event_id } });
     }
     await db({ action: 'delete', table: 'tours', match: { id: tour.id } });
+    if (user) logActivity({ userId: user.id, type: 'tour.deleted', targetKind: 'tour', targetId: tour.id, targetLabel: tour.tour_name, targetPath: `/app/tours` });
     onDelete();
   }, [tour, confirm, onDelete]);
 
