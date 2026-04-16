@@ -360,6 +360,13 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
     </svg>
   ),
+  '/app/notes': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4a2 2 0 0 1 2-2h10l4 4v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+      <path d="M16 2v4h4" />
+      <path d="M8 11h8M8 15h8M8 19h5" />
+    </svg>
+  ),
 };
 
 function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
