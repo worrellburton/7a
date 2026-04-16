@@ -12,6 +12,17 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-16T03:00:00Z',
+    title: 'Horses: track weight + feed, tighten vet form',
+    items: [
+      'Hit the + next to Weight to log a new reading — each entry is saved and charted on a bar graph on the horse page.',
+      'New Feed card with a + button for quick entries (type, amount, unit, notes). Last 30 days roll up into a per-type report.',
+      'Rideable is now a proper dropdown (Yes / No / For staff / Maybe).',
+      'Vet visit "Reason" is now a dropdown including Deworming, Vaccines, Dental, Lameness, Injury.',
+      'Attach a PDF report right on the Add Visit form — no extra step after saving.',
+    ],
+  },
+  {
     at: '2026-04-16T02:00:00Z',
     title: 'Tours: plan every visit end-to-end',
     items: [
