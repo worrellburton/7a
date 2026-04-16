@@ -12,6 +12,14 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-16T01:30:00Z',
+    title: 'Horses: crop the photo before saving',
+    items: [
+      'After picking a horse photo, a crop window opens — drag + zoom to frame the shot, then save.',
+      'Output is a clean square avatar so every horse circle looks consistent.',
+    ],
+  },
+  {
     at: '2026-04-16T01:00:00Z',
     title: 'Horses: profile pictures',
     items: [

@@ -6,6 +6,7 @@ import { uploadFile } from '@/lib/upload';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
+import { ImageCropModal } from '@/components/ImageCropModal';
 
 interface VetVisit {
   date: string;
@@ -67,6 +68,7 @@ export default function HorseContent() {
   const uploadVetVisitRef = useRef<number | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const [showVetForm, setShowVetForm] = useState(false);
   const [vetFormDate, setVetFormDate] = useState('');
@@ -134,18 +136,24 @@ export default function HorseContent() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!horse || !e.target.files?.length) return;
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
     const file = e.target.files[0];
+    if (imageInputRef.current) imageInputRef.current.value = '';
     if (!file.type.startsWith('image/')) return;
+    setCropFile(file);
+  };
+
+  const saveCroppedImage = async (cropped: File) => {
+    if (!horse) return;
+    setCropFile(null);
     setUploadingImage(true);
-    const { url } = await uploadFile(file);
+    const { url } = await uploadFile(cropped);
     if (url) {
       await db({ action: 'update', table: 'equine', data: { image_url: url }, match: { id: horse.id } });
       setHorse({ ...horse, image_url: url });
     }
     setUploadingImage(false);
-    if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
   const removeDoc = async (docIndex: number) => {
@@ -501,6 +509,15 @@ export default function HorseContent() {
           </button>
         </div>
       </div>
+
+      {cropFile && (
+        <ImageCropModal
+          file={cropFile}
+          title="Crop horse photo"
+          onSave={saveCroppedImage}
+          onCancel={() => setCropFile(null)}
+        />
+      )}
     </div>
   );
 }

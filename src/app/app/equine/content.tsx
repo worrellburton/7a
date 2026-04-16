@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { uploadFile } from '@/lib/upload';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
+import { ImageCropModal } from '@/components/ImageCropModal';
 
 interface VetVisit {
   date: string;
@@ -117,6 +118,7 @@ export default function EquineContent() {
   const [editValue, setEditValue] = useState<string>('');
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState<string | null>(null);
+  const [cropTarget, setCropTarget] = useState<{ horseId: string; file: File } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const uploadHorseRef = useRef<string | null>(null);
@@ -204,21 +206,31 @@ export default function EquineContent() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const horseId = imageHorseRef.current;
     if (!horseId || !e.target.files?.length) return;
     const file = e.target.files[0];
-    if (!file.type.startsWith('image/')) return;
-    setUploadingImage(horseId);
-    const { url } = await uploadFile(file);
+    if (!file.type.startsWith('image/')) {
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      return;
+    }
+    setCropTarget({ horseId, file });
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  };
+
+  const saveCroppedImage = async (cropped: File) => {
+    const target = cropTarget;
+    if (!target) return;
+    setCropTarget(null);
+    setUploadingImage(target.horseId);
+    const { url } = await uploadFile(cropped);
     if (url) {
-      if (dbAvailable && !horseId.startsWith('local-')) {
-        await db({ action: 'update', table: 'equine', data: { image_url: url }, match: { id: horseId } });
+      if (dbAvailable && !target.horseId.startsWith('local-')) {
+        await db({ action: 'update', table: 'equine', data: { image_url: url }, match: { id: target.horseId } });
       }
-      setHorses(prev => prev.map(h => h.id === horseId ? { ...h, image_url: url } : h));
+      setHorses(prev => prev.map(h => h.id === target.horseId ? { ...h, image_url: url } : h));
     }
     setUploadingImage(null);
-    if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
   const removeDoc = async (horseId: string, docIndex: number) => {
@@ -471,6 +483,15 @@ export default function EquineContent() {
           </table>
         </div>
       </div>
+
+      {cropTarget && (
+        <ImageCropModal
+          file={cropTarget.file}
+          title="Crop horse photo"
+          onSave={saveCroppedImage}
+          onCancel={() => setCropTarget(null)}
+        />
+      )}
     </div>
   );
 }
