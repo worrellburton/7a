@@ -307,11 +307,11 @@ export default function UsersContent() {
         </div>
         <button
           onClick={() => router.push('/app/org-chart')}
-          className="inline-flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold bg-primary text-white hover:bg-primary-dark shadow-sm hover:shadow-md transition-all"
+          className="inline-flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold bg-primary text-white hover:bg-primary-dark shadow-sm hover:shadow-md transition-all shrink-0"
           style={{ fontFamily: 'var(--font-body)' }}
           title="View organization chart"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="9" y="3" width="6" height="4" rx="1" />
             <rect x="3" y="15" width="6" height="4" rx="1" />
             <rect x="15" y="15" width="6" height="4" rx="1" />

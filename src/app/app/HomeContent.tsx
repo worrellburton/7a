@@ -185,17 +185,21 @@ export default function HomeContent() {
 
   return (
     <div className="flex flex-col h-full relative">
-      {/* New facilities request — pinned to the upper right of the dashboard. */}
+      {/* New facilities request — upper right on desktop. On mobile the
+          parent shell already has a sticky top bar, so we keep this button
+          inline (top-3) and shrink the label to an icon-only pill. */}
       <button
         onClick={() => router.push('/app/facilities?new=1')}
-        className="absolute top-5 right-5 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors shadow-sm"
+        className="absolute top-3 right-3 lg:top-5 lg:right-5 z-10 inline-flex items-center gap-2 px-3 py-1.5 lg:px-4 lg:py-2 rounded-full bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors shadow-sm"
         style={{ fontFamily: 'var(--font-body)' }}
         title="Report a new facilities issue"
+        aria-label="New facilities request"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 5v14M5 12h14" />
         </svg>
-        New facilities request
+        <span className="hidden sm:inline">New facilities request</span>
+        <span className="sm:hidden">Facilities</span>
       </button>
 
       {/* Online today — centered at the top of the dashboard. */}
@@ -241,7 +245,7 @@ export default function HomeContent() {
                       {(u.full_name || '?').charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left">
+                  <div className="hidden md:block absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left">
                     <p className="font-semibold text-white">{u.full_name || 'User'}</p>
                     {u.job_title && <p className="text-white/90">{u.job_title}</p>}
                     <p className="text-white/80">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
@@ -257,7 +261,7 @@ export default function HomeContent() {
       {/* Centered welcome */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 py-10">
         <div className="flex flex-col items-center gap-3">
-          <h1 className="text-3xl font-bold text-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground text-center px-4">
             Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
           </h1>
         </div>
