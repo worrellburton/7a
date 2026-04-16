@@ -22,8 +22,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 // ------------------------------------------------------------
 
 type View = 'month' | 'week' | 'day';
-type ViewMode = 'groups' | 'team';
-type SubjectKind = 'group' | 'user';
+type ViewMode = 'groups' | 'team' | 'events';
+type SubjectKind = 'group' | 'user' | 'event';
 
 interface EventRow {
   id: string;
@@ -32,7 +32,7 @@ interface EventRow {
   start_time: string | null; // 'HH:MM:SS'
   end_time: string | null;
   subject_kind: SubjectKind;
-  subject_id: string;
+  subject_id: string | null;
   color: string | null;
   notes: string | null;
   created_by: string | null;
@@ -427,7 +427,7 @@ export default function CalendarContent() {
     if (typeof window === 'undefined') return;
     try {
       const raw = window.localStorage.getItem(VIEWMODE_STORAGE_KEY);
-      if (raw === 'groups' || raw === 'team') {
+      if (raw === 'groups' || raw === 'team' || raw === 'events') {
         setViewMode(raw);
       } else if (raw === 'shifts' || raw === 'hybrid') {
         // Legacy values — collapse to the new 'team' mode.
@@ -595,6 +595,7 @@ export default function CalendarContent() {
           if (clash) return;
         }
       }
+      const isEvent = payload.kind === 'event';
       const optimistic: EventRow = {
         id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         title: payload.label,
@@ -602,7 +603,7 @@ export default function CalendarContent() {
         start_time: resolvedStart,
         end_time: resolvedEnd,
         subject_kind: payload.kind,
-        subject_id: payload.id,
+        subject_id: isEvent ? null : payload.id,
         color: payload.color,
         notes: '',
         created_by: user.id,
@@ -908,7 +909,7 @@ export default function CalendarContent() {
       {/* Top-center Groups/Team toggle, with Month/Week/Day directly below. */}
       <div className="mb-3 flex flex-col items-center gap-2">
         <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
-          {(['groups', 'team'] as ViewMode[]).map((m) => (
+          {(['groups', 'team', 'events'] as ViewMode[]).map((m) => (
             <button
               key={m}
               onClick={() => saveViewMode(m)}
@@ -921,7 +922,9 @@ export default function CalendarContent() {
               title={
                 m === 'groups'
                   ? 'Show group events; drag from Groups panel'
-                  : 'Show shift buckets with team members; drag from Team panel'
+                  : m === 'team'
+                  ? 'Show shift buckets with team members; drag from Team panel'
+                  : 'Show standalone events; create new ones from the Events panel'
               }
             >
               {m}
@@ -966,7 +969,7 @@ export default function CalendarContent() {
       >
         {view !== 'month' && (
           <div className="hidden md:flex min-h-0">
-            <Palette groups={groups} users={users} loading={loading} mode={viewMode} />
+            <Palette groups={groups} users={users} events={events} loading={loading} mode={viewMode} />
           </div>
         )}
 
@@ -1133,18 +1136,24 @@ export default function CalendarContent() {
 function Palette({
   groups,
   users,
+  events,
   loading,
   mode,
 }: {
   groups: GroupRow[];
   users: UserRow[];
+  events: EventRow[];
   loading: boolean;
-  mode: 'groups' | 'team';
+  mode: ViewMode;
 }) {
   const tab = mode;
   const [q, setQ] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [multiSelect, setMultiSelect] = useState(false);
+  // Locally-created event chip drafts (persist per browser tab). Once dragged
+  // to a day they become real calendar_events rows.
+  const [newEventName, setNewEventName] = useState('');
+  const [customEventTitles, setCustomEventTitles] = useState<string[]>([]);
 
   const selectedPayloads = useMemo(
     (): DragPayload[] =>
@@ -1190,6 +1199,29 @@ function Palette({
         u.email.toLowerCase().includes(needle)
     );
   }, [users, q]);
+
+  // Combine previously-used event titles with locally-drafted ones, filtered
+  // by the search box. Case-insensitive dedupe.
+  const filteredEventTitles = useMemo(() => {
+    const seen = new Set<string>();
+    const titles: string[] = [];
+    for (const ev of events) {
+      if (ev.subject_kind !== 'event') continue;
+      const key = ev.title.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      titles.push(ev.title);
+    }
+    for (const t of customEventTitles) {
+      const key = t.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      titles.push(t);
+    }
+    const needle = q.trim().toLowerCase();
+    if (!needle) return titles;
+    return titles.filter((t) => t.toLowerCase().includes(needle));
+  }, [events, customEventTitles, q]);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
@@ -1250,6 +1282,37 @@ function Palette({
         </div>
       )}
 
+      {tab === 'events' && (
+        <div className="px-3 pb-2">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const name = newEventName.trim();
+              if (!name) return;
+              setCustomEventTitles((prev) => (prev.some((t) => t.toLowerCase() === name.toLowerCase()) ? prev : [name, ...prev]));
+              setNewEventName('');
+            }}
+            className="flex items-center gap-2"
+          >
+            <input
+              value={newEventName}
+              onChange={(e) => setNewEventName(e.target.value)}
+              placeholder="New event name…"
+              className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-warm-bg/30"
+              style={{ fontFamily: 'var(--font-body)' }}
+            />
+            <button
+              type="submit"
+              disabled={!newEventName.trim()}
+              className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Add
+            </button>
+          </form>
+        </div>
+      )}
+
       <div className="flex-1 overflow-auto p-3 space-y-1.5">
         {loading ? (
           <div className="text-xs text-foreground/40 text-center py-8">Loading…</div>
@@ -1258,6 +1321,14 @@ function Palette({
             <EmptyMsg text="No groups found" />
           ) : (
             filteredGroups.map((g) => <DraggableChip key={g.id} kind="group" id={g.id} label={g.name} />)
+          )
+        ) : tab === 'events' ? (
+          filteredEventTitles.length === 0 ? (
+            <EmptyMsg text="Add an event name above, then drag it onto a day." />
+          ) : (
+            filteredEventTitles.map((title) => (
+              <DraggableChip key={title} kind="event" id={`event:${title}`} label={title} />
+            ))
           )
         ) : filteredUsers.length === 0 ? (
           <EmptyMsg text="No team members found" />
@@ -1289,7 +1360,9 @@ function Palette({
       </div>
 
       <div className="p-3 border-t border-gray-100 text-[11px] text-foreground/40 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
-        {tab === 'team' && multiSelect
+        {tab === 'events'
+          ? 'Add a new event above, then drag it onto any day to schedule it.'
+          : tab === 'team' && multiSelect
           ? 'Shift-click or tick team members to select multiple, then drag any selected chip to schedule everyone at once.'
           : 'Drag a team member into a shift, or shift-click several to batch-schedule them. Drop a team member on the upper-left AOC slot to set Assistant on Duty.'}
       </div>
@@ -1567,8 +1640,8 @@ function ShiftAvatar({
   onClick: (id: string) => void;
   size?: 'sm' | 'md';
 }) {
-  const color = ev.color || colorFor(ev.subject_id);
-  const u = usersById.get(ev.subject_id);
+  const color = ev.color || colorFor(ev.subject_id ?? ev.id);
+  const u = usersById.get(ev.subject_id ?? '');
   const label = u ? userLabel(u) : ev.title;
   const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
   const dim = size === 'sm' ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-xs';
@@ -1644,11 +1717,11 @@ function EventChip({
   usersById: Map<string, UserRow>;
   onClick: (id: string) => void;
 }) {
-  const color = ev.color || colorFor(ev.subject_id);
+  const color = ev.color || colorFor(ev.subject_id ?? ev.id);
   const hour = parseTime(ev.start_time);
   const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
   const isUser = ev.subject_kind === 'user';
-  const u = isUser ? usersById.get(ev.subject_id) : undefined;
+  const u = isUser ? usersById.get(ev.subject_id ?? '') : undefined;
   const label = isUser ? (u ? userLabel(u) : ev.title) : ev.title;
   const title = label + (hour != null ? ` · ${formatHour(hour)}` : '');
 
@@ -1728,10 +1801,10 @@ function TimedEventBlock({
   usersById: Map<string, UserRow>;
   onClick: (id: string) => void;
 }) {
-  const color = ev.color || colorFor(ev.subject_id);
+  const color = ev.color || colorFor(ev.subject_id ?? ev.id);
   const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
   const isUser = ev.subject_kind === 'user';
-  const u = isUser ? usersById.get(ev.subject_id) : undefined;
+  const u = isUser ? usersById.get(ev.subject_id ?? '') : undefined;
   const label = isUser ? (u ? userLabel(u) : ev.title) : ev.title;
 
   if (isUser) {
@@ -1893,9 +1966,9 @@ function ResizableEvent({
 }) {
   const startH = parseTime(ev.start_time) ?? HOURS[0];
   const endH = parseTime(ev.end_time) ?? startH + 1;
-  const color = ev.color || colorFor(ev.subject_id);
+  const color = ev.color || colorFor(ev.subject_id ?? ev.id);
   const isUser = ev.subject_kind === 'user';
-  const u = isUser ? usersById.get(ev.subject_id) : undefined;
+  const u = isUser ? usersById.get(ev.subject_id ?? '') : undefined;
   const label = isUser ? (u ? userLabel(u) : ev.title) : ev.title;
   const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
 
@@ -2167,11 +2240,14 @@ function MonthView({
           const isLastRow = i >= 35;
           const iso = toISODate(d);
           const rawDayEvents = eventsByDate.get(iso) || [];
-          // Team mode shows only user events in shift buckets (no group chips);
-          // Groups mode filters further inside the Groups branch.
+          // Team mode shows only user events (no group chips); Groups mode
+          // filters further inside the Groups branch; Events mode shows only
+          // standalone events.
           const dayEvents =
             viewMode === 'team'
-              ? rawDayEvents.filter((ev) => ev.subject_kind !== 'group')
+              ? rawDayEvents.filter((ev) => ev.subject_kind === 'user')
+              : viewMode === 'events'
+              ? rawDayEvents.filter((ev) => ev.subject_kind === 'event')
               : rawDayEvents;
           const aodUserId = aodByDate.get(iso);
           const aodUser = aodUserId ? usersById.get(aodUserId) : undefined;
@@ -2246,6 +2322,28 @@ function MonthView({
                       style={{ fontFamily: 'var(--font-body)' }}
                     >
                       No groups
+                    </div>
+                  )}
+                </div>
+              ) : viewMode === 'events' ? (
+                <div className="flex-1 min-h-0 mx-1 mb-1 px-1 py-0.5 overflow-hidden space-y-0.5">
+                  {dayEvents.slice(0, 5).map((ev) => (
+                    <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
+                  ))}
+                  {dayEvents.length > 5 && (
+                    <div
+                      className="text-[9px] font-semibold text-foreground/40 px-0.5"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      +{dayEvents.length - 5} more
+                    </div>
+                  )}
+                  {dayEvents.length === 0 && inMonth && (
+                    <div
+                      className="text-[10px] text-foreground/25 px-0.5"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      No events
                     </div>
                   )}
                 </div>
@@ -2622,6 +2720,8 @@ function WeekView({
             ).filter((ev) => {
               // Groups view shows only group events.
               if (viewMode === 'groups') return ev.subject_kind === 'group';
+              // Events view shows only standalone event-kind events.
+              if (viewMode === 'events') return ev.subject_kind === 'event';
               // Team view: user events are rendered as avatars inside their
               // shift block, not time-positioned. Only render user events
               // that fall outside any shift (fallback) plus non-user events.
@@ -2696,10 +2796,14 @@ function DayView({
   const isToday = isSameDay(day, today);
   const iso = toISODate(day);
   const allDayEvents = eventsByDate.get(iso) || [];
-  // Groups view shows only group events (no shift rail); Team view shows only
-  // user/shift events plus the shift rail.
+  // Groups view shows only group events (no shift rail); Events view shows
+  // only standalone events; Team view shows user/shift events plus the rail.
   const dayEvents = allDayEvents.filter((ev) =>
-    viewMode === 'groups' ? ev.subject_kind === 'group' : ev.subject_kind !== 'group'
+    viewMode === 'groups'
+      ? ev.subject_kind === 'group'
+      : viewMode === 'events'
+      ? ev.subject_kind === 'event'
+      : ev.subject_kind === 'user' || ev.subject_kind === 'event'
   );
   const timedEvents = dayEvents.filter((ev) => {
     if (parseTime(ev.start_time) == null) return false;
@@ -2992,7 +3096,7 @@ function EditModal({
   const [endHour, setEndHour] = useState(initialEnd);
   const [repeatRule, setRepeatRule] = useState<'' | RepeatRule>((event.repeat_rule as RepeatRule) || '');
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [color, setColor] = useState<string>(event.color || colorFor(event.subject_id));
+  const [color, setColor] = useState<string>(event.color || colorFor(event.subject_id ?? event.id));
 
   function handleSave() {
     if (!title.trim()) return;
@@ -3491,8 +3595,8 @@ function DragPreviewTooltip({
 
   const label =
     ev.subject_kind === 'user'
-      ? usersById.get(ev.subject_id)
-        ? userLabel(usersById.get(ev.subject_id)!)
+      ? usersById.get(ev.subject_id ?? '')
+        ? userLabel(usersById.get(ev.subject_id ?? '')!)
         : ev.title
       : ev.title;
 

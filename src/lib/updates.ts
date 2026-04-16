@@ -12,6 +12,14 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-16T00:30:00Z',
+    title: 'Calendar: Events tab',
+    items: [
+      'New "Events" tab on the calendar — schedule standalone events not tied to a group or team member.',
+      'Type an event name in the Events panel, then drag it onto any day.',
+    ],
+  },
+  {
     at: '2026-04-16T00:15:00Z',
     title: 'Mobile polish pass',
     items: [
