@@ -12,6 +12,25 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-16T00:30:00Z',
+    title: 'Calendar: Events tab',
+    items: [
+      'New "Events" tab on the calendar — schedule standalone events not tied to a group or team member.',
+      'Type an event name in the Events panel, then drag it onto any day.',
+    ],
+  },
+  {
+    at: '2026-04-16T00:15:00Z',
+    title: 'Mobile polish pass',
+    items: [
+      'Home dashboard button no longer collides with the mobile top bar.',
+      'Cursors are now hidden on mobile (touch devices only).',
+      '"Online today" tooltips hidden on mobile to avoid overflow.',
+      'Team page Org Chart button shrinks on small screens.',
+      'Photo lightbox: delete button moved away from close to avoid mis-taps.',
+    ],
+  },
+  {
     at: '2026-04-15T23:55:00Z',
     title: 'Profile, cursors, and sign-ins',
     items: [

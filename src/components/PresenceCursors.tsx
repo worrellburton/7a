@@ -198,7 +198,7 @@ export function PresenceCursors() {
   const visible = Object.values(cursors).filter((c) => c.path === pathname);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-[200] overflow-hidden">
+    <div className="hidden lg:block fixed inset-0 pointer-events-none z-[200] overflow-hidden">
       {visible.map((c) => {
         // Rescale to current viewport so cursors land in roughly the same
         // visual location even when viewport sizes differ between clients.
