@@ -15,6 +15,23 @@ interface VetVisit {
   doc_urls: string[];
 }
 
+interface WeightLog {
+  id: string;
+  horse_id: string;
+  weight_lbs: number;
+  logged_at: string;
+}
+
+interface FeedLog {
+  id: string;
+  horse_id: string;
+  feed_type: string;
+  amount: number | null;
+  unit: string | null;
+  notes: string | null;
+  logged_at: string;
+}
+
 interface Horse {
   id: string;
   name: string;
@@ -35,6 +52,10 @@ interface Horse {
   image_url: string | null;
   created_at: string;
 }
+
+const RIDEABLE_OPTIONS = ['Yes', 'No', 'For staff', 'Maybe'] as const;
+
+const VET_REASONS = ['Checkup', 'Vaccines', 'Deworming', 'Dental', 'Lameness', 'Injury', 'Other'] as const;
 
 const rideableColor = (v: string) => {
   if (v === 'Yes') return 'bg-emerald-50 text-emerald-700';
@@ -72,8 +93,26 @@ export default function HorseContent() {
 
   const [showVetForm, setShowVetForm] = useState(false);
   const [vetFormDate, setVetFormDate] = useState('');
-  const [vetFormReason, setVetFormReason] = useState('');
+  const [vetFormReason, setVetFormReason] = useState<string>('Checkup');
   const [vetFormNotes, setVetFormNotes] = useState('');
+  const [vetFormPdf, setVetFormPdf] = useState<File | null>(null);
+  const [vetFormSaving, setVetFormSaving] = useState(false);
+  const vetFormPdfRef = useRef<HTMLInputElement>(null);
+
+  // Weight logging
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
+  const [showWeightForm, setShowWeightForm] = useState(false);
+  const [newWeightValue, setNewWeightValue] = useState('');
+  const [newWeightDate, setNewWeightDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  // Feed logging
+  const [feedLogs, setFeedLogs] = useState<FeedLog[]>([]);
+  const [showFeedForm, setShowFeedForm] = useState(false);
+  const [newFeedType, setNewFeedType] = useState('');
+  const [newFeedAmount, setNewFeedAmount] = useState('');
+  const [newFeedUnit, setNewFeedUnit] = useState('lbs');
+  const [newFeedNotes, setNewFeedNotes] = useState('');
+  const [newFeedDate, setNewFeedDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
     if (!session?.access_token || !horseId) return;
@@ -98,6 +137,20 @@ export default function HorseContent() {
       setLoading(false);
     }
     load();
+  }, [session, horseId]);
+
+  useEffect(() => {
+    if (!session?.access_token || !horseId) return;
+    (async () => {
+      try {
+        const [wl, fl] = await Promise.all([
+          db({ action: 'select', table: 'equine_weight_logs', match: { horse_id: horseId }, order: { column: 'logged_at', ascending: true } }),
+          db({ action: 'select', table: 'equine_feed_logs', match: { horse_id: horseId }, order: { column: 'logged_at', ascending: false } }),
+        ]);
+        if (Array.isArray(wl)) setWeightLogs(wl as WeightLog[]);
+        if (Array.isArray(fl)) setFeedLogs(fl as FeedLog[]);
+      } catch { /* ignore */ }
+    })();
   }, [session, horseId]);
 
   const updateField = async (field: string, value: string) => {
@@ -165,14 +218,79 @@ export default function HorseContent() {
 
   const addVetVisit = async () => {
     if (!horse || !vetFormDate) return;
-    const visit: VetVisit = { date: vetFormDate, reason: vetFormReason, notes: vetFormNotes, doc_urls: [] };
+    setVetFormSaving(true);
+    const doc_urls: string[] = [];
+    if (vetFormPdf) {
+      const { url } = await uploadFile(vetFormPdf);
+      if (url) doc_urls.push(url);
+    }
+    const visit: VetVisit = { date: vetFormDate, reason: vetFormReason, notes: vetFormNotes, doc_urls };
     const newVisits = [...(horse.vet_visits || []), visit].sort((a, b) => b.date.localeCompare(a.date));
     await db({ action: 'update', table: 'equine', data: { vet_visits: newVisits }, match: { id: horse.id } });
     setHorse({ ...horse, vet_visits: newVisits });
     setShowVetForm(false);
     setVetFormDate('');
-    setVetFormReason('');
+    setVetFormReason('Checkup');
     setVetFormNotes('');
+    setVetFormPdf(null);
+    if (vetFormPdfRef.current) vetFormPdfRef.current.value = '';
+    setVetFormSaving(false);
+  };
+
+  const addWeightLog = async () => {
+    if (!horse) return;
+    const lbs = parseFloat(newWeightValue);
+    if (!lbs || lbs <= 0) return;
+    const loggedAt = newWeightDate ? new Date(newWeightDate + 'T12:00:00').toISOString() : new Date().toISOString();
+    const inserted = await db({
+      action: 'insert',
+      table: 'equine_weight_logs',
+      data: { horse_id: horse.id, weight_lbs: lbs, logged_at: loggedAt },
+    });
+    if (inserted && inserted.id) {
+      setWeightLogs((prev) => [...prev, inserted as WeightLog].sort((a, b) => a.logged_at.localeCompare(b.logged_at)));
+    }
+    // Keep the horse's current weight column in sync with the latest log.
+    const display = `${lbs} lbs`;
+    setHorse({ ...horse, weight: display });
+    await db({ action: 'update', table: 'equine', data: { weight: display }, match: { id: horse.id } });
+    setNewWeightValue('');
+    setShowWeightForm(false);
+  };
+
+  const deleteWeightLog = async (id: string) => {
+    setWeightLogs((prev) => prev.filter((w) => w.id !== id));
+    await db({ action: 'delete', table: 'equine_weight_logs', match: { id } });
+  };
+
+  const addFeedLog = async () => {
+    if (!horse || !newFeedType.trim()) return;
+    const amt = newFeedAmount ? parseFloat(newFeedAmount) : null;
+    const loggedAt = newFeedDate ? new Date(newFeedDate + 'T12:00:00').toISOString() : new Date().toISOString();
+    const inserted = await db({
+      action: 'insert',
+      table: 'equine_feed_logs',
+      data: {
+        horse_id: horse.id,
+        feed_type: newFeedType.trim(),
+        amount: amt,
+        unit: newFeedUnit.trim() || null,
+        notes: newFeedNotes.trim() || null,
+        logged_at: loggedAt,
+      },
+    });
+    if (inserted && inserted.id) {
+      setFeedLogs((prev) => [inserted as FeedLog, ...prev]);
+    }
+    setNewFeedType('');
+    setNewFeedAmount('');
+    setNewFeedNotes('');
+    setShowFeedForm(false);
+  };
+
+  const deleteFeedLog = async (id: string) => {
+    setFeedLogs((prev) => prev.filter((f) => f.id !== id));
+    await db({ action: 'delete', table: 'equine_feed_logs', match: { id } });
   };
 
   const removeVetVisit = async (visitIndex: number) => {
@@ -336,8 +454,45 @@ export default function HorseContent() {
             <div className={`text-sm ${bodyScoreColor(horse.body_score)}`} style={{ fontFamily: 'var(--font-body)' }}>{renderEditable('body_score', String(horse.body_score || ''), bodyScoreColor(horse.body_score))}</div>
           </div>
           <div>
-            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Weight</p>
+            <div className="flex items-center gap-1 mb-1">
+              <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Weight</p>
+              <button
+                type="button"
+                onClick={() => setShowWeightForm((v) => !v)}
+                className="text-foreground/30 hover:text-primary transition-colors"
+                aria-label="Log new weight"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              </button>
+            </div>
             <div className="text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>{renderEditable('weight', horse.weight)}</div>
+            {showWeightForm && (
+              <div className="mt-2 flex items-center gap-1" onKeyDown={(e) => { if (e.key === 'Enter') addWeightLog(); if (e.key === 'Escape') setShowWeightForm(false); }}>
+                <input
+                  autoFocus
+                  type="number"
+                  step="1"
+                  placeholder="lbs"
+                  value={newWeightValue}
+                  onChange={(e) => setNewWeightValue(e.target.value)}
+                  className="w-16 px-1.5 py-0.5 rounded border border-gray-200 text-xs focus:outline-none focus:border-primary bg-white"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                />
+                <input
+                  type="date"
+                  value={newWeightDate}
+                  onChange={(e) => setNewWeightDate(e.target.value)}
+                  className="px-1 py-0.5 rounded border border-gray-200 text-[10px] focus:outline-none focus:border-primary bg-white"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                />
+                <button
+                  onClick={addWeightLog}
+                  disabled={!newWeightValue}
+                  className="px-2 py-0.5 rounded bg-foreground text-white text-[10px] font-medium hover:bg-foreground/80 disabled:opacity-40"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >Log</button>
+              </div>
+            )}
           </div>
           <div>
             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Works In</p>
@@ -346,16 +501,27 @@ export default function HorseContent() {
           <div>
             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Rideable</p>
             <div className="text-sm text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
-              {editField === 'rideable' ? (
-                renderEditable('rideable', horse.rideable)
-              ) : (
-                <span
-                  className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium cursor-text ${rideableColor(horse.rideable)}`}
-                  onClick={() => startEdit('rideable', horse.rideable)}
+              <div className="relative inline-block">
+                <select
+                  value={RIDEABLE_OPTIONS.includes(horse.rideable as typeof RIDEABLE_OPTIONS[number]) ? horse.rideable : ''}
+                  onChange={(e) => updateField('rideable', e.target.value)}
+                  className={`appearance-none pl-2 pr-6 py-0.5 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none ${rideableColor(horse.rideable)}`}
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 4px center',
+                  }}
                 >
-                  {horse.rideable || '—'}
-                </span>
-              )}
+                  <option value="">—</option>
+                  {RIDEABLE_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                  {horse.rideable && !RIDEABLE_OPTIONS.includes(horse.rideable as typeof RIDEABLE_OPTIONS[number]) && (
+                    <option value={horse.rideable}>{horse.rideable}</option>
+                  )}
+                </select>
+              </div>
             </div>
           </div>
           <div>
@@ -393,6 +559,67 @@ export default function HorseContent() {
         </div>
       </div>
 
+      {/* Weight history */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-foreground" style={{ fontFamily: 'var(--font-body)' }}>Weight over time ({weightLogs.length})</h2>
+          <button
+            onClick={() => setShowWeightForm(true)}
+            className="text-xs text-primary hover:underline font-medium"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >+ Log weight</button>
+        </div>
+        <WeightGraph logs={weightLogs} onDelete={deleteWeightLog} />
+      </div>
+
+      {/* Feed */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-foreground" style={{ fontFamily: 'var(--font-body)' }}>Feed ({feedLogs.length})</h2>
+          <button
+            onClick={() => setShowFeedForm((v) => !v)}
+            className="text-xs text-primary hover:underline font-medium"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >+ Add feed</button>
+        </div>
+        {showFeedForm && (
+          <div className="bg-warm-bg/30 rounded-xl p-3 border border-gray-100 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 mb-2">
+              <div className="sm:col-span-2">
+                <label className="text-[10px] text-foreground/40 block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Feed type</label>
+                <input type="text" value={newFeedType} onChange={(e) => setNewFeedType(e.target.value)} placeholder="Hay, grain, supplement…" className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" style={{ fontFamily: 'var(--font-body)' }} />
+              </div>
+              <div>
+                <label className="text-[10px] text-foreground/40 block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Amount</label>
+                <input type="number" step="0.1" value={newFeedAmount} onChange={(e) => setNewFeedAmount(e.target.value)} placeholder="0" className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" style={{ fontFamily: 'var(--font-body)' }} />
+              </div>
+              <div>
+                <label className="text-[10px] text-foreground/40 block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Unit</label>
+                <select value={newFeedUnit} onChange={(e) => setNewFeedUnit(e.target.value)} className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" style={{ fontFamily: 'var(--font-body)' }}>
+                  <option value="lbs">lbs</option>
+                  <option value="flakes">flakes</option>
+                  <option value="scoops">scoops</option>
+                  <option value="cups">cups</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-foreground/40 block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Date</label>
+                <input type="date" value={newFeedDate} onChange={(e) => setNewFeedDate(e.target.value)} className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" style={{ fontFamily: 'var(--font-body)' }} />
+              </div>
+            </div>
+            <div className="mb-2">
+              <label className="text-[10px] text-foreground/40 block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Notes</label>
+              <input type="text" value={newFeedNotes} onChange={(e) => setNewFeedNotes(e.target.value)} placeholder="Optional" className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" style={{ fontFamily: 'var(--font-body)' }} />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={addFeedLog} disabled={!newFeedType.trim()} className="px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40" style={{ fontFamily: 'var(--font-body)' }}>Log feed</button>
+              <button onClick={() => setShowFeedForm(false)} className="px-3 py-1.5 rounded-lg text-xs text-foreground/50 hover:bg-warm-bg" style={{ fontFamily: 'var(--font-body)' }}>Cancel</button>
+            </div>
+          </div>
+        )}
+        <FeedReport logs={feedLogs} onDelete={deleteFeedLog} />
+      </div>
+
       {/* Vet Visits */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
         <div className="flex items-center justify-between mb-3">
@@ -412,16 +639,39 @@ export default function HorseContent() {
               </div>
               <div>
                 <label className="text-[10px] text-foreground/40 block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Reason</label>
-                <input type="text" value={vetFormReason} onChange={e => setVetFormReason(e.target.value)} placeholder="Checkup, vaccines..." className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" style={{ fontFamily: 'var(--font-body)' }} />
+                <select
+                  value={vetFormReason}
+                  onChange={e => setVetFormReason(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {VET_REASONS.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="text-[10px] text-foreground/40 block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Notes</label>
                 <input type="text" value={vetFormNotes} onChange={e => setVetFormNotes(e.target.value)} placeholder="Details..." className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" style={{ fontFamily: 'var(--font-body)' }} />
               </div>
             </div>
+            <div className="mb-2">
+              <label className="text-[10px] text-foreground/40 block mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Report PDF (optional)</label>
+              <input
+                ref={vetFormPdfRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={(e) => setVetFormPdf(e.target.files?.[0] || null)}
+                className="block w-full text-xs text-foreground/70 file:mr-2 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-warm-bg file:text-foreground/70 file:text-xs hover:file:bg-warm-bg/80"
+                style={{ fontFamily: 'var(--font-body)' }}
+              />
+              {vetFormPdf && (
+                <p className="text-[10px] text-foreground/40 mt-1" style={{ fontFamily: 'var(--font-body)' }}>Selected: {vetFormPdf.name}</p>
+              )}
+            </div>
             <div className="flex gap-2">
-              <button onClick={addVetVisit} disabled={!vetFormDate} className="px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40" style={{ fontFamily: 'var(--font-body)' }}>Save Visit</button>
-              <button onClick={() => setShowVetForm(false)} className="px-3 py-1.5 rounded-lg text-xs text-foreground/50 hover:bg-warm-bg" style={{ fontFamily: 'var(--font-body)' }}>Cancel</button>
+              <button onClick={addVetVisit} disabled={!vetFormDate || vetFormSaving} className="px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-medium hover:bg-foreground/80 disabled:opacity-40" style={{ fontFamily: 'var(--font-body)' }}>{vetFormSaving ? 'Saving…' : 'Save Visit'}</button>
+              <button onClick={() => { setShowVetForm(false); setVetFormPdf(null); if (vetFormPdfRef.current) vetFormPdfRef.current.value = ''; }} className="px-3 py-1.5 rounded-lg text-xs text-foreground/50 hover:bg-warm-bg" style={{ fontFamily: 'var(--font-body)' }}>Cancel</button>
             </div>
           </div>
         )}
@@ -518,6 +768,126 @@ export default function HorseContent() {
           onCancel={() => setCropFile(null)}
         />
       )}
+    </div>
+  );
+}
+
+function WeightGraph({ logs, onDelete }: { logs: WeightLog[]; onDelete: (id: string) => void }) {
+  if (logs.length === 0) {
+    return <p className="text-xs text-foreground/30 italic" style={{ fontFamily: 'var(--font-body)' }}>No weight logged yet. Hit the + next to Weight to log one.</p>;
+  }
+  const values = logs.map((l) => Number(l.weight_lbs));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  // Pad the range so bars don't bottom out when values are close.
+  const pad = Math.max(20, (max - min) * 0.1);
+  const lo = Math.max(0, min - pad);
+  const hi = max + pad;
+  const span = Math.max(1, hi - lo);
+  return (
+    <div>
+      <div className="flex items-end gap-1.5 h-40 overflow-x-auto pb-1">
+        {logs.map((l) => {
+          const pct = ((Number(l.weight_lbs) - lo) / span) * 100;
+          const date = new Date(l.logged_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          return (
+            <div key={l.id} className="flex-1 min-w-[28px] flex flex-col items-center justify-end gap-1 group">
+              <span className="text-[10px] font-semibold text-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontFamily: 'var(--font-body)' }}>{Number(l.weight_lbs)}</span>
+              <div
+                className="w-full rounded-t-md bg-primary/70 hover:bg-primary transition-colors relative cursor-pointer"
+                style={{ height: `${Math.max(4, pct)}%` }}
+                onClick={() => onDelete(l.id)}
+                title={`${Number(l.weight_lbs)} lbs on ${date} — click to remove`}
+              />
+              <span className="text-[9px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{date}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex items-center justify-between text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+        <span>Low: {Math.round(min)} lbs</span>
+        <span>High: {Math.round(max)} lbs</span>
+        <span>Latest: {Math.round(Number(logs[logs.length - 1].weight_lbs))} lbs</span>
+      </div>
+    </div>
+  );
+}
+
+function FeedReport({ logs, onDelete }: { logs: FeedLog[]; onDelete: (id: string) => void }) {
+  if (logs.length === 0) {
+    return <p className="text-xs text-foreground/30 italic" style={{ fontFamily: 'var(--font-body)' }}>No feed logged yet.</p>;
+  }
+  // Rollup: per feed_type, sum amount (by unit) and count entries within the last 30 days.
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const rollup = new Map<string, { count: number; totals: Map<string, number> }>();
+  for (const l of logs) {
+    if (new Date(l.logged_at).getTime() < cutoff) continue;
+    const key = l.feed_type;
+    const entry = rollup.get(key) || { count: 0, totals: new Map<string, number>() };
+    entry.count += 1;
+    if (l.amount != null) {
+      const unit = l.unit || 'units';
+      entry.totals.set(unit, (entry.totals.get(unit) || 0) + Number(l.amount));
+    }
+    rollup.set(key, entry);
+  }
+  return (
+    <div className="space-y-4">
+      {rollup.size > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Last 30 days</p>
+          <div className="border border-gray-100 rounded-xl overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-warm-bg/40 text-foreground/40">
+                  <th className="px-3 py-2">Feed type</th>
+                  <th className="px-3 py-2">Entries</th>
+                  <th className="px-3 py-2">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...rollup.entries()].sort((a, b) => b[1].count - a[1].count).map(([type, { count, totals }]) => (
+                  <tr key={type} className="border-t border-gray-50">
+                    <td className="px-3 py-2 text-foreground font-medium">{type}</td>
+                    <td className="px-3 py-2 text-foreground/70">{count}</td>
+                    <td className="px-3 py-2 text-foreground/70">
+                      {[...totals.entries()].map(([u, total]) => `${Math.round(total * 100) / 100} ${u}`).join(' · ') || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      <div>
+        <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Recent entries</p>
+        <div className="space-y-1.5">
+          {logs.slice(0, 10).map((l) => (
+            <div key={l.id} className="bg-warm-bg/20 rounded-lg px-3 py-2 border border-gray-100 flex items-center justify-between group">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">
+                  {l.feed_type}
+                  {l.amount != null && (
+                    <span className="ml-2 text-foreground/50 font-normal" style={{ fontFamily: 'var(--font-body)' }}>{l.amount}{l.unit ? ` ${l.unit}` : ''}</span>
+                  )}
+                </p>
+                <p className="text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                  {new Date(l.logged_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {l.notes ? ` · ${l.notes}` : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => onDelete(l.id)}
+                className="text-foreground/20 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                aria-label="Remove feed entry"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
