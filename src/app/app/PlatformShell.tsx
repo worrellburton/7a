@@ -367,6 +367,13 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M8 11h8M8 15h8M8 19h5" />
     </svg>
   ),
+  '/app/policies': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 4h6l3 3v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+      <path d="M14 4v4h4" />
+      <path d="m9 14 2 2 4-4" />
+    </svg>
+  ),
 };
 
 function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
