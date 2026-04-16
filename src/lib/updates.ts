@@ -12,6 +12,15 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-16T04:00:00Z',
+    title: 'Activity: every action shows up now',
+    items: [
+      'Audited every write across the app — Horses, Tours, Calendar, Groups, Facilities, Job Descriptions, Billing, RCM pipeline, Fleet, Departments, Profile.',
+      'New events logged: weight logs, feed logs, vet visits, tour guests / presentations / staff / schedule / rooms, calendar moves + resizes, facility status/priority changes, JD assignments + deletes, claim status changes, fleet docs, and more.',
+      'Open Activity and you\'ll see real work instead of a wall of sign-ins.',
+    ],
+  },
+  {
     at: '2026-04-16T03:00:00Z',
     title: 'Horses: track weight + feed, tighten vet form',
     items: [

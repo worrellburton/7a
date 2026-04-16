@@ -366,11 +366,13 @@ export default function JobDescriptionDetailContent() {
     if (!job) return;
     await db({ action: 'update', table: 'users', data: { job_title: job.title }, match: { id: u.id } });
     setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, job_title: job.title } : x)));
+    if (user) logActivity({ userId: user.id, type: 'jd.assigned', targetKind: 'user', targetId: u.id, targetLabel: `${u.full_name || 'Unnamed'} → ${job.title}`, targetPath: `/app/job-descriptions/${job.id}` });
   }
 
   async function unassignUser(u: AppUserLite) {
     await db({ action: 'update', table: 'users', data: { job_title: null }, match: { id: u.id } });
     setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, job_title: null } : x)));
+    if (user && job) logActivity({ userId: user.id, type: 'jd.unassigned', targetKind: 'user', targetId: u.id, targetLabel: `${u.full_name || 'Unnamed'} from ${job.title}`, targetPath: `/app/job-descriptions/${job.id}` });
   }
 
   async function archiveRole() {
@@ -391,6 +393,7 @@ export default function JobDescriptionDetailContent() {
     try {
       await db({ action: 'delete', table: 'jd_signatures', match: { job_description_id: job.id } }).catch(() => {});
       await db({ action: 'delete', table: 'job_descriptions', match: { id: job.id } });
+      if (user) logActivity({ userId: user.id, type: 'jd.deleted', targetKind: 'job_description', targetId: job.id, targetLabel: job.title, targetPath: '/app/job-descriptions' });
       router.push('/app/job-descriptions');
     } catch (err) {
       window.alert(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -440,6 +443,7 @@ export default function JobDescriptionDetailContent() {
           setSigStatus(`Signature link: ${link}`);
         }
         await patchJob({}, `Sent for signature to ${target.full_name || 'team member'}`);
+        if (user) logActivity({ userId: user.id, type: 'jd.signature_requested', targetKind: 'job_description', targetId: job.id, targetLabel: `${job.title} → ${target.full_name || 'team member'}`, targetPath: `/app/job-descriptions/${job.id}` });
       }
     } catch (err) {
       setSigStatus(err instanceof Error ? `Failed: ${err.message}` : 'Failed to send');
@@ -449,8 +453,10 @@ export default function JobDescriptionDetailContent() {
   }
 
   async function removeSignature(sigId: string) {
+    const removed = signatures.find((s) => s.id === sigId);
     await db({ action: 'delete', table: 'jd_signatures', match: { id: sigId } });
     setSignatures((prev) => prev.filter((s) => s.id !== sigId));
+    if (user && job) logActivity({ userId: user.id, type: 'jd.signature_removed', targetKind: 'job_description', targetId: job.id, targetLabel: `${job.title}${removed?.signer_name ? ' · ' + removed.signer_name : ''}`, targetPath: `/app/job-descriptions/${job.id}` });
   }
 
   // Latest saved version snapshot (highest version number).

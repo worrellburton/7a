@@ -161,6 +161,8 @@ export function IssueChat({ issueId, issueLabel }: { issueId: string; issueLabel
     const res = await db({ action: 'delete', table: 'facilities_issue_messages', match: { id } });
     if (!res || (res as { ok?: boolean; error?: string }).error) {
       setMessages(prev);
+    } else if (user?.id) {
+      logActivity({ userId: user.id, type: 'facilities.chat_message_deleted', targetKind: 'facilities_issue', targetId: issueId, targetLabel: issueLabel || 'facilities issue', targetPath: '/app/facilities' });
     }
   };
 

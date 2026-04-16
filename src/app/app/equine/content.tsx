@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { uploadFile } from '@/lib/upload';
+import { logActivity } from '@/lib/activity';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 import { ImageCropModal } from '@/components/ImageCropModal';
@@ -202,6 +203,10 @@ export default function EquineContent() {
       }
       setHorses(prev => prev.map(h => h.id === horseId ? { ...h, document_urls: newUrls } : h));
     }
+    if (url && user) {
+      const horse = horses.find(h => h.id === horseId);
+      logActivity({ userId: user.id, type: 'equine.doc_uploaded', targetKind: 'equine', targetId: horseId, targetLabel: horse?.name || 'Horse', targetPath: `/app/equine/${horseId}` });
+    }
     setUploading(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -229,6 +234,10 @@ export default function EquineContent() {
         await db({ action: 'update', table: 'equine', data: { image_url: url }, match: { id: target.horseId } });
       }
       setHorses(prev => prev.map(h => h.id === target.horseId ? { ...h, image_url: url } : h));
+      if (user) {
+        const horse = horses.find(h => h.id === target.horseId);
+        logActivity({ userId: user.id, type: 'equine.photo_updated', targetKind: 'equine', targetId: target.horseId, targetLabel: horse?.name || 'Horse', targetPath: `/app/equine/${target.horseId}` });
+      }
     }
     setUploadingImage(null);
   };

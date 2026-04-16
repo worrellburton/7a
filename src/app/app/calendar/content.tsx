@@ -720,9 +720,19 @@ export default function CalendarContent() {
               : ev
           )
         );
+      } else if (user) {
+        logActivity({
+          userId: user.id,
+          type: 'calendar_event.moved',
+          targetKind: 'calendar_event',
+          targetId: eventId,
+          targetLabel: (existing.title as string | null) || 'Event',
+          targetPath: '/app/calendar',
+          metadata: { from_date: existing.event_date, to_date: newDate, from_start: existing.start_time, to_start: newStart },
+        });
       }
     },
-    [events, shifts, eventsByDate]
+    [events, shifts, eventsByDate, user]
   );
 
   // ---- Resize an event (change start_time or end_time) ----
@@ -755,9 +765,19 @@ export default function CalendarContent() {
               : ev
           )
         );
+      } else if (user) {
+        logActivity({
+          userId: user.id,
+          type: 'calendar_event.resized',
+          targetKind: 'calendar_event',
+          targetId: eventId,
+          targetLabel: (existing.title as string | null) || 'Event',
+          targetPath: '/app/calendar',
+          metadata: { start: newStart, end: newEnd },
+        });
       }
     },
-    [events]
+    [events, user]
   );
 
   // ---- Save edits from the modal ----
@@ -776,9 +796,18 @@ export default function CalendarContent() {
       if (!result || !(result as { ok?: boolean }).ok) {
         // Roll back on failure
         setEvents((prev) => prev.map((ev) => (ev.id === masterId ? existing : ev)));
+      } else if (user) {
+        logActivity({
+          userId: user.id,
+          type: 'calendar_event.updated',
+          targetKind: 'calendar_event',
+          targetId: masterId,
+          targetLabel: ((patch.title as string | undefined) || (existing.title as string | null) || 'Event'),
+          targetPath: '/app/calendar',
+        });
       }
     },
-    [events]
+    [events, user]
   );
 
   // ---- Delete ----

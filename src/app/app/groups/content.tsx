@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
+import { logActivity } from '@/lib/activity';
 import { useEffect, useState } from 'react';
 
 interface Group {
@@ -71,12 +72,14 @@ export default function GroupsContent() {
         setGroups((prev) =>
           prev.map((g) => (g.id === editingGroup.id ? { ...g, ...payload } : g))
         );
+        if (user) logActivity({ userId: user.id, type: 'group.updated', targetKind: 'group', targetId: editingGroup.id, targetLabel: payload.name, targetPath: '/app/groups' });
         closeModal();
       }
     } else {
       const data = await db({ action: 'insert', table: 'groups', data: payload });
       if (data && (data as Group).id) {
         setGroups((prev) => [data as Group, ...prev]);
+        if (user) logActivity({ userId: user.id, type: 'group.created', targetKind: 'group', targetId: (data as Group).id, targetLabel: payload.name, targetPath: '/app/groups' });
         closeModal();
       }
     }
@@ -93,6 +96,7 @@ export default function GroupsContent() {
     const result = await db({ action: 'delete', table: 'groups', match: { id } });
     if (result && (result as { ok?: boolean }).ok) {
       setGroups((prev) => prev.filter((g) => g.id !== id));
+      if (user) logActivity({ userId: user.id, type: 'group.deleted', targetKind: 'group', targetId: id, targetLabel: groupName, targetPath: '/app/groups' });
     }
   }
 

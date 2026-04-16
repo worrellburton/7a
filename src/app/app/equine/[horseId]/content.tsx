@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { uploadFile } from '@/lib/upload';
+import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
@@ -228,6 +229,9 @@ export default function HorseContent() {
     const newVisits = [...(horse.vet_visits || []), visit].sort((a, b) => b.date.localeCompare(a.date));
     await db({ action: 'update', table: 'equine', data: { vet_visits: newVisits }, match: { id: horse.id } });
     setHorse({ ...horse, vet_visits: newVisits });
+    if (user) {
+      logActivity({ userId: user.id, type: 'equine.vet_visit_added', targetKind: 'equine', targetId: horse.id, targetLabel: `${horse.name} · ${vetFormReason}`, targetPath: `/app/equine/${horse.id}`, metadata: { reason: vetFormReason, date: vetFormDate, has_pdf: doc_urls.length > 0 } });
+    }
     setShowVetForm(false);
     setVetFormDate('');
     setVetFormReason('Checkup');
@@ -254,6 +258,9 @@ export default function HorseContent() {
     const display = `${lbs} lbs`;
     setHorse({ ...horse, weight: display });
     await db({ action: 'update', table: 'equine', data: { weight: display }, match: { id: horse.id } });
+    if (user) {
+      logActivity({ userId: user.id, type: 'equine.weight_logged', targetKind: 'equine', targetId: horse.id, targetLabel: `${horse.name} · ${lbs} lbs`, targetPath: `/app/equine/${horse.id}`, metadata: { lbs, logged_at: loggedAt } });
+    }
     setNewWeightValue('');
     setShowWeightForm(false);
   };
@@ -261,6 +268,9 @@ export default function HorseContent() {
   const deleteWeightLog = async (id: string) => {
     setWeightLogs((prev) => prev.filter((w) => w.id !== id));
     await db({ action: 'delete', table: 'equine_weight_logs', match: { id } });
+    if (user && horse) {
+      logActivity({ userId: user.id, type: 'equine.weight_log_removed', targetKind: 'equine', targetId: horse.id, targetLabel: horse.name, targetPath: `/app/equine/${horse.id}` });
+    }
   };
 
   const addFeedLog = async () => {
@@ -282,6 +292,10 @@ export default function HorseContent() {
     if (inserted && inserted.id) {
       setFeedLogs((prev) => [inserted as FeedLog, ...prev]);
     }
+    if (user) {
+      const label = amt != null ? `${horse.name} · ${newFeedType.trim()} ${amt}${newFeedUnit ? ` ${newFeedUnit}` : ''}` : `${horse.name} · ${newFeedType.trim()}`;
+      logActivity({ userId: user.id, type: 'equine.feed_logged', targetKind: 'equine', targetId: horse.id, targetLabel: label, targetPath: `/app/equine/${horse.id}`, metadata: { feed_type: newFeedType.trim(), amount: amt, unit: newFeedUnit } });
+    }
     setNewFeedType('');
     setNewFeedAmount('');
     setNewFeedNotes('');
@@ -291,13 +305,20 @@ export default function HorseContent() {
   const deleteFeedLog = async (id: string) => {
     setFeedLogs((prev) => prev.filter((f) => f.id !== id));
     await db({ action: 'delete', table: 'equine_feed_logs', match: { id } });
+    if (user && horse) {
+      logActivity({ userId: user.id, type: 'equine.feed_log_removed', targetKind: 'equine', targetId: horse.id, targetLabel: horse.name, targetPath: `/app/equine/${horse.id}` });
+    }
   };
 
   const removeVetVisit = async (visitIndex: number) => {
     if (!horse) return;
+    const removed = horse.vet_visits[visitIndex];
     const newVisits = horse.vet_visits.filter((_, i) => i !== visitIndex);
     await db({ action: 'update', table: 'equine', data: { vet_visits: newVisits }, match: { id: horse.id } });
     setHorse({ ...horse, vet_visits: newVisits });
+    if (user) {
+      logActivity({ userId: user.id, type: 'equine.vet_visit_removed', targetKind: 'equine', targetId: horse.id, targetLabel: `${horse.name}${removed?.reason ? ' · ' + removed.reason : ''}`, targetPath: `/app/equine/${horse.id}` });
+    }
   };
 
   const handleVetDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

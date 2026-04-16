@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
+import { logActivity } from '@/lib/activity';
 import React, { useEffect, useState } from 'react';
 
 interface Patient {
@@ -453,7 +454,10 @@ export default function BillingContent() {
 
     if (dbAvailable) {
       const result = await db({ action: 'insert', table: 'billing_claims', data });
-      if (result?.id) setClaims(prev => [result, ...prev]);
+      if (result?.id) {
+        setClaims(prev => [result, ...prev]);
+        if (user?.id) logActivity({ userId: user.id, type: 'billing.claim_created', targetKind: 'billing_claim', targetId: result.id, targetLabel: `$${data.charge_amount} · ${data.procedure_code}`, targetPath: '/app/billing' });
+      }
     } else {
       setClaims(prev => [{ ...data, id: `local-${Date.now()}`, stedi_claim_id: '', stedi_response: null, submitted_at: '', created_at: new Date().toISOString() }, ...prev]);
     }
@@ -494,6 +498,7 @@ export default function BillingContent() {
         await db({ action: 'update', table: 'billing_claims', data: { status: newStatus, stedi_claim_id: stediClaimId, stedi_response: result, submitted_at: new Date().toISOString() }, match: { id: claim.id } });
       }
       setClaims(prev => prev.map(c => c.id === claim.id ? { ...c, status: newStatus, stedi_claim_id: stediClaimId, stedi_response: result, submitted_at: new Date().toISOString() } : c));
+      if (user?.id) logActivity({ userId: user.id, type: 'billing.claim_submitted', targetKind: 'billing_claim', targetId: claim.id, targetLabel: `$${claim.charge_amount} · ${newStatus}`, targetPath: '/app/billing', metadata: { status: newStatus, stedi_claim_id: stediClaimId } });
     } catch (err) {
       alert('Stedi submission failed', { message: String(err) });
     }
@@ -501,10 +506,12 @@ export default function BillingContent() {
   };
 
   const moveClaimToStage = async (claimId: string, newStatus: string) => {
+    const claim = claims.find((c) => c.id === claimId);
     setClaims(prev => prev.map(c => c.id === claimId ? { ...c, status: newStatus } : c));
     if (dbAvailable) {
       await db({ action: 'update', table: 'billing_claims', data: { status: newStatus }, match: { id: claimId } });
     }
+    if (user?.id) logActivity({ userId: user.id, type: 'billing.claim_status_changed', targetKind: 'billing_claim', targetId: claimId, targetLabel: `$${claim?.charge_amount ?? ''} · ${newStatus}`, targetPath: '/app/billing', metadata: { status: newStatus } });
   };
 
   if (!user) return null;

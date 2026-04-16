@@ -340,11 +340,19 @@ export default function FacilitiesContent() {
   const updateStatus = async (id: string, status: Status) => {
     await db({ action: 'update', table: 'facilities_issues', data: { status }, match: { id } });
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
+    if (user?.id) {
+      const it = items.find((i) => i.id === id);
+      logActivity({ userId: user.id, type: 'facilities.status_changed', targetKind: 'facilities_issue', targetId: id, targetLabel: `${it?.location || ''} — ${it?.issue || ''} → ${status}`, targetPath: '/app/facilities', metadata: { status } });
+    }
   };
 
   const updatePriority = async (id: string, priority: Priority) => {
     await db({ action: 'update', table: 'facilities_issues', data: { priority }, match: { id } });
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, priority } : i)));
+    if (user?.id) {
+      const it = items.find((i) => i.id === id);
+      logActivity({ userId: user.id, type: 'facilities.priority_changed', targetKind: 'facilities_issue', targetId: id, targetLabel: `${it?.location || ''} — ${it?.issue || ''} → ${priority}`, targetPath: '/app/facilities', metadata: { priority } });
+    }
   };
 
   const saveIssueText = async (id: string) => {
@@ -353,6 +361,10 @@ export default function FacilitiesContent() {
     await db({ action: 'update', table: 'facilities_issues', data: { issue: trimmed }, match: { id } });
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, issue: trimmed } : i)));
     setEditingIssueId(null);
+    if (user?.id) {
+      const it = items.find((i) => i.id === id);
+      logActivity({ userId: user.id, type: 'facilities.issue_updated', targetKind: 'facilities_issue', targetId: id, targetLabel: `${it?.location || ''} — ${trimmed}`, targetPath: '/app/facilities' });
+    }
   };
 
   const addPhotoToIssue = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -401,9 +413,13 @@ export default function FacilitiesContent() {
       tone: 'danger',
     });
     if (!ok) return;
+    const removed = items.find((i) => i.id === id);
     await db({ action: 'delete', table: 'facilities_issues', match: { id } });
     setItems((prev) => prev.filter((i) => i.id !== id));
     setExpandedId(null);
+    if (user?.id) {
+      logActivity({ userId: user.id, type: 'facilities.deleted', targetKind: 'facilities_issue', targetId: id, targetLabel: `${removed?.location || ''} — ${removed?.issue || ''}`, targetPath: '/app/facilities' });
+    }
   };
 
   const SortIcon = ({ column }: { column: SortKey }) => (
