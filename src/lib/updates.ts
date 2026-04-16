@@ -12,6 +12,16 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-16T02:00:00Z',
+    title: 'Tours: plan every visit end-to-end',
+    items: [
+      'New Tours page under Marketing & Admissions — schedule visits and they land on the calendar automatically.',
+      'Track guests (name, company, title, LinkedIn), BD staff, and presentation sign-ups per tour.',
+      'Assign who owns each of the seven standard activities (Trail Ride, Equine Experience, Property Tour, Clinical, Lunch, Sweat Lodge…) and mark approval status.',
+      'Tour Rooms checklist: selectable, ready, approved by Pam, with setup notes.',
+    ],
+  },
+  {
     at: '2026-04-16T01:30:00Z',
     title: 'Horses: crop the photo before saving',
     items: [
