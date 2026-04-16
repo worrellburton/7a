@@ -12,6 +12,15 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-16T05:00:00Z',
+    title: 'Notes: clinical documentation templates',
+    items: [
+      'New Notes page with three ASAM 4th Edition-aligned templates: Group, Individual, and Biopsychosocial Assessment.',
+      'Pick a fake client, fill the template, save as draft or finalize — all six ASAM dimensions are built in.',
+      'Saved notes list with type badge, status, and quick delete.',
+    ],
+  },
+  {
     at: '2026-04-16T04:00:00Z',
     title: 'Activity: every action shows up now',
     items: [
