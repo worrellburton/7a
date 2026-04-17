@@ -12,6 +12,7 @@ import AskPolicies from './AskPolicies';
 import WhatsNewButton from './WhatsNewButton';
 import HomeClientsRow from './HomeClientsRow';
 import HomeHorsesRow from './HomeHorsesRow';
+import HomeMeaningfulCallsRow from './HomeMeaningfulCallsRow';
 
 interface RecentUser {
   id: string;
@@ -306,6 +307,9 @@ export default function HomeContent() {
           <div className="mt-6 w-full">
             <HomeHorsesRow />
           </div>
+          <div className="mt-6 w-full">
+            <HomeMeaningfulCallsRow />
+          </div>
         </div>
       )}
 
@@ -314,6 +318,7 @@ export default function HomeContent() {
         <div className="px-4 sm:px-6 lg:px-10 pt-6 space-y-6">
           <HomeClientsRow />
           <HomeHorsesRow />
+          <HomeMeaningfulCallsRow />
         </div>
       )}
 
