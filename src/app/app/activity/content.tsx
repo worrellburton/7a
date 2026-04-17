@@ -105,7 +105,7 @@ export default function ActivityContent() {
         order: { column: 'created_at', ascending: false },
       }).catch(() => []);
       if (cancelled || !Array.isArray(data)) return;
-      setRows((data as ActivityRow[]).slice(0, 500));
+      setRows((data as ActivityRow[]).filter((r) => r.type !== 'user.signed_in').slice(0, 500));
       setLoading(false);
     }
 
