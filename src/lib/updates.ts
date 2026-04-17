@@ -12,6 +12,19 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-17T02:00:00Z',
+    title: 'Policies 2.0 + Kingdom Requests',
+    items: [
+      'Policies: batch-select rows and reassign Section in one click. Click a name to rename it inline.',
+      'Manage Sections button — add or remove policy sections on the fly.',
+      'Policy detail: centered layout, logo at top, Seven Arrows branding, version badge (v1, v2…), and Back button in the upper left.',
+      'Edit Policy mode: change name, section, purpose, scope, body — every save bumps the version and snapshots the previous one to policy_versions.',
+      'Activity feed on each policy shows renames, section changes, reviews, revisions, and version bumps.',
+      'Export PDF: one policy or all of them, with branded cover page, logo, colored section tags, and footer.',
+      'Kingdom Requests: new feature-request board on the home dashboard and in the popup menu — drop in a request, check it off when it ships.',
+    ],
+  },
+  {
     at: '2026-04-17T00:00:00Z',
     title: 'Notes + Policies: smarter editing',
     items: [
