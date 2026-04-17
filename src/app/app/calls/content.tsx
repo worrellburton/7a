@@ -775,6 +775,7 @@ export default function CallsContent() {
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Call Name</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Date / Time</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Number</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Duration</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Caller</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
                         <div className="flex flex-col gap-1.5">
@@ -801,7 +802,6 @@ export default function CallsContent() {
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Type</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Direction</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Duration</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Location</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Recording</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Transcript</th>
@@ -846,6 +846,9 @@ export default function CallsContent() {
                                 <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
                                 {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
                               </div>
+                            </td>
+                            <td className="px-3 sm:px-5 py-3.5 text-sm font-mono text-foreground whitespace-nowrap">
+                              {formatDuration(call.duration)}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
                               {scores[String(call.id)]?.caller_name ? (
@@ -894,9 +897,6 @@ export default function CallsContent() {
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/60 max-w-[180px] truncate" style={{ fontFamily: 'var(--font-body)' }}>
                               {call.source_name || call.source || '—'}
-                            </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm font-mono text-foreground whitespace-nowrap">
-                              {formatDuration(call.duration)}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/50 whitespace-nowrap hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>
                               {[call.city, call.state].filter(Boolean).join(', ') || '—'}
@@ -1199,31 +1199,26 @@ function ClientTypePicker({ currentType, knownTypes, onPick }: {
   const options = Array.from(new Set([...(currentType ? [currentType] : []), ...knownTypes])).sort((a, b) => a.localeCompare(b));
 
   return (
-    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-      {currentType ? (
-        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${clientTypeBg(currentType)}`}>
-          {currentType}
-        </span>
-      ) : (
-        <span className="text-foreground/20">—</span>
-      )}
-      <select
-        value=""
-        onChange={(e) => {
-          const v = e.target.value;
-          if (!v) return;
-          if (v === '__new__') { setEditing(true); return; }
-          if (v === '__clear__') { onPick(null); return; }
-          onPick(v);
-        }}
-        className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 bg-white text-foreground/60 hover:border-primary/30 focus:outline-none focus:border-primary/40 cursor-pointer"
-        title={currentType ? 'Change type' : 'Set type'}
-      >
-        <option value="">{currentType ? 'Change…' : 'Set…'}</option>
-        {options.map((t) => <option key={t} value={t}>{t}</option>)}
-        <option value="__new__">+ Custom type…</option>
-        {currentType && <option value="__clear__">Clear</option>}
-      </select>
+    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+      <div className="relative">
+        <select
+          value={currentType || ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === '__new__') { setEditing(true); return; }
+            if (v === '__clear__') { onPick(null); return; }
+            if (v === '') return;
+            onPick(v);
+          }}
+          className={`appearance-none text-xs pl-2.5 pr-6 py-1 rounded-full font-medium border cursor-pointer focus:outline-none focus:border-primary/40 ${currentType ? `${clientTypeBg(currentType)} border-transparent` : 'bg-white border-gray-200 text-foreground/40'}`}
+        >
+          {!currentType && <option value="">Set type…</option>}
+          {options.map((t) => <option key={t} value={t}>{t}</option>)}
+          <option value="__new__">+ Custom…</option>
+          {currentType && <option value="__clear__">Clear</option>}
+        </select>
+        <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-current opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      </div>
     </div>
   );
 }
