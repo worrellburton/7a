@@ -37,6 +37,7 @@ interface CallInput {
 
 interface ScoreResult {
   score: number;
+  call_name: string | null;
   caller_name: string | null;
   operator_name: string | null;
   caller_interest: string | null;
@@ -78,6 +79,7 @@ Call metadata:
 Respond with a single JSON object matching this schema exactly (no markdown, no prose outside the JSON):
 {
   "score": <integer 0-100 reflecting overall call handling quality, lead quality, and conversion likelihood>,
+  "call_name": <a very short 2-5 word label summarizing this call (e.g., "Alcohol admission inquiry", "Insurance verification", "Voicemail - no message", "Family seeking help", "Wrong number"). Be specific and descriptive.>,
   "caller_name": <best-guess name of the caller${hasAudio ? ' (use the name they actually said in the conversation if available)' : ''}, or null>,
   "operator_name": <${hasAudio ? 'the first name (or full name if given) of the Seven Arrows employee/operator who answered or made the call, as stated in the audio (e.g., "this is Sarah" → "Sarah"). Return null if no name was given.' : 'null — operator name cannot be determined from metadata alone'}>,
   "caller_interest": <one short sentence describing what the caller was interested in (e.g., "Admission inquiry for adult child with alcohol use disorder"), or null if unknowable>,
@@ -315,6 +317,7 @@ export async function POST(req: NextRequest) {
   const row = {
     call_id: callId,
     score: Math.max(0, Math.min(100, Math.round(parsed.score))),
+    call_name: parsed.call_name || null,
     caller_name: parsed.caller_name || null,
     operator_name: parsed.operator_name || null,
     caller_interest: parsed.caller_interest || null,

@@ -8,6 +8,7 @@ import CallAiBadge from './CallAiHover';
 interface ScoreRow {
   call_id: string;
   score: number;
+  call_name: string | null;
   caller_name: string | null;
   operator_name: string | null;
   caller_interest: string | null;
@@ -592,6 +593,9 @@ export default function CallsContent() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100 bg-warm-bg/50">
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Call ID</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Score</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Call Name</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Date / Time</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Number</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Caller</th>
@@ -617,16 +621,26 @@ export default function CallsContent() {
                         <Fragment key={call.id}>
                           <tr onClick={() => setExpandedId(expanded ? null : call.id)} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer">
                             <td className="px-3 sm:px-5 py-3.5">
+                              <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
+                            </td>
+                            <td className="px-3 sm:px-5 py-3.5">
+                              <CallAiBadge call={call} preScore={scores[String(call.id)] || null} loading={scoringIds.has(String(call.id))} onRescore={rescoreCall} />
+                            </td>
+                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/80 max-w-[180px]" style={{ fontFamily: 'var(--font-body)' }}>
+                              {scores[String(call.id)]?.call_name ? (
+                                <span className="font-medium">{scores[String(call.id)].call_name}</span>
+                              ) : (
+                                <span className="text-foreground/20">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 sm:px-5 py-3.5">
                               <div className="text-sm font-medium text-foreground whitespace-nowrap">{formatDate(call.called_at)}</div>
                               <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{formatTime(call.called_at)}</div>
                             </td>
                             <td className="px-3 sm:px-5 py-3.5">
-                              <div className="flex items-center gap-2">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
-                                  {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
-                                </div>
-                                <CallAiBadge call={call} preScore={scores[String(call.id)] || null} loading={scoringIds.has(String(call.id))} onRescore={rescoreCall} />
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
+                                {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
                               </div>
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
@@ -700,7 +714,7 @@ export default function CallsContent() {
                           </tr>
                           {expanded && (
                             <tr className="bg-warm-bg/30 border-b border-gray-50">
-                              <td colSpan={12} className="px-5 py-5">
+                              <td colSpan={14} className="px-5 py-5">
                                 <CallDetail
                                   call={call}
                                   score={scores[String(call.id)] || null}
