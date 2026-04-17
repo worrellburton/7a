@@ -9,6 +9,7 @@ interface ScoreRow {
   call_id: string;
   score: number;
   caller_name: string | null;
+  operator_name: string | null;
   caller_interest: string | null;
   summary: string;
   operator_strengths: string[];
@@ -525,6 +526,7 @@ export default function CallsContent() {
                     <tr className="border-b border-gray-100 bg-warm-bg/50">
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Date / Time</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Caller</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Operator</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Direction</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Duration</th>
@@ -551,6 +553,13 @@ export default function CallsContent() {
                                 </div>
                                 <CallAiHover call={call} preScore={scores[String(call.id)] || null} onScoreUpdate={onScoreUpdate} />
                               </div>
+                            </td>
+                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>
+                              {scores[String(call.id)]?.operator_name ? (
+                                <span className="font-medium">{scores[String(call.id)].operator_name}</span>
+                              ) : (
+                                <span className="text-foreground/20">—</span>
+                              )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5">
                               <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
@@ -591,7 +600,7 @@ export default function CallsContent() {
                           </tr>
                           {expanded && (
                             <tr className="bg-warm-bg/30 border-b border-gray-50">
-                              <td colSpan={8} className="px-5 py-5">
+                              <td colSpan={9} className="px-5 py-5">
                                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4 text-sm" style={{ fontFamily: 'var(--font-body)' }}>
                                   <DetailField label="Caller name" value={call.name && call.name !== 'Unknown' ? call.name : undefined} />
                                   <DetailField label="Caller number" value={call.caller_number_formatted || call.caller_number} />
