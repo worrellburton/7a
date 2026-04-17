@@ -63,7 +63,14 @@ interface CTMResponse {
   error?: string;
 }
 
-type Tab = 'calls' | 'sources';
+type Tab = 'calls' | 'sources' | 'spam';
+
+const SPAM_STORAGE_KEY = 'calls_spam_numbers_v1';
+
+function normalizePhone(num: string | null | undefined): string {
+  if (!num) return '';
+  return num.replace(/\D/g, '');
+}
 
 interface Insights {
   today: number;
@@ -196,13 +203,56 @@ export default function CallsContent() {
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [allCallsRaw, setAllCallsRaw] = useState<Call[]>([]);
   const [timelineBounds, setTimelineBounds] = useState<{ min: Date; max: Date } | null>(null);
-  const [rangeStart, setRangeStart] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 6); return d; });
+  const [rangeStart, setRangeStart] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [rangeEnd, setRangeEnd] = useState<Date>(() => { const d = new Date(); d.setHours(23, 59, 59, 999); return d; });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [scores, setScores] = useState<Record<string, ScoreRow>>({});
   const [scoringIds, setScoringIds] = useState<Set<string>>(new Set());
   const [scoringErrors, setScoringErrors] = useState<Record<string, string>>({});
   const scoringRef = useRef(false);
+  const [spamNumbers, setSpamNumbers] = useState<Set<string>>(new Set());
+  const [reportingSpam, setReportingSpam] = useState<string | null>(null);
+
+  // Load spam list from localStorage
+  useEffect(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(SPAM_STORAGE_KEY) : null;
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) setSpamNumbers(new Set(arr.filter((x) => typeof x === 'string')));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const persistSpam = useCallback((next: Set<string>) => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(SPAM_STORAGE_KEY, JSON.stringify(Array.from(next)));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const reportSpam = useCallback((num: string) => {
+    const key = normalizePhone(num);
+    if (!key) return;
+    setSpamNumbers((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      persistSpam(next);
+      return next;
+    });
+  }, [persistSpam]);
+
+  const unreportSpam = useCallback((num: string) => {
+    const key = normalizePhone(num);
+    if (!key) return;
+    setSpamNumbers((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      persistSpam(next);
+      return next;
+    });
+  }, [persistSpam]);
 
   const knownOperators = useMemo(() => {
     const names = new Set<string>();
@@ -772,17 +822,6 @@ export default function CallsContent() {
             {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total calls</span>}
           </p>
         </div>
-        <a
-          href="/app/calls/heatmap"
-          className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-primary text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-            <rect x="3" y="4" width="18" height="16" rx="2" strokeLinejoin="round" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM7 16h2v0H7zM11 16h2v0h-2zM15 16h2v0h-2z" />
-          </svg>
-          View Heatmap
-        </a>
       </div>
 
       {/* Timeline Slider — drag to scope all metrics below */}
@@ -871,43 +910,57 @@ export default function CallsContent() {
             </div>
           </div>
 
-          {/* Range Line Graph */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Daily Breakdown</p>
-              <div className="flex items-center gap-3">
-                {dateFilter && (
-                  <button
-                    onClick={() => { setDateFilter(''); }}
-                    className="text-[11px] text-foreground/40 hover:text-primary transition-colors"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    Clear day filter
-                  </button>
-                )}
-                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
-                </span>
-                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span className="w-2 h-2 rounded-full bg-[#3b82f6]" /> Meaningful
-                </span>
-                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Missed
-                </span>
-                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span className="w-2 h-2 rounded-full bg-[#10b981]" /> Returned
-                </span>
+          {/* Range Line Graph + Mini Heatmap */}
+          <div className="grid grid-cols-1 lg:grid-cols-[3fr,2fr] gap-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Daily Breakdown</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {dateFilter && (
+                    <button
+                      onClick={() => { setDateFilter(''); }}
+                      className="text-[11px] text-foreground/40 hover:text-primary transition-colors"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Clear day filter
+                    </button>
+                  )}
+                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="w-2 h-2 rounded-full bg-[#3b82f6]" /> Meaningful
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Missed
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="w-2 h-2 rounded-full bg-[#10b981]" /> Returned
+                  </span>
+                </div>
               </div>
+              <WeekGraph
+                data={rangeInsights.dailyCounts}
+                selectedDate={dateFilter}
+                onDayClick={(date) => {
+                  setDateFilter(date);
+                  setTab('calls');
+                  setPage(1);
+                }}
+              />
             </div>
-            <WeekGraph
-              data={rangeInsights.dailyCounts}
-              selectedDate={dateFilter}
-              onDayClick={(date) => {
-                setDateFilter(date);
-                setTab('calls');
-                setPage(1);
-              }}
-            />
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Heatmap</p>
+              <MiniHeatmap
+                calls={allCallsRaw}
+                selectedDate={dateFilter}
+                onDayClick={(date) => {
+                  setDateFilter(date);
+                  setTab('calls');
+                  setPage(1);
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -922,18 +975,19 @@ export default function CallsContent() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-warm-bg rounded-xl p-1 w-fit">
-        {(['calls', 'sources'] as Tab[]).map(t => {
-          const label = t === 'calls' ? 'Call Log' : 'Sources';
+        {(['calls', 'sources', 'spam'] as Tab[]).map(t => {
+          const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : 'Spam';
+          const spamCount = spamNumbers.size;
           return (
             <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
-              {label}
+              {label}{t === 'spam' && spamCount > 0 ? ` · ${spamCount}` : ''}
             </button>
           );
         })}
       </div>
 
       {/* Filters */}
-      {tab === 'calls' && (
+      {(tab === 'calls' || tab === 'spam') && (
         <div className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap">
           <input
             type="text"
@@ -996,12 +1050,14 @@ export default function CallsContent() {
       )}
 
       {/* Call Log Tab */}
-      {tab === 'calls' && !loading && (
+      {(tab === 'calls' || tab === 'spam') && !loading && (
         <>
           {calls.length === 0 && !error ? (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-20">
               <svg className="w-12 h-12 mx-auto text-foreground/15 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>
-              <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>No calls found</p>
+              <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                {tab === 'spam' ? 'No reported spam numbers' : 'No calls found'}
+              </p>
             </div>
           ) : calls.length > 0 && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -1027,6 +1083,12 @@ export default function CallsContent() {
                   </thead>
                   <tbody>
                     {calls.filter(call => {
+                      const isSpamCall = spamNumbers.has(normalizePhone(call.caller_number));
+                      if (tab === 'spam') {
+                        if (!isSpamCall) return false;
+                      } else {
+                        if (isSpamCall) return false;
+                      }
                       if (operatorFilter === 'all') return true;
                       const s = scores[String(call.id)];
                       return s?.operator_name === operatorFilter;
@@ -1103,10 +1165,45 @@ export default function CallsContent() {
                               <div className="text-sm font-medium text-foreground whitespace-nowrap">{formatDate(call.called_at)}</div>
                               <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{formatTime(call.called_at)}</div>
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5">
-                              <div className="min-w-0">
-                                <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
+                            <td className="px-3 sm:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                              <div className="min-w-0 group relative inline-block">
+                                <div
+                                  className="text-sm font-medium text-foreground"
+                                  onMouseEnter={() => setReportingSpam(String(call.id))}
+                                  onMouseLeave={() => setReportingSpam((v) => v === String(call.id) ? null : v)}
+                                >
+                                  {call.caller_number_formatted || call.caller_number || 'Unknown'}
+                                </div>
                                 {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
+                                {reportingSpam === String(call.id) && call.caller_number && (
+                                  <div
+                                    className="absolute left-0 top-full mt-1 z-20"
+                                    onMouseEnter={() => setReportingSpam(String(call.id))}
+                                    onMouseLeave={() => setReportingSpam(null)}
+                                  >
+                                    {spamNumbers.has(normalizePhone(call.caller_number)) ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => { unreportSpam(call.caller_number); setReportingSpam(null); }}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 shadow-sm whitespace-nowrap"
+                                        style={{ fontFamily: 'var(--font-body)' }}
+                                      >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                        Unmark spam
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => { reportSpam(call.caller_number); setReportingSpam(null); }}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 shadow-sm whitespace-nowrap"
+                                        style={{ fontFamily: 'var(--font-body)' }}
+                                      >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285zm0 13.036h.008v.008H12v-.008z" /></svg>
+                                        Report spam
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm font-mono text-foreground whitespace-nowrap">
@@ -1941,12 +2038,38 @@ function TimelineSlider({
     const newStart = new Date(newEnd.getTime() - (days - 1) * dayMs); newStart.setHours(0, 0, 0, 0);
     onChange(newStart, newEnd);
   };
+  const setToday = () => {
+    const today = new Date();
+    const s = new Date(today); s.setHours(0, 0, 0, 0);
+    const e = new Date(today); e.setHours(23, 59, 59, 999);
+    // Clamp within [min, max]
+    const clampedStart = new Date(Math.max(min.getTime(), s.getTime()));
+    const clampedEnd = new Date(Math.min(max.getTime(), e.getTime()));
+    onChange(clampedStart, clampedEnd);
+  };
+  const setYesterday = () => {
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    const s = new Date(y); s.setHours(0, 0, 0, 0);
+    const e = new Date(y); e.setHours(23, 59, 59, 999);
+    const clampedStart = new Date(Math.max(min.getTime(), s.getTime()));
+    const clampedEnd = new Date(Math.min(max.getTime(), e.getTime()));
+    onChange(clampedStart, clampedEnd);
+  };
   const setAllTime = () => {
     const s = new Date(min); s.setHours(0, 0, 0, 0);
     const e = new Date(max); e.setHours(23, 59, 59, 999);
     onChange(s, e);
   };
   const isAllTime = Math.abs(start.getTime() - min.getTime()) < dayMs && Math.abs(end.getTime() - max.getTime()) < dayMs;
+
+  // Match today/yesterday by comparing local date strings of the selection.
+  const azDate = (d: Date) => d.toLocaleDateString('en-CA');
+  const todayStr = azDate(new Date());
+  const yesterdayStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return azDate(d); })();
+  const startStr = azDate(start);
+  const endStr = azDate(end);
+  const isToday = startStr === todayStr && endStr === todayStr;
+  const isYesterday = startStr === yesterdayStr && endStr === yesterdayStr;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 mb-6 select-none">
@@ -1957,6 +2080,20 @@ function TimelineSlider({
           <p className="text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{spanDays} day{spanDays === 1 ? '' : 's'}</p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={setToday}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${isToday ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Today
+          </button>
+          <button
+            onClick={setYesterday}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${isYesterday ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Yesterday
+          </button>
           {[
             { label: '7D', days: 7 },
             { label: '14D', days: 14 },
@@ -1966,7 +2103,7 @@ function TimelineSlider({
             <button
               key={p.label}
               onClick={() => setPreset(p.days)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${!isAllTime && spanDays === p.days ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${!isAllTime && !isToday && !isYesterday && spanDays === p.days ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
               style={{ fontFamily: 'var(--font-body)' }}
             >
               {p.label}
@@ -2411,5 +2548,141 @@ function WeekGraph({
         );
       })()}
     </svg>
+  );
+}
+
+function MiniHeatmap({
+  calls,
+  selectedDate,
+  onDayClick,
+}: {
+  calls: Call[];
+  selectedDate: string;
+  onDayClick: (date: string) => void;
+}) {
+  const WEEKS = 14;
+  const todayAz = useMemo(() => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }), []);
+
+  const counts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of calls) {
+      const p = parseDate(c.called_at);
+      if (!p) continue;
+      const k = p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+    return m;
+  }, [calls]);
+
+  const dateGrid = useMemo(() => {
+    const [y, mo, d] = todayAz.split('-').map(Number);
+    const end = new Date(Date.UTC(y, mo - 1, d, 12));
+    const endDay = end.getUTCDay();
+    const daysToSaturday = (6 - endDay + 7) % 7;
+    const gridEnd = new Date(end);
+    gridEnd.setUTCDate(gridEnd.getUTCDate() + daysToSaturday);
+    const totalDays = WEEKS * 7;
+    const start = new Date(gridEnd);
+    start.setUTCDate(start.getUTCDate() - (totalDays - 1));
+    const out: string[] = [];
+    for (let i = 0; i < totalDays; i++) {
+      const d2 = new Date(start);
+      d2.setUTCDate(d2.getUTCDate() + i);
+      out.push(d2.toISOString().slice(0, 10));
+    }
+    return out;
+  }, [todayAz]);
+
+  const maxCount = useMemo(() => {
+    let m = 0;
+    counts.forEach(v => { if (v > m) m = v; });
+    return m;
+  }, [counts]);
+
+  const cellClass = (count: number): string => {
+    if (count === 0) return 'bg-warm-bg border border-foreground/5';
+    if (maxCount === 0) return 'bg-warm-bg border border-foreground/5';
+    const ratio = count / maxCount;
+    if (ratio > 0.75) return 'bg-primary-dark';
+    if (ratio > 0.5) return 'bg-primary';
+    if (ratio > 0.25) return 'bg-primary/60';
+    return 'bg-primary/30';
+  };
+
+  const monthLabels = useMemo(() => {
+    const labels: { col: number; label: string }[] = [];
+    let lastMonth = -1;
+    for (let col = 0; col < WEEKS; col++) {
+      const firstDayOfWeek = dateGrid[col * 7];
+      if (!firstDayOfWeek) continue;
+      const mo = Number(firstDayOfWeek.slice(5, 7)) - 1;
+      if (mo !== lastMonth) {
+        const dt = new Date(Date.UTC(Number(firstDayOfWeek.slice(0, 4)), mo, 1));
+        labels.push({ col, label: dt.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }) });
+        lastMonth = mo;
+      }
+    }
+    return labels;
+  }, [dateGrid]);
+
+  const weekdayLabels = ['Mon', '', 'Wed', '', 'Fri', '', ''];
+
+  return (
+    <div className="inline-flex flex-col gap-2 w-full">
+      <div className="flex items-end gap-[3px] pl-7 h-4">
+        {Array.from({ length: WEEKS }).map((_, col) => {
+          const lbl = monthLabels.find((m) => m.col === col);
+          return (
+            <div key={col} className="w-[14px] text-[9px] text-foreground/40 font-medium truncate" style={{ fontFamily: 'var(--font-body)' }}>
+              {lbl?.label || ''}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-1.5">
+        <div className="flex flex-col gap-[3px]">
+          {weekdayLabels.map((d, i) => (
+            <div key={i} className="h-[14px] text-[9px] text-foreground/40 font-medium leading-[14px] w-5 text-right pr-1" style={{ fontFamily: 'var(--font-body)' }}>
+              {d}
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-[3px]">
+          {Array.from({ length: WEEKS }).map((_, col) => (
+            <div key={col} className="flex flex-col gap-[3px]">
+              {Array.from({ length: 7 }).map((_, row) => {
+                const date = dateGrid[col * 7 + row];
+                if (!date) return <div key={row} className="w-[14px] h-[14px]" />;
+                const count = counts.get(date) || 0;
+                const isFuture = date > todayAz;
+                const isSelected = selectedDate === date;
+                return (
+                  <button
+                    key={row}
+                    type="button"
+                    onClick={() => !isFuture && onDayClick(date)}
+                    title={`${date}: ${count} call${count === 1 ? '' : 's'}`}
+                    className={`w-[14px] h-[14px] rounded-[3px] transition-transform hover:scale-125 cursor-pointer ${
+                      isFuture ? 'bg-transparent border border-dashed border-foreground/10 cursor-default' : cellClass(count)
+                    } ${isSelected ? 'ring-2 ring-foreground' : ''}`}
+                    disabled={isFuture}
+                    aria-label={`${date}: ${count} calls`}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 mt-1 text-[10px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+        <span>Less</span>
+        <div className="w-3 h-3 rounded-sm bg-warm-bg border border-foreground/5" />
+        <div className="w-3 h-3 rounded-sm bg-primary/30" />
+        <div className="w-3 h-3 rounded-sm bg-primary/60" />
+        <div className="w-3 h-3 rounded-sm bg-primary" />
+        <div className="w-3 h-3 rounded-sm bg-primary-dark" />
+        <span>More</span>
+      </div>
+    </div>
   );
 }
