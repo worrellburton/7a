@@ -414,6 +414,18 @@ export default function CallsContent() {
     };
   }, [allCallsRaw, calls, scores, rangeStart, rangeEnd, isSpamCall]);
 
+  const spamCount = useMemo(() => {
+    let count = 0;
+    const seen = new Set<number>();
+    for (const c of allCallsRaw) {
+      if (!seen.has(c.id)) { seen.add(c.id); if (isSpamCall(c)) count++; }
+    }
+    for (const c of calls) {
+      if (!seen.has(c.id)) { seen.add(c.id); if (isSpamCall(c)) count++; }
+    }
+    return count;
+  }, [allCallsRaw, calls, isSpamCall]);
+
   const meaningfulData = useMemo(() => {
     let thisWeek = 0;
     const dailyCounts = new Map<string, number>();
@@ -936,9 +948,9 @@ export default function CallsContent() {
             </div>
             <div className="bg-white rounded-2xl border border-amber-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-amber-500 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Spam</p>
-              <p className="text-2xl font-bold text-amber-600">{rangeInsights.spam}</p>
+              <p className="text-2xl font-bold text-amber-600">{spamCount}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {rangeInsights.totalCalls > 0 ? `${Math.round((rangeInsights.spam / rangeInsights.totalCalls) * 100)}% of calls` : 'No calls in range'}
+                {spamCount > 0 ? `${spamCount} reported` : 'None reported'}
               </p>
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
