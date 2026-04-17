@@ -656,24 +656,25 @@ export default function CallsContent() {
     }
 
     if (data.calls) {
-      setCalls(prev => append ? [...prev, ...data.calls!] : data.calls!);
+      setCalls(prev => {
+        const merged = append ? [...prev, ...data.calls!] : data.calls!;
+        // Build sources summary from the full accumulated list
+        const sourceMap = new Map<string, number>();
+        merged.forEach((c: Call) => {
+          const src = c.source_name || c.source || 'Unknown';
+          sourceMap.set(src, (sourceMap.get(src) || 0) + 1);
+        });
+        setSources(Array.from(sourceMap.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count));
+        return merged;
+      });
       setTotalPages(data.total_pages || 1);
       setTotalEntries(data.total_entries || 0);
       setPage(data.page || p);
-
-      // Build sources summary from the full accumulated list
-      const source = append ? [...calls, ...data.calls] : data.calls;
-      const sourceMap = new Map<string, number>();
-      source.forEach((c: Call) => {
-        const src = c.source_name || c.source || 'Unknown';
-        sourceMap.set(src, (sourceMap.get(src) || 0) + 1);
-      });
-      setSources(Array.from(sourceMap.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count));
     }
 
     setLoading(false);
     setLoadingMore(false);
-  }, [accountId, searchQuery, dateFilter, directionFilter, calls]);
+  }, [accountId, searchQuery, dateFilter, directionFilter]);
 
   useEffect(() => {
     if (accountId) fetchCalls(1);
