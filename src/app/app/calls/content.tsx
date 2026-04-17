@@ -19,6 +19,7 @@ interface ScoreRow {
   operator_weaknesses: string[];
   next_steps: string | null;
   sentiment: string | null;
+  transcript: string | null;
   scored_at: string;
 }
 
@@ -144,6 +145,8 @@ export default function CallsContent() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [miniPopoverId, setMiniPopoverId] = useState<number | null>(null);
+  const [transcriptFor, setTranscriptFor] = useState<number | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -156,25 +159,41 @@ export default function CallsContent() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [scores, setScores] = useState<Record<string, ScoreRow>>({});
   const [scoringIds, setScoringIds] = useState<Set<string>>(new Set());
+  const [scoringErrors, setScoringErrors] = useState<Record<string, string>>({});
   const scoringRef = useRef(false);
 
   const rescoreCall = useCallback(async (callId: string, force: boolean) => {
-    if (!session?.access_token) return;
+    if (!session?.access_token) {
+      setScoringErrors((prev) => ({ ...prev, [callId]: 'Not signed in' }));
+      return;
+    }
     const call = calls.find((c) => String(c.id) === callId);
-    if (!call) return;
+    if (!call) {
+      setScoringErrors((prev) => ({ ...prev, [callId]: 'Call not found' }));
+      return;
+    }
     setScoringIds((prev) => { const n = new Set(prev); n.add(callId); return n; });
+    setScoringErrors((prev) => { const n = { ...prev }; delete n[callId]; return n; });
     try {
       const res = await fetch('/api/claude/calls/score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ callId, call, force }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.result) {
-          setScores((prev) => ({ ...prev, [callId]: data.result }));
-        }
+      let data: { result?: ScoreRow; error?: string; detail?: string } = {};
+      try { data = await res.json(); } catch { /* non-json response */ }
+      if (!res.ok) {
+        const msg = data.error || data.detail || `Analyze failed (${res.status})`;
+        setScoringErrors((prev) => ({ ...prev, [callId]: msg }));
+        return;
       }
+      if (data.result) {
+        setScores((prev) => ({ ...prev, [callId]: data.result! }));
+      } else {
+        setScoringErrors((prev) => ({ ...prev, [callId]: data.error || 'No result returned' }));
+      }
+    } catch (err) {
+      setScoringErrors((prev) => ({ ...prev, [callId]: err instanceof Error ? err.message : 'Network error' }));
     } finally {
       setScoringIds((prev) => { const n = new Set(prev); n.delete(callId); return n; });
     }
@@ -594,19 +613,19 @@ export default function CallsContent() {
                   <thead>
                     <tr className="border-b border-gray-100 bg-warm-bg/50">
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Call ID</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Score</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Fit</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Call Name</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Date / Time</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Number</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Caller</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Operator</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Type</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Fit</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Direction</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Duration</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Location</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Recording</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Transcript</th>
                       <th className="w-8" />
                     </tr>
                   </thead>
@@ -623,8 +642,14 @@ export default function CallsContent() {
                             <td className="px-3 sm:px-5 py-3.5">
                               <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5">
-                              <CallAiBadge call={call} preScore={scores[String(call.id)] || null} loading={scoringIds.has(String(call.id))} onRescore={rescoreCall} />
+                            <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                              {scores[String(call.id)]?.fit_score != null ? (
+                                <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold text-white ${fitScoreBg(scores[String(call.id)].fit_score!)}`}>
+                                  {scores[String(call.id)].fit_score}
+                                </span>
+                              ) : (
+                                <span className="text-foreground/20">—</span>
+                              )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/80 max-w-[180px]" style={{ fontFamily: 'var(--font-body)' }}>
                               {scores[String(call.id)]?.call_name ? (
@@ -651,25 +676,28 @@ export default function CallsContent() {
                               )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
-                              {scores[String(call.id)]?.operator_name ? (
-                                <span className="font-medium">{scores[String(call.id)].operator_name}</span>
-                              ) : (
-                                <span className="text-foreground/20">—</span>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {(() => {
+                                  const s = scores[String(call.id)];
+                                  const err = scoringErrors[String(call.id)];
+                                  const noAnswer = !s?.operator_name && (call.voicemail || (call.talk_time ?? 0) < 3);
+                                  if (s?.operator_name) return <span className="font-medium">{s.operator_name}</span>;
+                                  if (noAnswer) return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">{call.voicemail ? 'Voicemail' : 'No answer'}</span>;
+                                  if (err) return <span title={err} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9 9 0 1 1 2.982 12 9 9 0 0 1 12 2.714Zm0 13.036h.008v.008H12v-.008Z" /></svg>Error</span>;
+                                  return <span className="text-foreground/20">—</span>;
+                                })()}
+                                <CallAiBadge
+                                  call={call}
+                                  preScore={scores[String(call.id)] || null}
+                                  loading={scoringIds.has(String(call.id))}
+                                  onClick={() => setMiniPopoverId(miniPopoverId === call.id ? null : call.id)}
+                                />
+                              </div>
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
                               {scores[String(call.id)]?.client_type ? (
                                 <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${clientTypeBg(scores[String(call.id)].client_type!)}`}>
                                   {scores[String(call.id)].client_type}
-                                </span>
-                              ) : (
-                                <span className="text-foreground/20">—</span>
-                              )}
-                            </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
-                              {scores[String(call.id)]?.fit_score != null ? (
-                                <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold text-white ${fitScoreBg(scores[String(call.id)].fit_score!)}`}>
-                                  {scores[String(call.id)].fit_score}
                                 </span>
                               ) : (
                                 <span className="text-foreground/20">—</span>
@@ -708,18 +736,45 @@ export default function CallsContent() {
                                 <span className="text-xs text-foreground/20">—</span>
                               )}
                             </td>
+                            <td className="px-3 sm:px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                              {scores[String(call.id)]?.transcript ? (
+                                <button
+                                  onClick={() => setTranscriptFor(call.id)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                  style={{ fontFamily: 'var(--font-body)' }}
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                                  View
+                                </button>
+                              ) : (
+                                <span className="text-xs text-foreground/20">—</span>
+                              )}
+                            </td>
                             <td className="px-3 py-3.5">
                               <svg className={`w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                             </td>
                           </tr>
                           {expanded && (
                             <tr className="bg-warm-bg/30 border-b border-gray-50">
-                              <td colSpan={14} className="px-5 py-5">
+                              <td colSpan={15} className="px-5 py-5">
                                 <CallDetail
                                   call={call}
                                   score={scores[String(call.id)] || null}
                                   scoring={scoringIds.has(String(call.id))}
                                   onRescore={rescoreCall}
+                                />
+                              </td>
+                            </tr>
+                          )}
+                          {!expanded && miniPopoverId === call.id && (
+                            <tr className="bg-gradient-to-r from-primary/5 to-transparent border-b border-gray-50" onClick={(e) => e.stopPropagation()}>
+                              <td colSpan={15} className="px-5 py-4">
+                                <ScoreMiniPopover
+                                  score={scores[String(call.id)] || null}
+                                  scoring={scoringIds.has(String(call.id))}
+                                  error={scoringErrors[String(call.id)]}
+                                  onClose={() => setMiniPopoverId(null)}
+                                  onRescore={() => rescoreCall(String(call.id), true)}
                                 />
                               </td>
                             </tr>
@@ -789,6 +844,44 @@ export default function CallsContent() {
           )}
         </div>
       )}
+
+      {transcriptFor !== null && (() => {
+        const call = calls.find((c) => c.id === transcriptFor);
+        const transcript = call ? scores[String(call.id)]?.transcript : null;
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setTranscriptFor(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Call transcript</h3>
+                  {call && <p className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{formatDate(call.called_at)} · {formatTime(call.called_at)}</p>}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTranscriptFor(null)}
+                  className="text-foreground/40 hover:text-foreground/70 p-1 rounded-lg hover:bg-warm-bg"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div className="px-5 py-4 overflow-y-auto flex-1">
+                {transcript ? (
+                  <pre className="text-sm text-foreground/80 whitespace-pre-wrap font-sans leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{transcript}</pre>
+                ) : (
+                  <p className="text-sm text-foreground/40 italic">No transcript available for this call yet. Click Analyze to generate one.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -809,6 +902,70 @@ function scoreColorHex(s: number): string {
   if (s >= 60) return '#3b82f6';
   if (s >= 40) return '#f59e0b';
   return '#ef4444';
+}
+
+// Compact inline popover shown when the user clicks the score badge.
+// Shows strengths / coaching notes only — NOT the full expanded detail.
+function ScoreMiniPopover({ score, scoring, error, onClose, onRescore }: {
+  score: ScoreRow | null;
+  scoring: boolean;
+  error?: string;
+  onClose: () => void;
+  onRescore: () => void;
+}) {
+  return (
+    <div style={{ fontFamily: 'var(--font-body)' }} className="flex flex-col gap-3">
+      {error && (
+        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 flex items-start gap-2">
+          <svg className="w-4 h-4 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" /></svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-red-700 uppercase tracking-wider">Analysis failed</p>
+            <p className="text-xs text-red-800 mt-0.5 break-words">{error}</p>
+          </div>
+        </div>
+      )}
+      <div className="flex items-start gap-4">
+      {score ? (
+        <>
+          <div className="flex-1 grid sm:grid-cols-2 gap-3">
+            <div className="rounded-lg bg-emerald-50/80 border border-emerald-100 p-2.5">
+              <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-1">Strengths</p>
+              {score.operator_strengths?.length > 0 ? (
+                <ul className="text-xs text-emerald-900/80 space-y-0.5 list-disc pl-4">
+                  {score.operator_strengths.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              ) : (
+                <p className="text-xs text-emerald-900/50 italic">No strengths noted</p>
+              )}
+            </div>
+            <div className="rounded-lg bg-red-50/80 border border-red-100 p-2.5">
+              <p className="text-[10px] font-bold text-red-700 uppercase tracking-wider mb-1">Areas to coach</p>
+              {score.operator_weaknesses?.length > 0 ? (
+                <ul className="text-xs text-red-900/80 space-y-0.5 list-disc pl-4">
+                  {score.operator_weaknesses.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              ) : (
+                <p className="text-xs text-red-900/50 italic">No weaknesses identified</p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1 shrink-0">
+            <button type="button" onClick={onRescore} disabled={scoring} className="text-[10px] font-semibold px-2 py-1 rounded-md text-foreground/60 hover:text-primary hover:bg-white border border-gray-200 disabled:opacity-50">{scoring ? 'Analyzing…' : 'Re-analyze'}</button>
+            <button type="button" onClick={onClose} className="text-[10px] font-semibold px-2 py-1 rounded-md text-foreground/40 hover:text-foreground/70 hover:bg-white border border-gray-200">Close</button>
+          </div>
+        </>
+      ) : (
+        <div className="flex-1 flex items-center justify-between gap-4">
+          <p className="text-xs text-foreground/50 italic">{error ? 'Analysis could not complete.' : 'No analysis yet for this call.'}</p>
+          <div className="flex gap-1">
+            <button type="button" onClick={onRescore} disabled={scoring} className="text-[10px] font-semibold px-2 py-1 rounded-md text-primary hover:bg-white border border-primary/30 disabled:opacity-50">{scoring ? 'Analyzing…' : error ? 'Try again' : 'Analyze now'}</button>
+            <button type="button" onClick={onClose} className="text-[10px] font-semibold px-2 py-1 rounded-md text-foreground/40 hover:text-foreground/70 hover:bg-white border border-gray-200">Close</button>
+          </div>
+        </div>
+      )}
+      </div>
+    </div>
+  );
 }
 
 function sentimentStyle(s: string | null): string {

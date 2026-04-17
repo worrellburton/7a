@@ -32,25 +32,27 @@ interface Props {
   call: Call;
   preScore?: ScoreRow | null;
   loading?: boolean;
+  onClick?: () => void;
   onRescore?: (callId: string, force: boolean) => void;
 }
 
 // Simple non-interactive score badge shown in each call row. The full AI
 // review now lives in the expanded row (see CallAiPanel). Clicking the badge
-// triggers a (re-)score without expanding the row.
-export default function CallAiBadge({ call, preScore, loading, onRescore }: Props) {
+// fires onClick (for popover) if provided, otherwise triggers re-score.
+export default function CallAiBadge({ call, preScore, loading, onClick, onRescore }: Props) {
   const result = preScore || null;
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    onRescore?.(String(call.id), true);
-  }, [call.id, onRescore]);
+    if (onClick) onClick();
+    else onRescore?.(String(call.id), true);
+  }, [call.id, onClick, onRescore]);
 
   return (
     <button
       type="button"
       onClick={handleClick}
-      title={result ? `AI score ${result.score} — click to re-score` : 'Generate AI score'}
+      title={result ? `AI score ${result.score} — click for coaching notes` : 'Generate AI score'}
       className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] font-semibold transition-colors ${
         result
           ? `${scoreBg(result.score)} text-white border-transparent hover:opacity-90`

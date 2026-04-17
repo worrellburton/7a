@@ -48,6 +48,7 @@ interface ScoreResult {
   operator_weaknesses: string[];
   next_steps: string | null;
   sentiment: string | null;
+  transcript: string | null;
 }
 
 function fmtDuration(seconds: number | null | undefined): string {
@@ -81,7 +82,28 @@ Respond with a single JSON object matching this schema exactly (no markdown, no 
   "score": <integer 0-100 reflecting overall call handling quality, lead quality, and conversion likelihood>,
   "call_name": <a very short 2-5 word label summarizing this call (e.g., "Alcohol admission inquiry", "Insurance verification", "Voicemail - no message", "Family seeking help", "Wrong number"). Be specific and descriptive.>,
   "caller_name": <best-guess name of the caller${hasAudio ? ' (use the name they actually said in the conversation if available)' : ''}, or null>,
-  "operator_name": <${hasAudio ? 'the first name (or full name if given) of the Seven Arrows employee/operator who answered or made the call, as stated in the audio (e.g., "this is Sarah" → "Sarah"). Return null if no name was given.' : 'null — operator name cannot be determined from metadata alone'}>,
+  "operator_name": <${hasAudio ? `the first name of the Seven Arrows employee on this call — i.e. whoever represents 7A, NOT the caller.
+
+For INBOUND calls: this is whoever ANSWERED the phone. Listen to the first 10-20 seconds of the audio carefully. Common patterns:
+  • "Thank you for calling Seven Arrows, this is Sarah" → "Sarah"
+  • "Seven Arrows Recovery, Jessica speaking" → "Jessica"
+  • "Hi, this is Mike" → "Mike"
+  • "Admissions, this is Kayla, how can I help you?" → "Kayla"
+  • "My name is Placida" → "Placida"
+  • "[Name] speaking" / "Good morning, [Name] here" → the name
+
+For OUTBOUND calls: this is whoever INITIATED/placed the call from 7A. Listen for patterns like:
+  • "Hi, this is Gissel calling from Seven Arrows" → "Gissel"
+  • "Hello, this is [Name] with Seven Arrows" → the name
+  • "My name is [Name] and I'm calling from Seven Arrows" → the name
+
+Rules:
+  - Return just the first name (capitalized). If only a full name is given, return first name.
+  - Do NOT return the caller's name here — that goes in caller_name.
+  - If the 7A employee never says their name (e.g. voicemail, immediate hangup, caller talks over them), return null.
+  - Do NOT guess. If you didn't actually hear a name spoken, return null.
+  - Strip titles/greetings: "Good morning, this is Sarah" → "Sarah", not "Good Morning Sarah".
+  - Normalize common misspellings (e.g. from poor audio: "Jissel" probably = "Gissel"). Pick the most likely real name.` : 'null — operator name cannot be determined from metadata alone'}>,
   "caller_interest": <one short sentence describing what the caller was interested in (e.g., "Admission inquiry for adult child with alcohol use disorder"), or null if unknowable>,
   "client_type": <classify the caller into one of these categories based on the conversation: "Insurance", "Private Pay", "Mental Health", "Addiction", "Dual Diagnosis", "Family/Loved One", "Other", or null if not determinable. A caller seeking addiction treatment covered by insurance = "Insurance". A caller asking about self-pay rates = "Private Pay". A caller primarily seeking mental health treatment = "Mental Health". A caller seeking addiction/substance abuse treatment = "Addiction". If both mental health and addiction = "Dual Diagnosis". A family member calling on behalf of someone = "Family/Loved One".>,
   "fit_score": <integer 1-100 rating how likely this caller is a good fit for Seven Arrows Recovery. Consider: Seven Arrows is a residential addiction treatment center in Arizona specializing in holistic recovery with adventure therapy, equine therapy, and individualized treatment plans. High fit (75-100): caller needs residential addiction treatment, is motivated, has insurance or ability to pay, is in the right demographic. Medium fit (40-74): caller has some matching needs but may have barriers (wrong level of care, geographic constraints, financial issues). Low fit (1-39): caller needs a different type of care entirely, is not a candidate for residential treatment, or is clearly not a prospective client (vendor, wrong number, spam). Return null only if the call provides zero information about the caller's needs.>,
@@ -89,7 +111,8 @@ Respond with a single JSON object matching this schema exactly (no markdown, no 
   "operator_strengths": [<1-4 concrete positive behaviors${hasAudio ? ' observed in the actual conversation, quoting specifics' : ' inferred from the call'}>],
   "operator_weaknesses": [<1-4 concrete areas to coach${hasAudio ? ', quoting specific moments where coaching would help' : ''}>],
   "next_steps": <one short sentence recommending a specific follow-up action, or null>,
-  "sentiment": <"positive" | "neutral" | "negative" | "unclear">
+  "sentiment": <"positive" | "neutral" | "negative" | "unclear">,
+  "transcript": <${hasAudio ? 'a full plain-text transcript of the call. Label each speaker turn with "Operator:" or "Caller:" prefix. Keep hesitations and meaningful filler. Separate turns with newlines. If call went to voicemail or no one spoke, return a short note like "[Voicemail — caller left no message]".' : 'null — no audio available'}>
 }
 
 Rules:
@@ -326,6 +349,7 @@ export async function POST(req: NextRequest) {
     summary: parsed.summary || '',
     operator_strengths: Array.isArray(parsed.operator_strengths) ? parsed.operator_strengths : [],
     operator_weaknesses: Array.isArray(parsed.operator_weaknesses) ? parsed.operator_weaknesses : [],
+    transcript: parsed.transcript || null,
     next_steps: parsed.next_steps || null,
     sentiment: parsed.sentiment || null,
     scored_at: new Date().toISOString(),
