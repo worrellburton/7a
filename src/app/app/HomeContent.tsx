@@ -361,7 +361,7 @@ export default function HomeContent() {
           </h1>
         </div>
         {pendingSignatures.length > 0 && (
-          <div className="w-full max-w-md flex flex-col gap-2 px-6">
+          <div className="w-full max-w-md mx-auto flex flex-col gap-2 px-4 sm:px-6">
             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
               Waiting for your signature
             </p>
@@ -384,7 +384,7 @@ export default function HomeContent() {
 
         {/* My signed job description — shown right above What's new. */}
         {latestSignedJd && (
-          <div className="w-full max-w-md flex flex-col gap-2 px-6">
+          <div className="w-full max-w-md mx-auto flex flex-col gap-2 px-4 sm:px-6">
             <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
               Your signed job description
             </p>

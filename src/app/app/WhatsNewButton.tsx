@@ -53,7 +53,7 @@ export default function WhatsNewButton() {
     <>
       <button
         onClick={handleOpen}
-        className="fixed bottom-4 right-4 z-40 group flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-gray-200 shadow-md hover:shadow-lg hover:border-primary/40 transition-all"
+        className="fixed bottom-4 right-4 z-40 group flex items-center gap-2 px-3 py-2.5 rounded-full bg-white border border-gray-200 shadow-md hover:shadow-lg hover:border-primary/40 transition-all"
         aria-label="What's new"
         title="What's new"
       >

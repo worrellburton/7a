@@ -127,7 +127,7 @@ export default function KingdomRequestsContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-4xl mx-auto">
-      <div className="mb-6 flex items-end justify-between gap-4">
+      <div className="mb-6 flex items-end justify-between gap-3 flex-wrap">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
@@ -141,11 +141,12 @@ export default function KingdomRequestsContent() {
         </div>
         <button
           onClick={() => setModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors shrink-0"
           style={{ fontFamily: 'var(--font-body)' }}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-          New request
+          <span className="hidden sm:inline">New request</span>
+          <span className="sm:hidden">New</span>
         </button>
       </div>
 
@@ -191,13 +192,14 @@ export default function KingdomRequestsContent() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px]">
             <thead>
               <tr className="border-b border-gray-100 bg-warm-bg/30">
                 <th className="w-10 px-3 py-3" />
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Request</th>
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Page</th>
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Submitted</th>
+                <th className="text-left px-3 sm:px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Request</th>
+                <th className="text-left px-3 sm:px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Page</th>
+                <th className="text-left px-3 sm:px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Submitted</th>
                 <th className="w-10" />
               </tr>
             </thead>
@@ -212,10 +214,18 @@ export default function KingdomRequestsContent() {
                       className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
                     />
                   </td>
-                  <td className="px-5 py-3">
+                  <td className="px-3 sm:px-5 py-3">
                     <p className={`text-sm ${r.done ? 'line-through text-foreground/40' : 'text-foreground'}`}>{r.text}</p>
+                    <div className="md:hidden mt-1 flex items-center gap-2 flex-wrap">
+                      {r.page_label && (
+                        <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                          {r.page_label}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-foreground/40">{r.created_by_name || 'Someone'} · {fmtWhen(r.created_at)}</span>
+                    </div>
                   </td>
-                  <td className="px-5 py-3">
+                  <td className="px-3 sm:px-5 py-3 hidden md:table-cell">
                     {r.page_label ? (
                       <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                         {r.page_label}
@@ -225,7 +235,7 @@ export default function KingdomRequestsContent() {
                       <span className="text-[11px] text-foreground/30">—</span>
                     )}
                   </td>
-                  <td className="px-5 py-3 text-xs text-foreground/60">
+                  <td className="px-3 sm:px-5 py-3 text-xs text-foreground/60 hidden md:table-cell">
                     <div>{r.created_by_name || 'Someone'}</div>
                     <div className="text-[10px] text-foreground/40">{fmtWhen(r.created_at)}</div>
                     {r.done && r.done_at && <div className="text-[10px] text-primary/70">shipped {fmtWhen(r.done_at)}</div>}
@@ -233,7 +243,7 @@ export default function KingdomRequestsContent() {
                   <td className="px-3 py-3 text-right">
                     <button
                       onClick={() => deleteRequest(r)}
-                      className="p-1.5 rounded-lg text-foreground/30 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                      className="p-1.5 rounded-lg text-foreground/30 hover:text-red-600 hover:bg-red-50 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
                       title="Delete"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -243,6 +253,7 @@ export default function KingdomRequestsContent() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

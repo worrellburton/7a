@@ -65,7 +65,7 @@ export default function HomeHorsesRow() {
   if (loading || active.length === 0) return null;
 
   return (
-    <div className="w-full max-w-4xl flex flex-col gap-2 px-6">
+    <div className="w-full max-w-4xl mx-auto flex flex-col gap-2 px-4 sm:px-6">
       <div className="flex items-baseline justify-between">
         <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
           Horses on the team
