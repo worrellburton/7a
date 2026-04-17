@@ -204,6 +204,24 @@ export default function CallsContent() {
     return Array.from(types).sort((a, b) => a.localeCompare(b));
   }, [scores]);
 
+  const MEANINGFUL_THRESHOLD = 60;
+  const meaningfulData = useMemo(() => {
+    let thisWeek = 0;
+    const dailyCounts = new Map<string, number>();
+    if (!insights) return { thisWeek: 0, dailyCounts };
+    const weekDates = new Set(insights.dailyCounts.map(d => d.date));
+    for (const call of calls) {
+      const s = scores[String(call.id)];
+      if (!s || s.fit_score == null || s.fit_score < MEANINGFUL_THRESHOLD) continue;
+      const callDate = new Date(call.called_at).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+      if (weekDates.has(callDate)) {
+        thisWeek++;
+        dailyCounts.set(callDate, (dailyCounts.get(callDate) || 0) + 1);
+      }
+    }
+    return { thisWeek, dailyCounts };
+  }, [calls, scores, insights]);
+
   const setManualOperator = useCallback(async (callId: string, operatorName: string | null) => {
     if (!session?.access_token) return;
     try {
@@ -605,7 +623,14 @@ export default function CallsContent() {
       ) : insights && (
         <div className="mb-6 space-y-4">
           {/* Stat Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3 sm:gap-4">
+            <div className="bg-white rounded-2xl border border-blue-100 p-4 sm:p-5">
+              <p className="text-xs font-medium text-blue-400 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Meaningful</p>
+              <p className="text-2xl font-bold text-blue-600">{meaningfulData.thisWeek}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {insights.thisWeek > 0 ? `${Math.round((meaningfulData.thisWeek / insights.thisWeek) * 100)}% of calls this week` : 'No calls this week'}
+              </p>
+            </div>
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Today</p>
               <p className="text-2xl font-bold text-foreground">{insights.today}</p>
@@ -684,6 +709,9 @@ export default function CallsContent() {
                   <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
                 </span>
                 <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span className="w-2 h-2 rounded-full bg-[#3b82f6]" /> Meaningful
+                </span>
+                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
                   <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Missed
                 </span>
                 <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
@@ -692,7 +720,7 @@ export default function CallsContent() {
               </div>
             </div>
             <WeekGraph
-              data={insights.dailyCounts}
+              data={insights.dailyCounts.map(d => ({ ...d, meaningfulCount: meaningfulData.dailyCounts.get(d.date) || 0 }))}
               selectedDate={dateFilter}
               onDayClick={(date) => {
                 setDateFilter(date);
@@ -1569,7 +1597,7 @@ function WeekGraph({
   selectedDate,
   onDayClick,
 }: {
-  data: { label: string; short: string; date: string; count: number; missedCount: number; returnedCount: number; sources: { name: string; count: number }[] }[];
+  data: { label: string; short: string; date: string; count: number; missedCount: number; returnedCount: number; meaningfulCount: number; sources: { name: string; count: number }[] }[];
   selectedDate: string;
   onDayClick: (date: string) => void;
 }) {
@@ -1592,13 +1620,15 @@ function WeekGraph({
     const y = padT + innerH - (d.count / max) * innerH;
     const missedY = padT + innerH - (d.missedCount / max) * innerH;
     const returnedY = padT + innerH - (d.returnedCount / max) * innerH;
-    return { x, y, missedY, returnedY, ...d };
+    const meaningfulY = padT + innerH - (d.meaningfulCount / max) * innerH;
+    return { x, y, missedY, returnedY, meaningfulY, ...d };
   });
 
   const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
   const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${padT + innerH} L ${pts[0].x.toFixed(1)} ${padT + innerH} Z`;
   const missedPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.missedY.toFixed(1)}`).join(' ');
   const returnedPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.returnedY.toFixed(1)}`).join(' ');
+  const meaningfulPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.meaningfulY.toFixed(1)}`).join(' ');
 
   // Build subtle horizontal gridlines (4 bands).
   const gridYs = [0, 0.25, 0.5, 0.75, 1].map((t) => padT + innerH * t);
@@ -1664,6 +1694,15 @@ function WeekGraph({
           strokeLinejoin="round"
           strokeDasharray="6 4"
         />
+        <path
+          d={meaningfulPath}
+          fill="none"
+          stroke="#3b82f6"
+          strokeWidth="2.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray="6 4"
+        />
       </g>
 
       {/* Missed + returned points + labels */}
@@ -1716,6 +1755,30 @@ function WeekGraph({
                   style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}
                 >
                   {p.returnedCount}
+                </text>
+              </>
+            )}
+            {p.meaningfulCount > 0 && (
+              <>
+                <circle
+                  cx={p.x}
+                  cy={p.meaningfulY}
+                  r={3.5}
+                  fill="#ffffff"
+                  stroke="#3b82f6"
+                  strokeWidth="2"
+                  style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }}
+                />
+                <text
+                  x={p.x + 8}
+                  y={p.meaningfulY + 4}
+                  textAnchor="start"
+                  fontSize="10"
+                  fontWeight="700"
+                  fill="#3b82f6"
+                  style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}
+                >
+                  {p.meaningfulCount}
                 </text>
               </>
             )}
