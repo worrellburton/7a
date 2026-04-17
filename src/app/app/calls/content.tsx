@@ -209,7 +209,7 @@ export default function CallsContent() {
   const [scores, setScores] = useState<Record<string, ScoreRow>>({});
   const [scoringIds, setScoringIds] = useState<Set<string>>(new Set());
   const [scoringErrors, setScoringErrors] = useState<Record<string, string>>({});
-  const scoringRef = useRef(false);
+  const autoScoreInFlight = useRef<Set<string>>(new Set());
   const [spamNumbers, setSpamNumbers] = useState<Set<string>>(new Set());
   const [reportingSpam, setReportingSpam] = useState<string | null>(null);
 
@@ -425,6 +425,34 @@ export default function CallsContent() {
     }
     return count;
   }, [allCallsRaw, calls, isSpamCall]);
+
+  // Detect single-day range (e.g. Today / Yesterday) so we can show a
+  // narrative Daily Summary instead of the multi-day chart.
+  const rangeStartIso = rangeStart.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+  const rangeEndIso = rangeEnd.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+  const isSingleDay = rangeStartIso === rangeEndIso;
+  const todayIso = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+  const isTodaySelected = isSingleDay && rangeStartIso === todayIso;
+
+  const dailyCalls = useMemo(() => {
+    if (!isSingleDay) return [] as Call[];
+    const seen = new Set<number>();
+    const out: Call[] = [];
+    for (const c of [...allCallsRaw, ...calls]) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      const p = parseDate(c.called_at);
+      if (!p) continue;
+      if (p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }) !== rangeStartIso) continue;
+      out.push(c);
+    }
+    out.sort((a, b) => {
+      const ta = parseDate(a.called_at)?.getTime() ?? 0;
+      const tb = parseDate(b.called_at)?.getTime() ?? 0;
+      return ta - tb;
+    });
+    return out;
+  }, [allCallsRaw, calls, isSingleDay, rangeStartIso]);
 
   const meaningfulData = useMemo(() => {
     let thisWeek = 0;
@@ -795,7 +823,9 @@ export default function CallsContent() {
     return () => observer.disconnect();
   }, [tab, loading, loadingMore, page, totalPages, fetchCalls]);
 
-  // Auto-score: fetch existing scores, then queue unscored calls
+  // Auto-score: fetch existing scores, then queue any unscored calls.
+  // Uses a per-call inflight set so newly-arrived calls (e.g. just completed
+  // and freshly polled) get picked up even while a previous batch is running.
   useEffect(() => {
     if (!session?.access_token || calls.length === 0) return;
     let cancelled = false;
@@ -812,32 +842,70 @@ export default function CallsContent() {
         if (data.scores) {
           setScores((prev) => ({ ...prev, ...data.scores }));
         }
-        // Auto-score unscored calls
-        const unscoredCalls = calls.filter((c) => !data.scores?.[String(c.id)]);
-        if (unscoredCalls.length > 0 && !scoringRef.current) {
-          scoringRef.current = true;
-          for (const call of unscoredCalls) {
-            if (cancelled) break;
+        const toScore = calls.filter((c) => {
+          const id = String(c.id);
+          return !data.scores?.[id] && !autoScoreInFlight.current.has(id);
+        });
+        if (toScore.length === 0) return;
+        const concurrency = 3;
+        let idx = 0;
+        const worker = async () => {
+          while (idx < toScore.length) {
+            if (cancelled) return;
+            const call = toScore[idx++];
+            const id = String(call.id);
+            autoScoreInFlight.current.add(id);
             try {
               const scoreRes = await fetch('/api/claude/calls/score', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                body: JSON.stringify({ callId: String(call.id), call }),
+                body: JSON.stringify({ callId: id, call }),
               });
               if (scoreRes.ok) {
                 const scoreData = await scoreRes.json();
                 if (scoreData.result) {
-                  setScores((prev) => ({ ...prev, [String(call.id)]: scoreData.result }));
+                  setScores((prev) => ({ ...prev, [id]: scoreData.result }));
                 }
               }
             } catch { /* continue */ }
+            finally {
+              autoScoreInFlight.current.delete(id);
+            }
           }
-          scoringRef.current = false;
-        }
+        };
+        await Promise.all(Array.from({ length: concurrency }, () => worker()));
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
   }, [session?.access_token, calls]);
+
+  // Light polling — pick up newly-completed calls every 60s so auto-analyze
+  // can score them without a full page reload. Merges new IDs to the front
+  // instead of resetting pagination so the user's scroll position survives.
+  useEffect(() => {
+    if (!accountId || !session?.access_token) return;
+    let cancelled = false;
+    async function refresh() {
+      if (cancelled) return;
+      const params: Record<string, string | number> = { page: 1, per_page: 25 };
+      if (searchQuery) params.search = searchQuery;
+      if (dateFilter) params.start_date = dateFilter;
+      if (directionFilter !== 'all') params.direction = directionFilter;
+      try {
+        const data = await ctmFetch(`/accounts/${accountId}/calls.json`, params);
+        if (cancelled || !data.calls) return;
+        setCalls(prev => {
+          const existing = new Set(prev.map(c => c.id));
+          const fresh = data.calls!.filter(c => !existing.has(c.id));
+          if (fresh.length === 0) return prev;
+          return [...fresh, ...prev];
+        });
+        if (data.total_entries) setTotalEntries(data.total_entries);
+      } catch { /* swallow — try again next tick */ }
+    }
+    const id = window.setInterval(refresh, 60_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [accountId, session?.access_token, searchQuery, dateFilter, directionFilter]);
 
   const playRecording = (url: string) => {
     if (playingAudio === url) {
@@ -858,26 +926,28 @@ export default function CallsContent() {
   if (!user) return null;
 
   return (
-    <div className="p-3 sm:p-6 lg:p-10">
+    <div className="p-2.5 sm:p-6 lg:p-10">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 sm:mb-8 flex-wrap gap-3">
-        <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Calls</h1>
-          <p className="text-xs sm:text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+      <div className="flex items-center justify-between mb-4 sm:mb-8 flex-wrap gap-2 sm:gap-3">
+        <div className="min-w-0">
+          <h1 className="text-base sm:text-lg font-semibold text-foreground tracking-tight mb-0.5 sm:mb-1">Calls</h1>
+          <p className="text-[11px] sm:text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Call tracking powered by CTM
-            {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total calls</span>}
+            {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total</span>}
           </p>
         </div>
         <a
           href="/app/calls/heatmap"
-          className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-primary text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
+          className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-primary text-white rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
           style={{ fontFamily: 'var(--font-body)' }}
+          aria-label="View Heatmap"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
             <rect x="3" y="4" width="18" height="16" rx="2" strokeLinejoin="round" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM7 16h2v0H7zM11 16h2v0h-2zM15 16h2v0h-2z" />
           </svg>
-          View Heatmap
+          <span className="hidden sm:inline">View Heatmap</span>
+          <span className="sm:hidden">Heatmap</span>
         </a>
       </div>
 
@@ -917,101 +987,111 @@ export default function CallsContent() {
       ) : (
         <div className="mb-6 space-y-4">
           {/* Stat Cards — range-scoped */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Total Calls</p>
-              <p className="text-2xl font-bold text-foreground">{rangeInsights.totalCalls}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-4">
+            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
+              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Total Calls</p>
+              <p className="text-xl sm:text-2xl font-bold text-foreground">{rangeInsights.totalCalls}</p>
+              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {rangeInsights.totalCalls > 0 ? `${rangeInsights.inbound} in · ${rangeInsights.outbound} out` : 'No calls in range'}
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-blue-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-blue-400 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Meaningful</p>
-              <p className="text-2xl font-bold text-blue-600">{rangeInsights.meaningful}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+            <div className="bg-white rounded-xl sm:rounded-2xl border border-blue-100 p-2.5 sm:p-5">
+              <p className="text-[10px] sm:text-xs font-medium text-blue-400 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Meaningful</p>
+              <p className="text-xl sm:text-2xl font-bold text-blue-600">{rangeInsights.meaningful}</p>
+              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {rangeInsights.totalCalls > 0 ? `${Math.round((rangeInsights.meaningful / rangeInsights.totalCalls) * 100)}% of calls` : 'No calls in range'}
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed</p>
-              <p className="text-2xl font-bold text-red-500">{rangeInsights.missed}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
+              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed</p>
+              <p className="text-xl sm:text-2xl font-bold text-red-500">{rangeInsights.missed}</p>
+              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {rangeInsights.inbound > 0 ? `${Math.round((rangeInsights.missed / rangeInsights.inbound) * 100)}% of inbound` : 'No inbound'}
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed (Paid)</p>
-              <p className="text-2xl font-bold text-red-500">{rangeInsights.missedPaid}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
+              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed (Paid)</p>
+              <p className="text-xl sm:text-2xl font-bold text-red-500">{rangeInsights.missedPaid}</p>
+              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {rangeInsights.missed > 0 ? `${Math.round((rangeInsights.missedPaid / rangeInsights.missed) * 100)}% of missed` : 'No missed calls'}
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-amber-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-amber-500 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Spam</p>
-              <p className="text-2xl font-bold text-amber-600">{spamCount}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+            <div className="bg-white rounded-xl sm:rounded-2xl border border-amber-100 p-2.5 sm:p-5">
+              <p className="text-[10px] sm:text-xs font-medium text-amber-500 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Spam</p>
+              <p className="text-xl sm:text-2xl font-bold text-amber-600">{spamCount}</p>
+              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {spamCount > 0 ? `${spamCount} reported` : 'None reported'}
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Returned</p>
-              <p className="text-2xl font-bold text-emerald-500">{rangeInsights.returnedMissed}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
+              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Returned</p>
+              <p className="text-xl sm:text-2xl font-bold text-emerald-500">{rangeInsights.returnedMissed}</p>
+              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {rangeInsights.missed > 0 ? `${Math.round((rangeInsights.returnedMissed / rangeInsights.missed) * 100)}% of missed` : 'No missed calls'}
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Returned (Picked Up)</p>
-              <p className="text-2xl font-bold text-emerald-600">{rangeInsights.returnedPickedUp}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
+              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Returned (Picked Up)</p>
+              <p className="text-xl sm:text-2xl font-bold text-emerald-600">{rangeInsights.returnedPickedUp}</p>
+              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {rangeInsights.returnedMissed > 0 ? `${Math.round((rangeInsights.returnedPickedUp / rangeInsights.returnedMissed) * 100)}% of returned` : 'No returned'}
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Avg Duration</p>
-              <p className="text-2xl font-bold text-foreground">{formatDuration(rangeInsights.avgDuration)}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>per call</p>
+            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
+              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Avg Duration</p>
+              <p className="text-xl sm:text-2xl font-bold text-foreground">{formatDuration(rangeInsights.avgDuration)}</p>
+              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>per call</p>
             </div>
           </div>
 
-          {/* Range Line Graph */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Daily Breakdown</p>
-              <div className="flex items-center gap-3 flex-wrap">
-                {dateFilter && (
-                  <button
-                    onClick={() => { setDateFilter(''); }}
-                    className="text-[11px] text-foreground/40 hover:text-primary transition-colors"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    Clear day filter
-                  </button>
-                )}
-                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
-                </span>
-                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span className="w-2 h-2 rounded-full bg-[#3b82f6]" /> Meaningful
-                </span>
-                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Missed
-                </span>
-                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span className="w-2 h-2 rounded-full bg-[#10b981]" /> Returned
-                </span>
-              </div>
-            </div>
-            <WeekGraph
-              data={rangeInsights.dailyCounts}
-              selectedDate={dateFilter}
-              onDayClick={(date) => {
-                setDateFilter(date);
-                setTab('calls');
-                setPage(1);
-              }}
+          {/* Range Line Graph OR Daily Summary (single-day) */}
+          {isSingleDay ? (
+            <DailySummary
+              calls={dailyCalls}
+              scores={scores}
+              date={rangeStartIso}
+              isToday={isTodaySelected}
+              sessionToken={session?.access_token || null}
             />
-          </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Daily Breakdown</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {dateFilter && (
+                    <button
+                      onClick={() => { setDateFilter(''); }}
+                      className="text-[11px] text-foreground/40 hover:text-primary transition-colors"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Clear day filter
+                    </button>
+                  )}
+                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="w-2 h-2 rounded-full bg-[#3b82f6]" /> Meaningful
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Missed
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="w-2 h-2 rounded-full bg-[#10b981]" /> Returned
+                  </span>
+                </div>
+              </div>
+              <WeekGraph
+                data={rangeInsights.dailyCounts}
+                selectedDate={dateFilter}
+                onDayClick={(date) => {
+                  setDateFilter(date);
+                  setTab('calls');
+                  setPage(1);
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -1024,12 +1104,12 @@ export default function CallsContent() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-warm-bg rounded-xl p-1 w-fit">
+      <div className="flex gap-1 mb-4 sm:mb-6 bg-warm-bg rounded-xl p-1 w-fit">
         {(['calls', 'sources', 'spam'] as Tab[]).map(t => {
           const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : 'Spam';
           const spamCount = spamNumbers.size;
           return (
-            <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
+            <button key={t} onClick={() => setTab(t)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
               {label}{t === 'spam' && spamCount > 0 ? ` · ${spamCount}` : ''}
             </button>
           );
@@ -2740,6 +2820,152 @@ function MiniHeatmap({
         <div className="w-3 h-3 rounded-sm bg-primary-dark" />
         <span>More</span>
       </div>
+    </div>
+  );
+}
+
+function DailySummary({
+  calls,
+  scores,
+  date,
+  isToday,
+  sessionToken,
+}: {
+  calls: Call[];
+  scores: Record<string, ScoreRow>;
+  date: string;
+  isToday: boolean;
+  sessionToken: string | null;
+}) {
+  const [summary, setSummary] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const debounceRef = useRef<number | null>(null);
+
+  // Stable signature so we only regenerate when calls or relevant scores change
+  const signature = useMemo(() => {
+    const idSig = calls.map(c => c.id).sort((a, b) => a - b).join(',');
+    const scoreSig = calls.map(c => {
+      const s = scores[String(c.id)];
+      return s ? `${c.id}:${s.fit_score ?? 'x'}:${(s.summary || '').length}` : `${c.id}:_`;
+    }).join('|');
+    return `${date}::${idSig}::${scoreSig}`;
+  }, [calls, scores, date]);
+
+  useEffect(() => {
+    if (!sessionToken) return;
+    if (calls.length === 0) {
+      setSummary(isToday ? 'No calls today yet.' : 'No calls on this day.');
+      setLoading(false);
+      return;
+    }
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    setLoading(true);
+    debounceRef.current = window.setTimeout(async () => {
+      try {
+        const callsPayload = calls.map(c => ({
+          id: c.id,
+          called_at: c.called_at,
+          direction: c.direction,
+          duration: c.duration,
+          talk_time: c.talk_time,
+          voicemail: c.voicemail,
+          caller_number_formatted: c.caller_number_formatted,
+          caller_number: c.caller_number,
+          source: c.source,
+          source_name: c.source_name,
+          city: c.city,
+          state: c.state,
+        }));
+        const scoresPayload: Record<string, {
+          caller_name: string | null;
+          client_type: string | null;
+          fit_score: number | null;
+          summary: string;
+          next_steps: string | null;
+          caller_interest: string | null;
+        }> = {};
+        for (const c of calls) {
+          const s = scores[String(c.id)];
+          if (s) scoresPayload[String(c.id)] = {
+            caller_name: s.caller_name,
+            client_type: s.client_type,
+            fit_score: s.fit_score,
+            summary: s.summary,
+            next_steps: s.next_steps,
+            caller_interest: s.caller_interest,
+          };
+        }
+        const res = await fetch('/api/claude/calls/daily-summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+          body: JSON.stringify({ date, calls: callsPayload, scores: scoresPayload }),
+        });
+        const data = await res.json();
+        if (data.summary) {
+          setSummary(data.summary);
+          setError(null);
+        } else if (data.error) {
+          setError(data.error);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to generate summary');
+      } finally {
+        setLoading(false);
+      }
+    }, 1500);
+
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, sessionToken, isToday]);
+
+  const stats = useMemo(() => {
+    let inbound = 0, outbound = 0, missed = 0, talkSec = 0;
+    for (const c of calls) {
+      if (c.direction === 'inbound') inbound++;
+      if (c.direction === 'outbound') outbound++;
+      if (c.direction === 'inbound' && (c.voicemail || (c.talk_time ?? 0) < 3)) missed++;
+      talkSec += c.talk_time || 0;
+    }
+    return { inbound, outbound, missed, talkSec };
+  }, [calls]);
+
+  const allScored = calls.length > 0 && calls.every(c => scores[String(c.id)]);
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+            {isToday ? 'Daily Summary so far' : 'Daily Summary'}
+          </p>
+          {!allScored && calls.length > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-blue-600" style={{ fontFamily: 'var(--font-body)' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              analyzing
+            </span>
+          )}
+        </div>
+        <span className="text-[11px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+          {calls.length} {calls.length === 1 ? 'call' : 'calls'}
+          {calls.length > 0 && ` · ${stats.inbound} in · ${stats.outbound} out${stats.missed > 0 ? ` · ${stats.missed} missed` : ''}`}
+        </span>
+      </div>
+      {loading && !summary ? (
+        <div className="space-y-2">
+          <div className="h-3 bg-gray-100 rounded animate-pulse w-full" />
+          <div className="h-3 bg-gray-100 rounded animate-pulse w-11/12" />
+          <div className="h-3 bg-gray-100 rounded animate-pulse w-9/12" />
+        </div>
+      ) : error ? (
+        <p className="text-xs text-red-500" style={{ fontFamily: 'var(--font-body)' }}>{error}</p>
+      ) : (
+        <p className={`text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap ${loading ? 'opacity-60' : ''}`} style={{ fontFamily: 'var(--font-body)' }}>
+          {summary || 'Generating summary…'}
+        </p>
+      )}
     </div>
   );
 }
