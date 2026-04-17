@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { getAuthToken } from '@/lib/db';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import CallAiHover from './CallAiHover';
 
 interface Call {
   id: number;
@@ -480,8 +481,13 @@ export default function CallsContent() {
                               <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{formatTime(call.called_at)}</div>
                             </td>
                             <td className="px-5 py-3.5">
-                              <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
-                              {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
+                              <div className="flex items-center gap-2">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
+                                  {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
+                                </div>
+                                <CallAiHover call={call} />
+                              </div>
                             </td>
                             <td className="px-5 py-3.5">
                               <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>

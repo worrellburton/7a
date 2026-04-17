@@ -12,6 +12,15 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-17T07:00:00Z',
+    title: 'Calls: AI scoring for admins',
+    items: [
+      'Admins now see an "AI" badge on every call row. Hover (or click) to get a Claude-generated analysis: 0–100 score, inferred caller name + interest, sentiment, call summary, operator strengths, areas to coach, and a recommended next step.',
+      'Scores are cached per-call in call_ai_scores so they don\'t re-run on every hover. Hit the refresh icon to re-score.',
+      'Gated to admins only \u2014 RLS on the scores table backs that up server-side.',
+    ],
+  },
+  {
     at: '2026-04-17T06:00:00Z',
     title: 'Clients module + home dashboard: who\'s in care, who\'s coming, who\'s on the team',
     items: [
