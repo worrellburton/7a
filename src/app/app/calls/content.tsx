@@ -533,7 +533,9 @@ export default function CallsContent() {
         }
         if (isFinite(minTime) && isFinite(maxTime)) {
           const pad = 3 * 24 * 60 * 60 * 1000;
-          setTimelineBounds({ min: new Date(minTime - pad), max: new Date(maxTime + pad) });
+          const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
+          const cappedMax = Math.min(maxTime + pad, endOfToday.getTime());
+          setTimelineBounds({ min: new Date(minTime - pad), max: new Date(cappedMax) });
         }
 
         const now = new Date();
