@@ -1166,21 +1166,17 @@ export default function CallsContent() {
                               <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{formatTime(call.called_at)}</div>
                             </td>
                             <td className="px-3 sm:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                              <div className="min-w-0 group relative inline-block">
-                                <div
-                                  className="text-sm font-medium text-foreground"
-                                  onMouseEnter={() => setReportingSpam(String(call.id))}
-                                  onMouseLeave={() => setReportingSpam((v) => v === String(call.id) ? null : v)}
-                                >
+                              <div
+                                className="min-w-0 relative inline-block"
+                                onMouseEnter={() => setReportingSpam(String(call.id))}
+                                onMouseLeave={() => setReportingSpam(null)}
+                              >
+                                <div className="text-sm font-medium text-foreground">
                                   {call.caller_number_formatted || call.caller_number || 'Unknown'}
                                 </div>
                                 {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
                                 {reportingSpam === String(call.id) && call.caller_number && (
-                                  <div
-                                    className="absolute left-0 top-full mt-1 z-20"
-                                    onMouseEnter={() => setReportingSpam(String(call.id))}
-                                    onMouseLeave={() => setReportingSpam(null)}
-                                  >
+                                  <div className="absolute left-0 top-full pt-1 z-20">
                                     {spamNumbers.has(normalizePhone(call.caller_number)) ? (
                                       <button
                                         type="button"
