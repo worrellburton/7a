@@ -191,6 +191,17 @@ export default function CallsContent() {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [scores]);
 
+  const knownClientTypes = useMemo(() => {
+    const types = new Set<string>([
+      'Insurance', 'Private Pay', 'Mental Health', 'Addiction',
+      'Dual Diagnosis', 'Family/Loved One', 'Other',
+    ]);
+    for (const s of Object.values(scores)) {
+      if (s?.client_type) types.add(s.client_type);
+    }
+    return Array.from(types).sort((a, b) => a.localeCompare(b));
+  }, [scores]);
+
   const setManualOperator = useCallback(async (callId: string, operatorName: string | null) => {
     if (!session?.access_token) return;
     try {
@@ -198,6 +209,21 @@ export default function CallsContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ callId, operator_name: operatorName }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.result) setScores((prev) => ({ ...prev, [callId]: data.result }));
+      }
+    } catch { /* swallow — UI keeps the stale value */ }
+  }, [session?.access_token]);
+
+  const setManualClientType = useCallback(async (callId: string, clientType: string | null) => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch('/api/claude/calls/set-client-type', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ callId, client_type: clientType }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -846,14 +872,12 @@ export default function CallsContent() {
                                 />
                               </div>
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
-                              {scores[String(call.id)]?.client_type ? (
-                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${clientTypeBg(scores[String(call.id)].client_type!)}`}>
-                                  {scores[String(call.id)].client_type}
-                                </span>
-                              ) : (
-                                <span className="text-foreground/20">—</span>
-                              )}
+                            <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
+                              <ClientTypePicker
+                                currentType={scores[String(call.id)]?.client_type || null}
+                                knownTypes={knownClientTypes}
+                                onPick={(t) => setManualClientType(String(call.id), t)}
+                              />
                             </td>
                             <td className="px-3 sm:px-5 py-3.5">
                               <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
@@ -1129,6 +1153,70 @@ function OperatorPicker({ currentName, knownOperators, noAnswer, voicemail, erro
         {options.map((n) => <option key={n} value={n}>{n}</option>)}
         <option value="__new__">+ New name…</option>
         {currentName && <option value="__clear__">Clear</option>}
+      </select>
+    </div>
+  );
+}
+
+// Inline client-type picker. Shows the pill when a type is set, otherwise a
+// compact dropdown so the user can manually classify the call. Always allows
+// changing or clearing via the dropdown on the right.
+function ClientTypePicker({ currentType, knownTypes, onPick }: {
+  currentType: string | null;
+  knownTypes: string[];
+  onPick: (type: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [custom, setCustom] = useState('');
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <input
+          autoFocus
+          type="text"
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { if (custom.trim()) onPick(custom.trim()); setEditing(false); }
+            if (e.key === 'Escape') { setEditing(false); setCustom(''); }
+          }}
+          placeholder="Call type"
+          className="text-xs px-2 py-1 rounded-md border border-gray-200 focus:outline-none focus:border-primary/40 w-28"
+        />
+        <button type="button" onClick={() => { if (custom.trim()) onPick(custom.trim()); setEditing(false); }} className="text-[10px] font-semibold px-2 py-1 rounded-md bg-primary text-white hover:opacity-90">Save</button>
+        <button type="button" onClick={() => { setEditing(false); setCustom(''); }} className="text-[10px] text-foreground/40 hover:text-foreground/70">Cancel</button>
+      </div>
+    );
+  }
+
+  const options = Array.from(new Set([...(currentType ? [currentType] : []), ...knownTypes])).sort((a, b) => a.localeCompare(b));
+
+  return (
+    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      {currentType ? (
+        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${clientTypeBg(currentType)}`}>
+          {currentType}
+        </span>
+      ) : (
+        <span className="text-foreground/20">—</span>
+      )}
+      <select
+        value=""
+        onChange={(e) => {
+          const v = e.target.value;
+          if (!v) return;
+          if (v === '__new__') { setEditing(true); return; }
+          if (v === '__clear__') { onPick(null); return; }
+          onPick(v);
+        }}
+        className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 bg-white text-foreground/60 hover:border-primary/30 focus:outline-none focus:border-primary/40 cursor-pointer"
+        title={currentType ? 'Change type' : 'Set type'}
+      >
+        <option value="">{currentType ? 'Change…' : 'Set…'}</option>
+        {options.map((t) => <option key={t} value={t}>{t}</option>)}
+        <option value="__new__">+ Custom type…</option>
+        {currentType && <option value="__clear__">Clear</option>}
       </select>
     </div>
   );
