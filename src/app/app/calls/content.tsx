@@ -743,6 +743,24 @@ export default function CallsContent() {
             </select>
             <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
           </div>
+          <div className="relative">
+            <select
+              value={operatorFilter}
+              onChange={e => setOperatorFilter(e.target.value)}
+              className="appearance-none pl-3 pr-7 py-2 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <option value="all">All Operators</option>
+              {Array.from(new Set(
+                Object.values(scores)
+                  .map(s => s.operator_name)
+                  .filter((n): n is string => !!n)
+              )).sort().map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+          </div>
           <button onClick={() => fetchCalls(1)} className="px-4 py-2 rounded-lg text-xs font-medium bg-foreground text-white hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
             Search
           </button>
@@ -777,30 +795,8 @@ export default function CallsContent() {
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Number</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Duration</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Caller</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
-                        <div className="flex flex-col gap-1.5">
-                          <span>Operator</span>
-                          <div className="relative">
-                            <select
-                              value={operatorFilter}
-                              onChange={e => setOperatorFilter(e.target.value)}
-                              className="appearance-none w-full pl-2 pr-6 py-1 rounded-md text-[10px] font-medium bg-white border border-gray-200 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer normal-case tracking-normal"
-                            >
-                              <option value="all">All Operators</option>
-                              {Array.from(new Set(
-                                Object.values(scores)
-                                  .map(s => s.operator_name)
-                                  .filter((n): n is string => !!n)
-                              )).sort().map(name => (
-                                <option key={name} value={name}>{name}</option>
-                              ))}
-                            </select>
-                            <svg className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                          </div>
-                        </div>
-                      </th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Operator</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Type</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Direction</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Location</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Recording</th>
@@ -819,6 +815,11 @@ export default function CallsContent() {
                         <Fragment key={call.id}>
                           <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
                             <td className="px-3 sm:px-5 py-3.5">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize mb-1 ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
+                                {call.direction || 'unknown'}
+                              </span>
+                              {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 ml-1 mb-1">VM</span>}
+                              {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700 ml-1 mb-1">1st</span>}
                               <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
@@ -888,13 +889,6 @@ export default function CallsContent() {
                                 onPick={(t) => setManualClientType(String(call.id), t)}
                               />
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5">
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
-                                {call.direction || 'unknown'}
-                              </span>
-                              {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ml-1">VM</span>}
-                              {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 ml-1">1st</span>}
-                            </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/60 max-w-[180px] truncate" style={{ fontFamily: 'var(--font-body)' }}>
                               {call.source_name || call.source || '—'}
                             </td>
@@ -938,7 +932,7 @@ export default function CallsContent() {
                           </tr>
                           {expanded && (
                             <tr className="bg-warm-bg/30 border-b border-gray-50">
-                              <td colSpan={15} className="px-5 py-5">
+                              <td colSpan={14} className="px-5 py-5">
                                 <CallDetail
                                   call={call}
                                   score={scores[String(call.id)] || null}
@@ -951,7 +945,7 @@ export default function CallsContent() {
                           )}
                           {!expanded && miniPopoverId === call.id && (
                             <tr className="bg-gradient-to-r from-primary/5 to-transparent border-b border-gray-50" onClick={(e) => e.stopPropagation()}>
-                              <td colSpan={15} className="px-5 py-4">
+                              <td colSpan={14} className="px-5 py-4">
                                 <ScoreMiniPopover
                                   score={scores[String(call.id)] || null}
                                   scoring={scoringIds.has(String(call.id))}
@@ -1128,38 +1122,26 @@ function OperatorPicker({ currentName, knownOperators, noAnswer, voicemail, erro
   const options = Array.from(new Set([...(currentName ? [currentName] : []), ...knownOperators])).sort((a, b) => a.localeCompare(b));
 
   return (
-    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-      {currentName ? (
-        <span className="font-medium">{currentName}</span>
-      ) : noAnswer ? (
-        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
-          {voicemail ? 'Voicemail' : 'No answer'}
-        </span>
-      ) : error ? (
-        <span title={error} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700">
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9 9 0 1 1 2.982 12 9 9 0 0 1 12 2.714Zm0 13.036h.008v.008H12v-.008Z" /></svg>
-          Error
-        </span>
-      ) : (
-        <span className="text-foreground/20">—</span>
-      )}
-      <select
-        value=""
-        onChange={(e) => {
-          const v = e.target.value;
-          if (!v) return;
-          if (v === '__new__') { setEditing(true); return; }
-          if (v === '__clear__') { onPick(null); return; }
-          onPick(v);
-        }}
-        className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 bg-white text-foreground/60 hover:border-primary/30 focus:outline-none focus:border-primary/40 cursor-pointer"
-        title={currentName ? 'Change operator' : 'Set operator'}
-      >
-        <option value="">{currentName ? 'Change…' : 'Set…'}</option>
-        {options.map((n) => <option key={n} value={n}>{n}</option>)}
-        <option value="__new__">+ New name…</option>
-        {currentName && <option value="__clear__">Clear</option>}
-      </select>
+    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+      <div className="relative">
+        <select
+          value={currentName || ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === '__new__') { setEditing(true); return; }
+            if (v === '__clear__') { onPick(null); return; }
+            if (v === '') return;
+            onPick(v);
+          }}
+          className={`appearance-none text-xs pl-2.5 pr-6 py-1 rounded-full font-medium border cursor-pointer focus:outline-none focus:border-primary/40 ${currentName ? 'bg-blue-50 text-blue-800 border-transparent' : error ? 'bg-red-50 text-red-700 border-transparent' : 'bg-white border-gray-200 text-foreground/40'}`}
+        >
+          {!currentName && <option value="">{error ? 'Error — Set…' : 'Set operator…'}</option>}
+          {options.map((n) => <option key={n} value={n}>{n}</option>)}
+          <option value="__new__">+ New name…</option>
+          {currentName && <option value="__clear__">Clear</option>}
+        </select>
+        <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-current opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      </div>
     </div>
   );
 }
