@@ -4,7 +4,7 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 const CLAUDE_DEFAULT_MODEL = 'claude-opus-4-6';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_API_VERSION = '2023-06-01';
-const GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash';
+const GEMINI_DEFAULT_MODEL = 'gemini-2.5-pro';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 const AUDIO_DOWNLOAD_TIMEOUT = 30_000;
