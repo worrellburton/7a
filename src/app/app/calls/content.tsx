@@ -76,6 +76,7 @@ interface Insights {
   missedThisWeek: number;
   missedPaidThisWeek: number;
   returnedMissedThisWeek: number;
+  returnedPickedUpThisWeek: number;
   dailyCounts: { label: string; short: string; date: string; count: number; missedCount: number; returnedCount: number; sources: { name: string; count: number }[] }[];
 }
 
@@ -356,6 +357,7 @@ export default function CallsContent() {
         let missedWeek = 0;
         let missedPaidWeek = 0;
         let returnedMissedWeek = 0;
+        let returnedPickedUpWeek = 0;
         const dayMissedCounts = new Map<string, number>();
         const dayReturnedCounts = new Map<string, number>();
         const missedNumbers = new Set<string>();
@@ -389,6 +391,7 @@ export default function CallsContent() {
           if (target && missedNumbers.has(target)) {
             returnedMissedWeek++;
             dayReturnedCounts.set(callDate, (dayReturnedCounts.get(callDate) || 0) + 1);
+            if ((c.talk_time ?? 0) >= 3) returnedPickedUpWeek++;
           }
         });
 
@@ -413,6 +416,7 @@ export default function CallsContent() {
           missedThisWeek: missedWeek,
           missedPaidThisWeek: missedPaidWeek,
           returnedMissedThisWeek: returnedMissedWeek,
+          returnedPickedUpThisWeek: returnedPickedUpWeek,
           dailyCounts,
         });
       } catch {
@@ -562,7 +566,7 @@ export default function CallsContent() {
       ) : insights && (
         <div className="mb-6 space-y-4">
           {/* Stat Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Today</p>
               <p className="text-2xl font-bold text-foreground">{insights.today}</p>
@@ -612,6 +616,13 @@ export default function CallsContent() {
               <p className="text-2xl font-bold text-emerald-500">{insights.returnedMissedThisWeek}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {insights.missedThisWeek > 0 ? `${Math.round((insights.returnedMissedThisWeek / insights.missedThisWeek) * 100)}% of missed returned` : 'No missed calls'}
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Returned (Picked Up)</p>
+              <p className="text-2xl font-bold text-emerald-600">{insights.returnedPickedUpThisWeek}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {insights.returnedMissedThisWeek > 0 ? `${Math.round((insights.returnedPickedUpThisWeek / insights.returnedMissedThisWeek) * 100)}% of returned picked up` : 'No returned calls'}
               </p>
             </div>
           </div>
@@ -902,6 +913,7 @@ export default function CallsContent() {
                                   call={call}
                                   score={scores[String(call.id)] || null}
                                   scoring={scoringIds.has(String(call.id))}
+                                  error={scoringErrors[String(call.id)]}
                                   onRescore={rescoreCall}
                                 />
                               </td>
@@ -1217,15 +1229,26 @@ function CallDetail({
   call,
   score,
   scoring,
+  error,
   onRescore,
 }: {
   call: Call;
   score: ScoreRow | null;
   scoring: boolean;
+  error?: string;
   onRescore: (callId: string, force: boolean) => void;
 }) {
   return (
     <div style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 flex items-start gap-2">
+          <svg className="w-4 h-4 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" /></svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-red-700 uppercase tracking-wider">Analysis failed</p>
+            <p className="text-xs text-red-800 mt-0.5 break-words">{error}</p>
+          </div>
+        </div>
+      )}
       {/* Header: score + caller + operator + sentiment + rescore */}
       <div className="flex items-start gap-4 flex-wrap pb-4 border-b border-gray-100">
         <div
@@ -1481,23 +1504,78 @@ function WeekGraph({
           d={missedPath}
           fill="none"
           stroke="#ef4444"
-          strokeWidth="2"
+          strokeWidth="2.25"
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeDasharray="6 4"
-          opacity="0.7"
         />
         <path
           d={returnedPath}
           fill="none"
           stroke="#10b981"
-          strokeWidth="2"
+          strokeWidth="2.25"
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeDasharray="6 4"
-          opacity="0.7"
         />
       </g>
+
+      {/* Missed + returned points + labels */}
+      {pts.map((p, i) => {
+        const delay = 0.3 + i * 0.18;
+        return (
+          <g key={`mr-${p.date}`} className="pointer-events-none">
+            {p.missedCount > 0 && (
+              <>
+                <circle
+                  cx={p.x}
+                  cy={p.missedY}
+                  r={3.5}
+                  fill="#ffffff"
+                  stroke="#ef4444"
+                  strokeWidth="2"
+                  style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }}
+                />
+                <text
+                  x={p.x - 8}
+                  y={p.missedY + 4}
+                  textAnchor="end"
+                  fontSize="10"
+                  fontWeight="700"
+                  fill="#ef4444"
+                  style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}
+                >
+                  {p.missedCount}
+                </text>
+              </>
+            )}
+            {p.returnedCount > 0 && (
+              <>
+                <circle
+                  cx={p.x}
+                  cy={p.returnedY}
+                  r={3.5}
+                  fill="#ffffff"
+                  stroke="#10b981"
+                  strokeWidth="2"
+                  style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }}
+                />
+                <text
+                  x={p.x + 8}
+                  y={p.returnedY + 4}
+                  textAnchor="start"
+                  fontSize="10"
+                  fontWeight="700"
+                  fill="#10b981"
+                  style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}
+                >
+                  {p.returnedCount}
+                </text>
+              </>
+            )}
+          </g>
+        );
+      })}
 
       {/* day points + labels (appear staggered with fade) */}
       {pts.map((p, i) => {
