@@ -329,8 +329,7 @@ async function scoreWithClaudeMetadata(
         max_tokens: 2000,
         system: 'You are a call-center performance analyst. You MUST respond with a single valid JSON object matching the schema the user specifies. Do not output markdown, headings, prose, or explanation — JSON only. Start your response with the "{" character.',
         messages: [
-          { role: 'user', content: prompt },
-          { role: 'assistant', content: '{' },
+          { role: 'user', content: prompt + '\n\nRespond with ONLY the JSON object. No markdown, no backticks, no explanation.' },
         ],
       }),
     });
@@ -348,11 +347,9 @@ async function scoreWithClaudeMetadata(
         if (block?.type === 'text' && typeof block.text === 'string') answer += block.text;
       }
     }
-    // We prefilled "{" so prepend it to the response before parsing.
-    const full = `{${answer}`;
-    const parsed = parseScoreJson(full);
+    const parsed = parseScoreJson(answer);
     if (!parsed || typeof parsed.score !== 'number') {
-      return { error: `Claude returned unparseable response: ${full.slice(0, 200)}` };
+      return { error: `Claude returned unparseable response: ${answer.slice(0, 200)}` };
     }
     return { result: parsed, model: `claude:${model}` };
   } catch (err) {
