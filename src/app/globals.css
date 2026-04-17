@@ -289,3 +289,22 @@ html.dark .bg-dark-section {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+
+/* Missed inbound calls: force the whole row (and nested spans/divs) to
+   render white-ish text on the solid red background so the row really
+   stands out. Form controls inside (select/input) keep dark text on
+   white so they stay legible. */
+tr.missed-call-row,
+tr.missed-call-row td,
+tr.missed-call-row div,
+tr.missed-call-row span,
+tr.missed-call-row p,
+tr.missed-call-row a,
+tr.missed-call-row svg {
+  color: #fff !important;
+}
+tr.missed-call-row select,
+tr.missed-call-row input,
+tr.missed-call-row option {
+  color: #1a1a1a !important;
+}

@@ -661,7 +661,7 @@ export default function CallsContent() {
                       const expanded = expandedId === call.id;
                       return (
                         <Fragment key={call.id}>
-                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`border-b border-gray-50 transition-colors cursor-pointer ${(call.voicemail || (call.talk_time ?? 0) < 3) && call.direction === 'inbound' ? 'bg-red-50/40 hover:bg-red-50/70' : 'hover:bg-warm-bg/20'}`}>
+                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`border-b transition-colors cursor-pointer ${(call.voicemail || (call.talk_time ?? 0) < 3) && call.direction === 'inbound' ? 'missed-call-row bg-red-600 hover:bg-red-700 border-red-700 text-white' : 'border-gray-50 hover:bg-warm-bg/20'}`}>
                             <td className="px-3 sm:px-5 py-3.5">
                               <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
                             </td>
@@ -698,21 +698,16 @@ export default function CallsContent() {
                                 <span className="text-foreground/20">—</span>
                               )}
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => { if (!scores[String(call.id)]?.operator_name) e.stopPropagation(); }}>
+                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center gap-2">
-                                {(() => {
-                                  const s = scores[String(call.id)];
-                                  if (s?.operator_name) return <span className="font-medium">{s.operator_name}</span>;
-                                  return (
-                                    <OperatorPicker
-                                      knownOperators={knownOperators}
-                                      noAnswer={call.voicemail || (call.talk_time ?? 0) < 3}
-                                      voicemail={!!call.voicemail}
-                                      error={scoringErrors[String(call.id)]}
-                                      onPick={(name) => setManualOperator(String(call.id), name)}
-                                    />
-                                  );
-                                })()}
+                                <OperatorPicker
+                                  currentName={scores[String(call.id)]?.operator_name || null}
+                                  knownOperators={knownOperators}
+                                  noAnswer={call.voicemail || (call.talk_time ?? 0) < 3}
+                                  voicemail={!!call.voicemail}
+                                  error={scoringErrors[String(call.id)]}
+                                  onPick={(name) => setManualOperator(String(call.id), name)}
+                                />
                                 <CallAiBadge
                                   call={call}
                                   preScore={scores[String(call.id)] || null}
@@ -913,9 +908,11 @@ export default function CallsContent() {
   );
 }
 
-// Inline operator selector shown when the AI couldn't pick up a name.
-// Lets staff pick from known operators or type a new name.
-function OperatorPicker({ knownOperators, noAnswer, voicemail, error, onPick }: {
+// Inline operator selector shown in every row. Displays the current
+// operator name (AI-picked or manually set) and lets staff override via
+// a dropdown of known operators, or type a brand-new name.
+function OperatorPicker({ currentName, knownOperators, noAnswer, voicemail, error, onPick }: {
+  currentName: string | null;
   knownOperators: string[];
   noAnswer: boolean;
   voicemail: boolean;
@@ -946,34 +943,40 @@ function OperatorPicker({ knownOperators, noAnswer, voicemail, error, onPick }: 
     );
   }
 
+  const options = Array.from(new Set([...(currentName ? [currentName] : []), ...knownOperators])).sort((a, b) => a.localeCompare(b));
+
   return (
     <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-      {noAnswer && (
+      {currentName ? (
+        <span className="font-medium">{currentName}</span>
+      ) : noAnswer ? (
         <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
           {voicemail ? 'Voicemail' : 'No answer'}
         </span>
-      )}
-      {!noAnswer && error && (
+      ) : error ? (
         <span title={error} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700">
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9 9 0 1 1 2.982 12 9 9 0 0 1 12 2.714Zm0 13.036h.008v.008H12v-.008Z" /></svg>
           Error
         </span>
+      ) : (
+        <span className="text-foreground/20">—</span>
       )}
-      {!noAnswer && !error && <span className="text-foreground/20">—</span>}
       <select
         value=""
         onChange={(e) => {
           const v = e.target.value;
           if (!v) return;
           if (v === '__new__') { setEditing(true); return; }
+          if (v === '__clear__') { onPick(null); return; }
           onPick(v);
         }}
         className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 bg-white text-foreground/60 hover:border-primary/30 focus:outline-none focus:border-primary/40 cursor-pointer"
-        title="Manually set operator"
+        title={currentName ? 'Change operator' : 'Set operator'}
       >
-        <option value="">Set…</option>
-        {knownOperators.map((n) => <option key={n} value={n}>{n}</option>)}
+        <option value="">{currentName ? 'Change…' : 'Set…'}</option>
+        {options.map((n) => <option key={n} value={n}>{n}</option>)}
         <option value="__new__">+ New name…</option>
+        {currentName && <option value="__clear__">Clear</option>}
       </select>
     </div>
   );
