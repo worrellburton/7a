@@ -12,6 +12,19 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-17T09:00:00Z',
+    title: 'Mobile optimization pass',
+    items: [
+      'All major tables (calls, clients, notes, policies, kingdom requests) now scroll horizontally on phones with less-important columns hidden at small widths.',
+      'Home dashboard clients/horses rows no longer overflow or left-align on phones.',
+      'Admitting-soon clients stack above the admitted row on mobile instead of squishing sideways.',
+      'Client chart header avatar + typography scales down gracefully on small screens.',
+      'Calls stat cards, filters, and table row padding tightened for phone-sized viewports.',
+      'Policies + Notes + Clients + Kingdom Requests headers now wrap properly instead of cramming.',
+      'Ask Policies and signed-JD widgets center and add horizontal breathing room on mobile.',
+    ],
+  },
+  {
     at: '2026-04-17T08:00:00Z',
     title: 'AI call scoring: audio analysis + UI fixes',
     items: [

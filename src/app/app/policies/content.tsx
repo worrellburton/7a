@@ -1005,14 +1005,14 @@ export default function PoliciesContent() {
   return (
     <div className="p-4 sm:p-6 lg:p-10">
       {/* Header */}
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-6 flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Policies &amp; Procedures</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             {view === 'list' ? 'Paste in policy text and we format it with a proper header.' : 'Viewing policy.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {view === 'detail' && selectedPolicy && !editMode && (
             <>
               <button onClick={() => printPolicy(selectedPolicy)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-foreground/70 bg-white border border-gray-200 rounded-xl hover:bg-warm-bg transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
@@ -1050,14 +1050,15 @@ export default function PoliciesContent() {
       {view === 'list' && (
         <>
           {/* Filters */}
-          <div className="flex items-center gap-3 mb-4">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search policies..." className="flex-1 max-w-sm px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none" />
+          <div className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap">
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search policies..." className="flex-1 min-w-[160px] max-w-sm px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none" />
             <select value={sectionFilter} onChange={(e) => setSectionFilter(e.target.value)} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none">
               <option value="">All sections</option>
               {sectionNames.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            <button onClick={() => setManageSectionsOpen(true)} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-foreground/70 hover:bg-warm-bg transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
-              Manage sections
+            <button onClick={() => setManageSectionsOpen(true)} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-foreground/70 hover:bg-warm-bg transition-colors whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+              <span className="hidden sm:inline">Manage sections</span>
+              <span className="sm:hidden">Sections</span>
             </button>
           </div>
 
@@ -1098,7 +1099,8 @@ export default function PoliciesContent() {
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <table className="w-full">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px]">
                 <thead>
                   <tr className="border-b border-gray-100 bg-warm-bg/30">
                     <th className="w-10 px-3 py-3">
@@ -1110,11 +1112,11 @@ export default function PoliciesContent() {
                       />
                     </th>
                     {([
-                      { key: 'section', label: 'Section' },
-                      { key: 'name', label: 'Name' },
-                      { key: 'date_created', label: 'Date Created' },
-                      { key: 'date_reviewed', label: 'Date Reviewed' },
-                      { key: 'date_revised', label: 'Date Revised' },
+                      { key: 'section', label: 'Section', alwaysShow: true },
+                      { key: 'name', label: 'Name', alwaysShow: true },
+                      { key: 'date_created', label: 'Created', alwaysShow: false },
+                      { key: 'date_reviewed', label: 'Reviewed', alwaysShow: false },
+                      { key: 'date_revised', label: 'Revised', alwaysShow: false },
                     ] as const).map((col) => (
                       <th
                         key={col.key}
@@ -1122,7 +1124,7 @@ export default function PoliciesContent() {
                           if (sortBy === col.key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
                           else { setSortBy(col.key); setSortDir(col.key.startsWith('date_') ? 'desc' : 'asc'); }
                         }}
-                        className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider cursor-pointer select-none hover:text-foreground/80 transition-colors"
+                        className={`text-left px-3 sm:px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider cursor-pointer select-none hover:text-foreground/80 transition-colors ${col.alwaysShow ? '' : 'hidden md:table-cell'}`}
                         style={{ fontFamily: 'var(--font-body)' }}
                       >
                         <span className="inline-flex items-center gap-1">
@@ -1148,10 +1150,10 @@ export default function PoliciesContent() {
                           className="rounded border-gray-300"
                         />
                       </td>
-                      <td className="px-5 py-3 cursor-pointer" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${sectionBadgeClass(p.section)}`}>{p.section}</span>
+                      <td className="px-3 sm:px-5 py-3 cursor-pointer" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${sectionBadgeClass(p.section)}`}>{p.section}</span>
                       </td>
-                      <td className="px-5 py-3">
+                      <td className="px-3 sm:px-5 py-3">
                         {editingNameId === p.id ? (
                           <input
                             autoFocus
@@ -1176,9 +1178,9 @@ export default function PoliciesContent() {
                         )}
                         {p.policy_number && <div className="text-[11px] text-foreground/40 mt-0.5 px-2">{p.policy_number}</div>}
                       </td>
-                      <td className="px-5 py-3 text-sm text-foreground/60 cursor-pointer" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>{fmtDate(p.date_created)}</td>
-                      <td className="px-5 py-3 text-sm text-foreground/60 cursor-pointer" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>{fmtDate(p.date_reviewed)}</td>
-                      <td className="px-5 py-3 text-sm text-foreground/60 cursor-pointer" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>{fmtDate(p.date_revised)}</td>
+                      <td className="px-3 sm:px-5 py-3 text-sm text-foreground/60 cursor-pointer hidden md:table-cell" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>{fmtDate(p.date_created)}</td>
+                      <td className="px-3 sm:px-5 py-3 text-sm text-foreground/60 cursor-pointer hidden md:table-cell" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>{fmtDate(p.date_reviewed)}</td>
+                      <td className="px-3 sm:px-5 py-3 text-sm text-foreground/60 cursor-pointer hidden md:table-cell" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>{fmtDate(p.date_revised)}</td>
                       <td className="px-3 py-3 text-right">
                         <button onClick={(e) => { e.stopPropagation(); deletePolicy(p); }} className="p-1.5 rounded-lg text-foreground/30 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -1193,6 +1195,7 @@ export default function PoliciesContent() {
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>

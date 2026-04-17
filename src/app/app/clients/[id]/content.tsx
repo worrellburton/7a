@@ -221,18 +221,18 @@ export default function ClientChartContent({ id }: { id: string }) {
       </div>
 
       {/* Header card */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
-        <div className="flex items-start gap-5">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 mb-5">
+        <div className="flex items-start gap-3 sm:gap-5">
           {client.avatar_url ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={client.avatar_url} alt="" className="w-20 h-20 rounded-full object-cover shrink-0" />
+            <img src={client.avatar_url} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" />
           ) : (
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-2xl shrink-0">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl sm:text-2xl shrink-0">
               {client.name.charAt(0)}
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_COLORS[client.status] || 'bg-gray-50 text-gray-700 border-gray-200'}`}>
                 {client.status === 'admitted' ? 'In care' : client.status === 'pending' ? 'Admitting soon' : client.status}
               </span>
@@ -243,11 +243,11 @@ export default function ClientChartContent({ id }: { id: string }) {
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-warm-bg text-foreground/70 border border-gray-200">ASAM {client.asam_level}</span>
               )}
             </div>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">{client.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight break-words">{client.name}</h1>
             <p className="text-xs text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
               {client.pronouns ? `${client.pronouns} · ` : ''}{client.age ? `Age ${client.age}` : ''} · MRN {client.mrn || '—'}
             </p>
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-xs">
               <div>
                 <p className="text-foreground/40 text-[10px] uppercase tracking-wider mb-0.5">Admitted</p>
                 <p className="text-foreground font-medium">{client.status === 'pending' ? `${fmtDate(client.expected_admission_date)} (est.)` : fmtDate(client.admission_date)}</p>
@@ -294,7 +294,7 @@ export default function ClientChartContent({ id }: { id: string }) {
       {/* Overview */}
       {tab === 'overview' && (
         <div className="space-y-5">
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
             <h2 className="text-sm font-bold text-foreground mb-4">Demographics</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
               <Field label="Gender" value={client.gender} />
@@ -307,7 +307,7 @@ export default function ClientChartContent({ id }: { id: string }) {
               } />
             </div>
           </section>
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
             <h2 className="text-sm font-bold text-foreground mb-4">Emergency Contact</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
               <Field label="Name" value={client.emergency_contact_name} />
@@ -316,7 +316,7 @@ export default function ClientChartContent({ id }: { id: string }) {
             </div>
           </section>
           {client.notes && (
-            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
               <h2 className="text-sm font-bold text-foreground mb-3">Clinical Notes</h2>
               <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{client.notes}</p>
             </section>
@@ -327,7 +327,7 @@ export default function ClientChartContent({ id }: { id: string }) {
       {/* Insurance & Billing */}
       {tab === 'insurance' && (
         <div className="space-y-5">
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
             <h2 className="text-sm font-bold text-foreground mb-4">Insurance</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
               <Field label="Payer" value={client.insurance_payer} />
@@ -341,7 +341,7 @@ export default function ClientChartContent({ id }: { id: string }) {
               <Field label="Subscriber DOB" value={fmtDate(client.subscriber_dob)} />
             </div>
           </section>
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
             <h2 className="text-sm font-bold text-foreground mb-4">Authorization</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
               <Field label="Auth #" value={client.authorization_number} mono />
@@ -363,7 +363,7 @@ export default function ClientChartContent({ id }: { id: string }) {
               </div>
             </div>
           </section>
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
             <h2 className="text-sm font-bold text-foreground mb-4">Diagnoses (ICD-10)</h2>
             <div className="space-y-2">
               {client.primary_diagnosis_code ? (
@@ -503,7 +503,7 @@ export default function ClientChartContent({ id }: { id: string }) {
 
       {/* Notes tab — link to existing Notes feature */}
       {tab === 'notes' && (
-        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
           <p className="text-sm text-foreground/70 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
             Clinical notes for {client.name} live in the Notes section.
           </p>

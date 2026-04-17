@@ -379,10 +379,10 @@ export default function NotesContent() {
   return (
     <div className="p-4 sm:p-6 lg:p-10">
       {/* Header */}
-      <div className="mb-8 flex items-end justify-between">
+      <div className="mb-6 sm:mb-8 flex items-end justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Notes</h1>
-          <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-xs sm:text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Clinical documentation — Group, Individual &amp; Biopsychosocial templates.
           </p>
         </div>
@@ -440,16 +440,17 @@ export default function NotesContent() {
             </div>
           ) : viewMode === 'list' ? (
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <table className="w-full">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px]">
                 <thead>
                   <tr className="border-b border-gray-100 bg-warm-bg/30">
                     {([
-                      { key: 'type', label: 'Type' },
-                      { key: 'client', label: 'Client' },
-                      { key: 'session_date', label: 'Session Date' },
-                      { key: 'status', label: 'Status' },
-                      { key: 'completeness', label: 'AI / Billing Score' },
-                      { key: 'updated', label: 'Updated' },
+                      { key: 'type', label: 'Type', alwaysShow: true },
+                      { key: 'client', label: 'Client', alwaysShow: true },
+                      { key: 'session_date', label: 'Date', alwaysShow: false },
+                      { key: 'status', label: 'Status', alwaysShow: true },
+                      { key: 'completeness', label: 'Score', alwaysShow: false },
+                      { key: 'updated', label: 'Updated', alwaysShow: false },
                     ] as const).map(col => (
                       <th
                         key={col.key}
@@ -457,7 +458,7 @@ export default function NotesContent() {
                           if (sortBy === col.key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
                           else { setSortBy(col.key); setSortDir(col.key === 'completeness' || col.key === 'session_date' || col.key === 'updated' ? 'desc' : 'asc'); }
                         }}
-                        className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider cursor-pointer select-none hover:text-foreground/80 transition-colors"
+                        className={`text-left px-3 sm:px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider cursor-pointer select-none hover:text-foreground/80 transition-colors ${col.alwaysShow ? '' : 'hidden md:table-cell'}`}
                         style={{ fontFamily: 'var(--font-body)' }}
                       >
                         <span className="inline-flex items-center gap-1">
@@ -493,15 +494,15 @@ export default function NotesContent() {
                     const bucket = scoreBucket(pct);
                     return (
                       <tr key={note.id} className="border-b border-gray-100 last:border-0 hover:bg-warm-bg/40 transition-colors cursor-pointer" onClick={() => openExisting(note)}>
-                        <td className="px-5 py-3">
+                        <td className="px-3 sm:px-5 py-3">
                           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${TYPE_COLORS[note.note_type]}`}>{TYPE_LABELS[note.note_type]}</span>
                         </td>
-                        <td className="px-5 py-3 text-sm font-medium text-foreground">{client?.name || 'Unknown'}</td>
-                        <td className="px-5 py-3 text-sm text-foreground/60">{fmtDate(note.session_date)}</td>
-                        <td className="px-5 py-3">
-                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${note.status === 'finalized' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{note.status === 'finalized' ? 'Finalized' : 'Draft'}</span>
+                        <td className="px-3 sm:px-5 py-3 text-sm font-medium text-foreground">{client?.name || 'Unknown'}</td>
+                        <td className="px-3 sm:px-5 py-3 text-sm text-foreground/60 hidden md:table-cell">{fmtDate(note.session_date)}</td>
+                        <td className="px-3 sm:px-5 py-3">
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${note.status === 'finalized' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{note.status === 'finalized' ? 'Finalized' : 'Draft'}</span>
                         </td>
-                        <td className="px-5 py-3">
+                        <td className="px-3 sm:px-5 py-3 hidden md:table-cell">
                           <div className="flex items-center gap-2 w-40">
                             <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
                               <div className={`h-full ${pct >= 85 ? 'bg-emerald-500' : pct >= 60 ? 'bg-blue-500' : pct >= 30 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
@@ -509,7 +510,7 @@ export default function NotesContent() {
                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${bucket.cls} shrink-0`}>{pct}%</span>
                           </div>
                         </td>
-                        <td className="px-5 py-3 text-xs text-foreground/50">{new Date(note.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                        <td className="px-3 sm:px-5 py-3 text-xs text-foreground/50 hidden md:table-cell">{new Date(note.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
                         <td className="px-3 py-3 text-right">
                           <button onClick={(e) => { e.stopPropagation(); deleteNote(note); }} className="p-1.5 rounded-lg text-foreground/50 hover:text-red-600 hover:bg-red-50 transition-colors" aria-label="Delete">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -520,6 +521,7 @@ export default function NotesContent() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

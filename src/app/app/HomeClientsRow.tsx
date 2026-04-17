@@ -58,7 +58,7 @@ export default function HomeClientsRow() {
   const upcoming = clients.filter((c) => c.status === 'pending');
 
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col gap-2 px-6">
+    <div className="w-full max-w-4xl mx-auto flex flex-col gap-2 px-4 sm:px-6">
       <div className="flex items-baseline justify-between">
         <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
           Clients in care
@@ -68,9 +68,9 @@ export default function HomeClientsRow() {
         </span>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
         {/* Admitted clients */}
-        <div className="flex items-center justify-center gap-3 flex-wrap flex-1">
+        <div className="flex items-center justify-center gap-3 flex-wrap flex-1 min-w-0">
           {admitted.map((c) => {
             const remaining = daysLeft(c.expected_discharge_date);
             return (
@@ -110,9 +110,9 @@ export default function HomeClientsRow() {
           })}
         </div>
 
-        {/* Admitting soon — pinned right */}
+        {/* Admitting soon — pinned right on desktop, full-width on mobile */}
         {upcoming.length > 0 && (
-          <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <div className="flex flex-col items-center sm:items-end gap-1.5 shrink-0">
             <p className="text-[10px] font-semibold text-primary/70 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
               Admitting soon
             </p>
