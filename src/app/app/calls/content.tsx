@@ -308,6 +308,7 @@ export default function CallsContent() {
     let missed = 0;
     let missedPaid = 0;
     let meaningful = 0;
+    let spam = 0;
 
     for (const c of allCallsRaw) {
       const p = parseDate(c.called_at);
@@ -322,7 +323,9 @@ export default function CallsContent() {
       daySources.get(callDate)!.set(src, (daySources.get(callDate)!.get(src) || 0) + 1);
       if (c.direction === 'inbound') inboundCount++;
       if (c.direction === 'outbound') outboundCount++;
-      if (isMissedCall(c) && !spamNumbers.has(normalizePhone(c.caller_number))) {
+      const isSpam = spamNumbers.has(normalizePhone(c.caller_number));
+      if (isSpam) spam++;
+      if (isMissedCall(c) && !isSpam) {
         missed++;
         dayMissedCounts.set(callDate, (dayMissedCounts.get(callDate) || 0) + 1);
         if (c.caller_number) missedNumbers.add(c.caller_number);
@@ -372,6 +375,7 @@ export default function CallsContent() {
       missed,
       missedPaid,
       meaningful,
+      spam,
       returnedMissed,
       returnedPickedUp,
       dailyCounts,
@@ -860,7 +864,7 @@ export default function CallsContent() {
       ) : (
         <div className="mb-6 space-y-4">
           {/* Stat Cards — range-scoped */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Total Calls</p>
               <p className="text-2xl font-bold text-foreground">{rangeInsights.totalCalls}</p>
@@ -889,6 +893,13 @@ export default function CallsContent() {
                 {rangeInsights.missed > 0 ? `${Math.round((rangeInsights.missedPaid / rangeInsights.missed) * 100)}% of missed` : 'No missed calls'}
               </p>
             </div>
+            <div className="bg-white rounded-2xl border border-amber-100 p-4 sm:p-5">
+              <p className="text-xs font-medium text-amber-500 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Spam</p>
+              <p className="text-2xl font-bold text-amber-600">{rangeInsights.spam}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {rangeInsights.totalCalls > 0 ? `${Math.round((rangeInsights.spam / rangeInsights.totalCalls) * 100)}% of calls` : 'No calls in range'}
+              </p>
+            </div>
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Returned</p>
               <p className="text-2xl font-bold text-emerald-500">{rangeInsights.returnedMissed}</p>
@@ -911,7 +922,7 @@ export default function CallsContent() {
           </div>
 
           {/* Range Line Graph + Mini Heatmap */}
-          <div className="grid grid-cols-1 md:grid-cols-[3fr,2fr] gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                 <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Daily Breakdown</p>
