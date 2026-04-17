@@ -3,9 +3,11 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
-import { updates } from '@/lib/updates';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
+import AskPolicies from './AskPolicies';
+import WhatsNewButton from './WhatsNewButton';
 
 interface RecentUser {
   id: string;
@@ -39,22 +41,6 @@ function timeAgo(dateStr: string | null): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function formatUpdateTime(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'America/Phoenix',
-    });
-  } catch {
-    return iso;
-  }
-}
-
 export default function HomeContent() {
   const { user, session } = useAuth();
   const { pages } = usePagePermissions();
@@ -63,6 +49,7 @@ export default function HomeContent() {
   const [pendingSignatures, setPendingSignatures] = useState<PendingSignature[]>([]);
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string; pdfUrl: string | null } | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
 
   // Map /app/... path → friendly label ("Calendar", "Org Chart", etc.)
   const pathLabel = useMemo(() => {
@@ -190,7 +177,7 @@ export default function HomeContent() {
           inline (top-3) and shrink the label to an icon-only pill. */}
       <div className="absolute top-3 right-3 lg:top-5 lg:right-5 z-10 flex items-center gap-2">
         <button
-          onClick={() => router.push('/app/kingdom-requests?new=1')}
+          onClick={() => setFeatureRequestOpen(true)}
           className="inline-flex items-center gap-2 px-3 py-1.5 lg:px-4 lg:py-2 rounded-full bg-primary text-white text-xs font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-sm"
           style={{ fontFamily: 'var(--font-body)' }}
           title="Submit a new feature request"
@@ -276,6 +263,18 @@ export default function HomeContent() {
       {/* Centered welcome */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 py-10">
         <div className="flex flex-col items-center gap-3">
+          {user.user_metadata?.avatar_url ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={user.user_metadata.avatar_url as string}
+              alt=""
+              className="w-20 h-20 rounded-full object-cover border-2 border-white shadow-md"
+            />
+          ) : (
+            <div className="w-20 h-20 rounded-full bg-primary/10 border-2 border-white shadow-md flex items-center justify-center text-primary text-2xl font-bold">
+              {(user.user_metadata?.full_name as string || user.email || '?').charAt(0).toUpperCase()}
+            </div>
+          )}
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground text-center px-4">
             Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
           </h1>
@@ -340,37 +339,9 @@ export default function HomeContent() {
           </div>
         )}
 
-        {/* Update log — scrollable list of recent shipped changes. */}
-        <div className="w-full max-w-md flex flex-col gap-2 px-6">
-          <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
-            What&apos;s new
-          </p>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
-              {updates.length === 0 ? (
-                <p className="text-xs text-foreground/40 text-center py-6" style={{ fontFamily: 'var(--font-body)' }}>
-                  No updates yet.
-                </p>
-              ) : (
-                updates.map((u) => (
-                  <div key={u.at} className="px-4 py-3">
-                    <div className="flex items-baseline justify-between gap-3 mb-1.5">
-                      <p className="text-sm font-semibold text-foreground">{u.title}</p>
-                      <span className="text-[10px] text-foreground/40 shrink-0 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
-                        {formatUpdateTime(u.at)}
-                      </span>
-                    </div>
-                    <ul className="text-xs text-foreground/60 space-y-1 list-disc pl-4" style={{ fontFamily: 'var(--font-body)' }}>
-                      {u.items.map((it, i) => (
-                        <li key={i}>{it}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+        {/* Policy Q&A — replaces the inline update log; the log now lives in
+            a floating "What's new" popup in the lower-right. */}
+        <AskPolicies />
       </div>
 
       {/* Work-in-progress notice — pinned to the bottom of the dashboard. */}
@@ -389,6 +360,9 @@ export default function HomeContent() {
           </p>
         </div>
       </div>
+
+      <FeatureRequestModal open={featureRequestOpen} onClose={() => setFeatureRequestOpen(false)} />
+      <WhatsNewButton />
     </div>
   );
 }

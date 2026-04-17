@@ -651,6 +651,10 @@ export default function PoliciesContent() {
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [editingNameValue, setEditingNameValue] = useState('');
 
+  // Sorting
+  const [sortBy, setSortBy] = useState<'section' | 'name' | 'date_created' | 'date_reviewed' | 'date_revised'>('section');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
   // Edit policy mode (detail view)
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Policy>>({});
@@ -698,12 +702,27 @@ export default function PoliciesContent() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return policies.filter((p) => {
+    const matched = policies.filter((p) => {
       if (sectionFilter && p.section !== sectionFilter) return false;
       if (!q) return true;
       return p.name.toLowerCase().includes(q) || p.section.toLowerCase().includes(q) || (p.policy_number || '').toLowerCase().includes(q);
     });
-  }, [policies, search, sectionFilter]);
+    const cmp = (a: Policy, b: Policy): number => {
+      const get = (p: Policy): string => {
+        if (sortBy === 'section') return p.section || '';
+        if (sortBy === 'name') return p.name || '';
+        if (sortBy === 'date_created') return p.date_created || '';
+        if (sortBy === 'date_reviewed') return p.date_reviewed || '';
+        return p.date_revised || '';
+      };
+      const va = get(a), vb = get(b);
+      if (va === vb) return 0;
+      return va < vb ? -1 : 1;
+    };
+    const sorted = [...matched].sort(cmp);
+    if (sortDir === 'desc') sorted.reverse();
+    return sorted;
+  }, [policies, search, sectionFilter, sortBy, sortDir]);
 
   function openAdd() {
     setAddOpen(true);
@@ -1090,11 +1109,30 @@ export default function PoliciesContent() {
                         className="rounded border-gray-300"
                       />
                     </th>
-                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Section</th>
-                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Name</th>
-                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Date Created</th>
-                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Date Reviewed</th>
-                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Date Revised</th>
+                    {([
+                      { key: 'section', label: 'Section' },
+                      { key: 'name', label: 'Name' },
+                      { key: 'date_created', label: 'Date Created' },
+                      { key: 'date_reviewed', label: 'Date Reviewed' },
+                      { key: 'date_revised', label: 'Date Revised' },
+                    ] as const).map((col) => (
+                      <th
+                        key={col.key}
+                        onClick={() => {
+                          if (sortBy === col.key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+                          else { setSortBy(col.key); setSortDir(col.key.startsWith('date_') ? 'desc' : 'asc'); }
+                        }}
+                        className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider cursor-pointer select-none hover:text-foreground/80 transition-colors"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {col.label}
+                          {sortBy === col.key && (
+                            <svg className={`w-3 h-3 transition-transform ${sortDir === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75 12 8.25l7.5 7.5" /></svg>
+                          )}
+                        </span>
+                      </th>
+                    ))}
                     <th className="w-10" />
                   </tr>
                 </thead>
