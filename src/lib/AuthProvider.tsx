@@ -61,19 +61,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthToken(session?.access_token ?? null);
         if (session?.user) {
           loadProfile(session.user.id);
-          // Log a signed-in event on real sign-ins (not on token refreshes
-          // or initial-session restores from another tab).
+          // Supabase fires SIGNED_IN on every session restore (tab open,
+          // reload, cross-tab sync) — not just real logins. Dedupe via
+          // localStorage: only log once per user per hour.
           if (event === 'SIGNED_IN') {
-            const meta = session.user.user_metadata || {};
-            const name = (meta.full_name as string) || session.user.email || 'User';
-            logActivity({
-              userId: session.user.id,
-              type: 'user.signed_in',
-              targetKind: 'user',
-              targetId: session.user.id,
-              targetLabel: name,
-              targetPath: '/app',
-            });
+            const key = `signin_logged:${session.user.id}`;
+            const last = typeof window !== 'undefined' ? Number(window.localStorage.getItem(key) || 0) : 0;
+            const now = Date.now();
+            if (!last || now - last > 60 * 60 * 1000) {
+              try { window.localStorage.setItem(key, String(now)); } catch { /* ignore */ }
+              const meta = session.user.user_metadata || {};
+              const name = (meta.full_name as string) || session.user.email || 'User';
+              logActivity({
+                userId: session.user.id,
+                type: 'user.signed_in',
+                targetKind: 'user',
+                targetId: session.user.id,
+                targetLabel: name,
+                targetPath: '/app',
+              });
+            }
           }
         } else {
           setIsAdmin(false);

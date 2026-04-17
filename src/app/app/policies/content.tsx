@@ -59,7 +59,6 @@ function parsePastedText(raw: string): { name: string; purpose: string | null; s
   const firstNonEmpty = lines.find((l) => l.trim().length > 0) || '';
   const name = firstNonEmpty.trim().replace(/^#+\s*/, '').slice(0, 200);
 
-  // Find "Purpose" and "Scope" sections if the document uses those headings.
   const getSection = (label: string): string | null => {
     const re = new RegExp(`(^|\\n)\\s*${label}\\s*:?\\s*\\n([\\s\\S]*?)(?=\\n\\s*(Purpose|Scope|Policy|Procedure|Definitions|Responsibility|References|Revision)\\s*:?\\s*\\n|$)`, 'i');
     const m = text.match(re);
@@ -77,12 +76,253 @@ function fmtDate(d: string | null) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+/* ── HTML → Text (Google Docs paste) ──────────────────────────── */
+
+// Roman numerals for <ol type="I">
+function toRoman(n: number): string {
+  const vals: Array<[number, string]> = [[1000,'m'],[900,'cm'],[500,'d'],[400,'cd'],[100,'c'],[90,'xc'],[50,'l'],[40,'xl'],[10,'x'],[9,'ix'],[5,'v'],[4,'iv'],[1,'i']];
+  let out = '';
+  for (const [v, r] of vals) { while (n >= v) { out += r; n -= v; } }
+  return out;
+}
+
+function listMarker(type: string, idx: number): string {
+  if (type === 'A') return String.fromCharCode(65 + (idx % 26));
+  if (type === 'a') return String.fromCharCode(97 + (idx % 26));
+  if (type === 'I') return toRoman(idx + 1).toUpperCase();
+  if (type === 'i') return toRoman(idx + 1).toLowerCase();
+  return String(idx + 1);
+}
+
+// Walk an HTML DOM and produce plain text that preserves paragraphs and
+// lettered/numbered list markers. Handles Google Docs-style <ol type="A">.
+function htmlToFormattedText(root: Node): string {
+  const out: string[] = [];
+
+  function walk(node: Node) {
+    if (node.nodeType === 3) {
+      const t = (node.textContent || '').replace(/\u00A0/g, ' ');
+      out.push(t);
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const el = node as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+
+    if (tag === 'br') { out.push('\n'); return; }
+    if (tag === 'style' || tag === 'script' || tag === 'meta' || tag === 'link') return;
+
+    if (tag === 'ol') {
+      const type = el.getAttribute('type') || '1';
+      const start = parseInt(el.getAttribute('start') || '1', 10);
+      let idx = 0;
+      out.push('\n');
+      for (const child of Array.from(el.children)) {
+        if (child.tagName.toLowerCase() === 'li') {
+          const marker = listMarker(type, start - 1 + idx);
+          out.push(marker + '. ');
+          for (const sub of Array.from(child.childNodes)) walk(sub);
+          out.push('\n');
+          idx++;
+        }
+      }
+      out.push('\n');
+      return;
+    }
+
+    if (tag === 'ul') {
+      out.push('\n');
+      for (const child of Array.from(el.children)) {
+        if (child.tagName.toLowerCase() === 'li') {
+          out.push('• ');
+          for (const sub of Array.from(child.childNodes)) walk(sub);
+          out.push('\n');
+        }
+      }
+      out.push('\n');
+      return;
+    }
+
+    if (['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'section', 'article', 'blockquote', 'tr', 'pre'].includes(tag)) {
+      const last = out[out.length - 1] || '';
+      if (!last.endsWith('\n')) out.push('\n');
+      for (const child of Array.from(el.childNodes)) walk(child);
+      out.push('\n');
+      return;
+    }
+
+    if (tag === 'td' || tag === 'th') {
+      for (const child of Array.from(el.childNodes)) walk(child);
+      out.push('\t');
+      return;
+    }
+
+    for (const child of Array.from(el.childNodes)) walk(child);
+  }
+
+  walk(root);
+  return out.join('').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// onPaste handler that prefers text/html so Google Docs list markers (A, B, C…) survive.
+function handleSmartPaste(e: React.ClipboardEvent<HTMLTextAreaElement>, value: string, setValue: (v: string) => void) {
+  const html = e.clipboardData.getData('text/html');
+  if (!html) return; // fall through to default plain-text paste
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const converted = htmlToFormattedText(doc.body);
+    if (!converted) return;
+    e.preventDefault();
+    const ta = e.currentTarget;
+    const start = ta.selectionStart ?? value.length;
+    const end = ta.selectionEnd ?? value.length;
+    const next = value.slice(0, start) + converted + value.slice(end);
+    setValue(next);
+    // Restore caret to end of inserted content
+    requestAnimationFrame(() => {
+      ta.selectionStart = ta.selectionEnd = start + converted.length;
+    });
+  } catch {
+    /* fall back to default paste */
+  }
+}
+
+/* ── Structured Body Parser ───────────────────────────────────── */
+
+type MetaRow = { label: string; value: string };
+type ListItem = { marker: string; text: string };
+type Block =
+  | { kind: 'metadata'; rows: MetaRow[] }
+  | { kind: 'heading'; text: string }
+  | { kind: 'list'; items: ListItem[] }
+  | { kind: 'paragraph'; text: string };
+
+const META_LINE = /^([A-Za-z][\w .&/#-]{0,40}?)\s*:\s+(.+?)\s*$/;
+const HEADING_LINE = /^([A-Za-z][\w &/-]{0,40})\s*:\s*$/;
+const LIST_LINE = /^([A-Za-z]|\d{1,2})\s*[.)]\s+(.+)$/;
+
+function parseBody(raw: string): Block[] {
+  const text = raw.replace(/\r\n/g, '\n').replace(/\u00A0/g, ' ');
+  const lines = text.split('\n').map((l) => l.replace(/\t+/g, ' ').replace(/[ ]{2,}/g, ' ').trimEnd());
+
+  const blocks: Block[] = [];
+  let i = 0;
+
+  // Leading metadata block — consecutive "Label: value" lines from the top
+  const metaRows: MetaRow[] = [];
+  while (i < lines.length) {
+    const l = lines[i].trim();
+    if (!l) { i++; continue; }
+    const m = l.match(META_LINE);
+    if (m && m[2].length < 120 && !/\.$/.test(m[2]) && !LIST_LINE.test(l)) {
+      metaRows.push({ label: m[1].trim(), value: m[2].trim() });
+      i++;
+    } else {
+      break;
+    }
+  }
+  if (metaRows.length >= 2) blocks.push({ kind: 'metadata', rows: metaRows });
+  else if (metaRows.length === 1) {
+    // Not enough to treat as a table — re-emit as paragraph
+    blocks.push({ kind: 'paragraph', text: `${metaRows[0].label}: ${metaRows[0].value}` });
+  }
+
+  let buffer: string[] = [];
+  let listItems: ListItem[] = [];
+
+  function flushParagraph() {
+    if (buffer.length > 0) {
+      const text = buffer.join(' ').trim();
+      if (text) blocks.push({ kind: 'paragraph', text });
+      buffer = [];
+    }
+  }
+  function flushList() {
+    if (listItems.length > 0) {
+      blocks.push({ kind: 'list', items: listItems });
+      listItems = [];
+    }
+  }
+
+  for (; i < lines.length; i++) {
+    const l = lines[i];
+    const trimmed = l.trim();
+    if (!trimmed) { flushParagraph(); flushList(); continue; }
+
+    const listMatch = trimmed.match(LIST_LINE);
+    if (listMatch) {
+      flushParagraph();
+      listItems.push({ marker: listMatch[1], text: listMatch[2].trim() });
+      continue;
+    }
+
+    // Continuation of a list item (line starts with whitespace OR previous was a list)
+    if (listItems.length > 0 && /^\s/.test(l)) {
+      const last = listItems[listItems.length - 1];
+      last.text = (last.text + ' ' + trimmed).trim();
+      continue;
+    }
+
+    flushList();
+
+    const headingMatch = trimmed.match(HEADING_LINE);
+    if (headingMatch) {
+      flushParagraph();
+      blocks.push({ kind: 'heading', text: headingMatch[1].trim() });
+      continue;
+    }
+
+    buffer.push(trimmed);
+  }
+
+  flushParagraph();
+  flushList();
+
+  return blocks;
+}
+
 /* ── Formatted Policy Renderer ────────────────────────────────── */
 
-function FormattedPolicy({ policy }: { policy: Policy }) {
-  // Split body into paragraphs, preserving headings (lines ending with colon or all-caps)
-  const paragraphs = policy.content.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+function StructuredBody({ content }: { content: string }) {
+  const blocks = parseBody(content);
+  if (blocks.length === 0) return null;
+  return (
+    <div className="space-y-4 text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+      {blocks.map((b, i) => {
+        if (b.kind === 'metadata') {
+          return (
+            <dl key={i} className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1.5 bg-warm-bg/40 rounded-xl border border-gray-100 px-4 py-3 text-[13px]">
+              {b.rows.map((r, j) => (
+                <div key={j} className="contents">
+                  <dt className="font-semibold text-foreground/70">{r.label}:</dt>
+                  <dd className="text-foreground/90">{r.value}</dd>
+                </div>
+              ))}
+            </dl>
+          );
+        }
+        if (b.kind === 'heading') {
+          return <h3 key={i} className="text-base font-bold text-foreground mt-5 first:mt-0">{b.text}</h3>;
+        }
+        if (b.kind === 'list') {
+          return (
+            <ol key={i} className="space-y-2 pl-10">
+              {b.items.map((it, j) => (
+                <li key={j} className="relative">
+                  <span className="absolute -left-10 w-8 text-right font-semibold text-foreground/70">{it.marker}.</span>
+                  <span>{it.text}</span>
+                </li>
+              ))}
+            </ol>
+          );
+        }
+        return <p key={i} className="whitespace-pre-wrap">{b.text}</p>;
+      })}
+    </div>
+  );
+}
 
+function FormattedPolicy({ policy }: { policy: Policy }) {
   return (
     <article className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       {/* Header band */}
@@ -101,7 +341,6 @@ function FormattedPolicy({ policy }: { policy: Policy }) {
           </div>
         </div>
 
-        {/* Metadata strip */}
         <div className="mt-6 grid grid-cols-3 gap-4 pt-4 border-t border-gray-200/60">
           <div>
             <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>Date Created</p>
@@ -119,26 +358,22 @@ function FormattedPolicy({ policy }: { policy: Policy }) {
       </header>
 
       {/* Body */}
-      <div className="px-8 py-6 space-y-4 text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+      <div className="px-8 py-6 space-y-6">
         {policy.purpose && (
           <section>
             <h2 className="text-[11px] font-bold text-foreground/60 uppercase tracking-wider mb-2">Purpose</h2>
-            <p className="whitespace-pre-wrap">{policy.purpose}</p>
+            <StructuredBody content={policy.purpose} />
           </section>
         )}
         {policy.scope && (
           <section>
             <h2 className="text-[11px] font-bold text-foreground/60 uppercase tracking-wider mb-2">Scope</h2>
-            <p className="whitespace-pre-wrap">{policy.scope}</p>
+            <StructuredBody content={policy.scope} />
           </section>
         )}
         <section>
           <h2 className="text-[11px] font-bold text-foreground/60 uppercase tracking-wider mb-2">Policy</h2>
-          <div className="space-y-3">
-            {paragraphs.map((p, i) => (
-              <p key={i} className="whitespace-pre-wrap">{p}</p>
-            ))}
-          </div>
+          <StructuredBody content={policy.content} />
         </section>
       </div>
     </article>
@@ -406,12 +641,16 @@ export default function PoliciesContent() {
                   <textarea
                     value={pasteText}
                     onChange={(e) => setPasteText(e.target.value)}
+                    onPaste={(e) => handleSmartPaste(e, pasteText, setPasteText)}
                     autoFocus
                     rows={14}
-                    placeholder="Paste your policy text here...&#10;&#10;Include the title on the first line. Use 'Purpose:' and 'Scope:' headings if you want those auto-extracted."
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none resize-none font-mono"
-                    style={{ fontFamily: 'var(--font-mono, monospace)' }}
+                    placeholder="Paste directly from Google Docs or Word — A, B, C list markers and metadata blocks are preserved automatically."
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none resize-none"
+                    style={{ fontFamily: 'var(--font-body)' }}
                   />
+                  <p className="mt-2 text-[11px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                    Tip: this field reads your clipboard's rich text, so lettered lists from Google Docs come through correctly.
+                  </p>
                   <div className="flex items-center gap-3 mt-5">
                     <button onClick={proceedToDetails} disabled={!pasteText.trim()} className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50" style={{ fontFamily: 'var(--font-body)' }}>
                       Continue
@@ -451,7 +690,7 @@ export default function PoliciesContent() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Body</label>
-                    <textarea value={formBody} onChange={(e) => setFormBody(e.target.value)} rows={8} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none resize-none" />
+                    <textarea value={formBody} onChange={(e) => setFormBody(e.target.value)} onPaste={(e) => handleSmartPaste(e, formBody, setFormBody)} rows={8} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none resize-none" />
                   </div>
                   <div className="flex items-center gap-3 pt-2">
                     <button onClick={savePolicy} disabled={saving || !formName.trim() || !formBody.trim()} className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50" style={{ fontFamily: 'var(--font-body)' }}>

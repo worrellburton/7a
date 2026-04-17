@@ -12,6 +12,17 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-17T00:00:00Z',
+    title: 'Notes + Policies: smarter editing',
+    items: [
+      'Notes: new Generate with AI button drafts a comprehensive, insurance-ready note from client context while preserving anything you\'ve already written.',
+      'Notes: spreadsheet + grid views with columns for Type, Client, Session Date, Status, AI Completeness, and Updated. Always-visible delete.',
+      'Notes: live completeness score per note with a colored progress bar.',
+      'Policies: paste directly from Google Docs — lettered lists (A, B, C) and metadata blocks are now preserved and rendered with hanging-indent formatting.',
+      'Activity: deduped sign-in logs so restoring a session or reloading no longer spams the feed.',
+    ],
+  },
+  {
     at: '2026-04-16T06:00:00Z',
     title: 'Policies & Procedures',
     items: [
