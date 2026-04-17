@@ -743,6 +743,24 @@ export default function CallsContent() {
             </select>
             <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
           </div>
+          <div className="relative">
+            <select
+              value={operatorFilter}
+              onChange={e => setOperatorFilter(e.target.value)}
+              className="appearance-none pl-3 pr-7 py-2 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <option value="all">All Operators</option>
+              {Array.from(new Set(
+                Object.values(scores)
+                  .map(s => s.operator_name)
+                  .filter((n): n is string => !!n)
+              )).sort().map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+          </div>
           <button onClick={() => fetchCalls(1)} className="px-4 py-2 rounded-lg text-xs font-medium bg-foreground text-white hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
             Search
           </button>
@@ -777,28 +795,7 @@ export default function CallsContent() {
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Number</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Duration</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Caller</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
-                        <div className="flex flex-col gap-1.5">
-                          <span>Operator</span>
-                          <div className="relative">
-                            <select
-                              value={operatorFilter}
-                              onChange={e => setOperatorFilter(e.target.value)}
-                              className="appearance-none w-full pl-2 pr-6 py-1 rounded-md text-[10px] font-medium bg-white border border-gray-200 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer normal-case tracking-normal"
-                            >
-                              <option value="all">All Operators</option>
-                              {Array.from(new Set(
-                                Object.values(scores)
-                                  .map(s => s.operator_name)
-                                  .filter((n): n is string => !!n)
-                              )).sort().map(name => (
-                                <option key={name} value={name}>{name}</option>
-                              ))}
-                            </select>
-                            <svg className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                          </div>
-                        </div>
-                      </th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Operator</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Type</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Location</th>
