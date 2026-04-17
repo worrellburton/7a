@@ -115,18 +115,31 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function parseDate(dateStr: string | null | undefined): Date | null {
+  if (!dateStr) return null;
+  let d = new Date(dateStr);
+  if (!isNaN(d.getTime())) return d;
+  // CTM sometimes returns "YYYY-MM-DD HH:MM:SS +ZZZZ" without 'T'
+  d = new Date(String(dateStr).replace(' ', 'T').replace(' +', '+').replace(' -', '-'));
+  if (!isNaN(d.getTime())) return d;
+  // Try Unix timestamp (seconds)
+  const n = Number(dateStr);
+  if (n > 1e9 && n < 2e10) return new Date(n * 1000);
+  return null;
+}
+
 function formatDate(dateStr: string): string {
-  if (!dateStr) return '';
+  const d = parseDate(dateStr);
+  if (!d) return '—';
   try {
-    const d = new Date(dateStr);
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' });
-  } catch { return dateStr; }
+  } catch { return '—'; }
 }
 
 function formatTime(dateStr: string): string {
-  if (!dateStr) return '';
+  const d = parseDate(dateStr);
+  if (!d) return '—';
   try {
-    const d = new Date(dateStr);
     return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' });
   } catch { return ''; }
 }
@@ -213,7 +226,9 @@ export default function CallsContent() {
     for (const call of calls) {
       const s = scores[String(call.id)];
       if (!s || s.fit_score == null || s.fit_score < MEANINGFUL_THRESHOLD) continue;
-      const callDate = new Date(call.called_at).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+      const parsedM = parseDate(call.called_at);
+      if (!parsedM) continue;
+      const callDate = parsedM.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
       if (weekDates.has(callDate)) {
         thisWeek++;
         dailyCounts.set(callDate, (dailyCounts.get(callDate) || 0) + 1);
@@ -420,7 +435,9 @@ export default function CallsContent() {
         const missedNumbers = new Set<string>();
 
         allCalls.forEach(c => {
-          const callDate = new Date(c.called_at).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+          const parsed = parseDate(c.called_at);
+          if (!parsed) return;
+          const callDate = parsed.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
           dayCounts.set(callDate, (dayCounts.get(callDate) || 0) + 1);
           const src = c.source_name || c.source || 'Unknown';
           if (!daySources.has(callDate)) daySources.set(callDate, new Map());
@@ -442,7 +459,9 @@ export default function CallsContent() {
 
         allCalls.forEach(c => {
           if (c.direction !== 'outbound') return;
-          const callDate = new Date(c.called_at).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+          const parsedR = parseDate(c.called_at);
+          if (!parsedR) return;
+          const callDate = parsedR.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
           if (!weekDates.has(callDate)) return;
           const target = c.caller_number || c.receiving_number;
           if (target && missedNumbers.has(target)) {
@@ -858,7 +877,7 @@ export default function CallsContent() {
                           case 'id': return call.id;
                           case 'fit_score': return s?.fit_score ?? -1;
                           case 'call_name': return (s?.call_name || '').toLowerCase();
-                          case 'called_at': return call.called_at ? new Date(call.called_at).getTime() : 0;
+                          case 'called_at': return parseDate(call.called_at)?.getTime() ?? 0;
                           case 'caller_number': return (call.caller_number_formatted || call.caller_number || '').toLowerCase();
                           case 'duration': return call.duration ?? 0;
                           case 'caller_name': return (s?.caller_name || '').toLowerCase();
