@@ -68,9 +68,9 @@ export default function HomeClientsRow() {
         </span>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+      <div className="flex flex-row items-center gap-4">
         {/* Admitted clients */}
-        <div className="flex items-center justify-center gap-3 flex-wrap flex-1 min-w-0">
+        <div className="flex items-center gap-3 flex-wrap flex-1 min-w-0">
           {admitted.map((c) => {
             const remaining = daysLeft(c.expected_discharge_date);
             return (
@@ -96,7 +96,7 @@ export default function HomeClientsRow() {
                       {c.expected_discharge_date && <> · est. dc {fmtDate(c.expected_discharge_date)}</>}
                     </p>
                     {remaining && (
-                      <p className="text-[11px] font-semibold text-primary mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                      <p className="text-[11px] font-bold text-primary mt-1 px-1.5 py-0.5 rounded-full bg-primary/10 inline-block" style={{ fontFamily: 'var(--font-body)' }}>
                         {remaining}
                       </p>
                     )}
@@ -110,9 +110,9 @@ export default function HomeClientsRow() {
           })}
         </div>
 
-        {/* Admitting soon — pinned right on desktop, full-width on mobile */}
+        {/* Admitting soon — pinned right */}
         {upcoming.length > 0 && (
-          <div className="flex flex-col items-center sm:items-end gap-1.5 shrink-0">
+          <div className="flex flex-col items-end gap-1.5 shrink-0 ml-auto">
             <p className="text-[10px] font-semibold text-primary/70 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
               Admitting soon
             </p>
