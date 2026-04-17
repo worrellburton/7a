@@ -6,8 +6,10 @@ const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_API_VERSION = '2023-06-01';
 const GEMINI_DEFAULT_MODEL = 'gemini-2.5-pro';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
-const AUDIO_DOWNLOAD_TIMEOUT = 30_000;
+const INLINE_AUDIO_LIMIT = 18 * 1024 * 1024; // send inline if <= 18 MB
+const MAX_AUDIO_BYTES = 200 * 1024 * 1024;   // hard cap (Files API can handle this)
+const AUDIO_DOWNLOAD_TIMEOUT = 90_000;
+const GEMINI_UPLOAD_URL = 'https://generativelanguage.googleapis.com/upload/v1beta/files';
 
 interface CallInput {
   id: string;
@@ -122,7 +124,7 @@ Rules:
 - Be specific and practical. Avoid generic phone-coaching platitudes.`;
 }
 
-async function downloadAudio(url: string): Promise<{ data: string; mediaType: string; bytes: number } | { error: string }> {
+async function downloadAudio(url: string): Promise<{ buffer: Buffer; mediaType: string; bytes: number } | { error: string }> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), AUDIO_DOWNLOAD_TIMEOUT);
@@ -142,27 +144,90 @@ async function downloadAudio(url: string): Promise<{ data: string; mediaType: st
 
     const contentLength = res.headers.get('content-length');
     if (contentLength && parseInt(contentLength) > MAX_AUDIO_BYTES) {
-      return { error: `audio too large (${contentLength} bytes)` };
+      return { error: `audio too large (${contentLength} bytes, cap ${MAX_AUDIO_BYTES})` };
     }
 
-    const buffer = await res.arrayBuffer();
-    if (buffer.byteLength > MAX_AUDIO_BYTES) {
-      return { error: `audio too large (${buffer.byteLength} bytes)` };
+    const arrayBuf = await res.arrayBuffer();
+    if (arrayBuf.byteLength > MAX_AUDIO_BYTES) {
+      return { error: `audio too large (${arrayBuf.byteLength} bytes, cap ${MAX_AUDIO_BYTES})` };
     }
-    if (buffer.byteLength === 0) {
+    if (arrayBuf.byteLength === 0) {
       return { error: 'audio empty' };
     }
 
     const contentType = res.headers.get('content-type') || 'audio/mpeg';
     let mediaType = contentType.split(';')[0].trim().toLowerCase();
-    // Gemini accepts these common audio mime types. Normalize a few aliases.
     if (mediaType === 'audio/x-mp3' || mediaType === 'audio/mp3') mediaType = 'audio/mpeg';
     if (mediaType === 'audio/x-wav') mediaType = 'audio/wav';
 
-    const base64 = Buffer.from(buffer).toString('base64');
-    return { data: base64, mediaType, bytes: buffer.byteLength };
+    return { buffer: Buffer.from(arrayBuf), mediaType, bytes: arrayBuf.byteLength };
   } catch (err) {
     return { error: `audio fetch threw: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+// Upload audio to Gemini Files API (resumable protocol) and return the
+// active file URI. Used for audio too large to send inline (> ~18MB).
+async function uploadAudioToGemini(
+  apiKey: string,
+  audio: { buffer: Buffer; mediaType: string; bytes: number },
+  displayName: string,
+): Promise<{ fileUri: string; mimeType: string } | { error: string }> {
+  try {
+    // Step 1: start resumable upload, get upload URL.
+    const startRes = await fetch(`${GEMINI_UPLOAD_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': String(audio.bytes),
+        'X-Goog-Upload-Header-Content-Type': audio.mediaType,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ file: { display_name: displayName } }),
+    });
+    if (!startRes.ok) {
+      const t = await startRes.text();
+      return { error: `Gemini upload start ${startRes.status}: ${t.slice(0, 300)}` };
+    }
+    const uploadUrl = startRes.headers.get('x-goog-upload-url') || startRes.headers.get('X-Goog-Upload-URL');
+    if (!uploadUrl) return { error: 'Gemini upload start returned no upload URL' };
+
+    // Step 2: upload bytes, finalize.
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Length': String(audio.bytes),
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize',
+      },
+      body: new Uint8Array(audio.buffer),
+    });
+    if (!uploadRes.ok) {
+      const t = await uploadRes.text();
+      return { error: `Gemini upload ${uploadRes.status}: ${t.slice(0, 300)}` };
+    }
+    const uploaded = await uploadRes.json() as { file?: { uri?: string; mimeType?: string; name?: string; state?: string } };
+    const fileUri = uploaded?.file?.uri;
+    const name = uploaded?.file?.name;
+    if (!fileUri) return { error: 'Gemini upload returned no file URI' };
+
+    // Step 3: poll file metadata until ACTIVE (audio files often need a few seconds).
+    if (uploaded.file?.state && uploaded.file.state !== 'ACTIVE' && name) {
+      const deadline = Date.now() + 45_000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const metaRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/${name}?key=${apiKey}`);
+        if (!metaRes.ok) break;
+        const meta = await metaRes.json() as { state?: string };
+        if (meta.state === 'ACTIVE') break;
+        if (meta.state === 'FAILED') return { error: 'Gemini file processing FAILED' };
+      }
+    }
+
+    return { fileUri, mimeType: uploaded.file?.mimeType || audio.mediaType };
+  } catch (err) {
+    return { error: `Gemini upload threw: ${err instanceof Error ? err.message : String(err)}` };
   }
 }
 
@@ -179,7 +244,7 @@ function parseScoreJson(answer: string): ScoreResult | null {
 
 async function scoreWithGeminiAudio(
   call: CallInput,
-  audio: { data: string; mediaType: string },
+  audio: { buffer: Buffer; mediaType: string; bytes: number },
 ): Promise<{ result: ScoreResult; model: string } | { error: string }> {
   const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) return { error: 'GOOGLE_API_KEY not configured' };
@@ -187,6 +252,16 @@ async function scoreWithGeminiAudio(
   const model = process.env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL;
   const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
   const prompt = buildPrompt(call, true);
+
+  // For small files, keep inline. For large ones, upload via Files API.
+  let audioPart: Record<string, unknown>;
+  if (audio.bytes <= INLINE_AUDIO_LIMIT) {
+    audioPart = { inline_data: { mime_type: audio.mediaType, data: audio.buffer.toString('base64') } };
+  } else {
+    const uploaded = await uploadAudioToGemini(apiKey, audio, `call-${call.id || 'unknown'}.${audio.mediaType.split('/')[1] || 'mp3'}`);
+    if ('error' in uploaded) return { error: uploaded.error };
+    audioPart = { file_data: { mime_type: uploaded.mimeType, file_uri: uploaded.fileUri } };
+  }
 
   try {
     const res = await fetch(url, {
@@ -197,7 +272,7 @@ async function scoreWithGeminiAudio(
           {
             role: 'user',
             parts: [
-              { inline_data: { mime_type: audio.mediaType, data: audio.data } },
+              audioPart,
               { text: prompt },
             ],
           },
@@ -205,7 +280,7 @@ async function scoreWithGeminiAudio(
         generationConfig: {
           temperature: 0.3,
           responseMimeType: 'application/json',
-          maxOutputTokens: 1500,
+          maxOutputTokens: 8000,
         },
       }),
     });
@@ -251,8 +326,12 @@ async function scoreWithClaudeMetadata(
       },
       body: JSON.stringify({
         model,
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 2000,
+        system: 'You are a call-center performance analyst. You MUST respond with a single valid JSON object matching the schema the user specifies. Do not output markdown, headings, prose, or explanation — JSON only. Start your response with the "{" character.',
+        messages: [
+          { role: 'user', content: prompt },
+          { role: 'assistant', content: '{' },
+        ],
       }),
     });
 
@@ -269,9 +348,11 @@ async function scoreWithClaudeMetadata(
         if (block?.type === 'text' && typeof block.text === 'string') answer += block.text;
       }
     }
-    const parsed = parseScoreJson(answer);
+    // We prefilled "{" so prepend it to the response before parsing.
+    const full = `{${answer}`;
+    const parsed = parseScoreJson(full);
     if (!parsed || typeof parsed.score !== 'number') {
-      return { error: `Claude returned unparseable response: ${answer.slice(0, 200)}` };
+      return { error: `Claude returned unparseable response: ${full.slice(0, 200)}` };
     }
     return { result: parsed, model: `claude:${model}` };
   } catch (err) {

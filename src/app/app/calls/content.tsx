@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { getAuthToken } from '@/lib/db';
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CallAiBadge from './CallAiHover';
 
 interface ScoreRow {
@@ -161,6 +161,29 @@ export default function CallsContent() {
   const [scoringIds, setScoringIds] = useState<Set<string>>(new Set());
   const [scoringErrors, setScoringErrors] = useState<Record<string, string>>({});
   const scoringRef = useRef(false);
+
+  const knownOperators = useMemo(() => {
+    const names = new Set<string>();
+    for (const s of Object.values(scores)) {
+      if (s?.operator_name) names.add(s.operator_name);
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [scores]);
+
+  const setManualOperator = useCallback(async (callId: string, operatorName: string | null) => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch('/api/claude/calls/set-operator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ callId, operator_name: operatorName }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.result) setScores((prev) => ({ ...prev, [callId]: data.result }));
+      }
+    } catch { /* swallow — UI keeps the stale value */ }
+  }, [session?.access_token]);
 
   const rescoreCall = useCallback(async (callId: string, force: boolean) => {
     if (!session?.access_token) {
@@ -675,16 +698,20 @@ export default function CallsContent() {
                                 <span className="text-foreground/20">—</span>
                               )}
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => { if (!scores[String(call.id)]?.operator_name) e.stopPropagation(); }}>
                               <div className="flex items-center gap-2">
                                 {(() => {
                                   const s = scores[String(call.id)];
-                                  const err = scoringErrors[String(call.id)];
-                                  const noAnswer = !s?.operator_name && (call.voicemail || (call.talk_time ?? 0) < 3);
                                   if (s?.operator_name) return <span className="font-medium">{s.operator_name}</span>;
-                                  if (noAnswer) return <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">{call.voicemail ? 'Voicemail' : 'No answer'}</span>;
-                                  if (err) return <span title={err} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9 9 0 1 1 2.982 12 9 9 0 0 1 12 2.714Zm0 13.036h.008v.008H12v-.008Z" /></svg>Error</span>;
-                                  return <span className="text-foreground/20">—</span>;
+                                  return (
+                                    <OperatorPicker
+                                      knownOperators={knownOperators}
+                                      noAnswer={call.voicemail || (call.talk_time ?? 0) < 3}
+                                      voicemail={!!call.voicemail}
+                                      error={scoringErrors[String(call.id)]}
+                                      onPick={(name) => setManualOperator(String(call.id), name)}
+                                    />
+                                  );
                                 })()}
                                 <CallAiBadge
                                   call={call}
@@ -882,6 +909,72 @@ export default function CallsContent() {
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+// Inline operator selector shown when the AI couldn't pick up a name.
+// Lets staff pick from known operators or type a new name.
+function OperatorPicker({ knownOperators, noAnswer, voicemail, error, onPick }: {
+  knownOperators: string[];
+  noAnswer: boolean;
+  voicemail: boolean;
+  error?: string;
+  onPick: (name: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [custom, setCustom] = useState('');
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <input
+          autoFocus
+          type="text"
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { if (custom.trim()) onPick(custom.trim()); setEditing(false); }
+            if (e.key === 'Escape') { setEditing(false); setCustom(''); }
+          }}
+          placeholder="Operator name"
+          className="text-xs px-2 py-1 rounded-md border border-gray-200 focus:outline-none focus:border-primary/40 w-28"
+        />
+        <button type="button" onClick={() => { if (custom.trim()) onPick(custom.trim()); setEditing(false); }} className="text-[10px] font-semibold px-2 py-1 rounded-md bg-primary text-white hover:opacity-90">Save</button>
+        <button type="button" onClick={() => { setEditing(false); setCustom(''); }} className="text-[10px] text-foreground/40 hover:text-foreground/70">Cancel</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      {noAnswer && (
+        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
+          {voicemail ? 'Voicemail' : 'No answer'}
+        </span>
+      )}
+      {!noAnswer && error && (
+        <span title={error} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A9 9 0 1 1 2.982 12 9 9 0 0 1 12 2.714Zm0 13.036h.008v.008H12v-.008Z" /></svg>
+          Error
+        </span>
+      )}
+      {!noAnswer && !error && <span className="text-foreground/20">—</span>}
+      <select
+        value=""
+        onChange={(e) => {
+          const v = e.target.value;
+          if (!v) return;
+          if (v === '__new__') { setEditing(true); return; }
+          onPick(v);
+        }}
+        className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 bg-white text-foreground/60 hover:border-primary/30 focus:outline-none focus:border-primary/40 cursor-pointer"
+        title="Manually set operator"
+      >
+        <option value="">Set…</option>
+        {knownOperators.map((n) => <option key={n} value={n}>{n}</option>)}
+        <option value="__new__">+ New name…</option>
+      </select>
     </div>
   );
 }
