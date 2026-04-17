@@ -12,6 +12,22 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-17T06:00:00Z',
+    title: 'Clients module + home dashboard: who\'s in care, who\'s coming, who\'s on the team',
+    items: [
+      'New /app/clients page with list + grid views. Search, status filter, sortable columns (Name, MRN, Status, Admitted, Clinician).',
+      'Seeded 10 test clients with realistic (but clearly fake) data — demographics, insurance, auth, ICD-10, LOC, emergency contact.',
+      'Client chart at /app/clients/[id]: Overview, Insurance & Billing, Documents, Finance (admin-only), Notes tabs.',
+      'Insurance tab shows payer, plan, member/group IDs, subscriber info, effective/term dates, auth number, LOC code, authorized vs used units (with progress bar), and ICD-10 diagnoses.',
+      'Documents tab: standard intake paperwork seeded per client; signed/unsigned badges; upload + download + delete.',
+      'Finance tab (admins only): billed / paid / balance totals + line-item ledger.',
+      'Home dashboard: "Clients in care" row of circles under Online today. Hover any client for admission + clinician details.',
+      'Admitting-soon clients show as pills under the main row with "Arriving today / Tomorrow / In N days" and a full hover card.',
+      'Home dashboard: "Horses on the team" row — hover any horse for age, role, weight (latest log), and last fed.',
+      'Every client surface includes a visible "Not real information" banner.',
+    ],
+  },
+  {
     at: '2026-04-17T05:00:00Z',
     title: 'Meet the Herd + click-to-change profile picture',
     items: [
