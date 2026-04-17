@@ -169,6 +169,35 @@ function fmtDate(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+/* ── Shared Text Field ────────────────────────────────────────
+   Module-scope so the component identity is stable across renders. If this
+   were defined inside NotesContent, every keystroke would recreate the
+   function, React would unmount the underlying <input>, and focus would drop
+   after every character typed. */
+
+type TextFieldProps = {
+  label: string;
+  field: string;
+  rows?: number;
+  placeholder?: string;
+  content: Record<string, unknown>;
+  setField: (key: string, value: string | number) => void;
+};
+
+function NoteTextField({ label, field, rows, placeholder, content, setField }: TextFieldProps) {
+  const val = (content[field] as string | number | undefined) ?? '';
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>{label}</label>
+      {rows && rows > 1 ? (
+        <textarea value={val as string} onChange={(e) => setField(field, e.target.value)} rows={rows} placeholder={placeholder} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none resize-none" />
+      ) : (
+        <input value={val as string} onChange={(e) => setField(field, e.target.value)} placeholder={placeholder} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none" />
+      )}
+    </div>
+  );
+}
+
 /* ── Main Component ──────────────────────────────────────────── */
 
 export default function NotesContent() {
@@ -188,6 +217,11 @@ export default function NotesContent() {
   const [saving, setSaving] = useState(false);
 
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [newNoteOpen, setNewNoteOpen] = useState(false);
+  const [newNoteType, setNewNoteType] = useState<NoteType>('group');
+  const [newNoteClientId, setNewNoteClientId] = useState('');
+  const [sortBy, setSortBy] = useState<'type' | 'client' | 'session_date' | 'status' | 'completeness' | 'updated'>('updated');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? window.localStorage.getItem('notes:viewMode') : null;
     if (saved === 'list' || saved === 'grid') setViewMode(saved);
@@ -336,26 +370,6 @@ export default function NotesContent() {
 
   if (!user) return null;
 
-  /* ── Field Renderer ────────────────────────────────────────── */
-
-  function TextField({ label, field, rows, placeholder }: { label: string; field: string; rows?: number; placeholder?: string }) {
-    const val = (content as Record<string, string>)[field] || '';
-    if (rows && rows > 1) {
-      return (
-        <div>
-          <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>{label}</label>
-          <textarea value={val} onChange={e => setField(field, e.target.value)} rows={rows} placeholder={placeholder} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none resize-none" />
-        </div>
-      );
-    }
-    return (
-      <div>
-        <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>{label}</label>
-        <input value={val} onChange={e => setField(field, e.target.value)} placeholder={placeholder} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none" />
-      </div>
-    );
-  }
-
   function SectionHeading({ children }: { children: React.ReactNode }) {
     return <h3 className="text-sm font-bold text-foreground/80 mt-6 mb-3 pb-1.5 border-b border-gray-100">{children}</h3>;
   }
@@ -373,7 +387,7 @@ export default function NotesContent() {
           </p>
         </div>
         {view === 'list' && (
-          <button onClick={() => setView('picker')} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+          <button onClick={() => { setNewNoteType('group'); setNewNoteClientId(''); setNewNoteOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
             New Note
           </button>
@@ -429,17 +443,51 @@ export default function NotesContent() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100 bg-warm-bg/30">
-                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Type</th>
-                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Client</th>
-                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Session Date</th>
-                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Status</th>
-                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>AI Completeness</th>
-                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Updated</th>
+                    {([
+                      { key: 'type', label: 'Type' },
+                      { key: 'client', label: 'Client' },
+                      { key: 'session_date', label: 'Session Date' },
+                      { key: 'status', label: 'Status' },
+                      { key: 'completeness', label: 'AI / Billing Score' },
+                      { key: 'updated', label: 'Updated' },
+                    ] as const).map(col => (
+                      <th
+                        key={col.key}
+                        onClick={() => {
+                          if (sortBy === col.key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                          else { setSortBy(col.key); setSortDir(col.key === 'completeness' || col.key === 'session_date' || col.key === 'updated' ? 'desc' : 'asc'); }
+                        }}
+                        className="text-left px-5 py-3 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider cursor-pointer select-none hover:text-foreground/80 transition-colors"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {col.label}
+                          {sortBy === col.key && (
+                            <svg className={`w-3 h-3 transition-transform ${sortDir === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75 12 8.25l7.5 7.5" /></svg>
+                          )}
+                        </span>
+                      </th>
+                    ))}
                     <th className="w-16 px-3" />
                   </tr>
                 </thead>
                 <tbody>
-                  {notes.map(note => {
+                  {[...notes].sort((a, b) => {
+                    const clientA = clients.find(c => c.id === a.client_id);
+                    const clientB = clients.find(c => c.id === b.client_id);
+                    const pctA = computeCompleteness(a.note_type, a.content as Record<string, unknown>);
+                    const pctB = computeCompleteness(b.note_type, b.content as Record<string, unknown>);
+                    let cmp = 0;
+                    switch (sortBy) {
+                      case 'type': cmp = a.note_type.localeCompare(b.note_type); break;
+                      case 'client': cmp = (clientA?.name || '').localeCompare(clientB?.name || ''); break;
+                      case 'session_date': cmp = a.session_date.localeCompare(b.session_date); break;
+                      case 'status': cmp = a.status.localeCompare(b.status); break;
+                      case 'completeness': cmp = pctA - pctB; break;
+                      case 'updated': cmp = a.updated_at.localeCompare(b.updated_at); break;
+                    }
+                    return sortDir === 'asc' ? cmp : -cmp;
+                  }).map(note => {
                     const client = clients.find(c => c.id === note.client_id);
                     const pct = computeCompleteness(note.note_type, note.content as Record<string, unknown>);
                     const bucket = scoreBucket(pct);
@@ -506,32 +554,54 @@ export default function NotesContent() {
         </>
       )}
 
-      {/* ── TEMPLATE PICKER ────────────────────────────────────── */}
-      {view === 'picker' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {([
-            { type: 'group' as NoteType, title: 'Group Note', desc: 'Session-level documentation for group therapy. Captures topic, attendance, client participation, and ASAM dimension focus.', icon: (
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-            )},
-            { type: 'individual' as NoteType, title: 'Individual Note', desc: 'One-on-one session note with mental status, interventions, ASAM six-dimension progress review, and treatment plan.', icon: (
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-              </svg>
-            )},
-            { type: 'biopsychosocial' as NoteType, title: 'Biopsychosocial Assessment', desc: 'Comprehensive intake assessment covering biological, psychological, and social domains across all six ASAM dimensions with level-of-care recommendation.', icon: (
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" /><rect x="9" y="3" width="6" height="4" rx="1" /><path d="M9 14h.01M9 17h.01M12 14h3M12 17h3" />
-              </svg>
-            )},
-          ]).map(t => (
-            <button key={t.type} onClick={() => startNew(t.type)} className="text-left bg-white rounded-2xl border border-gray-100 p-6 hover:border-primary/30 hover:shadow-md transition-all group">
-              <div className="mb-4 text-foreground/40 group-hover:text-primary transition-colors">{t.icon}</div>
-              <h3 className="text-sm font-bold text-foreground mb-1">{t.title}</h3>
-              <p className="text-xs text-foreground/50 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{t.desc}</p>
-            </button>
-          ))}
+      {/* ── NEW NOTE MODAL (template + client dropdowns) ───────── */}
+      {newNoteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setNewNoteOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <h2 className="text-lg font-bold text-foreground mb-1">New note</h2>
+              <p className="text-xs text-foreground/50 mb-5" style={{ fontFamily: 'var(--font-body)' }}>Pick a template and a client to start.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Template</label>
+                  <select value={newNoteType} onChange={(e) => setNewNoteType(e.target.value as NoteType)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none">
+                    <option value="group">Group Note — session-level group therapy doc</option>
+                    <option value="individual">Individual Note — one-on-one session</option>
+                    <option value="biopsychosocial">Biopsychosocial Assessment — full intake</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Client</label>
+                  <select value={newNoteClientId} onChange={(e) => setNewNoteClientId(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none">
+                    <option value="">— Select a client —</option>
+                    {clients.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}{c.primary_substance ? ` · ${c.primary_substance}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    const client = clients.find(c => c.id === newNoteClientId);
+                    if (!client) return;
+                    setNoteType(newNoteType);
+                    setEditingNote(null);
+                    setNewNoteOpen(false);
+                    pickClient(client);
+                  }}
+                  disabled={!newNoteClientId}
+                  className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Start note
+                </button>
+                <button onClick={() => setNewNoteOpen(false)} className="px-5 py-2.5 text-foreground/50 text-sm font-medium hover:text-foreground transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -621,13 +691,13 @@ export default function NotesContent() {
               <>
                 <SectionHeading>Session Information</SectionHeading>
                 <div className="grid grid-cols-2 gap-4">
-                  <TextField label="Session Date" field="session_date" placeholder="YYYY-MM-DD" />
-                  <TextField label="Duration (min)" field="session_duration_min" />
+                  <NoteTextField content={content} setField={setField} label="Session Date" field="session_date" placeholder="YYYY-MM-DD" />
+                  <NoteTextField content={content} setField={setField} label="Duration (min)" field="session_duration_min" />
                 </div>
-                <TextField label="Session Title" field="session_title" placeholder="e.g. Relapse Prevention" />
-                <TextField label="Facilitator" field="facilitator" placeholder="Clinician name" />
-                <TextField label="Topic" field="topic" rows={2} placeholder="Primary topic and objectives for today's session" />
-                <TextField label="Attendance Count" field="attendance_count" placeholder="Number of participants" />
+                <NoteTextField content={content} setField={setField} label="Session Title" field="session_title" placeholder="e.g. Relapse Prevention" />
+                <NoteTextField content={content} setField={setField} label="Facilitator" field="facilitator" placeholder="Clinician name" />
+                <NoteTextField content={content} setField={setField} label="Topic" field="topic" rows={2} placeholder="Primary topic and objectives for today's session" />
+                <NoteTextField content={content} setField={setField} label="Attendance Count" field="attendance_count" placeholder="Number of participants" />
 
                 <SectionHeading>ASAM Dimension Focus</SectionHeading>
                 <div>
@@ -639,10 +709,10 @@ export default function NotesContent() {
                 </div>
 
                 <SectionHeading>Documentation</SectionHeading>
-                <TextField label="Group Process / Dynamics" field="group_process" rows={3} placeholder="Describe group dynamics, themes, and interactions observed" />
-                <TextField label="Client Participation" field="client_participation" rows={3} placeholder="Level and quality of this client's engagement in group" />
-                <TextField label="Interventions Used" field="interventions" rows={2} placeholder="CBT, DBT skills, MI, psychoeducation, etc." />
-                <TextField label="Plan / Follow-up" field="plan" rows={2} placeholder="Recommendations and next steps" />
+                <NoteTextField content={content} setField={setField} label="Group Process / Dynamics" field="group_process" rows={3} placeholder="Describe group dynamics, themes, and interactions observed" />
+                <NoteTextField content={content} setField={setField} label="Client Participation" field="client_participation" rows={3} placeholder="Level and quality of this client's engagement in group" />
+                <NoteTextField content={content} setField={setField} label="Interventions Used" field="interventions" rows={2} placeholder="CBT, DBT skills, MI, psychoeducation, etc." />
+                <NoteTextField content={content} setField={setField} label="Plan / Follow-up" field="plan" rows={2} placeholder="Recommendations and next steps" />
               </>
             )}
 
@@ -651,30 +721,30 @@ export default function NotesContent() {
               <>
                 <SectionHeading>Session Information</SectionHeading>
                 <div className="grid grid-cols-2 gap-4">
-                  <TextField label="Session Date" field="session_date" placeholder="YYYY-MM-DD" />
-                  <TextField label="Duration (min)" field="session_duration_min" />
+                  <NoteTextField content={content} setField={setField} label="Session Date" field="session_date" placeholder="YYYY-MM-DD" />
+                  <NoteTextField content={content} setField={setField} label="Duration (min)" field="session_duration_min" />
                 </div>
-                <TextField label="Clinician" field="clinician" placeholder="Clinician name" />
+                <NoteTextField content={content} setField={setField} label="Clinician" field="clinician" placeholder="Clinician name" />
 
                 <SectionHeading>Presentation</SectionHeading>
-                <TextField label="Presenting Concern" field="presenting_concern" rows={2} placeholder="Chief complaint or focus area for this session" />
+                <NoteTextField content={content} setField={setField} label="Presenting Concern" field="presenting_concern" rows={2} placeholder="Chief complaint or focus area for this session" />
                 <div className="grid grid-cols-2 gap-4">
-                  <TextField label="Mental Status" field="mental_status" placeholder="Alert, oriented, cooperative..." />
-                  <TextField label="Mood / Affect" field="mood_affect" placeholder="Euthymic, congruent..." />
+                  <NoteTextField content={content} setField={setField} label="Mental Status" field="mental_status" placeholder="Alert, oriented, cooperative..." />
+                  <NoteTextField content={content} setField={setField} label="Mood / Affect" field="mood_affect" placeholder="Euthymic, congruent..." />
                 </div>
 
                 <SectionHeading>Interventions</SectionHeading>
-                <TextField label="Interventions Used" field="interventions" rows={3} placeholder="CBT, motivational interviewing, trauma processing, etc." />
+                <NoteTextField content={content} setField={setField} label="Interventions Used" field="interventions" rows={3} placeholder="CBT, motivational interviewing, trauma processing, etc." />
 
                 <SectionHeading>ASAM Six-Dimension Review</SectionHeading>
                 {ASAM_DIMENSIONS.map(d => (
-                  <TextField key={d.key} label={d.label} field={d.key} rows={2} placeholder={`Status and progress for ${d.label.split(': ')[1]}`} />
+                  <NoteTextField content={content} setField={setField} key={d.key} label={d.label} field={d.key} rows={2} placeholder={`Status and progress for ${d.label.split(': ')[1]}`} />
                 ))}
 
                 <SectionHeading>Progress & Plan</SectionHeading>
-                <TextField label="Progress Toward Goals" field="progress" rows={2} placeholder="Progress made toward treatment plan goals" />
-                <TextField label="Plan / Recommendations" field="plan" rows={2} placeholder="Next steps, homework, coordination needs" />
-                <TextField label="Next Session" field="next_session" placeholder="Scheduled date or timeframe" />
+                <NoteTextField content={content} setField={setField} label="Progress Toward Goals" field="progress" rows={2} placeholder="Progress made toward treatment plan goals" />
+                <NoteTextField content={content} setField={setField} label="Plan / Recommendations" field="plan" rows={2} placeholder="Next steps, homework, coordination needs" />
+                <NoteTextField content={content} setField={setField} label="Next Session" field="next_session" placeholder="Scheduled date or timeframe" />
               </>
             )}
 
@@ -683,46 +753,46 @@ export default function NotesContent() {
               <>
                 <SectionHeading>Assessment Information</SectionHeading>
                 <div className="grid grid-cols-2 gap-4">
-                  <TextField label="Assessment Date" field="assessment_date" placeholder="YYYY-MM-DD" />
-                  <TextField label="Clinician" field="clinician" placeholder="Assessing clinician" />
+                  <NoteTextField content={content} setField={setField} label="Assessment Date" field="assessment_date" placeholder="YYYY-MM-DD" />
+                  <NoteTextField content={content} setField={setField} label="Clinician" field="clinician" placeholder="Assessing clinician" />
                 </div>
-                <TextField label="Presenting Problem" field="presenting_problem" rows={3} placeholder="Client's stated reason for seeking treatment, in their own words where possible" />
+                <NoteTextField content={content} setField={setField} label="Presenting Problem" field="presenting_problem" rows={3} placeholder="Client's stated reason for seeking treatment, in their own words where possible" />
 
                 <SectionHeading>Biological Domain</SectionHeading>
-                <TextField label="Medical History" field="medical_history" rows={2} placeholder="Chronic conditions, surgeries, hospitalizations" />
-                <TextField label="Current Medications" field="current_medications" rows={2} placeholder="List all current medications, doses, prescribers" />
-                <TextField label="Pain Concerns" field="pain_concerns" rows={2} placeholder="Chronic pain, acute injuries, pain management history" />
+                <NoteTextField content={content} setField={setField} label="Medical History" field="medical_history" rows={2} placeholder="Chronic conditions, surgeries, hospitalizations" />
+                <NoteTextField content={content} setField={setField} label="Current Medications" field="current_medications" rows={2} placeholder="List all current medications, doses, prescribers" />
+                <NoteTextField content={content} setField={setField} label="Pain Concerns" field="pain_concerns" rows={2} placeholder="Chronic pain, acute injuries, pain management history" />
 
                 <SectionHeading>Psychological Domain</SectionHeading>
-                <TextField label="Psychiatric History" field="psychiatric_history" rows={2} placeholder="Prior diagnoses, hospitalizations, SI/HI history" />
-                <TextField label="Current Symptoms" field="current_symptoms" rows={2} placeholder="Depression, anxiety, psychosis, mania, etc." />
-                <TextField label="Trauma History" field="trauma_history" rows={2} placeholder="ACEs, abuse, neglect, significant losses" />
-                <TextField label="Cognitive Functioning" field="cognitive_functioning" rows={2} placeholder="Orientation, memory, concentration, executive function" />
+                <NoteTextField content={content} setField={setField} label="Psychiatric History" field="psychiatric_history" rows={2} placeholder="Prior diagnoses, hospitalizations, SI/HI history" />
+                <NoteTextField content={content} setField={setField} label="Current Symptoms" field="current_symptoms" rows={2} placeholder="Depression, anxiety, psychosis, mania, etc." />
+                <NoteTextField content={content} setField={setField} label="Trauma History" field="trauma_history" rows={2} placeholder="ACEs, abuse, neglect, significant losses" />
+                <NoteTextField content={content} setField={setField} label="Cognitive Functioning" field="cognitive_functioning" rows={2} placeholder="Orientation, memory, concentration, executive function" />
 
                 <SectionHeading>Social Domain</SectionHeading>
-                <TextField label="Family History" field="family_history" rows={2} placeholder="Family structure, substance use in family, mental health history" />
-                <TextField label="Social Support" field="social_support" rows={2} placeholder="Relationships, sponsor, recovery community, support network" />
-                <TextField label="Housing & Employment" field="housing_employment" rows={2} placeholder="Living situation, employment status, financial concerns" />
-                <TextField label="Legal Involvement" field="legal_involvement" rows={2} placeholder="Current charges, probation/parole, pending cases" />
-                <TextField label="Cultural & Spiritual" field="cultural_spiritual" rows={2} placeholder="Cultural identity, spiritual practices, values, community" />
+                <NoteTextField content={content} setField={setField} label="Family History" field="family_history" rows={2} placeholder="Family structure, substance use in family, mental health history" />
+                <NoteTextField content={content} setField={setField} label="Social Support" field="social_support" rows={2} placeholder="Relationships, sponsor, recovery community, support network" />
+                <NoteTextField content={content} setField={setField} label="Housing & Employment" field="housing_employment" rows={2} placeholder="Living situation, employment status, financial concerns" />
+                <NoteTextField content={content} setField={setField} label="Legal Involvement" field="legal_involvement" rows={2} placeholder="Current charges, probation/parole, pending cases" />
+                <NoteTextField content={content} setField={setField} label="Cultural & Spiritual" field="cultural_spiritual" rows={2} placeholder="Cultural identity, spiritual practices, values, community" />
 
                 <SectionHeading>Substance Use History</SectionHeading>
-                <TextField label="Substance Use History" field="substance_use_history" rows={3} placeholder="Substances used, age of onset, route, frequency, duration" />
-                <TextField label="Current Use Pattern" field="current_use_pattern" rows={2} placeholder="Most recent use, current pattern, triggers" />
-                <TextField label="Withdrawal Risk" field="withdrawal_risk" rows={2} placeholder="History of withdrawal, seizures, DTs, CIWA/COWS scores" />
-                <TextField label="Previous Treatment" field="previous_treatment" rows={2} placeholder="Prior treatment episodes, what worked, barriers to sustained recovery" />
+                <NoteTextField content={content} setField={setField} label="Substance Use History" field="substance_use_history" rows={3} placeholder="Substances used, age of onset, route, frequency, duration" />
+                <NoteTextField content={content} setField={setField} label="Current Use Pattern" field="current_use_pattern" rows={2} placeholder="Most recent use, current pattern, triggers" />
+                <NoteTextField content={content} setField={setField} label="Withdrawal Risk" field="withdrawal_risk" rows={2} placeholder="History of withdrawal, seizures, DTs, CIWA/COWS scores" />
+                <NoteTextField content={content} setField={setField} label="Previous Treatment" field="previous_treatment" rows={2} placeholder="Prior treatment episodes, what worked, barriers to sustained recovery" />
 
                 <SectionHeading>ASAM Six-Dimension Assessment</SectionHeading>
                 {ASAM_DIMENSIONS.map(d => (
-                  <TextField key={d.key} label={d.label} field={d.key} rows={3} placeholder={`Assess ${d.label.split(': ')[1]}`} />
+                  <NoteTextField content={content} setField={setField} key={d.key} label={d.label} field={d.key} rows={3} placeholder={`Assess ${d.label.split(': ')[1]}`} />
                 ))}
 
                 <SectionHeading>Clinical Formulation</SectionHeading>
-                <TextField label="Strengths & Resources" field="strengths_resources" rows={2} placeholder="Client strengths, protective factors, motivation level" />
-                <TextField label="Barriers to Recovery" field="barriers" rows={2} placeholder="Identified barriers and challenges" />
-                <TextField label="Diagnostic Impression" field="diagnostic_impression" rows={2} placeholder="Working diagnoses (SUD, co-occurring MH)" />
-                <TextField label="Recommended Level of Care" field="recommended_level_of_care" placeholder="e.g. 3.5 – Clinically Managed High-Intensity Residential" />
-                <TextField label="Initial Treatment Goals" field="initial_treatment_goals" rows={3} placeholder="Prioritized goals for initial phase of treatment" />
+                <NoteTextField content={content} setField={setField} label="Strengths & Resources" field="strengths_resources" rows={2} placeholder="Client strengths, protective factors, motivation level" />
+                <NoteTextField content={content} setField={setField} label="Barriers to Recovery" field="barriers" rows={2} placeholder="Identified barriers and challenges" />
+                <NoteTextField content={content} setField={setField} label="Diagnostic Impression" field="diagnostic_impression" rows={2} placeholder="Working diagnoses (SUD, co-occurring MH)" />
+                <NoteTextField content={content} setField={setField} label="Recommended Level of Care" field="recommended_level_of_care" placeholder="e.g. 3.5 – Clinically Managed High-Intensity Residential" />
+                <NoteTextField content={content} setField={setField} label="Initial Treatment Goals" field="initial_treatment_goals" rows={3} placeholder="Prioritized goals for initial phase of treatment" />
               </>
             )}
 

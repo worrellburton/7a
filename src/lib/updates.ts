@@ -12,6 +12,22 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-17T04:00:00Z',
+    title: 'Home dashboard refresh + Ask the policies',
+    items: [
+      'New: Ask about policies — type any question on the home dashboard and Claude answers it, grounded in every policy we have on file (with inline citations).',
+      'What\'s new moved to a floating button in the lower-right. It pulses with a dot when there\'s a shipped update you haven\'t seen; opens into a roll-up panel.',
+      'Your profile picture now sits above "Welcome back, …" on the dashboard.',
+      'Feature Request button on the home dashboard is now a popup — pick a page from the dropdown (or "+ New page") and submit without navigating away.',
+      'Kingdom Requests list gained a Page column and a per-page filter.',
+      'Policies and Notes tables: click any column header to sort ascending/descending.',
+      'Notes: New Note opens a popup with template + client dropdowns (no more card picker page).',
+      'Notes: the spreadsheet list is now the default view.',
+      'Bug fix: Biopsychosocial + Individual note fields no longer drop focus after each keystroke.',
+      'Console backdrop: subtle animated desert-mountain flow in WebGL, using the existing warm palette (respects reduced-motion).',
+    ],
+  },
+  {
     at: '2026-04-17T02:00:00Z',
     title: 'Policies 2.0 + Kingdom Requests',
     items: [
