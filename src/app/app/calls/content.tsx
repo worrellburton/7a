@@ -638,7 +638,7 @@ export default function CallsContent() {
                       const expanded = expandedId === call.id;
                       return (
                         <Fragment key={call.id}>
-                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer">
+                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`border-b border-gray-50 transition-colors cursor-pointer ${(call.voicemail || (call.talk_time ?? 0) < 3) && call.direction === 'inbound' ? 'bg-red-50/40 hover:bg-red-50/70' : 'hover:bg-warm-bg/20'}`}>
                             <td className="px-3 sm:px-5 py-3.5">
                               <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
                             </td>
