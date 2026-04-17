@@ -855,22 +855,28 @@ export default function CallsContent() {
                               )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center gap-2">
-                                <OperatorPicker
-                                  currentName={scores[String(call.id)]?.operator_name || null}
-                                  knownOperators={knownOperators}
-                                  noAnswer={call.voicemail || (call.talk_time ?? 0) < 3}
-                                  voicemail={!!call.voicemail}
-                                  error={scoringErrors[String(call.id)]}
-                                  onPick={(name) => setManualOperator(String(call.id), name)}
-                                />
-                                <CallAiBadge
-                                  call={call}
-                                  preScore={scores[String(call.id)] || null}
-                                  loading={scoringIds.has(String(call.id))}
-                                  onClick={() => setMiniPopoverId(miniPopoverId === call.id ? null : call.id)}
-                                />
-                              </div>
+                              {isMissedCall(call) ? (
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
+                                  {call.voicemail ? 'Voicemail' : 'No answer'}
+                                </span>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <OperatorPicker
+                                    currentName={scores[String(call.id)]?.operator_name || null}
+                                    knownOperators={knownOperators}
+                                    noAnswer={false}
+                                    voicemail={false}
+                                    error={scoringErrors[String(call.id)]}
+                                    onPick={(name) => setManualOperator(String(call.id), name)}
+                                  />
+                                  <CallAiBadge
+                                    call={call}
+                                    preScore={scores[String(call.id)] || null}
+                                    loading={scoringIds.has(String(call.id))}
+                                    onClick={() => setMiniPopoverId(miniPopoverId === call.id ? null : call.id)}
+                                  />
+                                </div>
+                              )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
                               <ClientTypePicker
