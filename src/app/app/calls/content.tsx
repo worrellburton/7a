@@ -254,6 +254,13 @@ export default function CallsContent() {
     });
   }, [persistSpam]);
 
+  const isSpamCall = useCallback((call: { caller_number?: string | null; receiving_number?: string | null }) => {
+    return (
+      spamNumbers.has(normalizePhone(call.caller_number)) ||
+      spamNumbers.has(normalizePhone(call.receiving_number))
+    );
+  }, [spamNumbers]);
+
   const knownOperators = useMemo(() => {
     const names = new Set<string>();
     for (const s of Object.values(scores)) {
@@ -279,6 +286,22 @@ export default function CallsContent() {
     const startIso = rangeStart.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
     const endIso = rangeEnd.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
     const dayMs = 24 * 60 * 60 * 1000;
+
+    // Union allCallsRaw with currently loaded `calls`, dedupe by id.
+    // Ensures that freshly paginated/loaded calls show up in stats even if
+    // the one-shot allCallsRaw fetch hasn't caught up.
+    const seenIds = new Set<number>();
+    const sourceCalls: Call[] = [];
+    for (const c of allCallsRaw) {
+      if (seenIds.has(c.id)) continue;
+      seenIds.add(c.id);
+      sourceCalls.push(c);
+    }
+    for (const c of calls) {
+      if (seenIds.has(c.id)) continue;
+      seenIds.add(c.id);
+      sourceCalls.push(c);
+    }
 
     // Generate one entry per day in the range (for the chart)
     const days: { label: string; short: string; date: string }[] = [];
@@ -310,7 +333,7 @@ export default function CallsContent() {
     let meaningful = 0;
     let spam = 0;
 
-    for (const c of allCallsRaw) {
+    for (const c of sourceCalls) {
       const p = parseDate(c.called_at);
       if (!p) continue;
       const callDate = p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
@@ -323,7 +346,10 @@ export default function CallsContent() {
       daySources.get(callDate)!.set(src, (daySources.get(callDate)!.get(src) || 0) + 1);
       if (c.direction === 'inbound') inboundCount++;
       if (c.direction === 'outbound') outboundCount++;
-      const isSpam = spamNumbers.has(normalizePhone(c.caller_number));
+      // Check both caller_number (inbound) and receiving_number (outbound) against spam list.
+      const isSpam =
+        spamNumbers.has(normalizePhone(c.caller_number)) ||
+        spamNumbers.has(normalizePhone(c.receiving_number));
       if (isSpam) spam++;
       if (isMissedCall(c) && !isSpam) {
         missed++;
@@ -340,7 +366,7 @@ export default function CallsContent() {
 
     let returnedMissed = 0;
     let returnedPickedUp = 0;
-    for (const c of allCallsRaw) {
+    for (const c of sourceCalls) {
       if (c.direction !== 'outbound') continue;
       const p = parseDate(c.called_at);
       if (!p) continue;
@@ -382,7 +408,7 @@ export default function CallsContent() {
       startIso,
       endIso,
     };
-  }, [allCallsRaw, scores, rangeStart, rangeEnd, spamNumbers]);
+  }, [allCallsRaw, calls, scores, rangeStart, rangeEnd, spamNumbers]);
 
   const meaningfulData = useMemo(() => {
     let thisWeek = 0;
@@ -1091,7 +1117,9 @@ export default function CallsContent() {
                   </thead>
                   <tbody>
                     {calls.filter(call => {
-                      const isSpamCall = spamNumbers.has(normalizePhone(call.caller_number));
+                      const isSpamCall =
+                        spamNumbers.has(normalizePhone(call.caller_number)) ||
+                        spamNumbers.has(normalizePhone(call.receiving_number));
                       if (tab === 'spam') {
                         if (!isSpamCall) return false;
                       } else {
@@ -1128,7 +1156,7 @@ export default function CallsContent() {
                       const expanded = expandedId === call.id;
                       return (
                         <Fragment key={call.id}>
-                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${spamNumbers.has(normalizePhone(call.caller_number)) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={spamNumbers.has(normalizePhone(call.caller_number)) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
+                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${isSpamCall(call) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isSpamCall(call) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
                             <td className="px-3 sm:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex flex-col items-start gap-1.5">
                                 <button
@@ -1221,7 +1249,7 @@ export default function CallsContent() {
                               )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
-                              {spamNumbers.has(normalizePhone(call.caller_number)) ? (
+                              {isSpamCall(call) ? (
                                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">
                                   Spam
                                 </span>
@@ -1256,7 +1284,7 @@ export default function CallsContent() {
                               )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
-                              {spamNumbers.has(normalizePhone(call.caller_number)) ? (
+                              {isSpamCall(call) ? (
                                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">
                                   Spam
                                 </span>
