@@ -5,6 +5,19 @@ import { getAuthToken } from '@/lib/db';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import CallAiHover from './CallAiHover';
 
+interface ScoreRow {
+  call_id: string;
+  score: number;
+  caller_name: string | null;
+  caller_interest: string | null;
+  summary: string;
+  operator_strengths: string[];
+  operator_weaknesses: string[];
+  next_steps: string | null;
+  sentiment: string | null;
+  scored_at: string;
+}
+
 interface Call {
   id: number;
   name: string;
@@ -100,7 +113,7 @@ const directionStyle: Record<string, string> = {
 };
 
 export default function CallsContent() {
-  const { user, session } = useAuth();
+  const { user, session, isAdmin } = useAuth();
   const [tab, setTab] = useState<Tab>('calls');
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +131,8 @@ export default function CallsContent() {
   const [insights, setInsights] = useState<Insights | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [scores, setScores] = useState<Record<string, ScoreRow>>({});
+  const scoringRef = useRef(false);
 
   // Discover account ID first
   useEffect(() => {
@@ -260,6 +275,54 @@ export default function CallsContent() {
   useEffect(() => {
     if (accountId) fetchCalls(1);
   }, [accountId, fetchCalls]);
+
+  // Auto-score: fetch existing scores, then queue unscored calls
+  useEffect(() => {
+    if (!isAdmin || !session?.access_token || calls.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const callIds = calls.map((c) => String(c.id));
+      try {
+        const res = await fetch('/api/claude/calls/scores-lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ callIds }),
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (data.scores) {
+          setScores((prev) => ({ ...prev, ...data.scores }));
+        }
+        // Auto-score unscored calls
+        const unscoredCalls = calls.filter((c) => !data.scores?.[String(c.id)]);
+        if (unscoredCalls.length > 0 && !scoringRef.current) {
+          scoringRef.current = true;
+          for (const call of unscoredCalls) {
+            if (cancelled) break;
+            try {
+              const scoreRes = await fetch('/api/claude/calls/score', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ callId: String(call.id), call }),
+              });
+              if (scoreRes.ok) {
+                const scoreData = await scoreRes.json();
+                if (scoreData.result) {
+                  setScores((prev) => ({ ...prev, [String(call.id)]: scoreData.result }));
+                }
+              }
+            } catch { /* continue */ }
+          }
+          scoringRef.current = false;
+        }
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isAdmin, session?.access_token, calls]);
+
+  const onScoreUpdate = useCallback((callId: string, score: ScoreRow) => {
+    setScores((prev) => ({ ...prev, [callId]: score }));
+  }, []);
 
   const playRecording = (url: string) => {
     if (playingAudio === url) {
@@ -486,7 +549,7 @@ export default function CallsContent() {
                                   <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
                                   {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
                                 </div>
-                                <CallAiHover call={call} />
+                                <CallAiHover call={call} preScore={scores[String(call.id)] || null} onScoreUpdate={onScoreUpdate} />
                               </div>
                             </td>
                             <td className="px-5 py-3.5">

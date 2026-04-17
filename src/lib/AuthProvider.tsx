@@ -27,6 +27,8 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
+let signInLoggedThisSession = false;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
@@ -64,11 +66,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Supabase fires SIGNED_IN on every session restore (tab open,
           // reload, cross-tab sync) — not just real logins. Dedupe via
           // localStorage: only log once per user per hour.
-          if (event === 'SIGNED_IN') {
+          if (event === 'SIGNED_IN' && !signInLoggedThisSession) {
             const key = `signin_logged:${session.user.id}`;
             const last = typeof window !== 'undefined' ? Number(window.localStorage.getItem(key) || 0) : 0;
             const now = Date.now();
-            if (!last || now - last > 60 * 60 * 1000) {
+            if (!last || now - last > 12 * 60 * 60 * 1000) {
+              signInLoggedThisSession = true;
               try { window.localStorage.setItem(key, String(now)); } catch { /* ignore */ }
               const meta = session.user.user_metadata || {};
               const name = (meta.full_name as string) || session.user.email || 'User';
@@ -80,6 +83,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 targetLabel: name,
                 targetPath: '/app',
               });
+            } else {
+              signInLoggedThisSession = true;
             }
           }
         } else {
