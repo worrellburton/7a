@@ -53,11 +53,30 @@ const SECTION_COLORS: Record<string, string> = {
 
 // Pull the first non-empty line as a suggested title, look for
 // Purpose / Scope lead-ins to split structured content out of the body.
-function parsePastedText(raw: string): { name: string; purpose: string | null; scope: string | null; body: string } {
+function parsePastedText(raw: string): { name: string; policyNumber: string | null; section: string | null; purpose: string | null; scope: string | null; body: string } {
   const text = raw.replace(/\r\n/g, '\n').trim();
   const lines = text.split('\n');
+
+  // Extract metadata from key:value lines at the top
+  let policyNumber: string | null = null;
+  let section: string | null = null;
+  let subject: string | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const kv = trimmed.match(/^(Policy\s*(?:Number|#|No\.?)?|Section|Subject)\s*:\s*(.+?)\s*$/i);
+    if (!kv) break;
+    const key = kv[1].toLowerCase();
+    const val = kv[2];
+    if (key.startsWith('policy')) policyNumber = val;
+    else if (key === 'section') section = val;
+    else if (key === 'subject') subject = val;
+  }
+
+  // Use Subject as name if found, otherwise first non-empty line
   const firstNonEmpty = lines.find((l) => l.trim().length > 0) || '';
-  const name = firstNonEmpty.trim().replace(/^#+\s*/, '').slice(0, 200);
+  const name = (subject || firstNonEmpty.trim().replace(/^#+\s*/, '')).slice(0, 200);
 
   const getSection = (label: string): string | null => {
     const re = new RegExp(`(^|\\n)\\s*${label}\\s*:?\\s*\\n([\\s\\S]*?)(?=\\n\\s*(Purpose|Scope|Policy|Procedure|Definitions|Responsibility|References|Revision)\\s*:?\\s*\\n|$)`, 'i');
@@ -68,7 +87,7 @@ function parsePastedText(raw: string): { name: string; purpose: string | null; s
   const purpose = getSection('Purpose');
   const scope = getSection('Scope');
 
-  return { name, purpose, scope, body: text };
+  return { name, policyNumber, section, purpose, scope, body: text };
 }
 
 function fmtDate(d: string | null) {
@@ -446,6 +465,11 @@ export default function PoliciesContent() {
     if (!pasteText.trim()) return;
     const parsed = parsePastedText(pasteText);
     setFormName(parsed.name);
+    setFormPolicyNumber(parsed.policyNumber || '');
+    if (parsed.section) {
+      const match = SECTIONS.find((s) => s.toLowerCase().includes(parsed.section!.toLowerCase()) || parsed.section!.toLowerCase().includes(s.toLowerCase()));
+      if (match) setFormSection(match);
+    }
     setFormPurpose(parsed.purpose || '');
     setFormScope(parsed.scope || '');
     setFormBody(parsed.body);
@@ -534,10 +558,6 @@ export default function PoliciesContent() {
               <button onClick={() => markRevised(selectedPolicy)} className="px-3 py-2 text-xs font-semibold text-foreground/70 bg-white border border-gray-200 rounded-xl hover:bg-warm-bg transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
                 Mark Revised
               </button>
-              <button onClick={() => { setSelectedPolicy(null); setView('list'); }} className="flex items-center gap-2 px-4 py-2 bg-warm-bg text-foreground/70 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
-                Back
-              </button>
             </>
           )}
           {view === 'list' && (
@@ -621,7 +641,11 @@ export default function PoliciesContent() {
 
       {/* ── DETAIL VIEW ────────────────────────────────────────── */}
       {view === 'detail' && selectedPolicy && (
-        <div className="max-w-4xl">
+        <div className="max-w-4xl mx-auto">
+          <button onClick={() => { setSelectedPolicy(null); setView('list'); }} className="flex items-center gap-2 mb-4 px-4 py-2 bg-warm-bg text-foreground/70 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
+            Back
+          </button>
           <FormattedPolicy policy={selectedPolicy} />
         </div>
       )}
