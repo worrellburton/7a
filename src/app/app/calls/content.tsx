@@ -174,6 +174,8 @@ export default function CallsContent() {
   const [tab, setTab] = useState<Tab>('calls');
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -634,9 +636,9 @@ export default function CallsContent() {
     loadInsights();
   }, [accountId]);
 
-  const fetchCalls = useCallback(async (p: number) => {
+  const fetchCalls = useCallback(async (p: number, append = false) => {
     if (!accountId) return;
-    setLoading(true);
+    if (append) setLoadingMore(true); else setLoading(true);
     setError(null);
 
     const params: Record<string, string | number> = { page: p, per_page: 25 };
@@ -649,18 +651,20 @@ export default function CallsContent() {
     if (data.error) {
       setError(data.error);
       setLoading(false);
+      setLoadingMore(false);
       return;
     }
 
     if (data.calls) {
-      setCalls(data.calls);
+      setCalls(prev => append ? [...prev, ...data.calls!] : data.calls!);
       setTotalPages(data.total_pages || 1);
       setTotalEntries(data.total_entries || 0);
       setPage(data.page || p);
 
-      // Build sources summary
+      // Build sources summary from the full accumulated list
+      const source = append ? [...calls, ...data.calls] : data.calls;
       const sourceMap = new Map<string, number>();
-      data.calls.forEach((c: Call) => {
+      source.forEach((c: Call) => {
         const src = c.source_name || c.source || 'Unknown';
         sourceMap.set(src, (sourceMap.get(src) || 0) + 1);
       });
@@ -668,11 +672,29 @@ export default function CallsContent() {
     }
 
     setLoading(false);
-  }, [accountId, searchQuery, dateFilter, directionFilter]);
+    setLoadingMore(false);
+  }, [accountId, searchQuery, dateFilter, directionFilter, calls]);
 
   useEffect(() => {
     if (accountId) fetchCalls(1);
   }, [accountId, fetchCalls]);
+
+  // Infinite scroll: observe the sentinel and load the next page when visible.
+  useEffect(() => {
+    const node = loadMoreSentinelRef.current;
+    if (!node) return;
+    if (tab !== 'calls') return;
+    if (loading || loadingMore) return;
+    if (page >= totalPages) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some(e => e.isIntersecting)) {
+        fetchCalls(page + 1, true);
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [tab, loading, loadingMore, page, totalPages, fetchCalls]);
 
   // Auto-score: fetch existing scores, then queue unscored calls
   useEffect(() => {
@@ -1212,18 +1234,23 @@ export default function CallsContent() {
                 </table>
               </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-warm-bg/30">
-                  <p className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-                    Page {page} of {totalPages} &middot; {totalEntries.toLocaleString()} calls
-                  </p>
-                  <div className="flex items-center gap-1">
-                    <button disabled={page <= 1} onClick={() => fetchCalls(page - 1)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/60 hover:bg-warm-bg disabled:opacity-30 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>Prev</button>
-                    <button disabled={page >= totalPages} onClick={() => fetchCalls(page + 1)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/60 hover:bg-warm-bg disabled:opacity-30 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>Next</button>
+              {/* Infinite scroll sentinel + status */}
+              <div ref={loadMoreSentinelRef} className="flex items-center justify-center px-5 py-4 border-t border-gray-100 bg-warm-bg/30">
+                {loadingMore ? (
+                  <div className="flex items-center gap-2 text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="w-3 h-3 border-2 border-foreground/40 border-t-transparent rounded-full animate-spin" />
+                    Loading more calls…
                   </div>
-                </div>
-              )}
+                ) : page >= totalPages ? (
+                  <p className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                    All {totalEntries.toLocaleString()} calls loaded
+                  </p>
+                ) : (
+                  <p className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                    {calls.length.toLocaleString()} of {totalEntries.toLocaleString()} loaded · scroll for more
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </>
@@ -1911,6 +1938,12 @@ function TimelineSlider({
     const newStart = new Date(newEnd.getTime() - (days - 1) * dayMs); newStart.setHours(0, 0, 0, 0);
     onChange(newStart, newEnd);
   };
+  const setAllTime = () => {
+    const s = new Date(min); s.setHours(0, 0, 0, 0);
+    const e = new Date(max); e.setHours(23, 59, 59, 999);
+    onChange(s, e);
+  };
+  const isAllTime = Math.abs(start.getTime() - min.getTime()) < dayMs && Math.abs(end.getTime() - max.getTime()) < dayMs;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 mb-6 select-none">
@@ -1930,12 +1963,19 @@ function TimelineSlider({
             <button
               key={p.label}
               onClick={() => setPreset(p.days)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${spanDays === p.days ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${!isAllTime && spanDays === p.days ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
               style={{ fontFamily: 'var(--font-body)' }}
             >
               {p.label}
             </button>
           ))}
+          <button
+            onClick={setAllTime}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${isAllTime ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            All
+          </button>
         </div>
       </div>
 
