@@ -174,6 +174,8 @@ export default function CallsContent() {
   const [dateFilter, setDateFilter] = useState('');
   const [directionFilter, setDirectionFilter] = useState<string>('all');
   const [operatorFilter, setOperatorFilter] = useState<string>('all');
+  const [sortKey, setSortKey] = useState<string>('called_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [sources, setSources] = useState<{ name: string; count: number }[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
@@ -231,6 +233,17 @@ export default function CallsContent() {
       }
     } catch { /* swallow — UI keeps the stale value */ }
   }, [session?.access_token]);
+
+  const handleSort = useCallback((key: string) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return prev;
+      }
+      setSortDir('asc');
+      return key;
+    });
+  }, []);
 
   const analyzeAllCalls = useCallback(async () => {
     if (!session?.access_token) return;
@@ -788,17 +801,17 @@ export default function CallsContent() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100 bg-warm-bg/50">
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Call ID</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Fit</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Call Name</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Date / Time</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Number</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Duration</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Caller</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Operator</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Type</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Location</th>
+                      <SortTh label="Call ID" sortKeyName="id" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Fit" sortKeyName="fit_score" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Call Name" sortKeyName="call_name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Date / Time" sortKeyName="called_at" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Number" sortKeyName="caller_number" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Duration" sortKeyName="duration" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Caller" sortKeyName="caller_name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Operator" sortKeyName="operator_name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Type" sortKeyName="client_type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Source" sortKeyName="source" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Location" sortKeyName="location" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} hiddenLg />
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Recording</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Transcript</th>
                       <th className="w-8" />
@@ -809,18 +822,57 @@ export default function CallsContent() {
                       if (operatorFilter === 'all') return true;
                       const s = scores[String(call.id)];
                       return s?.operator_name === operatorFilter;
+                    }).slice().sort((a, b) => {
+                      const sA = scores[String(a.id)];
+                      const sB = scores[String(b.id)];
+                      const getVal = (call: Call, s: ScoreRow | undefined): string | number => {
+                        switch (sortKey) {
+                          case 'id': return call.id;
+                          case 'fit_score': return s?.fit_score ?? -1;
+                          case 'call_name': return (s?.call_name || '').toLowerCase();
+                          case 'called_at': return call.called_at ? new Date(call.called_at).getTime() : 0;
+                          case 'caller_number': return (call.caller_number_formatted || call.caller_number || '').toLowerCase();
+                          case 'duration': return call.duration ?? 0;
+                          case 'caller_name': return (s?.caller_name || '').toLowerCase();
+                          case 'operator_name': return (s?.operator_name || '').toLowerCase();
+                          case 'client_type': return (s?.client_type || '').toLowerCase();
+                          case 'source': return (call.source_name || call.source || '').toLowerCase();
+                          case 'location': return [call.city, call.state].filter(Boolean).join(', ').toLowerCase();
+                          default: return 0;
+                        }
+                      };
+                      const vA = getVal(a, sA);
+                      const vB = getVal(b, sB);
+                      if (vA < vB) return sortDir === 'asc' ? -1 : 1;
+                      if (vA > vB) return sortDir === 'asc' ? 1 : -1;
+                      return 0;
                     }).map(call => {
                       const expanded = expandedId === call.id;
                       return (
                         <Fragment key={call.id}>
                           <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
-                            <td className="px-3 sm:px-5 py-3.5">
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize mb-1 ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
-                                {call.direction || 'unknown'}
-                              </span>
-                              {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 ml-1 mb-1">VM</span>}
-                              {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700 ml-1 mb-1">1st</span>}
-                              <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
+                            <td className="px-3 sm:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex flex-col items-start gap-1">
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
+                                    {call.direction || 'unknown'}
+                                  </span>
+                                  {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">VM</span>}
+                                  {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">1st</span>}
+                                </div>
+                                <CallAiBadge
+                                  call={call}
+                                  preScore={scores[String(call.id)] || null}
+                                  loading={scoringIds.has(String(call.id))}
+                                  onClick={() => setMiniPopoverId(miniPopoverId === call.id ? null : call.id)}
+                                />
+                                {scores[String(call.id)]?.scored_at && (
+                                  <div className="text-[9px] text-foreground/30 whitespace-nowrap leading-tight" style={{ fontFamily: 'var(--font-body)' }}>
+                                    {formatDate(scores[String(call.id)].scored_at)} · {formatTime(scores[String(call.id)].scored_at)}
+                                  </div>
+                                )}
+                                <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
+                              </div>
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
                               {scores[String(call.id)]?.fit_score != null ? (
@@ -864,30 +916,28 @@ export default function CallsContent() {
                                   {call.voicemail ? 'Voicemail' : 'No answer'}
                                 </span>
                               ) : (
-                                <div className="flex items-center gap-2">
-                                  <OperatorPicker
-                                    currentName={scores[String(call.id)]?.operator_name || null}
-                                    knownOperators={knownOperators}
-                                    noAnswer={false}
-                                    voicemail={false}
-                                    error={scoringErrors[String(call.id)]}
-                                    onPick={(name) => setManualOperator(String(call.id), name)}
-                                  />
-                                  <CallAiBadge
-                                    call={call}
-                                    preScore={scores[String(call.id)] || null}
-                                    loading={scoringIds.has(String(call.id))}
-                                    onClick={() => setMiniPopoverId(miniPopoverId === call.id ? null : call.id)}
-                                  />
-                                </div>
+                                <OperatorPicker
+                                  currentName={scores[String(call.id)]?.operator_name || null}
+                                  knownOperators={knownOperators}
+                                  noAnswer={false}
+                                  voicemail={false}
+                                  error={scoringErrors[String(call.id)]}
+                                  onPick={(name) => setManualOperator(String(call.id), name)}
+                                />
                               )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
-                              <ClientTypePicker
-                                currentType={scores[String(call.id)]?.client_type || null}
-                                knownTypes={knownClientTypes}
-                                onPick={(t) => setManualClientType(String(call.id), t)}
-                              />
+                              {isMissedCall(call) ? (
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
+                                  {call.voicemail ? 'Voicemail' : 'No answer'}
+                                </span>
+                              ) : (
+                                <ClientTypePicker
+                                  currentType={scores[String(call.id)]?.client_type || null}
+                                  knownTypes={knownClientTypes}
+                                  onPick={(t) => setManualClientType(String(call.id), t)}
+                                />
+                              )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/60 max-w-[180px] truncate" style={{ fontFamily: 'var(--font-body)' }}>
                               {call.source_name || call.source || '—'}
@@ -1206,6 +1256,31 @@ function ClientTypePicker({ currentType, knownTypes, onPick }: {
 }
 
 // Simple label/value cell used inside the expanded call detail drawer.
+function SortTh({ label, sortKeyName, sortKey, sortDir, onSort, hiddenLg }: {
+  label: string;
+  sortKeyName: string;
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+  onSort: (key: string) => void;
+  hiddenLg?: boolean;
+}) {
+  const active = sortKey === sortKeyName;
+  return (
+    <th
+      onClick={() => onSort(sortKeyName)}
+      className={`text-left px-5 py-3 text-xs font-semibold uppercase tracking-wider cursor-pointer select-none hover:text-foreground/70 transition-colors ${active ? 'text-foreground/80' : 'text-foreground/40'} ${hiddenLg ? 'hidden lg:table-cell' : ''}`}
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <span className={`text-[9px] ${active ? 'opacity-100' : 'opacity-30'}`}>
+          {active ? (sortDir === 'asc' ? '▲' : '▼') : '▲▼'}
+        </span>
+      </span>
+    </th>
+  );
+}
+
 function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
   const display = value && String(value).trim() ? String(value) : '—';
   return (
