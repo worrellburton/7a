@@ -136,7 +136,9 @@ function fitScoreBg(s: number): string {
 }
 
 export default function CallsContent() {
-  const { user, session } = useAuth();
+  const { user, session, isAdmin } = useAuth();
+  const [bulkAnalyzing, setBulkAnalyzing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const [tab, setTab] = useState<Tab>('calls');
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,6 +186,49 @@ export default function CallsContent() {
       }
     } catch { /* swallow — UI keeps the stale value */ }
   }, [session?.access_token]);
+
+  const analyzeAllCalls = useCallback(async () => {
+    if (!session?.access_token) return;
+    const targets = calls.slice();
+    if (!targets.length) return;
+    setBulkAnalyzing(true);
+    setBulkProgress({ done: 0, total: targets.length });
+    const concurrency = 3;
+    let idx = 0;
+    let done = 0;
+    async function worker() {
+      while (idx < targets.length) {
+        const myIdx = idx++;
+        const call = targets[myIdx];
+        const callId = String(call.id);
+        if (scores[callId]) { done++; setBulkProgress({ done, total: targets.length }); continue; }
+        setScoringIds((prev) => { const n = new Set(prev); n.add(callId); return n; });
+        try {
+          const res = await fetch('/api/claude/calls/score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session!.access_token}` },
+            body: JSON.stringify({ callId, call, force: false }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.result) setScores((prev) => ({ ...prev, [callId]: data.result }));
+          } else {
+            let err = `Analyze failed (${res.status})`;
+            try { const j = await res.json(); err = j.error || err; } catch {}
+            setScoringErrors((prev) => ({ ...prev, [callId]: err }));
+          }
+        } catch (e) {
+          setScoringErrors((prev) => ({ ...prev, [callId]: e instanceof Error ? e.message : 'Network error' }));
+        } finally {
+          setScoringIds((prev) => { const n = new Set(prev); n.delete(callId); return n; });
+          done++;
+          setBulkProgress({ done, total: targets.length });
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    setBulkAnalyzing(false);
+  }, [calls, scores, session]);
 
   const rescoreCall = useCallback(async (callId: string, force: boolean) => {
     if (!session?.access_token) {
@@ -590,24 +635,6 @@ export default function CallsContent() {
             </select>
             <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
           </div>
-          <div className="relative">
-            <select
-              value={operatorFilter}
-              onChange={e => setOperatorFilter(e.target.value)}
-              className="appearance-none pl-3 pr-7 py-2 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <option value="all">All Operators</option>
-              {Array.from(new Set(
-                Object.values(scores)
-                  .map(s => s.operator_name)
-                  .filter((n): n is string => !!n)
-              )).sort().map(name => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-            <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-          </div>
           <button onClick={() => fetchCalls(1)} className="px-4 py-2 rounded-lg text-xs font-medium bg-foreground text-white hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
             Search
           </button>
@@ -641,7 +668,28 @@ export default function CallsContent() {
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Date / Time</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Number</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Caller</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Operator</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+                        <div className="flex flex-col gap-1.5">
+                          <span>Operator</span>
+                          <div className="relative">
+                            <select
+                              value={operatorFilter}
+                              onChange={e => setOperatorFilter(e.target.value)}
+                              className="appearance-none w-full pl-2 pr-6 py-1 rounded-md text-[10px] font-medium bg-white border border-gray-200 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer normal-case tracking-normal"
+                            >
+                              <option value="all">All Operators</option>
+                              {Array.from(new Set(
+                                Object.values(scores)
+                                  .map(s => s.operator_name)
+                                  .filter((n): n is string => !!n)
+                              )).sort().map(name => (
+                                <option key={name} value={name}>{name}</option>
+                              ))}
+                            </select>
+                            <svg className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                          </div>
+                        </div>
+                      </th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Type</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Direction</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
@@ -865,6 +913,22 @@ export default function CallsContent() {
             </div>
           )}
         </div>
+      )}
+
+      {isAdmin && calls.length > 0 && (
+        <button
+          type="button"
+          onClick={analyzeAllCalls}
+          disabled={bulkAnalyzing}
+          className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 px-4 py-3 rounded-full bg-primary text-white text-sm font-semibold shadow-lg hover:bg-primary-dark hover:shadow-xl transition-all disabled:opacity-80 disabled:cursor-wait"
+          style={{ fontFamily: 'var(--font-body)' }}
+          title="Analyze every loaded call that doesn't have a score yet"
+        >
+          <svg className={`w-4 h-4 ${bulkAnalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+          {bulkAnalyzing && bulkProgress
+            ? `Analyzing ${bulkProgress.done}/${bulkProgress.total}…`
+            : 'Analyze all calls'}
+        </button>
       )}
 
       {transcriptFor !== null && (() => {
