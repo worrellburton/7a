@@ -902,7 +902,19 @@ export default function CallsContent() {
                         <Fragment key={call.id}>
                           <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
                             <td className="px-3 sm:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex flex-col items-start gap-1">
+                              <div className="flex flex-col items-start gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => rescoreCall(String(call.id), true)}
+                                  disabled={scoringIds.has(String(call.id))}
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg text-foreground/60 hover:text-primary hover:bg-white transition-colors border border-gray-200 disabled:opacity-50 whitespace-nowrap"
+                                  title="Run AI analysis on this call"
+                                >
+                                  <svg className={`w-3 h-3 ${scoringIds.has(String(call.id)) ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                  </svg>
+                                  {scoringIds.has(String(call.id)) ? 'Analyzing…' : scores[String(call.id)]?.scored_at ? 'Re-analyze' : 'Analyze'}
+                                </button>
                                 <div className="flex items-center gap-1 flex-wrap">
                                   <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
                                     {call.direction || 'unknown'}
