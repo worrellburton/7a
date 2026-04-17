@@ -322,7 +322,7 @@ export default function CallsContent() {
       daySources.get(callDate)!.set(src, (daySources.get(callDate)!.get(src) || 0) + 1);
       if (c.direction === 'inbound') inboundCount++;
       if (c.direction === 'outbound') outboundCount++;
-      if (isMissedCall(c)) {
+      if (isMissedCall(c) && !spamNumbers.has(normalizePhone(c.caller_number))) {
         missed++;
         dayMissedCounts.set(callDate, (dayMissedCounts.get(callDate) || 0) + 1);
         if (c.caller_number) missedNumbers.add(c.caller_number);
@@ -378,7 +378,7 @@ export default function CallsContent() {
       startIso,
       endIso,
     };
-  }, [allCallsRaw, scores, rangeStart, rangeEnd]);
+  }, [allCallsRaw, scores, rangeStart, rangeEnd, spamNumbers]);
 
   const meaningfulData = useMemo(() => {
     let thisWeek = 0;
@@ -911,7 +911,7 @@ export default function CallsContent() {
           </div>
 
           {/* Range Line Graph + Mini Heatmap */}
-          <div className="grid grid-cols-1 lg:grid-cols-[3fr,2fr] gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-[3fr,2fr] gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                 <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Daily Breakdown</p>
@@ -949,7 +949,7 @@ export default function CallsContent() {
                 }}
               />
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 overflow-x-auto">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Heatmap</p>
               <MiniHeatmap
                 calls={allCallsRaw}
@@ -1120,7 +1120,7 @@ export default function CallsContent() {
                       const expanded = expandedId === call.id;
                       return (
                         <Fragment key={call.id}>
-                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
+                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${spamNumbers.has(normalizePhone(call.caller_number)) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={spamNumbers.has(normalizePhone(call.caller_number)) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
                             <td className="px-3 sm:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex flex-col items-start gap-1.5">
                                 <button
