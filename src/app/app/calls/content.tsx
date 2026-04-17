@@ -221,8 +221,10 @@ export default function CallsContent() {
   const meaningfulData = useMemo(() => {
     let thisWeek = 0;
     const dailyCounts = new Map<string, number>();
-    if (!insights) return { thisWeek: 0, dailyCounts };
+    if (!insights) return { thisWeek: 0, today: 0, yesterday: 0, dailyCounts };
     const weekDates = new Set(insights.dailyCounts.map(d => d.date));
+    const todayStr = insights.dailyCounts[6]?.date;
+    const yesterdayStr = insights.dailyCounts[5]?.date;
     for (const call of calls) {
       const s = scores[String(call.id)];
       if (!s || s.fit_score == null || s.fit_score < MEANINGFUL_THRESHOLD) continue;
@@ -234,7 +236,12 @@ export default function CallsContent() {
         dailyCounts.set(callDate, (dailyCounts.get(callDate) || 0) + 1);
       }
     }
-    return { thisWeek, dailyCounts };
+    return {
+      thisWeek,
+      today: dailyCounts.get(todayStr) || 0,
+      yesterday: dailyCounts.get(yesterdayStr) || 0,
+      dailyCounts,
+    };
   }, [calls, scores, insights]);
 
   const setManualOperator = useCallback(async (callId: string, operatorName: string | null) => {
@@ -653,26 +660,22 @@ export default function CallsContent() {
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Today</p>
               <p className="text-2xl font-bold text-foreground">{insights.today}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {insights.inbound > 0 || insights.outbound > 0 ? `${insights.inbound} in / ${insights.outbound} out this week` : 'No calls yet'}
+              <p className="text-xs text-blue-500 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {insights.today > 0 ? `${meaningfulData.today} meaningful (${Math.round((meaningfulData.today / insights.today) * 100)}%)` : 'No calls yet'}
               </p>
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Yesterday</p>
               <p className="text-2xl font-bold text-foreground">{insights.yesterday}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {insights.yesterday > insights.today ? (
-                  <span className="text-red-400">{insights.yesterday - insights.today} more than today</span>
-                ) : insights.today > insights.yesterday ? (
-                  <span className="text-emerald-500">{insights.today - insights.yesterday} fewer than today</span>
-                ) : 'Same as today'}
+              <p className="text-xs text-blue-500 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {insights.yesterday > 0 ? `${meaningfulData.yesterday} meaningful (${Math.round((meaningfulData.yesterday / insights.yesterday) * 100)}%)` : 'No calls yesterday'}
               </p>
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>This Week</p>
               <p className="text-2xl font-bold text-foreground">{insights.thisWeek}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                Avg {formatDuration(insights.avgDuration)} per call
+              <p className="text-xs text-blue-500 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {insights.thisWeek > 0 ? `${meaningfulData.thisWeek} meaningful (${Math.round((meaningfulData.thisWeek / insights.thisWeek) * 100)}%)` : 'No calls this week'}
               </p>
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
@@ -907,17 +910,6 @@ export default function CallsContent() {
                                   {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">VM</span>}
                                   {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">1st</span>}
                                 </div>
-                                <CallAiBadge
-                                  call={call}
-                                  preScore={scores[String(call.id)] || null}
-                                  loading={scoringIds.has(String(call.id))}
-                                  onClick={() => setMiniPopoverId(miniPopoverId === call.id ? null : call.id)}
-                                />
-                                {scores[String(call.id)]?.scored_at && (
-                                  <div className="text-[9px] text-foreground/30 whitespace-nowrap leading-tight" style={{ fontFamily: 'var(--font-body)' }}>
-                                    {formatDate(scores[String(call.id)].scored_at)} · {formatTime(scores[String(call.id)].scored_at)}
-                                  </div>
-                                )}
                                 <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
                               </div>
                             </td>
@@ -963,14 +955,29 @@ export default function CallsContent() {
                                   {call.voicemail ? 'Voicemail' : 'No answer'}
                                 </span>
                               ) : (
-                                <OperatorPicker
-                                  currentName={scores[String(call.id)]?.operator_name || null}
-                                  knownOperators={knownOperators}
-                                  noAnswer={false}
-                                  voicemail={false}
-                                  error={scoringErrors[String(call.id)]}
-                                  onPick={(name) => setManualOperator(String(call.id), name)}
-                                />
+                                <div className="flex flex-col items-start gap-1">
+                                  <div className="flex items-center gap-2">
+                                    <OperatorPicker
+                                      currentName={scores[String(call.id)]?.operator_name || null}
+                                      knownOperators={knownOperators}
+                                      noAnswer={false}
+                                      voicemail={false}
+                                      error={scoringErrors[String(call.id)]}
+                                      onPick={(name) => setManualOperator(String(call.id), name)}
+                                    />
+                                    <CallAiBadge
+                                      call={call}
+                                      preScore={scores[String(call.id)] || null}
+                                      loading={scoringIds.has(String(call.id))}
+                                      onClick={() => setMiniPopoverId(miniPopoverId === call.id ? null : call.id)}
+                                    />
+                                  </div>
+                                  {scores[String(call.id)]?.scored_at && (
+                                    <div className="text-[9px] text-foreground/30 whitespace-nowrap leading-tight" style={{ fontFamily: 'var(--font-body)' }}>
+                                      {formatDate(scores[String(call.id)].scored_at)} · {formatTime(scores[String(call.id)].scored_at)}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
