@@ -75,7 +75,8 @@ interface Insights {
   outbound: number;
   missedThisWeek: number;
   missedPaidThisWeek: number;
-  dailyCounts: { label: string; short: string; date: string; count: number; sources: { name: string; count: number }[] }[];
+  returnedMissedThisWeek: number;
+  dailyCounts: { label: string; short: string; date: string; count: number; missedCount: number; returnedCount: number; sources: { name: string; count: number }[] }[];
 }
 
 // Treat anything that isn't obviously organic / direct / unattributed as a
@@ -354,6 +355,10 @@ export default function CallsContent() {
         let outboundCount = 0;
         let missedWeek = 0;
         let missedPaidWeek = 0;
+        let returnedMissedWeek = 0;
+        const dayMissedCounts = new Map<string, number>();
+        const dayReturnedCounts = new Map<string, number>();
+        const missedNumbers = new Set<string>();
 
         allCalls.forEach(c => {
           const callDate = new Date(c.called_at).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
@@ -369,8 +374,21 @@ export default function CallsContent() {
             if (c.direction === 'outbound') outboundCount++;
             if (isMissedCall(c)) {
               missedWeek++;
+              dayMissedCounts.set(callDate, (dayMissedCounts.get(callDate) || 0) + 1);
+              if (c.caller_number) missedNumbers.add(c.caller_number);
               if (isPaidSource(c.source_name || c.source)) missedPaidWeek++;
             }
+          }
+        });
+
+        allCalls.forEach(c => {
+          if (c.direction !== 'outbound') return;
+          const callDate = new Date(c.called_at).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+          if (!weekDates.has(callDate)) return;
+          const target = c.caller_number || c.receiving_number;
+          if (target && missedNumbers.has(target)) {
+            returnedMissedWeek++;
+            dayReturnedCounts.set(callDate, (dayReturnedCounts.get(callDate) || 0) + 1);
           }
         });
 
@@ -381,7 +399,7 @@ export default function CallsContent() {
                 .map(([name, count]) => ({ name, count }))
                 .sort((a, b) => b.count - a.count)
             : [];
-          return { ...d, count: dayCounts.get(d.date) || 0, sources };
+          return { ...d, count: dayCounts.get(d.date) || 0, missedCount: dayMissedCounts.get(d.date) || 0, returnedCount: dayReturnedCounts.get(d.date) || 0, sources };
         });
 
         setInsights({
@@ -394,6 +412,7 @@ export default function CallsContent() {
           outbound: outboundCount,
           missedThisWeek: missedWeek,
           missedPaidThisWeek: missedPaidWeek,
+          returnedMissedThisWeek: returnedMissedWeek,
           dailyCounts,
         });
       } catch {
@@ -543,7 +562,7 @@ export default function CallsContent() {
       ) : insights && (
         <div className="mb-6 space-y-4">
           {/* Stat Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Today</p>
               <p className="text-2xl font-bold text-foreground">{insights.today}</p>
@@ -588,6 +607,13 @@ export default function CallsContent() {
                 {insights.missedThisWeek > 0 ? `${Math.round((insights.missedPaidThisWeek / insights.missedThisWeek) * 100)}% of missed were paid` : 'No missed calls'}
               </p>
             </div>
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Returned</p>
+              <p className="text-2xl font-bold text-emerald-500">{insights.returnedMissedThisWeek}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {insights.missedThisWeek > 0 ? `${Math.round((insights.returnedMissedThisWeek / insights.missedThisWeek) * 100)}% of missed returned` : 'No missed calls'}
+              </p>
+            </div>
           </div>
 
           {/* Weekly Line Graph */}
@@ -606,6 +632,12 @@ export default function CallsContent() {
                 )}
                 <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
                   <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
+                </span>
+                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Missed
+                </span>
+                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span className="w-2 h-2 rounded-full bg-[#10b981]" /> Returned
                 </span>
               </div>
             </div>
@@ -748,7 +780,7 @@ export default function CallsContent() {
                       const expanded = expandedId === call.id;
                       return (
                         <Fragment key={call.id}>
-                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${(call.voicemail || (call.talk_time ?? 0) < 3) && call.direction === 'inbound' ? 'border-b-2 border-red-500' : 'border-b border-gray-50'}`}>
+                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
                             <td className="px-3 sm:px-5 py-3.5">
                               <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
                             </td>
@@ -959,14 +991,19 @@ export default function CallsContent() {
           type="button"
           onClick={analyzeAllCalls}
           disabled={bulkAnalyzing}
-          className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 px-4 py-3 rounded-full bg-primary text-white text-sm font-semibold shadow-lg hover:bg-primary-dark hover:shadow-xl transition-all disabled:opacity-80 disabled:cursor-wait"
+          className={`fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 px-4 py-3 rounded-full text-white text-sm font-semibold shadow-lg transition-all ${bulkAnalyzing ? 'bg-primary-dark shadow-xl scale-105' : 'bg-primary hover:bg-primary-dark hover:shadow-xl'}`}
           style={{ fontFamily: 'var(--font-body)' }}
           title="Analyze every loaded call that doesn't have a score yet"
         >
           <svg className={`w-4 h-4 ${bulkAnalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
-          {bulkAnalyzing && bulkProgress
-            ? `Analyzing ${bulkProgress.done}/${bulkProgress.total}…`
-            : 'Analyze all calls'}
+          {bulkAnalyzing && bulkProgress ? (
+            <>
+              <span>Analyzing {bulkProgress.done}/{bulkProgress.total}</span>
+              <span className="w-16 h-1.5 rounded-full bg-white/30 overflow-hidden">
+                <span className="block h-full bg-white rounded-full transition-all" style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }} />
+              </span>
+            </>
+          ) : 'Analyze all calls'}
         </button>
       )}
 
@@ -1363,7 +1400,7 @@ function WeekGraph({
   selectedDate,
   onDayClick,
 }: {
-  data: { label: string; short: string; date: string; count: number; sources: { name: string; count: number }[] }[];
+  data: { label: string; short: string; date: string; count: number; missedCount: number; returnedCount: number; sources: { name: string; count: number }[] }[];
   selectedDate: string;
   onDayClick: (date: string) => void;
 }) {
@@ -1384,11 +1421,15 @@ function WeekGraph({
   const pts = data.map((d, i) => {
     const x = padL + (data.length === 1 ? innerW / 2 : (i / (data.length - 1)) * innerW);
     const y = padT + innerH - (d.count / max) * innerH;
-    return { x, y, ...d };
+    const missedY = padT + innerH - (d.missedCount / max) * innerH;
+    const returnedY = padT + innerH - (d.returnedCount / max) * innerH;
+    return { x, y, missedY, returnedY, ...d };
   });
 
   const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
   const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${padT + innerH} L ${pts[0].x.toFixed(1)} ${padT + innerH} Z`;
+  const missedPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.missedY.toFixed(1)}`).join(' ');
+  const returnedPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.returnedY.toFixed(1)}`).join(' ');
 
   // Build subtle horizontal gridlines (4 bands).
   const gridYs = [0, 0.25, 0.5, 0.75, 1].map((t) => padT + innerH * t);
@@ -1435,6 +1476,26 @@ function WeekGraph({
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
+        />
+        <path
+          d={missedPath}
+          fill="none"
+          stroke="#ef4444"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray="6 4"
+          opacity="0.7"
+        />
+        <path
+          d={returnedPath}
+          fill="none"
+          stroke="#10b981"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray="6 4"
+          opacity="0.7"
         />
       </g>
 
