@@ -7,11 +7,6 @@ export async function POST(req: NextRequest) {
 
   const supabase = getAdminSupabase();
 
-  const { data: userRow } = await supabase.from('users').select('is_admin').eq('id', user.id).single();
-  if (!userRow?.is_admin) {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
-  }
-
   const body = (await req.json().catch(() => ({}))) as { callIds?: string[] };
   if (!body.callIds?.length) {
     return NextResponse.json({ scores: {} });

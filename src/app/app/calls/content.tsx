@@ -3,7 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { getAuthToken } from '@/lib/db';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import CallAiHover from './CallAiHover';
+import CallAiBadge from './CallAiHover';
 
 interface ScoreRow {
   call_id: string;
@@ -69,7 +69,7 @@ interface Insights {
   avgDuration: number;
   inbound: number;
   outbound: number;
-  dailyCounts: { label: string; short: string; date: string; count: number }[];
+  dailyCounts: { label: string; short: string; date: string; count: number; sources: { name: string; count: number }[] }[];
 }
 
 async function ctmFetch(endpoint: string, params?: Record<string, string | number>): Promise<CTMResponse> {
@@ -114,7 +114,7 @@ const directionStyle: Record<string, string> = {
 };
 
 export default function CallsContent() {
-  const { user, session, isAdmin } = useAuth();
+  const { user, session } = useAuth();
   const [tab, setTab] = useState<Tab>('calls');
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,7 +133,30 @@ export default function CallsContent() {
   const [insightsLoading, setInsightsLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [scores, setScores] = useState<Record<string, ScoreRow>>({});
+  const [scoringIds, setScoringIds] = useState<Set<string>>(new Set());
   const scoringRef = useRef(false);
+
+  const rescoreCall = useCallback(async (callId: string, force: boolean) => {
+    if (!session?.access_token) return;
+    const call = calls.find((c) => String(c.id) === callId);
+    if (!call) return;
+    setScoringIds((prev) => { const n = new Set(prev); n.add(callId); return n; });
+    try {
+      const res = await fetch('/api/claude/calls/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ callId, call, force }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.result) {
+          setScores((prev) => ({ ...prev, [callId]: data.result }));
+        }
+      }
+    } finally {
+      setScoringIds((prev) => { const n = new Set(prev); n.delete(callId); return n; });
+    }
+  }, [calls, session?.access_token]);
 
   // Discover account ID first
   useEffect(() => {
@@ -196,8 +219,9 @@ export default function CallsContent() {
         const yesterdayStr = days[5].date;
         const weekDates = new Set(days.map(d => d.date));
 
-        // Group all calls by date
+        // Group all calls by date, tracking source breakdowns per day
         const dayCounts = new Map<string, number>();
+        const daySources = new Map<string, Map<string, number>>();
         let weekDuration = 0;
         let weekCallCount = 0;
         let inboundCount = 0;
@@ -206,6 +230,10 @@ export default function CallsContent() {
         allCalls.forEach(c => {
           const callDate = new Date(c.called_at).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
           dayCounts.set(callDate, (dayCounts.get(callDate) || 0) + 1);
+          const src = c.source_name || c.source || 'Unknown';
+          if (!daySources.has(callDate)) daySources.set(callDate, new Map());
+          const bucket = daySources.get(callDate)!;
+          bucket.set(src, (bucket.get(src) || 0) + 1);
           if (weekDates.has(callDate)) {
             weekDuration += c.duration || 0;
             weekCallCount++;
@@ -214,10 +242,15 @@ export default function CallsContent() {
           }
         });
 
-        const dailyCounts = days.map(d => ({
-          ...d,
-          count: dayCounts.get(d.date) || 0,
-        }));
+        const dailyCounts = days.map(d => {
+          const bucket = daySources.get(d.date);
+          const sources = bucket
+            ? Array.from(bucket.entries())
+                .map(([name, count]) => ({ name, count }))
+                .sort((a, b) => b.count - a.count)
+            : [];
+          return { ...d, count: dayCounts.get(d.date) || 0, sources };
+        });
 
         setInsights({
           today: dayCounts.get(todayStr) || 0,
@@ -279,7 +312,7 @@ export default function CallsContent() {
 
   // Auto-score: fetch existing scores, then queue unscored calls
   useEffect(() => {
-    if (!isAdmin || !session?.access_token || calls.length === 0) return;
+    if (!session?.access_token || calls.length === 0) return;
     let cancelled = false;
     (async () => {
       const callIds = calls.map((c) => String(c.id));
@@ -319,11 +352,7 @@ export default function CallsContent() {
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
-  }, [isAdmin, session?.access_token, calls]);
-
-  const onScoreUpdate = useCallback((callId: string, score: ScoreRow) => {
-    setScores((prev) => ({ ...prev, [callId]: score }));
-  }, []);
+  }, [session?.access_token, calls]);
 
   const playRecording = (url: string) => {
     if (playingAudio === url) {
@@ -525,6 +554,7 @@ export default function CallsContent() {
                   <thead>
                     <tr className="border-b border-gray-100 bg-warm-bg/50">
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Date / Time</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Number</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Caller</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Operator</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Direction</th>
@@ -551,8 +581,15 @@ export default function CallsContent() {
                                   <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
                                   {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
                                 </div>
-                                <CallAiHover call={call} preScore={scores[String(call.id)] || null} onScoreUpdate={onScoreUpdate} />
+                                <CallAiBadge call={call} preScore={scores[String(call.id)] || null} loading={scoringIds.has(String(call.id))} onRescore={rescoreCall} />
                               </div>
+                            </td>
+                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                              {scores[String(call.id)]?.caller_name ? (
+                                <span className="font-medium">{scores[String(call.id)].caller_name}</span>
+                              ) : (
+                                <span className="text-foreground/20">—</span>
+                              )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
                               {scores[String(call.id)]?.operator_name ? (
@@ -600,49 +637,13 @@ export default function CallsContent() {
                           </tr>
                           {expanded && (
                             <tr className="bg-warm-bg/30 border-b border-gray-50">
-                              <td colSpan={9} className="px-5 py-5">
-                                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4 text-sm" style={{ fontFamily: 'var(--font-body)' }}>
-                                  <DetailField label="Caller name" value={call.name && call.name !== 'Unknown' ? call.name : undefined} />
-                                  <DetailField label="Caller number" value={call.caller_number_formatted || call.caller_number} />
-                                  <DetailField label="Tracking number" value={call.tracking_number_formatted || call.tracking_number} />
-                                  <DetailField label="Tracking label" value={call.tracking_label} />
-                                  <DetailField label="Receiving number" value={call.receiving_number_formatted || call.receiving_number} />
-                                  <DetailField label="Business number" value={call.business_number} />
-                                  <DetailField label="Source" value={call.source_name || call.source} />
-                                  <DetailField label="Status" value={call.status} />
-                                  <DetailField label="Direction" value={call.direction} />
-                                  <DetailField label="Total duration" value={formatDuration(call.duration)} />
-                                  <DetailField label="Talk time" value={call.talk_time ? formatDuration(call.talk_time) : undefined} />
-                                  <DetailField label="Ring time" value={call.ring_time ? formatDuration(call.ring_time) : undefined} />
-                                  <DetailField label="Location" value={[call.city, call.state, call.zip].filter(Boolean).join(', ')} />
-                                  <DetailField label="Country" value={call.country} />
-                                  <DetailField label="Score" value={call.score != null ? String(call.score) : undefined} />
-                                  <DetailField label="First call" value={call.first_call ? 'Yes' : undefined} />
-                                  <DetailField label="Voicemail" value={call.voicemail ? 'Yes' : undefined} />
-                                  <DetailField label="Called at" value={`${formatDate(call.called_at)} · ${formatTime(call.called_at)}`} />
-                                </div>
-                                {call.tag_list && call.tag_list.length > 0 && (
-                                  <div className="mt-4">
-                                    <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Tags</p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {call.tag_list.map((tag, i) => (
-                                        <span key={i} className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">{tag}</span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                {call.notes && (
-                                  <div className="mt-4">
-                                    <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Notes</p>
-                                    <p className="text-sm text-foreground/70 whitespace-pre-wrap" style={{ fontFamily: 'var(--font-body)' }}>{call.notes}</p>
-                                  </div>
-                                )}
-                                {call.audio && (
-                                  <div className="mt-4" onClick={e => e.stopPropagation()}>
-                                    <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Recording</p>
-                                    <audio controls src={call.audio} className="h-9 w-full max-w-md" />
-                                  </div>
-                                )}
+                              <td colSpan={10} className="px-5 py-5">
+                                <CallDetail
+                                  call={call}
+                                  score={scores[String(call.id)] || null}
+                                  scoring={scoringIds.has(String(call.id))}
+                                  onRescore={rescoreCall}
+                                />
                               </td>
                             </tr>
                           )}
@@ -715,13 +716,196 @@ export default function CallsContent() {
   );
 }
 
-// Simple label/value row used inside the expanded call detail drawer.
+// Simple label/value cell used inside the expanded call detail drawer.
 function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
   const display = value && String(value).trim() ? String(value) : '—';
   return (
     <div>
       <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-0.5" style={{ fontFamily: 'var(--font-body)' }}>{label}</p>
       <p className={`text-sm ${display === '—' ? 'text-foreground/30' : 'text-foreground/80'} break-words`} style={{ fontFamily: 'var(--font-body)' }}>{display}</p>
+    </div>
+  );
+}
+
+function scoreColorHex(s: number): string {
+  if (s >= 80) return '#10b981';
+  if (s >= 60) return '#3b82f6';
+  if (s >= 40) return '#f59e0b';
+  return '#ef4444';
+}
+
+function sentimentStyle(s: string | null): string {
+  if (s === 'positive') return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+  if (s === 'negative') return 'text-red-700 bg-red-50 border-red-200';
+  if (s === 'neutral') return 'text-slate-700 bg-slate-50 border-slate-200';
+  return 'text-foreground/50 bg-gray-50 border-gray-200';
+}
+
+// Expanded row contents: key metadata at top, AI analysis integrated with it,
+// then full metadata grid tucked in a details/summary at the bottom.
+function CallDetail({
+  call,
+  score,
+  scoring,
+  onRescore,
+}: {
+  call: Call;
+  score: ScoreRow | null;
+  scoring: boolean;
+  onRescore: (callId: string, force: boolean) => void;
+}) {
+  return (
+    <div style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
+      {/* Header: score + caller + operator + sentiment + rescore */}
+      <div className="flex items-start gap-4 flex-wrap pb-4 border-b border-gray-100">
+        <div
+          className="w-14 h-14 rounded-xl flex items-center justify-center text-white text-lg font-bold shrink-0"
+          style={{ backgroundColor: score ? scoreColorHex(score.score) : '#e5e7eb', color: score ? '#fff' : '#9ca3af' }}
+          title={score ? `AI score ${score.score}/100` : 'Not scored yet'}
+        >
+          {score ? score.score : '—'}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-base font-semibold text-foreground">
+            {score?.caller_name || (call.name && call.name !== 'Unknown' ? call.name : call.caller_number_formatted || call.caller_number || 'Unknown caller')}
+          </h3>
+          {score?.caller_interest && (
+            <p className="text-sm text-foreground/70 mt-0.5">{score.caller_interest}</p>
+          )}
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            {score?.operator_name && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                Operator: {score.operator_name}
+              </span>
+            )}
+            {score?.sentiment && (
+              <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${sentimentStyle(score.sentiment)} capitalize`}>
+                {score.sentiment}
+              </span>
+            )}
+            <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
+              {call.direction || 'unknown'}
+            </span>
+            {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700">Voicemail</span>}
+            {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700">First-time caller</span>}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onRescore(String(call.id), true)}
+          disabled={scoring}
+          className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg text-foreground/60 hover:text-primary hover:bg-white transition-colors border border-gray-200 disabled:opacity-50 flex items-center gap-1.5"
+          title={score ? 'Re-run AI analysis on this call' : 'Run AI analysis'}
+        >
+          <svg className={`w-3.5 h-3.5 ${scoring ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+          {scoring ? 'Analyzing…' : score ? 'Re-score' : 'Score now'}
+        </button>
+      </div>
+
+      {/* Key metadata strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 py-4 border-b border-gray-100">
+        <DetailField label="Called at" value={`${formatDate(call.called_at)} · ${formatTime(call.called_at)}`} />
+        <DetailField label="Duration" value={`${formatDuration(call.duration)}${call.talk_time ? ` (${formatDuration(call.talk_time)} talk)` : ''}`} />
+        <DetailField label="Source" value={call.source_name || call.source} />
+        <DetailField label="Location" value={[call.city, call.state].filter(Boolean).join(', ')} />
+      </div>
+
+      {/* AI analysis body */}
+      {score ? (
+        <div className="pt-4 space-y-4">
+          {score.summary && (
+            <div>
+              <p className="text-[11px] font-bold text-foreground/50 uppercase tracking-wider mb-1">Summary</p>
+              <p className="text-sm text-foreground/80 leading-relaxed">{score.summary}</p>
+            </div>
+          )}
+          {(score.operator_strengths?.length > 0 || score.operator_weaknesses?.length > 0) && (
+            <div className="grid sm:grid-cols-2 gap-4">
+              {score.operator_strengths?.length > 0 && (
+                <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 p-3">
+                  <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-1.5">Operator strengths</p>
+                  <ul className="text-xs text-emerald-900/80 space-y-1 list-disc pl-4">
+                    {score.operator_strengths.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+              )}
+              {score.operator_weaknesses?.length > 0 && (
+                <div className="rounded-xl bg-red-50/60 border border-red-100 p-3">
+                  <p className="text-[11px] font-bold text-red-700 uppercase tracking-wider mb-1.5">Areas to coach</p>
+                  <ul className="text-xs text-red-900/80 space-y-1 list-disc pl-4">
+                    {score.operator_weaknesses.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+          {score.next_steps && (
+            <div className="rounded-xl bg-primary/5 border border-primary/15 p-3">
+              <p className="text-[11px] font-bold text-primary uppercase tracking-wider mb-1">Recommended next step</p>
+              <p className="text-sm text-foreground/80">{score.next_steps}</p>
+            </div>
+          )}
+          <p className="text-[10px] text-foreground/30">
+            Scored {new Date(score.scored_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+          </p>
+        </div>
+      ) : (
+        <div className="pt-4 text-sm text-foreground/40">
+          {scoring ? 'Running AI analysis on this call…' : 'No AI analysis yet. Click Score now.'}
+        </div>
+      )}
+
+      {/* Tags + Notes + Recording */}
+      {call.tag_list && call.tag_list.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5">Tags</p>
+          <div className="flex flex-wrap gap-1.5">
+            {call.tag_list.map((tag, i) => (
+              <span key={i} className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">{tag}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {call.notes && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1">Notes</p>
+          <p className="text-sm text-foreground/70 whitespace-pre-wrap">{call.notes}</p>
+        </div>
+      )}
+      {call.audio && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5">Recording</p>
+          <audio controls src={call.audio} className="h-9 w-full max-w-md" />
+        </div>
+      )}
+
+      {/* Everything else */}
+      <details className="mt-4 pt-4 border-t border-gray-100 group">
+        <summary className="text-[11px] font-semibold text-foreground/40 uppercase tracking-wider cursor-pointer select-none hover:text-foreground/70">
+          All call metadata
+        </summary>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4 text-sm mt-3">
+          <DetailField label="Caller name" value={call.name && call.name !== 'Unknown' ? call.name : undefined} />
+          <DetailField label="Caller number" value={call.caller_number_formatted || call.caller_number} />
+          <DetailField label="Tracking number" value={call.tracking_number_formatted || call.tracking_number} />
+          <DetailField label="Tracking label" value={call.tracking_label} />
+          <DetailField label="Receiving number" value={call.receiving_number_formatted || call.receiving_number} />
+          <DetailField label="Business number" value={call.business_number} />
+          <DetailField label="Source" value={call.source_name || call.source} />
+          <DetailField label="Status" value={call.status} />
+          <DetailField label="Direction" value={call.direction} />
+          <DetailField label="Total duration" value={formatDuration(call.duration)} />
+          <DetailField label="Talk time" value={call.talk_time ? formatDuration(call.talk_time) : undefined} />
+          <DetailField label="Ring time" value={call.ring_time ? formatDuration(call.ring_time) : undefined} />
+          <DetailField label="Location" value={[call.city, call.state, call.zip].filter(Boolean).join(', ')} />
+          <DetailField label="Country" value={call.country} />
+          <DetailField label="CTM score" value={call.score != null ? String(call.score) : undefined} />
+          <DetailField label="First call" value={call.first_call ? 'Yes' : undefined} />
+          <DetailField label="Voicemail" value={call.voicemail ? 'Yes' : undefined} />
+          <DetailField label="Called at" value={`${formatDate(call.called_at)} · ${formatTime(call.called_at)}`} />
+        </div>
+      </details>
     </div>
   );
 }
@@ -736,10 +920,11 @@ function WeekGraph({
   selectedDate,
   onDayClick,
 }: {
-  data: { label: string; short: string; date: string; count: number }[];
+  data: { label: string; short: string; date: string; count: number; sources: { name: string; count: number }[] }[];
   selectedDate: string;
   onDayClick: (date: string) => void;
 }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const W = 720;
   const H = 170;
   const padL = 24;
@@ -820,6 +1005,8 @@ function WeekGraph({
             key={p.date}
             className="cursor-pointer"
             onClick={() => onDayClick(p.date)}
+            onMouseEnter={() => setHoveredIdx(i)}
+            onMouseLeave={() => setHoveredIdx((cur) => (cur === i ? null : cur))}
           >
             {/* hover target */}
             <rect
@@ -865,6 +1052,83 @@ function WeekGraph({
           </g>
         );
       })}
+
+      {/* Source-breakdown tooltip for the hovered day */}
+      {hoveredIdx !== null && pts[hoveredIdx] && pts[hoveredIdx].sources.length > 0 && (() => {
+        const p = pts[hoveredIdx];
+        const visible = p.sources.slice(0, 5);
+        const extra = p.sources.length - visible.length;
+        const rows = visible.length + (extra > 0 ? 1 : 0);
+        const boxW = 220;
+        const headerH = 22;
+        const rowH = 16;
+        const pad = 8;
+        const boxH = headerH + rows * rowH + pad;
+        // Try to place above the point; if not enough room, place below.
+        let tipX = p.x - boxW / 2;
+        if (tipX < padL) tipX = padL;
+        if (tipX + boxW > W - padR) tipX = W - padR - boxW;
+        const placeAbove = p.y - boxH - 12 > padT;
+        const tipY = placeAbove ? p.y - boxH - 12 : p.y + 14;
+        return (
+          <g className="pointer-events-none" style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.12))' }}>
+            <rect
+              x={tipX}
+              y={tipY}
+              width={boxW}
+              height={boxH}
+              rx={8}
+              fill="#ffffff"
+              stroke="rgba(0,0,0,0.08)"
+            />
+            <text
+              x={tipX + 10}
+              y={tipY + 14}
+              fontSize="10"
+              fontWeight="700"
+              fill="rgba(26,26,26,0.5)"
+              style={{ fontFamily: 'var(--font-body)', textTransform: 'uppercase', letterSpacing: '0.08em' }}
+            >
+              {p.label} · {p.count} call{p.count === 1 ? '' : 's'}
+            </text>
+            {visible.map((s, i) => (
+              <g key={s.name}>
+                <text
+                  x={tipX + 10}
+                  y={tipY + headerH + i * rowH + 10}
+                  fontSize="11"
+                  fill="rgba(26,26,26,0.75)"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {s.name.length > 26 ? s.name.slice(0, 25) + '…' : s.name}
+                </text>
+                <text
+                  x={tipX + boxW - 10}
+                  y={tipY + headerH + i * rowH + 10}
+                  fontSize="11"
+                  fontWeight="700"
+                  fill="#a0522d"
+                  textAnchor="end"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {s.count}
+                </text>
+              </g>
+            ))}
+            {extra > 0 && (
+              <text
+                x={tipX + 10}
+                y={tipY + headerH + visible.length * rowH + 10}
+                fontSize="10"
+                fill="rgba(26,26,26,0.35)"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                +{extra} more…
+              </text>
+            )}
+          </g>
+        );
+      })()}
     </svg>
   );
 }
