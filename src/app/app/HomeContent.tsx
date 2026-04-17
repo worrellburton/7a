@@ -3,8 +3,10 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
+import { uploadFile, compressImage } from '@/lib/upload';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
 import AskPolicies from './AskPolicies';
 import WhatsNewButton from './WhatsNewButton';
@@ -50,6 +52,45 @@ export default function HomeContent() {
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string; pdfUrl: string | null } | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // Load avatar from users table (falls back to auth metadata)
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const rows = await db({ action: 'select', table: 'users', match: { id: user.id }, select: 'avatar_url' });
+      if (cancelled) return;
+      if (Array.isArray(rows) && rows[0]?.avatar_url) {
+        setAvatarUrl(rows[0].avatar_url as string);
+      } else if (user.user_metadata?.avatar_url) {
+        setAvatarUrl(user.user_metadata.avatar_url as string);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, user?.user_metadata?.avatar_url]);
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!user?.id || !e.target.files?.length) return;
+    const file = e.target.files[0];
+    e.target.value = ''; // allow selecting the same file again
+    setUploadingAvatar(true);
+    try {
+      const compressed = await compressImage(file, { maxEdge: 800 });
+      const { url, error } = await uploadFile(compressed);
+      if (!url) {
+        console.error('Avatar upload failed:', error);
+        return;
+      }
+      await db({ action: 'update', table: 'users', data: { avatar_url: url }, match: { id: user.id } });
+      await supabase.auth.updateUser({ data: { avatar_url: url } });
+      setAvatarUrl(url);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
 
   // Map /app/... path → friendly label ("Calendar", "Org Chart", etc.)
   const pathLabel = useMemo(() => {
@@ -263,18 +304,42 @@ export default function HomeContent() {
       {/* Centered welcome */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 py-10">
         <div className="flex flex-col items-center gap-3">
-          {user.user_metadata?.avatar_url ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={user.user_metadata.avatar_url as string}
-              alt=""
-              className="w-20 h-20 rounded-full object-cover border-2 border-white shadow-md"
-            />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-primary/10 border-2 border-white shadow-md flex items-center justify-center text-primary text-2xl font-bold">
-              {(user.user_metadata?.full_name as string || user.email || '?').charAt(0).toUpperCase()}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={uploadingAvatar}
+            className="group relative w-20 h-20 rounded-full border-2 border-white shadow-md overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            aria-label="Change profile picture"
+            title="Click to change your profile picture"
+          >
+            {avatarUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-2xl font-bold">
+                {(user.user_metadata?.full_name as string || user.email || '?').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-[10px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontFamily: 'var(--font-body)' }}>
+              {uploadingAvatar ? (
+                <span className="w-5 h-5 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                'Change'
+              )}
+            </span>
+            {uploadingAvatar && (
+              <span className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <span className="w-5 h-5 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+              </span>
+            )}
+          </button>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleAvatarUpload}
+            className="hidden"
+          />
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground text-center px-4">
             Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
           </h1>
