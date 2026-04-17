@@ -11,6 +11,8 @@ interface ScoreRow {
   caller_name: string | null;
   operator_name: string | null;
   caller_interest: string | null;
+  client_type: string | null;
+  fit_score: number | null;
   summary: string;
   operator_strengths: string[];
   operator_weaknesses: string[];
@@ -113,6 +115,24 @@ const directionStyle: Record<string, string> = {
   outbound: 'bg-blue-50 text-blue-700',
 };
 
+function clientTypeBg(type: string): string {
+  switch (type) {
+    case 'Insurance': return 'bg-blue-50 text-blue-700';
+    case 'Private Pay': return 'bg-amber-50 text-amber-700';
+    case 'Mental Health': return 'bg-purple-50 text-purple-700';
+    case 'Addiction': return 'bg-red-50 text-red-700';
+    case 'Dual Diagnosis': return 'bg-indigo-50 text-indigo-700';
+    case 'Family/Loved One': return 'bg-pink-50 text-pink-700';
+    default: return 'bg-gray-50 text-gray-600';
+  }
+}
+
+function fitScoreBg(s: number): string {
+  if (s >= 75) return 'bg-emerald-500';
+  if (s >= 40) return 'bg-amber-500';
+  return 'bg-red-400';
+}
+
 export default function CallsContent() {
   const { user, session } = useAuth();
   const [tab, setTab] = useState<Tab>('calls');
@@ -128,6 +148,7 @@ export default function CallsContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [directionFilter, setDirectionFilter] = useState<string>('all');
+  const [operatorFilter, setOperatorFilter] = useState<string>('all');
   const [sources, setSources] = useState<{ name: string; count: number }[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
@@ -526,6 +547,24 @@ export default function CallsContent() {
             </select>
             <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
           </div>
+          <div className="relative">
+            <select
+              value={operatorFilter}
+              onChange={e => setOperatorFilter(e.target.value)}
+              className="appearance-none pl-3 pr-7 py-2 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <option value="all">All Operators</option>
+              {Array.from(new Set(
+                Object.values(scores)
+                  .map(s => s.operator_name)
+                  .filter((n): n is string => !!n)
+              )).sort().map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+          </div>
           <button onClick={() => fetchCalls(1)} className="px-4 py-2 rounded-lg text-xs font-medium bg-foreground text-white hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
             Search
           </button>
@@ -557,6 +596,8 @@ export default function CallsContent() {
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Number</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Caller</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Operator</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Type</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Fit</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Direction</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Duration</th>
@@ -566,7 +607,11 @@ export default function CallsContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {calls.map(call => {
+                    {calls.filter(call => {
+                      if (operatorFilter === 'all') return true;
+                      const s = scores[String(call.id)];
+                      return s?.operator_name === operatorFilter;
+                    }).map(call => {
                       const expanded = expandedId === call.id;
                       return (
                         <Fragment key={call.id}>
@@ -594,6 +639,24 @@ export default function CallsContent() {
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
                               {scores[String(call.id)]?.operator_name ? (
                                 <span className="font-medium">{scores[String(call.id)].operator_name}</span>
+                              ) : (
+                                <span className="text-foreground/20">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                              {scores[String(call.id)]?.client_type ? (
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${clientTypeBg(scores[String(call.id)].client_type!)}`}>
+                                  {scores[String(call.id)].client_type}
+                                </span>
+                              ) : (
+                                <span className="text-foreground/20">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                              {scores[String(call.id)]?.fit_score != null ? (
+                                <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold text-white ${fitScoreBg(scores[String(call.id)].fit_score!)}`}>
+                                  {scores[String(call.id)].fit_score}
+                                </span>
                               ) : (
                                 <span className="text-foreground/20">—</span>
                               )}
@@ -637,7 +700,7 @@ export default function CallsContent() {
                           </tr>
                           {expanded && (
                             <tr className="bg-warm-bg/30 border-b border-gray-50">
-                              <td colSpan={10} className="px-5 py-5">
+                              <td colSpan={12} className="px-5 py-5">
                                 <CallDetail
                                   call={call}
                                   score={scores[String(call.id)] || null}
@@ -779,6 +842,16 @@ function CallDetail({
                 Operator: {score.operator_name}
               </span>
             )}
+            {score?.client_type && (
+              <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full ${clientTypeBg(score.client_type)}`}>
+                {score.client_type}
+              </span>
+            )}
+            {score?.fit_score != null && (
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full text-white ${fitScoreBg(score.fit_score)}`}>
+                Fit: {score.fit_score}
+              </span>
+            )}
             {score?.sentiment && (
               <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${sentimentStyle(score.sentiment)} capitalize`}>
                 {score.sentiment}
@@ -796,10 +869,10 @@ function CallDetail({
           onClick={() => onRescore(String(call.id), true)}
           disabled={scoring}
           className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg text-foreground/60 hover:text-primary hover:bg-white transition-colors border border-gray-200 disabled:opacity-50 flex items-center gap-1.5"
-          title={score ? 'Re-run AI analysis on this call' : 'Run AI analysis'}
+          title="Run AI analysis on this call"
         >
           <svg className={`w-3.5 h-3.5 ${scoring ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
-          {scoring ? 'Analyzing…' : score ? 'Re-score' : 'Score now'}
+          {scoring ? 'Analyzing…' : score ? 'Analyze' : 'Analyze'}
         </button>
       </div>
 
@@ -820,26 +893,26 @@ function CallDetail({
               <p className="text-sm text-foreground/80 leading-relaxed">{score.summary}</p>
             </div>
           )}
-          {(score.operator_strengths?.length > 0 || score.operator_weaknesses?.length > 0) && (
-            <div className="grid sm:grid-cols-2 gap-4">
-              {score.operator_strengths?.length > 0 && (
-                <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 p-3">
-                  <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-1.5">Operator strengths</p>
-                  <ul className="text-xs text-emerald-900/80 space-y-1 list-disc pl-4">
-                    {score.operator_strengths.map((s, i) => <li key={i}>{s}</li>)}
-                  </ul>
-                </div>
-              )}
-              {score.operator_weaknesses?.length > 0 && (
-                <div className="rounded-xl bg-red-50/60 border border-red-100 p-3">
-                  <p className="text-[11px] font-bold text-red-700 uppercase tracking-wider mb-1.5">Areas to coach</p>
-                  <ul className="text-xs text-red-900/80 space-y-1 list-disc pl-4">
-                    {score.operator_weaknesses.map((s, i) => <li key={i}>{s}</li>)}
-                  </ul>
-                </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {score.operator_strengths?.length > 0 && (
+              <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 p-3">
+                <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-1.5">Operator strengths</p>
+                <ul className="text-xs text-emerald-900/80 space-y-1 list-disc pl-4">
+                  {score.operator_strengths.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            )}
+            <div className="rounded-xl bg-red-50/60 border border-red-100 p-3">
+              <p className="text-[11px] font-bold text-red-700 uppercase tracking-wider mb-1.5">Areas to coach</p>
+              {score.operator_weaknesses?.length > 0 ? (
+                <ul className="text-xs text-red-900/80 space-y-1 list-disc pl-4">
+                  {score.operator_weaknesses.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              ) : (
+                <p className="text-xs text-red-900/50 italic">No weaknesses identified</p>
               )}
             </div>
-          )}
+          </div>
           {score.next_steps && (
             <div className="rounded-xl bg-primary/5 border border-primary/15 p-3">
               <p className="text-[11px] font-bold text-primary uppercase tracking-wider mb-1">Recommended next step</p>

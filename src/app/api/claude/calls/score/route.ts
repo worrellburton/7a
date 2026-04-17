@@ -40,6 +40,8 @@ interface ScoreResult {
   caller_name: string | null;
   operator_name: string | null;
   caller_interest: string | null;
+  client_type: string | null;
+  fit_score: number | null;
   summary: string;
   operator_strengths: string[];
   operator_weaknesses: string[];
@@ -79,6 +81,8 @@ Respond with a single JSON object matching this schema exactly (no markdown, no 
   "caller_name": <best-guess name of the caller${hasAudio ? ' (use the name they actually said in the conversation if available)' : ''}, or null>,
   "operator_name": <${hasAudio ? 'the first name (or full name if given) of the Seven Arrows employee/operator who answered or made the call, as stated in the audio (e.g., "this is Sarah" → "Sarah"). Return null if no name was given.' : 'null — operator name cannot be determined from metadata alone'}>,
   "caller_interest": <one short sentence describing what the caller was interested in (e.g., "Admission inquiry for adult child with alcohol use disorder"), or null if unknowable>,
+  "client_type": <classify the caller into one of these categories based on the conversation: "Insurance", "Private Pay", "Mental Health", "Addiction", "Dual Diagnosis", "Family/Loved One", "Other", or null if not determinable. A caller seeking addiction treatment covered by insurance = "Insurance". A caller asking about self-pay rates = "Private Pay". A caller primarily seeking mental health treatment = "Mental Health". A caller seeking addiction/substance abuse treatment = "Addiction". If both mental health and addiction = "Dual Diagnosis". A family member calling on behalf of someone = "Family/Loved One".>,
+  "fit_score": <integer 1-100 rating how likely this caller is a good fit for Seven Arrows Recovery. Consider: Seven Arrows is a residential addiction treatment center in Arizona specializing in holistic recovery with adventure therapy, equine therapy, and individualized treatment plans. High fit (75-100): caller needs residential addiction treatment, is motivated, has insurance or ability to pay, is in the right demographic. Medium fit (40-74): caller has some matching needs but may have barriers (wrong level of care, geographic constraints, financial issues). Low fit (1-39): caller needs a different type of care entirely, is not a candidate for residential treatment, or is clearly not a prospective client (vendor, wrong number, spam). Return null only if the call provides zero information about the caller's needs.>,
   "summary": <2-3 sentence summary of the call${hasAudio ? ' based on what was actually said' : ' based on metadata'}: who called, what they wanted, how it went>,
   "operator_strengths": [<1-4 concrete positive behaviors${hasAudio ? ' observed in the actual conversation, quoting specifics' : ' inferred from the call'}>],
   "operator_weaknesses": [<1-4 concrete areas to coach${hasAudio ? ', quoting specific moments where coaching would help' : ''}>],
@@ -314,6 +318,8 @@ export async function POST(req: NextRequest) {
     caller_name: parsed.caller_name || null,
     operator_name: parsed.operator_name || null,
     caller_interest: parsed.caller_interest || null,
+    client_type: parsed.client_type || null,
+    fit_score: parsed.fit_score != null ? Math.max(1, Math.min(100, Math.round(parsed.fit_score))) : null,
     summary: parsed.summary || '',
     operator_strengths: Array.isArray(parsed.operator_strengths) ? parsed.operator_strengths : [],
     operator_weaknesses: Array.isArray(parsed.operator_weaknesses) ? parsed.operator_weaknesses : [],
