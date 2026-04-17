@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 
 import PageHero from '@/components/PageHero';
 import Link from 'next/link';
+import HorseGallery from './HorseGallery';
 
 const benefits = [
   {
@@ -182,6 +183,22 @@ export default function EquineAssistedPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Meet the herd — dynamic gallery from our internal horse roster */}
+      <section className="py-20 lg:py-28 bg-white" aria-labelledby="herd-heading">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12 max-w-2xl mx-auto">
+            <p className="section-label justify-center mb-4">Meet the Herd</p>
+            <h2 id="herd-heading" className="text-3xl lg:text-4xl font-bold text-foreground leading-tight">
+              The horses who do this work with us
+            </h2>
+            <p className="mt-4 text-foreground/60 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+              Every horse on our team brings a different gift &mdash; tap any of them to read their story.
+            </p>
+          </div>
+          <HorseGallery />
         </div>
       </section>
 

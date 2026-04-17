@@ -3,6 +3,20 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { getAuthToken } from '@/lib/db';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import CallAiHover from './CallAiHover';
+
+interface ScoreRow {
+  call_id: string;
+  score: number;
+  caller_name: string | null;
+  caller_interest: string | null;
+  summary: string;
+  operator_strengths: string[];
+  operator_weaknesses: string[];
+  next_steps: string | null;
+  sentiment: string | null;
+  scored_at: string;
+}
 
 interface Call {
   id: number;
@@ -99,7 +113,7 @@ const directionStyle: Record<string, string> = {
 };
 
 export default function CallsContent() {
-  const { user, session } = useAuth();
+  const { user, session, isAdmin } = useAuth();
   const [tab, setTab] = useState<Tab>('calls');
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,6 +131,8 @@ export default function CallsContent() {
   const [insights, setInsights] = useState<Insights | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [scores, setScores] = useState<Record<string, ScoreRow>>({});
+  const scoringRef = useRef(false);
 
   // Discover account ID first
   useEffect(() => {
@@ -260,6 +276,54 @@ export default function CallsContent() {
     if (accountId) fetchCalls(1);
   }, [accountId, fetchCalls]);
 
+  // Auto-score: fetch existing scores, then queue unscored calls
+  useEffect(() => {
+    if (!isAdmin || !session?.access_token || calls.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const callIds = calls.map((c) => String(c.id));
+      try {
+        const res = await fetch('/api/claude/calls/scores-lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ callIds }),
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (data.scores) {
+          setScores((prev) => ({ ...prev, ...data.scores }));
+        }
+        // Auto-score unscored calls
+        const unscoredCalls = calls.filter((c) => !data.scores?.[String(c.id)]);
+        if (unscoredCalls.length > 0 && !scoringRef.current) {
+          scoringRef.current = true;
+          for (const call of unscoredCalls) {
+            if (cancelled) break;
+            try {
+              const scoreRes = await fetch('/api/claude/calls/score', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ callId: String(call.id), call }),
+              });
+              if (scoreRes.ok) {
+                const scoreData = await scoreRes.json();
+                if (scoreData.result) {
+                  setScores((prev) => ({ ...prev, [String(call.id)]: scoreData.result }));
+                }
+              }
+            } catch { /* continue */ }
+          }
+          scoringRef.current = false;
+        }
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isAdmin, session?.access_token, calls]);
+
+  const onScoreUpdate = useCallback((callId: string, score: ScoreRow) => {
+    setScores((prev) => ({ ...prev, [callId]: score }));
+  }, []);
+
   const playRecording = (url: string) => {
     if (playingAudio === url) {
       audioRef.current?.pause();
@@ -279,19 +343,19 @@ export default function CallsContent() {
   if (!user) return null;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10">
+    <div className="p-3 sm:p-6 lg:p-10">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
+      <div className="flex items-center justify-between mb-6 sm:mb-8 flex-wrap gap-3">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Calls</h1>
-          <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-xs sm:text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Call tracking powered by CTM
             {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total calls</span>}
           </p>
         </div>
         <a
           href="/app/calls/heatmap"
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
+          className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-primary text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
           style={{ fontFamily: 'var(--font-body)' }}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
@@ -304,9 +368,9 @@ export default function CallsContent() {
 
       {/* Insights Dashboard */}
       {insightsLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-5 animate-pulse">
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 animate-pulse">
               <div className="h-3 bg-gray-100 rounded w-16 mb-3" />
               <div className="h-7 bg-gray-100 rounded w-12" />
             </div>
@@ -315,15 +379,15 @@ export default function CallsContent() {
       ) : insights && (
         <div className="mb-6 space-y-4">
           {/* Stat Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Today</p>
               <p className="text-2xl font-bold text-foreground">{insights.today}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {insights.inbound > 0 || insights.outbound > 0 ? `${insights.inbound} in / ${insights.outbound} out this week` : 'No calls yet'}
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Yesterday</p>
               <p className="text-2xl font-bold text-foreground">{insights.yesterday}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
@@ -334,14 +398,14 @@ export default function CallsContent() {
                 ) : 'Same as today'}
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>This Week</p>
               <p className="text-2xl font-bold text-foreground">{insights.thisWeek}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 Avg {formatDuration(insights.avgDuration)} per call
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>All Time</p>
               <p className="text-2xl font-bold text-foreground">{insights.allTime.toLocaleString()}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>Total calls tracked</p>
@@ -349,7 +413,7 @@ export default function CallsContent() {
           </div>
 
           {/* Weekly Line Graph */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>This Week</p>
               <div className="flex items-center gap-3">
@@ -402,28 +466,28 @@ export default function CallsContent() {
 
       {/* Filters */}
       {tab === 'calls' && (
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap">
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') fetchCalls(1); }}
             placeholder="Search calls..."
-            className="px-3 py-1.5 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary w-48"
+            className="px-3 py-2 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary flex-1 min-w-[140px] sm:w-48 sm:flex-none"
             style={{ fontFamily: 'var(--font-body)' }}
           />
           <input
             type="date"
             value={dateFilter}
             onChange={e => { setDateFilter(e.target.value); }}
-            className="px-3 py-1.5 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary"
+            className="px-3 py-2 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary"
             style={{ fontFamily: 'var(--font-body)' }}
           />
           <div className="relative">
             <select
               value={directionFilter}
               onChange={e => setDirectionFilter(e.target.value)}
-              className="appearance-none pl-3 pr-7 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer"
+              className="appearance-none pl-3 pr-7 py-2 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               <option value="all">All Directions</option>
@@ -432,7 +496,7 @@ export default function CallsContent() {
             </select>
             <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
           </div>
-          <button onClick={() => fetchCalls(1)} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-foreground text-white hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+          <button onClick={() => fetchCalls(1)} className="px-4 py-2 rounded-lg text-xs font-medium bg-foreground text-white hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
             Search
           </button>
         </div>
@@ -475,31 +539,36 @@ export default function CallsContent() {
                       return (
                         <Fragment key={call.id}>
                           <tr onClick={() => setExpandedId(expanded ? null : call.id)} className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer">
-                            <td className="px-5 py-3.5">
+                            <td className="px-3 sm:px-5 py-3.5">
                               <div className="text-sm font-medium text-foreground whitespace-nowrap">{formatDate(call.called_at)}</div>
                               <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{formatTime(call.called_at)}</div>
                             </td>
-                            <td className="px-5 py-3.5">
-                              <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
-                              {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
+                            <td className="px-3 sm:px-5 py-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium text-foreground">{call.caller_number_formatted || call.caller_number || 'Unknown'}</div>
+                                  {call.name && call.name !== 'Unknown' && <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{call.name}</div>}
+                                </div>
+                                <CallAiHover call={call} preScore={scores[String(call.id)] || null} onScoreUpdate={onScoreUpdate} />
+                              </div>
                             </td>
-                            <td className="px-5 py-3.5">
+                            <td className="px-3 sm:px-5 py-3.5">
                               <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
                                 {call.direction || 'unknown'}
                               </span>
                               {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ml-1">VM</span>}
                               {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 ml-1">1st</span>}
                             </td>
-                            <td className="px-5 py-3.5 text-sm text-foreground/60 max-w-[180px] truncate" style={{ fontFamily: 'var(--font-body)' }}>
+                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/60 max-w-[180px] truncate" style={{ fontFamily: 'var(--font-body)' }}>
                               {call.source_name || call.source || '—'}
                             </td>
-                            <td className="px-5 py-3.5 text-sm font-mono text-foreground whitespace-nowrap">
+                            <td className="px-3 sm:px-5 py-3.5 text-sm font-mono text-foreground whitespace-nowrap">
                               {formatDuration(call.duration)}
                             </td>
-                            <td className="px-5 py-3.5 text-sm text-foreground/50 whitespace-nowrap hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>
+                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/50 whitespace-nowrap hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>
                               {[call.city, call.state].filter(Boolean).join(', ') || '—'}
                             </td>
-                            <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                            <td className="px-3 sm:px-5 py-3.5" onClick={e => e.stopPropagation()}>
                               {call.audio ? (
                                 <button
                                   onClick={() => playRecording(call.audio)}
@@ -614,9 +683,9 @@ export default function CallsContent() {
                     const pct = totalEntries > 0 ? Math.round((s.count / calls.length) * 100) : 0;
                     return (
                       <tr key={s.name} className="border-b border-gray-50">
-                        <td className="px-5 py-3.5 text-sm font-medium text-foreground">{s.name}</td>
-                        <td className="px-5 py-3.5 text-sm font-bold text-foreground">{s.count}</td>
-                        <td className="px-5 py-3.5">
+                        <td className="px-3 sm:px-5 py-3.5 text-sm font-medium text-foreground">{s.name}</td>
+                        <td className="px-3 sm:px-5 py-3.5 text-sm font-bold text-foreground">{s.count}</td>
+                        <td className="px-3 sm:px-5 py-3.5">
                           <div className="flex items-center gap-2">
                             <div className="flex-1 h-2 bg-warm-bg rounded-full max-w-[120px]">
                               <div className="h-2 bg-primary rounded-full" style={{ width: `${pct}%` }} />

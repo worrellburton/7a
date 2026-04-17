@@ -12,6 +12,93 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-17T09:00:00Z',
+    title: 'Mobile optimization pass',
+    items: [
+      'All major tables (calls, clients, notes, policies, kingdom requests) now scroll horizontally on phones with less-important columns hidden at small widths.',
+      'Home dashboard clients/horses rows no longer overflow or left-align on phones.',
+      'Admitting-soon clients stack above the admitted row on mobile instead of squishing sideways.',
+      'Client chart header avatar + typography scales down gracefully on small screens.',
+      'Calls stat cards, filters, and table row padding tightened for phone-sized viewports.',
+      'Policies + Notes + Clients + Kingdom Requests headers now wrap properly instead of cramming.',
+      'Ask Policies and signed-JD widgets center and add horizontal breathing room on mobile.',
+    ],
+  },
+  {
+    at: '2026-04-17T08:00:00Z',
+    title: 'AI call scoring: audio analysis + UI fixes',
+    items: [
+      'AI call scoring now downloads and listens to the actual call recording when available — analysis is based on what was said, not just metadata.',
+      'Falls back to metadata-only scoring if audio can\'t be downloaded or the API doesn\'t support it.',
+      'AI review popup no longer gets clipped by the table — renders as a floating panel.',
+      'Sign-in activity spam fixed — one log per session, not per auth event.',
+      'Home dashboard: "Admitting soon" clients now appear on the right side. Hovering admitted clients shows days left until discharge.',
+    ],
+  },
+  {
+    at: '2026-04-17T07:00:00Z',
+    title: 'Calls: AI scoring for admins',
+    items: [
+      'Admins now see an "AI" badge on every call row. Hover (or click) to get a Claude-generated analysis: 0–100 score, inferred caller name + interest, sentiment, call summary, operator strengths, areas to coach, and a recommended next step.',
+      'Scores are cached per-call in call_ai_scores so they don\'t re-run on every hover. Hit the refresh icon to re-score.',
+      'Gated to admins only \u2014 RLS on the scores table backs that up server-side.',
+    ],
+  },
+  {
+    at: '2026-04-17T06:00:00Z',
+    title: 'Clients module + home dashboard: who\'s in care, who\'s coming, who\'s on the team',
+    items: [
+      'New /app/clients page with list + grid views. Search, status filter, sortable columns (Name, MRN, Status, Admitted, Clinician).',
+      'Seeded 10 test clients with realistic (but clearly fake) data — demographics, insurance, auth, ICD-10, LOC, emergency contact.',
+      'Client chart at /app/clients/[id]: Overview, Insurance & Billing, Documents, Finance (admin-only), Notes tabs.',
+      'Insurance tab shows payer, plan, member/group IDs, subscriber info, effective/term dates, auth number, LOC code, authorized vs used units (with progress bar), and ICD-10 diagnoses.',
+      'Documents tab: standard intake paperwork seeded per client; signed/unsigned badges; upload + download + delete.',
+      'Finance tab (admins only): billed / paid / balance totals + line-item ledger.',
+      'Home dashboard: "Clients in care" row of circles under Online today. Hover any client for admission + clinician details.',
+      'Admitting-soon clients show as pills under the main row with "Arriving today / Tomorrow / In N days" and a full hover card.',
+      'Home dashboard: "Horses on the team" row — hover any horse for age, role, weight (latest log), and last fed.',
+      'Every client surface includes a visible "Not real information" banner.',
+    ],
+  },
+  {
+    at: '2026-04-17T05:00:00Z',
+    title: 'Meet the Herd + click-to-change profile picture',
+    items: [
+      'Public site: the Equine-Assisted Psychotherapy page now has a live "Meet the Herd" gallery. Cards pull straight from our internal horse roster; tap any horse to read their story.',
+      'Only public-safe fields surface (name, age, what they work in, rideability, personality, notes) — no body scores, ownership, or internal notes leak.',
+      'Home dashboard: click your profile picture to upload a new one. Updates users.avatar_url and auth metadata in one step.',
+    ],
+  },
+  {
+    at: '2026-04-17T04:00:00Z',
+    title: 'Home dashboard refresh + Ask the policies',
+    items: [
+      'New: Ask about policies — type any question on the home dashboard and Claude answers it, grounded in every policy we have on file (with inline citations).',
+      'What\'s new moved to a floating button in the lower-right. It pulses with a dot when there\'s a shipped update you haven\'t seen; opens into a roll-up panel.',
+      'Your profile picture now sits above "Welcome back, …" on the dashboard.',
+      'Feature Request button on the home dashboard is now a popup — pick a page from the dropdown (or "+ New page") and submit without navigating away.',
+      'Kingdom Requests list gained a Page column and a per-page filter.',
+      'Policies and Notes tables: click any column header to sort ascending/descending.',
+      'Notes: New Note opens a popup with template + client dropdowns (no more card picker page).',
+      'Notes: the spreadsheet list is now the default view.',
+      'Bug fix: Biopsychosocial + Individual note fields no longer drop focus after each keystroke.',
+      'Console backdrop: subtle animated desert-mountain flow in WebGL, using the existing warm palette (respects reduced-motion).',
+    ],
+  },
+  {
+    at: '2026-04-17T02:00:00Z',
+    title: 'Policies 2.0 + Kingdom Requests',
+    items: [
+      'Policies: batch-select rows and reassign Section in one click. Click a name to rename it inline.',
+      'Manage Sections button — add or remove policy sections on the fly.',
+      'Policy detail: centered layout, logo at top, Seven Arrows branding, version badge (v1, v2…), and Back button in the upper left.',
+      'Edit Policy mode: change name, section, purpose, scope, body — every save bumps the version and snapshots the previous one to policy_versions.',
+      'Activity feed on each policy shows renames, section changes, reviews, revisions, and version bumps.',
+      'Export PDF: one policy or all of them, with branded cover page, logo, colored section tags, and footer.',
+      'Kingdom Requests: new feature-request board on the home dashboard and in the popup menu — drop in a request, check it off when it ships.',
+    ],
+  },
+  {
     at: '2026-04-17T00:00:00Z',
     title: 'Notes + Policies: smarter editing',
     items: [
