@@ -826,6 +826,17 @@ export default function CallsContent() {
             {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total calls</span>}
           </p>
         </div>
+        <a
+          href="/app/calls/heatmap"
+          className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-primary text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+            <rect x="3" y="4" width="18" height="16" rx="2" strokeLinejoin="round" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM7 16h2v0H7zM11 16h2v0h-2zM15 16h2v0h-2z" />
+          </svg>
+          View Heatmap
+        </a>
       </div>
 
       {/* Timeline Slider — drag to scope all metrics below */}
@@ -921,57 +932,43 @@ export default function CallsContent() {
             </div>
           </div>
 
-          {/* Range Line Graph + Mini Heatmap */}
-          <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] gap-4">
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Daily Breakdown</p>
-                <div className="flex items-center gap-3 flex-wrap">
-                  {dateFilter && (
-                    <button
-                      onClick={() => { setDateFilter(''); }}
-                      className="text-[11px] text-foreground/40 hover:text-primary transition-colors"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      Clear day filter
-                    </button>
-                  )}
-                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                    <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
-                  </span>
-                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                    <span className="w-2 h-2 rounded-full bg-[#3b82f6]" /> Meaningful
-                  </span>
-                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                    <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Missed
-                  </span>
-                  <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                    <span className="w-2 h-2 rounded-full bg-[#10b981]" /> Returned
-                  </span>
-                </div>
+          {/* Range Line Graph */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Daily Breakdown</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                {dateFilter && (
+                  <button
+                    onClick={() => { setDateFilter(''); }}
+                    className="text-[11px] text-foreground/40 hover:text-primary transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Clear day filter
+                  </button>
+                )}
+                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
+                </span>
+                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span className="w-2 h-2 rounded-full bg-[#3b82f6]" /> Meaningful
+                </span>
+                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Missed
+                </span>
+                <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span className="w-2 h-2 rounded-full bg-[#10b981]" /> Returned
+                </span>
               </div>
-              <WeekGraph
-                data={rangeInsights.dailyCounts}
-                selectedDate={dateFilter}
-                onDayClick={(date) => {
-                  setDateFilter(date);
-                  setTab('calls');
-                  setPage(1);
-                }}
-              />
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 overflow-x-auto">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Heatmap</p>
-              <MiniHeatmap
-                calls={allCallsRaw}
-                selectedDate={dateFilter}
-                onDayClick={(date) => {
-                  setDateFilter(date);
-                  setTab('calls');
-                  setPage(1);
-                }}
-              />
-            </div>
+            <WeekGraph
+              data={rangeInsights.dailyCounts}
+              selectedDate={dateFilter}
+              onDayClick={(date) => {
+                setDateFilter(date);
+                setTab('calls');
+                setPage(1);
+              }}
+            />
           </div>
         </div>
       )}
@@ -1224,7 +1221,11 @@ export default function CallsContent() {
                               )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
-                              {isMissedCall(call) ? (
+                              {spamNumbers.has(normalizePhone(call.caller_number)) ? (
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">
+                                  Spam
+                                </span>
+                              ) : isMissedCall(call) ? (
                                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
                                   {call.voicemail ? 'Voicemail' : 'No answer'}
                                 </span>
@@ -1255,7 +1256,11 @@ export default function CallsContent() {
                               )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
-                              {isMissedCall(call) ? (
+                              {spamNumbers.has(normalizePhone(call.caller_number)) ? (
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">
+                                  Spam
+                                </span>
+                              ) : isMissedCall(call) ? (
                                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
                                   {call.voicemail ? 'Voicemail' : 'No answer'}
                                 </span>
@@ -1422,7 +1427,10 @@ export default function CallsContent() {
                 <span className="block h-full bg-white rounded-full transition-all" style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }} />
               </span>
             </>
-          ) : 'Analyze all calls'}
+          ) : (() => {
+            const unscored = calls.filter(c => !scores[String(c.id)]).length;
+            return unscored > 0 ? `Analyze ${unscored} unscored call${unscored === 1 ? '' : 's'}` : 'All calls analyzed';
+          })()}
         </button>
       )}
 
