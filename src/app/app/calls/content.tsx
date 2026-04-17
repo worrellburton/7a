@@ -254,11 +254,18 @@ export default function CallsContent() {
     });
   }, [persistSpam]);
 
-  const isSpamCall = useCallback((call: { caller_number?: string | null; receiving_number?: string | null }) => {
-    return (
-      spamNumbers.has(normalizePhone(call.caller_number)) ||
-      spamNumbers.has(normalizePhone(call.receiving_number))
-    );
+  const isSpamCall = useCallback((call: { caller_number?: string | null; caller_number_formatted?: string | null; receiving_number?: string | null; receiving_number_formatted?: string | null }) => {
+    const candidates = [
+      call.caller_number,
+      call.caller_number_formatted,
+      call.receiving_number,
+      call.receiving_number_formatted,
+    ];
+    for (const raw of candidates) {
+      const key = normalizePhone(raw);
+      if (key && spamNumbers.has(key)) return true;
+    }
+    return false;
   }, [spamNumbers]);
 
   const knownOperators = useMemo(() => {
@@ -346,10 +353,7 @@ export default function CallsContent() {
       daySources.get(callDate)!.set(src, (daySources.get(callDate)!.get(src) || 0) + 1);
       if (c.direction === 'inbound') inboundCount++;
       if (c.direction === 'outbound') outboundCount++;
-      // Check both caller_number (inbound) and receiving_number (outbound) against spam list.
-      const isSpam =
-        spamNumbers.has(normalizePhone(c.caller_number)) ||
-        spamNumbers.has(normalizePhone(c.receiving_number));
+      const isSpam = isSpamCall(c);
       if (isSpam) spam++;
       if (isMissedCall(c) && !isSpam) {
         missed++;
@@ -408,7 +412,7 @@ export default function CallsContent() {
       startIso,
       endIso,
     };
-  }, [allCallsRaw, calls, scores, rangeStart, rangeEnd, spamNumbers]);
+  }, [allCallsRaw, calls, scores, rangeStart, rangeEnd, isSpamCall]);
 
   const meaningfulData = useMemo(() => {
     let thisWeek = 0;
@@ -1117,13 +1121,11 @@ export default function CallsContent() {
                   </thead>
                   <tbody>
                     {calls.filter(call => {
-                      const isSpamCall =
-                        spamNumbers.has(normalizePhone(call.caller_number)) ||
-                        spamNumbers.has(normalizePhone(call.receiving_number));
+                      const spamFlag = isSpamCall(call);
                       if (tab === 'spam') {
-                        if (!isSpamCall) return false;
+                        if (!spamFlag) return false;
                       } else {
-                        if (isSpamCall) return false;
+                        if (spamFlag) return false;
                       }
                       if (operatorFilter === 'all') return true;
                       const s = scores[String(call.id)];
