@@ -12,6 +12,15 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    at: '2026-04-17T05:00:00Z',
+    title: 'Meet the Herd + click-to-change profile picture',
+    items: [
+      'Public site: the Equine-Assisted Psychotherapy page now has a live "Meet the Herd" gallery. Cards pull straight from our internal horse roster; tap any horse to read their story.',
+      'Only public-safe fields surface (name, age, what they work in, rideability, personality, notes) — no body scores, ownership, or internal notes leak.',
+      'Home dashboard: click your profile picture to upload a new one. Updates users.avatar_url and auth metadata in one step.',
+    ],
+  },
+  {
     at: '2026-04-17T04:00:00Z',
     title: 'Home dashboard refresh + Ask the policies',
     items: [
