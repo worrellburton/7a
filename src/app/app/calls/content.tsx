@@ -73,7 +73,24 @@ interface Insights {
   avgDuration: number;
   inbound: number;
   outbound: number;
+  missedThisWeek: number;
+  missedPaidThisWeek: number;
   dailyCounts: { label: string; short: string; date: string; count: number; sources: { name: string; count: number }[] }[];
+}
+
+// Treat anything that isn't obviously organic / direct / unattributed as a
+// "paid" source for the purposes of missed-paid-call reporting.
+function isPaidSource(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const s = raw.toLowerCase();
+  if (!s) return false;
+  if (s.includes('organic') || s.includes('direct') || s === 'unknown' || s === 'none') return false;
+  return true;
+}
+
+function isMissedCall(c: { direction?: string | null; voicemail?: boolean | null; talk_time?: number | null }): boolean {
+  if (c.direction !== 'inbound') return false;
+  return !!c.voicemail || (c.talk_time ?? 0) < 3;
 }
 
 async function ctmFetch(endpoint: string, params?: Record<string, string | number>): Promise<CTMResponse> {
@@ -335,6 +352,8 @@ export default function CallsContent() {
         let weekCallCount = 0;
         let inboundCount = 0;
         let outboundCount = 0;
+        let missedWeek = 0;
+        let missedPaidWeek = 0;
 
         allCalls.forEach(c => {
           const callDate = new Date(c.called_at).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
@@ -348,6 +367,10 @@ export default function CallsContent() {
             weekCallCount++;
             if (c.direction === 'inbound') inboundCount++;
             if (c.direction === 'outbound') outboundCount++;
+            if (isMissedCall(c)) {
+              missedWeek++;
+              if (isPaidSource(c.source_name || c.source)) missedPaidWeek++;
+            }
           }
         });
 
@@ -369,6 +392,8 @@ export default function CallsContent() {
           avgDuration: weekCallCount > 0 ? Math.round(weekDuration / weekCallCount) : 0,
           inbound: inboundCount,
           outbound: outboundCount,
+          missedThisWeek: missedWeek,
+          missedPaidThisWeek: missedPaidWeek,
           dailyCounts,
         });
       } catch {
@@ -518,7 +543,7 @@ export default function CallsContent() {
       ) : insights && (
         <div className="mb-6 space-y-4">
           {/* Stat Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Today</p>
               <p className="text-2xl font-bold text-foreground">{insights.today}</p>
@@ -548,6 +573,20 @@ export default function CallsContent() {
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>All Time</p>
               <p className="text-2xl font-bold text-foreground">{insights.allTime.toLocaleString()}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>Total calls tracked</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed</p>
+              <p className="text-2xl font-bold text-red-500">{insights.missedThisWeek}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {insights.inbound > 0 ? `${Math.round((insights.missedThisWeek / insights.inbound) * 100)}% of inbound this week` : 'No inbound this week'}
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed (Paid)</p>
+              <p className="text-2xl font-bold text-red-500">{insights.missedPaidThisWeek}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {insights.missedThisWeek > 0 ? `${Math.round((insights.missedPaidThisWeek / insights.missedThisWeek) * 100)}% of missed were paid` : 'No missed calls'}
+              </p>
             </div>
           </div>
 
