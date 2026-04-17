@@ -192,6 +192,10 @@ export default function CallsContent() {
   const [sources, setSources] = useState<{ name: string; count: number }[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
+  const [allCallsRaw, setAllCallsRaw] = useState<Call[]>([]);
+  const [timelineBounds, setTimelineBounds] = useState<{ min: Date; max: Date } | null>(null);
+  const [rangeStart, setRangeStart] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 6); return d; });
+  const [rangeEnd, setRangeEnd] = useState<Date>(() => { const d = new Date(); d.setHours(23, 59, 59, 999); return d; });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [scores, setScores] = useState<Record<string, ScoreRow>>({});
   const [scoringIds, setScoringIds] = useState<Set<string>>(new Set());
@@ -218,6 +222,112 @@ export default function CallsContent() {
   }, [scores]);
 
   const MEANINGFUL_THRESHOLD = 60;
+
+  const rangeInsights = useMemo(() => {
+    const startIso = rangeStart.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+    const endIso = rangeEnd.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    // Generate one entry per day in the range (for the chart)
+    const days: { label: string; short: string; date: string }[] = [];
+    const cursor = new Date(rangeStart); cursor.setHours(0, 0, 0, 0);
+    const endDay = new Date(rangeEnd); endDay.setHours(0, 0, 0, 0);
+    while (cursor.getTime() <= endDay.getTime()) {
+      const dateStr = cursor.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+      days.push({
+        label: cursor.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/Phoenix' }),
+        short: cursor.toLocaleDateString('en-US', { weekday: 'narrow', timeZone: 'America/Phoenix' }),
+        date: dateStr,
+      });
+      cursor.setTime(cursor.getTime() + dayMs);
+    }
+    const rangeDates = new Set(days.map(d => d.date));
+
+    const dayCounts = new Map<string, number>();
+    const daySources = new Map<string, Map<string, number>>();
+    const dayMissedCounts = new Map<string, number>();
+    const dayReturnedCounts = new Map<string, number>();
+    const dayMeaningfulCounts = new Map<string, number>();
+    const missedNumbers = new Set<string>();
+    let totalCalls = 0;
+    let totalDuration = 0;
+    let inboundCount = 0;
+    let outboundCount = 0;
+    let missed = 0;
+    let missedPaid = 0;
+    let meaningful = 0;
+
+    for (const c of allCallsRaw) {
+      const p = parseDate(c.called_at);
+      if (!p) continue;
+      const callDate = p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+      if (!rangeDates.has(callDate)) continue;
+      totalCalls++;
+      totalDuration += c.duration || 0;
+      dayCounts.set(callDate, (dayCounts.get(callDate) || 0) + 1);
+      const src = c.source_name || c.source || 'Unknown';
+      if (!daySources.has(callDate)) daySources.set(callDate, new Map());
+      daySources.get(callDate)!.set(src, (daySources.get(callDate)!.get(src) || 0) + 1);
+      if (c.direction === 'inbound') inboundCount++;
+      if (c.direction === 'outbound') outboundCount++;
+      if (isMissedCall(c)) {
+        missed++;
+        dayMissedCounts.set(callDate, (dayMissedCounts.get(callDate) || 0) + 1);
+        if (c.caller_number) missedNumbers.add(c.caller_number);
+        if (isPaidSource(c.source_name || c.source)) missedPaid++;
+      }
+      const s = scores[String(c.id)];
+      if (s?.fit_score != null && s.fit_score >= MEANINGFUL_THRESHOLD) {
+        meaningful++;
+        dayMeaningfulCounts.set(callDate, (dayMeaningfulCounts.get(callDate) || 0) + 1);
+      }
+    }
+
+    let returnedMissed = 0;
+    let returnedPickedUp = 0;
+    for (const c of allCallsRaw) {
+      if (c.direction !== 'outbound') continue;
+      const p = parseDate(c.called_at);
+      if (!p) continue;
+      const callDate = p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+      if (!rangeDates.has(callDate)) continue;
+      const target = c.caller_number || c.receiving_number;
+      if (target && missedNumbers.has(target)) {
+        returnedMissed++;
+        dayReturnedCounts.set(callDate, (dayReturnedCounts.get(callDate) || 0) + 1);
+        if ((c.talk_time ?? 0) >= 3) returnedPickedUp++;
+      }
+    }
+
+    const dailyCounts = days.map(d => {
+      const bucket = daySources.get(d.date);
+      const sources = bucket ? Array.from(bucket.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count) : [];
+      return {
+        ...d,
+        count: dayCounts.get(d.date) || 0,
+        missedCount: dayMissedCounts.get(d.date) || 0,
+        returnedCount: dayReturnedCounts.get(d.date) || 0,
+        meaningfulCount: dayMeaningfulCounts.get(d.date) || 0,
+        sources,
+      };
+    });
+
+    return {
+      totalCalls,
+      avgDuration: totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0,
+      inbound: inboundCount,
+      outbound: outboundCount,
+      missed,
+      missedPaid,
+      meaningful,
+      returnedMissed,
+      returnedPickedUp,
+      dailyCounts,
+      startIso,
+      endIso,
+    };
+  }, [allCallsRaw, scores, rangeStart, rangeEnd]);
+
   const meaningfulData = useMemo(() => {
     let thisWeek = 0;
     const dailyCounts = new Map<string, number>();
@@ -408,6 +518,20 @@ export default function CallsContent() {
           totalPages = data.total_pages || 1;
           allTime = data.total_entries || 0;
           pg++;
+        }
+
+        setAllCallsRaw(allCalls);
+        let minTime = Infinity, maxTime = -Infinity;
+        for (const c of allCalls) {
+          const p = parseDate(c.called_at);
+          if (!p) continue;
+          const t = p.getTime();
+          if (t < minTime) minTime = t;
+          if (t > maxTime) maxTime = t;
+        }
+        if (isFinite(minTime) && isFinite(maxTime)) {
+          const pad = 3 * 24 * 60 * 60 * 1000;
+          setTimelineBounds({ min: new Date(minTime - pad), max: new Date(maxTime + pad) });
         }
 
         const now = new Date();
@@ -636,6 +760,29 @@ export default function CallsContent() {
         </a>
       </div>
 
+      {/* Timeline Slider — drag to scope all metrics below */}
+      {timelineBounds && (
+        <TimelineSlider
+          min={timelineBounds.min}
+          max={timelineBounds.max}
+          start={rangeStart}
+          end={rangeEnd}
+          activityByDay={new Map(
+            (() => {
+              const m = new Map<string, number>();
+              for (const c of allCallsRaw) {
+                const p = parseDate(c.called_at);
+                if (!p) continue;
+                const k = p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+                m.set(k, (m.get(k) || 0) + 1);
+              }
+              return Array.from(m.entries());
+            })()
+          )}
+          onChange={(s, e) => { setRangeStart(s); setRangeEnd(e); }}
+        />
+      )}
+
       {/* Insights Dashboard */}
       {insightsLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
@@ -646,77 +793,63 @@ export default function CallsContent() {
             </div>
           ))}
         </div>
-      ) : insights && (
+      ) : (
         <div className="mb-6 space-y-4">
-          {/* Stat Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3 sm:gap-4">
+          {/* Stat Cards — range-scoped */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Total Calls</p>
+              <p className="text-2xl font-bold text-foreground">{rangeInsights.totalCalls}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {rangeInsights.totalCalls > 0 ? `${rangeInsights.inbound} in · ${rangeInsights.outbound} out` : 'No calls in range'}
+              </p>
+            </div>
             <div className="bg-white rounded-2xl border border-blue-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-blue-400 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Meaningful</p>
-              <p className="text-2xl font-bold text-blue-600">{meaningfulData.thisWeek}</p>
+              <p className="text-2xl font-bold text-blue-600">{rangeInsights.meaningful}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {insights.thisWeek > 0 ? `${Math.round((meaningfulData.thisWeek / insights.thisWeek) * 100)}% of calls this week` : 'No calls this week'}
+                {rangeInsights.totalCalls > 0 ? `${Math.round((rangeInsights.meaningful / rangeInsights.totalCalls) * 100)}% of calls` : 'No calls in range'}
               </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Today</p>
-              <p className="text-2xl font-bold text-foreground">{insights.today}</p>
-              <p className="text-xs text-blue-500 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {insights.today > 0 ? `${meaningfulData.today} meaningful (${Math.round((meaningfulData.today / insights.today) * 100)}%)` : 'No calls yet'}
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Yesterday</p>
-              <p className="text-2xl font-bold text-foreground">{insights.yesterday}</p>
-              <p className="text-xs text-blue-500 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {insights.yesterday > 0 ? `${meaningfulData.yesterday} meaningful (${Math.round((meaningfulData.yesterday / insights.yesterday) * 100)}%)` : 'No calls yesterday'}
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>This Week</p>
-              <p className="text-2xl font-bold text-foreground">{insights.thisWeek}</p>
-              <p className="text-xs text-blue-500 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {insights.thisWeek > 0 ? `${meaningfulData.thisWeek} meaningful (${Math.round((meaningfulData.thisWeek / insights.thisWeek) * 100)}%)` : 'No calls this week'}
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>All Time</p>
-              <p className="text-2xl font-bold text-foreground">{insights.allTime.toLocaleString()}</p>
-              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>Total calls tracked</p>
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed</p>
-              <p className="text-2xl font-bold text-red-500">{insights.missedThisWeek}</p>
+              <p className="text-2xl font-bold text-red-500">{rangeInsights.missed}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {insights.inbound > 0 ? `${Math.round((insights.missedThisWeek / insights.inbound) * 100)}% of inbound this week` : 'No inbound this week'}
+                {rangeInsights.inbound > 0 ? `${Math.round((rangeInsights.missed / rangeInsights.inbound) * 100)}% of inbound` : 'No inbound'}
               </p>
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed (Paid)</p>
-              <p className="text-2xl font-bold text-red-500">{insights.missedPaidThisWeek}</p>
+              <p className="text-2xl font-bold text-red-500">{rangeInsights.missedPaid}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {insights.missedThisWeek > 0 ? `${Math.round((insights.missedPaidThisWeek / insights.missedThisWeek) * 100)}% of missed were paid` : 'No missed calls'}
+                {rangeInsights.missed > 0 ? `${Math.round((rangeInsights.missedPaid / rangeInsights.missed) * 100)}% of missed` : 'No missed calls'}
               </p>
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Returned</p>
-              <p className="text-2xl font-bold text-emerald-500">{insights.returnedMissedThisWeek}</p>
+              <p className="text-2xl font-bold text-emerald-500">{rangeInsights.returnedMissed}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {insights.missedThisWeek > 0 ? `${Math.round((insights.returnedMissedThisWeek / insights.missedThisWeek) * 100)}% of missed returned` : 'No missed calls'}
+                {rangeInsights.missed > 0 ? `${Math.round((rangeInsights.returnedMissed / rangeInsights.missed) * 100)}% of missed` : 'No missed calls'}
               </p>
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
               <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Returned (Picked Up)</p>
-              <p className="text-2xl font-bold text-emerald-600">{insights.returnedPickedUpThisWeek}</p>
+              <p className="text-2xl font-bold text-emerald-600">{rangeInsights.returnedPickedUp}</p>
               <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {insights.returnedMissedThisWeek > 0 ? `${Math.round((insights.returnedPickedUpThisWeek / insights.returnedMissedThisWeek) * 100)}% of returned picked up` : 'No returned calls'}
+                {rangeInsights.returnedMissed > 0 ? `${Math.round((rangeInsights.returnedPickedUp / rangeInsights.returnedMissed) * 100)}% of returned` : 'No returned'}
               </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Avg Duration</p>
+              <p className="text-2xl font-bold text-foreground">{formatDuration(rangeInsights.avgDuration)}</p>
+              <p className="text-xs text-foreground/30 mt-1" style={{ fontFamily: 'var(--font-body)' }}>per call</p>
             </div>
           </div>
 
-          {/* Weekly Line Graph */}
+          {/* Range Line Graph */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>This Week</p>
+              <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Daily Breakdown</p>
               <div className="flex items-center gap-3">
                 {dateFilter && (
                   <button
@@ -742,7 +875,7 @@ export default function CallsContent() {
               </div>
             </div>
             <WeekGraph
-              data={insights.dailyCounts.map(d => ({ ...d, meaningfulCount: meaningfulData.dailyCounts.get(d.date) || 0 }))}
+              data={rangeInsights.dailyCounts}
               selectedDate={dateFilter}
               onDayClick={(date) => {
                 setDateFilter(date);
@@ -1629,6 +1762,282 @@ function CallDetail({
 // WeekGraph — SVG line chart animated left→right.
 // Clickable day points filter the call log to that day.
 // ------------------------------------------------------------
+
+// Elegant date-range slider with draggable start + end handles, a highlighted
+// selection band, and tiny activity-density bars overlaid above the track so
+// you can see where the calls are. Drag the handles, or grab the band to pan
+// the whole selection. Snaps to days. Keyboard-friendly (handles are focusable
+// and arrow keys nudge by ±1 day).
+function TimelineSlider({
+  min,
+  max,
+  start,
+  end,
+  activityByDay,
+  onChange,
+}: {
+  min: Date;
+  max: Date;
+  start: Date;
+  end: Date;
+  activityByDay: Map<string, number>;
+  onChange: (start: Date, end: Date) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [dragging, setDragging] = useState<null | { kind: 'start' | 'end' | 'band'; startX: number; startMs: number; endMs: number }>(null);
+
+  const totalMs = Math.max(1, max.getTime() - min.getTime());
+  const dayMs = 24 * 60 * 60 * 1000;
+  const startPct = (start.getTime() - min.getTime()) / totalMs;
+  const endPct = (end.getTime() - min.getTime()) / totalMs;
+
+  // Month ticks across the range.
+  const months = useMemo(() => {
+    const out: { date: Date; pct: number; label: string; isYearStart: boolean }[] = [];
+    const cursor = new Date(min.getFullYear(), min.getMonth(), 1);
+    if (cursor.getTime() < min.getTime()) cursor.setMonth(cursor.getMonth() + 1);
+    while (cursor.getTime() <= max.getTime()) {
+      const pct = (cursor.getTime() - min.getTime()) / totalMs;
+      out.push({
+        date: new Date(cursor),
+        pct,
+        label: cursor.toLocaleDateString('en-US', { month: 'short' }),
+        isYearStart: cursor.getMonth() === 0,
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return out;
+  }, [min, max, totalMs]);
+
+  // Day-by-day activity bars (one per day across the full range).
+  const activityBars = useMemo(() => {
+    const bars: { pct: number; widthPct: number; count: number }[] = [];
+    let peak = 1;
+    activityByDay.forEach(v => { if (v > peak) peak = v; });
+    const startDay = new Date(min); startDay.setHours(0, 0, 0, 0);
+    const endDay = new Date(max); endDay.setHours(0, 0, 0, 0);
+    const cursor = new Date(startDay);
+    while (cursor.getTime() <= endDay.getTime()) {
+      const dateStr = cursor.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+      const count = activityByDay.get(dateStr) || 0;
+      if (count > 0) {
+        const t = cursor.getTime();
+        bars.push({
+          pct: (t - min.getTime()) / totalMs,
+          widthPct: (dayMs / totalMs) * 100,
+          count: count / peak,
+        });
+      }
+      cursor.setTime(cursor.getTime() + dayMs);
+    }
+    return bars;
+  }, [activityByDay, min, max, totalMs]);
+
+  const snapToDay = (ms: number, side: 'start' | 'end') => {
+    const d = new Date(ms);
+    if (side === 'start') d.setHours(0, 0, 0, 0);
+    else d.setHours(23, 59, 59, 999);
+    return d;
+  };
+
+  const pctToMs = (pct: number) => min.getTime() + Math.max(0, Math.min(1, pct)) * totalMs;
+
+  const onPointerDown = (kind: 'start' | 'end' | 'band') => (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    setDragging({ kind, startX: e.clientX, startMs: start.getTime(), endMs: end.getTime() });
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragging || !trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const deltaMs = ((e.clientX - dragging.startX) / rect.width) * totalMs;
+    if (dragging.kind === 'start') {
+      const next = Math.min(dragging.startMs + deltaMs, dragging.endMs - dayMs);
+      onChange(snapToDay(Math.max(min.getTime(), next), 'start'), end);
+    } else if (dragging.kind === 'end') {
+      const next = Math.max(dragging.endMs + deltaMs, dragging.startMs + dayMs);
+      onChange(start, snapToDay(Math.min(max.getTime(), next), 'end'));
+    } else {
+      // Band: pan both, clamped.
+      let newStart = dragging.startMs + deltaMs;
+      let newEnd = dragging.endMs + deltaMs;
+      const span = dragging.endMs - dragging.startMs;
+      if (newStart < min.getTime()) { newStart = min.getTime(); newEnd = newStart + span; }
+      if (newEnd > max.getTime()) { newEnd = max.getTime(); newStart = newEnd - span; }
+      onChange(snapToDay(newStart, 'start'), snapToDay(newEnd, 'end'));
+    }
+  };
+
+  const onPointerUp = () => setDragging(null);
+
+  const onTrackClick = (e: React.MouseEvent) => {
+    if (!trackRef.current || dragging) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    const clickedMs = pctToMs(pct);
+    // Keep the current span; center it near the click point.
+    const span = end.getTime() - start.getTime();
+    let newStart = clickedMs - span / 2;
+    let newEnd = clickedMs + span / 2;
+    if (newStart < min.getTime()) { newStart = min.getTime(); newEnd = newStart + span; }
+    if (newEnd > max.getTime()) { newEnd = max.getTime(); newStart = newEnd - span; }
+    onChange(snapToDay(newStart, 'start'), snapToDay(newEnd, 'end'));
+  };
+
+  const nudgeStart = (days: number) => {
+    const next = new Date(start.getTime() + days * dayMs);
+    if (next.getTime() >= min.getTime() && next.getTime() < end.getTime()) onChange(snapToDay(next.getTime(), 'start'), end);
+  };
+  const nudgeEnd = (days: number) => {
+    const next = new Date(end.getTime() + days * dayMs);
+    if (next.getTime() > start.getTime() && next.getTime() <= max.getTime()) onChange(start, snapToDay(next.getTime(), 'end'));
+  };
+
+  const fmtShort = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const rangeLabel = (() => {
+    const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+    if (sameMonth) {
+      return `${start.toLocaleDateString('en-US', { month: 'short' })} ${start.getDate()} – ${end.getDate()}, ${end.getFullYear()}`;
+    }
+    return `${fmtShort(start)} – ${fmtShort(end)}, ${end.getFullYear()}`;
+  })();
+
+  const spanDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / dayMs));
+
+  const setPreset = (days: number) => {
+    const newEnd = new Date(max); newEnd.setHours(23, 59, 59, 999);
+    const newStart = new Date(newEnd.getTime() - (days - 1) * dayMs); newStart.setHours(0, 0, 0, 0);
+    onChange(newStart, newEnd);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 mb-6 select-none">
+      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+        <div>
+          <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Viewing</p>
+          <p className="text-base sm:text-lg font-bold text-foreground tracking-tight">{rangeLabel}</p>
+          <p className="text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{spanDays} day{spanDays === 1 ? '' : 's'}</p>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {[
+            { label: '7D', days: 7 },
+            { label: '14D', days: 14 },
+            { label: '30D', days: 30 },
+            { label: '90D', days: 90 },
+          ].map(p => (
+            <button
+              key={p.label}
+              onClick={() => setPreset(p.days)}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${spanDays === p.days ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div
+        ref={trackRef}
+        className="relative h-16 mt-2 cursor-pointer"
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onClick={onTrackClick}
+      >
+        {/* Activity density bars (behind the track) */}
+        <div className="absolute inset-x-0 top-0 bottom-7 overflow-hidden">
+          {activityBars.map((b, i) => (
+            <div
+              key={i}
+              className="absolute bottom-0 bg-primary/20 rounded-sm"
+              style={{
+                left: `${b.pct * 100}%`,
+                width: `${b.widthPct}%`,
+                height: `${Math.max(4, b.count * 100)}%`,
+                minHeight: 2,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Track base */}
+        <div className="absolute inset-x-0 bottom-6 h-1 rounded-full bg-gray-100" />
+
+        {/* Selected band */}
+        <div
+          className="absolute bottom-6 h-1 rounded-full bg-primary shadow-[0_0_0_3px_rgba(160,82,45,0.1)] cursor-grab active:cursor-grabbing transition-[background] hover:bg-primary/90"
+          style={{ left: `${startPct * 100}%`, width: `${Math.max(0, (endPct - startPct) * 100)}%` }}
+          onPointerDown={onPointerDown('band')}
+        />
+
+        {/* Filled activity bars under the selection (highlighted) */}
+        <div className="absolute top-0 bottom-7 overflow-hidden pointer-events-none"
+          style={{ left: `${startPct * 100}%`, width: `${Math.max(0, (endPct - startPct) * 100)}%` }}
+        >
+          {activityBars.map((b, i) => {
+            const barRightPct = b.pct + b.widthPct / 100;
+            const inRange = barRightPct > startPct && b.pct < endPct;
+            if (!inRange) return null;
+            const relativeLeft = ((b.pct - startPct) / Math.max(0.0001, (endPct - startPct))) * 100;
+            const relativeWidth = (b.widthPct / ((endPct - startPct) * 100)) * 100;
+            return (
+              <div
+                key={i}
+                className="absolute bottom-0 bg-primary rounded-sm"
+                style={{
+                  left: `${relativeLeft}%`,
+                  width: `${relativeWidth}%`,
+                  height: `${Math.max(6, b.count * 100)}%`,
+                  opacity: 0.85,
+                }}
+              />
+            );
+          })}
+        </div>
+
+        {/* Start handle */}
+        <button
+          type="button"
+          aria-label="Start date"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'ArrowLeft') nudgeStart(-1); if (e.key === 'ArrowRight') nudgeStart(1); }}
+          onPointerDown={onPointerDown('start')}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute bottom-4 w-4 h-4 rounded-full bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
+          style={{ left: `calc(${startPct * 100}% - 8px)` }}
+        />
+
+        {/* End handle */}
+        <button
+          type="button"
+          aria-label="End date"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'ArrowLeft') nudgeEnd(-1); if (e.key === 'ArrowRight') nudgeEnd(1); }}
+          onPointerDown={onPointerDown('end')}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute bottom-4 w-4 h-4 rounded-full bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
+          style={{ left: `calc(${endPct * 100}% - 8px)` }}
+        />
+
+        {/* Month labels */}
+        <div className="absolute inset-x-0 bottom-0 h-5 pointer-events-none">
+          {months.map((m, i) => (
+            <div
+              key={i}
+              className={`absolute text-[10px] whitespace-nowrap select-none ${m.isYearStart ? 'text-foreground/70 font-semibold' : 'text-foreground/30'}`}
+              style={{ left: `${m.pct * 100}%`, transform: 'translateX(-50%)', fontFamily: 'var(--font-body)' }}
+            >
+              {m.isYearStart ? `${m.label} ${m.date.getFullYear()}` : m.label}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function WeekGraph({
   data,
