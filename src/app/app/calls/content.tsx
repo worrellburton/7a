@@ -526,7 +526,7 @@ export default function CallsContent() {
                     <tr className="border-b border-gray-100 bg-warm-bg/50">
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Date / Time</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Caller</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Operator</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Operator</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Direction</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Duration</th>
@@ -554,7 +554,7 @@ export default function CallsContent() {
                                 <CallAiHover call={call} preScore={scores[String(call.id)] || null} onScoreUpdate={onScoreUpdate} />
                               </div>
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>
+                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
                               {scores[String(call.id)]?.operator_name ? (
                                 <span className="font-medium">{scores[String(call.id)].operator_name}</span>
                               ) : (
