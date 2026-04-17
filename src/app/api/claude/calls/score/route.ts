@@ -38,6 +38,7 @@ interface CallInput {
 interface ScoreResult {
   score: number;
   caller_name: string | null;
+  operator_name: string | null;
   caller_interest: string | null;
   summary: string;
   operator_strengths: string[];
@@ -76,6 +77,7 @@ Respond with a single JSON object matching this schema exactly (no markdown, no 
 {
   "score": <integer 0-100 reflecting overall call handling quality, lead quality, and conversion likelihood>,
   "caller_name": <best-guess name of the caller${hasAudio ? ' (use the name they actually said in the conversation if available)' : ''}, or null>,
+  "operator_name": <${hasAudio ? 'the first name (or full name if given) of the Seven Arrows employee/operator who answered or made the call, as stated in the audio (e.g., "this is Sarah" → "Sarah"). Return null if no name was given.' : 'null — operator name cannot be determined from metadata alone'}>,
   "caller_interest": <one short sentence describing what the caller was interested in (e.g., "Admission inquiry for adult child with alcohol use disorder"), or null if unknowable>,
   "summary": <2-3 sentence summary of the call${hasAudio ? ' based on what was actually said' : ' based on metadata'}: who called, what they wanted, how it went>,
   "operator_strengths": [<1-4 concrete positive behaviors${hasAudio ? ' observed in the actual conversation, quoting specifics' : ' inferred from the call'}>],
@@ -315,6 +317,7 @@ export async function POST(req: NextRequest) {
     call_id: callId,
     score: Math.max(0, Math.min(100, Math.round(parsed.score))),
     caller_name: parsed.caller_name || null,
+    operator_name: parsed.operator_name || null,
     caller_interest: parsed.caller_interest || null,
     summary: parsed.summary || '',
     operator_strengths: Array.isArray(parsed.operator_strengths) ? parsed.operator_strengths : [],

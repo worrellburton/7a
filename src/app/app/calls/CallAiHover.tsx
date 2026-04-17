@@ -34,6 +34,7 @@ interface ScoreRow {
   call_id: string;
   score: number;
   caller_name: string | null;
+  operator_name: string | null;
   caller_interest: string | null;
   summary: string;
   operator_strengths: string[];
