@@ -2453,7 +2453,7 @@ function WeekGraph({
     <svg
       viewBox={`0 0 ${W} ${H}`}
       className="w-full block select-none"
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio="none"
       style={{ maxHeight: 200 }}
     >
       <defs>
@@ -2778,7 +2778,7 @@ function HourGraph({
     <svg
       viewBox={`0 0 ${W} ${H}`}
       className="w-full block select-none"
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio="none"
       style={{ maxHeight: 200 }}
     >
       <defs>
