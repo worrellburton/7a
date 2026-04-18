@@ -339,6 +339,7 @@ export default function CallsContent() {
     let missedPaid = 0;
     let meaningful = 0;
     let spam = 0;
+    let missedSpam = 0;
 
     for (const c of sourceCalls) {
       const p = parseDate(c.called_at);
@@ -346,7 +347,11 @@ export default function CallsContent() {
       const callDate = p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
       if (!rangeDates.has(callDate)) continue;
       const isSpam = isSpamCall(c);
-      if (isSpam) { spam++; continue; }
+      if (isSpam) {
+        spam++;
+        if (isMissedCall(c)) missedSpam++;
+        continue;
+      }
       totalCalls++;
       totalDuration += c.duration || 0;
       dayCounts.set(callDate, (dayCounts.get(callDate) || 0) + 1);
@@ -406,6 +411,7 @@ export default function CallsContent() {
       missedPaid,
       meaningful,
       spam,
+      missedSpam,
       returnedMissed,
       returnedPickedUp,
       dailyCounts,
@@ -1040,6 +1046,11 @@ export default function CallsContent() {
               <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {rangeInsights.inbound > 0 ? `${Math.round((rangeInsights.missed / rangeInsights.inbound) * 100)}% of inbound` : 'No inbound'}
               </p>
+              {rangeInsights.missedSpam > 0 && (
+                <p className="text-[10px] sm:text-xs font-medium text-amber-600 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                  {rangeInsights.missedSpam} spam excluded
+                </p>
+              )}
             </div>
             <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
               <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed (Paid)</p>
