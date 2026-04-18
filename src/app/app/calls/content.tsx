@@ -201,6 +201,21 @@ export default function CallsContent() {
     const fromUrl: Tab = q === 'sources' || q === 'spam' || q === 'operators' ? q : 'calls';
     setTabState(prev => (prev === fromUrl ? prev : fromUrl));
   }, [searchParams]);
+
+  // Handle /app/calls?call=<id> — force Call Log tab, expand the row,
+  // scroll it into view once the data arrives.
+  useEffect(() => {
+    const q = searchParams?.get('call');
+    const n = q ? Number(q) : NaN;
+    if (!Number.isFinite(n) || n <= 0) return;
+    setTabState('calls');
+    setExpandedId(n);
+    const tick = window.setTimeout(() => {
+      const el = document.querySelector(`[data-call-id="${n}"]`);
+      if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 400);
+    return () => window.clearTimeout(tick);
+  }, [searchParams, calls.length]);
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -209,7 +224,11 @@ export default function CallsContent() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(() => {
+    const q = searchParams?.get('call');
+    const n = q ? Number(q) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
   const [miniPopoverId, setMiniPopoverId] = useState<number | null>(null);
   const [transcriptFor, setTranscriptFor] = useState<number | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
@@ -1394,7 +1413,7 @@ export default function CallsContent() {
                       const expanded = expandedId === call.id;
                       return (
                         <Fragment key={call.id}>
-                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${isSpamCall(call) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isSpamCall(call) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
+                          <tr data-call-id={call.id} onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${isSpamCall(call) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isSpamCall(call) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
                             <td className="px-3 sm:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex flex-col items-start gap-1.5">
                                 <button
@@ -1416,7 +1435,10 @@ export default function CallsContent() {
                                   {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">VM</span>}
                                   {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">1st</span>}
                                 </div>
-                                <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
+                                  <CopyCallLinkButton callId={String(call.id)} />
+                                </div>
                               </div>
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
@@ -3048,16 +3070,10 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
                                               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                                             )}
                                           </button>
-                                          <button
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); onOpenCall(c.ctm_id, c.called_at); }}
-                                            title="Open in Call Log"
-                                            className="w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 bg-warm-bg hover:bg-primary hover:text-white text-foreground/60"
-                                          >
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                            </svg>
-                                          </button>
+                                          <OperatorCallLinkButton
+                                            ctmId={c.ctm_id}
+                                            onOpen={() => onOpenCall(c.ctm_id, c.called_at)}
+                                          />
                                           <button
                                             type="button"
                                             onClick={() => setExpandedCall(callOpen ? null : c.ctm_id)}
@@ -3191,5 +3207,81 @@ function OperatorOverview({ op }: { op: OperatorAgg }) {
         </div>
       )}
     </div>
+  );
+}
+
+function CopyCallLinkButton({ callId }: { callId: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/app/calls?call=${encodeURIComponent(callId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard blocked — leave feedback off */ }
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? 'Copied!' : 'Copy shareable link to this call'}
+      className={`inline-flex items-center justify-center w-5 h-5 rounded transition-colors ${copied ? 'text-emerald-600' : 'text-foreground/30 hover:text-foreground/70'}`}
+    >
+      {copied ? (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      ) : (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 11-5.656-5.656l1.101-1.101m11.314-11.314l1.101-1.101a4 4 0 115.656 5.656l-4 4a4 4 0 01-5.656 0M10 14L14 10" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+function OperatorCallLinkButton({ ctmId, onOpen }: { ctmId: string; onOpen: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyLink = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/app/calls?call=${encodeURIComponent(ctmId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <span className="inline-flex items-center shrink-0">
+      <button
+        type="button"
+        onClick={copyLink}
+        title={copied ? 'Link copied' : 'Copy shareable link'}
+        className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 ${copied ? 'bg-emerald-500 text-white' : 'bg-warm-bg hover:bg-primary hover:text-white text-foreground/60'}`}
+      >
+        {copied ? (
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        ) : (
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 11-5.656-5.656l1.101-1.101m11.314-11.314l1.101-1.101a4 4 0 115.656 5.656l-4 4a4 4 0 01-5.656 0M10 14L14 10" />
+          </svg>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        title="Open in Call Log"
+        className="ml-1 w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 bg-warm-bg hover:bg-primary hover:text-white text-foreground/60"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+      </button>
+    </span>
   );
 }
