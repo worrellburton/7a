@@ -1198,9 +1198,9 @@ export default function CallsContent() {
             </div>
             <div className="bg-white rounded-xl sm:rounded-2xl border border-amber-100 p-2.5 sm:p-5">
               <p className="text-[10px] sm:text-xs font-medium text-amber-500 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Spam</p>
-              <p className="text-xl sm:text-2xl font-bold text-amber-600">{spamCount}</p>
+              <p className="text-xl sm:text-2xl font-bold text-amber-600">{rangeInsights.spam}</p>
               <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {spamCount > 0 ? `${spamCount} reported` : 'None reported'}
+                {rangeInsights.spam > 0 ? `${rangeInsights.spam} reported` : 'None reported'}
               </p>
             </div>
             <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
@@ -2927,8 +2927,6 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
         </p>
       </div>
 
-      <TopBottomCalls operators={operators ?? []} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={playAudio} />
-
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {loading && !operators ? (
           <div className="text-center py-16 text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>Loading operator insights…</div>
@@ -3136,6 +3134,8 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
           </div>
         )}
       </div>
+
+      <TopBottomCalls operators={operators ?? []} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={playAudio} />
     </div>
   );
 }
