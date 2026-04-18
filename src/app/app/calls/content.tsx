@@ -1199,7 +1199,7 @@ export default function CallsContent() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 sm:mb-6 bg-warm-bg rounded-xl p-1 w-fit">
-        {(['calls', 'sources', 'spam', 'operators'] as Tab[]).map(t => {
+        {(['calls', 'sources', 'spam', ...(isAdmin ? ['operators'] as const : [])] as Tab[]).map(t => {
           const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : t === 'spam' ? 'Spam' : 'Operator Insights';
           return (
             <button key={t} onClick={() => setTab(t)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
@@ -1625,8 +1625,8 @@ export default function CallsContent() {
         </div>
       )}
 
-      {/* Operator Insights Tab */}
-      {tab === 'operators' && !loading && (
+      {/* Operator Insights Tab — admin only */}
+      {tab === 'operators' && !loading && isAdmin && (
         <OperatorInsightsPanel rangeStart={rangeStart} rangeEnd={rangeEnd} token={session?.access_token ?? null} />
       )}
 
@@ -2729,6 +2729,7 @@ function DailySummary({
 }
 
 
+
 interface OperatorCallEntry {
   ctm_id: string;
   called_at: string;
@@ -2739,6 +2740,7 @@ interface OperatorCallEntry {
   caller_number: string | null;
   city: string | null;
   state: string | null;
+  audio_url: string | null;
   score: number | null;
   fit_score: number | null;
   call_name: string | null;
@@ -2746,6 +2748,8 @@ interface OperatorCallEntry {
   summary: string | null;
   next_steps: string | null;
   sentiment: string | null;
+  client_type: string | null;
+  caller_interest: string | null;
   strengths: string[];
   weaknesses: string[];
 }
@@ -2755,16 +2759,25 @@ interface OperatorAgg {
   count: number;
   avgScore: number;
   avgFit: number | null;
+  meaningful: number;
+  converted: number;
+  successPct: number;
   strengths: { text: string; count: number }[];
   weaknesses: { text: string; count: number }[];
   calls: OperatorCallEntry[];
 }
+
+type OpSortKey = 'name' | 'meaningful' | 'converted' | 'successPct' | 'avgScore';
 
 function OperatorInsightsPanel({ rangeStart, rangeEnd, token }: { rangeStart: Date; rangeEnd: Date; token: string | null }) {
   const [operators, setOperators] = useState<OperatorAgg[] | null>(null);
   const [expandedOp, setExpandedOp] = useState<string | null>(null);
   const [expandedCall, setExpandedCall] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sortKey, setSortKey] = useState<OpSortKey>('avgScore');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [playingUrl, setPlayingUrl] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -2786,6 +2799,53 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token }: { rangeStart: Da
     return () => { cancelled = true; };
   }, [rangeStart, rangeEnd, token]);
 
+  const playAudio = (url: string | null) => {
+    if (!url) return;
+    if (playingUrl === url) {
+      audioRef.current?.pause();
+      setPlayingUrl(null);
+      return;
+    }
+    audioRef.current?.pause();
+    const a = new Audio(url);
+    a.onended = () => setPlayingUrl(null);
+    a.onerror = () => setPlayingUrl(null);
+    a.play().catch(() => setPlayingUrl(null));
+    audioRef.current = a;
+    setPlayingUrl(url);
+  };
+
+  const sorted = useMemo(() => {
+    if (!operators) return [];
+    const copy = [...operators];
+    const dir = sortDir === 'asc' ? 1 : -1;
+    copy.sort((a, b) => {
+      if (sortKey === 'name') return a.name.localeCompare(b.name) * dir;
+      return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
+    });
+    return copy;
+  }, [operators, sortKey, sortDir]);
+
+  const setSort = (key: OpSortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'name' ? 'asc' : 'desc');
+    }
+  };
+
+  const Th = ({ k, label, align = 'right' }: { k: OpSortKey; label: string; align?: 'left' | 'right' }) => (
+    <th className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-foreground/50 ${align === 'right' ? 'text-right' : 'text-left'}`} style={{ fontFamily: 'var(--font-body)' }}>
+      <button type="button" onClick={() => setSort(k)} className="inline-flex items-center gap-1 hover:text-foreground">
+        {label}
+        <span className="text-[9px] opacity-60">
+          {sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    </th>
+  );
+
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3">
@@ -2795,7 +2855,7 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token }: { rangeStart: Da
           <path d="M12 8h.01" strokeLinecap="round" />
         </svg>
         <p className="text-xs text-blue-900/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-          Sometimes AI is wrong and doesn&apos;t transcribe things right so this isn&apos;t perfect — but it&apos;s better than nothing! Treat these as directional signals, not performance reviews.
+          Sometimes AI is wrong and doesn&apos;t transcribe things right so this isn&apos;t perfect — but it&apos;s better than nothing! Treat these as directional signals, not performance reviews. &quot;Converted&quot; = meaningful calls the AI tagged with a specific client type (insurance, private pay, etc.).
         </p>
       </div>
 
@@ -2804,169 +2864,201 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token }: { rangeStart: Da
           <div className="text-center py-16 text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>Loading operator insights…</div>
         ) : (operators ?? []).length === 0 ? (
           <div className="text-center py-16 text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-            No operator data yet for this range. Analyze calls to populate this view.
+            No operator data yet for this range.
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
-            {(operators ?? []).map(op => {
-              const isOpen = expandedOp === op.name;
-              const fitLabel = op.avgFit != null ? `${op.avgFit}/100 avg fit` : 'No fit score';
-              return (
-                <div key={op.name}>
-                  <button
-                    type="button"
-                    onClick={() => { setExpandedOp(isOpen ? null : op.name); setExpandedCall(null); }}
-                    className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-warm-bg/30 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm shrink-0">
-                        {(op.name.match(/[A-Za-z]/)?.[0] || '?').toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{op.name}</p>
-                        <p className="text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-                          {op.count} call{op.count === 1 ? '' : 's'} · {fitLabel}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-right">
-                        <p className="text-[10px] font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Avg score</p>
-                        <p className="text-xl font-bold text-blue-600">{op.avgScore}</p>
-                      </div>
-                      <svg className={`w-4 h-4 text-foreground/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </button>
-                  {isOpen && (
-                    <div className="px-5 pb-5 space-y-4">
-                      <OperatorOverview op={op} />
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
-                          <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Strengths</p>
-                          {op.strengths.length === 0 ? (
-                            <p className="text-xs text-emerald-800/60" style={{ fontFamily: 'var(--font-body)' }}>No strengths surfaced yet.</p>
-                          ) : (
-                            <ul className="space-y-1.5">
-                              {op.strengths.slice(0, 8).map(s => (
-                                <li key={s.text} className="text-xs text-emerald-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
-                                  <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                  <span>
-                                    {s.text}
-                                    {s.count > 1 && <span className="text-emerald-700/60"> · {s.count}×</span>}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-                          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Potential to Improve</p>
-                          {op.weaknesses.length === 0 ? (
-                            <p className="text-xs text-amber-800/60" style={{ fontFamily: 'var(--font-body)' }}>No improvement areas surfaced yet.</p>
-                          ) : (
-                            <ul className="space-y-1.5">
-                              {op.weaknesses.slice(0, 8).map(w => (
-                                <li key={w.text} className="text-xs text-amber-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
-                                  <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                                  <span>
-                                    {w.text}
-                                    {w.count > 1 && <span className="text-amber-700/60"> · {w.count}×</span>}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      </div>
-                      <div className="bg-warm-bg/50 rounded-xl p-4">
-                        <p className="text-xs font-semibold text-foreground/60 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Calls by {op.name}</p>
-                        <div className="divide-y divide-gray-100 bg-white rounded-lg border border-gray-100">
-                          {op.calls.map(c => {
-                            const callOpen = expandedCall === c.ctm_id;
-                            const d = parseDate(c.called_at);
-                            const time = d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : '';
-                            return (
-                              <div key={c.ctm_id}>
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedCall(callOpen ? null : c.ctm_id)}
-                                  className="w-full flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-warm-bg/30 transition-colors text-left"
-                                >
-                                  <div className="min-w-0 flex items-center gap-2">
-                                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${c.direction === 'inbound' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`} style={{ fontFamily: 'var(--font-body)' }}>
-                                      {c.direction === 'inbound' ? 'In' : 'Out'}
-                                    </span>
-                                    <div className="min-w-0">
-                                      <p className="text-xs font-semibold text-foreground truncate">
-                                        {c.call_name || c.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
-                                      </p>
-                                      <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{time}</p>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-3 shrink-0">
-                                    {c.fit_score != null && (
-                                      <span className={`text-[11px] font-semibold ${c.fit_score >= 60 ? 'text-blue-600' : 'text-foreground/50'}`} style={{ fontFamily: 'var(--font-body)' }}>
-                                        {c.fit_score}/100 fit
-                                      </span>
-                                    )}
-                                    <span className="text-xs font-bold text-foreground">{c.score ?? '—'}</span>
-                                    <svg className={`w-3.5 h-3.5 text-foreground/30 transition-transform ${callOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  </div>
-                                </button>
-                                {callOpen && (
-                                  <div className="px-4 pb-3 pt-1 space-y-2">
-                                    {c.summary && (
-                                      <div>
-                                        <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Summary</p>
-                                        <p className="text-xs text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{c.summary}</p>
-                                      </div>
-                                    )}
-                                    {(c.strengths.length > 0 || c.weaknesses.length > 0) && (
-                                      <div className="grid sm:grid-cols-2 gap-2">
-                                        {c.strengths.length > 0 && (
-                                          <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2.5">
-                                            <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Strengths</p>
-                                            <ul className="space-y-1">
-                                              {c.strengths.map(s => (
-                                                <li key={s} className="text-[11px] text-emerald-900" style={{ fontFamily: 'var(--font-body)' }}>• {s}</li>
-                                              ))}
-                                            </ul>
-                                          </div>
-                                        )}
-                                        {c.weaknesses.length > 0 && (
-                                          <div className="bg-amber-50 border border-amber-100 rounded-lg p-2.5">
-                                            <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Potential to Improve</p>
-                                            <ul className="space-y-1">
-                                              {c.weaknesses.map(w => (
-                                                <li key={w} className="text-[11px] text-amber-900" style={{ fontFamily: 'var(--font-body)' }}>• {w}</li>
-                                              ))}
-                                            </ul>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                    {c.next_steps && (
-                                      <div>
-                                        <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Next Steps</p>
-                                        <p className="text-xs text-foreground/80" style={{ fontFamily: 'var(--font-body)' }}>{c.next_steps}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-warm-bg/40">
+                <tr>
+                  <Th k="name" label="Operator" align="left" />
+                  <Th k="meaningful" label="Meaningful Taken" />
+                  <Th k="converted" label="Converted" />
+                  <Th k="successPct" label="Success %" />
+                  <Th k="avgScore" label="Avg Score" />
+                  <th />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {sorted.map(op => {
+                  const isOpen = expandedOp === op.name;
+                  return (
+                    <Fragment key={op.name}>
+                      <tr
+                        onClick={() => { setExpandedOp(isOpen ? null : op.name); setExpandedCall(null); }}
+                        className="cursor-pointer hover:bg-warm-bg/30 transition-colors"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs shrink-0">
+                              {(op.name.match(/[A-Za-z]/)?.[0] || '?').toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-foreground truncate">{op.name}</p>
+                              <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                                {op.count} call{op.count === 1 ? '' : 's'}{op.avgFit != null ? ` · ${op.avgFit} avg fit` : ''}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm font-semibold text-blue-600">{op.meaningful}</td>
+                        <td className="px-4 py-3 text-right text-sm font-semibold text-emerald-600">{op.converted}</td>
+                        <td className="px-4 py-3 text-right text-sm font-semibold text-foreground">{op.meaningful > 0 ? `${op.successPct}%` : '—'}</td>
+                        <td className="px-4 py-3 text-right text-xl font-bold text-blue-600">{op.avgScore}</td>
+                        <td className="px-4 py-3 text-right">
+                          <svg className={`w-4 h-4 text-foreground/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={6} className="px-4 pb-5 bg-warm-bg/10">
+                            <div className="space-y-4 pt-4">
+                              <OperatorOverview op={op} />
+                              <div className="grid sm:grid-cols-2 gap-4">
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+                                  <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Strengths</p>
+                                  {op.strengths.length === 0 ? (
+                                    <p className="text-xs text-emerald-800/60" style={{ fontFamily: 'var(--font-body)' }}>No strengths surfaced yet.</p>
+                                  ) : (
+                                    <ul className="space-y-1.5">
+                                      {op.strengths.slice(0, 8).map(s => (
+                                        <li key={s.text} className="text-xs text-emerald-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
+                                          <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                          <span>{s.text}{s.count > 1 && <span className="text-emerald-700/60"> · {s.count}×</span>}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                                  <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Potential to Improve</p>
+                                  {op.weaknesses.length === 0 ? (
+                                    <p className="text-xs text-amber-800/60" style={{ fontFamily: 'var(--font-body)' }}>No improvement areas surfaced yet.</p>
+                                  ) : (
+                                    <ul className="space-y-1.5">
+                                      {op.weaknesses.slice(0, 8).map(w => (
+                                        <li key={w.text} className="text-xs text-amber-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
+                                          <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                          <span>{w.text}{w.count > 1 && <span className="text-amber-700/60"> · {w.count}×</span>}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                              <div className="bg-white rounded-xl border border-gray-100">
+                                <p className="px-4 py-2 text-xs font-semibold text-foreground/60 uppercase tracking-wider border-b border-gray-100" style={{ fontFamily: 'var(--font-body)' }}>
+                                  Calls by {op.name}
+                                </p>
+                                <div className="divide-y divide-gray-50">
+                                  {op.calls.map(c => {
+                                    const callOpen = expandedCall === c.ctm_id;
+                                    const d = parseDate(c.called_at);
+                                    const time = d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : '';
+                                    const isPlaying = playingUrl === c.audio_url;
+                                    return (
+                                      <div key={c.ctm_id}>
+                                        <div className="flex items-center gap-2 px-4 py-2.5">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); playAudio(c.audio_url); }}
+                                            disabled={!c.audio_url}
+                                            title={c.audio_url ? 'Play recording' : 'No recording'}
+                                            className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 ${c.audio_url ? (isPlaying ? 'bg-primary text-white' : 'bg-warm-bg hover:bg-primary hover:text-white text-foreground/60') : 'bg-gray-50 text-foreground/20 cursor-not-allowed'}`}
+                                          >
+                                            {isPlaying ? (
+                                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                                            ) : (
+                                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                                            )}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedCall(callOpen ? null : c.ctm_id)}
+                                            className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
+                                          >
+                                            <div className="flex items-center gap-2 min-w-0">
+                                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${c.direction === 'inbound' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`} style={{ fontFamily: 'var(--font-body)' }}>
+                                                {c.direction === 'inbound' ? 'In' : 'Out'}
+                                              </span>
+                                              <div className="min-w-0">
+                                                <p className="text-xs font-semibold text-foreground truncate">
+                                                  {c.call_name || c.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
+                                                </p>
+                                                <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                                                  {time}{c.client_type ? ` · ${c.client_type}` : ''}
+                                                </p>
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 shrink-0">
+                                              {c.fit_score != null && (
+                                                <span className={`text-[11px] font-semibold ${c.fit_score >= 60 ? 'text-blue-600' : 'text-foreground/50'}`} style={{ fontFamily: 'var(--font-body)' }}>
+                                                  {c.fit_score}/100 fit
+                                                </span>
+                                              )}
+                                              <span className="text-xs font-bold text-foreground">{c.score ?? '—'}</span>
+                                              <svg className={`w-3.5 h-3.5 text-foreground/30 transition-transform ${callOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                              </svg>
+                                            </div>
+                                          </button>
+                                        </div>
+                                        {callOpen && (
+                                          <div className="px-4 pb-3 pt-0 space-y-2 pl-11">
+                                            {c.summary && (
+                                              <div>
+                                                <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Summary</p>
+                                                <p className="text-xs text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{c.summary}</p>
+                                              </div>
+                                            )}
+                                            {(c.strengths.length > 0 || c.weaknesses.length > 0) && (
+                                              <div className="grid sm:grid-cols-2 gap-2">
+                                                {c.strengths.length > 0 && (
+                                                  <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2.5">
+                                                    <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Strengths</p>
+                                                    <ul className="space-y-1">
+                                                      {c.strengths.map(s => (
+                                                        <li key={s} className="text-[11px] text-emerald-900" style={{ fontFamily: 'var(--font-body)' }}>• {s}</li>
+                                                      ))}
+                                                    </ul>
+                                                  </div>
+                                                )}
+                                                {c.weaknesses.length > 0 && (
+                                                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-2.5">
+                                                    <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Potential to Improve</p>
+                                                    <ul className="space-y-1">
+                                                      {c.weaknesses.map(w => (
+                                                        <li key={w} className="text-[11px] text-amber-900" style={{ fontFamily: 'var(--font-body)' }}>• {w}</li>
+                                                      ))}
+                                                    </ul>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                            {c.next_steps && (
+                                              <div>
+                                                <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Next Steps</p>
+                                                <p className="text-xs text-foreground/80" style={{ fontFamily: 'var(--font-body)' }}>{c.next_steps}</p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -2977,7 +3069,6 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token }: { rangeStart: Da
 function OperatorOverview({ op }: { op: OperatorAgg }) {
   const inbound = op.calls.filter(c => c.direction === 'inbound').length;
   const outbound = op.calls.filter(c => c.direction === 'outbound').length;
-  const meaningful = op.calls.filter(c => (c.fit_score ?? 0) >= 60).length;
   const avgTalkSec = op.calls.length > 0
     ? Math.round(op.calls.reduce((acc, c) => acc + (c.talk_time ?? 0), 0) / op.calls.length)
     : 0;
@@ -2994,14 +3085,14 @@ function OperatorOverview({ op }: { op: OperatorAgg }) {
           <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{inbound} in · {outbound} out</p>
         </div>
         <div>
+          <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Meaningful / Converted</p>
+          <p className="text-lg font-bold text-blue-600">{op.meaningful}<span className="text-sm text-foreground/40"> / {op.converted}</span></p>
+          <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{op.meaningful > 0 ? `${op.successPct}% success` : 'No meaningful'}</p>
+        </div>
+        <div>
           <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Avg Score</p>
           <p className="text-lg font-bold text-blue-600">{op.avgScore}</p>
           <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>out of 100</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Meaningful</p>
-          <p className="text-lg font-bold text-blue-600">{meaningful}</p>
-          <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>fit score ≥ 60</p>
         </div>
         <div>
           <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Avg Talk</p>

@@ -24,6 +24,8 @@ interface ScoreRow {
   summary: string | null;
   next_steps: string | null;
   sentiment: string | null;
+  client_type: string | null;
+  caller_interest: string | null;
 }
 
 interface CallRow {
@@ -36,6 +38,7 @@ interface CallRow {
   caller_number: string | null;
   city: string | null;
   state: string | null;
+  audio_url: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -59,7 +62,7 @@ export async function GET(req: NextRequest) {
   while (true) {
     const { data, error } = await supabase
       .from('calls')
-      .select('ctm_id, called_at, direction, duration, talk_time, caller_number_formatted, caller_number, city, state')
+      .select('ctm_id, called_at, direction, duration, talk_time, caller_number_formatted, caller_number, city, state, audio_url')
       .gte('called_at', from)
       .lte('called_at', to)
       .range(start, start + PAGE_SIZE - 1);
@@ -84,7 +87,7 @@ export async function GET(req: NextRequest) {
     const slice = ids.slice(i, i + chunk);
     const { data, error } = await supabase
       .from('call_ai_scores')
-      .select('call_id, score, fit_score, operator_name, operator_strengths, operator_weaknesses, call_name, caller_name, summary, next_steps, sentiment')
+      .select('call_id, score, fit_score, operator_name, operator_strengths, operator_weaknesses, call_name, caller_name, summary, next_steps, sentiment, client_type, caller_interest')
       .in('call_id', slice)
       .not('operator_name', 'is', null);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -101,6 +104,7 @@ export async function GET(req: NextRequest) {
     caller_number: string | null;
     city: string | null;
     state: string | null;
+    audio_url: string | null;
     score: number | null;
     fit_score: number | null;
     call_name: string | null;
@@ -108,6 +112,8 @@ export async function GET(req: NextRequest) {
     summary: string | null;
     next_steps: string | null;
     sentiment: string | null;
+    client_type: string | null;
+    caller_interest: string | null;
     strengths: string[];
     weaknesses: string[];
   }
@@ -117,10 +123,14 @@ export async function GET(req: NextRequest) {
     scoreSum: number;
     fitSum: number;
     fitCount: number;
+    meaningful: number;
+    converted: number;
     strengths: Map<string, number>;
     weaknesses: Map<string, number>;
     calls: CallEntry[];
   }>();
+
+  const MEANINGFUL_THRESHOLD = 60;
 
   for (const r of rows) {
     const name = r.operator_name?.trim();
@@ -129,7 +139,7 @@ export async function GET(req: NextRequest) {
     if (!call) continue;
     let bucket = byOp.get(name);
     if (!bucket) {
-      bucket = { count: 0, scoreSum: 0, fitSum: 0, fitCount: 0, strengths: new Map(), weaknesses: new Map(), calls: [] };
+      bucket = { count: 0, scoreSum: 0, fitSum: 0, fitCount: 0, meaningful: 0, converted: 0, strengths: new Map(), weaknesses: new Map(), calls: [] };
       byOp.set(name, bucket);
     }
     bucket.count++;
@@ -137,6 +147,15 @@ export async function GET(req: NextRequest) {
     if (r.fit_score != null) {
       bucket.fitSum += r.fit_score;
       bucket.fitCount++;
+    }
+    const isMeaningful = (r.fit_score ?? 0) >= MEANINGFUL_THRESHOLD;
+    if (isMeaningful) bucket.meaningful++;
+    // "Converted" heuristic: meaningful AND the AI assigned a specific
+    // client_type (Insurance / Private Pay / Mental Health / etc.),
+    // which the prompt only sets when the caller was actually
+    // qualifying for intake. Surfaces real leads vs. drive-bys.
+    if (isMeaningful && r.client_type && r.client_type.trim() !== '') {
+      bucket.converted++;
     }
     for (const s of r.operator_strengths ?? []) {
       if (!s) continue;
@@ -156,6 +175,7 @@ export async function GET(req: NextRequest) {
       caller_number: call.caller_number,
       city: call.city,
       state: call.state,
+      audio_url: call.audio_url,
       score: r.score,
       fit_score: r.fit_score,
       call_name: r.call_name,
@@ -163,6 +183,8 @@ export async function GET(req: NextRequest) {
       summary: r.summary,
       next_steps: r.next_steps,
       sentiment: r.sentiment,
+      client_type: r.client_type,
+      caller_interest: r.caller_interest,
       strengths: r.operator_strengths ?? [],
       weaknesses: r.operator_weaknesses ?? [],
     });
@@ -174,6 +196,9 @@ export async function GET(req: NextRequest) {
       count: b.count,
       avgScore: b.count > 0 ? Math.round(b.scoreSum / b.count) : 0,
       avgFit: b.fitCount > 0 ? Math.round(b.fitSum / b.fitCount) : null,
+      meaningful: b.meaningful,
+      converted: b.converted,
+      successPct: b.meaningful > 0 ? Math.round((b.converted / b.meaningful) * 100) : 0,
       strengths: Array.from(b.strengths.entries())
         .sort((a, b) => b[1] - a[1])
         .map(([text, count]) => ({ text, count })),
