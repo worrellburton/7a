@@ -624,6 +624,18 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 <Link
                   key={item.path}
                   href={item.path}
+                  onClick={(e) => {
+                    // If we're already on this pathname but with a query
+                    // string (e.g. /app/calls?tab=operators), Next.js's
+                    // default Link behavior can skip the navigation and
+                    // leave stale tab state behind. Force a clean replace
+                    // to the bare path so URL-derived state (tabs, etc.)
+                    // resets to the default.
+                    if (pathname === item.path) {
+                      e.preventDefault();
+                      router.replace(item.path, { scroll: false });
+                    }
+                  }}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out ${
                     isActive
                       ? 'bg-primary/10 text-primary'
