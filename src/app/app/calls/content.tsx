@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { getAuthToken } from '@/lib/db';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import CallAiBadge from './CallAiHover';
 
 interface ScoreRow {
@@ -178,7 +179,28 @@ export default function CallsContent() {
   const { user, session, isAdmin } = useAuth();
   const [bulkAnalyzing, setBulkAnalyzing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
-  const [tab, setTab] = useState<Tab>('calls');
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const initialTab: Tab = (() => {
+    const q = searchParams?.get('tab');
+    return q === 'sources' || q === 'spam' || q === 'operators' ? q : 'calls';
+  })();
+  const [tab, setTabState] = useState<Tab>(initialTab);
+  const setTab = useCallback((next: Tab) => {
+    setTabState(next);
+    const sp = new URLSearchParams(searchParams?.toString() ?? '');
+    if (next === 'calls') sp.delete('tab'); else sp.set('tab', next);
+    const qs = sp.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  // If the URL changes (back/forward nav, shared link), sync local state.
+  useEffect(() => {
+    const q = searchParams?.get('tab');
+    const fromUrl: Tab = q === 'sources' || q === 'spam' || q === 'operators' ? q : 'calls';
+    setTabState(prev => (prev === fromUrl ? prev : fromUrl));
+  }, [searchParams]);
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
