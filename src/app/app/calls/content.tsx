@@ -2212,37 +2212,49 @@ function TimelineSlider({
     if (next.getTime() > start.getTime() && next.getTime() <= max.getTime()) onChange(start, snapToDay(next.getTime(), 'end'));
   };
 
-  const fmtShort = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const azParts = (d: Date) => {
+    const parts = d.toLocaleDateString('en-US', { timeZone: 'America/Phoenix', month: 'short', day: 'numeric', year: 'numeric' }).split(' ');
+    return { month: parts[0], day: parts[1]?.replace(',', '') ?? '', year: parts[2] ?? '' };
+  };
   const rangeLabel = (() => {
-    const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
-    if (sameMonth) {
-      return `${start.toLocaleDateString('en-US', { month: 'short' })} ${start.getDate()} – ${end.getDate()}, ${end.getFullYear()}`;
+    const s = azParts(start);
+    const e = azParts(end);
+    if (s.month === e.month && s.year === e.year) {
+      return `${s.month} ${s.day} – ${e.day}, ${e.year}`;
     }
-    return `${fmtShort(start)} – ${fmtShort(end)}, ${end.getFullYear()}`;
+    return `${s.month} ${s.day} – ${e.month} ${e.day}, ${e.year}`;
   })();
 
   const spanDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / dayMs));
 
+  // Phoenix is MST year round (UTC-7, no DST) so a given Phoenix calendar day
+  // is always the UTC range [date 07:00, nextDate 07:00). Build Today /
+  // Yesterday / preset ranges in that frame so the rest of the page (which
+  // buckets calls by Phoenix date) lines up regardless of the user's tz.
+  const phoenixDayBounds = (offsetDays: number) => {
+    const nowAz = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+    const [yy, mo, dd] = nowAz.split('-').map(Number);
+    const startMs = Date.UTC(yy, mo - 1, dd + offsetDays, 7, 0, 0, 0);
+    const endMs = startMs + dayMs - 1;
+    return [startMs, endMs] as const;
+  };
+
   const setPreset = (days: number) => {
-    const newEnd = new Date(max); newEnd.setHours(23, 59, 59, 999);
-    const newStart = new Date(newEnd.getTime() - (days - 1) * dayMs); newStart.setHours(0, 0, 0, 0);
+    const [, todayEnd] = phoenixDayBounds(0);
+    const newEnd = new Date(Math.min(max.getTime(), todayEnd));
+    const newStart = new Date(Math.max(min.getTime(), newEnd.getTime() - (days - 1) * dayMs - (dayMs - 1)));
     onChange(newStart, newEnd);
   };
   const setToday = () => {
-    const today = new Date();
-    const s = new Date(today); s.setHours(0, 0, 0, 0);
-    const e = new Date(today); e.setHours(23, 59, 59, 999);
-    // Clamp within [min, max]
-    const clampedStart = new Date(Math.max(min.getTime(), s.getTime()));
-    const clampedEnd = new Date(Math.min(max.getTime(), e.getTime()));
+    const [s, e] = phoenixDayBounds(0);
+    const clampedStart = new Date(Math.max(min.getTime(), s));
+    const clampedEnd = new Date(Math.min(max.getTime(), e));
     onChange(clampedStart, clampedEnd);
   };
   const setYesterday = () => {
-    const y = new Date(); y.setDate(y.getDate() - 1);
-    const s = new Date(y); s.setHours(0, 0, 0, 0);
-    const e = new Date(y); e.setHours(23, 59, 59, 999);
-    const clampedStart = new Date(Math.max(min.getTime(), s.getTime()));
-    const clampedEnd = new Date(Math.min(max.getTime(), e.getTime()));
+    const [s, e] = phoenixDayBounds(-1);
+    const clampedStart = new Date(Math.max(min.getTime(), s));
+    const clampedEnd = new Date(Math.min(max.getTime(), e));
     onChange(clampedStart, clampedEnd);
   };
   const setAllTime = () => {
@@ -2252,8 +2264,9 @@ function TimelineSlider({
   };
   const isAllTime = Math.abs(start.getTime() - min.getTime()) < dayMs && Math.abs(end.getTime() - max.getTime()) < dayMs;
 
-  // Match today/yesterday by comparing local date strings of the selection.
-  const azDate = (d: Date) => d.toLocaleDateString('en-CA');
+  // Match today/yesterday by comparing Phoenix-tz date strings, since the
+  // preset buttons build their ranges in Phoenix time.
+  const azDate = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
   const todayStr = azDate(new Date());
   const yesterdayStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return azDate(d); })();
   const startStr = azDate(start);
