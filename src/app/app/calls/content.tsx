@@ -1107,10 +1107,9 @@ export default function CallsContent() {
       <div className="flex gap-1 mb-4 sm:mb-6 bg-warm-bg rounded-xl p-1 w-fit">
         {(['calls', 'sources', 'spam'] as Tab[]).map(t => {
           const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : 'Spam';
-          const spamCount = spamNumbers.size;
           return (
             <button key={t} onClick={() => setTab(t)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
-              {label}{t === 'spam' && spamCount > 0 ? ` · ${spamCount}` : ''}
+              {label}
             </button>
           );
         })}
