@@ -1102,6 +1102,7 @@ export default function CallsContent() {
             Call tracking powered by CTM
             {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total</span>}
           </p>
+          <SyncStatusIndicator token={session?.access_token ?? null} />
         </div>
         <div className="flex items-center gap-2">
           <a
@@ -3498,5 +3499,72 @@ function CallsSpotlight({
         </div>
       )}
     </div>
+  );
+}
+
+function SyncStatusIndicator({ token }: { token: string | null }) {
+  const [status, setStatus] = useState<{ last_synced_at: string | null; total_calls: number } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  const refresh = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/ctm/sync-status', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setStatus(await res.json());
+    } catch { /* ignore */ }
+  }, [token]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const triggerSync = async () => {
+    if (!token || syncing) return;
+    setSyncing(true);
+    try {
+      await fetch('/api/ctm/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      await refresh();
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const ago = (() => {
+    if (!status?.last_synced_at) return 'never';
+    const diff = Math.max(0, now - new Date(status.last_synced_at).getTime());
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  })();
+
+  return (
+    <p className="mt-1 text-[10px] sm:text-[11px] text-foreground/40 inline-flex items-center gap-1.5 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
+      <span className="inline-flex items-center gap-1">
+        <span className={`w-1.5 h-1.5 rounded-full ${status?.last_synced_at ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+        Last synced {ago}
+      </span>
+      <span className="text-foreground/25">·</span>
+      <button
+        type="button"
+        onClick={triggerSync}
+        disabled={syncing || !token}
+        className="inline-flex items-center gap-1 text-primary hover:text-primary-dark disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+      >
+        <svg className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        {syncing ? 'Syncing…' : 'Sync now'}
+      </button>
+    </p>
   );
 }
