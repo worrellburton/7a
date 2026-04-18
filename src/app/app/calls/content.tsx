@@ -1627,7 +1627,7 @@ export default function CallsContent() {
 
       {/* Operator Insights Tab */}
       {tab === 'operators' && !loading && (
-        <OperatorInsightsPanel scores={scores} />
+        <OperatorInsightsPanel rangeStart={rangeStart} rangeEnd={rangeEnd} token={session?.access_token ?? null} />
       )}
 
       {isAdmin && calls.length > 0 && (() => {
@@ -2728,56 +2728,63 @@ function DailySummary({
   );
 }
 
-function OperatorInsightsPanel({ scores }: { scores: Record<string, ScoreRow> }) {
-  const [expandedOp, setExpandedOp] = useState<string | null>(null);
 
-  const operators = useMemo(() => {
-    const byOp = new Map<string, {
-      count: number;
-      scoreSum: number;
-      fitSum: number;
-      fitCount: number;
-      strengths: Map<string, number>;
-      weaknesses: Map<string, number>;
-    }>();
-    for (const s of Object.values(scores)) {
-      const name = s.operator_name?.trim();
-      if (!name) continue;
-      let bucket = byOp.get(name);
-      if (!bucket) {
-        bucket = { count: 0, scoreSum: 0, fitSum: 0, fitCount: 0, strengths: new Map(), weaknesses: new Map() };
-        byOp.set(name, bucket);
+interface OperatorCallEntry {
+  ctm_id: string;
+  called_at: string;
+  direction: string | null;
+  duration: number | null;
+  talk_time: number | null;
+  caller_number_formatted: string | null;
+  caller_number: string | null;
+  city: string | null;
+  state: string | null;
+  score: number | null;
+  fit_score: number | null;
+  call_name: string | null;
+  caller_name: string | null;
+  summary: string | null;
+  next_steps: string | null;
+  sentiment: string | null;
+  strengths: string[];
+  weaknesses: string[];
+}
+
+interface OperatorAgg {
+  name: string;
+  count: number;
+  avgScore: number;
+  avgFit: number | null;
+  strengths: { text: string; count: number }[];
+  weaknesses: { text: string; count: number }[];
+  calls: OperatorCallEntry[];
+}
+
+function OperatorInsightsPanel({ rangeStart, rangeEnd, token }: { rangeStart: Date; rangeEnd: Date; token: string | null }) {
+  const [operators, setOperators] = useState<OperatorAgg[] | null>(null);
+  const [expandedOp, setExpandedOp] = useState<string | null>(null);
+  const [expandedCall, setExpandedCall] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setLoading(true);
+    const from = rangeStart.toISOString();
+    const to = rangeEnd.toISOString();
+    (async () => {
+      try {
+        const res = await fetch(`/api/calls/operators?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!cancelled && !data.error) setOperators(data.operators ?? []);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      bucket.count++;
-      bucket.scoreSum += s.score ?? 0;
-      if (s.fit_score != null) {
-        bucket.fitSum += s.fit_score;
-        bucket.fitCount++;
-      }
-      for (const str of s.operator_strengths || []) {
-        if (!str) continue;
-        bucket.strengths.set(str, (bucket.strengths.get(str) ?? 0) + 1);
-      }
-      for (const w of s.operator_weaknesses || []) {
-        if (!w) continue;
-        bucket.weaknesses.set(w, (bucket.weaknesses.get(w) ?? 0) + 1);
-      }
-    }
-    return Array.from(byOp.entries())
-      .map(([name, b]) => ({
-        name,
-        count: b.count,
-        avgScore: b.count > 0 ? Math.round(b.scoreSum / b.count) : 0,
-        avgFit: b.fitCount > 0 ? Math.round(b.fitSum / b.fitCount) : null,
-        strengths: Array.from(b.strengths.entries())
-          .sort((a, b) => b[1] - a[1])
-          .map(([text, count]) => ({ text, count })),
-        weaknesses: Array.from(b.weaknesses.entries())
-          .sort((a, b) => b[1] - a[1])
-          .map(([text, count]) => ({ text, count })),
-      }))
-      .sort((a, b) => b.avgScore - a.avgScore);
-  }, [scores]);
+    })();
+    return () => { cancelled = true; };
+  }, [rangeStart, rangeEnd, token]);
 
   return (
     <div className="space-y-4">
@@ -2793,22 +2800,22 @@ function OperatorInsightsPanel({ scores }: { scores: Record<string, ScoreRow> })
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {operators.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-              No operator data yet. Analyze calls to populate this view.
-            </p>
+        {loading && !operators ? (
+          <div className="text-center py-16 text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>Loading operator insights…</div>
+        ) : (operators ?? []).length === 0 ? (
+          <div className="text-center py-16 text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+            No operator data yet for this range. Analyze calls to populate this view.
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {operators.map(op => {
+            {(operators ?? []).map(op => {
               const isOpen = expandedOp === op.name;
               const fitLabel = op.avgFit != null ? `${op.avgFit}/100 avg fit` : 'No fit score';
               return (
                 <div key={op.name}>
                   <button
                     type="button"
-                    onClick={() => setExpandedOp(isOpen ? null : op.name)}
+                    onClick={() => { setExpandedOp(isOpen ? null : op.name); setExpandedCall(null); }}
                     className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-warm-bg/30 transition-colors text-left"
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -2833,42 +2840,127 @@ function OperatorInsightsPanel({ scores }: { scores: Record<string, ScoreRow> })
                     </div>
                   </button>
                   {isOpen && (
-                    <div className="px-5 pb-5 grid sm:grid-cols-2 gap-4">
-                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
-                        <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Strengths</p>
-                        {op.strengths.length === 0 ? (
-                          <p className="text-xs text-emerald-800/60" style={{ fontFamily: 'var(--font-body)' }}>No strengths surfaced yet.</p>
-                        ) : (
-                          <ul className="space-y-1.5">
-                            {op.strengths.slice(0, 8).map(s => (
-                              <li key={s.text} className="text-xs text-emerald-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
-                                <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                <span>
-                                  {s.text}
-                                  {s.count > 1 && <span className="text-emerald-700/60"> · {s.count}×</span>}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                    <div className="px-5 pb-5 space-y-4">
+                      <OperatorOverview op={op} />
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+                          <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Strengths</p>
+                          {op.strengths.length === 0 ? (
+                            <p className="text-xs text-emerald-800/60" style={{ fontFamily: 'var(--font-body)' }}>No strengths surfaced yet.</p>
+                          ) : (
+                            <ul className="space-y-1.5">
+                              {op.strengths.slice(0, 8).map(s => (
+                                <li key={s.text} className="text-xs text-emerald-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
+                                  <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                  <span>
+                                    {s.text}
+                                    {s.count > 1 && <span className="text-emerald-700/60"> · {s.count}×</span>}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Potential to Improve</p>
+                          {op.weaknesses.length === 0 ? (
+                            <p className="text-xs text-amber-800/60" style={{ fontFamily: 'var(--font-body)' }}>No improvement areas surfaced yet.</p>
+                          ) : (
+                            <ul className="space-y-1.5">
+                              {op.weaknesses.slice(0, 8).map(w => (
+                                <li key={w.text} className="text-xs text-amber-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
+                                  <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                  <span>
+                                    {w.text}
+                                    {w.count > 1 && <span className="text-amber-700/60"> · {w.count}×</span>}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
                       </div>
-                      <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-                        <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Potential to Improve</p>
-                        {op.weaknesses.length === 0 ? (
-                          <p className="text-xs text-amber-800/60" style={{ fontFamily: 'var(--font-body)' }}>No improvement areas surfaced yet.</p>
-                        ) : (
-                          <ul className="space-y-1.5">
-                            {op.weaknesses.slice(0, 8).map(w => (
-                              <li key={w.text} className="text-xs text-amber-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
-                                <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                                <span>
-                                  {w.text}
-                                  {w.count > 1 && <span className="text-amber-700/60"> · {w.count}×</span>}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                      <div className="bg-warm-bg/50 rounded-xl p-4">
+                        <p className="text-xs font-semibold text-foreground/60 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Calls by {op.name}</p>
+                        <div className="divide-y divide-gray-100 bg-white rounded-lg border border-gray-100">
+                          {op.calls.map(c => {
+                            const callOpen = expandedCall === c.ctm_id;
+                            const d = parseDate(c.called_at);
+                            const time = d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : '';
+                            return (
+                              <div key={c.ctm_id}>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedCall(callOpen ? null : c.ctm_id)}
+                                  className="w-full flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-warm-bg/30 transition-colors text-left"
+                                >
+                                  <div className="min-w-0 flex items-center gap-2">
+                                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${c.direction === 'inbound' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`} style={{ fontFamily: 'var(--font-body)' }}>
+                                      {c.direction === 'inbound' ? 'In' : 'Out'}
+                                    </span>
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold text-foreground truncate">
+                                        {c.call_name || c.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
+                                      </p>
+                                      <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{time}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    {c.fit_score != null && (
+                                      <span className={`text-[11px] font-semibold ${c.fit_score >= 60 ? 'text-blue-600' : 'text-foreground/50'}`} style={{ fontFamily: 'var(--font-body)' }}>
+                                        {c.fit_score}/100 fit
+                                      </span>
+                                    )}
+                                    <span className="text-xs font-bold text-foreground">{c.score ?? '—'}</span>
+                                    <svg className={`w-3.5 h-3.5 text-foreground/30 transition-transform ${callOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </div>
+                                </button>
+                                {callOpen && (
+                                  <div className="px-4 pb-3 pt-1 space-y-2">
+                                    {c.summary && (
+                                      <div>
+                                        <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Summary</p>
+                                        <p className="text-xs text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{c.summary}</p>
+                                      </div>
+                                    )}
+                                    {(c.strengths.length > 0 || c.weaknesses.length > 0) && (
+                                      <div className="grid sm:grid-cols-2 gap-2">
+                                        {c.strengths.length > 0 && (
+                                          <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2.5">
+                                            <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Strengths</p>
+                                            <ul className="space-y-1">
+                                              {c.strengths.map(s => (
+                                                <li key={s} className="text-[11px] text-emerald-900" style={{ fontFamily: 'var(--font-body)' }}>• {s}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+                                        {c.weaknesses.length > 0 && (
+                                          <div className="bg-amber-50 border border-amber-100 rounded-lg p-2.5">
+                                            <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Potential to Improve</p>
+                                            <ul className="space-y-1">
+                                              {c.weaknesses.map(w => (
+                                                <li key={w} className="text-[11px] text-amber-900" style={{ fontFamily: 'var(--font-body)' }}>• {w}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                    {c.next_steps && (
+                                      <div>
+                                        <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Next Steps</p>
+                                        <p className="text-xs text-foreground/80" style={{ fontFamily: 'var(--font-body)' }}>{c.next_steps}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -2878,6 +2970,51 @@ function OperatorInsightsPanel({ scores }: { scores: Record<string, ScoreRow> })
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function OperatorOverview({ op }: { op: OperatorAgg }) {
+  const inbound = op.calls.filter(c => c.direction === 'inbound').length;
+  const outbound = op.calls.filter(c => c.direction === 'outbound').length;
+  const meaningful = op.calls.filter(c => (c.fit_score ?? 0) >= 60).length;
+  const avgTalkSec = op.calls.length > 0
+    ? Math.round(op.calls.reduce((acc, c) => acc + (c.talk_time ?? 0), 0) / op.calls.length)
+    : 0;
+  const topStrength = op.strengths[0]?.text;
+  const topWeakness = op.weaknesses[0]?.text;
+
+  return (
+    <div className="bg-white border border-blue-100 rounded-xl p-4">
+      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Overview</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+        <div>
+          <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Calls</p>
+          <p className="text-lg font-bold text-foreground">{op.count}</p>
+          <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{inbound} in · {outbound} out</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Avg Score</p>
+          <p className="text-lg font-bold text-blue-600">{op.avgScore}</p>
+          <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>out of 100</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Meaningful</p>
+          <p className="text-lg font-bold text-blue-600">{meaningful}</p>
+          <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>fit score ≥ 60</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Avg Talk</p>
+          <p className="text-lg font-bold text-foreground">{Math.floor(avgTalkSec / 60)}:{String(avgTalkSec % 60).padStart(2, '0')}</p>
+          <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>per call</p>
+        </div>
+      </div>
+      {(topStrength || topWeakness) && (
+        <div className="text-xs text-foreground/70 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          {topStrength && (<><span className="font-semibold text-emerald-700">Leads with</span> {topStrength}. </>)}
+          {topWeakness && (<><span className="font-semibold text-amber-700">Common gap:</span> {topWeakness}.</>)}
+        </div>
+      )}
     </div>
   );
 }
