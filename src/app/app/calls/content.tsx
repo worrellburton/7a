@@ -1625,29 +1625,32 @@ export default function CallsContent() {
         </div>
       )}
 
-      {isAdmin && calls.length > 0 && (
-        <button
-          type="button"
-          onClick={analyzeAllCalls}
-          disabled={bulkAnalyzing}
-          className={`fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 px-4 py-3 rounded-full text-white text-sm font-semibold shadow-lg transition-all ${bulkAnalyzing ? 'bg-primary-dark shadow-xl scale-105' : 'bg-primary hover:bg-primary-dark hover:shadow-xl'}`}
-          style={{ fontFamily: 'var(--font-body)' }}
-          title="Analyze every loaded call that doesn't have a score yet"
-        >
-          <svg className={`w-4 h-4 ${bulkAnalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
-          {bulkAnalyzing && bulkProgress ? (
-            <>
-              <span>Analyzing {bulkProgress.done}/{bulkProgress.total}</span>
-              <span className="w-16 h-1.5 rounded-full bg-white/30 overflow-hidden">
-                <span className="block h-full bg-white rounded-full transition-all" style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }} />
-              </span>
-            </>
-          ) : (() => {
-            const unscored = calls.filter(c => !scores[String(c.id)]).length;
-            return unscored > 0 ? `Analyze ${unscored} unscored call${unscored === 1 ? '' : 's'}` : 'All calls analyzed';
-          })()}
-        </button>
-      )}
+      {isAdmin && calls.length > 0 && (() => {
+        const unscored = calls.filter(c => !scores[String(c.id)]).length;
+        if (!bulkAnalyzing && unscored === 0) return null;
+        return (
+          <button
+            type="button"
+            onClick={analyzeAllCalls}
+            disabled={bulkAnalyzing}
+            className={`fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 px-4 py-3 rounded-full text-white text-sm font-semibold shadow-lg transition-all ${bulkAnalyzing ? 'bg-primary-dark shadow-xl scale-105' : 'bg-primary hover:bg-primary-dark hover:shadow-xl'}`}
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="Analyze calls that don't have a score yet"
+          >
+            <svg className={`w-4 h-4 ${bulkAnalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+            {bulkAnalyzing && bulkProgress ? (
+              <>
+                <span>Analyzing {bulkProgress.done}/{bulkProgress.total}</span>
+                <span className="w-16 h-1.5 rounded-full bg-white/30 overflow-hidden">
+                  <span className="block h-full bg-white rounded-full transition-all" style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }} />
+                </span>
+              </>
+            ) : (
+              <span>Analyze missing calls{unscored > 0 ? ` · ${unscored}` : ''}</span>
+            )}
+          </button>
+        );
+      })()}
 
       {transcriptFor !== null && (() => {
         const call = calls.find((c) => c.id === transcriptFor);
