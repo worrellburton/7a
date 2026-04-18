@@ -99,7 +99,11 @@ export async function POST(req: NextRequest) {
   const row = mapCall(call, accountId);
 
   const supabase = getAdminSupabase();
-  const { error } = await supabase.from('calls').upsert(row, { onConflict: 'ctm_id' });
+  // Flag this call for auto-analysis. The actual scoring runs from the
+  // background worker so we don't block the webhook response (CTM
+  // retries aggressively on slow acks).
+  const rowWithFlag = { ...row, needs_score: true };
+  const { error } = await supabase.from('calls').upsert(rowWithFlag, { onConflict: 'ctm_id' });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
