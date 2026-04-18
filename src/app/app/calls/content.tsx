@@ -213,24 +213,36 @@ export default function CallsContent() {
   const [spamNumbers, setSpamNumbers] = useState<Set<string>>(new Set());
   const [reportingSpam, setReportingSpam] = useState<string | null>(null);
 
-  // Load spam list from localStorage
+  // Load spam list from the shared Supabase registry. Falls back to the
+  // legacy localStorage list on fetch failure so we don't lose reports
+  // the user had saved before the migration.
   useEffect(() => {
-    try {
-      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(SPAM_STORAGE_KEY) : null;
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) setSpamNumbers(new Set(arr.filter((x) => typeof x === 'string')));
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  const persistSpam = useCallback((next: Set<string>) => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(SPAM_STORAGE_KEY, JSON.stringify(Array.from(next)));
-      }
-    } catch { /* ignore */ }
-  }, []);
+    if (!session?.access_token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/calls/spam', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) throw new Error(`spam fetch ${res.status}`);
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data.numbers)) {
+          setSpamNumbers(new Set(data.numbers));
+          return;
+        }
+      } catch { /* fall through to localStorage fallback */ }
+      try {
+        const raw = typeof window !== 'undefined' ? window.localStorage.getItem(SPAM_STORAGE_KEY) : null;
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (!cancelled && Array.isArray(arr)) {
+            setSpamNumbers(new Set(arr.filter((x) => typeof x === 'string')));
+          }
+        }
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.access_token]);
 
   const reportSpam = useCallback((num: string) => {
     const key = normalizePhone(num);
@@ -238,10 +250,22 @@ export default function CallsContent() {
     setSpamNumbers((prev) => {
       const next = new Set(prev);
       next.add(key);
-      persistSpam(next);
       return next;
     });
-  }, [persistSpam]);
+    if (!session?.access_token) return;
+    fetch('/api/calls/spam', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ number: key }),
+    }).catch(() => {
+      // Roll back local state if the server rejects the report.
+      setSpamNumbers((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    });
+  }, [session?.access_token]);
 
   const unreportSpam = useCallback((num: string) => {
     const key = normalizePhone(num);
@@ -249,10 +273,20 @@ export default function CallsContent() {
     setSpamNumbers((prev) => {
       const next = new Set(prev);
       next.delete(key);
-      persistSpam(next);
       return next;
     });
-  }, [persistSpam]);
+    if (!session?.access_token) return;
+    fetch(`/api/calls/spam?number=${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).catch(() => {
+      setSpamNumbers((prev) => {
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+    });
+  }, [session?.access_token]);
 
   const isSpamCall = useCallback((call: { caller_number?: string | null; caller_number_formatted?: string | null; receiving_number?: string | null; receiving_number_formatted?: string | null }) => {
     const candidates = [
@@ -289,7 +323,7 @@ export default function CallsContent() {
 
   const MEANINGFUL_THRESHOLD = 60;
 
-  const rangeInsights = useMemo(() => {
+  const localRangeInsights = useMemo(() => {
     const startIso = rangeStart.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
     const endIso = rangeEnd.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
     const dayMs = 24 * 60 * 60 * 1000;
@@ -419,6 +453,64 @@ export default function CallsContent() {
       endIso,
     };
   }, [allCallsRaw, calls, scores, rangeStart, rangeEnd, isSpamCall]);
+
+  // Canonical counts from public.calls (populated by /api/ctm/sync).
+  // When this resolves we prefer it over the local computation because
+  // it sees every synced call, not just what the browser has paginated.
+  const [serverRangeInsights, setServerRangeInsights] = useState<typeof localRangeInsights | null>(null);
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let cancelled = false;
+    const from = rangeStart.toISOString();
+    const to = rangeEnd.toISOString();
+    (async () => {
+      try {
+        const res = await fetch(`/api/calls/insights?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) throw new Error(`insights ${res.status}`);
+        const data = await res.json();
+        if (cancelled || data.error) return;
+        if ((data.totalCalls ?? 0) === 0 && (data.spam ?? 0) === 0) return; // empty → keep local fallback
+        // Pad dailyCounts with label/short/sources to match the client shape.
+        const dailyCounts = (data.dailyCounts ?? []).map((d: { date: string; count: number; missedCount: number; returnedCount: number; meaningfulCount: number }) => {
+          const [y, m, dd] = d.date.split('-').map(Number);
+          const dt = new Date(Date.UTC(y, m - 1, dd, 12));
+          return {
+            date: d.date,
+            label: dt.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }),
+            short: dt.toLocaleDateString('en-US', { weekday: 'narrow', timeZone: 'UTC' }),
+            count: d.count,
+            missedCount: d.missedCount,
+            returnedCount: d.returnedCount,
+            meaningfulCount: d.meaningfulCount,
+            sources: [],
+          };
+        });
+        setServerRangeInsights({
+          totalCalls: data.totalCalls,
+          avgDuration: data.avgDuration,
+          inbound: data.inbound,
+          outbound: data.outbound,
+          missed: data.missed,
+          missedPaid: data.missedPaid,
+          meaningful: data.meaningful,
+          spam: data.spam,
+          missedSpam: data.missedSpam ?? 0,
+          returnedMissed: data.returnedMissed,
+          returnedPickedUp: data.returnedPickedUp,
+          dailyCounts,
+          startIso: rangeStart.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
+          endIso: rangeEnd.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
+        });
+      } catch {
+        // Leave serverRangeInsights null so we fall through to local.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.access_token, rangeStart, rangeEnd, spamNumbers]);
+
+  const rangeInsights = serverRangeInsights ?? localRangeInsights;
 
   const spamCount = useMemo(() => {
     let count = 0;
