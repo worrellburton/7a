@@ -213,33 +213,58 @@ export default function CallsContent() {
   const [spamNumbers, setSpamNumbers] = useState<Set<string>>(new Set());
   const [reportingSpam, setReportingSpam] = useState<string | null>(null);
 
-  // Load spam list from the shared Supabase registry. Falls back to the
-  // legacy localStorage list on fetch failure so we don't lose reports
-  // the user had saved before the migration.
+  // Load the spam list. Preferred source is public.call_spam_numbers
+  // (shared across users). On first load we also push any numbers still
+  // living in this browser's localStorage up to the server, so the new
+  // /api/calls/insights endpoint — which filters by the server list —
+  // sees the same spam classifications the UI does.
   useEffect(() => {
     if (!session?.access_token) return;
     let cancelled = false;
     (async () => {
+      const local = (() => {
+        try {
+          const raw = typeof window !== 'undefined' ? window.localStorage.getItem(SPAM_STORAGE_KEY) : null;
+          if (!raw) return [] as string[];
+          const arr = JSON.parse(raw);
+          return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : [];
+        } catch {
+          return [] as string[];
+        }
+      })();
+
+      let serverSet = new Set<string>();
       try {
         const res = await fetch('/api/calls/spam', {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
-        if (!res.ok) throw new Error(`spam fetch ${res.status}`);
-        const data = await res.json();
-        if (!cancelled && Array.isArray(data.numbers)) {
-          setSpamNumbers(new Set(data.numbers));
-          return;
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.numbers)) serverSet = new Set<string>(data.numbers);
         }
-      } catch { /* fall through to localStorage fallback */ }
-      try {
-        const raw = typeof window !== 'undefined' ? window.localStorage.getItem(SPAM_STORAGE_KEY) : null;
-        if (raw) {
-          const arr = JSON.parse(raw);
-          if (!cancelled && Array.isArray(arr)) {
-            setSpamNumbers(new Set(arr.filter((x) => typeof x === 'string')));
-          }
-        }
-      } catch { /* ignore */ }
+      } catch { /* ignore — will fall back to local */ }
+
+      // Push any local-only numbers up so server aggregates catch up.
+      const missingOnServer = local.filter((n) => !serverSet.has(n));
+      if (missingOnServer.length > 0) {
+        await Promise.all(
+          missingOnServer.map((n) =>
+            fetch('/api/calls/spam', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ number: n }),
+            }).catch(() => null),
+          ),
+        );
+        missingOnServer.forEach((n) => serverSet.add(n));
+      }
+
+      if (!cancelled) {
+        setSpamNumbers(serverSet.size > 0 ? serverSet : new Set(local));
+      }
     })();
     return () => { cancelled = true; };
   }, [session?.access_token]);
