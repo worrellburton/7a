@@ -195,12 +195,16 @@ export default function CallsContent() {
     router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
   }, [pathname, router, searchParams]);
 
-  // If the URL changes (back/forward nav, shared link), sync local state.
+  // If the URL changes (back/forward nav, shared link, sidebar click to
+  // /app/calls with no tab param), sync local state. We watch the full
+  // query-string snapshot so a same-pathname re-navigation that drops
+  // ?tab= still fires the effect.
+  const searchString = searchParams?.toString() ?? '';
   useEffect(() => {
-    const q = searchParams?.get('tab');
+    const q = new URLSearchParams(searchString).get('tab');
     const fromUrl: Tab = q === 'sources' || q === 'spam' || q === 'operators' ? q : 'calls';
     setTabState(prev => (prev === fromUrl ? prev : fromUrl));
-  }, [searchParams]);
+  }, [searchString, pathname]);
 
   // Handle /app/calls?call=<id> — force Call Log tab, expand the row,
   // scroll it into view once the data arrives.
