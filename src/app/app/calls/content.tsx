@@ -206,6 +206,20 @@ export default function CallsContent() {
     setTabState(prev => (prev === fromUrl ? prev : fromUrl));
   }, [searchString, pathname]);
 
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalEntries, setTotalEntries] = useState(0);
+  const [expandedId, setExpandedId] = useState<number | null>(() => {
+    const q = searchParams?.get('call');
+    const n = q ? Number(q) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
+
   // Handle /app/calls?call=<id> — force Call Log tab, expand the row,
   // scroll it into view once the data arrives.
   useEffect(() => {
@@ -220,19 +234,6 @@ export default function CallsContent() {
     }, 400);
     return () => window.clearTimeout(tick);
   }, [searchParams, calls.length]);
-  const [calls, setCalls] = useState<Call[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalEntries, setTotalEntries] = useState(0);
-  const [expandedId, setExpandedId] = useState<number | null>(() => {
-    const q = searchParams?.get('call');
-    const n = q ? Number(q) : NaN;
-    return Number.isFinite(n) && n > 0 ? n : null;
-  });
   const [miniPopoverId, setMiniPopoverId] = useState<number | null>(null);
   const [transcriptFor, setTranscriptFor] = useState<number | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
