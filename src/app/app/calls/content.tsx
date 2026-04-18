@@ -249,8 +249,18 @@ export default function CallsContent() {
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [allCallsRaw, setAllCallsRaw] = useState<Call[]>([]);
   const [timelineBounds, setTimelineBounds] = useState<{ min: Date; max: Date } | null>(null);
-  const [rangeStart, setRangeStart] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
-  const [rangeEnd, setRangeEnd] = useState<Date>(() => { const d = new Date(); d.setHours(23, 59, 59, 999); return d; });
+  const [rangeStart, setRangeStart] = useState<Date>(() => {
+    // Default to today in Phoenix (MST, UTC-7 year-round) so the initial
+    // view of the Calls page matches the Today preset exactly.
+    const iso = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d, 7, 0, 0, 0));
+  });
+  const [rangeEnd, setRangeEnd] = useState<Date>(() => {
+    const iso = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d, 7, 0, 0, 0) + 24 * 60 * 60 * 1000 - 1);
+  });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [scores, setScores] = useState<Record<string, ScoreRow>>({});
   const [scoringIds, setScoringIds] = useState<Set<string>>(new Set());
@@ -2385,7 +2395,7 @@ function TimelineSlider({
           <p className="text-base sm:text-lg font-bold text-foreground tracking-tight">{rangeLabel}</p>
           <p className="text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{spanDays} day{spanDays === 1 ? '' : 's'}</p>
         </div>
-        <div className="flex items-center gap-1 bg-warm-bg rounded-xl p-1">
+        <div className="flex items-center gap-1 bg-warm-bg rounded-xl p-1 overflow-x-auto max-w-full no-scrollbar">
           {(() => {
             const presetActive = !isAllTime && !isToday && !isYesterday;
             const items: { key: string; label: string; active: boolean; onClick: () => void }[] = [
