@@ -1203,7 +1203,22 @@ export default function CallsContent() {
           const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : t === 'spam' ? 'Spam' : 'Operator Insights';
           const isAdminTab = t === 'operators';
           return (
-            <button key={t} onClick={() => setTab(t)} className={`relative px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
+            <button
+              key={t}
+              onClick={() => {
+                setTab(t);
+                // Operator Insights is most useful against the entire history,
+                // so switching into it defaults the range to "All".
+                if (t === 'operators' && timelineBounds) {
+                  const s = new Date(timelineBounds.min); s.setHours(0, 0, 0, 0);
+                  const e = new Date(timelineBounds.max); e.setHours(23, 59, 59, 999);
+                  setRangeStart(s);
+                  setRangeEnd(e);
+                }
+              }}
+              className={`relative px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`}
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
               <span className="inline-flex items-center gap-1.5">
                 {label}
                 {isAdminTab && (
