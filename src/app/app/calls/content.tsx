@@ -182,29 +182,22 @@ export default function CallsContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const initialTab: Tab = (() => {
+
+  // Derive the active tab directly from the URL every render. Keeping
+  // it as local state was causing the sidebar "Calls" click to land on
+  // stale state (e.g. Operator Insights) whenever the ?tab= param was
+  // stripped from a same-pathname navigation. Reading from the URL
+  // means there's no sync lag and every tab is genuinely shareable.
+  const tab: Tab = (() => {
     const q = searchParams?.get('tab');
     return q === 'sources' || q === 'spam' || q === 'operators' ? q : 'calls';
   })();
-  const [tab, setTabState] = useState<Tab>(initialTab);
   const setTab = useCallback((next: Tab) => {
-    setTabState(next);
     const sp = new URLSearchParams(searchParams?.toString() ?? '');
     if (next === 'calls') sp.delete('tab'); else sp.set('tab', next);
     const qs = sp.toString();
     router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
   }, [pathname, router, searchParams]);
-
-  // If the URL changes (back/forward nav, shared link, sidebar click to
-  // /app/calls with no tab param), sync local state. We watch the full
-  // query-string snapshot so a same-pathname re-navigation that drops
-  // ?tab= still fires the effect.
-  const searchString = searchParams?.toString() ?? '';
-  useEffect(() => {
-    const q = new URLSearchParams(searchString).get('tab');
-    const fromUrl: Tab = q === 'sources' || q === 'spam' || q === 'operators' ? q : 'calls';
-    setTabState(prev => (prev === fromUrl ? prev : fromUrl));
-  }, [searchString, pathname]);
 
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
@@ -226,14 +219,21 @@ export default function CallsContent() {
     const q = searchParams?.get('call');
     const n = q ? Number(q) : NaN;
     if (!Number.isFinite(n) || n <= 0) return;
-    setTabState('calls');
+    // Force the URL to the Call Log tab so `tab` derived above resolves
+    // to 'calls'.
+    const sp = new URLSearchParams(searchParams?.toString() ?? '');
+    if (sp.get('tab') && sp.get('tab') !== 'calls') {
+      sp.delete('tab');
+      const qs = sp.toString();
+      router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    }
     setExpandedId(n);
     const tick = window.setTimeout(() => {
       const el = document.querySelector(`[data-call-id="${n}"]`);
       if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 400);
     return () => window.clearTimeout(tick);
-  }, [searchParams, calls.length]);
+  }, [searchParams, calls.length, pathname, router]);
   const [miniPopoverId, setMiniPopoverId] = useState<number | null>(null);
   const [transcriptFor, setTranscriptFor] = useState<number | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
