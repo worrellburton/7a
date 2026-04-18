@@ -2282,43 +2282,29 @@ function TimelineSlider({
           <p className="text-base sm:text-lg font-bold text-foreground tracking-tight">{rangeLabel}</p>
           <p className="text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{spanDays} day{spanDays === 1 ? '' : 's'}</p>
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            onClick={setToday}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${isToday ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Today
-          </button>
-          <button
-            onClick={setYesterday}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${isYesterday ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Yesterday
-          </button>
-          {[
-            { label: '7D', days: 7 },
-            { label: '14D', days: 14 },
-            { label: '30D', days: 30 },
-            { label: '90D', days: 90 },
-          ].map(p => (
-            <button
-              key={p.label}
-              onClick={() => setPreset(p.days)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${!isAllTime && !isToday && !isYesterday && spanDays === p.days ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              {p.label}
-            </button>
-          ))}
-          <button
-            onClick={setAllTime}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${isAllTime ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-gray-200 hover:border-primary/30'}`}
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            All
-          </button>
+        <div className="flex items-center gap-1 bg-warm-bg rounded-xl p-1">
+          {(() => {
+            const presetActive = !isAllTime && !isToday && !isYesterday;
+            const items: { key: string; label: string; active: boolean; onClick: () => void }[] = [
+              { key: 'today', label: 'Today', active: isToday, onClick: setToday },
+              { key: 'yesterday', label: 'Yesterday', active: isYesterday, onClick: setYesterday },
+              { key: '7D', label: '7D', active: presetActive && spanDays === 7, onClick: () => setPreset(7) },
+              { key: '14D', label: '14D', active: presetActive && spanDays === 14, onClick: () => setPreset(14) },
+              { key: '30D', label: '30D', active: presetActive && spanDays === 30, onClick: () => setPreset(30) },
+              { key: '90D', label: '90D', active: presetActive && spanDays === 90, onClick: () => setPreset(90) },
+              { key: 'all', label: 'All', active: isAllTime, onClick: setAllTime },
+            ];
+            return items.map(it => (
+              <button
+                key={it.key}
+                onClick={it.onClick}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${it.active ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`}
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {it.label}
+              </button>
+            ));
+          })()}
         </div>
       </div>
 
