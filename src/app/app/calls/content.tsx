@@ -460,38 +460,6 @@ export default function CallsContent() {
     return out;
   }, [allCallsRaw, calls, isSingleDay, rangeStartIso]);
 
-  const hourlyCounts = useMemo(() => {
-    const hours: { hour: number; label: string; count: number; missedCount: number; returnedCount: number; meaningfulCount: number }[] = [];
-    for (let h = 0; h < 24; h++) {
-      const hh = h % 12 === 0 ? 12 : h % 12;
-      const ap = h < 12 ? 'a' : 'p';
-      hours.push({ hour: h, label: `${hh}${ap}`, count: 0, missedCount: 0, returnedCount: 0, meaningfulCount: 0 });
-    }
-    if (!isSingleDay) return hours;
-
-    const missedNumbers = new Set<string>();
-    for (const c of dailyCalls) {
-      if (isSpamCall(c)) continue;
-      if (isMissedCall(c) && c.caller_number) missedNumbers.add(c.caller_number);
-    }
-
-    for (const c of dailyCalls) {
-      if (isSpamCall(c)) continue;
-      const p = parseDate(c.called_at);
-      if (!p) continue;
-      const hourStr = p.toLocaleString('en-US', { timeZone: 'America/Phoenix', hour: '2-digit', hour12: false });
-      const h = Math.max(0, Math.min(23, parseInt(hourStr, 10) || 0));
-      const bucket = hours[h];
-      bucket.count++;
-      if (isMissedCall(c)) bucket.missedCount++;
-      const target = c.caller_number || c.receiving_number;
-      if (c.direction === 'outbound' && target && missedNumbers.has(target)) bucket.returnedCount++;
-      const s = scores[String(c.id)];
-      if (s?.fit_score != null && s.fit_score >= MEANINGFUL_THRESHOLD) bucket.meaningfulCount++;
-    }
-    return hours;
-  }, [dailyCalls, isSingleDay, isSpamCall, scores]);
-
   const meaningfulData = useMemo(() => {
     let thisWeek = 0;
     const dailyCounts = new Map<string, number>();
@@ -1087,29 +1055,9 @@ export default function CallsContent() {
             </div>
           </div>
 
-          {/* Hourly Breakdown + Daily Summary when a single day is selected */}
+          {/* Daily Summary when a single day is selected */}
           {isSingleDay && (
             <div className="space-y-4">
-              <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                  <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Hourly Breakdown</p>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                      <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                      <span className="w-2 h-2 rounded-full bg-[#3b82f6]" /> Meaningful
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                      <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Missed
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                      <span className="w-2 h-2 rounded-full bg-[#10b981]" /> Returned
-                    </span>
-                  </div>
-                </div>
-                <HourGraph data={hourlyCounts} />
-              </div>
               <DailySummary
                 calls={dailyCalls}
                 scores={scores}
@@ -2278,61 +2226,55 @@ function TimelineSlider({
 
       <div
         ref={trackRef}
-        className="relative h-16 mt-2 cursor-pointer"
+        className="relative h-28 mt-2 cursor-pointer"
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onClick={onTrackClick}
       >
-        {/* Activity density bars (behind the track) */}
-        <div className="absolute inset-x-0 top-0 bottom-7 overflow-hidden">
-          {activityBars.map((b, i) => (
-            <div
-              key={i}
-              className="absolute bottom-0 bg-primary/20 rounded-sm"
-              style={{
-                left: `${b.pct * 100}%`,
-                width: `${b.widthPct}%`,
-                height: `${Math.max(4, b.count * 100)}%`,
-                minHeight: 2,
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Track base */}
-        <div className="absolute inset-x-0 bottom-6 h-1 rounded-full bg-gray-100" />
-
-        {/* Selected band */}
-        <div
-          className="absolute bottom-6 h-1 rounded-full bg-primary shadow-[0_0_0_3px_rgba(160,82,45,0.1)] cursor-grab active:cursor-grabbing transition-[background] hover:bg-primary/90"
-          style={{ left: `${startPct * 100}%`, width: `${Math.max(0, (endPct - startPct) * 100)}%` }}
-          onPointerDown={onPointerDown('band')}
-        />
-
-        {/* Filled activity bars under the selection (highlighted) */}
-        <div className="absolute top-0 bottom-7 overflow-hidden pointer-events-none"
-          style={{ left: `${startPct * 100}%`, width: `${Math.max(0, (endPct - startPct) * 100)}%` }}
-        >
+        {/* Bar chart area (unselected = muted, selected = full) */}
+        <div className="absolute inset-x-0 top-0 bottom-8 overflow-hidden">
           {activityBars.map((b, i) => {
             const barRightPct = b.pct + b.widthPct / 100;
             const inRange = barRightPct > startPct && b.pct < endPct;
-            if (!inRange) return null;
-            const relativeLeft = ((b.pct - startPct) / Math.max(0.0001, (endPct - startPct))) * 100;
-            const relativeWidth = (b.widthPct / ((endPct - startPct) * 100)) * 100;
             return (
               <div
                 key={i}
-                className="absolute bottom-0 bg-primary rounded-sm"
+                className={`absolute bottom-0 rounded-sm transition-colors ${inRange ? 'bg-primary' : 'bg-primary/25'}`}
                 style={{
-                  left: `${relativeLeft}%`,
-                  width: `${relativeWidth}%`,
-                  height: `${Math.max(6, b.count * 100)}%`,
-                  opacity: 0.85,
+                  left: `${b.pct * 100}%`,
+                  width: `${b.widthPct}%`,
+                  height: `${Math.max(8, b.count * 100)}%`,
+                  minHeight: 3,
                 }}
               />
             );
           })}
+        </div>
+
+        {/* Baseline */}
+        <div className="absolute inset-x-0 bottom-7 h-px bg-foreground/15" />
+
+        {/* Month tick marks on baseline */}
+        <div className="absolute inset-x-0 bottom-7 h-1.5 pointer-events-none">
+          {months.map((m, i) => (
+            <div
+              key={i}
+              className={`absolute top-0 w-px ${m.isYearStart ? 'h-2 bg-foreground/50' : 'h-1.5 bg-foreground/20'}`}
+              style={{ left: `${m.pct * 100}%` }}
+            />
+          ))}
+        </div>
+
+        {/* Selection band (overlays the bars) */}
+        <div
+          className="absolute top-0 bottom-8 bg-primary/10 border-x-2 border-primary cursor-grab active:cursor-grabbing"
+          style={{ left: `${startPct * 100}%`, width: `${Math.max(0, (endPct - startPct) * 100)}%` }}
+          onPointerDown={onPointerDown('band')}
+        >
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-primary text-white text-[10px] font-semibold whitespace-nowrap pointer-events-none shadow-sm" style={{ fontFamily: 'var(--font-body)' }}>
+            {rangeLabel}
+          </div>
         </div>
 
         {/* Start handle */}
@@ -2343,8 +2285,8 @@ function TimelineSlider({
           onKeyDown={(e) => { if (e.key === 'ArrowLeft') nudgeStart(-1); if (e.key === 'ArrowRight') nudgeStart(1); }}
           onPointerDown={onPointerDown('start')}
           onClick={(e) => e.stopPropagation()}
-          className="absolute bottom-4 w-4 h-4 rounded-full bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
-          style={{ left: `calc(${startPct * 100}% - 8px)` }}
+          className="absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-sm bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
+          style={{ left: `calc(${startPct * 100}% - 6px)` }}
         />
 
         {/* End handle */}
@@ -2355,8 +2297,8 @@ function TimelineSlider({
           onKeyDown={(e) => { if (e.key === 'ArrowLeft') nudgeEnd(-1); if (e.key === 'ArrowRight') nudgeEnd(1); }}
           onPointerDown={onPointerDown('end')}
           onClick={(e) => e.stopPropagation()}
-          className="absolute bottom-4 w-4 h-4 rounded-full bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
-          style={{ left: `calc(${endPct * 100}% - 8px)` }}
+          className="absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-sm bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
+          style={{ left: `calc(${endPct * 100}% - 6px)` }}
         />
 
         {/* Month labels */}
@@ -2364,7 +2306,7 @@ function TimelineSlider({
           {months.map((m, i) => (
             <div
               key={i}
-              className={`absolute text-[10px] whitespace-nowrap select-none ${m.isYearStart ? 'text-foreground/70 font-semibold' : 'text-foreground/30'}`}
+              className={`absolute text-[10px] whitespace-nowrap select-none ${m.isYearStart ? 'text-foreground/70 font-semibold' : 'text-foreground/40'}`}
               style={{ left: `${m.pct * 100}%`, transform: 'translateX(-50%)', fontFamily: 'var(--font-body)' }}
             >
               {m.isYearStart ? `${m.label} ${m.date.getFullYear()}` : m.label}
@@ -2373,161 +2315,6 @@ function TimelineSlider({
         </div>
       </div>
     </div>
-  );
-}
-
-function HourGraph({
-  data,
-}: {
-  data: { hour: number; label: string; count: number; missedCount: number; returnedCount: number; meaningfulCount: number }[];
-}) {
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-  const W = 720;
-  const H = 170;
-  const padL = 24;
-  const padR = 24;
-  const padT = 24;
-  const padB = 36;
-  const innerW = W - padL - padR;
-  const innerH = H - padT - padB;
-
-  const max = Math.max(...data.map((d) => d.count), 1);
-  const pts = data.map((d, i) => {
-    const x = padL + (i / (data.length - 1)) * innerW;
-    const y = padT + innerH - (d.count / max) * innerH;
-    const missedY = padT + innerH - (d.missedCount / max) * innerH;
-    const returnedY = padT + innerH - (d.returnedCount / max) * innerH;
-    const meaningfulY = padT + innerH - (d.meaningfulCount / max) * innerH;
-    return { x, y, missedY, returnedY, meaningfulY, ...d };
-  });
-
-  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-  const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${padT + innerH} L ${pts[0].x.toFixed(1)} ${padT + innerH} Z`;
-  const missedPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.missedY.toFixed(1)}`).join(' ');
-  const returnedPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.returnedY.toFixed(1)}`).join(' ');
-  const meaningfulPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.meaningfulY.toFixed(1)}`).join(' ');
-
-  const gridYs = [0, 0.25, 0.5, 0.75, 1].map((t) => padT + innerH * t);
-  const axisEvery = 3;
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="w-full block select-none"
-      preserveAspectRatio="none"
-      style={{ maxHeight: 200 }}
-    >
-      <defs>
-        <linearGradient id="hg-area" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#a0522d" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#a0522d" stopOpacity="0.02" />
-        </linearGradient>
-        <clipPath id="hg-clip">
-          <rect x={padL} y={padT - 4} width={innerW} height={innerH + 8}>
-            <animate attributeName="width" from="0" to={innerW} dur="1.8s" fill="freeze" calcMode="spline" keySplines="0.22 1 0.36 1" />
-          </rect>
-        </clipPath>
-      </defs>
-
-      {gridYs.map((y, i) => (
-        <line
-          key={i}
-          x1={padL}
-          x2={W - padR}
-          y1={y}
-          y2={y}
-          stroke="rgba(0,0,0,0.05)"
-          strokeDasharray={i === gridYs.length - 1 ? '0' : '2 4'}
-        />
-      ))}
-
-      <g clipPath="url(#hg-clip)">
-        <path d={areaPath} fill="url(#hg-area)" />
-        <path d={linePath} fill="none" stroke="#a0522d" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d={missedPath} fill="none" stroke="#ef4444" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 4" />
-        <path d={returnedPath} fill="none" stroke="#10b981" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 4" />
-        <path d={meaningfulPath} fill="none" stroke="#3b82f6" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 4" />
-      </g>
-
-      {pts.map((p, i) => {
-        const delay = 0.2 + i * 0.04;
-        return (
-          <g key={`mr-${p.hour}`} className="pointer-events-none">
-            {p.missedCount > 0 && (
-              <>
-                <circle cx={p.x} cy={p.missedY} r={3} fill="#ffffff" stroke="#ef4444" strokeWidth="2" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }} />
-                <text x={p.x - 6} y={p.missedY + 3} textAnchor="end" fontSize="9" fontWeight="700" fill="#ef4444" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}>{p.missedCount}</text>
-              </>
-            )}
-            {p.returnedCount > 0 && (
-              <>
-                <circle cx={p.x} cy={p.returnedY} r={3} fill="#ffffff" stroke="#10b981" strokeWidth="2" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }} />
-                <text x={p.x + 6} y={p.returnedY + 3} textAnchor="start" fontSize="9" fontWeight="700" fill="#10b981" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}>{p.returnedCount}</text>
-              </>
-            )}
-            {p.meaningfulCount > 0 && (
-              <>
-                <circle cx={p.x} cy={p.meaningfulY} r={3} fill="#ffffff" stroke="#3b82f6" strokeWidth="2" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }} />
-                <text x={p.x + 6} y={p.meaningfulY + 3} textAnchor="start" fontSize="9" fontWeight="700" fill="#3b82f6" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}>{p.meaningfulCount}</text>
-              </>
-            )}
-          </g>
-        );
-      })}
-
-      {pts.map((p, i) => {
-        const delay = 0.2 + i * 0.04;
-        const showLabel = i % axisEvery === 0;
-        return (
-          <g
-            key={p.hour}
-            onMouseEnter={() => setHoveredIdx(i)}
-            onMouseLeave={() => setHoveredIdx((cur) => (cur === i ? null : cur))}
-          >
-            <rect
-              x={p.x - innerW / pts.length / 2}
-              y={padT - 4}
-              width={innerW / pts.length}
-              height={innerH + padB}
-              fill="transparent"
-            />
-            {p.count > 0 && (
-              <circle cx={p.x} cy={p.y} r={3.5} fill="#ffffff" stroke="#a0522d" strokeWidth="2" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }} />
-            )}
-            {p.count > 0 && (
-              <text x={p.x} y={p.y - 10} textAnchor="middle" fontSize="11" fontWeight="700" fill="rgba(26,26,26,0.8)" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}>{p.count}</text>
-            )}
-            {showLabel && (
-              <text x={p.x} y={H - 14} textAnchor="middle" fontSize="10" fontWeight="500" fill="rgba(26,26,26,0.4)" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.1}s forwards`, fontFamily: 'var(--font-body)' }}>{p.label}</text>
-            )}
-          </g>
-        );
-      })}
-
-      {hoveredIdx !== null && pts[hoveredIdx] && pts[hoveredIdx].count > 0 && (() => {
-        const p = pts[hoveredIdx];
-        const boxW = 160;
-        const boxH = 60;
-        let tipX = p.x - boxW / 2;
-        if (tipX < padL) tipX = padL;
-        if (tipX + boxW > W - padR) tipX = W - padR - boxW;
-        const placeAbove = p.y - boxH - 12 > padT;
-        const tipY = placeAbove ? p.y - boxH - 12 : p.y + 14;
-        const nextH = (p.hour + 1) % 24;
-        const nextLabel = `${nextH % 12 === 0 ? 12 : nextH % 12}${nextH < 12 ? 'a' : 'p'}`;
-        return (
-          <g className="pointer-events-none" style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.12))' }}>
-            <rect x={tipX} y={tipY} width={boxW} height={boxH} rx={8} fill="#ffffff" stroke="rgba(0,0,0,0.08)" />
-            <text x={tipX + 10} y={tipY + 16} fontSize="10" fontWeight="700" fill="rgba(26,26,26,0.5)" style={{ fontFamily: 'var(--font-body)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              {p.label}–{nextLabel} · {p.count} call{p.count === 1 ? '' : 's'}
-            </text>
-            <text x={tipX + 10} y={tipY + 34} fontSize="11" fill="#3b82f6" style={{ fontFamily: 'var(--font-body)' }}>Meaningful: {p.meaningfulCount}</text>
-            <text x={tipX + 10} y={tipY + 48} fontSize="11" fill="#ef4444" style={{ fontFamily: 'var(--font-body)' }}>Missed: {p.missedCount}</text>
-            <text x={tipX + boxW - 10} y={tipY + 48} textAnchor="end" fontSize="11" fill="#10b981" style={{ fontFamily: 'var(--font-body)' }}>Returned: {p.returnedCount}</text>
-          </g>
-        );
-      })()}
-    </svg>
   );
 }
 
