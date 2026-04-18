@@ -63,7 +63,7 @@ interface CTMResponse {
   error?: string;
 }
 
-type Tab = 'calls' | 'sources' | 'spam';
+type Tab = 'calls' | 'sources' | 'spam' | 'operators';
 
 const SPAM_STORAGE_KEY = 'calls_spam_numbers_v1';
 
@@ -1199,8 +1199,8 @@ export default function CallsContent() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 sm:mb-6 bg-warm-bg rounded-xl p-1 w-fit">
-        {(['calls', 'sources', 'spam'] as Tab[]).map(t => {
-          const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : 'Spam';
+        {(['calls', 'sources', 'spam', 'operators'] as Tab[]).map(t => {
+          const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : t === 'spam' ? 'Spam' : 'Operator Insights';
           return (
             <button key={t} onClick={() => setTab(t)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
               {label}
@@ -1623,6 +1623,11 @@ export default function CallsContent() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Operator Insights Tab */}
+      {tab === 'operators' && !loading && (
+        <OperatorInsightsPanel scores={scores} />
       )}
 
       {isAdmin && calls.length > 0 && (() => {
@@ -2719,6 +2724,160 @@ function DailySummary({
           {summary || 'Generating summary…'}
         </p>
       )}
+    </div>
+  );
+}
+
+function OperatorInsightsPanel({ scores }: { scores: Record<string, ScoreRow> }) {
+  const [expandedOp, setExpandedOp] = useState<string | null>(null);
+
+  const operators = useMemo(() => {
+    const byOp = new Map<string, {
+      count: number;
+      scoreSum: number;
+      fitSum: number;
+      fitCount: number;
+      strengths: Map<string, number>;
+      weaknesses: Map<string, number>;
+    }>();
+    for (const s of Object.values(scores)) {
+      const name = s.operator_name?.trim();
+      if (!name) continue;
+      let bucket = byOp.get(name);
+      if (!bucket) {
+        bucket = { count: 0, scoreSum: 0, fitSum: 0, fitCount: 0, strengths: new Map(), weaknesses: new Map() };
+        byOp.set(name, bucket);
+      }
+      bucket.count++;
+      bucket.scoreSum += s.score ?? 0;
+      if (s.fit_score != null) {
+        bucket.fitSum += s.fit_score;
+        bucket.fitCount++;
+      }
+      for (const str of s.operator_strengths || []) {
+        if (!str) continue;
+        bucket.strengths.set(str, (bucket.strengths.get(str) ?? 0) + 1);
+      }
+      for (const w of s.operator_weaknesses || []) {
+        if (!w) continue;
+        bucket.weaknesses.set(w, (bucket.weaknesses.get(w) ?? 0) + 1);
+      }
+    }
+    return Array.from(byOp.entries())
+      .map(([name, b]) => ({
+        name,
+        count: b.count,
+        avgScore: b.count > 0 ? Math.round(b.scoreSum / b.count) : 0,
+        avgFit: b.fitCount > 0 ? Math.round(b.fitSum / b.fitCount) : null,
+        strengths: Array.from(b.strengths.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([text, count]) => ({ text, count })),
+        weaknesses: Array.from(b.weaknesses.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([text, count]) => ({ text, count })),
+      }))
+      .sort((a, b) => b.avgScore - a.avgScore);
+  }, [scores]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3">
+        <svg className="w-4 h-4 mt-0.5 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 16v-4" strokeLinecap="round" />
+          <path d="M12 8h.01" strokeLinecap="round" />
+        </svg>
+        <p className="text-xs text-blue-900/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          Sometimes AI is wrong and doesn&apos;t transcribe things right so this isn&apos;t perfect — but it&apos;s better than nothing! Treat these as directional signals, not performance reviews.
+        </p>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {operators.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+              No operator data yet. Analyze calls to populate this view.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {operators.map(op => {
+              const isOpen = expandedOp === op.name;
+              const fitLabel = op.avgFit != null ? `${op.avgFit}/100 avg fit` : 'No fit score';
+              return (
+                <div key={op.name}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedOp(isOpen ? null : op.name)}
+                    className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-warm-bg/30 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm shrink-0">
+                        {(op.name.match(/[A-Za-z]/)?.[0] || '?').toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{op.name}</p>
+                        <p className="text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                          {op.count} call{op.count === 1 ? '' : 's'} · {fitLabel}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <p className="text-[10px] font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Avg score</p>
+                        <p className="text-xl font-bold text-blue-600">{op.avgScore}</p>
+                      </div>
+                      <svg className={`w-4 h-4 text-foreground/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </button>
+                  {isOpen && (
+                    <div className="px-5 pb-5 grid sm:grid-cols-2 gap-4">
+                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+                        <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Strengths</p>
+                        {op.strengths.length === 0 ? (
+                          <p className="text-xs text-emerald-800/60" style={{ fontFamily: 'var(--font-body)' }}>No strengths surfaced yet.</p>
+                        ) : (
+                          <ul className="space-y-1.5">
+                            {op.strengths.slice(0, 8).map(s => (
+                              <li key={s.text} className="text-xs text-emerald-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
+                                <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                <span>
+                                  {s.text}
+                                  {s.count > 1 && <span className="text-emerald-700/60"> · {s.count}×</span>}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                        <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Potential to Improve</p>
+                        {op.weaknesses.length === 0 ? (
+                          <p className="text-xs text-amber-800/60" style={{ fontFamily: 'var(--font-body)' }}>No improvement areas surfaced yet.</p>
+                        ) : (
+                          <ul className="space-y-1.5">
+                            {op.weaknesses.slice(0, 8).map(w => (
+                              <li key={w.text} className="text-xs text-amber-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
+                                <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                <span>
+                                  {w.text}
+                                  {w.count > 1 && <span className="text-amber-700/60"> · {w.count}×</span>}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
