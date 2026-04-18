@@ -1641,7 +1641,22 @@ export default function CallsContent() {
 
       {/* Operator Insights Tab — admin only */}
       {tab === 'operators' && !loading && isAdmin && (
-        <OperatorInsightsPanel rangeStart={rangeStart} rangeEnd={rangeEnd} token={session?.access_token ?? null} />
+        <OperatorInsightsPanel
+          rangeStart={rangeStart}
+          rangeEnd={rangeEnd}
+          token={session?.access_token ?? null}
+          onOpenCall={(ctmId, calledAt) => {
+            const iso = parseDate(calledAt)?.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+            if (iso) setDateFilter(iso);
+            setExpandedId(Number(ctmId));
+            setTab('calls');
+            setPage(1);
+            setTimeout(() => {
+              const el = document.querySelector(`[data-call-id="${ctmId}"]`);
+              if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+          }}
+        />
       )}
 
       {isAdmin && calls.length > 0 && (() => {
@@ -2783,7 +2798,15 @@ interface OperatorAgg {
 
 type OpSortKey = 'name' | 'meaningful' | 'converted' | 'successPct' | 'avgScore';
 
-function OperatorInsightsPanel({ rangeStart, rangeEnd, token }: { rangeStart: Date; rangeEnd: Date; token: string | null }) {
+function scoreColorClass(s: number | null | undefined): string {
+  if (s == null) return 'text-foreground/40';
+  if (s >= 80) return 'text-emerald-500';
+  if (s >= 60) return 'text-blue-600';
+  if (s >= 40) return 'text-amber-500';
+  return 'text-red-500';
+}
+
+function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { rangeStart: Date; rangeEnd: Date; token: string | null; onOpenCall: (ctmId: string, calledAt: string) => void }) {
   const [operators, setOperators] = useState<OperatorAgg[] | null>(null);
   const [expandedOp, setExpandedOp] = useState<string | null>(null);
   const [expandedCall, setExpandedCall] = useState<string | null>(null);
@@ -2918,7 +2941,7 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token }: { rangeStart: Da
                         <td className="px-4 py-3 text-right text-sm font-semibold text-blue-600">{op.meaningful}</td>
                         <td className="px-4 py-3 text-right text-sm font-semibold text-emerald-600">{op.converted}</td>
                         <td className="px-4 py-3 text-right text-sm font-semibold text-foreground">{op.meaningful > 0 ? `${op.successPct}%` : '—'}</td>
-                        <td className="px-4 py-3 text-right text-xl font-bold text-blue-600">{op.avgScore}</td>
+                        <td className={`px-4 py-3 text-right text-xl font-bold ${scoreColorClass(op.avgScore)}`}>{op.avgScore}</td>
                         <td className="px-4 py-3 text-right">
                           <svg className={`w-4 h-4 text-foreground/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -2990,6 +3013,16 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token }: { rangeStart: Da
                                           </button>
                                           <button
                                             type="button"
+                                            onClick={(e) => { e.stopPropagation(); onOpenCall(c.ctm_id, c.called_at); }}
+                                            title="Open in Call Log"
+                                            className="w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 bg-warm-bg hover:bg-primary hover:text-white text-foreground/60"
+                                          >
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                            </svg>
+                                          </button>
+                                          <button
+                                            type="button"
                                             onClick={() => setExpandedCall(callOpen ? null : c.ctm_id)}
                                             className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
                                           >
@@ -3008,11 +3041,11 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token }: { rangeStart: Da
                                             </div>
                                             <div className="flex items-center gap-3 shrink-0">
                                               {c.fit_score != null && (
-                                                <span className={`text-[11px] font-semibold ${c.fit_score >= 60 ? 'text-blue-600' : 'text-foreground/50'}`} style={{ fontFamily: 'var(--font-body)' }}>
+                                                <span className={`text-[11px] font-semibold ${scoreColorClass(c.fit_score)}`} style={{ fontFamily: 'var(--font-body)' }}>
                                                   {c.fit_score}/100 fit
                                                 </span>
                                               )}
-                                              <span className="text-xs font-bold text-foreground">{c.score ?? '—'}</span>
+                                              <span className={`text-xs font-bold ${scoreColorClass(c.score)}`}>{c.score ?? '—'}</span>
                                               <svg className={`w-3.5 h-3.5 text-foreground/30 transition-transform ${callOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                                               </svg>
@@ -3105,7 +3138,7 @@ function OperatorOverview({ op }: { op: OperatorAgg }) {
         </div>
         <div>
           <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Avg Score</p>
-          <p className="text-lg font-bold text-blue-600">{op.avgScore}</p>
+          <p className={`text-lg font-bold ${scoreColorClass(op.avgScore)}`}>{op.avgScore}</p>
           <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>out of 100</p>
         </div>
         <div>
