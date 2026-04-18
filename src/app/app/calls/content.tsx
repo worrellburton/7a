@@ -2502,7 +2502,7 @@ function TimelineSlider({
           onPointerDown={onPointerDown('start')}
           onClick={(e) => e.stopPropagation()}
           className="absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-sm bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
-          style={{ left: `calc(${startPct * 100}% - 6px)` }}
+          style={{ left: `max(0px, calc(${startPct * 100}% - 6px))` }}
         />
 
         {/* End handle */}
@@ -2514,7 +2514,7 @@ function TimelineSlider({
           onPointerDown={onPointerDown('end')}
           onClick={(e) => e.stopPropagation()}
           className="absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-sm bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
-          style={{ left: `calc(${endPct * 100}% - 6px)` }}
+          style={{ left: `min(calc(100% - 12px), calc(${endPct * 100}% - 6px))` }}
         />
 
         {/* Month labels */}
