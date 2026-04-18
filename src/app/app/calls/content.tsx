@@ -1034,19 +1034,22 @@ export default function CallsContent() {
             {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total</span>}
           </p>
         </div>
-        <a
-          href="/app/calls/heatmap"
-          className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-primary text-white rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
-          style={{ fontFamily: 'var(--font-body)' }}
-          aria-label="View Heatmap"
-        >
-          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-            <rect x="3" y="4" width="18" height="16" rx="2" strokeLinejoin="round" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM7 16h2v0H7zM11 16h2v0h-2zM15 16h2v0h-2z" />
-          </svg>
-          <span className="hidden sm:inline">View Heatmap</span>
-          <span className="sm:hidden">Heatmap</span>
-        </a>
+        <div className="flex items-center gap-2">
+          <SyncFromCtmButton token={session?.access_token ?? null} />
+          <a
+            href="/app/calls/heatmap"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-primary text-white rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+            aria-label="View Heatmap"
+          >
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <rect x="3" y="4" width="18" height="16" rx="2" strokeLinejoin="round" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM7 16h2v0H7zM11 16h2v0h-2zM15 16h2v0h-2z" />
+            </svg>
+            <span className="hidden sm:inline">View Heatmap</span>
+            <span className="sm:hidden">Heatmap</span>
+          </a>
+        </div>
       </div>
 
       {/* Timeline Slider — drag to scope all metrics below */}
@@ -2687,6 +2690,62 @@ function DailySummary({
         <p className={`text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap ${loading ? 'opacity-60' : ''}`} style={{ fontFamily: 'var(--font-body)' }}>
           {summary || 'Generating summary…'}
         </p>
+      )}
+    </div>
+  );
+}
+
+function SyncFromCtmButton({ token }: { token: string | null }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const run = async (full: boolean) => {
+    if (!token || busy) return;
+    setBusy(true);
+    setMsg(full ? 'Backfilling…' : 'Syncing…');
+    try {
+      const res = await fetch('/api/ctm/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ full }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setMsg(`Failed: ${data.error || res.status}`);
+      } else {
+        setMsg(`Synced ${data.processed ?? 0} call${data.processed === 1 ? '' : 's'}`);
+        // Page insights will refetch automatically once state updates; give
+        // the user a moment then reload to pick up the new rows.
+        setTimeout(() => window.location.reload(), 1200);
+      }
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Sync failed');
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMsg(null), 4000);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => run(false)}
+        onContextMenu={(e) => { e.preventDefault(); run(true); }}
+        disabled={busy || !token}
+        title="Click: incremental sync · Right-click: full backfill"
+        className="inline-flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-white border border-gray-200 text-foreground/70 rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:border-primary/40 hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <svg className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${busy ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span className="hidden sm:inline">{busy ? 'Syncing' : 'Sync CTM'}</span>
+      </button>
+      {msg && (
+        <span className="absolute -bottom-5 left-0 right-0 text-[10px] text-center text-foreground/50 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+          {msg}
+        </span>
       )}
     </div>
   );
