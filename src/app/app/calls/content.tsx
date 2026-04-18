@@ -2310,7 +2310,7 @@ function TimelineSlider({
   const isYesterday = startStr === yesterdayStr && endStr === yesterdayStr;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 mb-6 select-none">
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 mb-6 select-none" style={{ overflow: 'visible' }}>
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div>
           <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Viewing</p>
@@ -2346,6 +2346,7 @@ function TimelineSlider({
       <div
         ref={trackRef}
         className="relative h-28 mt-2 cursor-pointer"
+        style={{ overflow: 'visible' }}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
