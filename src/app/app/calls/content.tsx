@@ -537,7 +537,10 @@ export default function CallsContent() {
         if (!res.ok) throw new Error(`insights ${res.status}`);
         const data = await res.json();
         if (cancelled || data.error) return;
-        if ((data.totalCalls ?? 0) === 0 && (data.spam ?? 0) === 0) return; // empty → keep local fallback
+        // Trust the server. Zero is a real answer — means nothing is
+        // synced into public.calls for this window yet. Falling back to
+        // the paginated client data would paper over sync lag and
+        // silently disagree with other pages that read the same table.
         // Pad dailyCounts with label/short/sources to match the client shape.
         const dailyCounts = (data.dailyCounts ?? []).map((d: { date: string; count: number; missedCount: number; returnedCount: number; meaningfulCount: number }) => {
           const [y, m, dd] = d.date.split('-').map(Number);
