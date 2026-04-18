@@ -345,6 +345,8 @@ export default function CallsContent() {
       if (!p) continue;
       const callDate = p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
       if (!rangeDates.has(callDate)) continue;
+      const isSpam = isSpamCall(c);
+      if (isSpam) { spam++; continue; }
       totalCalls++;
       totalDuration += c.duration || 0;
       dayCounts.set(callDate, (dayCounts.get(callDate) || 0) + 1);
@@ -353,9 +355,7 @@ export default function CallsContent() {
       daySources.get(callDate)!.set(src, (daySources.get(callDate)!.get(src) || 0) + 1);
       if (c.direction === 'inbound') inboundCount++;
       if (c.direction === 'outbound') outboundCount++;
-      const isSpam = isSpamCall(c);
-      if (isSpam) spam++;
-      if (isMissedCall(c) && !isSpam) {
+      if (isMissedCall(c)) {
         missed++;
         dayMissedCounts.set(callDate, (dayMissedCounts.get(callDate) || 0) + 1);
         if (c.caller_number) missedNumbers.add(c.caller_number);
