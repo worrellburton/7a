@@ -1658,44 +1658,7 @@ export default function CallsContent() {
 
       {/* Sources Tab */}
       {tab === 'sources' && !loading && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          {sources.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>Load calls first to see source breakdown</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-warm-bg/50">
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Calls</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sources.map(s => {
-                    const pct = totalEntries > 0 ? Math.round((s.count / calls.length) * 100) : 0;
-                    return (
-                      <tr key={s.name} className="border-b border-gray-50">
-                        <td className="px-3 sm:px-5 py-3.5 text-sm font-medium text-foreground">{s.name}</td>
-                        <td className="px-3 sm:px-5 py-3.5 text-sm font-bold text-foreground">{s.count}</td>
-                        <td className="px-3 sm:px-5 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-warm-bg rounded-full max-w-[120px]">
-                              <div className="h-2 bg-primary rounded-full" style={{ width: `${pct}%` }} />
-                            </div>
-                            <span className="text-xs text-foreground/40 w-8" style={{ fontFamily: 'var(--font-body)' }}>{pct}%</span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <SourcesPanel calls={calls} scores={scores} onOpenCall={(id) => { setExpandedId(id); setTab('calls'); setTimeout(() => { const el = document.querySelector(`[data-call-id="${id}"]`); if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300); }} />
       )}
 
       {/* Operator Insights Tab — admin only */}
@@ -2955,6 +2918,8 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
         </p>
       </div>
 
+      <TopBottomCalls operators={operators ?? []} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={playAudio} />
+
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {loading && !operators ? (
           <div className="text-center py-16 text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>Loading operator insights…</div>
@@ -3283,5 +3248,252 @@ function OperatorCallLinkButton({ ctmId, onOpen }: { ctmId: string; onOpen: () =
         </svg>
       </button>
     </span>
+  );
+}
+
+function SourcesPanel({ calls, scores, onOpenCall }: { calls: Call[]; scores: Record<string, ScoreRow>; onOpenCall: (id: number) => void }) {
+  const [expandedSource, setExpandedSource] = useState<string | null>(null);
+  const MEANINGFUL = 60;
+
+  const rows = useMemo(() => {
+    const bySource = new Map<string, { count: number; meaningful: number; calls: Call[] }>();
+    for (const c of calls) {
+      const src = c.source_name || c.source || 'Unknown';
+      let bucket = bySource.get(src);
+      if (!bucket) { bucket = { count: 0, meaningful: 0, calls: [] }; bySource.set(src, bucket); }
+      bucket.count++;
+      const s = scores[String(c.id)];
+      if (s?.fit_score != null && s.fit_score >= MEANINGFUL) bucket.meaningful++;
+      bucket.calls.push(c);
+    }
+    for (const b of bySource.values()) {
+      b.calls.sort((a, b) => {
+        const ta = parseDate(a.called_at)?.getTime() ?? 0;
+        const tb = parseDate(b.called_at)?.getTime() ?? 0;
+        return tb - ta;
+      });
+    }
+    return Array.from(bySource.entries())
+      .map(([name, b]) => ({ name, ...b }))
+      .sort((a, b) => b.count - a.count);
+  }, [calls, scores]);
+
+  if (rows.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="text-center py-16">
+          <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>Load calls first to see source breakdown</p>
+        </div>
+      </div>
+    );
+  }
+
+  const total = calls.length;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-100 bg-warm-bg/50">
+              <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
+              <th className="text-right px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Calls</th>
+              <th className="text-right px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Meaningful</th>
+              <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>%</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {rows.map(s => {
+              const pct = total > 0 ? Math.round((s.count / total) * 100) : 0;
+              const meaningfulPct = s.count > 0 ? Math.round((s.meaningful / s.count) * 100) : 0;
+              const isOpen = expandedSource === s.name;
+              return (
+                <Fragment key={s.name}>
+                  <tr
+                    onClick={() => setExpandedSource(isOpen ? null : s.name)}
+                    className="cursor-pointer hover:bg-warm-bg/20 transition-colors"
+                  >
+                    <td className="px-3 sm:px-5 py-3.5 text-sm font-medium text-foreground">{s.name}</td>
+                    <td className="px-3 sm:px-5 py-3.5 text-right text-sm font-bold text-foreground">{s.count}</td>
+                    <td className="px-3 sm:px-5 py-3.5 text-right text-sm">
+                      <span className="font-semibold text-blue-600">{s.meaningful}</span>
+                      {s.count > 0 && <span className="text-foreground/40 text-[11px] ml-1">({meaningfulPct}%)</span>}
+                    </td>
+                    <td className="px-3 sm:px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-warm-bg rounded-full max-w-[120px]">
+                          <div className="h-2 bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs text-foreground/40 w-8" style={{ fontFamily: 'var(--font-body)' }}>{pct}%</span>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-5 py-3.5 text-right">
+                      <svg className={`inline w-4 h-4 text-foreground/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr>
+                      <td colSpan={5} className="bg-warm-bg/10 px-5 py-3">
+                        <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-50">
+                          {s.calls.map(c => {
+                            const score = scores[String(c.id)];
+                            const d = parseDate(c.called_at);
+                            const time = d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : '';
+                            return (
+                              <button
+                                type="button"
+                                key={c.id}
+                                onClick={() => onOpenCall(c.id)}
+                                className="w-full flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-warm-bg/30 transition-colors text-left"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${c.direction === 'inbound' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`} style={{ fontFamily: 'var(--font-body)' }}>
+                                    {c.direction === 'inbound' ? 'In' : 'Out'}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-foreground truncate">
+                                      {score?.call_name || score?.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
+                                    </p>
+                                    <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{time}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  {score?.fit_score != null && (
+                                    <span className={`text-[11px] font-semibold ${scoreColorClass(score.fit_score)}`} style={{ fontFamily: 'var(--font-body)' }}>
+                                      {score.fit_score}/100 fit
+                                    </span>
+                                  )}
+                                  <span className={`text-xs font-bold ${scoreColorClass(score?.score ?? null)}`}>{score?.score ?? '—'}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function TopBottomCalls({
+  operators,
+  onOpenCall,
+  playingUrl,
+  onPlay,
+}: {
+  operators: OperatorAgg[];
+  onOpenCall: (ctmId: string, calledAt: string) => void;
+  playingUrl: string | null;
+  onPlay: (url: string | null) => void;
+}) {
+  const allCalls = useMemo(() => {
+    const out: (OperatorCallEntry & { operatorName: string })[] = [];
+    for (const op of operators) {
+      for (const c of op.calls) {
+        if (c.score == null) continue;
+        out.push({ ...c, operatorName: op.name });
+      }
+    }
+    return out;
+  }, [operators]);
+
+  if (allCalls.length === 0) return null;
+
+  const sortedDesc = [...allCalls].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const top = sortedDesc.slice(0, 5);
+  const bottom = [...sortedDesc].reverse().slice(0, 5);
+
+  return (
+    <div className="grid md:grid-cols-2 gap-4">
+      <CallsSpotlight title="Top 5 Scored Calls" variant="top" calls={top} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} />
+      <CallsSpotlight title="Bottom 5 Scored Calls" variant="bottom" calls={bottom} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} />
+    </div>
+  );
+}
+
+function CallsSpotlight({
+  title,
+  variant,
+  calls,
+  onOpenCall,
+  playingUrl,
+  onPlay,
+}: {
+  title: string;
+  variant: 'top' | 'bottom';
+  calls: (OperatorCallEntry & { operatorName: string })[];
+  onOpenCall: (ctmId: string, calledAt: string) => void;
+  playingUrl: string | null;
+  onPlay: (url: string | null) => void;
+}) {
+  const barColor = variant === 'top' ? 'bg-emerald-500' : 'bg-red-500';
+  const labelColor = variant === 'top' ? 'text-emerald-700' : 'text-red-600';
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+        <span className={`inline-block w-1.5 h-5 rounded-sm ${barColor}`} />
+        <p className={`text-xs font-semibold uppercase tracking-wider ${labelColor}`} style={{ fontFamily: 'var(--font-body)' }}>{title}</p>
+      </div>
+      {calls.length === 0 ? (
+        <div className="px-5 py-8 text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>No scored calls yet.</div>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {calls.map(c => {
+            const d = parseDate(c.called_at);
+            const time = d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : '';
+            const isPlaying = playingUrl === c.audio_url;
+            return (
+              <div key={c.ctm_id} className="flex items-center gap-2 px-4 py-2.5">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onPlay(c.audio_url); }}
+                  disabled={!c.audio_url}
+                  title={c.audio_url ? 'Play recording' : 'No recording'}
+                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 ${c.audio_url ? (isPlaying ? 'bg-primary text-white' : 'bg-warm-bg hover:bg-primary hover:text-white text-foreground/60') : 'bg-gray-50 text-foreground/20 cursor-not-allowed'}`}
+                >
+                  {isPlaying ? (
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                  ) : (
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenCall(c.ctm_id, c.called_at)}
+                  className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground truncate">
+                      {c.call_name || c.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
+                    </p>
+                    <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                      {c.operatorName} · {time}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {c.fit_score != null && (
+                      <span className={`text-[11px] font-semibold ${scoreColorClass(c.fit_score)}`} style={{ fontFamily: 'var(--font-body)' }}>
+                        {c.fit_score}/100 fit
+                      </span>
+                    )}
+                    <span className={`text-sm font-bold ${scoreColorClass(c.score)}`}>{c.score}</span>
+                  </div>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
