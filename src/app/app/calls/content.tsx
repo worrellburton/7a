@@ -1201,9 +1201,23 @@ export default function CallsContent() {
       <div className="flex gap-1 mb-4 sm:mb-6 bg-warm-bg rounded-xl p-1 w-fit">
         {(['calls', 'sources', 'spam', ...(isAdmin ? ['operators'] as const : [])] as Tab[]).map(t => {
           const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : t === 'spam' ? 'Spam' : 'Operator Insights';
+          const isAdminTab = t === 'operators';
           return (
-            <button key={t} onClick={() => setTab(t)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
-              {label}
+            <button key={t} onClick={() => setTab(t)} className={`relative px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
+              <span className="inline-flex items-center gap-1.5">
+                {label}
+                {isAdminTab && (
+                  <span className="group/admin relative inline-flex items-center">
+                    <span aria-hidden className="absolute inset-0 rounded-full bg-amber-300/50 blur-[3px] animate-pulse" />
+                    <svg className="relative w-3.5 h-3.5 text-amber-500 drop-shadow-[0_0_6px_rgba(251,191,36,0.9)]" fill="currentColor" viewBox="0 0 24 24" aria-label="Super admin only">
+                      <path d="M12 2l2.39 4.84L20 7.54l-4 3.89.94 5.5L12 14.77 7.06 16.93 8 11.43l-4-3.89 5.61-.7L12 2z" />
+                    </svg>
+                    <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-30 whitespace-nowrap rounded-md bg-foreground text-white text-[10px] font-semibold px-2 py-1 opacity-0 group-hover/admin:opacity-100 transition-opacity shadow-lg" style={{ fontFamily: 'var(--font-body)' }}>
+                      Super admin only
+                    </span>
+                  </span>
+                )}
+              </span>
             </button>
           );
         })}
