@@ -20,6 +20,7 @@ interface AppUser {
   last_path: string | null;
   last_seen_at: string | null;
   department_id: string | null;
+  status: 'active' | 'on_hold' | 'denied';
 }
 
 interface Department {
@@ -258,6 +259,27 @@ export default function UsersContent() {
     }
   }
 
+  async function setUserStatus(userId: string, nextStatus: 'active' | 'denied') {
+    const target = users.find((u) => u.id === userId);
+    const result = await db({ action: 'update', table: 'users', data: { status: nextStatus }, match: { id: userId } });
+    if (result?.error) {
+      showToast(`Failed to update status: ${result.error}`);
+      return;
+    }
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: nextStatus } : u)));
+    showToast(nextStatus === 'active' ? `${target?.full_name || target?.email || 'User'} approved` : `${target?.full_name || target?.email || 'User'} denied`);
+    if (user?.id) {
+      logActivity({
+        userId: user.id,
+        type: nextStatus === 'active' ? 'user.approved' : 'user.denied',
+        targetKind: 'user',
+        targetId: userId,
+        targetLabel: target?.full_name || target?.email || 'user',
+        targetPath: '/app/team',
+      });
+    }
+  }
+
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -321,6 +343,70 @@ export default function UsersContent() {
           Org Chart
         </button>
       </div>
+
+      {isAdmin && (() => {
+        const pending = users.filter((u) => u.status === 'on_hold');
+        const denied = users.filter((u) => u.status === 'denied');
+        if (pending.length === 0 && denied.length === 0) return null;
+        return (
+          <div className="mb-8 bg-white rounded-2xl shadow-sm border border-amber-100 overflow-hidden">
+            <div className="px-5 py-3 border-b border-amber-50 flex items-center justify-between gap-3 bg-amber-50/40">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Pending Approval</p>
+                <p className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                  Users who signed in with an email outside <span className="font-medium">@sevenarrowsrecovery.com</span>.
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
+                {pending.length} waiting
+              </span>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {[...pending, ...denied].map((u) => (
+                <div key={u.id} className="px-5 py-3 flex items-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-3 flex-1 min-w-[220px]">
+                    {u.avatar_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+                        {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{u.full_name || 'Unknown'}</p>
+                      <p className="text-xs text-foreground/50 truncate" style={{ fontFamily: 'var(--font-body)' }}>{u.email}</p>
+                    </div>
+                  </div>
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${u.status === 'denied' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`} style={{ fontFamily: 'var(--font-body)' }}>
+                    {u.status === 'denied' ? 'Denied' : 'On Hold'}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {u.status !== 'active' && (
+                      <button
+                        onClick={() => setUserStatus(u.id, 'active')}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        Approve
+                      </button>
+                    )}
+                    {u.status !== 'denied' && (
+                      <button
+                        onClick={() => setUserStatus(u.id, 'denied')}
+                        className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-foreground/70 text-xs font-semibold hover:border-red-300 hover:text-red-600 transition-colors"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        Deny
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
