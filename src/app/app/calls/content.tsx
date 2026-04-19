@@ -194,7 +194,7 @@ export default function CallsContent() {
   })();
   const setTab = useCallback((next: Tab) => {
     const sp = new URLSearchParams(searchParams?.toString() ?? '');
-    if (next === 'calls') sp.delete('tab'); else sp.set('tab', next);
+    sp.set('tab', next);
     const qs = sp.toString();
     router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
   }, [pathname, router, searchParams]);
