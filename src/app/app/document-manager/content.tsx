@@ -226,7 +226,6 @@ const KAIZEN_SUGGESTIONS: Record<DocCategory, string[]> = {
 export default function DocumentManagerContent() {
   const [docs, setDocs] = useState<ManagedDoc[]>(sampleDocs);
   const [activeCategory, setActiveCategory] = useState<DocCategory>('policies');
-  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<DocStatus | 'all'>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [kaizenOpenFor, setKaizenOpenFor] = useState<string | null>(null);
@@ -240,13 +239,11 @@ export default function DocumentManagerContent() {
   }, [docs]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return docs.filter(d =>
       d.category === activeCategory
       && (statusFilter === 'all' || d.status === statusFilter)
-      && (q === '' || d.title.toLowerCase().includes(q))
     );
-  }, [docs, activeCategory, statusFilter, search]);
+  }, [docs, activeCategory, statusFilter]);
 
   const selected = docs.find(d => d.id === selectedId) || null;
 
@@ -308,21 +305,8 @@ export default function DocumentManagerContent() {
         })}
       </div>
 
-      {/* Search + status filter */}
+      {/* Status filter */}
       <div className="px-4 sm:px-6 lg:px-10 pb-4 flex items-center gap-2 flex-wrap">
-        <div className="flex-1 min-w-[220px] relative">
-          <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search documents..."
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-foreground focus:outline-none focus:border-primary/40"
-            style={{ fontFamily: 'var(--font-body)' }}
-          />
-        </div>
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value as DocStatus | 'all')}
@@ -348,12 +332,11 @@ export default function DocumentManagerContent() {
               {filtered.map(d => {
                 const isActive = d.id === selectedId;
                 return (
-                  <button
+                  <div
                     key={d.id}
-                    onClick={() => setSelectedId(isActive ? null : d.id)}
-                    className={`w-full text-left px-5 py-4 transition-colors ${isActive ? 'bg-warm-bg/60' : 'hover:bg-warm-bg/30'}`}
+                    className={`group relative px-5 py-4 transition-colors ${isActive ? 'bg-warm-bg/60' : 'hover:bg-warm-bg/30'}`}
                   >
-                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="flex items-start justify-between gap-4 flex-wrap pr-24">
                       <div className="flex-1 min-w-[220px]">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-semibold text-foreground">{d.title}</p>
@@ -371,7 +354,18 @@ export default function DocumentManagerContent() {
                         </div>
                       )}
                     </div>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(isActive ? null : d.id)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground text-white text-xs font-semibold shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {isActive ? 'Close' : 'Open'}
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
                 );
               })}
             </div>
