@@ -291,7 +291,7 @@ export default function DocumentManagerContent() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden px-4 sm:px-6 lg:px-10 pb-10 grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 lg:gap-6">
+      <div className="flex-1 min-h-0 overflow-hidden px-4 sm:px-6 lg:px-10 pb-10 flex flex-col">
         {/* Document list */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col min-h-0">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2 flex-wrap">
@@ -330,12 +330,11 @@ export default function DocumentManagerContent() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredDocs.map(d => {
-                  const isActive = d.id === selectedId;
                   return (
                     <tr
                       key={d.id}
-                      onClick={() => setSelectedId(d.id)}
-                      className={`cursor-pointer transition-colors ${isActive ? 'bg-warm-bg/60' : 'hover:bg-warm-bg/30'}`}
+                      onClick={() => router.push(`/app/document-manager/${d.id}`)}
+                      className="cursor-pointer transition-colors hover:bg-warm-bg/30"
                     >
                       <td className="px-4 py-3">
                         <p className="text-sm font-semibold text-foreground">{d.title}</p>
@@ -392,132 +391,6 @@ export default function DocumentManagerContent() {
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* Detail panel */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-y-auto">
-          {!selected ? (
-            <div className="p-10 text-center text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-              Select a document to view details.
-            </div>
-          ) : (
-            <>
-              <div className="px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div>
-                    <h2 className="text-lg font-bold text-foreground">{selected.title}</h2>
-                    <p className="text-xs text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-                      {selected.version} · {selected.size_kb} KB · Updated {fmtDate(selected.updated_at)} by {selected.updated_by}
-                    </p>
-                  </div>
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_STYLE[selected.status]}`}>
-                    {STATUS_LABEL[selected.status]}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap mt-3">
-                  <button
-                    onClick={() => setEditOpen(true)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-foreground/70 hover:border-primary/30 transition-colors"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    Edit
-                  </button>
-                  <select
-                    value={selected.status}
-                    onChange={e => setDocStatus(selected.id, e.target.value as DocStatus)}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {(Object.keys(STATUS_LABEL) as DocStatus[]).map(s => (
-                      <option key={s} value={s}>Set: {STATUS_LABEL[s]}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="px-5 py-4 border-b border-gray-100">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
-                    Signatures
-                  </p>
-                  <button
-                    onClick={() => setSendOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-foreground text-white hover:bg-foreground/80 transition-colors"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Send for Signature
-                  </button>
-                </div>
-                {selected.signatures.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center">
-                    <p className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-                      No signature requests yet. Send this document to a recipient to get started.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-lg border border-gray-100">
-                    <table className="w-full text-xs">
-                      <thead className="bg-warm-bg/40">
-                        <tr>
-                          <th className="text-left font-medium text-[10px] uppercase tracking-wider text-foreground/40 px-3 py-2" style={{ fontFamily: 'var(--font-body)' }}>Recipient</th>
-                          <th className="text-left font-medium text-[10px] uppercase tracking-wider text-foreground/40 px-3 py-2" style={{ fontFamily: 'var(--font-body)' }}>Sent</th>
-                          <th className="text-left font-medium text-[10px] uppercase tracking-wider text-foreground/40 px-3 py-2" style={{ fontFamily: 'var(--font-body)' }}>Status</th>
-                          <th className="text-right font-medium text-[10px] uppercase tracking-wider text-foreground/40 px-3 py-2" style={{ fontFamily: 'var(--font-body)' }}></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {selected.signatures.map((s, i) => {
-                          const resentCount = s.resent_count ?? 0;
-                          return (
-                            <tr key={i}>
-                              <td className="px-3 py-2.5 align-top">
-                                <p className="font-semibold text-foreground">{s.recipient}</p>
-                                <p className="text-[10px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{s.email}</p>
-                              </td>
-                              <td className="px-3 py-2.5 align-top text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
-                                <p>{fmtDateTime(s.sent_at)}</p>
-                                {s.last_resent_at && (
-                                  <p className="text-[10px] text-foreground/40 mt-0.5">Resent {fmtDateTime(s.last_resent_at)}{resentCount > 1 ? ` · ${resentCount}×` : ''}</p>
-                                )}
-                              </td>
-                              <td className="px-3 py-2.5 align-top">
-                                {s.signed_at ? (
-                                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700">
-                                    Signed {fmtDateTime(s.signed_at)}
-                                  </span>
-                                ) : (
-                                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
-                                    Waiting for signature
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2.5 align-top text-right">
-                                {!s.signed_at && (
-                                  <button
-                                    onClick={() => resendSignature(selected.id, i)}
-                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-white border border-gray-200 text-foreground/70 hover:border-primary/30 hover:text-primary transition-colors"
-                                    style={{ fontFamily: 'var(--font-body)' }}
-                                  >
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                    </svg>
-                                    {resentCount > 0 ? 'Resend again' : 'Resend'}
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
         </div>
       </div>
 
