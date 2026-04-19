@@ -99,6 +99,15 @@ export default function CallDetailContent() {
   const [score, setScore] = useState<ScoreRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/app/calls/${encodeURIComponent(id)}`);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1500);
+    } catch {}
+  };
 
   useEffect(() => {
     if (!id || !session?.access_token) return;
@@ -182,6 +191,18 @@ export default function CallDetailContent() {
                 Fit {score.fit_score}/100
               </span>
             )}
+            <button
+              type="button"
+              onClick={copyLink}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white border border-gray-200 text-foreground/70 hover:border-primary/30 hover:text-primary transition-colors"
+              style={{ fontFamily: 'var(--font-body)' }}
+              title="Copy link to this call"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+              </svg>
+              {linkCopied ? 'Copied' : 'Copy link'}
+            </button>
           </div>
         </div>
       </div>

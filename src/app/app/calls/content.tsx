@@ -213,27 +213,14 @@ export default function CallsContent() {
     return Number.isFinite(n) && n > 0 ? n : null;
   });
 
-  // Handle /app/calls?call=<id> — force Call Log tab, expand the row,
-  // scroll it into view once the data arrives.
+  // Legacy support: /app/calls?call=<id> used to expand a row inline.
+  // Shared call links now live at /app/calls/<id>, so redirect old URLs
+  // to the new path.
   useEffect(() => {
     const q = searchParams?.get('call');
-    const n = q ? Number(q) : NaN;
-    if (!Number.isFinite(n) || n <= 0) return;
-    // Force the URL to the Call Log tab so `tab` derived above resolves
-    // to 'calls'.
-    const sp = new URLSearchParams(searchParams?.toString() ?? '');
-    if (sp.get('tab') && sp.get('tab') !== 'calls') {
-      sp.delete('tab');
-      const qs = sp.toString();
-      router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
-    }
-    setExpandedId(n);
-    const tick = window.setTimeout(() => {
-      const el = document.querySelector(`[data-call-id="${n}"]`);
-      if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 400);
-    return () => window.clearTimeout(tick);
-  }, [searchParams, calls.length, pathname, router]);
+    if (!q) return;
+    router.replace(`/app/calls/${encodeURIComponent(q)}`);
+  }, [searchParams, router]);
   const [miniPopoverId, setMiniPopoverId] = useState<number | null>(null);
   const [transcriptFor, setTranscriptFor] = useState<number | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
@@ -3295,7 +3282,7 @@ function CopyCallLinkButton({ callId }: { callId: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/app/calls?call=${encodeURIComponent(callId)}`;
+    const url = `${window.location.origin}/app/calls/${encodeURIComponent(callId)}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -3327,7 +3314,7 @@ function OperatorCallLinkButton({ ctmId, onOpen }: { ctmId: string; onOpen: () =
 
   const copyLink = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/app/calls?call=${encodeURIComponent(ctmId)}`;
+    const url = `${window.location.origin}/app/calls/${encodeURIComponent(ctmId)}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
