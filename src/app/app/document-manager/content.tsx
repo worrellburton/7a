@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 // Document Manager — central library of reusable documents (agreements,
 // policies, releases, etc.). Each document tracks its latest version,
@@ -62,6 +63,9 @@ const CATEGORY_LABEL: Record<DocCategory, string> = {
 
 const CATEGORY_ORDER: DocCategory[] = ['policies', 'intake_forms', 'new_hire_forms', 'job_descriptions', 'consent_forms', 'financial', 'clinical', 'other'];
 
+const DOCS_STORAGE_KEY = 'document_manager_docs_v1';
+const VALID_CATEGORIES = new Set<DocCategory>(CATEGORY_ORDER);
+
 const CATEGORY_STYLE: Record<DocCategory, string> = {
   policies: 'bg-orange-50 text-orange-600',
   intake_forms: 'bg-sky-50 text-sky-600',
@@ -103,10 +107,53 @@ function fmtDateTime(iso: string): string {
 }
 
 export default function DocumentManagerContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Load persisted docs from localStorage on mount; fall back to seed data
+  // so a fresh browser still has something to look at.
   const [docs, setDocs] = useState<DocumentRow[]>(SEED_DOCS);
-  const [selectedId, setSelectedId] = useState<string | null>(SEED_DOCS[0]?.id ?? null);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DOCS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as DocumentRow[];
+        if (Array.isArray(parsed)) setDocs(parsed);
+      }
+    } catch {}
+    setHydrated(true);
+  }, []);
+  useEffect(() => {
+    if (!hydrated) return;
+    try { localStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(docs)); } catch {}
+  }, [docs, hydrated]);
+
+  // Active category is derived from ?tab=… so each section is shareable.
+  const activeCategory: DocCategory = (() => {
+    const q = searchParams?.get('tab') as DocCategory | null;
+    return q && VALID_CATEGORIES.has(q) ? q : 'policies';
+  })();
+  const setActiveCategory = useCallback((next: DocCategory) => {
+    const sp = new URLSearchParams(searchParams?.toString() ?? '');
+    if (next === 'policies') sp.delete('tab'); else sp.set('tab', next);
+    sp.delete('doc');
+    const qs = sp.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  // Selected document is also URL-driven (?doc=…) so deep links open the
+  // detail panel.
+  const selectedId = searchParams?.get('doc') ?? null;
+  const setSelectedId = useCallback((next: string | null) => {
+    const sp = new URLSearchParams(searchParams?.toString() ?? '');
+    if (next) sp.set('doc', next); else sp.delete('doc');
+    const qs = sp.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState<DocCategory>('policies');
   const [statusFilter, setStatusFilter] = useState<DocStatus | 'all'>('all');
   const [sendOpen, setSendOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -131,7 +178,7 @@ export default function DocumentManagerContent() {
 
   const deleteDoc = (id: string) => {
     setDocs(prev => prev.filter(d => d.id !== id));
-    setSelectedId(prev => prev === id ? null : prev);
+    if (selectedId === id) setSelectedId(null);
   };
 
   const addDocument = (title: string, category: DocCategory, body: string) => {
@@ -150,8 +197,13 @@ export default function DocumentManagerContent() {
       signatures: [],
     };
     setDocs(prev => [fresh, ...prev]);
-    setActiveCategory(category);
-    setSelectedId(id);
+    // Combine the tab + doc URL update into a single replace so neither
+    // wipes the other from a stale searchParams snapshot.
+    const sp = new URLSearchParams(searchParams?.toString() ?? '');
+    if (category === 'policies') sp.delete('tab'); else sp.set('tab', category);
+    sp.set('doc', id);
+    const qs = sp.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
     setAddOpen(false);
   };
 
@@ -228,7 +280,7 @@ export default function DocumentManagerContent() {
               <button
                 key={c}
                 type="button"
-                onClick={() => { setActiveCategory(c); setSelectedId(null); }}
+                onClick={() => setActiveCategory(c)}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${isActive ? 'bg-white text-foreground shadow-sm' : 'text-foreground/50 hover:text-foreground/80'}`}
                 style={{ fontFamily: 'var(--font-body)' }}
               >
@@ -271,6 +323,7 @@ export default function DocumentManagerContent() {
                   <th className="text-left font-medium text-[11px] uppercase tracking-wider text-foreground/40 px-4 py-2.5" style={{ fontFamily: 'var(--font-body)' }}>Title</th>
                   <th className="text-left font-medium text-[11px] uppercase tracking-wider text-foreground/40 px-4 py-2.5" style={{ fontFamily: 'var(--font-body)' }}>Version</th>
                   <th className="text-left font-medium text-[11px] uppercase tracking-wider text-foreground/40 px-4 py-2.5" style={{ fontFamily: 'var(--font-body)' }}>Updated</th>
+                  <th className="text-left font-medium text-[11px] uppercase tracking-wider text-foreground/40 px-4 py-2.5" style={{ fontFamily: 'var(--font-body)' }}>Added By</th>
                   <th className="text-left font-medium text-[11px] uppercase tracking-wider text-foreground/40 px-4 py-2.5" style={{ fontFamily: 'var(--font-body)' }}>Status</th>
                   <th className="text-right font-medium text-[11px] uppercase tracking-wider text-foreground/40 px-4 py-2.5" style={{ fontFamily: 'var(--font-body)' }}>Actions</th>
                 </tr>
@@ -286,10 +339,11 @@ export default function DocumentManagerContent() {
                     >
                       <td className="px-4 py-3">
                         <p className="text-sm font-semibold text-foreground">{d.title}</p>
-                        <p className="text-[11px] text-foreground/40 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{d.size_kb} KB · by {d.updated_by}</p>
+                        <p className="text-[11px] text-foreground/40 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{d.size_kb} KB</p>
                       </td>
                       <td className="px-4 py-3 text-foreground/70 text-xs font-medium" style={{ fontFamily: 'var(--font-body)' }}>{d.version}</td>
                       <td className="px-4 py-3 text-foreground/70 text-xs" style={{ fontFamily: 'var(--font-body)' }}>{fmtDate(d.updated_at)}</td>
+                      <td className="px-4 py-3 text-foreground/70 text-xs" style={{ fontFamily: 'var(--font-body)' }}>{d.updated_by}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_STYLE[d.status]}`}>
                           {STATUS_LABEL[d.status]}
@@ -330,7 +384,7 @@ export default function DocumentManagerContent() {
                 })}
                 {filteredDocs.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
                       No documents match those filters.
                     </td>
                   </tr>
