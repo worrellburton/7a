@@ -9,7 +9,7 @@ import { useMemo, useState } from 'react';
 // download/archive.
 
 type DocStatus = 'draft' | 'ready' | 'out_for_signature' | 'signed' | 'archived';
-type DocCategory = 'policy' | 'consent' | 'financial' | 'clinical' | 'identity' | 'hr' | 'other';
+type DocCategory = 'policies' | 'intake_forms' | 'new_hire_forms' | 'job_descriptions' | 'consent_forms' | 'financial' | 'clinical' | 'other';
 
 interface SignatureRequest {
   recipient: string;
@@ -46,32 +46,48 @@ const STATUS_STYLE: Record<DocStatus, string> = {
   archived: 'bg-gray-50 text-gray-400',
 };
 
+const CATEGORY_LABEL: Record<DocCategory, string> = {
+  policies: 'Policies',
+  intake_forms: 'Intake Forms',
+  new_hire_forms: 'New Hire Forms',
+  job_descriptions: 'Job Descriptions',
+  consent_forms: 'Consent Forms',
+  financial: 'Financial',
+  clinical: 'Clinical',
+  other: 'Other',
+};
+
+const CATEGORY_ORDER: DocCategory[] = ['policies', 'intake_forms', 'new_hire_forms', 'job_descriptions', 'consent_forms', 'financial', 'clinical', 'other'];
+
 const CATEGORY_STYLE: Record<DocCategory, string> = {
-  policy: 'bg-orange-50 text-orange-600',
-  consent: 'bg-blue-50 text-blue-600',
+  policies: 'bg-orange-50 text-orange-600',
+  intake_forms: 'bg-sky-50 text-sky-600',
+  new_hire_forms: 'bg-rose-50 text-rose-600',
+  job_descriptions: 'bg-violet-50 text-violet-600',
+  consent_forms: 'bg-blue-50 text-blue-600',
   financial: 'bg-emerald-50 text-emerald-600',
   clinical: 'bg-purple-50 text-purple-600',
-  identity: 'bg-indigo-50 text-indigo-600',
-  hr: 'bg-rose-50 text-rose-600',
   other: 'bg-gray-50 text-gray-500',
 };
 
 const SEED_DOCS: DocumentRow[] = [
-  { id: 'd1', title: 'Admission Agreement', category: 'policy', version: 'v4', updated_at: '2026-04-12', updated_by: 'Bobby Burton', size_kb: 184, status: 'ready', signatures: [
+  { id: 'd1', title: 'Admission Agreement', category: 'policies', version: 'v4', updated_at: '2026-04-12', updated_by: 'Bobby Burton', size_kb: 184, status: 'ready', signatures: [
     { recipient: 'M. Garcia', email: 'mgarcia@example.com', sent_at: '2026-04-17T14:02:00Z', signed_at: '2026-04-17T14:45:00Z' },
   ] },
-  { id: 'd2', title: 'Consent for Treatment', category: 'consent', version: 'v2', updated_at: '2026-03-30', updated_by: 'Dr. Patel', size_kb: 96, status: 'signed', signatures: [
+  { id: 'd2', title: 'Consent for Treatment', category: 'consent_forms', version: 'v2', updated_at: '2026-03-30', updated_by: 'Dr. Patel', size_kb: 96, status: 'signed', signatures: [
     { recipient: 'R. Chen', email: 'rchen@example.com', sent_at: '2026-04-15T09:10:00Z', signed_at: '2026-04-15T09:22:00Z' },
     { recipient: 'D. Williams', email: 'dwilliams@example.com', sent_at: '2026-04-16T17:01:00Z', signed_at: '2026-04-16T19:33:00Z' },
   ] },
-  { id: 'd3', title: 'HIPAA Privacy Notice', category: 'consent', version: 'v1', updated_at: '2025-11-12', updated_by: 'Bobby Burton', size_kb: 72, status: 'ready', signatures: [] },
-  { id: 'd4', title: 'Release of Information', category: 'consent', version: 'v3', updated_at: '2026-02-04', updated_by: 'Compliance', size_kb: 58, status: 'out_for_signature', signatures: [
+  { id: 'd3', title: 'HIPAA Privacy Notice', category: 'consent_forms', version: 'v1', updated_at: '2025-11-12', updated_by: 'Bobby Burton', size_kb: 72, status: 'ready', signatures: [] },
+  { id: 'd4', title: 'Release of Information', category: 'consent_forms', version: 'v3', updated_at: '2026-02-04', updated_by: 'Compliance', size_kb: 58, status: 'out_for_signature', signatures: [
     { recipient: 'S. Patel', email: 'spatel@example.com', sent_at: '2026-04-18T08:20:00Z', signed_at: null },
   ] },
   { id: 'd5', title: 'Financial Responsibility Agreement', category: 'financial', version: 'v5', updated_at: '2026-04-01', updated_by: 'Billing', size_kb: 142, status: 'ready', signatures: [] },
-  { id: 'd6', title: 'Grievance Policy Acknowledgment', category: 'policy', version: 'v2', updated_at: '2026-01-18', updated_by: 'Compliance', size_kb: 44, status: 'ready', signatures: [] },
-  { id: 'd7', title: 'Photo / Media Consent', category: 'consent', version: 'v1', updated_at: '2025-09-22', updated_by: 'Marketing', size_kb: 38, status: 'draft', signatures: [] },
-  { id: 'd8', title: 'Employee Confidentiality Agreement', category: 'hr', version: 'v2', updated_at: '2025-12-08', updated_by: 'HR', size_kb: 88, status: 'archived', signatures: [] },
+  { id: 'd6', title: 'Grievance Policy Acknowledgment', category: 'policies', version: 'v2', updated_at: '2026-01-18', updated_by: 'Compliance', size_kb: 44, status: 'ready', signatures: [] },
+  { id: 'd7', title: 'Photo / Media Consent', category: 'consent_forms', version: 'v1', updated_at: '2025-09-22', updated_by: 'Marketing', size_kb: 38, status: 'draft', signatures: [] },
+  { id: 'd8', title: 'Employee Confidentiality Agreement', category: 'new_hire_forms', version: 'v2', updated_at: '2025-12-08', updated_by: 'HR', size_kb: 88, status: 'archived', signatures: [] },
+  { id: 'd9', title: 'Medical History Questionnaire', category: 'intake_forms', version: 'v1', updated_at: '2026-02-11', updated_by: 'Clinical', size_kb: 120, status: 'ready', signatures: [] },
+  { id: 'd10', title: 'Clinician Job Description', category: 'job_descriptions', version: 'v3', updated_at: '2026-03-05', updated_by: 'HR', size_kb: 64, status: 'ready', signatures: [] },
 ];
 
 function fmtDate(iso: string): string {
@@ -87,7 +103,7 @@ export default function DocumentManagerContent() {
   const [docs, setDocs] = useState<DocumentRow[]>(SEED_DOCS);
   const [selectedId, setSelectedId] = useState<string | null>(SEED_DOCS[0]?.id ?? null);
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<DocCategory | 'all'>('all');
+  const [activeCategory, setActiveCategory] = useState<DocCategory>('policies');
   const [statusFilter, setStatusFilter] = useState<DocStatus | 'all'>('all');
   const [sendOpen, setSendOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -95,25 +111,23 @@ export default function DocumentManagerContent() {
   const filteredDocs = useMemo(() => {
     const q = search.trim().toLowerCase();
     return docs.filter(d => {
-      if (categoryFilter !== 'all' && d.category !== categoryFilter) return false;
+      if (d.category !== activeCategory) return false;
       if (statusFilter !== 'all' && d.status !== statusFilter) return false;
       if (q && !d.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [docs, search, categoryFilter, statusFilter]);
+  }, [docs, search, activeCategory, statusFilter]);
+
+  const categoryCounts = useMemo(() => {
+    const map: Record<DocCategory, number> = {
+      policies: 0, intake_forms: 0, new_hire_forms: 0, job_descriptions: 0,
+      consent_forms: 0, financial: 0, clinical: 0, other: 0,
+    };
+    for (const d of docs) map[d.category]++;
+    return map;
+  }, [docs]);
 
   const selected = docs.find(d => d.id === selectedId) ?? null;
-
-  const summary = useMemo(() => {
-    let ready = 0, draft = 0, out = 0, signed = 0;
-    for (const d of docs) {
-      if (d.status === 'ready') ready++;
-      else if (d.status === 'draft') draft++;
-      else if (d.status === 'out_for_signature') out++;
-      else if (d.status === 'signed') signed++;
-    }
-    return { total: docs.length, ready, draft, out, signed };
-  }, [docs]);
 
   const setDocStatus = (id: string, status: DocStatus) => {
     setDocs(prev => prev.map(d => d.id === id ? { ...d, status } : d));
@@ -157,12 +171,24 @@ export default function DocumentManagerContent() {
         </p>
       </div>
 
-      <div className="px-4 sm:px-6 lg:px-10 pb-4 grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4">
-        <StatCard label="Documents" value={summary.total} />
-        <StatCard label="Ready" value={summary.ready} accent="text-blue-600" />
-        <StatCard label="Out for Signature" value={summary.out} accent="text-amber-600" />
-        <StatCard label="Signed" value={summary.signed} accent="text-emerald-600" />
-        <StatCard label="Draft" value={summary.draft} accent="text-gray-500" />
+      <div className="px-4 sm:px-6 lg:px-10 pb-4 flex items-center gap-2 flex-wrap">
+        {CATEGORY_ORDER.map(c => {
+          const isActive = c === activeCategory;
+          return (
+            <button
+              key={c}
+              type="button"
+              onClick={() => { setActiveCategory(c); setSelectedId(null); }}
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${isActive ? 'bg-foreground text-white' : 'bg-white border border-gray-100 text-foreground/70 hover:border-primary/30'}`}
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <span>{CATEGORY_LABEL[c]}</span>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-foreground/50'}`}>
+                {categoryCounts[c]}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden px-4 sm:px-6 lg:px-10 pb-10 grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 lg:gap-6">
@@ -177,17 +203,6 @@ export default function DocumentManagerContent() {
               className="px-3 py-2 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary flex-1 min-w-[160px]"
               style={{ fontFamily: 'var(--font-body)' }}
             />
-            <select
-              value={categoryFilter}
-              onChange={e => setCategoryFilter(e.target.value as DocCategory | 'all')}
-              className="px-2.5 py-2 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <option value="all">All Categories</option>
-              {(Object.keys(CATEGORY_STYLE) as DocCategory[]).map(c => (
-                <option key={c} value={c}>{c[0].toUpperCase() + c.slice(1)}</option>
-              ))}
-            </select>
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value as DocStatus | 'all')}
@@ -227,8 +242,8 @@ export default function DocumentManagerContent() {
                         <p className="text-[11px] text-foreground/40 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{d.size_kb} KB · by {d.updated_by}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${CATEGORY_STYLE[d.category]}`}>
-                          {d.category}
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${CATEGORY_STYLE[d.category]}`}>
+                          {CATEGORY_LABEL[d.category]}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-foreground/70 text-xs font-medium" style={{ fontFamily: 'var(--font-body)' }}>{d.version}</td>
@@ -374,15 +389,6 @@ export default function DocumentManagerContent() {
   );
 }
 
-function StatCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-      <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>{label}</p>
-      <p className={`text-2xl font-bold ${accent || 'text-foreground'}`}>{value}</p>
-    </div>
-  );
-}
-
 function SendSignatureModal({
   doc,
   onClose,
@@ -498,8 +504,8 @@ function EditDocumentModal({
               className="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 bg-white focus:outline-none focus:border-primary cursor-pointer"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              {(Object.keys(CATEGORY_STYLE) as DocCategory[]).map(c => (
-                <option key={c} value={c}>{c[0].toUpperCase() + c.slice(1)}</option>
+              {CATEGORY_ORDER.map(c => (
+                <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
               ))}
             </select>
           </label>

@@ -3017,7 +3017,7 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
                         <td className="px-4 py-3 text-center text-sm font-semibold text-foreground">{op.count}</td>
                         <td className="px-4 py-3 text-center text-sm font-semibold text-foreground/70">{op.avgFit != null ? op.avgFit : '—'}</td>
                         <td className="px-4 py-3 text-center text-sm font-semibold text-blue-600">{op.meaningful}</td>
-                        <td className="px-4 py-3 text-center text-sm font-semibold text-emerald-600">{op.converted}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-foreground/30">—</td>
                         <td className="px-4 py-3 text-center text-sm font-semibold text-foreground">{op.meaningful > 0 ? `${op.successPct}%` : '—'}</td>
                         <td className={`px-4 py-3 text-center text-xl font-bold ${scoreColorClass(op.avgScore)}`}>{op.avgScore}</td>
                         <td className="px-4 py-3 text-right">
