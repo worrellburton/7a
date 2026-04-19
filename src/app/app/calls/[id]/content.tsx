@@ -35,7 +35,12 @@ interface ScoreRow {
   caller_name: string | null;
   operator_name: string | null;
   client_type: string | null;
+  caller_interest: string | null;
   summary: string | null;
+  operator_strengths: string[] | null;
+  operator_weaknesses: string[] | null;
+  next_steps: string | null;
+  sentiment: string | null;
   scored_at: string | null;
 }
 
@@ -43,6 +48,24 @@ const directionStyle: Record<string, string> = {
   inbound: 'bg-blue-50 text-blue-700',
   outbound: 'bg-orange-50 text-orange-700',
 };
+
+function scoreColor(s: number | null | undefined): string {
+  if (s == null) return 'text-foreground/40';
+  if (s >= 80) return 'text-emerald-600';
+  if (s >= 60) return 'text-blue-600';
+  if (s >= 40) return 'text-amber-600';
+  return 'text-red-500';
+}
+
+function sentimentBadge(sentiment: string | null | undefined): { label: string; className: string } | null {
+  if (!sentiment) return null;
+  const s = sentiment.toLowerCase();
+  if (s.includes('positive')) return { label: 'Positive', className: 'bg-emerald-50 text-emerald-700' };
+  if (s.includes('negative')) return { label: 'Negative', className: 'bg-red-50 text-red-700' };
+  if (s.includes('neutral')) return { label: 'Neutral', className: 'bg-gray-50 text-gray-600' };
+  if (s.includes('mixed')) return { label: 'Mixed', className: 'bg-amber-50 text-amber-700' };
+  return { label: sentiment, className: 'bg-gray-50 text-gray-600' };
+}
 
 function formatDuration(seconds: number | null | undefined): string {
   if (!seconds || seconds <= 0) return '0:00';
@@ -163,6 +186,98 @@ export default function CallDetailContent() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 lg:px-10 pb-10 space-y-4">
+        {score ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 max-w-4xl">
+            <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
+              <div>
+                <p className="text-[11px] font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+                  AI analysis
+                </p>
+                {score.scored_at && (
+                  <p className="text-[10px] text-foreground/40 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                    Scored {formatDateTime(score.scored_at)}
+                  </p>
+                )}
+              </div>
+              {(() => {
+                const s = sentimentBadge(score.sentiment);
+                return s ? (
+                  <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-medium ${s.className}`}>
+                    {s.label}
+                  </span>
+                ) : null;
+              })()}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+              <ScoreTile label="Score" value={score.score} />
+              <ScoreTile label="Fit" value={score.fit_score} suffix="/100" />
+              <MetaTile label="Operator" value={score.operator_name} />
+              <MetaTile label="Client type" value={score.client_type} />
+            </div>
+
+            {score.summary && (
+              <div className="mb-4">
+                <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Summary</p>
+                <p className="text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{score.summary}</p>
+              </div>
+            )}
+
+            {score.caller_interest && (
+              <div className="mb-4">
+                <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Caller interest</p>
+                <p className="text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{score.caller_interest}</p>
+              </div>
+            )}
+
+            <div className="grid sm:grid-cols-2 gap-3 mb-4">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Operator strengths</p>
+                {score.operator_strengths && score.operator_strengths.length > 0 ? (
+                  <ul className="space-y-1">
+                    {score.operator_strengths.map((s, i) => (
+                      <li key={i} className="text-xs text-emerald-900 flex gap-1.5" style={{ fontFamily: 'var(--font-body)' }}>
+                        <span className="mt-1.5 w-1 h-1 rounded-full bg-emerald-500 shrink-0" />
+                        <span>{s}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs italic text-emerald-800/50" style={{ fontFamily: 'var(--font-body)' }}>None surfaced.</p>
+                )}
+              </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
+                <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Potential to improve</p>
+                {score.operator_weaknesses && score.operator_weaknesses.length > 0 ? (
+                  <ul className="space-y-1">
+                    {score.operator_weaknesses.map((s, i) => (
+                      <li key={i} className="text-xs text-amber-900 flex gap-1.5" style={{ fontFamily: 'var(--font-body)' }}>
+                        <span className="mt-1.5 w-1 h-1 rounded-full bg-amber-500 shrink-0" />
+                        <span>{s}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs italic text-amber-800/50" style={{ fontFamily: 'var(--font-body)' }}>None surfaced.</p>
+                )}
+              </div>
+            </div>
+
+            {score.next_steps && (
+              <div>
+                <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Next steps</p>
+                <p className="text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{score.next_steps}</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-5 max-w-4xl text-center">
+            <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+              No AI analysis for this call yet.
+            </p>
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 max-w-4xl">
           <p className="text-[11px] font-medium text-foreground/40 uppercase tracking-wider mb-3" style={{ fontFamily: 'var(--font-body)' }}>
             Call details
@@ -183,6 +298,26 @@ export default function CallDetailContent() {
           </dl>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ScoreTile({ label, value, suffix }: { label: string; value: number | null | undefined; suffix?: string }) {
+  const display = value != null ? `${value}${suffix ?? ''}` : '—';
+  return (
+    <div className="rounded-xl bg-warm-bg/40 px-3 py-2.5">
+      <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>{label}</p>
+      <p className={`text-2xl font-bold mt-0.5 ${value != null ? scoreColor(value) : 'text-foreground/30'}`}>{display}</p>
+    </div>
+  );
+}
+
+function MetaTile({ label, value }: { label: string; value: string | null | undefined }) {
+  const display = value && value.trim() ? value : '—';
+  return (
+    <div className="rounded-xl bg-warm-bg/40 px-3 py-2.5">
+      <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>{label}</p>
+      <p className={`text-sm font-semibold mt-0.5 ${display === '—' ? 'text-foreground/30' : 'text-foreground'}`} style={{ fontFamily: 'var(--font-body)' }}>{display}</p>
     </div>
   );
 }
