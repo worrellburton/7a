@@ -27,6 +27,7 @@ interface DocumentRow {
   updated_by: string;
   size_kb: number;
   status: DocStatus;
+  body?: string;
   signatures: SignatureRequest[];
 }
 
@@ -107,6 +108,7 @@ export default function DocumentManagerContent() {
   const [statusFilter, setStatusFilter] = useState<DocStatus | 'all'>('all');
   const [sendOpen, setSendOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   const filteredDocs = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -118,19 +120,32 @@ export default function DocumentManagerContent() {
     });
   }, [docs, search, activeCategory, statusFilter]);
 
-  const categoryCounts = useMemo(() => {
-    const map: Record<DocCategory, number> = {
-      policies: 0, intake_forms: 0, new_hire_forms: 0, job_descriptions: 0,
-      consent_forms: 0, financial: 0, clinical: 0, other: 0,
-    };
-    for (const d of docs) map[d.category]++;
-    return map;
-  }, [docs]);
 
   const selected = docs.find(d => d.id === selectedId) ?? null;
 
   const setDocStatus = (id: string, status: DocStatus) => {
     setDocs(prev => prev.map(d => d.id === id ? { ...d, status } : d));
+  };
+
+  const addDocument = (title: string, category: DocCategory, body: string) => {
+    const id = `d${Date.now()}`;
+    const sizeKb = Math.max(1, Math.round(new Blob([body]).size / 1024));
+    const fresh: DocumentRow = {
+      id,
+      title,
+      category,
+      version: 'v1',
+      updated_at: new Date().toISOString().slice(0, 10),
+      updated_by: 'You',
+      size_kb: sizeKb,
+      status: 'draft',
+      body,
+      signatures: [],
+    };
+    setDocs(prev => [fresh, ...prev]);
+    setActiveCategory(category);
+    setSelectedId(id);
+    setAddOpen(false);
   };
 
   const sendForSignature = (id: string, recipient: string, email: string) => {
@@ -164,31 +179,43 @@ export default function DocumentManagerContent() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="px-4 sm:px-6 lg:px-10 pt-6 pb-4">
-        <h1 className="text-2xl font-bold text-foreground">Document Manager</h1>
-        <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-          Library of agreements, policies, and forms. Send for signature, edit, or archive.
-        </p>
+      <div className="px-4 sm:px-6 lg:px-10 pt-6 pb-4 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Document Manager</h1>
+          <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+            Library of agreements, policies, and forms. Send for signature, edit, or archive.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAddOpen(true)}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-foreground text-white text-sm font-semibold hover:bg-foreground/90 transition-colors shrink-0"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add Document
+        </button>
       </div>
 
-      <div className="px-4 sm:px-6 lg:px-10 pb-4 flex items-center gap-2 flex-wrap">
-        {CATEGORY_ORDER.map(c => {
-          const isActive = c === activeCategory;
-          return (
-            <button
-              key={c}
-              type="button"
-              onClick={() => { setActiveCategory(c); setSelectedId(null); }}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${isActive ? 'bg-foreground text-white' : 'bg-white border border-gray-100 text-foreground/70 hover:border-primary/30'}`}
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <span>{CATEGORY_LABEL[c]}</span>
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-foreground/50'}`}>
-                {categoryCounts[c]}
-              </span>
-            </button>
-          );
-        })}
+      <div className="px-4 sm:px-6 lg:px-10 pb-4">
+        <div className="inline-flex items-center gap-1 bg-warm-bg/80 rounded-full p-1 max-w-full overflow-x-auto">
+          {CATEGORY_ORDER.map(c => {
+            const isActive = c === activeCategory;
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => { setActiveCategory(c); setSelectedId(null); }}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${isActive ? 'bg-white text-foreground shadow-sm' : 'text-foreground/50 hover:text-foreground/80'}`}
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {CATEGORY_LABEL[c]}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden px-4 sm:px-6 lg:px-10 pb-10 grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 lg:gap-6">
@@ -221,7 +248,6 @@ export default function DocumentManagerContent() {
               <thead className="bg-warm-bg/40 sticky top-0 z-10">
                 <tr>
                   <th className="text-left font-medium text-[11px] uppercase tracking-wider text-foreground/40 px-4 py-2.5" style={{ fontFamily: 'var(--font-body)' }}>Title</th>
-                  <th className="text-left font-medium text-[11px] uppercase tracking-wider text-foreground/40 px-4 py-2.5" style={{ fontFamily: 'var(--font-body)' }}>Category</th>
                   <th className="text-left font-medium text-[11px] uppercase tracking-wider text-foreground/40 px-4 py-2.5" style={{ fontFamily: 'var(--font-body)' }}>Version</th>
                   <th className="text-left font-medium text-[11px] uppercase tracking-wider text-foreground/40 px-4 py-2.5" style={{ fontFamily: 'var(--font-body)' }}>Updated</th>
                   <th className="text-left font-medium text-[11px] uppercase tracking-wider text-foreground/40 px-4 py-2.5" style={{ fontFamily: 'var(--font-body)' }}>Status</th>
@@ -240,11 +266,6 @@ export default function DocumentManagerContent() {
                       <td className="px-4 py-3">
                         <p className="text-sm font-semibold text-foreground">{d.title}</p>
                         <p className="text-[11px] text-foreground/40 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{d.size_kb} KB · by {d.updated_by}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${CATEGORY_STYLE[d.category]}`}>
-                          {CATEGORY_LABEL[d.category]}
-                        </span>
                       </td>
                       <td className="px-4 py-3 text-foreground/70 text-xs font-medium" style={{ fontFamily: 'var(--font-body)' }}>{d.version}</td>
                       <td className="px-4 py-3 text-foreground/70 text-xs" style={{ fontFamily: 'var(--font-body)' }}>{fmtDate(d.updated_at)}</td>
@@ -276,7 +297,7 @@ export default function DocumentManagerContent() {
                 })}
                 {filteredDocs.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
                       No documents match those filters.
                     </td>
                   </tr>
@@ -383,6 +404,14 @@ export default function DocumentManagerContent() {
             saveEdit(selected.id, title, category);
             setEditOpen(false);
           }}
+        />
+      )}
+
+      {addOpen && (
+        <AddDocumentModal
+          defaultCategory={activeCategory}
+          onClose={() => setAddOpen(false)}
+          onSave={addDocument}
         />
       )}
     </div>
@@ -524,6 +553,93 @@ function EditDocumentModal({
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddDocumentModal({
+  defaultCategory,
+  onClose,
+  onSave,
+}: {
+  defaultCategory: DocCategory;
+  onClose: () => void;
+  onSave: (title: string, category: DocCategory, body: string) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState<DocCategory>(defaultCategory);
+  const [body, setBody] = useState('');
+
+  const submit = () => {
+    if (!title.trim()) return;
+    onSave(title.trim(), category, body);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4">
+          <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>New Document</p>
+          <h3 className="text-lg font-bold text-foreground mt-0.5">Add Document</h3>
+          <p className="text-[11px] text-foreground/50 mt-1" style={{ fontFamily: 'var(--font-body)' }}>Paste the document body below. Saves as a Draft so you can review before sending.</p>
+        </div>
+        <div className="space-y-3 flex-1 min-h-0 flex flex-col">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3">
+            <label className="block">
+              <span className="text-[11px] font-medium text-foreground/60 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Title</span>
+              <input
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="e.g. Confidentiality Agreement"
+                autoFocus
+                className="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 bg-white focus:outline-none focus:border-primary"
+                style={{ fontFamily: 'var(--font-body)' }}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[11px] font-medium text-foreground/60 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Category</span>
+              <select
+                value={category}
+                onChange={e => setCategory(e.target.value as DocCategory)}
+                className="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 bg-white focus:outline-none focus:border-primary cursor-pointer"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {CATEGORY_ORDER.map(c => (
+                  <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className="flex flex-col flex-1 min-h-0">
+            <span className="text-[11px] font-medium text-foreground/60 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Document body</span>
+            <textarea
+              value={body}
+              onChange={e => setBody(e.target.value)}
+              placeholder="Paste the full text of the document here…"
+              className="mt-1 w-full flex-1 min-h-[240px] px-3 py-2 rounded-lg text-sm border border-gray-200 bg-white focus:outline-none focus:border-primary resize-none"
+              style={{ fontFamily: 'var(--font-body)' }}
+            />
+            <span className="text-[10px] text-foreground/40 mt-1" style={{ fontFamily: 'var(--font-body)' }}>{body.length.toLocaleString()} characters</span>
+          </label>
+        </div>
+        <div className="flex items-center justify-end gap-2 mt-5">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-foreground/70 hover:border-primary/30 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={!title.trim()}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-foreground text-white hover:bg-foreground/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Save as Draft
           </button>
         </div>
       </div>
