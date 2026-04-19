@@ -69,6 +69,49 @@ function fmtDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+const KAIZEN_SUGGESTIONS: Record<DocCategory, string[]> = {
+  policies: [
+    'Add an effective date and revision history section at the top.',
+    'Cite the regulation or standard each clause is intended to satisfy.',
+    'Replace vague verbs ("should", "may") with explicit ownership and timing.',
+  ],
+  intake_forms: [
+    'Group questions by topic and mark which fields are required vs. optional.',
+    'Include plain-language explanations for any clinical or legal terms.',
+    'Add a signature + date block at the end with space for a witness.',
+  ],
+  new_hire_forms: [
+    'List the documents each new hire must return on day one.',
+    'Add a tax-withholding reminder linking to the latest IRS W-4.',
+    'Include an acknowledgment of the employee handbook version number.',
+  ],
+  job_descriptions: [
+    'Open with a one-sentence purpose statement for the role.',
+    'Separate required vs. preferred qualifications.',
+    'Add physical / environmental demands for ADA compliance.',
+  ],
+  consent_forms: [
+    'Spell out the specific uses and disclosures being authorized.',
+    'Include an expiration date and the client\u2019s right to revoke.',
+    'Add a signature line for a legal guardian where applicable.',
+  ],
+  financial: [
+    'Break down fees, billing cadence, and accepted payment methods.',
+    'Describe refund and cancellation terms explicitly.',
+    'Include the late-payment policy with specific dollar amounts or percentages.',
+  ],
+  clinical: [
+    'Document the clinical rationale and reference the supporting guideline.',
+    'Separate assessment, plan, and follow-up sections clearly.',
+    'Note any contraindications or monitoring requirements.',
+  ],
+  other: [
+    'Start with a one-sentence summary of what this document is for.',
+    'Define any acronyms or program-specific terms on first use.',
+    'Close with ownership: who maintains this and how often it\u2019s reviewed.',
+  ],
+};
+
 export default function DocumentDetailContent() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -84,6 +127,7 @@ export default function DocumentDetailContent() {
   const [status, setStatus] = useState<DocStatus>('draft');
   const [savedToast, setSavedToast] = useState<string | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
+  const [kaizenOpen, setKaizenOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -147,6 +191,28 @@ export default function DocumentDetailContent() {
         resent_count: (s.resent_count ?? 0) + 1,
       }),
     }));
+  };
+
+  const generatePdf = () => {
+    const label = CATEGORY_LABEL[category];
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const bodyText = (body || 'This document has no body content yet.').replace(/</g, '&lt;');
+    const titleText = (title || 'Untitled').replace(/</g, '&lt;');
+    win.document.write(`<!doctype html><html><head><title>${titleText}</title><style>
+      body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:720px;margin:48px auto;padding:0 24px;color:#1a1a1a;line-height:1.55}
+      h1{font-size:22px;margin:0 0 4px}
+      .meta{color:#6b7280;font-size:12px;margin-bottom:24px}
+      .cat{display:inline-block;background:#f3f4f6;color:#374151;border-radius:999px;padding:2px 10px;font-size:11px;margin-right:8px}
+      .body{white-space:pre-wrap;font-size:14px}
+      @media print{body{margin:24px}}
+    </style></head><body>
+      <h1>${titleText}</h1>
+      <div class="meta"><span class="cat">${label}</span>Seven Arrows Recovery</div>
+      <div class="body">${bodyText}</div>
+      <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),150));<\/script>
+    </body></html>`);
+    win.document.close();
   };
 
   const save = () => {
@@ -224,6 +290,30 @@ export default function DocumentDetailContent() {
           </span>
           <button
             type="button"
+            onClick={() => setKaizenOpen(v => !v)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary-dark transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+            </svg>
+            Kaizen
+          </button>
+          <button
+            type="button"
+            onClick={generatePdf}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-gray-200 text-foreground/70 text-xs font-semibold hover:border-primary/30 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3v12" />
+              <path d="m7 10 5 5 5-5" />
+              <path d="M5 21h14" />
+            </svg>
+            Generate PDF
+          </button>
+          <button
+            type="button"
             onClick={save}
             disabled={!dirty}
             className="px-4 py-2 rounded-lg bg-foreground text-white text-sm font-semibold hover:bg-foreground/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -287,6 +377,32 @@ export default function DocumentDetailContent() {
             </span>
           </label>
         </div>
+
+        {kaizenOpen && (
+          <div className="bg-white rounded-2xl border border-primary/20 shadow-sm p-5 max-w-4xl mt-4">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <p className="text-xs font-semibold text-primary uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Kaizen Suggestions</p>
+                <p className="text-[11px] text-foreground/60 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>Small improvements for this document.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setKaizenOpen(false)}
+                className="text-foreground/40 hover:text-foreground/70 text-xs"
+              >
+                Close
+              </button>
+            </div>
+            <ul className="space-y-1.5">
+              {KAIZEN_SUGGESTIONS[category].map((s, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-foreground/80" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span className="mt-0.5 text-primary">&bull;</span>
+                  <span>{s}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 max-w-4xl mt-4">
           <div className="flex items-center justify-between gap-2 mb-3">
