@@ -215,7 +215,7 @@ export default function HomeContent() {
   if (!user) return null;
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col min-h-full relative">
       {/* New facilities request — upper right on desktop. On mobile the
           parent shell already has a sticky top bar, so we keep this button
           inline (top-3) and shrink the label to an icon-only pill. */}
