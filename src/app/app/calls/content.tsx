@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { getAuthToken } from '@/lib/db';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import CallAiBadge from './CallAiHover';
 
 interface ScoreRow {
@@ -63,7 +64,7 @@ interface CTMResponse {
   error?: string;
 }
 
-type Tab = 'calls' | 'sources' | 'spam';
+type Tab = 'calls' | 'sources' | 'spam' | 'operators';
 
 const SPAM_STORAGE_KEY = 'calls_spam_numbers_v1';
 
@@ -178,7 +179,26 @@ export default function CallsContent() {
   const { user, session, isAdmin } = useAuth();
   const [bulkAnalyzing, setBulkAnalyzing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
-  const [tab, setTab] = useState<Tab>('calls');
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Derive the active tab directly from the URL every render. Keeping
+  // it as local state was causing the sidebar "Calls" click to land on
+  // stale state (e.g. Operator Insights) whenever the ?tab= param was
+  // stripped from a same-pathname navigation. Reading from the URL
+  // means there's no sync lag and every tab is genuinely shareable.
+  const tab: Tab = (() => {
+    const q = searchParams?.get('tab');
+    return q === 'sources' || q === 'spam' || q === 'operators' ? q : 'calls';
+  })();
+  const setTab = useCallback((next: Tab) => {
+    const sp = new URLSearchParams(searchParams?.toString() ?? '');
+    if (next === 'calls') sp.delete('tab'); else sp.set('tab', next);
+    const qs = sp.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -187,7 +207,33 @@ export default function CallsContent() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(() => {
+    const q = searchParams?.get('call');
+    const n = q ? Number(q) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
+
+  // Handle /app/calls?call=<id> — force Call Log tab, expand the row,
+  // scroll it into view once the data arrives.
+  useEffect(() => {
+    const q = searchParams?.get('call');
+    const n = q ? Number(q) : NaN;
+    if (!Number.isFinite(n) || n <= 0) return;
+    // Force the URL to the Call Log tab so `tab` derived above resolves
+    // to 'calls'.
+    const sp = new URLSearchParams(searchParams?.toString() ?? '');
+    if (sp.get('tab') && sp.get('tab') !== 'calls') {
+      sp.delete('tab');
+      const qs = sp.toString();
+      router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    }
+    setExpandedId(n);
+    const tick = window.setTimeout(() => {
+      const el = document.querySelector(`[data-call-id="${n}"]`);
+      if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 400);
+    return () => window.clearTimeout(tick);
+  }, [searchParams, calls.length, pathname, router]);
   const [miniPopoverId, setMiniPopoverId] = useState<number | null>(null);
   const [transcriptFor, setTranscriptFor] = useState<number | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
@@ -203,8 +249,18 @@ export default function CallsContent() {
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [allCallsRaw, setAllCallsRaw] = useState<Call[]>([]);
   const [timelineBounds, setTimelineBounds] = useState<{ min: Date; max: Date } | null>(null);
-  const [rangeStart, setRangeStart] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
-  const [rangeEnd, setRangeEnd] = useState<Date>(() => { const d = new Date(); d.setHours(23, 59, 59, 999); return d; });
+  const [rangeStart, setRangeStart] = useState<Date>(() => {
+    // Default to today in Phoenix (MST, UTC-7 year-round) so the initial
+    // view of the Calls page matches the Today preset exactly.
+    const iso = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d, 7, 0, 0, 0));
+  });
+  const [rangeEnd, setRangeEnd] = useState<Date>(() => {
+    const iso = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d, 7, 0, 0, 0) + 24 * 60 * 60 * 1000 - 1);
+  });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [scores, setScores] = useState<Record<string, ScoreRow>>({});
   const [scoringIds, setScoringIds] = useState<Set<string>>(new Set());
@@ -213,24 +269,61 @@ export default function CallsContent() {
   const [spamNumbers, setSpamNumbers] = useState<Set<string>>(new Set());
   const [reportingSpam, setReportingSpam] = useState<string | null>(null);
 
-  // Load spam list from localStorage
+  // Load the spam list. Preferred source is public.call_spam_numbers
+  // (shared across users). On first load we also push any numbers still
+  // living in this browser's localStorage up to the server, so the new
+  // /api/calls/insights endpoint — which filters by the server list —
+  // sees the same spam classifications the UI does.
   useEffect(() => {
-    try {
-      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(SPAM_STORAGE_KEY) : null;
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) setSpamNumbers(new Set(arr.filter((x) => typeof x === 'string')));
-      }
-    } catch { /* ignore */ }
-  }, []);
+    if (!session?.access_token) return;
+    let cancelled = false;
+    (async () => {
+      const local = (() => {
+        try {
+          const raw = typeof window !== 'undefined' ? window.localStorage.getItem(SPAM_STORAGE_KEY) : null;
+          if (!raw) return [] as string[];
+          const arr = JSON.parse(raw);
+          return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : [];
+        } catch {
+          return [] as string[];
+        }
+      })();
 
-  const persistSpam = useCallback((next: Set<string>) => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(SPAM_STORAGE_KEY, JSON.stringify(Array.from(next)));
+      let serverSet = new Set<string>();
+      try {
+        const res = await fetch('/api/calls/spam', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.numbers)) serverSet = new Set<string>(data.numbers);
+        }
+      } catch { /* ignore — will fall back to local */ }
+
+      // Push any local-only numbers up so server aggregates catch up.
+      const missingOnServer = local.filter((n) => !serverSet.has(n));
+      if (missingOnServer.length > 0) {
+        await Promise.all(
+          missingOnServer.map((n) =>
+            fetch('/api/calls/spam', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ number: n }),
+            }).catch(() => null),
+          ),
+        );
+        missingOnServer.forEach((n) => serverSet.add(n));
       }
-    } catch { /* ignore */ }
-  }, []);
+
+      if (!cancelled) {
+        setSpamNumbers(serverSet.size > 0 ? serverSet : new Set(local));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.access_token]);
 
   const reportSpam = useCallback((num: string) => {
     const key = normalizePhone(num);
@@ -238,10 +331,22 @@ export default function CallsContent() {
     setSpamNumbers((prev) => {
       const next = new Set(prev);
       next.add(key);
-      persistSpam(next);
       return next;
     });
-  }, [persistSpam]);
+    if (!session?.access_token) return;
+    fetch('/api/calls/spam', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ number: key }),
+    }).catch(() => {
+      // Roll back local state if the server rejects the report.
+      setSpamNumbers((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    });
+  }, [session?.access_token]);
 
   const unreportSpam = useCallback((num: string) => {
     const key = normalizePhone(num);
@@ -249,10 +354,20 @@ export default function CallsContent() {
     setSpamNumbers((prev) => {
       const next = new Set(prev);
       next.delete(key);
-      persistSpam(next);
       return next;
     });
-  }, [persistSpam]);
+    if (!session?.access_token) return;
+    fetch(`/api/calls/spam?number=${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).catch(() => {
+      setSpamNumbers((prev) => {
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+    });
+  }, [session?.access_token]);
 
   const isSpamCall = useCallback((call: { caller_number?: string | null; caller_number_formatted?: string | null; receiving_number?: string | null; receiving_number_formatted?: string | null }) => {
     const candidates = [
@@ -289,7 +404,7 @@ export default function CallsContent() {
 
   const MEANINGFUL_THRESHOLD = 60;
 
-  const rangeInsights = useMemo(() => {
+  const localRangeInsights = useMemo(() => {
     const startIso = rangeStart.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
     const endIso = rangeEnd.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
     const dayMs = 24 * 60 * 60 * 1000;
@@ -339,6 +454,7 @@ export default function CallsContent() {
     let missedPaid = 0;
     let meaningful = 0;
     let spam = 0;
+    let missedSpam = 0;
 
     for (const c of sourceCalls) {
       const p = parseDate(c.called_at);
@@ -346,7 +462,11 @@ export default function CallsContent() {
       const callDate = p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
       if (!rangeDates.has(callDate)) continue;
       const isSpam = isSpamCall(c);
-      if (isSpam) { spam++; continue; }
+      if (isSpam) {
+        spam++;
+        if (isMissedCall(c)) missedSpam++;
+        continue;
+      }
       totalCalls++;
       totalDuration += c.duration || 0;
       dayCounts.set(callDate, (dayCounts.get(callDate) || 0) + 1);
@@ -406,6 +526,7 @@ export default function CallsContent() {
       missedPaid,
       meaningful,
       spam,
+      missedSpam,
       returnedMissed,
       returnedPickedUp,
       dailyCounts,
@@ -413,6 +534,67 @@ export default function CallsContent() {
       endIso,
     };
   }, [allCallsRaw, calls, scores, rangeStart, rangeEnd, isSpamCall]);
+
+  // Canonical counts from public.calls (populated by /api/ctm/sync).
+  // When this resolves we prefer it over the local computation because
+  // it sees every synced call, not just what the browser has paginated.
+  const [serverRangeInsights, setServerRangeInsights] = useState<typeof localRangeInsights | null>(null);
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let cancelled = false;
+    const from = rangeStart.toISOString();
+    const to = rangeEnd.toISOString();
+    (async () => {
+      try {
+        const res = await fetch(`/api/calls/insights?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) throw new Error(`insights ${res.status}`);
+        const data = await res.json();
+        if (cancelled || data.error) return;
+        // Trust the server. Zero is a real answer — means nothing is
+        // synced into public.calls for this window yet. Falling back to
+        // the paginated client data would paper over sync lag and
+        // silently disagree with other pages that read the same table.
+        // Pad dailyCounts with label/short/sources to match the client shape.
+        const dailyCounts = (data.dailyCounts ?? []).map((d: { date: string; count: number; missedCount: number; returnedCount: number; meaningfulCount: number }) => {
+          const [y, m, dd] = d.date.split('-').map(Number);
+          const dt = new Date(Date.UTC(y, m - 1, dd, 12));
+          return {
+            date: d.date,
+            label: dt.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }),
+            short: dt.toLocaleDateString('en-US', { weekday: 'narrow', timeZone: 'UTC' }),
+            count: d.count,
+            missedCount: d.missedCount,
+            returnedCount: d.returnedCount,
+            meaningfulCount: d.meaningfulCount,
+            sources: [],
+          };
+        });
+        setServerRangeInsights({
+          totalCalls: data.totalCalls,
+          avgDuration: data.avgDuration,
+          inbound: data.inbound,
+          outbound: data.outbound,
+          missed: data.missed,
+          missedPaid: data.missedPaid,
+          meaningful: data.meaningful,
+          spam: data.spam,
+          missedSpam: data.missedSpam ?? 0,
+          returnedMissed: data.returnedMissed,
+          returnedPickedUp: data.returnedPickedUp,
+          dailyCounts,
+          startIso: rangeStart.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
+          endIso: rangeEnd.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
+        });
+      } catch {
+        // Leave serverRangeInsights null so we fall through to local.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.access_token, rangeStart, rangeEnd, spamNumbers]);
+
+  const rangeInsights = serverRangeInsights ?? localRangeInsights;
 
   const spamCount = useMemo(() => {
     let count = 0;
@@ -453,38 +635,6 @@ export default function CallsContent() {
     });
     return out;
   }, [allCallsRaw, calls, isSingleDay, rangeStartIso]);
-
-  const hourlyCounts = useMemo(() => {
-    const hours: { hour: number; label: string; count: number; missedCount: number; returnedCount: number; meaningfulCount: number }[] = [];
-    for (let h = 0; h < 24; h++) {
-      const hh = h % 12 === 0 ? 12 : h % 12;
-      const ap = h < 12 ? 'a' : 'p';
-      hours.push({ hour: h, label: `${hh}${ap}`, count: 0, missedCount: 0, returnedCount: 0, meaningfulCount: 0 });
-    }
-    if (!isSingleDay) return hours;
-
-    const missedNumbers = new Set<string>();
-    for (const c of dailyCalls) {
-      if (isSpamCall(c)) continue;
-      if (isMissedCall(c) && c.caller_number) missedNumbers.add(c.caller_number);
-    }
-
-    for (const c of dailyCalls) {
-      if (isSpamCall(c)) continue;
-      const p = parseDate(c.called_at);
-      if (!p) continue;
-      const hourStr = p.toLocaleString('en-US', { timeZone: 'America/Phoenix', hour: '2-digit', hour12: false });
-      const h = Math.max(0, Math.min(23, parseInt(hourStr, 10) || 0));
-      const bucket = hours[h];
-      bucket.count++;
-      if (isMissedCall(c)) bucket.missedCount++;
-      const target = c.caller_number || c.receiving_number;
-      if (c.direction === 'outbound' && target && missedNumbers.has(target)) bucket.returnedCount++;
-      const s = scores[String(c.id)];
-      if (s?.fit_score != null && s.fit_score >= MEANINGFUL_THRESHOLD) bucket.meaningfulCount++;
-    }
-    return hours;
-  }, [dailyCalls, isSingleDay, isSpamCall, scores]);
 
   const meaningfulData = useMemo(() => {
     let thisWeek = 0;
@@ -957,43 +1107,6 @@ export default function CallsContent() {
 
   if (!user) return null;
 
-  const visibleCalls = (() => {
-    const filtered = calls.filter(call => {
-      const spamFlag = isSpamCall(call);
-      if (tab === 'spam') {
-        if (!spamFlag) return false;
-      } else {
-        if (spamFlag) return false;
-      }
-      if (operatorFilter === 'all') return true;
-      const s = scores[String(call.id)];
-      return s?.operator_name === operatorFilter;
-    });
-    const getVal = (call: Call, s: ScoreRow | undefined): string | number => {
-      switch (sortKey) {
-        case 'id': return call.id;
-        case 'fit_score': return s?.fit_score ?? -1;
-        case 'call_name': return (s?.call_name || '').toLowerCase();
-        case 'called_at': return parseDate(call.called_at)?.getTime() ?? 0;
-        case 'caller_number': return (call.caller_number_formatted || call.caller_number || '').toLowerCase();
-        case 'duration': return call.duration ?? 0;
-        case 'caller_name': return (s?.caller_name || '').toLowerCase();
-        case 'operator_name': return (s?.operator_name || '').toLowerCase();
-        case 'client_type': return (s?.client_type || '').toLowerCase();
-        case 'source': return (call.source_name || call.source || '').toLowerCase();
-        case 'location': return [call.city, call.state].filter(Boolean).join(', ').toLowerCase();
-        default: return 0;
-      }
-    };
-    return filtered.slice().sort((a, b) => {
-      const vA = getVal(a, scores[String(a.id)]);
-      const vB = getVal(b, scores[String(b.id)]);
-      if (vA < vB) return sortDir === 'asc' ? -1 : 1;
-      if (vA > vB) return sortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
-  })();
-
   return (
     <div className="p-2.5 sm:p-6 lg:p-10">
       {/* Header */}
@@ -1004,43 +1117,62 @@ export default function CallsContent() {
             Call tracking powered by CTM
             {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total</span>}
           </p>
+          <SyncStatusIndicator token={session?.access_token ?? null} />
         </div>
-        <a
-          href="/app/calls/heatmap"
-          className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-primary text-white rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
-          style={{ fontFamily: 'var(--font-body)' }}
-          aria-label="View Heatmap"
-        >
-          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-            <rect x="3" y="4" width="18" height="16" rx="2" strokeLinejoin="round" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM7 16h2v0H7zM11 16h2v0h-2zM15 16h2v0h-2z" />
-          </svg>
-          <span className="hidden sm:inline">View Heatmap</span>
-          <span className="sm:hidden">Heatmap</span>
-        </a>
+        <div className="flex items-center gap-2">
+          <a
+            href="/app/calls/heatmap"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-primary text-white rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+            aria-label="View Heatmap"
+          >
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <rect x="3" y="4" width="18" height="16" rx="2" strokeLinejoin="round" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM7 16h2v0H7zM11 16h2v0h-2zM15 16h2v0h-2z" />
+            </svg>
+            <span className="hidden sm:inline">View Heatmap</span>
+            <span className="sm:hidden">Heatmap</span>
+          </a>
+        </div>
       </div>
 
-      {/* Timeline Slider — drag to scope all metrics below */}
-      {timelineBounds && (
-        <TimelineSlider
-          min={timelineBounds.min}
-          max={timelineBounds.max}
-          start={rangeStart}
-          end={rangeEnd}
-          activityByDay={new Map(
-            (() => {
-              const m = new Map<string, number>();
-              for (const c of allCallsRaw) {
-                const p = parseDate(c.called_at);
-                if (!p) continue;
-                const k = p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-                m.set(k, (m.get(k) || 0) + 1);
-              }
-              return Array.from(m.entries());
-            })()
-          )}
+      {/* Mobile-only quick range presets — always visible, even before
+          timelineBounds loads. The full TimelineSlider below is richer
+          but hidden on phones where screen space is tight. */}
+      <div className="sm:hidden mb-3">
+        <MobileRangePresets
+          rangeStart={rangeStart}
+          rangeEnd={rangeEnd}
+          min={timelineBounds?.min ?? null}
+          max={timelineBounds?.max ?? null}
           onChange={(s, e) => { setRangeStart(s); setRangeEnd(e); }}
         />
+      </div>
+
+      {/* Timeline Slider — drag to scope all metrics below. Hidden on
+          phones in favor of the compact preset bar above. */}
+      {timelineBounds && (
+        <div className="hidden sm:block">
+          <TimelineSlider
+            min={timelineBounds.min}
+            max={timelineBounds.max}
+            start={rangeStart}
+            end={rangeEnd}
+            activityByDay={new Map(
+              (() => {
+                const m = new Map<string, number>();
+                for (const c of allCallsRaw) {
+                  const p = parseDate(c.called_at);
+                  if (!p) continue;
+                  const k = p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+                  m.set(k, (m.get(k) || 0) + 1);
+                }
+                return Array.from(m.entries());
+              })()
+            )}
+            onChange={(s, e) => { setRangeStart(s); setRangeEnd(e); }}
+          />
+        </div>
       )}
 
       {/* Insights Dashboard */}
@@ -1056,7 +1188,7 @@ export default function CallsContent() {
       ) : (
         <div className="mb-6 space-y-4">
           {/* Stat Cards — range-scoped */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-4">
+          <div className="grid grid-cols-4 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 sm:gap-4">
             <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
               <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Total Calls</p>
               <p className="text-xl sm:text-2xl font-bold text-foreground">{rangeInsights.totalCalls}</p>
@@ -1077,6 +1209,11 @@ export default function CallsContent() {
               <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {rangeInsights.inbound > 0 ? `${Math.round((rangeInsights.missed / rangeInsights.inbound) * 100)}% of inbound` : 'No inbound'}
               </p>
+              {rangeInsights.missedSpam > 0 && (
+                <p className="text-[10px] sm:text-xs font-medium text-amber-600 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                  {rangeInsights.missedSpam} spam excluded
+                </p>
+              )}
             </div>
             <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
               <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed (Paid)</p>
@@ -1087,9 +1224,9 @@ export default function CallsContent() {
             </div>
             <div className="bg-white rounded-xl sm:rounded-2xl border border-amber-100 p-2.5 sm:p-5">
               <p className="text-[10px] sm:text-xs font-medium text-amber-500 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Spam</p>
-              <p className="text-xl sm:text-2xl font-bold text-amber-600">{spamCount}</p>
+              <p className="text-xl sm:text-2xl font-bold text-amber-600">{rangeInsights.spam}</p>
               <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {spamCount > 0 ? `${spamCount} reported` : 'None reported'}
+                {rangeInsights.spam > 0 ? `${rangeInsights.spam} reported` : 'None reported'}
               </p>
             </div>
             <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
@@ -1113,38 +1250,6 @@ export default function CallsContent() {
             </div>
           </div>
 
-          {/* Hourly Breakdown + Daily Summary (single-day only) */}
-          {isSingleDay && (
-            <div className="space-y-4">
-              <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                  <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Hourly Breakdown</p>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                      <span className="w-2 h-2 rounded-full bg-[#a0522d]" /> Calls
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                      <span className="w-2 h-2 rounded-full bg-[#3b82f6]" /> Meaningful
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                      <span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Missed
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                      <span className="w-2 h-2 rounded-full bg-[#10b981]" /> Returned
-                    </span>
-                  </div>
-                </div>
-                <HourGraph data={hourlyCounts} />
-              </div>
-              <DailySummary
-                calls={dailyCalls}
-                scores={scores}
-                date={rangeStartIso}
-                isToday={isTodaySelected}
-                sessionToken={session?.access_token || null}
-              />
-            </div>
-          )}
         </div>
       )}
 
@@ -1158,11 +1263,40 @@ export default function CallsContent() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 sm:mb-6 bg-warm-bg rounded-xl p-1 w-fit">
-        {(['calls', 'sources', 'spam'] as Tab[]).map(t => {
-          const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : 'Spam';
+        {(['calls', 'sources', 'spam', ...(isAdmin ? ['operators'] as const : [])] as Tab[]).map(t => {
+          const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : t === 'spam' ? 'Spam' : 'Operator Insights';
+          const isAdminTab = t === 'operators';
           return (
-            <button key={t} onClick={() => setTab(t)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`} style={{ fontFamily: 'var(--font-body)' }}>
-              {label}
+            <button
+              key={t}
+              onClick={() => {
+                setTab(t);
+                // Operator Insights is most useful against the entire history,
+                // so switching into it defaults the range to "All".
+                if (t === 'operators' && timelineBounds) {
+                  const s = new Date(timelineBounds.min); s.setHours(0, 0, 0, 0);
+                  const e = new Date(timelineBounds.max); e.setHours(23, 59, 59, 999);
+                  setRangeStart(s);
+                  setRangeEnd(e);
+                }
+              }}
+              className={`relative px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`}
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {label}
+                {isAdminTab && (
+                  <span className="group/admin relative inline-flex items-center">
+                    <span aria-hidden className="absolute inset-0 rounded-full bg-amber-300/50 blur-[3px] animate-pulse" />
+                    <svg className="relative w-3.5 h-3.5 text-amber-500 drop-shadow-[0_0_6px_rgba(251,191,36,0.9)]" fill="currentColor" viewBox="0 0 24 24" aria-label="Super admin only">
+                      <path d="M12 2l2.39 4.84L20 7.54l-4 3.89.94 5.5L12 14.77 7.06 16.93 8 11.43l-4-3.89 5.61-.7L12 2z" />
+                    </svg>
+                    <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-30 whitespace-nowrap rounded-md bg-foreground text-white text-[10px] font-semibold px-2 py-1 opacity-0 group-hover/admin:opacity-100 transition-opacity shadow-lg" style={{ fontFamily: 'var(--font-body)' }}>
+                      Super admin only
+                    </span>
+                  </span>
+                )}
+              </span>
             </button>
           );
         })}
@@ -1243,142 +1377,7 @@ export default function CallsContent() {
             </div>
           ) : calls.length > 0 && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              {/* Mobile card view */}
-              <div className="md:hidden divide-y divide-gray-50">
-                {visibleCalls.map(call => {
-                  const expanded = expandedId === call.id;
-                  const score = scores[String(call.id)];
-                  const spamFlag = isSpamCall(call);
-                  const missedFlag = isMissedCall(call);
-                  const callNumber = call.caller_number_formatted || call.caller_number || 'Unknown';
-                  const rowBg = spamFlag ? 'bg-amber-50/70' : missedFlag ? 'bg-red-50/60' : 'bg-white';
-                  const accentBar = spamFlag ? 'bg-amber-400' : missedFlag ? 'bg-red-400' : score?.fit_score != null ? (score.fit_score >= 75 ? 'bg-emerald-500' : score.fit_score >= 50 ? 'bg-blue-500' : score.fit_score >= 25 ? 'bg-amber-500' : 'bg-red-500') : 'bg-gray-200';
-                  return (
-                    <Fragment key={call.id}>
-                      <div
-                        onClick={() => setExpandedId(expanded ? null : call.id)}
-                        className={`${rowBg} cursor-pointer transition-colors active:bg-warm-bg/40`}
-                      >
-                        <div className="flex items-stretch">
-                          <div className={`w-1 shrink-0 ${accentBar}`} />
-                          <div className="flex-1 min-w-0 px-3.5 py-3">
-                            {/* Top: fit score + call name + chevron */}
-                            <div className="flex items-center gap-3">
-                              <div className="shrink-0">
-                                {score?.fit_score != null ? (
-                                  <span className={`inline-flex items-center justify-center w-11 h-11 rounded-xl text-base font-bold text-white ${fitScoreBg(score.fit_score)}`}>
-                                    {score.fit_score}
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl text-xs font-medium text-foreground/30 bg-gray-100">
-                                    —
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[15px] font-semibold text-foreground leading-tight line-clamp-2">
-                                  {score?.call_name || (spamFlag ? 'Spam call' : missedFlag ? (call.voicemail ? 'Voicemail' : 'Missed call') : 'Unanalyzed call')}
-                                </p>
-                                <p className="text-[11px] text-foreground/50 mt-0.5 font-medium" style={{ fontFamily: 'var(--font-body)' }}>
-                                  {formatDate(call.called_at)} · {formatTime(call.called_at)}
-                                  {call.duration != null && ` · ${formatDuration(call.duration)}`}
-                                </p>
-                              </div>
-                              <svg className={`w-4 h-4 shrink-0 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-
-                            {/* Middle: number + badges */}
-                            <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-medium text-foreground" style={{ fontFamily: 'var(--font-body)' }}>
-                                {callNumber}
-                              </span>
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
-                                {call.direction || 'unknown'}
-                              </span>
-                              {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">VM</span>}
-                              {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">1st</span>}
-                              {spamFlag && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">Spam</span>}
-                              {missedFlag && !spamFlag && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700">Missed</span>}
-                            </div>
-
-                            {/* Bottom: operator/type + actions */}
-                            <div className="mt-2 flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 text-xs text-foreground/60 min-w-0 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
-                                {score?.caller_name && <span className="font-medium text-foreground/80 truncate">{score.caller_name}</span>}
-                                {score?.operator_name && (
-                                  <span className="inline-flex items-center gap-1">
-                                    <span className="w-1 h-1 rounded-full bg-foreground/20" />
-                                    <span>Op: <span className="text-foreground/80">{score.operator_name}</span></span>
-                                  </span>
-                                )}
-                                {score?.client_type && (
-                                  <span className="inline-flex items-center gap-1">
-                                    <span className="w-1 h-1 rounded-full bg-foreground/20" />
-                                    <span>{score.client_type}</span>
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                                {call.audio && (
-                                  <button
-                                    onClick={() => playRecording(call.audio)}
-                                    className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${playingAudio === call.audio ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700 active:bg-emerald-100'}`}
-                                    aria-label={playingAudio === call.audio ? 'Stop' : 'Play'}
-                                  >
-                                    {playingAudio === call.audio ? (
-                                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
-                                    ) : (
-                                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                                    )}
-                                  </button>
-                                )}
-                                {score?.transcript && (
-                                  <button
-                                    onClick={() => setTranscriptFor(call.id)}
-                                    className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-700 active:bg-blue-100"
-                                    aria-label="Transcript"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => rescoreCall(String(call.id), true)}
-                                  disabled={scoringIds.has(String(call.id))}
-                                  className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-200 text-foreground/60 active:bg-warm-bg/50 disabled:opacity-50"
-                                  aria-label={score?.scored_at ? 'Re-analyze' : 'Analyze'}
-                                >
-                                  <svg className={`w-3.5 h-3.5 ${scoringIds.has(String(call.id)) ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-
-                            <p className="text-[10px] font-mono text-foreground/30 mt-1.5">#{call.id}</p>
-                          </div>
-                        </div>
-                      </div>
-                      {expanded && (
-                        <div className="bg-warm-bg/30 px-3.5 py-4">
-                          <CallDetail
-                            call={call}
-                            score={scores[String(call.id)] || null}
-                            scoring={scoringIds.has(String(call.id))}
-                            error={scoringErrors[String(call.id)]}
-                            onRescore={rescoreCall}
-                          />
-                        </div>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </div>
-
-              {/* Desktop table view */}
-              <div className="hidden md:block overflow-x-auto">
+              <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100 bg-warm-bg/50">
@@ -1437,7 +1436,7 @@ export default function CallsContent() {
                       const expanded = expandedId === call.id;
                       return (
                         <Fragment key={call.id}>
-                          <tr onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${isSpamCall(call) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isSpamCall(call) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
+                          <tr data-call-id={call.id} onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${isSpamCall(call) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isSpamCall(call) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
                             <td className="px-3 sm:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex flex-col items-start gap-1.5">
                                 <button
@@ -1459,7 +1458,10 @@ export default function CallsContent() {
                                   {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">VM</span>}
                                   {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">1st</span>}
                                 </div>
-                                <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
+                                  <CopyCallLinkButton callId={String(call.id)} />
+                                </div>
                               </div>
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
@@ -1679,69 +1681,55 @@ export default function CallsContent() {
 
       {/* Sources Tab */}
       {tab === 'sources' && !loading && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          {sources.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>Load calls first to see source breakdown</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-warm-bg/50">
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Calls</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sources.map(s => {
-                    const pct = totalEntries > 0 ? Math.round((s.count / calls.length) * 100) : 0;
-                    return (
-                      <tr key={s.name} className="border-b border-gray-50">
-                        <td className="px-3 sm:px-5 py-3.5 text-sm font-medium text-foreground">{s.name}</td>
-                        <td className="px-3 sm:px-5 py-3.5 text-sm font-bold text-foreground">{s.count}</td>
-                        <td className="px-3 sm:px-5 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-warm-bg rounded-full max-w-[120px]">
-                              <div className="h-2 bg-primary rounded-full" style={{ width: `${pct}%` }} />
-                            </div>
-                            <span className="text-xs text-foreground/40 w-8" style={{ fontFamily: 'var(--font-body)' }}>{pct}%</span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <SourcesPanel calls={calls} scores={scores} onOpenCall={(id) => { setExpandedId(id); setTab('calls'); setTimeout(() => { const el = document.querySelector(`[data-call-id="${id}"]`); if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300); }} />
       )}
 
-      {isAdmin && calls.length > 0 && (
-        <button
-          type="button"
-          onClick={analyzeAllCalls}
-          disabled={bulkAnalyzing}
-          className={`fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 px-4 py-3 rounded-full text-white text-sm font-semibold shadow-lg transition-all ${bulkAnalyzing ? 'bg-primary-dark shadow-xl scale-105' : 'bg-primary hover:bg-primary-dark hover:shadow-xl'}`}
-          style={{ fontFamily: 'var(--font-body)' }}
-          title="Analyze every loaded call that doesn't have a score yet"
-        >
-          <svg className={`w-4 h-4 ${bulkAnalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
-          {bulkAnalyzing && bulkProgress ? (
-            <>
-              <span>Analyzing {bulkProgress.done}/{bulkProgress.total}</span>
-              <span className="w-16 h-1.5 rounded-full bg-white/30 overflow-hidden">
-                <span className="block h-full bg-white rounded-full transition-all" style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }} />
-              </span>
-            </>
-          ) : (() => {
-            const unscored = calls.filter(c => !scores[String(c.id)]).length;
-            return unscored > 0 ? `Analyze ${unscored} unscored call${unscored === 1 ? '' : 's'}` : 'All calls analyzed';
-          })()}
-        </button>
+      {/* Operator Insights Tab — admin only */}
+      {tab === 'operators' && !loading && isAdmin && (
+        <OperatorInsightsPanel
+          rangeStart={rangeStart}
+          rangeEnd={rangeEnd}
+          token={session?.access_token ?? null}
+          onOpenCall={(ctmId, calledAt) => {
+            const iso = parseDate(calledAt)?.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+            if (iso) setDateFilter(iso);
+            setExpandedId(Number(ctmId));
+            setTab('calls');
+            setPage(1);
+            setTimeout(() => {
+              const el = document.querySelector(`[data-call-id="${ctmId}"]`);
+              if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+          }}
+        />
       )}
+
+      {isAdmin && calls.length > 0 && (() => {
+        const unscored = calls.filter(c => !scores[String(c.id)]).length;
+        if (!bulkAnalyzing && unscored === 0) return null;
+        return (
+          <button
+            type="button"
+            onClick={analyzeAllCalls}
+            disabled={bulkAnalyzing}
+            className={`fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 px-4 py-3 rounded-full text-white text-sm font-semibold shadow-lg transition-all ${bulkAnalyzing ? 'bg-primary-dark shadow-xl scale-105' : 'bg-primary hover:bg-primary-dark hover:shadow-xl'}`}
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="Analyze calls that don't have a score yet"
+          >
+            <svg className={`w-4 h-4 ${bulkAnalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+            {bulkAnalyzing && bulkProgress ? (
+              <>
+                <span>Analyzing {bulkProgress.done}/{bulkProgress.total}</span>
+                <span className="w-16 h-1.5 rounded-full bg-white/30 overflow-hidden">
+                  <span className="block h-full bg-white rounded-full transition-all" style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }} />
+                </span>
+              </>
+            ) : (
+              <span>Analyze missing calls{unscored > 0 ? ` · ${unscored}` : ''}</span>
+            )}
+          </button>
+        );
+      })()}
 
       {transcriptFor !== null && (() => {
         const call = calls.find((c) => c.id === transcriptFor);
@@ -2404,14 +2392,14 @@ function TimelineSlider({
   const isYesterday = startStr === yesterdayStr && endStr === yesterdayStr;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 mb-6 select-none">
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 mb-6 select-none" style={{ overflow: 'visible' }}>
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div>
           <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Viewing</p>
           <p className="text-base sm:text-lg font-bold text-foreground tracking-tight">{rangeLabel}</p>
           <p className="text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{spanDays} day{spanDays === 1 ? '' : 's'}</p>
         </div>
-        <div className="flex items-center gap-1 bg-warm-bg rounded-xl p-1">
+        <div className="flex items-center gap-1 bg-warm-bg rounded-xl p-1 overflow-x-auto max-w-full no-scrollbar">
           {(() => {
             const presetActive = !isAllTime && !isToday && !isYesterday;
             const items: { key: string; label: string; active: boolean; onClick: () => void }[] = [
@@ -2439,61 +2427,56 @@ function TimelineSlider({
 
       <div
         ref={trackRef}
-        className="relative h-16 mt-2 cursor-pointer"
+        className="relative h-28 mt-2 cursor-pointer"
+        style={{ overflow: 'visible' }}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onClick={onTrackClick}
       >
-        {/* Activity density bars (behind the track) */}
-        <div className="absolute inset-x-0 top-0 bottom-7 overflow-hidden">
-          {activityBars.map((b, i) => (
-            <div
-              key={i}
-              className="absolute bottom-0 bg-primary/20 rounded-sm"
-              style={{
-                left: `${b.pct * 100}%`,
-                width: `${b.widthPct}%`,
-                height: `${Math.max(4, b.count * 100)}%`,
-                minHeight: 2,
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Track base */}
-        <div className="absolute inset-x-0 bottom-6 h-1 rounded-full bg-gray-100" />
-
-        {/* Selected band */}
-        <div
-          className="absolute bottom-6 h-1 rounded-full bg-primary shadow-[0_0_0_3px_rgba(160,82,45,0.1)] cursor-grab active:cursor-grabbing transition-[background] hover:bg-primary/90"
-          style={{ left: `${startPct * 100}%`, width: `${Math.max(0, (endPct - startPct) * 100)}%` }}
-          onPointerDown={onPointerDown('band')}
-        />
-
-        {/* Filled activity bars under the selection (highlighted) */}
-        <div className="absolute top-0 bottom-7 overflow-hidden pointer-events-none"
-          style={{ left: `${startPct * 100}%`, width: `${Math.max(0, (endPct - startPct) * 100)}%` }}
-        >
+        {/* Bar chart area (unselected = muted, selected = full) */}
+        <div className="absolute inset-x-0 top-0 bottom-8 overflow-hidden">
           {activityBars.map((b, i) => {
             const barRightPct = b.pct + b.widthPct / 100;
             const inRange = barRightPct > startPct && b.pct < endPct;
-            if (!inRange) return null;
-            const relativeLeft = ((b.pct - startPct) / Math.max(0.0001, (endPct - startPct))) * 100;
-            const relativeWidth = (b.widthPct / ((endPct - startPct) * 100)) * 100;
             return (
               <div
                 key={i}
-                className="absolute bottom-0 bg-primary rounded-sm"
+                className={`absolute bottom-0 rounded-sm transition-colors ${inRange ? 'bg-primary' : 'bg-primary/25'}`}
                 style={{
-                  left: `${relativeLeft}%`,
-                  width: `${relativeWidth}%`,
-                  height: `${Math.max(6, b.count * 100)}%`,
-                  opacity: 0.85,
+                  left: `${b.pct * 100}%`,
+                  width: `${b.widthPct}%`,
+                  height: `${Math.max(8, b.count * 100)}%`,
+                  minHeight: 3,
                 }}
               />
             );
           })}
+        </div>
+
+        {/* Baseline */}
+        <div className="absolute inset-x-0 bottom-7 h-px bg-foreground/15" />
+
+        {/* Month tick marks on baseline */}
+        <div className="absolute inset-x-0 bottom-7 h-1.5 pointer-events-none">
+          {months.map((m, i) => (
+            <div
+              key={i}
+              className={`absolute top-0 w-px ${m.isYearStart ? 'h-2 bg-foreground/50' : 'h-1.5 bg-foreground/20'}`}
+              style={{ left: `${m.pct * 100}%` }}
+            />
+          ))}
+        </div>
+
+        {/* Selection band (overlays the bars) */}
+        <div
+          className="absolute top-0 bottom-8 bg-primary/10 border-x-2 border-primary cursor-grab active:cursor-grabbing"
+          style={{ left: `${startPct * 100}%`, width: `${Math.max(0, (endPct - startPct) * 100)}%` }}
+          onPointerDown={onPointerDown('band')}
+        >
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-primary text-white text-[10px] font-semibold whitespace-nowrap pointer-events-none shadow-sm" style={{ fontFamily: 'var(--font-body)' }}>
+            {rangeLabel}
+          </div>
         </div>
 
         {/* Start handle */}
@@ -2504,8 +2487,8 @@ function TimelineSlider({
           onKeyDown={(e) => { if (e.key === 'ArrowLeft') nudgeStart(-1); if (e.key === 'ArrowRight') nudgeStart(1); }}
           onPointerDown={onPointerDown('start')}
           onClick={(e) => e.stopPropagation()}
-          className="absolute bottom-4 w-4 h-4 rounded-full bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
-          style={{ left: `calc(${startPct * 100}% - 8px)` }}
+          className="absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-sm bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
+          style={{ left: `max(0px, calc(${startPct * 100}% - 6px))` }}
         />
 
         {/* End handle */}
@@ -2516,8 +2499,8 @@ function TimelineSlider({
           onKeyDown={(e) => { if (e.key === 'ArrowLeft') nudgeEnd(-1); if (e.key === 'ArrowRight') nudgeEnd(1); }}
           onPointerDown={onPointerDown('end')}
           onClick={(e) => e.stopPropagation()}
-          className="absolute bottom-4 w-4 h-4 rounded-full bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
-          style={{ left: `calc(${endPct * 100}% - 8px)` }}
+          className="absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-sm bg-white border-2 border-primary cursor-ew-resize shadow-md hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-transform"
+          style={{ left: `min(calc(100% - 12px), calc(${endPct * 100}% - 6px))` }}
         />
 
         {/* Month labels */}
@@ -2525,7 +2508,7 @@ function TimelineSlider({
           {months.map((m, i) => (
             <div
               key={i}
-              className={`absolute text-[10px] whitespace-nowrap select-none ${m.isYearStart ? 'text-foreground/70 font-semibold' : 'text-foreground/30'}`}
+              className={`absolute text-[10px] whitespace-nowrap select-none ${m.isYearStart ? 'text-foreground/70 font-semibold' : 'text-foreground/40'}`}
               style={{ left: `${m.pct * 100}%`, transform: 'translateX(-50%)', fontFamily: 'var(--font-body)' }}
             >
               {m.isYearStart ? `${m.label} ${m.date.getFullYear()}` : m.label}
@@ -2534,161 +2517,6 @@ function TimelineSlider({
         </div>
       </div>
     </div>
-  );
-}
-
-function HourGraph({
-  data,
-}: {
-  data: { hour: number; label: string; count: number; missedCount: number; returnedCount: number; meaningfulCount: number }[];
-}) {
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-  const W = 720;
-  const H = 170;
-  const padL = 24;
-  const padR = 24;
-  const padT = 24;
-  const padB = 36;
-  const innerW = W - padL - padR;
-  const innerH = H - padT - padB;
-
-  const max = Math.max(...data.map((d) => d.count), 1);
-  const pts = data.map((d, i) => {
-    const x = padL + (i / (data.length - 1)) * innerW;
-    const y = padT + innerH - (d.count / max) * innerH;
-    const missedY = padT + innerH - (d.missedCount / max) * innerH;
-    const returnedY = padT + innerH - (d.returnedCount / max) * innerH;
-    const meaningfulY = padT + innerH - (d.meaningfulCount / max) * innerH;
-    return { x, y, missedY, returnedY, meaningfulY, ...d };
-  });
-
-  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-  const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${padT + innerH} L ${pts[0].x.toFixed(1)} ${padT + innerH} Z`;
-  const missedPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.missedY.toFixed(1)}`).join(' ');
-  const returnedPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.returnedY.toFixed(1)}`).join(' ');
-  const meaningfulPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.meaningfulY.toFixed(1)}`).join(' ');
-
-  const gridYs = [0, 0.25, 0.5, 0.75, 1].map((t) => padT + innerH * t);
-  const axisEvery = 3;
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="w-full block select-none"
-      preserveAspectRatio="none"
-      style={{ maxHeight: 200 }}
-    >
-      <defs>
-        <linearGradient id="hg-area" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#a0522d" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#a0522d" stopOpacity="0.02" />
-        </linearGradient>
-        <clipPath id="hg-clip">
-          <rect x={padL} y={padT - 4} width={innerW} height={innerH + 8}>
-            <animate attributeName="width" from="0" to={innerW} dur="1.8s" fill="freeze" calcMode="spline" keySplines="0.22 1 0.36 1" />
-          </rect>
-        </clipPath>
-      </defs>
-
-      {gridYs.map((y, i) => (
-        <line
-          key={i}
-          x1={padL}
-          x2={W - padR}
-          y1={y}
-          y2={y}
-          stroke="rgba(0,0,0,0.05)"
-          strokeDasharray={i === gridYs.length - 1 ? '0' : '2 4'}
-        />
-      ))}
-
-      <g clipPath="url(#hg-clip)">
-        <path d={areaPath} fill="url(#hg-area)" />
-        <path d={linePath} fill="none" stroke="#a0522d" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d={missedPath} fill="none" stroke="#ef4444" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 4" />
-        <path d={returnedPath} fill="none" stroke="#10b981" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 4" />
-        <path d={meaningfulPath} fill="none" stroke="#3b82f6" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 4" />
-      </g>
-
-      {pts.map((p, i) => {
-        const delay = 0.2 + i * 0.04;
-        return (
-          <g key={`mr-${p.hour}`} className="pointer-events-none">
-            {p.missedCount > 0 && (
-              <>
-                <circle cx={p.x} cy={p.missedY} r={3} fill="#ffffff" stroke="#ef4444" strokeWidth="2" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }} />
-                <text x={p.x - 6} y={p.missedY + 3} textAnchor="end" fontSize="9" fontWeight="700" fill="#ef4444" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}>{p.missedCount}</text>
-              </>
-            )}
-            {p.returnedCount > 0 && (
-              <>
-                <circle cx={p.x} cy={p.returnedY} r={3} fill="#ffffff" stroke="#10b981" strokeWidth="2" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }} />
-                <text x={p.x + 6} y={p.returnedY + 3} textAnchor="start" fontSize="9" fontWeight="700" fill="#10b981" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}>{p.returnedCount}</text>
-              </>
-            )}
-            {p.meaningfulCount > 0 && (
-              <>
-                <circle cx={p.x} cy={p.meaningfulY} r={3} fill="#ffffff" stroke="#3b82f6" strokeWidth="2" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }} />
-                <text x={p.x + 6} y={p.meaningfulY + 3} textAnchor="start" fontSize="9" fontWeight="700" fill="#3b82f6" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}>{p.meaningfulCount}</text>
-              </>
-            )}
-          </g>
-        );
-      })}
-
-      {pts.map((p, i) => {
-        const delay = 0.2 + i * 0.04;
-        const showLabel = i % axisEvery === 0;
-        return (
-          <g
-            key={p.hour}
-            onMouseEnter={() => setHoveredIdx(i)}
-            onMouseLeave={() => setHoveredIdx((cur) => (cur === i ? null : cur))}
-          >
-            <rect
-              x={p.x - innerW / pts.length / 2}
-              y={padT - 4}
-              width={innerW / pts.length}
-              height={innerH + padB}
-              fill="transparent"
-            />
-            {p.count > 0 && (
-              <circle cx={p.x} cy={p.y} r={3.5} fill="#ffffff" stroke="#a0522d" strokeWidth="2" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay}s forwards` }} />
-            )}
-            {p.count > 0 && (
-              <text x={p.x} y={p.y - 10} textAnchor="middle" fontSize="11" fontWeight="700" fill="rgba(26,26,26,0.8)" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.05}s forwards`, fontFamily: 'var(--font-body)' }}>{p.count}</text>
-            )}
-            {showLabel && (
-              <text x={p.x} y={H - 14} textAnchor="middle" fontSize="10" fontWeight="500" fill="rgba(26,26,26,0.4)" style={{ opacity: 0, animation: `wgFadeIn 420ms ease-out ${delay + 0.1}s forwards`, fontFamily: 'var(--font-body)' }}>{p.label}</text>
-            )}
-          </g>
-        );
-      })}
-
-      {hoveredIdx !== null && pts[hoveredIdx] && pts[hoveredIdx].count > 0 && (() => {
-        const p = pts[hoveredIdx];
-        const boxW = 160;
-        const boxH = 60;
-        let tipX = p.x - boxW / 2;
-        if (tipX < padL) tipX = padL;
-        if (tipX + boxW > W - padR) tipX = W - padR - boxW;
-        const placeAbove = p.y - boxH - 12 > padT;
-        const tipY = placeAbove ? p.y - boxH - 12 : p.y + 14;
-        const nextH = (p.hour + 1) % 24;
-        const nextLabel = `${nextH % 12 === 0 ? 12 : nextH % 12}${nextH < 12 ? 'a' : 'p'}`;
-        return (
-          <g className="pointer-events-none" style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.12))' }}>
-            <rect x={tipX} y={tipY} width={boxW} height={boxH} rx={8} fill="#ffffff" stroke="rgba(0,0,0,0.08)" />
-            <text x={tipX + 10} y={tipY + 16} fontSize="10" fontWeight="700" fill="rgba(26,26,26,0.5)" style={{ fontFamily: 'var(--font-body)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              {p.label}–{nextLabel} · {p.count} call{p.count === 1 ? '' : 's'}
-            </text>
-            <text x={tipX + 10} y={tipY + 34} fontSize="11" fill="#3b82f6" style={{ fontFamily: 'var(--font-body)' }}>Meaningful: {p.meaningfulCount}</text>
-            <text x={tipX + 10} y={tipY + 48} fontSize="11" fill="#ef4444" style={{ fontFamily: 'var(--font-body)' }}>Missed: {p.missedCount}</text>
-            <text x={tipX + boxW - 10} y={tipY + 48} textAnchor="end" fontSize="11" fill="#10b981" style={{ fontFamily: 'var(--font-body)' }}>Returned: {p.returnedCount}</text>
-          </g>
-        );
-      })()}
-    </svg>
   );
 }
 
@@ -2828,148 +2656,882 @@ function MiniHeatmap({
   );
 }
 
-function DailySummary({
-  calls,
-  scores,
-  date,
-  isToday,
-  sessionToken,
-}: {
-  calls: Call[];
-  scores: Record<string, ScoreRow>;
-  date: string;
-  isToday: boolean;
-  sessionToken: string | null;
-}) {
-  const [summary, setSummary] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const debounceRef = useRef<number | null>(null);
 
-  // Stable signature so we only regenerate when calls or relevant scores change
-  const signature = useMemo(() => {
-    const idSig = calls.map(c => c.id).sort((a, b) => a - b).join(',');
-    const scoreSig = calls.map(c => {
-      const s = scores[String(c.id)];
-      return s ? `${c.id}:${s.fit_score ?? 'x'}:${(s.summary || '').length}` : `${c.id}:_`;
-    }).join('|');
-    return `${date}::${idSig}::${scoreSig}`;
-  }, [calls, scores, date]);
+
+
+interface OperatorCallEntry {
+  ctm_id: string;
+  called_at: string;
+  direction: string | null;
+  duration: number | null;
+  talk_time: number | null;
+  caller_number_formatted: string | null;
+  caller_number: string | null;
+  city: string | null;
+  state: string | null;
+  audio_url: string | null;
+  score: number | null;
+  fit_score: number | null;
+  call_name: string | null;
+  caller_name: string | null;
+  summary: string | null;
+  next_steps: string | null;
+  sentiment: string | null;
+  client_type: string | null;
+  caller_interest: string | null;
+  strengths: string[];
+  weaknesses: string[];
+}
+
+interface OperatorAgg {
+  name: string;
+  count: number;
+  avgScore: number;
+  avgFit: number | null;
+  meaningful: number;
+  converted: number;
+  successPct: number;
+  strengths: { text: string; count: number }[];
+  weaknesses: { text: string; count: number }[];
+  calls: OperatorCallEntry[];
+}
+
+type OpSortKey = 'name' | 'meaningful' | 'converted' | 'successPct' | 'avgScore';
+
+function scoreColorClass(s: number | null | undefined): string {
+  if (s == null) return 'text-foreground/40';
+  if (s >= 80) return 'text-emerald-500';
+  if (s >= 60) return 'text-blue-600';
+  if (s >= 40) return 'text-amber-500';
+  return 'text-red-500';
+}
+
+function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { rangeStart: Date; rangeEnd: Date; token: string | null; onOpenCall: (ctmId: string, calledAt: string) => void }) {
+  const [operators, setOperators] = useState<OperatorAgg[] | null>(null);
+  const [expandedOp, setExpandedOp] = useState<string | null>(null);
+  const [expandedCall, setExpandedCall] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [sortKey, setSortKey] = useState<OpSortKey>('avgScore');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [playingUrl, setPlayingUrl] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (!sessionToken) return;
-    if (calls.length === 0) {
-      setSummary(isToday ? 'No calls today yet.' : 'No calls on this day.');
-      setLoading(false);
-      return;
-    }
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    if (!token) return;
+    let cancelled = false;
     setLoading(true);
-    debounceRef.current = window.setTimeout(async () => {
+    const from = rangeStart.toISOString();
+    const to = rangeEnd.toISOString();
+    (async () => {
       try {
-        const callsPayload = calls.map(c => ({
-          id: c.id,
-          called_at: c.called_at,
-          direction: c.direction,
-          duration: c.duration,
-          talk_time: c.talk_time,
-          voicemail: c.voicemail,
-          caller_number_formatted: c.caller_number_formatted,
-          caller_number: c.caller_number,
-          source: c.source,
-          source_name: c.source_name,
-          city: c.city,
-          state: c.state,
-        }));
-        const scoresPayload: Record<string, {
-          caller_name: string | null;
-          client_type: string | null;
-          fit_score: number | null;
-          summary: string;
-          next_steps: string | null;
-          caller_interest: string | null;
-        }> = {};
-        for (const c of calls) {
-          const s = scores[String(c.id)];
-          if (s) scoresPayload[String(c.id)] = {
-            caller_name: s.caller_name,
-            client_type: s.client_type,
-            fit_score: s.fit_score,
-            summary: s.summary,
-            next_steps: s.next_steps,
-            caller_interest: s.caller_interest,
-          };
-        }
-        const res = await fetch('/api/claude/calls/daily-summary', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
-          body: JSON.stringify({ date, calls: callsPayload, scores: scoresPayload }),
+        const res = await fetch(`/api/calls/operators?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        if (data.summary) {
-          setSummary(data.summary);
-          setError(null);
-        } else if (data.error) {
-          setError(data.error);
-        }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to generate summary');
+        if (!cancelled && !data.error) setOperators(data.operators ?? []);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    }, 1500);
+    })();
+    return () => { cancelled = true; };
+  }, [rangeStart, rangeEnd, token]);
 
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature, sessionToken, isToday]);
-
-  const stats = useMemo(() => {
-    let inbound = 0, outbound = 0, missed = 0, talkSec = 0;
-    for (const c of calls) {
-      if (c.direction === 'inbound') inbound++;
-      if (c.direction === 'outbound') outbound++;
-      if (c.direction === 'inbound' && (c.voicemail || (c.talk_time ?? 0) < 3)) missed++;
-      talkSec += c.talk_time || 0;
+  const playAudio = (url: string | null) => {
+    if (!url) return;
+    if (playingUrl === url) {
+      audioRef.current?.pause();
+      setPlayingUrl(null);
+      return;
     }
-    return { inbound, outbound, missed, talkSec };
-  }, [calls]);
+    audioRef.current?.pause();
+    const a = new Audio(url);
+    a.onended = () => setPlayingUrl(null);
+    a.onerror = () => setPlayingUrl(null);
+    a.play().catch(() => setPlayingUrl(null));
+    audioRef.current = a;
+    setPlayingUrl(url);
+  };
 
-  const allScored = calls.length > 0 && calls.every(c => scores[String(c.id)]);
+  const sorted = useMemo(() => {
+    if (!operators) return [];
+    const copy = [...operators];
+    const dir = sortDir === 'asc' ? 1 : -1;
+    copy.sort((a, b) => {
+      if (sortKey === 'name') return a.name.localeCompare(b.name) * dir;
+      return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
+    });
+    return copy;
+  }, [operators, sortKey, sortDir]);
+
+  const setSort = (key: OpSortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'name' ? 'asc' : 'desc');
+    }
+  };
+
+  const Th = ({ k, label, align = 'right' }: { k: OpSortKey; label: string; align?: 'left' | 'right' }) => (
+    <th className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-foreground/50 ${align === 'right' ? 'text-right' : 'text-left'}`} style={{ fontFamily: 'var(--font-body)' }}>
+      <button type="button" onClick={() => setSort(k)} className="inline-flex items-center gap-1 hover:text-foreground">
+        {label}
+        <span className="text-[9px] opacity-60">
+          {sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    </th>
+  );
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <p className="text-xs font-medium text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
-            {isToday ? 'Daily Summary so far' : 'Daily Summary'}
-          </p>
-          {!allScored && calls.length > 0 && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-blue-600" style={{ fontFamily: 'var(--font-body)' }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              analyzing
-            </span>
-          )}
-        </div>
-        <span className="text-[11px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-          {calls.length} {calls.length === 1 ? 'call' : 'calls'}
-          {calls.length > 0 && ` · ${stats.inbound} in · ${stats.outbound} out${stats.missed > 0 ? ` · ${stats.missed} missed` : ''}`}
-        </span>
-      </div>
-      {loading && !summary ? (
-        <div className="space-y-2">
-          <div className="h-3 bg-gray-100 rounded animate-pulse w-full" />
-          <div className="h-3 bg-gray-100 rounded animate-pulse w-11/12" />
-          <div className="h-3 bg-gray-100 rounded animate-pulse w-9/12" />
-        </div>
-      ) : error ? (
-        <p className="text-xs text-red-500" style={{ fontFamily: 'var(--font-body)' }}>{error}</p>
-      ) : (
-        <p className={`text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap ${loading ? 'opacity-60' : ''}`} style={{ fontFamily: 'var(--font-body)' }}>
-          {summary || 'Generating summary…'}
+    <div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3">
+        <svg className="w-4 h-4 mt-0.5 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 16v-4" strokeLinecap="round" />
+          <path d="M12 8h.01" strokeLinecap="round" />
+        </svg>
+        <p className="text-xs text-blue-900/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          Sometimes AI is wrong and doesn&apos;t transcribe things right so this isn&apos;t perfect — but it&apos;s better than nothing! Treat these as directional signals, not performance reviews. &quot;Converted&quot; = meaningful calls the AI tagged with a specific client type (insurance, private pay, etc.).
         </p>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {loading && !operators ? (
+          <div className="text-center py-16 text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>Loading operator insights…</div>
+        ) : (operators ?? []).length === 0 ? (
+          <div className="text-center py-16 text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+            No operator data yet for this range.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-warm-bg/40">
+                <tr>
+                  <Th k="name" label="Operator" align="left" />
+                  <Th k="meaningful" label="Meaningful Taken" />
+                  <Th k="converted" label="Converted" />
+                  <Th k="successPct" label="Success %" />
+                  <Th k="avgScore" label="Avg Score" />
+                  <th />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {sorted.map(op => {
+                  const isOpen = expandedOp === op.name;
+                  return (
+                    <Fragment key={op.name}>
+                      <tr
+                        onClick={() => { setExpandedOp(isOpen ? null : op.name); setExpandedCall(null); }}
+                        className="cursor-pointer hover:bg-warm-bg/30 transition-colors"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs shrink-0">
+                              {(op.name.match(/[A-Za-z]/)?.[0] || '?').toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-foreground truncate">{op.name}</p>
+                              <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                                {op.count} call{op.count === 1 ? '' : 's'}{op.avgFit != null ? ` · ${op.avgFit} avg fit` : ''}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm font-semibold text-blue-600">{op.meaningful}</td>
+                        <td className="px-4 py-3 text-right text-sm font-semibold text-emerald-600">{op.converted}</td>
+                        <td className="px-4 py-3 text-right text-sm font-semibold text-foreground">{op.meaningful > 0 ? `${op.successPct}%` : '—'}</td>
+                        <td className={`px-4 py-3 text-right text-xl font-bold ${scoreColorClass(op.avgScore)}`}>{op.avgScore}</td>
+                        <td className="px-4 py-3 text-right">
+                          <svg className={`w-4 h-4 text-foreground/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={6} className="px-4 pb-5 bg-warm-bg/10">
+                            <div className="space-y-4 pt-4">
+                              <OperatorOverview op={op} />
+                              <div className="grid sm:grid-cols-2 gap-4">
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+                                  <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Strengths</p>
+                                  {op.strengths.length === 0 ? (
+                                    <p className="text-xs text-emerald-800/60" style={{ fontFamily: 'var(--font-body)' }}>No strengths surfaced yet.</p>
+                                  ) : (
+                                    <ul className="space-y-1.5">
+                                      {op.strengths.slice(0, 8).map(s => (
+                                        <li key={s.text} className="text-xs text-emerald-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
+                                          <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                          <span>{s.text}{s.count > 1 && <span className="text-emerald-700/60"> · {s.count}×</span>}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                                  <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Potential to Improve</p>
+                                  {op.weaknesses.length === 0 ? (
+                                    <p className="text-xs text-amber-800/60" style={{ fontFamily: 'var(--font-body)' }}>No improvement areas surfaced yet.</p>
+                                  ) : (
+                                    <ul className="space-y-1.5">
+                                      {op.weaknesses.slice(0, 8).map(w => (
+                                        <li key={w.text} className="text-xs text-amber-900 flex items-start gap-2" style={{ fontFamily: 'var(--font-body)' }}>
+                                          <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                          <span>{w.text}{w.count > 1 && <span className="text-amber-700/60"> · {w.count}×</span>}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="bg-white rounded-xl border border-gray-100">
+                                <p className="px-4 py-2 text-xs font-semibold text-foreground/60 uppercase tracking-wider border-b border-gray-100" style={{ fontFamily: 'var(--font-body)' }}>
+                                  Calls by {op.name}
+                                </p>
+                                <div className="divide-y divide-gray-50">
+                                  {op.calls.map(c => {
+                                    const callOpen = expandedCall === c.ctm_id;
+                                    const d = parseDate(c.called_at);
+                                    const time = d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : '';
+                                    const isPlaying = playingUrl === c.audio_url;
+                                    return (
+                                      <div key={c.ctm_id}>
+                                        <div className="flex items-center gap-2 px-4 py-2.5">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); playAudio(c.audio_url); }}
+                                            disabled={!c.audio_url}
+                                            title={c.audio_url ? 'Play recording' : 'No recording'}
+                                            className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 ${c.audio_url ? (isPlaying ? 'bg-primary text-white' : 'bg-warm-bg hover:bg-primary hover:text-white text-foreground/60') : 'bg-gray-50 text-foreground/20 cursor-not-allowed'}`}
+                                          >
+                                            {isPlaying ? (
+                                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                                            ) : (
+                                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                                            )}
+                                          </button>
+                                          <OperatorCallLinkButton
+                                            ctmId={c.ctm_id}
+                                            onOpen={() => onOpenCall(c.ctm_id, c.called_at)}
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedCall(callOpen ? null : c.ctm_id)}
+                                            className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
+                                          >
+                                            <div className="flex items-center gap-2 min-w-0">
+                                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${c.direction === 'inbound' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`} style={{ fontFamily: 'var(--font-body)' }}>
+                                                {c.direction === 'inbound' ? 'In' : 'Out'}
+                                              </span>
+                                              <div className="min-w-0">
+                                                <p className="text-xs font-semibold text-foreground truncate">
+                                                  {c.call_name || c.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
+                                                </p>
+                                                <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                                                  {time}{c.client_type ? ` · ${c.client_type}` : ''}
+                                                </p>
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 shrink-0">
+                                              {c.fit_score != null && (
+                                                <span className={`text-[11px] font-semibold ${scoreColorClass(c.fit_score)}`} style={{ fontFamily: 'var(--font-body)' }}>
+                                                  {c.fit_score}/100 fit
+                                                </span>
+                                              )}
+                                              <span className={`text-xs font-bold ${scoreColorClass(c.score)}`}>{c.score ?? '—'}</span>
+                                              <svg className={`w-3.5 h-3.5 text-foreground/30 transition-transform ${callOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                              </svg>
+                                            </div>
+                                          </button>
+                                        </div>
+                                        {callOpen && (
+                                          <div className="px-4 pb-3 pt-0 space-y-2 pl-11">
+                                            {c.summary && (
+                                              <div>
+                                                <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Summary</p>
+                                                <p className="text-xs text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{c.summary}</p>
+                                              </div>
+                                            )}
+                                            {(c.strengths.length > 0 || c.weaknesses.length > 0) && (
+                                              <div className="grid sm:grid-cols-2 gap-2">
+                                                {c.strengths.length > 0 && (
+                                                  <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2.5">
+                                                    <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Strengths</p>
+                                                    <ul className="space-y-1">
+                                                      {c.strengths.map(s => (
+                                                        <li key={s} className="text-[11px] text-emerald-900" style={{ fontFamily: 'var(--font-body)' }}>• {s}</li>
+                                                      ))}
+                                                    </ul>
+                                                  </div>
+                                                )}
+                                                {c.weaknesses.length > 0 && (
+                                                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-2.5">
+                                                    <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Potential to Improve</p>
+                                                    <ul className="space-y-1">
+                                                      {c.weaknesses.map(w => (
+                                                        <li key={w} className="text-[11px] text-amber-900" style={{ fontFamily: 'var(--font-body)' }}>• {w}</li>
+                                                      ))}
+                                                    </ul>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                            {c.next_steps && (
+                                              <div>
+                                                <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Next Steps</p>
+                                                <p className="text-xs text-foreground/80" style={{ fontFamily: 'var(--font-body)' }}>{c.next_steps}</p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <TopBottomCalls operators={operators ?? []} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={playAudio} />
+    </div>
+  );
+}
+
+function OperatorOverview({ op }: { op: OperatorAgg }) {
+  const inbound = op.calls.filter(c => c.direction === 'inbound').length;
+  const outbound = op.calls.filter(c => c.direction === 'outbound').length;
+  const avgTalkSec = op.calls.length > 0
+    ? Math.round(op.calls.reduce((acc, c) => acc + (c.talk_time ?? 0), 0) / op.calls.length)
+    : 0;
+  const topStrength = op.strengths[0]?.text;
+  const topWeakness = op.weaknesses[0]?.text;
+
+  return (
+    <div className="bg-white border border-blue-100 rounded-xl p-4">
+      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>Overview</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+        <div>
+          <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Calls</p>
+          <p className="text-lg font-bold text-foreground">{op.count}</p>
+          <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{inbound} in · {outbound} out</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Meaningful / Converted</p>
+          <p className="text-lg font-bold text-blue-600">{op.meaningful}<span className="text-sm text-foreground/40"> / {op.converted}</span></p>
+          <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{op.meaningful > 0 ? `${op.successPct}% success` : 'No meaningful'}</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Avg Score</p>
+          <p className={`text-lg font-bold ${scoreColorClass(op.avgScore)}`}>{op.avgScore}</p>
+          <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>out of 100</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Avg Talk</p>
+          <p className="text-lg font-bold text-foreground">{Math.floor(avgTalkSec / 60)}:{String(avgTalkSec % 60).padStart(2, '0')}</p>
+          <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>per call</p>
+        </div>
+      </div>
+      {(topStrength || topWeakness) && (
+        <div className="text-xs text-foreground/70 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          {topStrength && (<><span className="font-semibold text-emerald-700">Leads with</span> {topStrength}. </>)}
+          {topWeakness && (<><span className="font-semibold text-amber-700">Common gap:</span> {topWeakness}.</>)}
+        </div>
       )}
+    </div>
+  );
+}
+
+function CopyCallLinkButton({ callId }: { callId: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/app/calls?call=${encodeURIComponent(callId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard blocked — leave feedback off */ }
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? 'Copied!' : 'Copy shareable link to this call'}
+      className={`inline-flex items-center justify-center w-5 h-5 rounded transition-colors ${copied ? 'text-emerald-600' : 'text-foreground/30 hover:text-foreground/70'}`}
+    >
+      {copied ? (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      ) : (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 11-5.656-5.656l1.101-1.101m11.314-11.314l1.101-1.101a4 4 0 115.656 5.656l-4 4a4 4 0 01-5.656 0M10 14L14 10" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+function OperatorCallLinkButton({ ctmId, onOpen }: { ctmId: string; onOpen: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyLink = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/app/calls?call=${encodeURIComponent(ctmId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <span className="inline-flex items-center shrink-0">
+      <button
+        type="button"
+        onClick={copyLink}
+        title={copied ? 'Link copied' : 'Copy shareable link'}
+        className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 ${copied ? 'bg-emerald-500 text-white' : 'bg-warm-bg hover:bg-primary hover:text-white text-foreground/60'}`}
+      >
+        {copied ? (
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        ) : (
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 11-5.656-5.656l1.101-1.101m11.314-11.314l1.101-1.101a4 4 0 115.656 5.656l-4 4a4 4 0 01-5.656 0M10 14L14 10" />
+          </svg>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        title="Open in Call Log"
+        className="ml-1 w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 bg-warm-bg hover:bg-primary hover:text-white text-foreground/60"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+      </button>
+    </span>
+  );
+}
+
+function SourcesPanel({ calls, scores, onOpenCall }: { calls: Call[]; scores: Record<string, ScoreRow>; onOpenCall: (id: number) => void }) {
+  const [expandedSource, setExpandedSource] = useState<string | null>(null);
+  const MEANINGFUL = 60;
+
+  const rows = useMemo(() => {
+    const bySource = new Map<string, { count: number; meaningful: number; calls: Call[] }>();
+    for (const c of calls) {
+      const src = c.source_name || c.source || 'Unknown';
+      let bucket = bySource.get(src);
+      if (!bucket) { bucket = { count: 0, meaningful: 0, calls: [] }; bySource.set(src, bucket); }
+      bucket.count++;
+      const s = scores[String(c.id)];
+      if (s?.fit_score != null && s.fit_score >= MEANINGFUL) bucket.meaningful++;
+      bucket.calls.push(c);
+    }
+    for (const b of bySource.values()) {
+      b.calls.sort((a, b) => {
+        const ta = parseDate(a.called_at)?.getTime() ?? 0;
+        const tb = parseDate(b.called_at)?.getTime() ?? 0;
+        return tb - ta;
+      });
+    }
+    return Array.from(bySource.entries())
+      .map(([name, b]) => ({ name, ...b }))
+      .sort((a, b) => b.count - a.count);
+  }, [calls, scores]);
+
+  if (rows.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="text-center py-16">
+          <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>Load calls first to see source breakdown</p>
+        </div>
+      </div>
+    );
+  }
+
+  const total = calls.length;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-100 bg-warm-bg/50">
+              <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
+              <th className="text-right px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Calls</th>
+              <th className="text-right px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Meaningful</th>
+              <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>%</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {rows.map(s => {
+              const pct = total > 0 ? Math.round((s.count / total) * 100) : 0;
+              const meaningfulPct = s.count > 0 ? Math.round((s.meaningful / s.count) * 100) : 0;
+              const isOpen = expandedSource === s.name;
+              return (
+                <Fragment key={s.name}>
+                  <tr
+                    onClick={() => setExpandedSource(isOpen ? null : s.name)}
+                    className="cursor-pointer hover:bg-warm-bg/20 transition-colors"
+                  >
+                    <td className="px-3 sm:px-5 py-3.5 text-sm font-medium text-foreground">{s.name}</td>
+                    <td className="px-3 sm:px-5 py-3.5 text-right text-sm font-bold text-foreground">{s.count}</td>
+                    <td className="px-3 sm:px-5 py-3.5 text-right text-sm">
+                      <span className="font-semibold text-blue-600">{s.meaningful}</span>
+                      {s.count > 0 && <span className="text-foreground/40 text-[11px] ml-1">({meaningfulPct}%)</span>}
+                    </td>
+                    <td className="px-3 sm:px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-warm-bg rounded-full max-w-[120px]">
+                          <div className="h-2 bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs text-foreground/40 w-8" style={{ fontFamily: 'var(--font-body)' }}>{pct}%</span>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-5 py-3.5 text-right">
+                      <svg className={`inline w-4 h-4 text-foreground/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr>
+                      <td colSpan={5} className="bg-warm-bg/10 px-5 py-3">
+                        <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-50">
+                          {s.calls.map(c => {
+                            const score = scores[String(c.id)];
+                            const d = parseDate(c.called_at);
+                            const time = d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : '';
+                            return (
+                              <button
+                                type="button"
+                                key={c.id}
+                                onClick={() => onOpenCall(c.id)}
+                                className="w-full flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-warm-bg/30 transition-colors text-left"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${c.direction === 'inbound' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`} style={{ fontFamily: 'var(--font-body)' }}>
+                                    {c.direction === 'inbound' ? 'In' : 'Out'}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-foreground truncate">
+                                      {score?.call_name || score?.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
+                                    </p>
+                                    <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{time}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  {score?.fit_score != null && (
+                                    <span className={`text-[11px] font-semibold ${scoreColorClass(score.fit_score)}`} style={{ fontFamily: 'var(--font-body)' }}>
+                                      {score.fit_score}/100 fit
+                                    </span>
+                                  )}
+                                  <span className={`text-xs font-bold ${scoreColorClass(score?.score ?? null)}`}>{score?.score ?? '—'}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function TopBottomCalls({
+  operators,
+  onOpenCall,
+  playingUrl,
+  onPlay,
+}: {
+  operators: OperatorAgg[];
+  onOpenCall: (ctmId: string, calledAt: string) => void;
+  playingUrl: string | null;
+  onPlay: (url: string | null) => void;
+}) {
+  const allCalls = useMemo(() => {
+    const out: (OperatorCallEntry & { operatorName: string })[] = [];
+    for (const op of operators) {
+      for (const c of op.calls) {
+        if (c.score == null) continue;
+        out.push({ ...c, operatorName: op.name });
+      }
+    }
+    return out;
+  }, [operators]);
+
+  if (allCalls.length === 0) return null;
+
+  const sortedDesc = [...allCalls].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const top = sortedDesc.slice(0, 5);
+  const bottom = [...sortedDesc].reverse().slice(0, 5);
+
+  return (
+    <div className="grid md:grid-cols-2 gap-4">
+      <CallsSpotlight title="Top 5 Scored Calls" variant="top" calls={top} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} />
+      <CallsSpotlight title="Bottom 5 Scored Calls" variant="bottom" calls={bottom} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} />
+    </div>
+  );
+}
+
+function CallsSpotlight({
+  title,
+  variant,
+  calls,
+  onOpenCall,
+  playingUrl,
+  onPlay,
+}: {
+  title: string;
+  variant: 'top' | 'bottom';
+  calls: (OperatorCallEntry & { operatorName: string })[];
+  onOpenCall: (ctmId: string, calledAt: string) => void;
+  playingUrl: string | null;
+  onPlay: (url: string | null) => void;
+}) {
+  const barColor = variant === 'top' ? 'bg-emerald-500' : 'bg-red-500';
+  const labelColor = variant === 'top' ? 'text-emerald-700' : 'text-red-600';
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+        <span className={`inline-block w-1.5 h-5 rounded-sm ${barColor}`} />
+        <p className={`text-xs font-semibold uppercase tracking-wider ${labelColor}`} style={{ fontFamily: 'var(--font-body)' }}>{title}</p>
+      </div>
+      {calls.length === 0 ? (
+        <div className="px-5 py-8 text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>No scored calls yet.</div>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {calls.map(c => {
+            const d = parseDate(c.called_at);
+            const time = d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : '';
+            const isPlaying = playingUrl === c.audio_url;
+            return (
+              <div key={c.ctm_id} className="flex items-center gap-2 px-4 py-2.5">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onPlay(c.audio_url); }}
+                  disabled={!c.audio_url}
+                  title={c.audio_url ? 'Play recording' : 'No recording'}
+                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 ${c.audio_url ? (isPlaying ? 'bg-primary text-white' : 'bg-warm-bg hover:bg-primary hover:text-white text-foreground/60') : 'bg-gray-50 text-foreground/20 cursor-not-allowed'}`}
+                >
+                  {isPlaying ? (
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                  ) : (
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenCall(c.ctm_id, c.called_at)}
+                  className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground truncate">
+                      {c.call_name || c.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
+                    </p>
+                    <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                      {c.operatorName} · {time}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {c.fit_score != null && (
+                      <span className={`text-[11px] font-semibold ${scoreColorClass(c.fit_score)}`} style={{ fontFamily: 'var(--font-body)' }}>
+                        {c.fit_score}/100 fit
+                      </span>
+                    )}
+                    <span className={`text-sm font-bold ${scoreColorClass(c.score)}`}>{c.score}</span>
+                  </div>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SyncStatusIndicator({ token }: { token: string | null }) {
+  const [status, setStatus] = useState<{ last_synced_at: string | null; total_calls: number } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  const refresh = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/ctm/sync-status', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setStatus(await res.json());
+    } catch { /* ignore */ }
+  }, [token]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const triggerSync = async () => {
+    if (!token || syncing) return;
+    setSyncing(true);
+    try {
+      await fetch('/api/ctm/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      await refresh();
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const ago = (() => {
+    if (!status?.last_synced_at) return 'never';
+    const diff = Math.max(0, now - new Date(status.last_synced_at).getTime());
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  })();
+
+  return (
+    <p className="mt-1 text-[10px] sm:text-[11px] text-foreground/40 inline-flex items-center gap-1.5 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
+      <span className="inline-flex items-center gap-1">
+        <span className={`w-1.5 h-1.5 rounded-full ${status?.last_synced_at ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+        Last synced {ago}
+      </span>
+      <span className="text-foreground/25">·</span>
+      <button
+        type="button"
+        onClick={triggerSync}
+        disabled={syncing || !token}
+        className="inline-flex items-center gap-1 text-primary hover:text-primary-dark disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+      >
+        <svg className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        {syncing ? 'Syncing…' : 'Sync now'}
+      </button>
+    </p>
+  );
+}
+
+function MobileRangePresets({
+  rangeStart,
+  rangeEnd,
+  min,
+  max,
+  onChange,
+}: {
+  rangeStart: Date;
+  rangeEnd: Date;
+  min: Date | null;
+  max: Date | null;
+  onChange: (start: Date, end: Date) => void;
+}) {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const phoenixDay = (offsetDays: number) => {
+    const nowAz = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+    const [yy, mo, dd] = nowAz.split('-').map(Number);
+    const startMs = Date.UTC(yy, mo - 1, dd + offsetDays, 7, 0, 0, 0);
+    return [new Date(startMs), new Date(startMs + dayMs - 1)] as const;
+  };
+
+  const azDate = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+  const todayStr = azDate(new Date());
+  const yesterdayStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return azDate(d); })();
+  const startStr = azDate(rangeStart);
+  const endStr = azDate(rangeEnd);
+  const isToday = startStr === todayStr && endStr === todayStr;
+  const isYesterday = startStr === yesterdayStr && endStr === yesterdayStr;
+  const spanDays = Math.max(1, Math.round((rangeEnd.getTime() - rangeStart.getTime()) / dayMs));
+  const isAllTime = !!min && !!max && Math.abs(rangeStart.getTime() - min.getTime()) < dayMs && Math.abs(rangeEnd.getTime() - max.getTime()) < dayMs;
+  const presetActive = !isAllTime && !isToday && !isYesterday;
+
+  const setPreset = (days: number) => {
+    if (!max) {
+      const [, todayEnd] = phoenixDay(0);
+      const newEnd = todayEnd;
+      const newStart = new Date(newEnd.getTime() - (days - 1) * dayMs - (dayMs - 1));
+      onChange(newStart, newEnd);
+      return;
+    }
+    const [, todayEnd] = phoenixDay(0);
+    const newEnd = new Date(Math.min(max.getTime(), todayEnd.getTime()));
+    const clampedStart = new Date(Math.max((min ?? newEnd).getTime(), newEnd.getTime() - (days - 1) * dayMs - (dayMs - 1)));
+    onChange(clampedStart, newEnd);
+  };
+  const setToday = () => {
+    const [s, e] = phoenixDay(0);
+    onChange(
+      min ? new Date(Math.max(min.getTime(), s.getTime())) : s,
+      max ? new Date(Math.min(max.getTime(), e.getTime())) : e,
+    );
+  };
+  const setYesterday = () => {
+    const [s, e] = phoenixDay(-1);
+    onChange(
+      min ? new Date(Math.max(min.getTime(), s.getTime())) : s,
+      max ? new Date(Math.min(max.getTime(), e.getTime())) : e,
+    );
+  };
+  const setAll = () => {
+    if (!min || !max) return;
+    const s = new Date(min); s.setHours(0, 0, 0, 0);
+    const e = new Date(max); e.setHours(23, 59, 59, 999);
+    onChange(s, e);
+  };
+
+  const items: { key: string; label: string; active: boolean; onClick: () => void; disabled?: boolean }[] = [
+    { key: 'today', label: 'Today', active: isToday, onClick: setToday },
+    { key: 'yesterday', label: 'Yest.', active: isYesterday, onClick: setYesterday },
+    { key: '7D', label: '7D', active: presetActive && spanDays === 7, onClick: () => setPreset(7) },
+    { key: '14D', label: '14D', active: presetActive && spanDays === 14, onClick: () => setPreset(14) },
+    { key: '30D', label: '30D', active: presetActive && spanDays === 30, onClick: () => setPreset(30) },
+    { key: '90D', label: '90D', active: presetActive && spanDays === 90, onClick: () => setPreset(90) },
+    { key: 'all', label: 'All', active: isAllTime, onClick: setAll, disabled: !min || !max },
+  ];
+
+  return (
+    <div className="flex items-center gap-1 bg-warm-bg rounded-xl p-1 overflow-x-auto no-scrollbar">
+      {items.map(it => (
+        <button
+          key={it.key}
+          onClick={it.onClick}
+          disabled={it.disabled}
+          className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${it.active ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'} ${it.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {it.label}
+        </button>
+      ))}
     </div>
   );
 }

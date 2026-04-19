@@ -290,3 +290,7 @@ html.dark .bg-dark-section {
   outline-offset: 2px;
 }
 
+
+/* Utility used by horizontal scroll rows (range preset bar, etc.) */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

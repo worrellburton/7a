@@ -397,7 +397,8 @@ const pageIcons: Record<string, React.ReactNode> = {
   ),
   '/app/document-manager': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+      <path d="M14.25 3.104c.251.023.501.05.75.082M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m5.394 13.94-1.425-1.425m-3.104-.196h.008v.008h-.008v-.008ZM8.25 21h7.5A2.25 2.25 0 0 0 18 18.75V9A2.25 2.25 0 0 0 15.75 6.75h-7.5A2.25 2.25 0 0 0 6 9v9.75A2.25 2.25 0 0 0 8.25 21Z" />
+      <path d="M9 12.75h6M9 15.75h4" />
     </svg>
   ),
 };
@@ -623,6 +624,18 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 <Link
                   key={item.path}
                   href={item.path}
+                  onClick={(e) => {
+                    // If we're already on this pathname but with a query
+                    // string (e.g. /app/calls?tab=operators), Next.js's
+                    // default Link behavior can skip the navigation and
+                    // leave stale tab state behind. Force a clean replace
+                    // to the bare path so URL-derived state (tabs, etc.)
+                    // resets to the default.
+                    if (pathname === item.path) {
+                      e.preventDefault();
+                      router.replace(item.path, { scroll: false });
+                    }
+                  }}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out ${
                     isActive
                       ? 'bg-primary/10 text-primary'
