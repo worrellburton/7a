@@ -2868,7 +2868,7 @@ interface OperatorAgg {
   calls: OperatorCallEntry[];
 }
 
-type OpSortKey = 'name' | 'meaningful' | 'converted' | 'successPct' | 'avgScore';
+type OpSortKey = 'name' | 'count' | 'avgFit' | 'meaningful' | 'converted' | 'successPct' | 'avgScore';
 
 function scoreColorClass(s: number | null | undefined): string {
   if (s == null) return 'text-foreground/40';
@@ -2930,7 +2930,9 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
     const dir = sortDir === 'asc' ? 1 : -1;
     copy.sort((a, b) => {
       if (sortKey === 'name') return a.name.localeCompare(b.name) * dir;
-      return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
+      const va = (a[sortKey] as number | null) ?? -1;
+      const vb = (b[sortKey] as number | null) ?? -1;
+      return (va - vb) * dir;
     });
     return copy;
   }, [operators, sortKey, sortDir]);
@@ -2944,16 +2946,19 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
     }
   };
 
-  const Th = ({ k, label, align = 'right' }: { k: OpSortKey; label: string; align?: 'left' | 'right' }) => (
-    <th className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-foreground/50 ${align === 'right' ? 'text-right' : 'text-left'}`} style={{ fontFamily: 'var(--font-body)' }}>
-      <button type="button" onClick={() => setSort(k)} className="inline-flex items-center gap-1 hover:text-foreground">
-        {label}
-        <span className="text-[9px] opacity-60">
-          {sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-        </span>
-      </button>
-    </th>
-  );
+  const Th = ({ k, label, align = 'center' }: { k: OpSortKey; label: string; align?: 'left' | 'center' | 'right' }) => {
+    const alignClass = align === 'left' ? 'text-left' : align === 'right' ? 'text-right' : 'text-center';
+    return (
+      <th className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-foreground/50 ${alignClass}`} style={{ fontFamily: 'var(--font-body)' }}>
+        <button type="button" onClick={() => setSort(k)} className={`inline-flex items-center gap-1 hover:text-foreground ${align === 'center' ? 'justify-center' : ''}`}>
+          {label}
+          <span className="text-[9px] opacity-60">
+            {sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+          </span>
+        </button>
+      </th>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -2981,6 +2986,8 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
               <thead className="bg-warm-bg/40">
                 <tr>
                   <Th k="name" label="Operator" align="left" />
+                  <Th k="count" label="# of Calls" />
+                  <Th k="avgFit" label="Avg Fit" />
                   <Th k="meaningful" label="Meaningful Taken" />
                   <Th k="converted" label="Converted" />
                   <Th k="successPct" label="Success %" />
@@ -3004,16 +3011,15 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
                             </div>
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-foreground truncate">{op.name}</p>
-                              <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-                                {op.count} call{op.count === 1 ? '' : 's'}{op.avgFit != null ? ` · ${op.avgFit} avg fit` : ''}
-                              </p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold text-blue-600">{op.meaningful}</td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold text-emerald-600">{op.converted}</td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold text-foreground">{op.meaningful > 0 ? `${op.successPct}%` : '—'}</td>
-                        <td className={`px-4 py-3 text-right text-xl font-bold ${scoreColorClass(op.avgScore)}`}>{op.avgScore}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-foreground">{op.count}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-foreground/70">{op.avgFit != null ? op.avgFit : '—'}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-blue-600">{op.meaningful}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-emerald-600">{op.converted}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-foreground">{op.meaningful > 0 ? `${op.successPct}%` : '—'}</td>
+                        <td className={`px-4 py-3 text-center text-xl font-bold ${scoreColorClass(op.avgScore)}`}>{op.avgScore}</td>
                         <td className="px-4 py-3 text-right">
                           <svg className={`w-4 h-4 text-foreground/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -3022,7 +3028,7 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
                       </tr>
                       {isOpen && (
                         <tr>
-                          <td colSpan={6} className="px-4 pb-5 bg-warm-bg/10">
+                          <td colSpan={8} className="px-4 pb-5 bg-warm-bg/10">
                             <div className="space-y-4 pt-4">
                               <OperatorOverview op={op} />
                               <div className="grid sm:grid-cols-2 gap-4">
