@@ -1,15 +1,15 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import DocumentManagerContent from './content';
+import CallDetailContent from './content';
 
 export const metadata: Metadata = {
-  title: 'Document Manager',
+  title: 'Call',
 };
 
-export default function DocumentManagerPage() {
+export default function CallDetailPage() {
   return (
     <Suspense fallback={null}>
-      <DocumentManagerContent />
+      <CallDetailContent />
     </Suspense>
   );
 }

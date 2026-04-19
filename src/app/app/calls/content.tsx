@@ -213,27 +213,14 @@ export default function CallsContent() {
     return Number.isFinite(n) && n > 0 ? n : null;
   });
 
-  // Handle /app/calls?call=<id> — force Call Log tab, expand the row,
-  // scroll it into view once the data arrives.
+  // Legacy support: /app/calls?call=<id> used to expand a row inline.
+  // Shared call links now live at /app/calls/<id>, so redirect old URLs
+  // to the new path.
   useEffect(() => {
     const q = searchParams?.get('call');
-    const n = q ? Number(q) : NaN;
-    if (!Number.isFinite(n) || n <= 0) return;
-    // Force the URL to the Call Log tab so `tab` derived above resolves
-    // to 'calls'.
-    const sp = new URLSearchParams(searchParams?.toString() ?? '');
-    if (sp.get('tab') && sp.get('tab') !== 'calls') {
-      sp.delete('tab');
-      const qs = sp.toString();
-      router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
-    }
-    setExpandedId(n);
-    const tick = window.setTimeout(() => {
-      const el = document.querySelector(`[data-call-id="${n}"]`);
-      if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 400);
-    return () => window.clearTimeout(tick);
-  }, [searchParams, calls.length, pathname, router]);
+    if (!q) return;
+    router.replace(`/app/calls/${encodeURIComponent(q)}`);
+  }, [searchParams, router]);
   const [miniPopoverId, setMiniPopoverId] = useState<number | null>(null);
   const [transcriptFor, setTranscriptFor] = useState<number | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
@@ -1107,6 +1094,43 @@ export default function CallsContent() {
 
   if (!user) return null;
 
+  const visibleCalls = (() => {
+    const filtered = calls.filter(call => {
+      const spamFlag = isSpamCall(call);
+      if (tab === 'spam') {
+        if (!spamFlag) return false;
+      } else {
+        if (spamFlag) return false;
+      }
+      if (operatorFilter === 'all') return true;
+      const s = scores[String(call.id)];
+      return s?.operator_name === operatorFilter;
+    });
+    const getVal = (call: Call, s: ScoreRow | undefined): string | number => {
+      switch (sortKey) {
+        case 'id': return call.id;
+        case 'fit_score': return s?.fit_score ?? -1;
+        case 'call_name': return (s?.call_name || '').toLowerCase();
+        case 'called_at': return parseDate(call.called_at)?.getTime() ?? 0;
+        case 'caller_number': return (call.caller_number_formatted || call.caller_number || '').toLowerCase();
+        case 'duration': return call.duration ?? 0;
+        case 'caller_name': return (s?.caller_name || '').toLowerCase();
+        case 'operator_name': return (s?.operator_name || '').toLowerCase();
+        case 'client_type': return (s?.client_type || '').toLowerCase();
+        case 'source': return (call.source_name || call.source || '').toLowerCase();
+        case 'location': return [call.city, call.state].filter(Boolean).join(', ').toLowerCase();
+        default: return 0;
+      }
+    };
+    return filtered.slice().sort((a, b) => {
+      const vA = getVal(a, scores[String(a.id)]);
+      const vB = getVal(b, scores[String(b.id)]);
+      if (vA < vB) return sortDir === 'asc' ? -1 : 1;
+      if (vA > vB) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  })();
+
   return (
     <div className="p-2.5 sm:p-6 lg:p-10">
       {/* Header */}
@@ -1377,7 +1401,142 @@ export default function CallsContent() {
             </div>
           ) : calls.length > 0 && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Mobile card view */}
+              <div className="md:hidden divide-y divide-gray-50">
+                {visibleCalls.map(call => {
+                  const expanded = expandedId === call.id;
+                  const score = scores[String(call.id)];
+                  const spamFlag = isSpamCall(call);
+                  const missedFlag = isMissedCall(call);
+                  const callNumber = call.caller_number_formatted || call.caller_number || 'Unknown';
+                  const rowBg = spamFlag ? 'bg-amber-50/70' : missedFlag ? 'bg-red-50/60' : 'bg-white';
+                  const accentBar = spamFlag ? 'bg-amber-400' : missedFlag ? 'bg-red-400' : score?.fit_score != null ? (score.fit_score >= 75 ? 'bg-emerald-500' : score.fit_score >= 50 ? 'bg-blue-500' : score.fit_score >= 25 ? 'bg-amber-500' : 'bg-red-500') : 'bg-gray-200';
+                  return (
+                    <Fragment key={call.id}>
+                      <div
+                        onClick={() => setExpandedId(expanded ? null : call.id)}
+                        className={`${rowBg} cursor-pointer transition-colors active:bg-warm-bg/40`}
+                      >
+                        <div className="flex items-stretch">
+                          <div className={`w-1 shrink-0 ${accentBar}`} />
+                          <div className="flex-1 min-w-0 px-3.5 py-3">
+                            {/* Top: fit score + call name + chevron */}
+                            <div className="flex items-center gap-3">
+                              <div className="shrink-0">
+                                {score?.fit_score != null ? (
+                                  <span className={`inline-flex items-center justify-center w-11 h-11 rounded-xl text-base font-bold text-white ${fitScoreBg(score.fit_score)}`}>
+                                    {score.fit_score}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl text-xs font-medium text-foreground/30 bg-gray-100">
+                                    —
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[15px] font-semibold text-foreground leading-tight line-clamp-2">
+                                  {score?.call_name || (spamFlag ? 'Spam call' : missedFlag ? (call.voicemail ? 'Voicemail' : 'Missed call') : 'Unanalyzed call')}
+                                </p>
+                                <p className="text-[11px] text-foreground/50 mt-0.5 font-medium" style={{ fontFamily: 'var(--font-body)' }}>
+                                  {formatDate(call.called_at)} · {formatTime(call.called_at)}
+                                  {call.duration != null && ` · ${formatDuration(call.duration)}`}
+                                </p>
+                              </div>
+                              <svg className={`w-4 h-4 shrink-0 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </div>
+
+                            {/* Middle: number + badges */}
+                            <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-medium text-foreground" style={{ fontFamily: 'var(--font-body)' }}>
+                                {callNumber}
+                              </span>
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
+                                {call.direction || 'unknown'}
+                              </span>
+                              {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">VM</span>}
+                              {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">1st</span>}
+                              {spamFlag && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">Spam</span>}
+                              {missedFlag && !spamFlag && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700">Missed</span>}
+                            </div>
+
+                            {/* Bottom: operator/type + actions */}
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 text-xs text-foreground/60 min-w-0 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
+                                {score?.caller_name && <span className="font-medium text-foreground/80 truncate">{score.caller_name}</span>}
+                                {score?.operator_name && (
+                                  <span className="inline-flex items-center gap-1">
+                                    <span className="w-1 h-1 rounded-full bg-foreground/20" />
+                                    <span>Op: <span className="text-foreground/80">{score.operator_name}</span></span>
+                                  </span>
+                                )}
+                                {score?.client_type && (
+                                  <span className="inline-flex items-center gap-1">
+                                    <span className="w-1 h-1 rounded-full bg-foreground/20" />
+                                    <span>{score.client_type}</span>
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                {call.audio && (
+                                  <button
+                                    onClick={() => playRecording(call.audio)}
+                                    className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${playingAudio === call.audio ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700 active:bg-emerald-100'}`}
+                                    aria-label={playingAudio === call.audio ? 'Stop' : 'Play'}
+                                  >
+                                    {playingAudio === call.audio ? (
+                                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+                                    ) : (
+                                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                                    )}
+                                  </button>
+                                )}
+                                {score?.transcript && (
+                                  <button
+                                    onClick={() => setTranscriptFor(call.id)}
+                                    className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-700 active:bg-blue-100"
+                                    aria-label="Transcript"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => rescoreCall(String(call.id), true)}
+                                  disabled={scoringIds.has(String(call.id))}
+                                  className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-200 text-foreground/60 active:bg-warm-bg/50 disabled:opacity-50"
+                                  aria-label={score?.scored_at ? 'Re-analyze' : 'Analyze'}
+                                >
+                                  <svg className={`w-3.5 h-3.5 ${scoringIds.has(String(call.id)) ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+
+                            <p className="text-[10px] font-mono text-foreground/30 mt-1.5">#{call.id}</p>
+                          </div>
+                        </div>
+                      </div>
+                      {expanded && (
+                        <div className="bg-warm-bg/30 px-3.5 py-4">
+                          <CallDetail
+                            call={call}
+                            score={scores[String(call.id)] || null}
+                            scoring={scoringIds.has(String(call.id))}
+                            error={scoringErrors[String(call.id)]}
+                            onRescore={rescoreCall}
+                          />
+                        </div>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100 bg-warm-bg/50">
@@ -2696,7 +2855,46 @@ interface OperatorAgg {
   calls: OperatorCallEntry[];
 }
 
-type OpSortKey = 'name' | 'meaningful' | 'converted' | 'successPct' | 'avgScore';
+type OpSortKey = 'name' | 'count' | 'avgFit' | 'meaningful' | 'converted' | 'successPct' | 'avgScore';
+
+function fmtAudioTime(s: number): string {
+  if (!Number.isFinite(s) || s < 0) s = 0;
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+function AudioScrubber({ currentTime, duration, onSeek }: { currentTime: number; duration: number; onSeek: (t: number) => void }) {
+  const safeDuration = duration > 0 && Number.isFinite(duration) ? duration : 0;
+  const pct = safeDuration > 0 ? Math.min(100, (currentTime / safeDuration) * 100) : 0;
+  const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (safeDuration <= 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    onSeek(ratio * safeDuration);
+  };
+  return (
+    <div className="flex items-center gap-2 select-none">
+      <span className="text-[10px] font-mono text-foreground/50 w-9 text-right tabular-nums">{fmtAudioTime(currentTime)}</span>
+      <div
+        role="slider"
+        aria-label="Seek"
+        aria-valuemin={0}
+        aria-valuemax={safeDuration}
+        aria-valuenow={currentTime}
+        onClick={onClick}
+        className="flex-1 h-1.5 rounded-full bg-warm-bg cursor-pointer relative overflow-hidden"
+      >
+        <div className="absolute inset-y-0 left-0 bg-primary rounded-full transition-[width] duration-150" style={{ width: `${pct}%` }} />
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-primary border-2 border-white shadow"
+          style={{ left: `calc(${pct}% - 6px)` }}
+        />
+      </div>
+      <span className="text-[10px] font-mono text-foreground/40 w-9 tabular-nums">{safeDuration > 0 ? fmtAudioTime(safeDuration) : '--:--'}</span>
+    </div>
+  );
+}
 
 function scoreColorClass(s: number | null | undefined): string {
   if (s == null) return 'text-foreground/40';
@@ -2714,6 +2912,8 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
   const [sortKey, setSortKey] = useState<OpSortKey>('avgScore');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
+  const [audioTime, setAudioTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -2741,15 +2941,29 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
     if (playingUrl === url) {
       audioRef.current?.pause();
       setPlayingUrl(null);
+      setAudioTime(0);
+      setAudioDuration(0);
       return;
     }
     audioRef.current?.pause();
     const a = new Audio(url);
-    a.onended = () => setPlayingUrl(null);
-    a.onerror = () => setPlayingUrl(null);
-    a.play().catch(() => setPlayingUrl(null));
+    a.ontimeupdate = () => setAudioTime(a.currentTime || 0);
+    a.onloadedmetadata = () => setAudioDuration(Number.isFinite(a.duration) ? a.duration : 0);
+    a.ondurationchange = () => setAudioDuration(Number.isFinite(a.duration) ? a.duration : 0);
+    const reset = () => { setPlayingUrl(null); setAudioTime(0); setAudioDuration(0); };
+    a.onended = reset;
+    a.onerror = reset;
+    a.play().catch(reset);
     audioRef.current = a;
     setPlayingUrl(url);
+    setAudioTime(0);
+    setAudioDuration(0);
+  };
+
+  const seekAudio = (time: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = Math.max(0, Math.min(time, audioRef.current.duration || time));
+    setAudioTime(audioRef.current.currentTime);
   };
 
   const sorted = useMemo(() => {
@@ -2758,7 +2972,9 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
     const dir = sortDir === 'asc' ? 1 : -1;
     copy.sort((a, b) => {
       if (sortKey === 'name') return a.name.localeCompare(b.name) * dir;
-      return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
+      const va = (a[sortKey] as number | null) ?? -1;
+      const vb = (b[sortKey] as number | null) ?? -1;
+      return (va - vb) * dir;
     });
     return copy;
   }, [operators, sortKey, sortDir]);
@@ -2772,16 +2988,19 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
     }
   };
 
-  const Th = ({ k, label, align = 'right' }: { k: OpSortKey; label: string; align?: 'left' | 'right' }) => (
-    <th className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-foreground/50 ${align === 'right' ? 'text-right' : 'text-left'}`} style={{ fontFamily: 'var(--font-body)' }}>
-      <button type="button" onClick={() => setSort(k)} className="inline-flex items-center gap-1 hover:text-foreground">
-        {label}
-        <span className="text-[9px] opacity-60">
-          {sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-        </span>
-      </button>
-    </th>
-  );
+  const Th = ({ k, label, align = 'center' }: { k: OpSortKey; label: string; align?: 'left' | 'center' | 'right' }) => {
+    const alignClass = align === 'left' ? 'text-left' : align === 'right' ? 'text-right' : 'text-center';
+    return (
+      <th className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-foreground/50 ${alignClass}`} style={{ fontFamily: 'var(--font-body)' }}>
+        <button type="button" onClick={() => setSort(k)} className={`inline-flex items-center gap-1 hover:text-foreground ${align === 'center' ? 'justify-center' : ''}`}>
+          {label}
+          <span className="text-[9px] opacity-60">
+            {sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+          </span>
+        </button>
+      </th>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -2809,6 +3028,8 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
               <thead className="bg-warm-bg/40">
                 <tr>
                   <Th k="name" label="Operator" align="left" />
+                  <Th k="count" label="# of Calls" />
+                  <Th k="avgFit" label="Avg Fit" />
                   <Th k="meaningful" label="Meaningful Taken" />
                   <Th k="converted" label="Converted" />
                   <Th k="successPct" label="Success %" />
@@ -2832,16 +3053,15 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
                             </div>
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-foreground truncate">{op.name}</p>
-                              <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-                                {op.count} call{op.count === 1 ? '' : 's'}{op.avgFit != null ? ` · ${op.avgFit} avg fit` : ''}
-                              </p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold text-blue-600">{op.meaningful}</td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold text-emerald-600">{op.converted}</td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold text-foreground">{op.meaningful > 0 ? `${op.successPct}%` : '—'}</td>
-                        <td className={`px-4 py-3 text-right text-xl font-bold ${scoreColorClass(op.avgScore)}`}>{op.avgScore}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-foreground">{op.count}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-foreground/70">{op.avgFit != null ? op.avgFit : '—'}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-blue-600">{op.meaningful}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-foreground/30">—</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-foreground">{op.meaningful > 0 ? `${op.successPct}%` : '—'}</td>
+                        <td className={`px-4 py-3 text-center text-xl font-bold ${scoreColorClass(op.avgScore)}`}>{op.avgScore}</td>
                         <td className="px-4 py-3 text-right">
                           <svg className={`w-4 h-4 text-foreground/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -2850,7 +3070,7 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
                       </tr>
                       {isOpen && (
                         <tr>
-                          <td colSpan={6} className="px-4 pb-5 bg-warm-bg/10">
+                          <td colSpan={8} className="px-4 pb-5 bg-warm-bg/10">
                             <div className="space-y-4 pt-4">
                               <OperatorOverview op={op} />
                               <div className="grid sm:grid-cols-2 gap-4">
@@ -2897,7 +3117,7 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
                                     const isPlaying = playingUrl === c.audio_url;
                                     return (
                                       <div key={c.ctm_id}>
-                                        <div className="flex items-center gap-2 px-4 py-2.5">
+                                        <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
                                           <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); playAudio(c.audio_url); }}
@@ -2946,6 +3166,11 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
                                             </div>
                                           </button>
                                         </div>
+                                        {isPlaying && (
+                                          <div className="px-4 pb-2.5 pl-11">
+                                            <AudioScrubber currentTime={audioTime} duration={audioDuration} onSeek={seekAudio} />
+                                          </div>
+                                        )}
                                         {callOpen && (
                                           <div className="px-4 pb-3 pt-0 space-y-2 pl-11">
                                             {c.summary && (
@@ -3004,7 +3229,7 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
         )}
       </div>
 
-      <TopBottomCalls operators={operators ?? []} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={playAudio} />
+      <TopBottomCalls operators={operators ?? []} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={playAudio} audioTime={audioTime} audioDuration={audioDuration} onSeek={seekAudio} />
     </div>
   );
 }
@@ -3057,7 +3282,7 @@ function CopyCallLinkButton({ callId }: { callId: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/app/calls?call=${encodeURIComponent(callId)}`;
+    const url = `${window.location.origin}/app/calls/${encodeURIComponent(callId)}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -3089,7 +3314,7 @@ function OperatorCallLinkButton({ ctmId, onOpen }: { ctmId: string; onOpen: () =
 
   const copyLink = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/app/calls?call=${encodeURIComponent(ctmId)}`;
+    const url = `${window.location.origin}/app/calls/${encodeURIComponent(ctmId)}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -3268,11 +3493,17 @@ function TopBottomCalls({
   onOpenCall,
   playingUrl,
   onPlay,
+  audioTime,
+  audioDuration,
+  onSeek,
 }: {
   operators: OperatorAgg[];
   onOpenCall: (ctmId: string, calledAt: string) => void;
   playingUrl: string | null;
   onPlay: (url: string | null) => void;
+  audioTime: number;
+  audioDuration: number;
+  onSeek: (t: number) => void;
 }) {
   const allCalls = useMemo(() => {
     const out: (OperatorCallEntry & { operatorName: string })[] = [];
@@ -3293,8 +3524,8 @@ function TopBottomCalls({
 
   return (
     <div className="grid md:grid-cols-2 gap-4">
-      <CallsSpotlight title="Top 5 Scored Calls" variant="top" calls={top} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} />
-      <CallsSpotlight title="Bottom 5 Scored Calls" variant="bottom" calls={bottom} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} />
+      <CallsSpotlight title="Top 5 Scored Calls" variant="top" calls={top} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} audioTime={audioTime} audioDuration={audioDuration} onSeek={onSeek} />
+      <CallsSpotlight title="Bottom 5 Scored Calls" variant="bottom" calls={bottom} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} audioTime={audioTime} audioDuration={audioDuration} onSeek={onSeek} />
     </div>
   );
 }
@@ -3306,6 +3537,9 @@ function CallsSpotlight({
   onOpenCall,
   playingUrl,
   onPlay,
+  audioTime,
+  audioDuration,
+  onSeek,
 }: {
   title: string;
   variant: 'top' | 'bottom';
@@ -3313,6 +3547,9 @@ function CallsSpotlight({
   onOpenCall: (ctmId: string, calledAt: string) => void;
   playingUrl: string | null;
   onPlay: (url: string | null) => void;
+  audioTime: number;
+  audioDuration: number;
+  onSeek: (t: number) => void;
 }) {
   const barColor = variant === 'top' ? 'bg-emerald-500' : 'bg-red-500';
   const labelColor = variant === 'top' ? 'text-emerald-700' : 'text-red-600';
@@ -3331,42 +3568,49 @@ function CallsSpotlight({
             const time = d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : '';
             const isPlaying = playingUrl === c.audio_url;
             return (
-              <div key={c.ctm_id} className="flex items-center gap-2 px-4 py-2.5">
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onPlay(c.audio_url); }}
-                  disabled={!c.audio_url}
-                  title={c.audio_url ? 'Play recording' : 'No recording'}
-                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 ${c.audio_url ? (isPlaying ? 'bg-primary text-white' : 'bg-warm-bg hover:bg-primary hover:text-white text-foreground/60') : 'bg-gray-50 text-foreground/20 cursor-not-allowed'}`}
-                >
-                  {isPlaying ? (
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
-                  ) : (
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onOpenCall(c.ctm_id, c.called_at)}
-                  className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
-                >
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-foreground truncate">
-                      {c.call_name || c.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
-                    </p>
-                    <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-                      {c.operatorName} · {time}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    {c.fit_score != null && (
-                      <span className={`text-[11px] font-semibold ${scoreColorClass(c.fit_score)}`} style={{ fontFamily: 'var(--font-body)' }}>
-                        {c.fit_score}/100 fit
-                      </span>
+              <div key={c.ctm_id}>
+                <div className="flex items-center gap-2 px-4 py-2.5">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onPlay(c.audio_url); }}
+                    disabled={!c.audio_url}
+                    title={c.audio_url ? 'Play recording' : 'No recording'}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 ${c.audio_url ? (isPlaying ? 'bg-primary text-white' : 'bg-warm-bg hover:bg-primary hover:text-white text-foreground/60') : 'bg-gray-50 text-foreground/20 cursor-not-allowed'}`}
+                  >
+                    {isPlaying ? (
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                    ) : (
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                     )}
-                    <span className={`text-sm font-bold ${scoreColorClass(c.score)}`}>{c.score}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenCall(c.ctm_id, c.called_at)}
+                    className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-foreground truncate">
+                        {c.call_name || c.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
+                      </p>
+                      <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                        {c.operatorName} · {time}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {c.fit_score != null && (
+                        <span className={`text-[11px] font-semibold ${scoreColorClass(c.fit_score)}`} style={{ fontFamily: 'var(--font-body)' }}>
+                          {c.fit_score}/100 fit
+                        </span>
+                      )}
+                      <span className={`text-sm font-bold ${scoreColorClass(c.score)}`}>{c.score}</span>
+                    </div>
+                  </button>
+                </div>
+                {isPlaying && (
+                  <div className="px-4 pb-2.5 pl-11">
+                    <AudioScrubber currentTime={audioTime} duration={audioDuration} onSeek={onSeek} />
                   </div>
-                </button>
+                )}
               </div>
             );
           })}
