@@ -2870,6 +2870,45 @@ interface OperatorAgg {
 
 type OpSortKey = 'name' | 'count' | 'avgFit' | 'meaningful' | 'converted' | 'successPct' | 'avgScore';
 
+function fmtAudioTime(s: number): string {
+  if (!Number.isFinite(s) || s < 0) s = 0;
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+function AudioScrubber({ currentTime, duration, onSeek }: { currentTime: number; duration: number; onSeek: (t: number) => void }) {
+  const safeDuration = duration > 0 && Number.isFinite(duration) ? duration : 0;
+  const pct = safeDuration > 0 ? Math.min(100, (currentTime / safeDuration) * 100) : 0;
+  const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (safeDuration <= 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    onSeek(ratio * safeDuration);
+  };
+  return (
+    <div className="flex items-center gap-2 select-none">
+      <span className="text-[10px] font-mono text-foreground/50 w-9 text-right tabular-nums">{fmtAudioTime(currentTime)}</span>
+      <div
+        role="slider"
+        aria-label="Seek"
+        aria-valuemin={0}
+        aria-valuemax={safeDuration}
+        aria-valuenow={currentTime}
+        onClick={onClick}
+        className="flex-1 h-1.5 rounded-full bg-warm-bg cursor-pointer relative overflow-hidden"
+      >
+        <div className="absolute inset-y-0 left-0 bg-primary rounded-full transition-[width] duration-150" style={{ width: `${pct}%` }} />
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-primary border-2 border-white shadow"
+          style={{ left: `calc(${pct}% - 6px)` }}
+        />
+      </div>
+      <span className="text-[10px] font-mono text-foreground/40 w-9 tabular-nums">{safeDuration > 0 ? fmtAudioTime(safeDuration) : '--:--'}</span>
+    </div>
+  );
+}
+
 function scoreColorClass(s: number | null | undefined): string {
   if (s == null) return 'text-foreground/40';
   if (s >= 80) return 'text-emerald-500';
@@ -2886,6 +2925,8 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
   const [sortKey, setSortKey] = useState<OpSortKey>('avgScore');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
+  const [audioTime, setAudioTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -2913,15 +2954,29 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
     if (playingUrl === url) {
       audioRef.current?.pause();
       setPlayingUrl(null);
+      setAudioTime(0);
+      setAudioDuration(0);
       return;
     }
     audioRef.current?.pause();
     const a = new Audio(url);
-    a.onended = () => setPlayingUrl(null);
-    a.onerror = () => setPlayingUrl(null);
-    a.play().catch(() => setPlayingUrl(null));
+    a.ontimeupdate = () => setAudioTime(a.currentTime || 0);
+    a.onloadedmetadata = () => setAudioDuration(Number.isFinite(a.duration) ? a.duration : 0);
+    a.ondurationchange = () => setAudioDuration(Number.isFinite(a.duration) ? a.duration : 0);
+    const reset = () => { setPlayingUrl(null); setAudioTime(0); setAudioDuration(0); };
+    a.onended = reset;
+    a.onerror = reset;
+    a.play().catch(reset);
     audioRef.current = a;
     setPlayingUrl(url);
+    setAudioTime(0);
+    setAudioDuration(0);
+  };
+
+  const seekAudio = (time: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = Math.max(0, Math.min(time, audioRef.current.duration || time));
+    setAudioTime(audioRef.current.currentTime);
   };
 
   const sorted = useMemo(() => {
@@ -3075,7 +3130,7 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
                                     const isPlaying = playingUrl === c.audio_url;
                                     return (
                                       <div key={c.ctm_id}>
-                                        <div className="flex items-center gap-2 px-4 py-2.5">
+                                        <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
                                           <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); playAudio(c.audio_url); }}
@@ -3124,6 +3179,11 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
                                             </div>
                                           </button>
                                         </div>
+                                        {isPlaying && (
+                                          <div className="px-4 pb-2.5 pl-11">
+                                            <AudioScrubber currentTime={audioTime} duration={audioDuration} onSeek={seekAudio} />
+                                          </div>
+                                        )}
                                         {callOpen && (
                                           <div className="px-4 pb-3 pt-0 space-y-2 pl-11">
                                             {c.summary && (
@@ -3182,7 +3242,7 @@ function OperatorInsightsPanel({ rangeStart, rangeEnd, token, onOpenCall }: { ra
         )}
       </div>
 
-      <TopBottomCalls operators={operators ?? []} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={playAudio} />
+      <TopBottomCalls operators={operators ?? []} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={playAudio} audioTime={audioTime} audioDuration={audioDuration} onSeek={seekAudio} />
     </div>
   );
 }
@@ -3446,11 +3506,17 @@ function TopBottomCalls({
   onOpenCall,
   playingUrl,
   onPlay,
+  audioTime,
+  audioDuration,
+  onSeek,
 }: {
   operators: OperatorAgg[];
   onOpenCall: (ctmId: string, calledAt: string) => void;
   playingUrl: string | null;
   onPlay: (url: string | null) => void;
+  audioTime: number;
+  audioDuration: number;
+  onSeek: (t: number) => void;
 }) {
   const allCalls = useMemo(() => {
     const out: (OperatorCallEntry & { operatorName: string })[] = [];
@@ -3471,8 +3537,8 @@ function TopBottomCalls({
 
   return (
     <div className="grid md:grid-cols-2 gap-4">
-      <CallsSpotlight title="Top 5 Scored Calls" variant="top" calls={top} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} />
-      <CallsSpotlight title="Bottom 5 Scored Calls" variant="bottom" calls={bottom} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} />
+      <CallsSpotlight title="Top 5 Scored Calls" variant="top" calls={top} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} audioTime={audioTime} audioDuration={audioDuration} onSeek={onSeek} />
+      <CallsSpotlight title="Bottom 5 Scored Calls" variant="bottom" calls={bottom} onOpenCall={onOpenCall} playingUrl={playingUrl} onPlay={onPlay} audioTime={audioTime} audioDuration={audioDuration} onSeek={onSeek} />
     </div>
   );
 }
@@ -3484,6 +3550,9 @@ function CallsSpotlight({
   onOpenCall,
   playingUrl,
   onPlay,
+  audioTime,
+  audioDuration,
+  onSeek,
 }: {
   title: string;
   variant: 'top' | 'bottom';
@@ -3491,6 +3560,9 @@ function CallsSpotlight({
   onOpenCall: (ctmId: string, calledAt: string) => void;
   playingUrl: string | null;
   onPlay: (url: string | null) => void;
+  audioTime: number;
+  audioDuration: number;
+  onSeek: (t: number) => void;
 }) {
   const barColor = variant === 'top' ? 'bg-emerald-500' : 'bg-red-500';
   const labelColor = variant === 'top' ? 'text-emerald-700' : 'text-red-600';
@@ -3509,42 +3581,49 @@ function CallsSpotlight({
             const time = d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : '';
             const isPlaying = playingUrl === c.audio_url;
             return (
-              <div key={c.ctm_id} className="flex items-center gap-2 px-4 py-2.5">
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onPlay(c.audio_url); }}
-                  disabled={!c.audio_url}
-                  title={c.audio_url ? 'Play recording' : 'No recording'}
-                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 ${c.audio_url ? (isPlaying ? 'bg-primary text-white' : 'bg-warm-bg hover:bg-primary hover:text-white text-foreground/60') : 'bg-gray-50 text-foreground/20 cursor-not-allowed'}`}
-                >
-                  {isPlaying ? (
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
-                  ) : (
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onOpenCall(c.ctm_id, c.called_at)}
-                  className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
-                >
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-foreground truncate">
-                      {c.call_name || c.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
-                    </p>
-                    <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-                      {c.operatorName} · {time}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    {c.fit_score != null && (
-                      <span className={`text-[11px] font-semibold ${scoreColorClass(c.fit_score)}`} style={{ fontFamily: 'var(--font-body)' }}>
-                        {c.fit_score}/100 fit
-                      </span>
+              <div key={c.ctm_id}>
+                <div className="flex items-center gap-2 px-4 py-2.5">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onPlay(c.audio_url); }}
+                    disabled={!c.audio_url}
+                    title={c.audio_url ? 'Play recording' : 'No recording'}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 ${c.audio_url ? (isPlaying ? 'bg-primary text-white' : 'bg-warm-bg hover:bg-primary hover:text-white text-foreground/60') : 'bg-gray-50 text-foreground/20 cursor-not-allowed'}`}
+                  >
+                    {isPlaying ? (
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                    ) : (
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                     )}
-                    <span className={`text-sm font-bold ${scoreColorClass(c.score)}`}>{c.score}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenCall(c.ctm_id, c.called_at)}
+                    className="flex-1 flex items-center justify-between gap-3 text-left min-w-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-foreground truncate">
+                        {c.call_name || c.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
+                      </p>
+                      <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                        {c.operatorName} · {time}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {c.fit_score != null && (
+                        <span className={`text-[11px] font-semibold ${scoreColorClass(c.fit_score)}`} style={{ fontFamily: 'var(--font-body)' }}>
+                          {c.fit_score}/100 fit
+                        </span>
+                      )}
+                      <span className={`text-sm font-bold ${scoreColorClass(c.score)}`}>{c.score}</span>
+                    </div>
+                  </button>
+                </div>
+                {isPlaying && (
+                  <div className="px-4 pb-2.5 pl-11">
+                    <AudioScrubber currentTime={audioTime} duration={audioDuration} onSeek={onSeek} />
                   </div>
-                </button>
+                )}
               </div>
             );
           })}
