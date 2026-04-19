@@ -190,12 +190,46 @@ function formatSentAt(iso: string): string {
     date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
+const KAIZEN_SUGGESTIONS: Record<DocCategory, string[]> = {
+  policies: [
+    'Add an effective date and revision history section at the top.',
+    'Cite the regulation or standard each clause is intended to satisfy.',
+    'Replace vague verbs ("should", "may") with explicit ownership and timing.',
+  ],
+  intake_forms: [
+    'Group questions by topic and mark which fields are required vs. optional.',
+    'Include plain-language explanations for any clinical or legal terms.',
+    'Add a signature + date block at the end with space for a witness.',
+  ],
+  new_hire_forms: [
+    'List the documents each new hire must return on day one.',
+    'Add a tax-withholding reminder linking to the latest IRS W-4.',
+    'Include an acknowledgment of the employee handbook version number.',
+  ],
+  job_descriptions: [
+    'Open with a one-sentence purpose statement for the role.',
+    'Separate required vs. preferred qualifications.',
+    'Add physical / environmental demands for ADA compliance.',
+  ],
+  consent_forms: [
+    'Spell out the specific uses and disclosures being authorized.',
+    'Include an expiration date and the client\u2019s right to revoke.',
+    'Add a signature line for a legal guardian where applicable.',
+  ],
+  financial: [
+    'Break down fees, billing cadence, and accepted payment methods.',
+    'Describe refund and cancellation terms explicitly.',
+    'Include the late-payment policy with specific dollar amounts or percentages.',
+  ],
+};
+
 export default function DocumentManagerContent() {
   const [docs, setDocs] = useState<ManagedDoc[]>(sampleDocs);
   const [activeCategory, setActiveCategory] = useState<DocCategory>('policies');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<DocStatus | 'all'>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [kaizenOpenFor, setKaizenOpenFor] = useState<string | null>(null);
 
   const counts = useMemo(() => {
     const map: Record<DocCategory, number> = {
@@ -222,6 +256,27 @@ export default function DocumentManagerContent() {
 
   const sendForSignature = (id: string) => {
     setDocs(prev => prev.map(d => d.id === id ? { ...d, status: 'out_for_signature' } : d));
+  };
+
+  const generatePdf = (doc: ManagedDoc) => {
+    const label = CATEGORIES.find(c => c.key === doc.category)?.label || doc.category;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const meta = `v${doc.version} \u00B7 ${doc.size_kb} KB \u00B7 Updated ${formatRelative(doc.updated_at)} by ${doc.updated_by}`;
+    win.document.write(`<!doctype html><html><head><title>${doc.title}</title><style>
+      body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:720px;margin:48px auto;padding:0 24px;color:#1a1a1a;line-height:1.55}
+      h1{font-size:22px;margin:0 0 4px}
+      .meta{color:#6b7280;font-size:12px;margin-bottom:24px}
+      .cat{display:inline-block;background:#f3f4f6;color:#374151;border-radius:999px;padding:2px 10px;font-size:11px;margin-right:8px}
+      .body{white-space:pre-wrap;font-size:14px}
+      @media print{body{margin:24px}}
+    </style></head><body>
+      <h1>${doc.title}</h1>
+      <div class="meta"><span class="cat">${label}</span>${meta}</div>
+      <div class="body">${(doc.title + '\n\nThis document has not been edited yet. Use the Edit action to add body content before generating the final PDF.').replace(/</g, '&lt;')}</div>
+      <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),150));<\/script>
+    </body></html>`);
+    win.document.close();
   };
 
   return (
@@ -352,6 +407,30 @@ export default function DocumentManagerContent() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setKaizenOpenFor(kaizenOpenFor === selected.id ? null : selected.id)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary-dark transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                  </svg>
+                  Kaizen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => generatePdf(selected)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-gray-200 text-foreground/70 text-xs font-semibold hover:border-primary/30 transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3v12" />
+                    <path d="m7 10 5 5 5-5" />
+                    <path d="M5 21h14" />
+                  </svg>
+                  Generate PDF
+                </button>
+                <button
+                  type="button"
                   className="px-3.5 py-2 rounded-lg bg-white border border-gray-200 text-foreground/70 text-xs font-semibold hover:border-primary/30 transition-colors"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
@@ -368,6 +447,32 @@ export default function DocumentManagerContent() {
                   ))}
                 </select>
               </div>
+
+              {kaizenOpenFor === selected.id && (
+                <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-primary uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Kaizen Suggestions</p>
+                      <p className="text-[11px] text-foreground/60 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>Small improvements for this document.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setKaizenOpenFor(null)}
+                      className="text-foreground/40 hover:text-foreground/70 text-xs"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <ul className="mt-2 space-y-1.5">
+                    {KAIZEN_SUGGESTIONS[selected.category].map((s, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-foreground/80" style={{ fontFamily: 'var(--font-body)' }}>
+                        <span className="mt-0.5 text-primary">&bull;</span>
+                        <span>{s}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="mt-6">
                 <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-body)' }}>
