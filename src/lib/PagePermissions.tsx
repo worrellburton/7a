@@ -197,7 +197,19 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
     });
   }, []);
 
-  const sorted = [...pages].sort((a, b) => a.sort_order - b.sort_order);
+  const sorted = (() => {
+    // Dedupe by path: DB may contain stale rows (e.g. the same page saved
+    // twice with different sections) that would otherwise render multiple
+    // sidebar entries for the same path. First occurrence wins.
+    const seen = new Set<string>();
+    const unique: PageConfig[] = [];
+    for (const p of pages) {
+      if (seen.has(p.path)) continue;
+      seen.add(p.path);
+      unique.push(p);
+    }
+    return unique.sort((a, b) => a.sort_order - b.sort_order);
+  })();
   const navPages = sorted.filter((p) => p.section === 'nav');
   const popupPages = sorted.filter((p) => p.section === 'popup');
 
