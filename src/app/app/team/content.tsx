@@ -261,6 +261,10 @@ export default function UsersContent() {
 
   async function setUserStatus(userId: string, nextStatus: 'active' | 'denied') {
     const target = users.find((u) => u.id === userId);
+    if (target && (target.email || '').toLowerCase() === 'bobby@sevenarrowsrecovery.com' && nextStatus !== 'active') {
+      showToast("The root super admin can't be denied.");
+      return;
+    }
     const result = await db({ action: 'update', table: 'users', data: { status: nextStatus }, match: { id: userId } });
     if (result?.error) {
       showToast(`Failed to update status: ${result.error}`);
