@@ -43,23 +43,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<UserStatus>('active');
 
   async function loadProfile(userId: string, email: string | null) {
-    const data = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, department_id, status' });
-    if (Array.isArray(data) && data[0]) {
-      const row = data[0] as { is_admin?: boolean; department_id?: string | null; status?: UserStatus };
-      setIsAdmin(row.is_admin === true);
-      setDepartmentId(row.department_id ?? null);
-      const current: UserStatus = row.status ?? 'active';
-      // Backfill path for rows created before the trigger existed: if the
-      // email isn't on the org domain and the user isn't an admin, hold them.
-      const needsHold = current === 'active'
-        && row.is_admin !== true
-        && !(email ?? '').toLowerCase().endsWith('@sevenarrowsrecovery.com');
-      if (needsHold) {
-        setStatus('on_hold');
-        db({ action: 'update', table: 'users', data: { status: 'on_hold' }, match: { id: userId } }).catch(() => {});
-      } else {
-        setStatus(current);
+    // Try the full select first. If it fails (e.g. because the status
+    // column hasn't been migrated yet, or the table schema drifted), fall
+    // back to just is_admin + department_id so the user's admin state is
+    // never silently blanked out by an unrelated DB error. This exact bug
+    // once hid Team + Super Admin from every admin's sidebar, so the
+    // fallback is intentional belt-and-suspenders.
+    type ProfileRow = { is_admin?: boolean; department_id?: string | null; status?: UserStatus };
+    let row: ProfileRow | null = null;
+    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, department_id, status' });
+    if (Array.isArray(full) && full[0]) {
+      row = full[0] as ProfileRow;
+    } else {
+      // Any error response (missing column, RLS block, etc) — retry with
+      // only the columns that have existed since day one.
+      const minimal = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, department_id' });
+      if (Array.isArray(minimal) && minimal[0]) {
+        row = minimal[0] as ProfileRow;
+        if (full && typeof full === 'object' && 'error' in full) {
+          // Surface the degraded read so regressions don't slip through
+          // silently like they did last time.
+          console.warn('[AuthProvider] Falling back to minimal profile select:', (full as { error: string }).error);
+        }
       }
+    }
+    if (!row) return;
+
+    setIsAdmin(row.is_admin === true);
+    setDepartmentId(row.department_id ?? null);
+    const current: UserStatus = row.status ?? 'active';
+    // Backfill path for rows created before the trigger existed: if the
+    // email isn't on the org domain and the user isn't an admin, hold them.
+    const needsHold = current === 'active'
+      && row.is_admin !== true
+      && !(email ?? '').toLowerCase().endsWith('@sevenarrowsrecovery.com');
+    if (needsHold) {
+      setStatus('on_hold');
+      db({ action: 'update', table: 'users', data: { status: 'on_hold' }, match: { id: userId } }).catch(() => {});
+    } else {
+      setStatus(current);
     }
   }
 
