@@ -37,6 +37,7 @@ const defaultPages: PageConfig[] = [
   { path: '/app/tours', label: 'Tours', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/admissions', label: 'Admissions', adminOnly: false, section: 'nav', sort_order: 15, allowedDepartments: [], departmentId: null },
   { path: '/app/intake-paperwork', label: 'Intake Paperwork', adminOnly: false, section: 'nav', sort_order: 16, allowedDepartments: [], departmentId: null },
+  { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
@@ -44,7 +45,6 @@ const defaultPages: PageConfig[] = [
   { path: '/app/apis', label: 'APIs', adminOnly: true, section: 'popup', sort_order: 3, allowedDepartments: [], departmentId: null },
   { path: '/app/super-admin', label: 'Super Admin', adminOnly: true, section: 'popup', sort_order: 4, allowedDepartments: [], departmentId: null },
   { path: '/app/activity', label: 'Activity', adminOnly: true, section: 'popup', sort_order: 5, allowedDepartments: [], departmentId: null },
-  { path: '/app/document-manager', label: 'Document Manager', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },
 ];
 
 interface PagePermissionsContextType {
@@ -197,7 +197,19 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
     });
   }, []);
 
-  const sorted = [...pages].sort((a, b) => a.sort_order - b.sort_order);
+  const sorted = (() => {
+    // Dedupe by path: DB may contain stale rows (e.g. the same page saved
+    // twice with different sections) that would otherwise render multiple
+    // sidebar entries for the same path. First occurrence wins.
+    const seen = new Set<string>();
+    const unique: PageConfig[] = [];
+    for (const p of pages) {
+      if (seen.has(p.path)) continue;
+      seen.add(p.path);
+      unique.push(p);
+    }
+    return unique.sort((a, b) => a.sort_order - b.sort_order);
+  })();
   const navPages = sorted.filter((p) => p.section === 'nav');
   const popupPages = sorted.filter((p) => p.section === 'popup');
 

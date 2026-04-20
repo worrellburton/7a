@@ -7,12 +7,15 @@ import { supabase } from './supabase';
 import { db, setAuthToken } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 
+export type UserStatus = 'active' | 'on_hold' | 'denied';
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   isAdmin: boolean;
   departmentId: string | null;
+  status: UserStatus;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -23,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isAdmin: false,
   departmentId: null,
+  status: 'active',
   signInWithGoogle: async () => {},
   signOut: async () => {},
 });
@@ -36,12 +40,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const [status, setStatus] = useState<UserStatus>('active');
 
-  async function loadProfile(userId: string) {
-    const data = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, department_id' });
+  async function loadProfile(userId: string, email: string | null) {
+    const data = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, department_id, status' });
     if (Array.isArray(data) && data[0]) {
-      setIsAdmin(data[0].is_admin === true);
-      setDepartmentId(data[0].department_id ?? null);
+      const row = data[0] as { is_admin?: boolean; department_id?: string | null; status?: UserStatus };
+      setIsAdmin(row.is_admin === true);
+      setDepartmentId(row.department_id ?? null);
+      const current: UserStatus = row.status ?? 'active';
+      // Backfill path for rows created before the trigger existed: if the
+      // email isn't on the org domain and the user isn't an admin, hold them.
+      const needsHold = current === 'active'
+        && row.is_admin !== true
+        && !(email ?? '').toLowerCase().endsWith('@sevenarrowsrecovery.com');
+      if (needsHold) {
+        setStatus('on_hold');
+        db({ action: 'update', table: 'users', data: { status: 'on_hold' }, match: { id: userId } }).catch(() => {});
+      } else {
+        setStatus(current);
+      }
     }
   }
 
@@ -51,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
       setAuthToken(session?.access_token ?? null);
       if (session?.user) {
-        loadProfile(session.user.id);
+        loadProfile(session.user.id, session.user.email ?? null);
       }
       setLoading(false);
     });
@@ -62,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
         setAuthToken(session?.access_token ?? null);
         if (session?.user) {
-          loadProfile(session.user.id);
+          loadProfile(session.user.id, session.user.email ?? null);
           // Supabase fires SIGNED_IN on every session restore (tab open,
           // reload, cross-tab sync) — not just real logins. Dedupe via
           // localStorage: only log once per user per hour.
@@ -90,6 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setIsAdmin(false);
           setDepartmentId(null);
+          setStatus('active');
         }
         setLoading(false);
       }
@@ -138,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isAdmin, departmentId, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, isAdmin, departmentId, status, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );

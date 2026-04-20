@@ -416,7 +416,7 @@ function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
 export { pageIcons };
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, signInWithGoogle, signOut, session } = useAuth();
+  const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session } = useAuth();
   const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
@@ -593,6 +593,42 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
             </svg>
             Continue with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Signed in but awaiting approval — block app access until a super admin
+  // approves the user from the Team page.
+  if (status === 'on_hold' || status === 'denied') {
+    const denied = status === 'denied';
+    return (
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <LoginBackground />
+        <div className="relative z-10 max-w-md w-full mx-4 text-center bg-white/90 backdrop-blur rounded-2xl border border-gray-100 shadow-xl p-8">
+          <img
+            src="/images/logo.png"
+            alt="Seven Arrows Recovery"
+            className="h-16 w-auto mx-auto mb-5"
+          />
+          <h1 className="text-lg font-semibold text-foreground mb-2">
+            {denied ? 'Access denied' : 'Waiting for approval'}
+          </h1>
+          <p className="text-sm text-foreground/60 mb-6" style={{ fontFamily: 'var(--font-body)' }}>
+            {denied
+              ? 'Your account was denied access. If you believe this was a mistake, please contact a Seven Arrows administrator.'
+              : 'Your email isn\u2019t on the Seven Arrows domain, so an administrator needs to approve your account before you can continue.'}
+          </p>
+          <p className="text-xs text-foreground/40 mb-6" style={{ fontFamily: 'var(--font-body)' }}>
+            Signed in as <span className="font-medium text-foreground/60">{user.email}</span>
+          </p>
+          <button
+            onClick={signOut}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-foreground text-white hover:bg-foreground/90 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Sign out
           </button>
         </div>
       </div>

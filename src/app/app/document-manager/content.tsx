@@ -153,21 +153,18 @@ export default function DocumentManagerContent() {
     router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
   }, [pathname, router, searchParams]);
 
-  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<DocStatus | 'all'>('all');
   const [sendOpen, setSendOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
   const filteredDocs = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return docs.filter(d => {
       if (d.category !== activeCategory) return false;
       if (statusFilter !== 'all' && d.status !== statusFilter) return false;
-      if (q && !d.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [docs, search, activeCategory, statusFilter]);
+  }, [docs, activeCategory, statusFilter]);
 
 
   const selected = docs.find(d => d.id === selectedId) ?? null;
@@ -295,14 +292,6 @@ export default function DocumentManagerContent() {
         {/* Document list */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col min-h-0">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2 flex-wrap">
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search documents..."
-              className="px-3 py-2 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary flex-1 min-w-[160px]"
-              style={{ fontFamily: 'var(--font-body)' }}
-            />
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value as DocStatus | 'all')}
@@ -334,7 +323,7 @@ export default function DocumentManagerContent() {
                     <tr
                       key={d.id}
                       onClick={() => router.push(`/app/document-manager/${d.id}`)}
-                      className="cursor-pointer transition-colors hover:bg-warm-bg/30"
+                      className="group cursor-pointer transition-colors hover:bg-warm-bg/30"
                     >
                       <td className="px-4 py-3">
                         <p className="text-sm font-semibold text-foreground">{d.title}</p>
@@ -351,8 +340,18 @@ export default function DocumentManagerContent() {
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <div className="inline-flex gap-1 items-center" onClick={(e) => e.stopPropagation()}>
                           <button
+                            onClick={() => router.push(`/app/document-manager/${d.id}`)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-foreground text-white hover:bg-foreground/80 transition-opacity opacity-0 group-hover:opacity-100 focus:opacity-100"
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          >
+                            Open
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                          <button
                             onClick={() => { setSelectedId(d.id); setSendOpen(true); }}
-                            className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-foreground text-white hover:bg-foreground/80 transition-colors"
+                            className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white border border-gray-200 text-foreground/70 hover:border-primary/30 transition-colors"
                             style={{ fontFamily: 'var(--font-body)' }}
                           >
                             Send
