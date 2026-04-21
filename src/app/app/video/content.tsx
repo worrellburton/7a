@@ -48,6 +48,7 @@ export default function VideoContent() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<SiteImage | null>(null);
   const [prompt, setPrompt] = useState('');
+  const [stylePrompt, setStylePrompt] = useState('');
   const [modelId, setModelId] = useState<string>(DEFAULT_VIDEO_MODEL_ID);
   const [duration, setDuration] = useState(5);
   const [resolution, setResolution] = useState('720p');
@@ -207,7 +208,7 @@ export default function VideoContent() {
         body: JSON.stringify({
           imageId: selectedImage.id,
           imageUrl: selectedImage.public_url,
-          prompt,
+          prompt: [stylePrompt.trim(), prompt.trim()].filter(Boolean).join(' '),
           duration,
           resolution,
           aspectRatio,
@@ -304,6 +305,22 @@ export default function VideoContent() {
           </button>
 
           <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-foreground/70 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>
+                Style / Lead Prompt
+              </label>
+              <textarea
+                value={stylePrompt}
+                onChange={(e) => setStylePrompt(e.target.value)}
+                rows={2}
+                placeholder="Optional — high-level style directive prepended to every generation. E.g. 'warm golden-hour grade, documentary feel, 24fps film grain.'"
+                className="w-full text-sm px-3 py-2.5 rounded-lg bg-warm-bg/40 border border-gray-100 focus:bg-white focus:border-primary focus:outline-none resize-none"
+                style={{ fontFamily: 'var(--font-body)' }}
+              />
+              <p className="mt-1 text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                Prepended before the cinematic directive so style/tone wins.
+              </p>
+            </div>
             <div>
               <label className="block text-xs font-semibold text-foreground/70 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>
                 Prompt

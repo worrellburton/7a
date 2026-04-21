@@ -53,7 +53,10 @@ const services = [
 
 export default function TreatmentServices() {
   return (
-    <section className="py-20 lg:py-28 bg-warm-bg" aria-labelledby="treatment-heading">
+    <section
+      className="py-20 lg:py-28 bg-warm-bg overflow-hidden"
+      aria-labelledby="treatment-heading"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14 max-w-2xl mx-auto">
           <p className="section-label justify-center mb-4">Our Treatment Services</p>
@@ -71,24 +74,27 @@ export default function TreatmentServices() {
             offering personalized support tailored to your unique needs.
           </p>
         </div>
+      </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-5">
-          {services.map((service) => (
+      {/* Continuously scrolling card row — pause on hover. */}
+      <div className="relative group">
+        <div className="flex gap-5 animate-ticker-slow group-hover:[animation-play-state:paused] w-max">
+          {[...services, ...services].map((service, i) => (
             <Link
-              key={service.title}
+              key={`${service.title}-${i}`}
               href={service.href}
-              className="group block bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-1 transition-all duration-300"
+              className="shrink-0 w-[240px] sm:w-[280px] bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 group/card hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
             >
               <div className="aspect-square overflow-hidden">
                 <img
                   src={service.image}
                   alt={service.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500"
                   loading="lazy"
                 />
               </div>
-              <div className="p-4">
-                <h3 className="text-sm font-bold text-foreground mb-1 group-hover:text-primary transition-colors">
+              <div className="p-5">
+                <h3 className="text-sm font-bold text-foreground mb-1 group-hover/card:text-primary transition-colors">
                   {service.title}
                 </h3>
                 <p
@@ -101,6 +107,16 @@ export default function TreatmentServices() {
             </Link>
           ))}
         </div>
+        <div
+          className="pointer-events-none absolute inset-y-0 left-0 w-20 z-10"
+          style={{ background: 'linear-gradient(90deg, var(--color-warm-bg) 0%, rgba(245,240,235,0) 100%)' }}
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 w-20 z-10"
+          style={{ background: 'linear-gradient(270deg, var(--color-warm-bg) 0%, rgba(245,240,235,0) 100%)' }}
+          aria-hidden="true"
+        />
       </div>
     </section>
   );
