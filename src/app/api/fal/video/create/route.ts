@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase, getUserFromRequest } from '@/lib/supabase-server';
+import { DEFAULT_VIDEO_MODEL_ID, findVideoModel } from '@/lib/videoModels';
 
-// fal.ai ByteDance Seedance — image-to-video. Docs call this the i2v
-// (image-to-video) variant of the Seedance 1.0 Pro model.
-//
-// Override with env vars if fal publishes a new endpoint tag.
-const FAL_ENDPOINT =
-  process.env.FAL_SEEDANCE_ENDPOINT ||
-  'fal-ai/bytedance/seedance/v1/pro/image-to-video';
 const FAL_QUEUE_BASE = 'https://queue.fal.run';
 
 interface CreateBody {
   imageId?: string;
   imageUrl?: string;
   prompt?: string;
-  duration?: number; // seconds — Seedance accepts 5 or 10
-  resolution?: string; // '480p' | '720p' | '1080p'
-  aspectRatio?: string; // '16:9' | '9:16' | '1:1' | 'auto'
+  duration?: number; // seconds
+  resolution?: string;
+  aspectRatio?: string;
   seed?: number;
+  model?: string; // id from VIDEO_MODELS; defaults to Seedance Pro
 }
 
 export async function POST(req: NextRequest) {
@@ -33,17 +28,37 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json().catch(() => ({}))) as CreateBody;
-  const { imageId, imageUrl, prompt, duration, resolution, aspectRatio, seed } = body;
+  const { imageId, imageUrl, prompt, duration, resolution, aspectRatio, seed, model } = body;
   if (!imageUrl) {
     return NextResponse.json({ error: 'imageUrl is required' }, { status: 400 });
   }
+
+  // Resolve the model against our allowlist so the client can't point
+  // fal.ai at an arbitrary endpoint we haven't vetted.
+  const videoModel =
+    findVideoModel(model) || findVideoModel(DEFAULT_VIDEO_MODEL_ID);
+  if (!videoModel) {
+    return NextResponse.json({ error: 'No video model available' }, { status: 500 });
+  }
+
+  const resolvedDuration = duration && videoModel.durations.includes(duration)
+    ? duration
+    : videoModel.durations[0];
+  const resolvedResolution =
+    resolution && videoModel.resolutions.includes(resolution)
+      ? resolution
+      : videoModel.resolutions[0] || null;
+  const resolvedAspect =
+    aspectRatio && videoModel.aspects.includes(aspectRatio)
+      ? aspectRatio
+      : videoModel.aspects[0] || null;
 
   const supabase = getAdminSupabase();
 
   // Fire off the request to fal.ai's queue endpoint. We don't subscribe /
   // webhook here — /status polls for completion. Keeps the route dumb and
   // retryable.
-  const falRes = await fetch(`${FAL_QUEUE_BASE}/${FAL_ENDPOINT}`, {
+  const falRes = await fetch(`${FAL_QUEUE_BASE}/${videoModel.endpoint}`, {
     method: 'POST',
     headers: {
       Authorization: `Key ${falKey}`,
@@ -52,9 +67,9 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       image_url: imageUrl,
       prompt: prompt || '',
-      duration: duration || 5,
-      resolution: resolution || '720p',
-      aspect_ratio: aspectRatio || 'auto',
+      duration: resolvedDuration,
+      ...(resolvedResolution ? { resolution: resolvedResolution } : {}),
+      ...(resolvedAspect ? { aspect_ratio: resolvedAspect } : {}),
       ...(typeof seed === 'number' ? { seed } : {}),
     }),
   });
@@ -86,11 +101,11 @@ export async function POST(req: NextRequest) {
     .insert({
       source_image_id: imageId || null,
       request_id: requestId,
-      model_endpoint: FAL_ENDPOINT,
+      model_endpoint: videoModel.endpoint,
       prompt: prompt || null,
-      duration_seconds: duration || 5,
-      resolution: resolution || '720p',
-      aspect_ratio: aspectRatio || 'auto',
+      duration_seconds: resolvedDuration,
+      resolution: resolvedResolution,
+      aspect_ratio: resolvedAspect,
       seed: typeof seed === 'number' ? seed : null,
       status: 'queued',
       created_by: user.id,

@@ -1,9 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
+import {
+  DEFAULT_VIDEO_MODEL_ID,
+  VIDEO_MODELS,
+  estimateVideoCostUSD,
+  findVideoModel,
+} from '@/lib/videoModels';
 
 interface SiteImage {
   id: string;
@@ -31,10 +37,6 @@ interface SiteVideo {
   completed_at: string | null;
 }
 
-const DURATIONS = [5, 10];
-const RESOLUTIONS = ['480p', '720p', '1080p'];
-const ASPECT_RATIOS = ['auto', '16:9', '9:16', '1:1'];
-
 export default function VideoContent() {
   const { user, session } = useAuth();
   const { confirm } = useModal();
@@ -44,6 +46,7 @@ export default function VideoContent() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<SiteImage | null>(null);
   const [prompt, setPrompt] = useState('');
+  const [modelId, setModelId] = useState<string>(DEFAULT_VIDEO_MODEL_ID);
   const [duration, setDuration] = useState(5);
   const [resolution, setResolution] = useState('720p');
   const [aspectRatio, setAspectRatio] = useState('auto');
@@ -56,6 +59,27 @@ export default function VideoContent() {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
   };
+
+  const selectedModel = useMemo(
+    () => findVideoModel(modelId) || VIDEO_MODELS[0],
+    [modelId],
+  );
+
+  // If the current duration/resolution/aspect aren't supported by the
+  // newly-selected model, clamp to the model's first supported value.
+  useEffect(() => {
+    if (!selectedModel.durations.includes(duration)) {
+      setDuration(selectedModel.durations[0]);
+    }
+    if (selectedModel.resolutions.length && !selectedModel.resolutions.includes(resolution)) {
+      setResolution(selectedModel.resolutions[0]);
+    }
+    if (selectedModel.aspects.length && !selectedModel.aspects.includes(aspectRatio)) {
+      setAspectRatio(selectedModel.aspects[0]);
+    }
+  }, [selectedModel, duration, resolution, aspectRatio]);
+
+  const estimatedCost = estimateVideoCostUSD(selectedModel, duration, resolution);
 
   const loadImages = useCallback(async () => {
     const { data, error } = await supabase
@@ -174,6 +198,7 @@ export default function VideoContent() {
           duration,
           resolution,
           aspectRatio,
+          model: selectedModel.id,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -220,7 +245,7 @@ export default function VideoContent() {
       <div className="mb-6">
         <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Video</h1>
         <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-          Animate any image from the Images gallery into a short clip with ByteDance Seedance via fal.ai. Click a generated video to copy its URL.
+          Animate any image from the Images gallery into a short clip with fal.ai video models. Click a generated video to copy its URL.
         </p>
       </div>
 
@@ -279,6 +304,26 @@ export default function VideoContent() {
                 style={{ fontFamily: 'var(--font-body)' }}
               />
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-foreground/70 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>
+                Model
+              </label>
+              <select
+                value={selectedModel.id}
+                onChange={(e) => setModelId(e.target.value)}
+                className="w-full text-sm px-2 py-2 rounded-lg bg-white border border-gray-200 focus:border-primary focus:outline-none"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {VIDEO_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                {selectedModel.description}
+              </p>
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-foreground/70 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>
@@ -290,7 +335,7 @@ export default function VideoContent() {
                   className="w-full text-sm px-2 py-2 rounded-lg bg-white border border-gray-200 focus:border-primary focus:outline-none"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  {DURATIONS.map((d) => (
+                  {selectedModel.durations.map((d) => (
                     <option key={d} value={d}>
                       {d}s
                     </option>
@@ -304,14 +349,19 @@ export default function VideoContent() {
                 <select
                   value={resolution}
                   onChange={(e) => setResolution(e.target.value)}
-                  className="w-full text-sm px-2 py-2 rounded-lg bg-white border border-gray-200 focus:border-primary focus:outline-none"
+                  disabled={selectedModel.resolutions.length === 0}
+                  className="w-full text-sm px-2 py-2 rounded-lg bg-white border border-gray-200 focus:border-primary focus:outline-none disabled:bg-warm-bg/50 disabled:text-foreground/40"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  {RESOLUTIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
+                  {selectedModel.resolutions.length === 0 ? (
+                    <option value="">n/a</option>
+                  ) : (
+                    selectedModel.resolutions.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
               <div>
@@ -321,18 +371,33 @@ export default function VideoContent() {
                 <select
                   value={aspectRatio}
                   onChange={(e) => setAspectRatio(e.target.value)}
-                  className="w-full text-sm px-2 py-2 rounded-lg bg-white border border-gray-200 focus:border-primary focus:outline-none"
+                  disabled={selectedModel.aspects.length === 0}
+                  className="w-full text-sm px-2 py-2 rounded-lg bg-white border border-gray-200 focus:border-primary focus:outline-none disabled:bg-warm-bg/50 disabled:text-foreground/40"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  {ASPECT_RATIOS.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
+                  {selectedModel.aspects.length === 0 ? (
+                    <option value="">n/a</option>
+                  ) : (
+                    selectedModel.aspects.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
             </div>
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                {estimatedCost != null ? (
+                  <>
+                    <span className="font-semibold text-foreground/70">Est. ${estimatedCost.toFixed(2)}</span>
+                    <span className="text-foreground/40"> per generation · billed by fal.ai</span>
+                  </>
+                ) : (
+                  <span className="text-foreground/40">Cost varies — billed by fal.ai</span>
+                )}
+              </p>
               <button
                 type="button"
                 disabled={!selectedImage || submitting}
@@ -350,7 +415,7 @@ export default function VideoContent() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="5 3 19 12 5 21 5 3" />
                     </svg>
-                    Generate video
+                    Generate video{estimatedCost != null ? ` · $${estimatedCost.toFixed(2)}` : ''}
                   </>
                 )}
               </button>
