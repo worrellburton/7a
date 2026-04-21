@@ -312,10 +312,13 @@ export default function VideoContent() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={3}
-                placeholder="Describe the motion you want — e.g. 'camera slowly pans right as the horses graze, soft desert light, subtle dust kick-up.'"
+                placeholder="Optional — add motion or scene detail. E.g. 'camera slowly pans right as the horses graze, soft desert light, subtle dust kick-up.'"
                 className="w-full text-sm px-3 py-2.5 rounded-lg bg-warm-bg/40 border border-gray-100 focus:bg-white focus:border-primary focus:outline-none resize-none"
                 style={{ fontFamily: 'var(--font-body)' }}
               />
+              <p className="mt-1 text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                “Turn into a cinematic video.” is always sent first; anything above is appended.
+              </p>
             </div>
             <div>
               <label className="block text-xs font-semibold text-foreground/70 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>

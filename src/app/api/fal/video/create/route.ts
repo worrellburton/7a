@@ -4,6 +4,11 @@ import { DEFAULT_VIDEO_MODEL_ID, findVideoModel } from '@/lib/videoModels';
 
 const FAL_QUEUE_BASE = 'https://queue.fal.run';
 
+// Every generation gets this directive prepended so output leans
+// cinematic by default. Users can still add motion / scene detail on
+// top in the textarea; it's appended after the prefix.
+const CINEMATIC_PREFIX = 'Turn into a cinematic video.';
+
 interface CreateBody {
   imageId?: string;
   imageUrl?: string;
@@ -55,11 +60,16 @@ export async function POST(req: NextRequest) {
 
   const supabase = getAdminSupabase();
 
+  const userPrompt = (prompt || '').trim();
+  const finalPrompt = userPrompt
+    ? `${CINEMATIC_PREFIX} ${userPrompt}`
+    : CINEMATIC_PREFIX;
+
   // Each model builds its own payload — some fal endpoints want duration
   // as a string, some ignore resolution, some upper-case it, etc.
   const payload = videoModel.buildPayload({
     imageUrl,
-    prompt,
+    prompt: finalPrompt,
     duration: resolvedDuration,
     resolution: resolvedResolution,
     aspect: resolvedAspect,
@@ -103,7 +113,7 @@ export async function POST(req: NextRequest) {
       source_image_id: imageId || null,
       request_id: requestId,
       model_endpoint: videoModel.endpoint,
-      prompt: prompt || null,
+      prompt: finalPrompt,
       duration_seconds: resolvedDuration,
       resolution: resolvedResolution,
       aspect_ratio: resolvedAspect,
