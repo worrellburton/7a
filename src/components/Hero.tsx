@@ -214,9 +214,13 @@ export default function Hero() {
     <section
       className="relative flex flex-col overflow-hidden"
       aria-labelledby="hero-heading"
+      // Pull the hero up by the sticky header's height so the video
+      // extends behind the transparent nav — without this the region
+      // between the orange TopBar and the hero renders white.
+      style={{ marginTop: 'calc(var(--site-header-height, 68px) * -1)' }}
     >
       {/* Full-viewport video backdrop with text overlay */}
-      <div className="relative w-full min-h-[620px] lg:min-h-[calc(100vh-108px-44px)] overflow-hidden bg-dark-section">
+      <div className="relative w-full min-h-[700px] lg:min-h-[calc(100vh-40px-44px)] overflow-hidden bg-dark-section">
         {/* Rotating video stack */}
         {heroSources.map((src, i) => (
           <div
@@ -243,8 +247,13 @@ export default function Hero() {
         />
 
         <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full h-full">
-          <div className="min-h-[620px] lg:min-h-[calc(100vh-108px-44px)] flex items-center">
-            <div className="max-w-2xl py-16 lg:py-20 text-white">
+          <div className="min-h-[700px] lg:min-h-[calc(100vh-40px-44px)] flex items-center">
+            {/* Pad down by the header so the headline clears the nav
+                even though the hero now extends up behind it. */}
+            <div
+              className="max-w-2xl text-white py-16 lg:py-20"
+              style={{ paddingTop: 'calc(var(--site-header-height, 68px) + 2rem)' }}
+            >
               <p
                 className="flex items-center gap-3 text-xs tracking-[0.22em] uppercase font-semibold text-white/80 mb-5"
                 style={{
