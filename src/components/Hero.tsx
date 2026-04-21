@@ -238,67 +238,90 @@ export default function Hero() {
           </div>
         ))}
 
-        {/* Legibility scrim — darker on the left where text sits,
-            softer on the right so the landscape still reads. */}
+        {/* Uniform color wash — recovery.com uses a deep navy tint
+            across the whole image so the hero reads as a single mood
+            rather than a photo + text panel. We use a warm terracotta-
+            shadow mix so it stays on-brand while achieving the same
+            effect. Slight vertical fade keeps the bottom deeper for
+            the video label + dots. */}
         <div
           className="absolute inset-0 z-10 pointer-events-none"
+          aria-hidden="true"
           style={{
             background:
-              'linear-gradient(90deg, rgba(20,10,6,0.78) 0%, rgba(20,10,6,0.55) 35%, rgba(20,10,6,0.25) 70%, rgba(20,10,6,0.1) 100%), linear-gradient(180deg, rgba(20,10,6,0) 50%, rgba(20,10,6,0.55) 100%)',
+              'linear-gradient(180deg, rgba(36,16,10,0.55) 0%, rgba(36,16,10,0.45) 55%, rgba(36,16,10,0.7) 100%)',
           }}
         />
 
         <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full h-full">
-          <div className="min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] flex items-center">
+          <div className="min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] flex items-center justify-center">
             {/* Pad down by the header so the headline clears the nav
                 even though the hero now extends up behind it. */}
             <div
-              className="max-w-2xl text-white py-16 lg:py-20"
+              className="max-w-3xl w-full text-center text-white py-16 lg:py-20"
               style={{ paddingTop: 'calc(var(--site-header-height, 68px) + 2rem)' }}
             >
-              <p
-                className="flex items-center gap-3 text-xs tracking-[0.22em] uppercase font-semibold text-white/80 mb-5"
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  opacity: visible ? 1 : 0,
-                  transition: 'opacity 0.8s ease 0.1s',
-                }}
-              >
-                <span className="block w-10 h-px bg-white/60" aria-hidden="true" />
-                Boutique Arizona Rehab
-              </p>
-
               <h1
                 id="hero-heading"
-                className="text-[2.25rem] sm:text-5xl lg:text-[3.75rem] font-bold tracking-tight leading-[1.05] mb-5 sm:mb-6"
+                className="font-bold leading-[1.02] tracking-tight mb-8"
                 style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'clamp(2.5rem, 6vw, 4.5rem)',
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(30px)',
                   transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.2s',
                 }}
               >
-                A place to heal,
-                <br className="hidden sm:block" />
-                {' '}a plan made for you
+                Recovery starts here.
+                <br />
+                Find <em className="not-italic font-bold" style={{ color: 'var(--color-accent)' }}>a plan made for you</em>.
               </h1>
 
-              <p
-                className="text-white/80 text-base sm:text-lg leading-relaxed mb-8 sm:mb-10 max-w-xl"
+              {/* Prominent action pill — the Recovery.com reference uses a
+                  search input as the primary CTA. For a single facility we
+                  route the equivalent attention into insurance verification,
+                  which is the most common first step for new admissions. */}
+              <form
+                action="/insurance"
+                method="get"
+                className="mx-auto w-full max-w-2xl"
                 style={{
-                  fontFamily: 'var(--font-body)',
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(20px)',
-                  transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.4s',
+                  transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.45s',
                 }}
               >
-                Clinical and residential treatment for adults at the base of the Swisshelm
-                Mountains — a 6:1 client-to-staff ratio, evidence-based care, and a specialty
-                TraumAddiction™ approach.
-              </p>
+                <div className="flex items-center gap-2 bg-white rounded-full shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)] p-1.5 pl-5 text-foreground">
+                  <svg className="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <path d="M9 12l2 2 4-4" />
+                  </svg>
+                  <input
+                    name="provider"
+                    type="text"
+                    aria-label="Your insurance provider"
+                    placeholder="Check your insurance — Aetna, BCBS, Cigna…"
+                    className="flex-1 min-w-0 bg-transparent outline-none text-sm sm:text-base placeholder:text-foreground/45 py-2"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  />
+                  <button
+                    type="submit"
+                    className="shrink-0 inline-flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark text-white rounded-full px-5 sm:px-6 py-3 text-sm font-semibold transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Verify
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                      <polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  </button>
+                </div>
+              </form>
 
               <div
-                className="flex flex-col sm:flex-row gap-3 sm:gap-4"
+                className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-5 text-sm text-white/85"
                 style={{
+                  fontFamily: 'var(--font-body)',
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(20px)',
                   transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.6s',
@@ -306,15 +329,14 @@ export default function Hero() {
               >
                 <Link
                   href="/admissions"
-                  className="inline-flex items-center justify-center rounded-full bg-primary hover:bg-primary-dark text-white px-8 py-4 text-sm font-bold tracking-[0.14em] uppercase transition-colors"
-                  style={{ fontFamily: 'var(--font-body)', boxShadow: '0 8px 30px rgba(0,0,0,0.35)' }}
+                  className="hover:text-white font-semibold transition-colors"
                 >
-                  Get Started
+                  Start Admissions →
                 </Link>
+                <span className="hidden sm:inline text-white/30">·</span>
                 <a
                   href="tel:+18669964308"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-white/80 px-8 py-4 text-sm font-bold tracking-[0.14em] uppercase text-white hover:bg-white hover:text-foreground transition-colors"
-                  style={{ fontFamily: 'var(--font-body)' }}
+                  className="hover:text-white font-semibold transition-colors inline-flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                     <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
@@ -324,7 +346,7 @@ export default function Hero() {
               </div>
 
               <p
-                className="mt-10 text-white/55 text-xs tracking-[0.22em] uppercase"
+                className="mt-10 text-white/55 text-[11px] tracking-[0.22em] uppercase"
                 style={{
                   fontFamily: 'var(--font-body)',
                   opacity: visible ? 1 : 0,
