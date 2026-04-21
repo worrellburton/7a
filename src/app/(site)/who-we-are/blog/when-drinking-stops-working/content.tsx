@@ -383,7 +383,7 @@ export default function PageContent() {
                 <a href="tel:8669964308" className="btn-primary">
                   Call (866) 996-4308
                 </a>
-                <Link href="/who-we-are/blog" className="btn-outline">
+                <Link href="/who-we-are/recovery-roadmap" className="btn-outline">
                   View Full Series
                 </Link>
               </div>

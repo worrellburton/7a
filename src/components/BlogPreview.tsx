@@ -15,7 +15,7 @@ export default function BlogPreview() {
             </h2>
           </div>
           <Link
-            href="/who-we-are/blog"
+            href="/who-we-are/recovery-roadmap"
             className="hidden sm:inline-flex text-sm font-semibold text-primary hover:text-primary-dark transition-colors"
             style={{ fontFamily: 'var(--font-body)' }}
           >
@@ -97,7 +97,7 @@ export default function BlogPreview() {
 
         <div className="sm:hidden text-center mt-6">
           <Link
-            href="/who-we-are/blog"
+            href="/who-we-are/recovery-roadmap"
             className="text-sm font-semibold text-primary hover:text-primary-dark transition-colors"
             style={{ fontFamily: 'var(--font-body)' }}
           >
