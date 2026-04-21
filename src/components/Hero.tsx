@@ -219,8 +219,10 @@ export default function Hero() {
       // between the orange TopBar and the hero renders white.
       style={{ marginTop: 'calc(var(--site-header-height, 68px) * -1)' }}
     >
-      {/* Full-viewport video backdrop with text overlay */}
-      <div className="relative w-full min-h-[700px] lg:min-h-[calc(100vh-40px-44px)] overflow-hidden bg-dark-section">
+      {/* Full-viewport video backdrop with text overlay. On mobile we use
+          svh (small viewport height) so mobile browser chrome collapsing
+          doesn't leave a white gap under the hero. */}
+      <div className="relative w-full min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] overflow-hidden bg-dark-section">
         {/* Rotating video stack */}
         {heroSources.map((src, i) => (
           <div
@@ -247,7 +249,7 @@ export default function Hero() {
         />
 
         <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full h-full">
-          <div className="min-h-[700px] lg:min-h-[calc(100vh-40px-44px)] flex items-center">
+          <div className="min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] flex items-center">
             {/* Pad down by the header so the headline clears the nav
                 even though the hero now extends up behind it. */}
             <div

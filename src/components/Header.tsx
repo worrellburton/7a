@@ -401,9 +401,24 @@ const navLinks: NavItem[] = [
 
 /* ── Mega Menu Dropdown ────────────────────────────────────────────── */
 
-function MegaMenuDropdown({ item, transparent }: { item: NavItem; transparent: boolean }) {
+function MegaMenuDropdown({
+  item,
+  transparent,
+  onOpenChange,
+}: {
+  item: NavItem;
+  transparent: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const [open, setOpen] = useState(false);
   const timeout = useRef<ReturnType<typeof setTimeout>>(null);
+
+  // Notify parent whenever this panel toggles so the Header can force
+  // its solid-white state while any dropdown is showing — dark hero
+  // + transparent nav + white panel was too low-contrast.
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
 
   const enter = () => {
     if (timeout.current) clearTimeout(timeout.current);
@@ -724,6 +739,10 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  // Track how many mega-menu panels are currently open — if any are, the
+  // Header drops its transparent treatment so the panel has a solid nav
+  // above it instead of floating over the dark hero video.
+  const [openDropdowns, setOpenDropdowns] = useState(0);
   const headerRef = useRef<HTMLElement>(null);
 
   const toggleMobileDropdown = (label: string) => {
@@ -759,7 +778,8 @@ export default function Header() {
   // When the mobile drawer is open we always want the solid treatment so the
   // menu items stay legible — otherwise the drawer renders over dark hero
   // video and "text-white/90 over white drawer" becomes invisible.
-  const transparent = !scrolled && !mobileMenuOpen;
+  // Same reasoning for an open mega-menu dropdown.
+  const transparent = !scrolled && !mobileMenuOpen && openDropdowns === 0;
 
   return (
     <header
@@ -792,7 +812,14 @@ export default function Header() {
           <div className="hidden lg:flex items-center gap-0 xl:gap-1 ml-auto min-w-0">
             {navLinks.map((item) =>
               item.dropdown ? (
-                <MegaMenuDropdown key={item.href} item={item} transparent={transparent} />
+                <MegaMenuDropdown
+                  key={item.href}
+                  item={item}
+                  transparent={transparent}
+                  onOpenChange={(isOpen) =>
+                    setOpenDropdowns((n) => Math.max(0, n + (isOpen ? 1 : -1)))
+                  }
+                />
               ) : (
                 <Link
                   key={item.href}
@@ -826,7 +853,7 @@ export default function Header() {
           {/* Mobile menu button */}
           <button
             type="button"
-            className={`lg:hidden p-2 ml-auto transition-colors ${
+            className={`lg:hidden p-3 ml-auto -mr-1 transition-colors ${
               transparent ? 'text-white' : 'text-foreground'
             }`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
