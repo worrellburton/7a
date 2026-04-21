@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 
 import PageHero from '@/components/PageHero';
 import Link from 'next/link';
+import TeamGrid from '@/components/TeamGrid';
 import { fetchPublicTeam } from '@/lib/team';
 
 export const revalidate = 60;
@@ -43,55 +44,7 @@ export default async function MeetOurTeamPage() {
             </p>
           </div>
 
-          {/* Team Grid */}
-          {team.length === 0 ? (
-            <p
-              className="text-center text-foreground/50"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              Team profiles are being updated. Please check back soon.
-            </p>
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {team.map((member) => (
-                <Link
-                  key={member.id}
-                  href={`/who-we-are/meet-our-team/${member.slug}`}
-                  className="group bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
-                >
-                  <div className="relative aspect-[4/5] w-full overflow-hidden bg-warm-bg">
-                    {member.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={member.avatar_url}
-                        alt={member.full_name}
-                        referrerPolicy="no-referrer"
-                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-primary/40 text-6xl font-bold">
-                        {(member.full_name || '?').charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-5">
-                    <h3 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
-                      {member.full_name}
-                    </h3>
-                    {member.job_title && (
-                      <p
-                        className="text-primary/80 font-semibold text-sm mt-1"
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        {member.job_title}
-                      </p>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
+          <TeamGrid team={team} />
         </div>
       </section>
 

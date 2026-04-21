@@ -463,7 +463,7 @@ export default function PageContent() {
               &larr; Episode 1: When Drinking Stops Working
             </Link>
             <Link
-              href="/who-we-are/blog"
+              href="/who-we-are/recovery-roadmap"
               className="text-primary text-sm font-semibold hover:underline"
               style={{ fontFamily: 'var(--font-body)' }}
             >
