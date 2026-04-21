@@ -4,6 +4,19 @@ import { getAdminSupabase, getUserFromRequest } from '@/lib/supabase-server';
 
 const FAL_QUEUE_BASE = 'https://queue.fal.run';
 
+// fal.ai's queue status + result endpoints are keyed to the app id
+// ({owner}/{alias}) — not the full submission endpoint path. GETting
+// `queue.fal.run/fal-ai/bytedance/seedance/v1/pro/image-to-video/requests/{id}/status`
+// returns 405 Method Not Allowed even though fal's OpenAPI lists it; the
+// production router only accepts the short form. The official fal-js SDK
+// derives the same prefix from `parseEndpointId`, which for
+// "fal-ai/bytedance/seedance/..." yields owner="fal-ai", alias="bytedance".
+// We copy that behavior: first two slash-separated segments of the
+// submission endpoint.
+function queueAppId(endpoint: string): string {
+  return endpoint.split('/').slice(0, 2).join('/');
+}
+
 // We archive fal.ai's CDN output into our own Supabase Storage so the
 // URL we hand to the site outlives fal's CDN retention window (fal
 // rotates files). Videos + thumbnails go under a site-videos/ prefix
@@ -82,8 +95,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Video has no request_id to poll' }, { status: 400 });
   }
 
+  const appId = queueAppId(row.model_endpoint);
   const statusRes = await fetch(
-    `${FAL_QUEUE_BASE}/${row.model_endpoint}/requests/${row.request_id}/status`,
+    `${FAL_QUEUE_BASE}/${appId}/requests/${row.request_id}/status`,
     { headers: { Authorization: `Key ${falKey}` } },
   );
 
@@ -136,7 +150,7 @@ export async function GET(req: NextRequest) {
   // fall back to the fal URL so the link still works short-term.
   if (nextStatus === 'completed' && !videoUrl) {
     const resultRes = await fetch(
-      `${FAL_QUEUE_BASE}/${row.model_endpoint}/requests/${row.request_id}`,
+      `${FAL_QUEUE_BASE}/${appId}/requests/${row.request_id}`,
       { headers: { Authorization: `Key ${falKey}` } },
     );
     if (resultRes.ok) {
