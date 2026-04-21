@@ -6,7 +6,17 @@ type Badge = {
 
 export default function TrustBadges() {
   const badges: Badge[] = [
-    { name: 'Joint Commission Accredited', abbr: 'JCAHO' },
+    {
+      name: 'Joint Commission Accredited',
+      abbr: 'JCAHO',
+      seal: {
+        src: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776808204322-pzyzhrow2ib-joint-commission-gold-seal-of-approval.jpg',
+        href: 'https://www.qualitycheck.org/',
+        width: 120,
+        height: 120,
+        alt: 'Joint Commission Gold Seal of Approval',
+      },
+    },
     {
       name: 'LegitScript Certified',
       abbr: 'LegitScript',
@@ -39,7 +49,7 @@ export default function TrustBadges() {
                 href={badge.seal.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                title="Verify LegitScript Approval for www.sevenarrowsrecovery.com"
+                title={badge.seal.alt}
                 className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity"
               >
                 <img
