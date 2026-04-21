@@ -53,7 +53,7 @@ export default function FAQSection() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
-    <section className="py-20 lg:py-28 bg-white" aria-labelledby="faq-heading">
+    <section className="py-20 lg:py-28 bg-warm-bg" aria-labelledby="faq-heading">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <p className="section-label justify-center mb-3">Common Questions</p>

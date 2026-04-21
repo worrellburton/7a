@@ -721,13 +721,35 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
 
   const toggleMobileDropdown = (label: string) => {
     setMobileExpanded(mobileExpanded === label ? null : label);
   };
 
+  // The sticky header sits below a non-sticky TopBar, so the true bottom of
+  // the header shifts as the page scrolls. Mega-menu panels use this value
+  // to align their top edge with the bottom of the header; if we hard-code
+  // 68px the panel overlaps the nav while the TopBar is still visible.
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const update = () => {
+      const bottom = el.getBoundingClientRect().bottom;
+      el.style.setProperty('--site-header-height', `${Math.max(bottom, 0)}px`);
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
   return (
     <header
+      ref={headerRef}
       className="bg-white sticky top-0 z-50 shadow-sm"
       role="banner"
       style={{ ['--site-header-height' as string]: '68px' }}

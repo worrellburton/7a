@@ -43,6 +43,12 @@ const services = [
     image: '/images/group-gathering-pavilion.jpg',
     description: 'Lifelong recovery support',
   },
+  {
+    title: 'Family Program',
+    href: '/our-program/family-program',
+    image: '/images/embrace-connection.jpg',
+    description: 'Healing the whole family system',
+  },
 ];
 
 export default function TreatmentServices() {

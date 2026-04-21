@@ -106,8 +106,8 @@ export default function StatsSection() {
 
   return (
     <section ref={ref} className="py-16 lg:py-20 bg-warm-bg" aria-label="Key statistics">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
           {stats.map((stat, i) => {
             const count = useCountUp(stat.value, 1800, started, stat.decimals);
             return (
@@ -139,24 +139,22 @@ function StatCard({
 }) {
   return (
     <div
-      className="bg-white rounded-2xl p-6 lg:p-8 shadow-sm border border-gray-100 transition-all duration-700"
+      className="flex flex-col items-center text-center transition-all duration-700"
       style={{
         opacity: started ? 1 : 0,
         transform: started ? 'translateY(0)' : 'translateY(20px)',
         transitionDelay: `${index * 100}ms`,
       }}
     >
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-          {stat.icon}
-        </div>
+      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-4">
+        {stat.icon}
       </div>
-      <div className="flex items-baseline gap-0.5 mb-1">
-        <span className="text-3xl lg:text-4xl font-bold text-foreground" style={{ fontFamily: 'var(--font-sans)' }}>
+      <div className="flex items-baseline justify-center gap-0.5 mb-1">
+        <span className="text-4xl lg:text-5xl font-bold text-foreground" style={{ fontFamily: 'var(--font-sans)' }}>
           {stat.decimals ? count.toFixed(stat.decimals) : count}
         </span>
         {stat.suffix && (
-          <span className="text-lg font-bold text-foreground/40">{stat.suffix}</span>
+          <span className="text-xl font-bold text-foreground/40">{stat.suffix}</span>
         )}
       </div>
       <p className="text-sm font-semibold text-foreground mb-1" style={{ fontFamily: 'var(--font-body)' }}>
