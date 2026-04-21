@@ -10,8 +10,9 @@
   --color-warm-card: #ede4da;
   --color-dark-section: #2a0f0a;
   --color-text-muted: #6b7280;
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Fraunces', Georgia, 'Times New Roman', serif;
   --font-body: 'Inter', system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
 }
 
 body {
