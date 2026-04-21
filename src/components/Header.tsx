@@ -332,6 +332,10 @@ interface DropdownItem {
   label: string;
   href: string;
   description?: string;
+  /** Optional category heading used by the "What We Treat" mega menu
+      to group items under a list-style column (e.g. Addiction, Dual
+      Diagnosis). Ignored by dropdowns that don't opt in. */
+  group?: string;
 }
 
 interface NavItem {
@@ -385,13 +389,13 @@ const navLinks: NavItem[] = [
     href: '/what-we-treat',
     description: 'Specialized care for substance use & co-occurring disorders.',
     dropdown: [
-      { label: 'Dual-Diagnosis', href: '/what-we-treat/dual-diagnosis', description: 'Addiction & mental health together' },
-      { label: 'Alcohol Addiction', href: '/what-we-treat/alcohol-addiction', description: 'Comprehensive alcohol recovery' },
-      { label: 'Heroin Addiction', href: '/what-we-treat/heroin-addiction', description: 'Heroin & opioid recovery path' },
-      { label: 'Marijuana Addiction', href: '/what-we-treat/marijuana-addiction', description: 'Cannabis dependency treatment' },
-      { label: 'Opioid Addiction', href: '/what-we-treat/opioid-addiction', description: 'Fentanyl & opioid detox + recovery' },
-      { label: 'Prescription Drug Addiction', href: '/what-we-treat/prescription-drug-addiction', description: 'Safe tapering & recovery' },
-      { label: 'Xanax Addiction', href: '/what-we-treat/xanax-addiction', description: 'Benzodiazepine recovery support' },
+      { label: 'Alcohol Addiction', href: '/what-we-treat/alcohol-addiction', group: 'Addiction' },
+      { label: 'Heroin Addiction', href: '/what-we-treat/heroin-addiction', group: 'Addiction' },
+      { label: 'Opioid Addiction', href: '/what-we-treat/opioid-addiction', group: 'Addiction' },
+      { label: 'Prescription Drug Addiction', href: '/what-we-treat/prescription-drug-addiction', group: 'Addiction' },
+      { label: 'Xanax Addiction', href: '/what-we-treat/xanax-addiction', group: 'Addiction' },
+      { label: 'Marijuana Addiction', href: '/what-we-treat/marijuana-addiction', group: 'Addiction' },
+      { label: 'Dual-Diagnosis', href: '/what-we-treat/dual-diagnosis', group: 'Dual Diagnosis', description: 'Addiction & mental health together' },
     ],
   },
   { label: 'Tour', href: '/tour' },
@@ -660,33 +664,71 @@ function MegaMenuDropdown({
                 </div>
               </div>
             ) : item.label === 'What We Treat' ? (
-              /* What We Treat: 4 columns of 2 rows */
-              <div className="grid grid-cols-4 gap-x-4 gap-y-1 py-5">
-                {item.dropdown?.map((sub, idx) => {
-                  const Icon = iconMap[sub.label];
-                  return (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
-                      onClick={() => setOpen(false)}
-                      style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s` }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                    >
-                      {Icon && (
-                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: theme.iconBg }}>
-                          <Icon className="w-4 h-4 text-primary" />
-                        </div>
-                      )}
-                      <div>
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
-                        {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{sub.description}</p>}
+              /* What We Treat: grouped list columns — a heading per
+                 category (Addiction, Dual Diagnosis) with the
+                 corresponding items stacked as a simple list of links,
+                 matching the recovery-site reference layout. */
+              (() => {
+                const groups: { name: string; items: DropdownItem[] }[] = [];
+                for (const sub of item.dropdown ?? []) {
+                  const name = sub.group ?? 'More';
+                  let g = groups.find((x) => x.name === name);
+                  if (!g) {
+                    g = { name, items: [] };
+                    groups.push(g);
+                  }
+                  g.items.push(sub);
+                }
+                return (
+                  <div
+                    className="grid gap-x-10 gap-y-4 py-6"
+                    style={{ gridTemplateColumns: `repeat(${groups.length}, minmax(0, 1fr))` }}
+                  >
+                    {groups.map((group, gIdx) => (
+                      <div
+                        key={group.name}
+                        style={{
+                          opacity: open ? 1 : 0,
+                          transform: open ? 'translateY(0)' : 'translateY(8px)',
+                          transition: `all 0.3s ease-out ${0.08 + gIdx * 0.05}s`,
+                        }}
+                      >
+                        <p
+                          className="text-[10px] font-semibold tracking-[0.22em] uppercase mb-3 pb-2"
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            color: 'var(--color-accent)',
+                            borderBottom: `1px solid ${theme.border}`,
+                          }}
+                        >
+                          {group.name}
+                        </p>
+                        <ul className="flex flex-col">
+                          {group.items.map((sub, idx) => (
+                            <li
+                              key={sub.href}
+                              style={{
+                                opacity: open ? 1 : 0,
+                                transform: open ? 'translateY(0)' : 'translateY(6px)',
+                                transition: `all 0.3s ease-out ${0.12 + gIdx * 0.05 + idx * 0.03}s`,
+                              }}
+                            >
+                              <Link
+                                href={sub.href}
+                                onClick={() => setOpen(false)}
+                                className="block px-2 py-2 rounded-md text-[13px] transition-colors hover:text-primary"
+                                style={{ fontFamily: 'var(--font-body)', color: theme.text }}
+                              >
+                                {sub.label}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    </Link>
-                  );
-                })}
-              </div>
+                    ))}
+                  </div>
+                );
+              })()
             ) : item.label === 'Our Program' ? (
               /* Our Program: icon cards like Treatment but in a 4-col grid with wrapping */
               <div className="grid grid-cols-4 gap-4 py-6">

@@ -30,9 +30,9 @@ function HeroPayerLogo({ name, domain }: { name: string; domain: string }) {
   }
   return (
     <img
-      src={`https://cdn.brandfetch.io/${domain}/fallback/404/theme/light/h/80/w/200/logo?c=${BRANDFETCH_CLIENT_ID}`}
+      src={`https://cdn.brandfetch.io/${domain}/fallback/404/theme/dark/h/80/w/200/logo?c=${BRANDFETCH_CLIENT_ID}`}
       alt={name}
-      className="h-6 lg:h-7 w-auto max-w-[120px] object-contain opacity-80 invert brightness-200 contrast-100"
+      className="h-6 lg:h-7 w-auto max-w-[120px] object-contain opacity-90"
       loading="eager"
       onError={() => setFailed(true)}
     />

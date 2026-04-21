@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 
 interface MetaItem {
   label: string;
@@ -71,6 +74,21 @@ export default function PageHero({
   // explicit `image` to opt out of the shared placeholder clip.
   const posterImage = image ?? DEFAULT_IMAGE;
   const useVideo = Boolean(video);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // The `autoPlay` attribute alone is flaky on some mobile browsers and
+  // with Next's streaming hydration — explicitly calling play() after
+  // mount (muted + playsInline) is what actually starts the loop on
+  // every inner page. Swallow the promise rejection: iOS low-power mode
+  // blocks autoplay and we just let the poster show in that case.
+  useEffect(() => {
+    if (!useVideo) return;
+    const el = videoRef.current;
+    if (!el) return;
+    el.muted = true;
+    el.play().catch(() => {});
+  }, [useVideo, video]);
+
   return (
     <section
       className="relative overflow-hidden bg-dark-section text-white"
@@ -83,13 +101,14 @@ export default function PageHero({
           Pages that pass an explicit `image` fall back to a still. */}
       {useVideo ? (
         <video
+          ref={videoRef}
           src={video}
           poster={posterImage}
           autoPlay
           muted
           loop
           playsInline
-          preload="metadata"
+          preload="auto"
           className="absolute inset-0 w-full h-full object-cover"
           aria-hidden="true"
         />
