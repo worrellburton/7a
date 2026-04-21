@@ -28,7 +28,7 @@ const services = [
   {
     title: 'Evidence-Based',
     href: '/our-program/evidence-based',
-    image: '/images/group-therapy-room.jpg',
+    image: '/images/common-area-living-room.jpg',
     description: 'CBT, DBT, EMDR & proven methods',
   },
   {
@@ -40,7 +40,7 @@ const services = [
   {
     title: 'Aftercare & Alumni',
     href: '/treatment/alumni-aftercare',
-    image: '/images/group-gathering-pavilion.jpg',
+    image: '/images/group-sunset-desert.jpg',
     description: 'Lifelong recovery support',
   },
   {
