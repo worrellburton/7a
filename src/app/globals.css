@@ -159,7 +159,12 @@ body {
   animation: ticker 40s linear infinite;
 }
 
-.animate-ticker:hover {
+.animate-ticker-slow {
+  animation: ticker 75s linear infinite;
+}
+
+.animate-ticker:hover,
+.animate-ticker-slow:hover {
   animation-play-state: paused;
 }
 
