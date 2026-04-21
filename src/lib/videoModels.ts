@@ -354,26 +354,10 @@ const veo3: VideoModel = {
 // ─── Exported catalog ──────────────────────────────────────────────────
 
 export const VIDEO_MODELS: VideoModel[] = [
-  // Seedance family first — current default pick.
   seedance2,
   seedance2Fast,
   seedance1Pro,
   seedance1Lite,
-  // Kling family
-  kling21Master,
-  kling21Pro,
-  kling21Std,
-  kling16Pro,
-  // Luma
-  lumaRay2,
-  lumaRay2Flash,
-  // Hailuo
-  hailuo02Pro,
-  hailuo02Std,
-  // Wan
-  wan22,
-  // Veo
-  veo3,
 ];
 
 export const DEFAULT_VIDEO_MODEL_ID = seedance1Pro.id;
