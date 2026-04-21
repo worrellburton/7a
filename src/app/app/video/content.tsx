@@ -9,6 +9,7 @@ import {
   VIDEO_MODELS,
   estimateVideoCostUSD,
   findVideoModel,
+  videoModelFamilies,
 } from '@/lib/videoModels';
 
 interface SiteImage {
@@ -314,10 +315,14 @@ export default function VideoContent() {
                 className="w-full text-sm px-2 py-2 rounded-lg bg-white border border-gray-200 focus:border-primary focus:outline-none"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                {VIDEO_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
+                {videoModelFamilies().map(({ family, models }) => (
+                  <optgroup key={family} label={family}>
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
               <p className="mt-1 text-[11px] text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
