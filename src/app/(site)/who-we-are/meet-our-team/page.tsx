@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 import PageHero from '@/components/PageHero';
 import Link from 'next/link';
 import TeamGrid from '@/components/TeamGrid';
+import MissionVision from '@/components/MissionVision';
 import { fetchPublicTeam } from '@/lib/team';
 
 export const revalidate = 60;
@@ -29,6 +30,8 @@ export default async function MeetOurTeamPage() {
         description="Behind every successful recovery is a dedicated team of professionals. At Seven Arrows Recovery, our clinicians, therapists, and support staff bring expertise, empathy, and genuine care to everything they do."
         image="/images/equine-therapy-portrait.jpg"
       />
+
+      <MissionVision />
 
       {/* Team Intro */}
       <section className="py-16 lg:py-24 bg-white">

@@ -551,9 +551,19 @@ export default function VideoContent() {
                   <p className="text-xs font-medium text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }} title={v.prompt || ''}>
                     {v.prompt || <span className="italic text-foreground/40">No prompt</span>}
                   </p>
-                  <p className="text-[10px] text-foreground/40 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-                    {v.duration_seconds}s · {v.resolution} · {v.aspect_ratio} · {new Date(v.created_at).toLocaleDateString()}
-                  </p>
+                  {(() => {
+                    const usedModel = findVideoModelByEndpoint(v.model_endpoint);
+                    return (
+                      <>
+                        <p className="text-[10px] font-semibold text-primary/80 mt-1 truncate" style={{ fontFamily: 'var(--font-body)' }} title={v.model_endpoint}>
+                          {usedModel?.label ?? v.model_endpoint}
+                        </p>
+                        <p className="text-[10px] text-foreground/40 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                          {v.duration_seconds}s · {v.resolution} · {v.aspect_ratio} · {new Date(v.created_at).toLocaleDateString()}
+                        </p>
+                      </>
+                    );
+                  })()}
                   <div className="flex items-center justify-end gap-1 mt-1.5">
                     {v.video_url && (
                       <button
