@@ -1,7 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAdminSupabase, getUserFromRequest } from '@/lib/supabase-server';
 
 const FAL_QUEUE_BASE = 'https://queue.fal.run';
+
+// We archive fal.ai's CDN output into our own Supabase Storage so the
+// URL we hand to the site outlives fal's CDN retention window (fal
+// rotates files). Videos + thumbnails go under a site-videos/ prefix
+// in the existing public-images bucket.
+const ARCHIVE_BUCKET = 'public-images';
+const ARCHIVE_PREFIX = 'site-videos';
+
+// Copy a fal URL into our storage bucket and return the public URL.
+// On any failure, returns null so callers can fall back to the fal URL
+// (short-term link still works; we just didn't archive this time).
+async function archiveAsset(
+  supabase: SupabaseClient,
+  sourceUrl: string,
+  storagePath: string,
+  contentType: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(sourceUrl);
+    if (!res.ok) {
+      console.error('[video/status] fal asset fetch failed', res.status, storagePath);
+      return null;
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    const { error: upErr } = await supabase.storage
+      .from(ARCHIVE_BUCKET)
+      .upload(storagePath, buf, {
+        contentType,
+        upsert: true,
+        cacheControl: '31536000',
+      });
+    if (upErr) {
+      console.error('[video/status] supabase upload failed', upErr.message, storagePath);
+      return null;
+    }
+    const { data: pub } = supabase.storage.from(ARCHIVE_BUCKET).getPublicUrl(storagePath);
+    return pub?.publicUrl || null;
+  } catch (err) {
+    console.error('[video/status] archive error', err, storagePath);
+    return null;
+  }
+}
 
 // Poll fal.ai for a given site_videos row, update the local row when
 // it transitions, and return the refreshed row. Callers just hit this
@@ -68,7 +111,10 @@ export async function GET(req: NextRequest) {
   let thumbnailUrl: string | null = row.thumbnail_url;
   let errorMsg: string | null = row.error;
 
-  // When complete, fetch the response body to extract the video URL.
+  // When complete, fetch the response body to extract the video URL,
+  // then copy the asset into our own Supabase Storage so we don't
+  // depend on fal's CDN retention. If archiving fails for any reason,
+  // fall back to the fal URL so the link still works short-term.
   if (nextStatus === 'completed' && !videoUrl) {
     const resultRes = await fetch(
       `${FAL_QUEUE_BASE}/${row.model_endpoint}/requests/${row.request_id}`,
@@ -81,8 +127,27 @@ export async function GET(req: NextRequest) {
         thumbnail?: { url?: string };
         thumbnail_url?: string;
       };
-      videoUrl = resultJson.video?.url || resultJson.video_url || null;
-      thumbnailUrl = resultJson.thumbnail?.url || resultJson.thumbnail_url || null;
+      const falVideoUrl = resultJson.video?.url || resultJson.video_url || null;
+      const falThumbUrl = resultJson.thumbnail?.url || resultJson.thumbnail_url || null;
+
+      if (falVideoUrl) {
+        const archivedVideo = await archiveAsset(
+          supabase,
+          falVideoUrl,
+          `${ARCHIVE_PREFIX}/${row.id}.mp4`,
+          'video/mp4',
+        );
+        videoUrl = archivedVideo || falVideoUrl;
+      }
+      if (falThumbUrl) {
+        const archivedThumb = await archiveAsset(
+          supabase,
+          falThumbUrl,
+          `${ARCHIVE_PREFIX}/${row.id}-thumb.jpg`,
+          'image/jpeg',
+        );
+        thumbnailUrl = archivedThumb || falThumbUrl;
+      }
     }
   }
 
