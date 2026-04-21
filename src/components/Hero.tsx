@@ -3,6 +3,42 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+/* ── Payer trust strip ─────────────────────────────────────────────── */
+
+const BRANDFETCH_CLIENT_ID = '1id3n10pdBTarCHI0db';
+
+const heroPayers = [
+  { name: 'Aetna', domain: 'aetna.com' },
+  { name: 'Blue Cross Blue Shield', domain: 'bcbs.com' },
+  { name: 'Cigna', domain: 'cigna.com' },
+  { name: 'UnitedHealthcare', domain: 'uhc.com' },
+  { name: 'Humana', domain: 'humana.com' },
+  { name: 'TRICARE', domain: 'tricare.mil' },
+];
+
+function HeroPayerLogo({ name, domain }: { name: string; domain: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <span
+        className="text-white/70 text-[13px] font-semibold tracking-wide whitespace-nowrap"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        {name}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={`https://cdn.brandfetch.io/${domain}/fallback/404/theme/light/h/80/w/200/logo?c=${BRANDFETCH_CLIENT_ID}`}
+      alt={name}
+      className="h-6 lg:h-7 w-auto max-w-[120px] object-contain opacity-80 invert brightness-200 contrast-100"
+      loading="eager"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 /* ── Media Sources ───────────────────────────────────────────────── */
 
 const CLOUDFLARE_CUSTOMER = 'customer-1sijhr9xl3yqixxu';
@@ -277,46 +313,58 @@ export default function Hero() {
                 Find <em className="not-italic font-bold" style={{ color: 'var(--color-accent)' }}>a plan made for you</em>.
               </h1>
 
-              {/* Prominent action pill — the Recovery.com reference uses a
-                  search input as the primary CTA. For a single facility we
-                  route the equivalent attention into insurance verification,
-                  which is the most common first step for new admissions. */}
-              <form
-                action="/insurance"
-                method="get"
-                className="mx-auto w-full max-w-2xl"
+              {/* Primary CTA — replacing the directory-style search input
+                  from Recovery.com with an honest, single-purpose button.
+                  A facility website only has one job here: move the visitor
+                  into insurance verification / admissions. */}
+              <div
+                className="mx-auto w-full max-w-xl flex flex-col sm:flex-row items-center justify-center gap-3"
                 style={{
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(20px)',
                   transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.45s',
                 }}
               >
-                <div className="flex items-center gap-2 bg-white rounded-full shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)] p-1.5 pl-5 text-foreground">
-                  <svg className="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <Link
+                  href="/admissions#verify"
+                  className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-full px-8 py-4 text-base font-semibold shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)] transition-all"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                     <path d="M9 12l2 2 4-4" />
                   </svg>
-                  <input
-                    name="provider"
-                    type="text"
-                    aria-label="Your insurance provider"
-                    placeholder="Check your insurance — Aetna, BCBS, Cigna…"
-                    className="flex-1 min-w-0 bg-transparent outline-none text-sm sm:text-base placeholder:text-foreground/45 py-2"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  />
-                  <button
-                    type="submit"
-                    className="shrink-0 inline-flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark text-white rounded-full px-5 sm:px-6 py-3 text-sm font-semibold transition-colors"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    Verify
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                      <polyline points="12 5 19 12 12 19" />
-                    </svg>
-                  </button>
+                  Verify My Insurance
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </Link>
+              </div>
+
+              {/* Payer trust strip — shows the visitor at a glance that we
+                  accept their plan, which is exactly the reassurance the
+                  removed search field was gesturing at. */}
+              <div
+                className="mt-8 mx-auto max-w-3xl"
+                style={{
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
+                  transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.55s',
+                }}
+              >
+                <p
+                  className="text-white/55 text-[11px] tracking-[0.22em] uppercase mb-4"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  In-Network &amp; Out-of-Network
+                </p>
+                <div className="flex flex-wrap justify-center items-center gap-x-6 sm:gap-x-8 lg:gap-x-10 gap-y-4">
+                  {heroPayers.map((p) => (
+                    <HeroPayerLogo key={p.name} name={p.name} domain={p.domain} />
+                  ))}
                 </div>
-              </form>
+              </div>
 
               <div
                 className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-5 text-sm text-white/85"

@@ -11,12 +11,19 @@ interface PageHeroProps {
   title: string;
   description?: string;
   image?: string;
+  /** Optional backdrop video URL — takes precedence over `image`. */
+  video?: string;
   /** Breadcrumb links — rendered before the current page title. */
   breadcrumbs?: { label: string; href?: string }[];
   /** Small meta row under the description (author / dates / read time). */
   meta?: MetaItem[];
 }
 
+// Temporary placeholder backdrop used on every inner page until we
+// replace individual pages with their own footage. Looping, muted,
+// and preloaded so all inner pages share the same ambient motion.
+const DEFAULT_VIDEO =
+  'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-videos/9c83abff-3c23-47a6-a407-467dd6d4dec4.mp4';
 const DEFAULT_IMAGE = '/images/facility-exterior-mountains.jpg';
 
 function MetaIcon({ kind }: { kind: MetaItem['icon'] }) {
@@ -55,10 +62,15 @@ export default function PageHero({
   label,
   title,
   description,
-  image = DEFAULT_IMAGE,
+  image,
+  video = DEFAULT_VIDEO,
   breadcrumbs,
   meta,
 }: PageHeroProps) {
+  // A `video` (defaulted) takes precedence. Callers can still pass an
+  // explicit `image` to opt out of the shared placeholder clip.
+  const posterImage = image ?? DEFAULT_IMAGE;
+  const useVideo = Boolean(video);
   return (
     <section
       className="relative overflow-hidden bg-dark-section text-white"
@@ -66,17 +78,33 @@ export default function PageHero({
       // the homepage hero. site-header-height is set on the <header>.
       style={{ marginTop: 'calc(var(--site-header-height, 68px) * -1)' }}
     >
-      {/* Background image */}
-      <img
-        src={image}
-        alt=""
-        className="absolute inset-0 w-full h-full object-cover"
-        loading="eager"
-        aria-hidden="true"
-      />
+      {/* Background media — video backdrop is the default placeholder
+          so every inner page shares the same ambient Arizona motion.
+          Pages that pass an explicit `image` fall back to a still. */}
+      {useVideo ? (
+        <video
+          src={video}
+          poster={posterImage}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          className="absolute inset-0 w-full h-full object-cover"
+          aria-hidden="true"
+        />
+      ) : (
+        <img
+          src={posterImage}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          loading="eager"
+          aria-hidden="true"
+        />
+      )}
 
       {/* Scrim — darker at the bottom so breadcrumb + title read cleanly
-          regardless of what's in the photo. */}
+          regardless of what's playing in the video. */}
       <div
         className="absolute inset-0"
         aria-hidden="true"
@@ -127,7 +155,7 @@ export default function PageHero({
           </p>
 
           <h1
-            className="text-4xl sm:text-5xl lg:text-[4rem] font-bold tracking-tight leading-[1.02] uppercase mb-5"
+            className="text-4xl sm:text-5xl lg:text-[4rem] font-bold tracking-tight leading-[1.05] mb-5"
             style={{ fontFamily: 'var(--font-display)' }}
           >
             {title}
