@@ -401,7 +401,7 @@ const navLinks: NavItem[] = [
 
 /* ── Mega Menu Dropdown ────────────────────────────────────────────── */
 
-function MegaMenuDropdown({ item }: { item: NavItem }) {
+function MegaMenuDropdown({ item, transparent }: { item: NavItem; transparent: boolean }) {
   const [open, setOpen] = useState(false);
   const timeout = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -444,7 +444,9 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
     <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
       <button
         type="button"
-        className="flex items-center gap-0.5 px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
+        className={`flex items-center gap-0.5 px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase transition-colors whitespace-nowrap ${
+          transparent ? 'text-white/90 hover:text-white' : 'text-foreground/80 hover:text-primary'
+        }`}
         style={{ fontFamily: 'var(--font-body)' }}
         aria-expanded={open}
       >
@@ -721,22 +723,29 @@ function MegaMenuDropdown({ item }: { item: NavItem }) {
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
+  const [scrolled, setScrolled] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
 
   const toggleMobileDropdown = (label: string) => {
     setMobileExpanded(mobileExpanded === label ? null : label);
   };
 
-  // The sticky header sits below a non-sticky TopBar, so the true bottom of
-  // the header shifts as the page scrolls. Mega-menu panels use this value
-  // to align their top edge with the bottom of the header; if we hard-code
-  // 68px the panel overlaps the nav while the TopBar is still visible.
+  // Two things to track on scroll:
+  //   1. Whether the nav has left the hero — flips the color scheme from
+  //      white-over-dark (hero-backed) to the solid white bar.
+  //   2. The header's live bottom in viewport coordinates so the mega-menu
+  //      panels align just under the nav (the TopBar above is non-sticky,
+  //      so that bottom shifts as the page scrolls).
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
     const update = () => {
       const bottom = el.getBoundingClientRect().bottom;
       el.style.setProperty('--site-header-height', `${Math.max(bottom, 0)}px`);
+      // 80px threshold — enough distance that a light flick of the wheel
+      // doesn't flip the bar, but short enough that it's obvious the
+      // treatment changes once you start scrolling.
+      setScrolled(window.scrollY > 80);
     };
     update();
     window.addEventListener('scroll', update, { passive: true });
@@ -747,21 +756,35 @@ export default function Header() {
     };
   }, []);
 
+  // When the mobile drawer is open we always want the solid treatment so the
+  // menu items stay legible — otherwise the drawer renders over dark hero
+  // video and "text-white/90 over white drawer" becomes invisible.
+  const transparent = !scrolled && !mobileMenuOpen;
+
   return (
     <header
       ref={headerRef}
-      className="bg-white sticky top-0 z-50 shadow-sm"
+      data-nav-transparent={transparent ? 'true' : 'false'}
+      className={`sticky top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-300 ${
+        transparent
+          ? 'bg-transparent shadow-none'
+          : 'bg-white shadow-sm'
+      }`}
       role="banner"
       style={{ ['--site-header-height' as string]: '68px' }}
     >
       <nav className="px-4 sm:px-6 xl:px-10" aria-label="Main navigation">
         <div className="flex items-center h-16 lg:h-[68px]">
-          {/* Logo — compact */}
+          {/* Logo — compact. We have one color asset; over the dark hero
+              we invert it to pure white so the wordmark stays legible. */}
           <Link href="/" className="shrink-0 mr-2 xl:mr-6" aria-label="Seven Arrows Recovery - Home">
             <img
               src="/images/logo.png"
               alt="Seven Arrows Recovery"
-              className="h-11 lg:h-12 w-auto"
+              className="h-11 lg:h-12 w-auto transition-[filter] duration-300"
+              style={{
+                filter: transparent ? 'brightness(0) invert(1)' : 'none',
+              }}
             />
           </Link>
 
@@ -769,12 +792,14 @@ export default function Header() {
           <div className="hidden lg:flex items-center gap-0 xl:gap-1 ml-auto min-w-0">
             {navLinks.map((item) =>
               item.dropdown ? (
-                <MegaMenuDropdown key={item.href} item={item} />
+                <MegaMenuDropdown key={item.href} item={item} transparent={transparent} />
               ) : (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
+                  className={`px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase transition-colors whitespace-nowrap ${
+                    transparent ? 'text-white/90 hover:text-white' : 'text-foreground/80 hover:text-primary'
+                  }`}
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {item.label}
@@ -801,7 +826,9 @@ export default function Header() {
           {/* Mobile menu button */}
           <button
             type="button"
-            className="lg:hidden p-2 text-foreground ml-auto"
+            className={`lg:hidden p-2 ml-auto transition-colors ${
+              transparent ? 'text-white' : 'text-foreground'
+            }`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
             aria-label="Toggle navigation menu"
