@@ -19,6 +19,19 @@ interface SiteImage {
   alt: string | null;
   uploaded_by: string | null;
   created_at: string;
+  // Optional columns — only present after 20260422_site_images_kaizen.sql
+  // is applied. Defensive `?` so the page still renders without them.
+  rating?: number | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  kaizen_processed_at?: string | null;
+  original_filename?: string | null;
+}
+
+interface KaizenProgress {
+  imageId: string;
+  step: 'analyzing' | 'recompressing' | 'uploading' | 'updating' | 'done' | 'error';
+  error?: string;
 }
 
 const BUCKET = 'public-images';
@@ -68,6 +81,9 @@ export default function ImagesContent() {
   const [uploads, setUploads] = useState<UploadProgress[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [preview, setPreview] = useState<SiteImage | null>(null);
+  const [kaizenRunning, setKaizenRunning] = useState(false);
+  const [kaizenAbort, setKaizenAbort] = useState(false);
+  const [kaizenProgress, setKaizenProgress] = useState<KaizenProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string) => {
@@ -261,6 +277,166 @@ export default function ImagesContent() {
     setImages((prev) => prev.map((i) => (i.id === img.id ? { ...i, alt: alt || null } : i)));
   }
 
+  async function updateRating(img: SiteImage, rating: number) {
+    const clamped = Math.max(0, Math.min(5, Math.round(rating)));
+    // Optimistic — assumes the rating column exists. If the migration
+    // hasn't run yet we surface the Postgres error in a toast so it's
+    // obvious what's missing.
+    setImages((prev) => prev.map((i) => (i.id === img.id ? { ...i, rating: clamped } : i)));
+    const { error } = await supabase
+      .from('site_images')
+      .update({ rating: clamped })
+      .eq('id', img.id);
+    if (error) {
+      setImages((prev) => prev.map((i) => (i.id === img.id ? { ...i, rating: img.rating ?? 0 } : i)));
+      showToast(`Rating failed: ${error.message} — has the kaizen migration been applied?`);
+    }
+  }
+
+  async function kaizenOne(img: SiteImage): Promise<'ok' | 'error'> {
+    if (!user || !session?.access_token) return 'error';
+
+    setKaizenProgress({ imageId: img.id, step: 'analyzing' });
+    let suggestion: { filename: string; alt: string; seo_title: string; seo_description: string } | null = null;
+    try {
+      const res = await fetch('/api/claude/images/kaizen', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          imageUrl: img.public_url,
+          currentFilename: img.filename,
+          currentAlt: img.alt,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setKaizenProgress({ imageId: img.id, step: 'error', error: json?.error || `API ${res.status}` });
+        return 'error';
+      }
+      suggestion = json;
+    } catch (err) {
+      setKaizenProgress({ imageId: img.id, step: 'error', error: String(err) });
+      return 'error';
+    }
+    if (!suggestion) return 'error';
+
+    // Download the existing file, recompress it for web delivery, and
+    // re-upload under the new descriptive filename.
+    setKaizenProgress({ imageId: img.id, step: 'recompressing' });
+    let newFile: File;
+    try {
+      const blobRes = await fetch(img.public_url);
+      if (!blobRes.ok) throw new Error(`source fetch ${blobRes.status}`);
+      const blob = await blobRes.blob();
+      const srcFile = new File([blob], `${suggestion.filename}.jpg`, { type: blob.type || 'image/jpeg' });
+      newFile = await compressImage(srcFile, { maxEdge: 1920, targetBytes: 600 * 1024 });
+    } catch (err) {
+      setKaizenProgress({ imageId: img.id, step: 'error', error: `Recompress: ${String(err)}` });
+      return 'error';
+    }
+
+    setKaizenProgress({ imageId: img.id, step: 'uploading' });
+    const ext = (newFile.name.split('.').pop() || 'jpg').toLowerCase();
+    const newPath = `${FOLDER}/${Date.now()}-${Math.random().toString(36).slice(2)}-${suggestion.filename}.${ext}`;
+    const { error: upErr } = await supabase.storage.from(BUCKET).upload(newPath, newFile, {
+      contentType: newFile.type || 'image/jpeg',
+      cacheControl: '31536000',
+      upsert: false,
+    });
+    if (upErr) {
+      setKaizenProgress({ imageId: img.id, step: 'error', error: `Upload: ${upErr.message}` });
+      return 'error';
+    }
+    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(newPath);
+    const newUrl = urlData?.publicUrl;
+    if (!newUrl) {
+      setKaizenProgress({ imageId: img.id, step: 'error', error: 'No URL from storage' });
+      return 'error';
+    }
+
+    // Detect natural dimensions of the recompressed file so the grid
+    // shows the new size after Kaizen instead of the stale pre-resize
+    // numbers.
+    let width: number | null = img.width;
+    let height: number | null = img.height;
+    try {
+      const dims = await dimensionsOf(newFile);
+      if (dims.width && dims.height) {
+        width = dims.width;
+        height = dims.height;
+      }
+    } catch {
+      // non-fatal
+    }
+
+    setKaizenProgress({ imageId: img.id, step: 'updating' });
+    const nextFilename = `${suggestion.filename}.${ext}`;
+    const { data: updated, error: dbErr } = await supabase
+      .from('site_images')
+      .update({
+        path: newPath,
+        public_url: newUrl,
+        filename: nextFilename,
+        alt: suggestion.alt,
+        seo_title: suggestion.seo_title,
+        seo_description: suggestion.seo_description,
+        size: newFile.size,
+        width,
+        height,
+        mime: newFile.type || 'image/jpeg',
+        original_filename: img.original_filename || img.filename,
+        kaizen_processed_at: new Date().toISOString(),
+      })
+      .eq('id', img.id)
+      .select()
+      .single();
+    if (dbErr || !updated) {
+      // Metadata write failed — delete the new orphan file so storage
+      // doesn't accumulate phantom uploads.
+      await supabase.storage.from(BUCKET).remove([newPath]).catch(() => null);
+      setKaizenProgress({ imageId: img.id, step: 'error', error: `DB: ${dbErr?.message || 'unknown'}` });
+      return 'error';
+    }
+
+    // Remove the old file only after the DB row has the new path.
+    await supabase.storage.from(BUCKET).remove([img.path]).catch(() => null);
+
+    setImages((prev) => prev.map((i) => (i.id === img.id ? (updated as SiteImage) : i)));
+    setKaizenProgress({ imageId: img.id, step: 'done' });
+    return 'ok';
+  }
+
+  async function runKaizenBatch(targetIds?: string[]) {
+    if (kaizenRunning) return;
+    const targets = images.filter((i) =>
+      targetIds ? targetIds.includes(i.id) : !i.kaizen_processed_at,
+    );
+    if (targets.length === 0) {
+      showToast('All images already optimized. Select one to re-run.');
+      return;
+    }
+    setKaizenRunning(true);
+    setKaizenAbort(false);
+    let ok = 0;
+    let failed = 0;
+    for (const img of targets) {
+      if (kaizenAbort) break;
+      const result = await kaizenOne(img);
+      if (result === 'ok') ok += 1;
+      else failed += 1;
+    }
+    setKaizenRunning(false);
+    setKaizenProgress(null);
+    showToast(
+      failed === 0
+        ? `Kaizen complete — optimized ${ok} image${ok === 1 ? '' : 's'}.`
+        : `Kaizen finished with ${ok} ok, ${failed} failed. See console for details.`,
+    );
+  }
+
   if (!user) return null;
 
   return (
@@ -272,18 +448,42 @@ export default function ImagesContent() {
             Drag & drop images to add them to the marketing gallery. Click any image to copy its URL — paste it into a page or component to use it on the site.
           </p>
         </div>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-primary text-white hover:bg-primary-dark shadow-sm hover:shadow-md transition-all"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>
-          Upload images
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => (kaizenRunning ? setKaizenAbort(true) : runKaizenBatch())}
+            disabled={images.length === 0}
+            className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-foreground text-white hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md transition-all"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="Rename to SEO-friendly filenames, resize for web, and regenerate alt + meta using Claude vision."
+          >
+            {kaizenRunning ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                {kaizenAbort ? 'Stopping…' : 'Stop Kaizen'}
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                Kaizen Images
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-primary text-white hover:bg-primary-dark shadow-sm hover:shadow-md transition-all"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            Upload images
+          </button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -425,6 +625,39 @@ export default function ImagesContent() {
                   className="w-full text-xs px-2 py-1 rounded-md bg-warm-bg/50 border border-transparent focus:bg-white focus:border-gray-200 focus:outline-none mb-1.5"
                   style={{ fontFamily: 'var(--font-body)' }}
                 />
+                <div className="flex items-center gap-0.5 mb-1" role="radiogroup" aria-label={`Rating for ${img.filename}`}>
+                  {[1, 2, 3, 4, 5].map((n) => {
+                    const rating = img.rating ?? 0;
+                    const active = n <= rating;
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => updateRating(img, rating === n ? n - 1 : n)}
+                        className={`p-0.5 rounded transition-colors ${active ? 'text-amber-400 hover:text-amber-500' : 'text-foreground/20 hover:text-amber-400'}`}
+                        title={`${n} star${n === 1 ? '' : 's'}`}
+                        aria-label={`${n} star${n === 1 ? '' : 's'}`}
+                        aria-pressed={active}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26" />
+                        </svg>
+                      </button>
+                    );
+                  })}
+                  {img.kaizen_processed_at && (
+                    <span
+                      className="ml-1 inline-flex items-center gap-0.5 text-[9px] text-emerald-600 font-semibold uppercase tracking-wider"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      title={`Optimized ${new Date(img.kaizen_processed_at).toLocaleString()}`}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Kaizen
+                    </span>
+                  )}
+                </div>
                 <p
                   className="text-[11px] text-foreground/40 truncate"
                   style={{ fontFamily: 'var(--font-body)' }}
@@ -432,6 +665,17 @@ export default function ImagesContent() {
                 >
                   {img.filename}
                 </p>
+                {kaizenProgress?.imageId === img.id && kaizenProgress.step !== 'done' && (
+                  <p
+                    className={`text-[10px] mt-0.5 truncate ${kaizenProgress.step === 'error' ? 'text-red-500' : 'text-primary'}`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                    title={kaizenProgress.error}
+                  >
+                    {kaizenProgress.step === 'error'
+                      ? `Error: ${kaizenProgress.error}`
+                      : `Kaizen: ${kaizenProgress.step}…`}
+                  </p>
+                )}
                 <div className="flex items-center justify-between mt-1">
                   <p className="text-[10px] text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
                     {img.width && img.height ? `${img.width}×${img.height}` : ''}
@@ -439,6 +683,19 @@ export default function ImagesContent() {
                     {formatBytes(img.size)}
                   </p>
                   <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => runKaizenBatch([img.id])}
+                      disabled={kaizenRunning}
+                      className="p-1.5 rounded-md text-foreground/40 hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-40"
+                      title="Kaizen this image"
+                      aria-label="Kaizen this image"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
                     <button
                       type="button"
                       onClick={() => setPreview(img)}

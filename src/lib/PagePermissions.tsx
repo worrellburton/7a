@@ -16,6 +16,11 @@ export interface PageConfig {
   // The department this page is grouped under in the sidebar nav.
   // null = appears in the ungrouped section at the top.
   departmentId: string | null;
+  // Optional named group label (e.g. "Media") that overrides departmentId
+  // for sidebar grouping purposes. Pure code-side concept — not stored in
+  // the `page_permissions` DB table — so product areas like Media can hang
+  // off a shared header without needing a fake department row.
+  navGroup?: string | null;
 }
 
 const defaultPages: PageConfig[] = [
@@ -37,7 +42,8 @@ const defaultPages: PageConfig[] = [
   { path: '/app/tours', label: 'Tours', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/admissions', label: 'Admissions', adminOnly: false, section: 'nav', sort_order: 15, allowedDepartments: [], departmentId: null },
   { path: '/app/intake-paperwork', label: 'Intake Paperwork', adminOnly: false, section: 'nav', sort_order: 16, allowedDepartments: [], departmentId: null },
-  { path: '/app/images', label: 'Images', adminOnly: false, section: 'nav', sort_order: 18, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/images', label: 'Images', adminOnly: false, section: 'nav', sort_order: 18, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
+  { path: '/app/video', label: 'Video', adminOnly: false, section: 'nav', sort_order: 19, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
   { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
