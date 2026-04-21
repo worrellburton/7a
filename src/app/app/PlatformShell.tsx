@@ -395,6 +395,12 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 11.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V4.5A2.25 2.25 0 016 2.25h2.25m3.75 11.25v2.25m0 0l-3-3m3 3l3-3" />
     </svg>
   ),
+  '/app/document-manager': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.25 3.104c.251.023.501.05.75.082M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m5.394 13.94-1.425-1.425m-3.104-.196h.008v.008h-.008v-.008ZM8.25 21h7.5A2.25 2.25 0 0 0 18 18.75V9A2.25 2.25 0 0 0 15.75 6.75h-7.5A2.25 2.25 0 0 0 6 9v9.75A2.25 2.25 0 0 0 8.25 21Z" />
+      <path d="M9 12.75h6M9 15.75h4" />
+    </svg>
+  ),
 };
 
 function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
@@ -410,7 +416,7 @@ function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
 export { pageIcons };
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, signInWithGoogle, signOut, session } = useAuth();
+  const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session } = useAuth();
   const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
@@ -593,6 +599,42 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     );
   }
 
+  // Signed in but awaiting approval — block app access until a super admin
+  // approves the user from the Team page.
+  if (status === 'on_hold' || status === 'denied') {
+    const denied = status === 'denied';
+    return (
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <LoginBackground />
+        <div className="relative z-10 max-w-md w-full mx-4 text-center bg-white/90 backdrop-blur rounded-2xl border border-gray-100 shadow-xl p-8">
+          <img
+            src="/images/logo.png"
+            alt="Seven Arrows Recovery"
+            className="h-16 w-auto mx-auto mb-5"
+          />
+          <h1 className="text-lg font-semibold text-foreground mb-2">
+            {denied ? 'Access denied' : 'Waiting for approval'}
+          </h1>
+          <p className="text-sm text-foreground/60 mb-6" style={{ fontFamily: 'var(--font-body)' }}>
+            {denied
+              ? 'Your account was denied access. If you believe this was a mistake, please contact a Seven Arrows administrator.'
+              : 'Your email isn\u2019t on the Seven Arrows domain, so an administrator needs to approve your account before you can continue.'}
+          </p>
+          <p className="text-xs text-foreground/40 mb-6" style={{ fontFamily: 'var(--font-body)' }}>
+            Signed in as <span className="font-medium text-foreground/60">{user.email}</span>
+          </p>
+          <button
+            onClick={signOut}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-foreground text-white hover:bg-foreground/90 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Signed in — platform with sidebar
   return (
     <div className="flex min-h-screen app-shell relative">
@@ -618,6 +660,18 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 <Link
                   key={item.path}
                   href={item.path}
+                  onClick={(e) => {
+                    // If we're already on this pathname but with a query
+                    // string (e.g. /app/calls?tab=operators), Next.js's
+                    // default Link behavior can skip the navigation and
+                    // leave stale tab state behind. Force a clean replace
+                    // to the bare path so URL-derived state (tabs, etc.)
+                    // resets to the default.
+                    if (pathname === item.path) {
+                      e.preventDefault();
+                      router.replace(item.path, { scroll: false });
+                    }
+                  }}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out ${
                     isActive
                       ? 'bg-primary/10 text-primary'
