@@ -15,6 +15,11 @@ export default function DualDiagnosisPage() {
       <PageHero
         label="What We Treat"
         title="Dual Diagnosis Treatment"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'What We Treat', href: '/what-we-treat' },
+          { label: 'Dual-Diagnosis' },
+        ]}
         description="When mental health conditions and substance use disorders occur together, integrated treatment is essential. At Seven Arrows Recovery, we address both simultaneously for lasting healing."
         image="/images/individual-therapy-session.jpg"
       />

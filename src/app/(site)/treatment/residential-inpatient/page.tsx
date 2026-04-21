@@ -15,6 +15,11 @@ export default function ResidentialInpatientPage() {
       <PageHero
         label="Treatment Programs"
         title="Residential Inpatient"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Treatment', href: '/treatment' },
+          { label: 'Residential Inpatient' },
+        ]}
         description="Immerse yourself in recovery with our residential inpatient program, designed for individuals who need round-the-clock clinical support in a safe, structured environment at the base of the Swisshelm Mountains."
         image="/images/bedroom-shared.jpg"
       />

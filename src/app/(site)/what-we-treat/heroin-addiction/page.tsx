@@ -15,6 +15,11 @@ export default function HeroinAddictionPage() {
       <PageHero
         label="What We Treat"
         title="Heroin Addiction Treatment"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'What We Treat', href: '/what-we-treat' },
+          { label: 'Heroin Addiction' },
+        ]}
         description="Heroin addiction is a devastating and life-threatening condition, but recovery is possible with the right support. Seven Arrows Recovery provides medically supervised detox and comprehensive treatment in a safe, compassionate environment."
         image="/images/embrace-connection.jpg"
       />

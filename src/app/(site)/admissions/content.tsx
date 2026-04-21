@@ -104,6 +104,10 @@ export default function PageContent() {
       <PageHero
         label="The First Step"
         title="Our Admissions Process"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Admissions' },
+        ]}
         description="At Seven Arrows we have streamlined your admissions process. You will always have access to a live person to answer any concerns that you or your loved one might have — both prior to admission and throughout your stay."
         image="/images/embrace-connection.jpg"
       />

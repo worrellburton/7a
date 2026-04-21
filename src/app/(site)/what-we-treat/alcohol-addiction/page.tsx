@@ -15,6 +15,11 @@ export default function AlcoholAddictionPage() {
       <PageHero
         label="What We Treat"
         title="Alcohol Addiction Treatment"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'What We Treat', href: '/what-we-treat' },
+          { label: 'Alcohol Addiction' },
+        ]}
         description="Alcohol use disorder is one of the most common and dangerous forms of addiction. At Seven Arrows Recovery, we provide comprehensive, medically supervised treatment to help you reclaim your life."
         image="/images/group-gathering-pavilion.jpg"
       />

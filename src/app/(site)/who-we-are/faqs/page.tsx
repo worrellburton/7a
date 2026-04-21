@@ -17,6 +17,11 @@ export default function FAQsPage() {
       <PageHero
         label="Frequently Asked Questions"
         title="FAQs"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who We Are', href: '/who-we-are' },
+          { label: 'FAQs' },
+        ]}
         description="We understand that choosing a treatment center comes with many questions. Here are answers to the ones we hear most often. If you do not see your question below, please reach out directly."
         image="/images/common-area-living-room.jpg"
       />

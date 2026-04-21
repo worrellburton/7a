@@ -21,6 +21,11 @@ export default async function MeetOurTeamPage() {
       <PageHero
         label="Our Team"
         title="Meet Our Team"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who We Are', href: '/who-we-are' },
+          { label: 'Meet Our Team' },
+        ]}
         description="Behind every successful recovery is a dedicated team of professionals. At Seven Arrows Recovery, our clinicians, therapists, and support staff bring expertise, empathy, and genuine care to everything they do."
         image="/images/equine-therapy-portrait.jpg"
       />

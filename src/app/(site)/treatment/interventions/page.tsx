@@ -15,6 +15,11 @@ export default function InterventionsPage() {
       <PageHero
         label="Treatment Programs"
         title="Interventions"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Treatment', href: '/treatment' },
+          { label: 'Interventions' },
+        ]}
         description="When someone you love is struggling with addiction and is not yet ready to seek help, a professional intervention can be the turning point. Our intervention specialists guide families through a compassionate, structured process that opens the door to treatment."
         image="/images/group-therapy-room.jpg"
       />

@@ -60,6 +60,10 @@ export default function WhoWeArePage() {
       <PageHero
         label="About Us"
         title="Who We Are"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who We Are' },
+        ]}
         description="Seven Arrows Recovery is a boutique addiction treatment center nestled at the base of the Swisshelm Mountains in southeastern Arizona. We provide personalized, evidence-based care in an intimate setting designed for deep healing."
         image="/images/group-sunset-desert.jpg"
       />
