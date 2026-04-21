@@ -35,10 +35,10 @@ const subPages = [
       'Find answers to commonly asked questions about treatment, insurance, and the admissions process.',
   },
   {
-    title: 'Blog',
-    href: '/who-we-are/blog',
+    title: 'Recovery Roadmap',
+    href: '/who-we-are/recovery-roadmap',
     description:
-      'Insights, stories, and resources on addiction recovery, mental health, and holistic wellness.',
+      'Our investigative series on addiction, treatment, and lasting recovery — from the Seven Arrows clinical team.',
   },
   {
     title: 'Careers',

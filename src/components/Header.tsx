@@ -303,6 +303,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   'FAQs': QuestionIcon,
   'Blog': BlogIcon,
   'Investigative Series': BlogIcon,
+  'Recovery Roadmap': BlogIcon,
   'Careers': CareersIcon,
   'Areas We Serve': MapIcon,
   'Residential Inpatient': HomeIcon,
@@ -350,7 +351,7 @@ const navLinks: NavItem[] = [
       { label: 'Why Us?', href: '/who-we-are/why-us', description: 'What sets Seven Arrows apart' },
       { label: 'Our Philosophy', href: '/who-we-are/our-philosophy', description: 'TraumAddiction\u2122 & holistic healing' },
       { label: 'FAQs', href: '/who-we-are/faqs', description: 'Common questions answered' },
-      { label: 'Investigative Series', href: '/who-we-are/blog', description: 'The Recovery Roadmap' },
+      { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap', description: 'Our investigative series on addiction & healing' },
       { label: 'Careers', href: '/who-we-are/careers', description: 'Join our healing community' },
       { label: 'Areas We Serve', href: '/who-we-are/areas-we-serve', description: 'Nationwide admissions from Arizona' },
     ],
@@ -400,7 +401,7 @@ const navLinks: NavItem[] = [
 
 /* ── Mega Menu Dropdown ────────────────────────────────────────────── */
 
-function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React.RefObject<HTMLElement | null> }) {
+function MegaMenuDropdown({ item }: { item: NavItem }) {
   const [open, setOpen] = useState(false);
   const timeout = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -410,15 +411,23 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
   };
 
   const leave = () => {
-    timeout.current = setTimeout(() => setOpen(false), 200);
+    if (timeout.current) clearTimeout(timeout.current);
+    // Generous grace period so the cursor can travel from the trigger
+    // button down across the (small) gap into the panel without the menu
+    // collapsing mid-traverse.
+    timeout.current = setTimeout(() => setOpen(false), 320);
   };
 
-  // Close on scroll so users can scroll past the menu
+  // Close when navigating with the keyboard (Esc) — but stay open on scroll.
+  // Closing on every scroll tick was too aggressive: trackpad nudges would
+  // collapse the panel before the user could click anything.
   useEffect(() => {
     if (!open) return;
-    const handleScroll = () => setOpen(false);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
   }, [open]);
 
   useEffect(() => {
@@ -445,6 +454,18 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
         </svg>
       </button>
 
+      {/* Invisible "hover bridge" between the trigger button and the panel
+          so the cursor can travel down across the gap without the wrapper's
+          mouseleave firing and starting the close timer. */}
+      {open && (
+        <div
+          className="absolute left-0 right-0 h-3 top-full"
+          aria-hidden="true"
+          onMouseEnter={enter}
+          onMouseLeave={leave}
+        />
+      )}
+
       {/* Backdrop — only covers area below header, allows scroll-through */}
       {open && (
         <div
@@ -452,7 +473,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
           onClick={() => setOpen(false)}
           aria-hidden="true"
           style={{
-            top: (headerRef.current?.getBoundingClientRect().bottom ?? 68) + 'px',
+            top: 'var(--site-header-height, 68px)',
             backgroundColor: 'rgba(0,0,0,0.15)',
             transition: 'background-color 0.3s ease',
           }}
@@ -463,7 +484,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         style={{
-          top: (headerRef.current?.getBoundingClientRect().bottom ?? 68) + 'px',
+          top: 'var(--site-header-height, 68px)',
         }}
         onMouseEnter={enter}
         onMouseLeave={leave}
@@ -700,14 +721,17 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
-  const headerRef = useRef<HTMLElement>(null);
 
   const toggleMobileDropdown = (label: string) => {
     setMobileExpanded(mobileExpanded === label ? null : label);
   };
 
   return (
-    <header ref={headerRef} className="bg-white sticky top-0 z-50 shadow-sm" role="banner">
+    <header
+      className="bg-white sticky top-0 z-50 shadow-sm"
+      role="banner"
+      style={{ ['--site-header-height' as string]: '68px' }}
+    >
       <nav className="px-4 sm:px-6 xl:px-10" aria-label="Main navigation">
         <div className="flex items-center h-16 lg:h-[68px]">
           {/* Logo — compact */}
@@ -723,7 +747,7 @@ export default function Header() {
           <div className="hidden lg:flex items-center gap-0 xl:gap-1 ml-auto min-w-0">
             {navLinks.map((item) =>
               item.dropdown ? (
-                <MegaMenuDropdown key={item.href} item={item} headerRef={headerRef} />
+                <MegaMenuDropdown key={item.href} item={item} />
               ) : (
                 <Link
                   key={item.href}
