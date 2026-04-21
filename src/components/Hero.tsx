@@ -270,7 +270,7 @@ export default function Hero() {
 
               <h1
                 id="hero-heading"
-                className="text-4xl sm:text-5xl lg:text-[3.75rem] font-bold tracking-tight leading-[1.05] mb-6"
+                className="text-[2.25rem] sm:text-5xl lg:text-[3.75rem] font-bold tracking-tight leading-[1.05] mb-5 sm:mb-6"
                 style={{
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(30px)',
@@ -283,7 +283,7 @@ export default function Hero() {
               </h1>
 
               <p
-                className="text-white/80 text-lg leading-relaxed mb-10 max-w-xl"
+                className="text-white/80 text-base sm:text-lg leading-relaxed mb-8 sm:mb-10 max-w-xl"
                 style={{
                   fontFamily: 'var(--font-body)',
                   opacity: visible ? 1 : 0,
@@ -297,7 +297,7 @@ export default function Hero() {
               </p>
 
               <div
-                className="flex flex-col sm:flex-row gap-4"
+                className="flex flex-col sm:flex-row gap-3 sm:gap-4"
                 style={{
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(20px)',
