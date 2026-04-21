@@ -157,6 +157,48 @@ export default function TeamGrid({ team }: TeamGridProps) {
                 </p>
               )}
 
+              {active.favorite_quote && (
+                <figure className="mt-6 border-l-2 border-primary/40 pl-4 py-1">
+                  <svg
+                    className="w-6 h-6 text-primary/30 mb-1"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d="M9 7H5a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h2v2a2 2 0 0 1-2 2H4v2h1a4 4 0 0 0 4-4V9a2 2 0 0 0 0-2zm10 0h-4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h2v2a2 2 0 0 1-2 2h-1v2h1a4 4 0 0 0 4-4V9a2 2 0 0 0 0-2z" />
+                  </svg>
+                  <blockquote
+                    className="text-foreground/80 italic leading-relaxed"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {active.favorite_quote}
+                  </blockquote>
+                  <figcaption
+                    className="mt-1.5 text-[11px] uppercase tracking-wider text-primary/70 font-semibold"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Favorite quote
+                  </figcaption>
+                </figure>
+              )}
+
+              {active.favorite_seven_arrows && (
+                <div className="mt-6 rounded-xl bg-warm-bg/60 p-4">
+                  <p
+                    className="text-[11px] uppercase tracking-wider text-primary font-semibold mb-1.5"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Favorite thing about Seven Arrows
+                  </p>
+                  <p
+                    className="text-foreground/80 leading-relaxed"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {active.favorite_seven_arrows}
+                  </p>
+                </div>
+              )}
+
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 <a href="tel:8669964308" className="btn-primary text-center">
                   Call (866) 996-4308

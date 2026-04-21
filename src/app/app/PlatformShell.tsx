@@ -408,6 +408,12 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
     </svg>
   ),
+  '/app/video': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="14" height="12" rx="2" />
+      <path d="m22 8-6 4 6 4V8z" />
+    </svg>
+  ),
 };
 
 function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
@@ -489,12 +495,34 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     return () => { cancelled = true; };
   }, [session, user?.id]);
 
-  // Group visible nav pages: ungrouped first, then by department
+  // Group visible nav pages. Hierarchy, highest priority first:
+  //   1. `navGroup` — a purely code-side label like "Media" so product
+  //      areas can share a header without needing a fake department.
+  //   2. `departmentId` — existing dept-based grouping from the DB.
+  //   3. Ungrouped bucket at the very top of the sidebar.
   const visibleNavPages = navPages.filter(canSeePage);
-  const ungroupedPages = visibleNavPages.filter(p => !p.departmentId);
+  const ungroupedPages = visibleNavPages.filter((p) => !p.departmentId && !p.navGroup);
+
+  // Preserve first-seen order of navGroups so Media shows up in the same
+  // spot across renders regardless of React's map ordering.
+  const navGroupLabels: string[] = [];
+  const navGroupPages: Record<string, PageConfig[]> = {};
+  for (const p of visibleNavPages) {
+    if (!p.navGroup) continue;
+    if (!navGroupPages[p.navGroup]) {
+      navGroupLabels.push(p.navGroup);
+      navGroupPages[p.navGroup] = [];
+    }
+    navGroupPages[p.navGroup].push(p);
+  }
+  const navGroupGroups = navGroupLabels.map((label) => ({
+    label,
+    pages: navGroupPages[label],
+  }));
+
   const deptGroups: { dept: NavDepartment; pages: PageConfig[] }[] = [];
   for (const dept of navDepartments) {
-    const deptPages = visibleNavPages.filter(p => p.departmentId === dept.id);
+    const deptPages = visibleNavPages.filter((p) => !p.navGroup && p.departmentId === dept.id);
     if (deptPages.length > 0) {
       deptGroups.push({ dept, pages: deptPages });
     }
@@ -694,6 +722,20 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             return (
               <>
                 {ungroupedPages.map(renderLink)}
+                {navGroupGroups.map(({ label, pages }) => {
+                  const hdrIdx = animIdx++;
+                  return (
+                    <div key={`nav-group-${label}`}>
+                      <p
+                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
+                        style={{ fontFamily: 'var(--font-body)', transitionDelay: `${hdrIdx * 50}ms` }}
+                      >
+                        {label}
+                      </p>
+                      {pages.map(renderLink)}
+                    </div>
+                  );
+                })}
                 {deptGroups.map(({ dept, pages }) => {
                   const hdrIdx = animIdx++;
                   return (
@@ -866,6 +908,37 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     </Link>
                   );
                 })}
+                {navGroupGroups.map(({ label, pages }) => (
+                  <div key={`mobile-nav-group-${label}`}>
+                    <p
+                      className="px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {label}
+                    </p>
+                    {pages.map((item) => {
+                      const isActive = pathname === item.path;
+                      return (
+                        <Link
+                          key={item.path}
+                          href={item.path}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                          }`}
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                            {getPageIcon(item.path)}
+                          </span>
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ))}
                 {deptGroups.map(({ dept, pages }) => (
                   <div key={dept.id}>
                     <p

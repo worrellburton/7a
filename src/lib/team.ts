@@ -6,6 +6,8 @@ export interface PublicTeamMember {
   job_title: string | null;
   avatar_url: string | null;
   bio: string | null;
+  favorite_quote: string | null;
+  favorite_seven_arrows: string | null;
   slug: string;
 }
 
@@ -75,19 +77,56 @@ function jobRank(jobTitle: string | null): number {
   return 7;
 }
 
+const FULL_SELECT =
+  'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, public_slug, status, public_team';
+const MINIMAL_SELECT = 'id, full_name, job_title, avatar_url, bio, public_slug, status, public_team';
+
+type TeamRow = {
+  id: string;
+  full_name: string | null;
+  job_title: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  favorite_quote?: string | null;
+  favorite_seven_arrows?: string | null;
+  public_slug: string | null;
+  status?: string | null;
+  public_team?: boolean | null;
+};
+
 export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {
   try {
     const supabase = await getServerSupabase();
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, full_name, job_title, avatar_url, bio, public_slug, status, public_team')
-      .eq('status', 'active')
-      .eq('public_team', true)
-      .order('full_name', { ascending: true });
 
+    // Try the full select first (includes favorite_quote +
+    // favorite_seven_arrows). If that errors — most likely because the
+    // new columns aren't deployed yet — fall back to the minimal select
+    // so the grid still renders instead of showing nothing.
+    let data: TeamRow[] | null = null;
+    let error: { message: string } | null = null;
+    {
+      const q = await supabase
+        .from('users')
+        .select(FULL_SELECT)
+        .eq('status', 'active')
+        .eq('public_team', true)
+        .order('full_name', { ascending: true });
+      data = (q.data || []) as unknown as TeamRow[] | null;
+      error = q.error;
+    }
     if (error) {
-      console.error('[team] failed to load public team', error);
-      return [];
+      console.warn('[team] full select failed, retrying minimal:', error.message);
+      const q = await supabase
+        .from('users')
+        .select(MINIMAL_SELECT)
+        .eq('status', 'active')
+        .eq('public_team', true)
+        .order('full_name', { ascending: true });
+      if (q.error) {
+        console.error('[team] minimal select also failed', q.error);
+        return [];
+      }
+      data = (q.data || []) as unknown as TeamRow[];
     }
 
     const rows = (data || [])
@@ -105,6 +144,8 @@ export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {
       job_title: row.job_title,
       avatar_url: upgradeAvatarUrl(row.avatar_url),
       bio: row.bio,
+      favorite_quote: row.favorite_quote ?? null,
+      favorite_seven_arrows: row.favorite_seven_arrows ?? null,
       slug: row.slug,
     }));
   } catch (err) {
