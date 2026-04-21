@@ -20,7 +20,7 @@ export default function InsuranceVerification() {
   return (
     <section className="py-16 lg:py-20 bg-white" aria-labelledby="insurance-heading">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-2xl p-8 lg:p-12 shadow-sm">
+        <div className="card-soft p-8 lg:p-12">
           <div className="text-center mb-8">
             <p className="section-label justify-center mb-3">Insurance Verification</p>
             <h2 id="insurance-heading" className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground mb-3">
