@@ -169,30 +169,6 @@ export default function InterventionsPage() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-20 bg-dark-section text-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold mb-6">
-            Help Your Loved One Find Recovery
-          </h2>
-          <p
-            className="text-white/70 leading-relaxed text-lg mb-10"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            If someone you care about is struggling with addiction, you do not
-            have to face it alone. Our intervention team is ready to help.
-            Reach out today for a confidential consultation.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="tel:8669964308" className="btn-primary">
-              Call (866) 996-4308
-            </a>
-            <Link href="/contact" className="btn-outline border-white text-white hover:bg-white hover:text-foreground">
-              Contact Us Online
-            </Link>
-          </div>
-        </div>
-      </section>
     </>
   );
 }

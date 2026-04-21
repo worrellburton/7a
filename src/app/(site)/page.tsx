@@ -18,7 +18,7 @@ import CampusTour from "@/components/CampusTour";
 import SevenArrowsExperience from "@/components/SevenArrowsExperience";
 import Amenities from "@/components/Amenities";
 
-import TraumAddictionSection from "@/components/TraumAddictionSection";
+import DailyLifeSection from "@/components/DailyLifeSection";
 import AboutSection from "@/components/AboutSection";
 import FAQSection from "@/components/FAQSection";
 import GoogleReviews from "@/components/GoogleReviews";
@@ -200,7 +200,7 @@ export default function Home() {
       <TreatmentServices />
       <CampusTour />
       <InsuranceCarousel />
-      <TraumAddictionSection />
+      <DailyLifeSection />
       <GoogleReviews />
       <SevenArrowsExperience />
       <Amenities />

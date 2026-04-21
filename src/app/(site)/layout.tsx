@@ -1,6 +1,7 @@
 import TopBar from '@/components/TopBar';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import BeforeFooterCTA from '@/components/BeforeFooterCTA';
 import GoogleReviewsBadge from '@/components/GoogleReviewsBadge';
 import FloatingContactCTA from '@/components/FloatingContactCTA';
 
@@ -10,6 +11,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <TopBar />
       <Header />
       <main className="flex-1">{children}</main>
+      <BeforeFooterCTA />
       <Footer />
       <GoogleReviewsBadge />
       <FloatingContactCTA />

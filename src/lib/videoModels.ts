@@ -353,9 +353,10 @@ const veo3: VideoModel = {
 
 // ─── Exported catalog ──────────────────────────────────────────────────
 
+// Seedance 2.0 endpoint slugs remain unverified — fal's queue router
+// returned 404 for every v2 URL variant we tried. Shipping only the v1
+// endpoints we've confirmed against fal's OpenAPI spec.
 export const VIDEO_MODELS: VideoModel[] = [
-  seedance2,
-  seedance2Fast,
   seedance1Pro,
   seedance1Lite,
 ];
