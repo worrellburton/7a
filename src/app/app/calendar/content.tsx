@@ -989,6 +989,7 @@ export default function CalendarContent() {
             Drag a group or a team member onto a day to schedule it.
           </p>
         </div>
+        <ArizonaClock />
       </div>
 
       {/* Body: palette + calendar surface. Palette is hidden in month view
@@ -3686,6 +3687,40 @@ function DragPreviewTooltip({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Live clock in America/Phoenix time (Arizona doesn't observe DST). Updates
+// every second via a rAF-driven timer so the minute flip is always instant.
+function ArizonaClock() {
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const time = now.toLocaleTimeString('en-US', {
+    timeZone: 'America/Phoenix',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const date = now.toLocaleDateString('en-US', {
+    timeZone: 'America/Phoenix',
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+  return (
+    <div
+      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-gray-100 shadow-sm"
+      style={{ fontFamily: 'var(--font-body)' }}
+      title="Arizona time (America/Phoenix)"
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+      <span className="text-sm font-semibold text-foreground tabular-nums">{time}</span>
+      <span className="text-[10px] font-medium text-foreground/40 uppercase tracking-wider">AZ</span>
+      <span className="text-[10px] text-foreground/40 hidden sm:inline">· {date}</span>
     </div>
   );
 }

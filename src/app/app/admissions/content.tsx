@@ -173,9 +173,35 @@ function formatTime(time: string | null): string {
 }
 
 export default function AdmissionsContent() {
-  const [admissions] = useState<Admission[]>(sampleAdmissions);
+  const [admissions, setAdmissions] = useState<Admission[]>(sampleAdmissions);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<AdmissionStatus | 'all'>('all');
+
+  const addAdmission = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const id = `a${Date.now()}`;
+    const fresh: Admission = {
+      id,
+      client_name: 'New Admission',
+      arrival_date: today,
+      arrival_time: null,
+      transport_mode: 'airport_pickup',
+      origin_city: null,
+      flight_number: null,
+      flight_arrival_airport: null,
+      flight_arrival_time: null,
+      driver_name: null,
+      vehicle: null,
+      coordinator: null,
+      insurance: null,
+      level_of_care: null,
+      notes: null,
+      status: 'tentative',
+    };
+    setAdmissions(prev => [fresh, ...prev]);
+    setSelectedId(id);
+    setStatusFilter('all');
+  };
 
   const filtered = useMemo(() => (
     statusFilter === 'all' ? admissions : admissions.filter(a => a.status === statusFilter)
@@ -202,11 +228,24 @@ export default function AdmissionsContent() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="px-4 sm:px-6 lg:px-10 pt-6 pb-4">
-        <h1 className="text-2xl font-bold text-foreground">Admissions</h1>
-        <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-          Incoming arrivals, transportation, and pickup logistics.
-        </p>
+      <div className="px-4 sm:px-6 lg:px-10 pt-6 pb-4 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Admissions</h1>
+          <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+            Incoming arrivals, transportation, and pickup logistics.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={addAdmission}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-foreground text-white text-sm font-semibold hover:bg-foreground/90 transition-colors shrink-0"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          New Admission
+        </button>
       </div>
 
       <div className="px-4 sm:px-6 lg:px-10 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">

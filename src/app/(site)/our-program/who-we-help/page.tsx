@@ -48,6 +48,11 @@ export default function WhoWeHelpPage() {
       <PageHero
         label="Who We Help"
         title="Recovery for Every Story"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our Program', href: '/our-program' },
+          { label: 'Who We Help' },
+        ]}
         description="At Seven Arrows Recovery, we serve adults from all backgrounds who are ready to break free from addiction. Our intimate, personalized program meets you wherever you are in your journey."
         image="/images/individual-therapy-session.jpg"
       />

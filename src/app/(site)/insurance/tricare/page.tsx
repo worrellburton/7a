@@ -76,6 +76,11 @@ export default function InsuranceTRICAREPage() {
       <PageHero
         label="Insurance Coverage"
         title="TRICARE Rehab Coverage"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Insurance' },
+          { label: 'TRICARE' },
+        ]}
         description="Seven Arrows Recovery accepts TRICARE insurance for active duty service members, veterans, retirees, and military dependents seeking drug and alcohol addiction treatment. We understand military culture and the unique challenges of service."
         image="/images/embrace-connection.jpg"
       />

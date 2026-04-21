@@ -13,6 +13,10 @@ interface AppUser {
   is_admin: boolean;
 }
 
+const ROOT_ADMIN_EMAIL = 'bobby@sevenarrowsrecovery.com';
+const isRootAdmin = (email: string | null | undefined) =>
+  (email || '').toLowerCase() === ROOT_ADMIN_EMAIL;
+
 export default function SuperAdminContent() {
   const { session, user, isAdmin } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -36,6 +40,8 @@ export default function SuperAdminContent() {
   }, [session]);
 
   async function toggleAdmin(u: AppUser, next: boolean) {
+    // Root super admin can never be demoted from this UI.
+    if (isRootAdmin(u.email) && next === false) return;
     setBusyId(u.id);
     setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_admin: next } : x)));
     const res = await db({ action: 'update', table: 'users', data: { is_admin: next }, match: { id: u.id } }).catch(() => null);
@@ -126,22 +132,32 @@ export default function SuperAdminContent() {
                   </p>
                   <p className="text-xs text-foreground/50 truncate">{u.email}</p>
                 </div>
-                <label className={`inline-flex items-center gap-2 cursor-pointer select-none ${busyId === u.id ? 'opacity-50' : ''}`}>
-                  <span className={`text-xs font-medium ${u.is_admin ? 'text-primary' : 'text-foreground/40'}`}>
-                    {u.is_admin ? 'Super Admin' : 'Not super admin'}
+                {isRootAdmin(u.email) ? (
+                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-primary" title="Root super admin — locked">
+                    Super Admin
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c1.657 0 3-1.343 3-3V6a3 3 0 10-6 0v2c0 1.657 1.343 3 3 3z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 11h14v9a2 2 0 01-2 2H7a2 2 0 01-2-2v-9z" />
+                    </svg>
                   </span>
-                  <span className="relative inline-block w-9 h-5">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={u.is_admin}
-                      disabled={busyId === u.id || isSelf}
-                      onChange={(e) => toggleAdmin(u, e.target.checked)}
-                    />
-                    <span className="absolute inset-0 rounded-full bg-gray-200 peer-checked:bg-primary transition-colors" />
-                    <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
-                  </span>
-                </label>
+                ) : (
+                  <label className={`inline-flex items-center gap-2 cursor-pointer select-none ${busyId === u.id ? 'opacity-50' : ''}`}>
+                    <span className={`text-xs font-medium ${u.is_admin ? 'text-primary' : 'text-foreground/40'}`}>
+                      {u.is_admin ? 'Super Admin' : 'Not super admin'}
+                    </span>
+                    <span className="relative inline-block w-9 h-5">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={u.is_admin}
+                        disabled={busyId === u.id || isSelf}
+                        onChange={(e) => toggleAdmin(u, e.target.checked)}
+                      />
+                      <span className="absolute inset-0 rounded-full bg-gray-200 peer-checked:bg-primary transition-colors" />
+                      <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
+                    </span>
+                  </label>
+                )}
               </div>
             );
           })

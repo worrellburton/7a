@@ -76,6 +76,11 @@ export default function InsuranceCignaPage() {
       <PageHero
         label="Insurance Coverage"
         title="Cigna Rehab Coverage"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Insurance' },
+          { label: 'Cigna' },
+        ]}
         description="Seven Arrows Recovery accepts most Cigna and Evernorth Behavioral Health plans for drug and alcohol addiction treatment. Let our team verify your coverage and handle all the insurance details."
         image="/images/embrace-connection.jpg"
       />

@@ -303,6 +303,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   'FAQs': QuestionIcon,
   'Blog': BlogIcon,
   'Investigative Series': BlogIcon,
+  'Recovery Roadmap': BlogIcon,
   'Careers': CareersIcon,
   'Areas We Serve': MapIcon,
   'Residential Inpatient': HomeIcon,
@@ -350,7 +351,7 @@ const navLinks: NavItem[] = [
       { label: 'Why Us?', href: '/who-we-are/why-us', description: 'What sets Seven Arrows apart' },
       { label: 'Our Philosophy', href: '/who-we-are/our-philosophy', description: 'TraumAddiction\u2122 & holistic healing' },
       { label: 'FAQs', href: '/who-we-are/faqs', description: 'Common questions answered' },
-      { label: 'Investigative Series', href: '/who-we-are/blog', description: 'The Recovery Roadmap' },
+      { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap', description: 'Our investigative series on addiction & healing' },
       { label: 'Careers', href: '/who-we-are/careers', description: 'Join our healing community' },
       { label: 'Areas We Serve', href: '/who-we-are/areas-we-serve', description: 'Nationwide admissions from Arizona' },
     ],
@@ -400,9 +401,51 @@ const navLinks: NavItem[] = [
 
 /* ── Mega Menu Dropdown ────────────────────────────────────────────── */
 
-function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React.RefObject<HTMLElement | null> }) {
+function MegaMenuDropdown({
+  item,
+  transparent,
+  onOpenChange,
+}: {
+  item: NavItem;
+  transparent: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const [open, setOpen] = useState(false);
   const timeout = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
+
+  // Panel theme flips with the nav — translucent dark when the nav is
+  // sitting on the dark hero, solid white after you scroll past it.
+  // Every color below reads from this object so we don't have to fan
+  // the `transparent` flag out through the JSX.
+  const theme = transparent
+    ? {
+        bg: 'rgba(20,10,6,0.72)',
+        backdropFilter: 'blur(20px) saturate(140%)',
+        text: '#ffffff',
+        muted: 'rgba(255,255,255,0.7)',
+        mutedHeavy: 'rgba(255,255,255,0.55)',
+        cardBg: 'rgba(255,255,255,0.06)',
+        cardBgHover: 'rgba(255,255,255,0.14)',
+        iconBg: 'rgba(255,255,255,0.15)',
+        border: 'rgba(255,255,255,0.12)',
+        featuredBorder: 'rgba(255,255,255,0.18)',
+      }
+    : {
+        bg: '#ffffff',
+        backdropFilter: 'none',
+        text: '#1a1a1a',
+        muted: 'rgba(26,26,26,0.5)',
+        mutedHeavy: 'rgba(26,26,26,0.45)',
+        cardBg: 'rgba(188,107,74,0.05)',
+        cardBgHover: 'rgba(188,107,74,0.1)',
+        iconBg: 'rgba(188,107,74,0.12)',
+        border: 'rgba(0,0,0,0.06)',
+        featuredBorder: 'rgba(188,107,74,0.18)',
+      };
 
   const enter = () => {
     if (timeout.current) clearTimeout(timeout.current);
@@ -410,15 +453,23 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
   };
 
   const leave = () => {
-    timeout.current = setTimeout(() => setOpen(false), 200);
+    if (timeout.current) clearTimeout(timeout.current);
+    // Generous grace period so the cursor can travel from the trigger
+    // button down across the (small) gap into the panel without the menu
+    // collapsing mid-traverse.
+    timeout.current = setTimeout(() => setOpen(false), 320);
   };
 
-  // Close on scroll so users can scroll past the menu
+  // Close when navigating with the keyboard (Esc) — but stay open on scroll.
+  // Closing on every scroll tick was too aggressive: trackpad nudges would
+  // collapse the panel before the user could click anything.
   useEffect(() => {
     if (!open) return;
-    const handleScroll = () => setOpen(false);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
   }, [open]);
 
   useEffect(() => {
@@ -435,7 +486,9 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
     <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
       <button
         type="button"
-        className="flex items-center gap-0.5 px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
+        className={`flex items-center gap-0.5 px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase transition-colors whitespace-nowrap ${
+          transparent ? 'text-white/90 hover:text-white' : 'text-foreground/80 hover:text-primary'
+        }`}
         style={{ fontFamily: 'var(--font-body)' }}
         aria-expanded={open}
       >
@@ -445,6 +498,18 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
         </svg>
       </button>
 
+      {/* Invisible "hover bridge" between the trigger button and the panel
+          so the cursor can travel down across the gap without the wrapper's
+          mouseleave firing and starting the close timer. */}
+      {open && (
+        <div
+          className="absolute left-0 right-0 h-3 top-full"
+          aria-hidden="true"
+          onMouseEnter={enter}
+          onMouseLeave={leave}
+        />
+      )}
+
       {/* Backdrop — only covers area below header, allows scroll-through */}
       {open && (
         <div
@@ -452,7 +517,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
           onClick={() => setOpen(false)}
           aria-hidden="true"
           style={{
-            top: (headerRef.current?.getBoundingClientRect().bottom ?? 68) + 'px',
+            top: 'var(--site-header-height, 68px)',
             backgroundColor: 'rgba(0,0,0,0.15)',
             transition: 'background-color 0.3s ease',
           }}
@@ -463,7 +528,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         style={{
-          top: (headerRef.current?.getBoundingClientRect().bottom ?? 68) + 'px',
+          top: 'var(--site-header-height, 68px)',
         }}
         onMouseEnter={enter}
         onMouseLeave={leave}
@@ -484,22 +549,24 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
           style={{
             transform: open ? 'translateY(0)' : 'translateY(-8px)',
             opacity: open ? 1 : 0,
-            backgroundColor: '#ffffff',
+            backgroundColor: theme.bg,
+            backdropFilter: theme.backdropFilter,
+            WebkitBackdropFilter: theme.backdropFilter,
           }}
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Header */}
-            <div className="py-4 border-b" style={{ borderColor: 'rgba(0,0,0,0.06)' }}>
+            <div className="py-4 border-b" style={{ borderColor: theme.border }}>
               <Link
                 href={item.href}
                 className="text-xs font-bold hover:text-primary transition-colors tracking-wider uppercase"
-                style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}
+                style={{ fontFamily: 'var(--font-body)', color: theme.text }}
                 onClick={() => setOpen(false)}
               >
                 {item.label} Overview →
               </Link>
               {item.description && (
-                <p className="text-[11px] mt-0.5" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{item.description}</p>
+                <p className="text-[11px] mt-0.5" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{item.description}</p>
               )}
             </div>
 
@@ -520,18 +587,18 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                           opacity: open ? 1 : 0,
                           transform: open ? 'translateY(0)' : 'translateY(8px)',
                           transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
-                          backgroundColor: 'rgba(160,82,45,0.03)',
+                          backgroundColor: theme.cardBg,
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.07)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.03)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.cardBg; }}
                       >
                         {Icon && (
-                          <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-3" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-3" style={{ backgroundColor: theme.iconBg }}>
                             <Icon className="w-6 h-6 text-primary" />
                           </div>
                         )}
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                        {sub.description && <p className="text-[11px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.45)' }}>{sub.description}</p>}
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
+                        {sub.description && <p className="text-[11px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.mutedHeavy }}>{sub.description}</p>}
                       </Link>
                     );
                   })}
@@ -551,17 +618,17 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                         href={sub.href}
                         className="group row-span-2 flex flex-col items-center justify-center text-center px-6 py-8 rounded-xl border border-primary/15 transition-all duration-200 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5"
                         onClick={() => setOpen(false)}
-                        style={{ backgroundColor: 'rgba(160,82,45,0.05)', opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: 'all 0.3s ease-out 0.05s' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.1)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.05)'; }}
+                        style={{ backgroundColor: theme.cardBg, opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: 'all 0.3s ease-out 0.05s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.cardBg; }}
                       >
                         {Icon && (
-                          <div className="w-14 h-14 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-4" style={{ backgroundColor: 'rgba(160,82,45,0.12)' }}>
+                          <div className="w-14 h-14 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-4" style={{ backgroundColor: theme.iconBg }}>
                             <Icon className="w-7 h-7 text-primary" />
                           </div>
                         )}
-                        <div className="text-[15px] font-bold group-hover:text-primary transition-colors mb-1" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                        {sub.description && <p className="text-[11px] leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
+                        <div className="text-[15px] font-bold group-hover:text-primary transition-colors mb-1" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
+                        {sub.description && <p className="text-[11px] leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{sub.description}</p>}
                       </Link>
                     );
                   })}
@@ -575,17 +642,17 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                         className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
                         onClick={() => setOpen(false)}
                         style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + (idx + 1) * 0.03}s` }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
                         onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                       >
                         {Icon && (
-                          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: theme.iconBg }}>
                             <Icon className="w-4 h-4 text-primary" />
                           </div>
                         )}
                         <div>
-                          <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                          {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
+                          <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
+                          {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{sub.description}</p>}
                         </div>
                       </Link>
                     );
@@ -604,17 +671,17 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                       className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
                       onClick={() => setOpen(false)}
                       style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s` }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
                       onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                     >
                       {Icon && (
-                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: theme.iconBg }}>
                           <Icon className="w-4 h-4 text-primary" />
                         </div>
                       )}
                       <div>
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                        {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
+                        {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{sub.description}</p>}
                       </div>
                     </Link>
                   );
@@ -635,18 +702,18 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                         opacity: open ? 1 : 0,
                         transform: open ? 'translateY(0)' : 'translateY(8px)',
                         transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
-                        backgroundColor: 'rgba(160,82,45,0.03)',
+                        backgroundColor: theme.cardBg,
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.07)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.03)'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.cardBg; }}
                     >
                       {Icon && (
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2" style={{ backgroundColor: theme.iconBg }}>
                           <Icon className="w-5 h-5 text-primary" />
                         </div>
                       )}
-                      <div className="text-[12px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                      {sub.description && <p className="text-[10px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.45)' }}>{sub.description}</p>}
+                      <div className="text-[12px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
+                      {sub.description && <p className="text-[10px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.mutedHeavy }}>{sub.description}</p>}
                     </Link>
                   );
                 })}
@@ -663,17 +730,17 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                       className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
                       onClick={() => setOpen(false)}
                       style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s` }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
                       onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                     >
                       {Icon && (
-                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: theme.iconBg }}>
                           <Icon className="w-4 h-4 text-primary" />
                         </div>
                       )}
                       <div>
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                        {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
+                        {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{sub.description}</p>}
                       </div>
                     </Link>
                   );
@@ -682,7 +749,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
             )}
 
             {/* Footer CTA */}
-            <div className="py-3" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            <div className="py-3" style={{ borderTop: `1px solid ${theme.border}` }}>
               <a href="tel:+18669964308" className="flex items-center gap-2 text-[11px] text-primary font-semibold hover:text-primary-dark transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
                 <PhoneIcon className="w-3 h-3" />
                 Questions? Call (866) 996-4308
@@ -700,22 +767,77 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+  // Track how many mega-menu panels are currently open — if any are, the
+  // Header drops its transparent treatment so the panel has a solid nav
+  // above it instead of floating over the dark hero video.
+  const [openDropdowns, setOpenDropdowns] = useState(0);
   const headerRef = useRef<HTMLElement>(null);
 
   const toggleMobileDropdown = (label: string) => {
     setMobileExpanded(mobileExpanded === label ? null : label);
   };
 
+  // Two things to track on scroll:
+  //   1. Whether the nav has left the hero — flips the color scheme from
+  //      white-over-dark (hero-backed) to the solid white bar.
+  //   2. The header's live bottom in viewport coordinates so the mega-menu
+  //      panels align just under the nav (the TopBar above is non-sticky,
+  //      so that bottom shifts as the page scrolls).
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const update = () => {
+      const bottom = el.getBoundingClientRect().bottom;
+      el.style.setProperty('--site-header-height', `${Math.max(bottom, 0)}px`);
+      // 80px threshold — enough distance that a light flick of the wheel
+      // doesn't flip the bar, but short enough that it's obvious the
+      // treatment changes once you start scrolling.
+      setScrolled(window.scrollY > 80);
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
+  // When the mobile drawer is open we always want the solid treatment so the
+  // menu items stay legible — otherwise the drawer renders over dark hero
+  // video and "text-white/90 over white drawer" becomes invisible.
+  //
+  // Mega-menu dropdowns used to flip the nav to solid when open; we now
+  // keep the nav transparent so the dropdown panel itself can render in a
+  // matching translucent dark treatment — the "nav is on top" aesthetic
+  // stays consistent rather than snapping to a different color scheme.
+  const transparent = !scrolled && !mobileMenuOpen;
+
   return (
-    <header ref={headerRef} className="bg-white sticky top-0 z-50 shadow-sm" role="banner">
+    <header
+      ref={headerRef}
+      data-nav-transparent={transparent ? 'true' : 'false'}
+      className={`sticky top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-300 ${
+        transparent
+          ? 'bg-transparent shadow-none'
+          : 'bg-white shadow-sm'
+      }`}
+      role="banner"
+      style={{ ['--site-header-height' as string]: '68px' }}
+    >
       <nav className="px-4 sm:px-6 xl:px-10" aria-label="Main navigation">
         <div className="flex items-center h-16 lg:h-[68px]">
-          {/* Logo — compact */}
+          {/* Logo — compact. We have one color asset; over the dark hero
+              we invert it to pure white so the wordmark stays legible. */}
           <Link href="/" className="shrink-0 mr-2 xl:mr-6" aria-label="Seven Arrows Recovery - Home">
             <img
               src="/images/logo.png"
               alt="Seven Arrows Recovery"
-              className="h-11 lg:h-12 w-auto"
+              className="h-11 lg:h-12 w-auto transition-[filter] duration-300"
+              style={{
+                filter: transparent ? 'brightness(0) invert(1)' : 'none',
+              }}
             />
           </Link>
 
@@ -723,12 +845,21 @@ export default function Header() {
           <div className="hidden lg:flex items-center gap-0 xl:gap-1 ml-auto min-w-0">
             {navLinks.map((item) =>
               item.dropdown ? (
-                <MegaMenuDropdown key={item.href} item={item} headerRef={headerRef} />
+                <MegaMenuDropdown
+                  key={item.href}
+                  item={item}
+                  transparent={transparent}
+                  onOpenChange={(isOpen) =>
+                    setOpenDropdowns((n) => Math.max(0, n + (isOpen ? 1 : -1)))
+                  }
+                />
               ) : (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
+                  className={`px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase transition-colors whitespace-nowrap ${
+                    transparent ? 'text-white/90 hover:text-white' : 'text-foreground/80 hover:text-primary'
+                  }`}
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {item.label}
@@ -755,7 +886,9 @@ export default function Header() {
           {/* Mobile menu button */}
           <button
             type="button"
-            className="lg:hidden p-2 text-foreground ml-auto"
+            className={`lg:hidden p-3 ml-auto -mr-1 transition-colors ${
+              transparent ? 'text-white' : 'text-foreground'
+            }`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
             aria-label="Toggle navigation menu"

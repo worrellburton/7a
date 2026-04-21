@@ -76,6 +76,11 @@ export default function InsuranceAetnaPage() {
       <PageHero
         label="Insurance Coverage"
         title="Aetna Rehab Coverage"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Insurance' },
+          { label: 'Aetna' },
+        ]}
         description="Seven Arrows Recovery is an in-network provider with Aetna. We accept most Aetna plans for drug and alcohol addiction treatment, and our admissions team will verify your benefits at no cost."
         image="/images/embrace-connection.jpg"
       />

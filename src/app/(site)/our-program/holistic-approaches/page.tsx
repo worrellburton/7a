@@ -48,6 +48,11 @@ export default function HolisticApproachesPage() {
       <PageHero
         label="Holistic Approaches"
         title="Nurturing the Whole Person"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our Program', href: '/our-program' },
+          { label: 'Holistic Approaches' },
+        ]}
         description="True recovery goes beyond treating symptoms. Our holistic therapies nourish the mind, body, and spirit, giving clients the tools they need to build a balanced and fulfilling life in sobriety."
         image="/images/sound-healing-session.jpg"
       />

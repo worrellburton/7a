@@ -53,7 +53,7 @@ export default function HomeHorsesRow() {
   }, [session]);
 
   const active = useMemo(
-    () => horses.filter((h) => h.image_url && ((h.rideable || '').toLowerCase() !== 'no')),
+    () => horses.filter((h) => (h.rideable || '').toLowerCase() !== 'no'),
     [horses]
   );
 

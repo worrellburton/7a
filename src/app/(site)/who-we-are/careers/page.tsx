@@ -54,6 +54,11 @@ export default function CareersPage() {
       <PageHero
         label="Careers"
         title="Careers"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who We Are', href: '/who-we-are' },
+          { label: 'Careers' },
+        ]}
         description="At Seven Arrows Recovery, our team is the heart of everything we do. If you are passionate about helping others heal, we want to hear from you."
         image="/images/covered-porch-desert-view.jpg"
       />

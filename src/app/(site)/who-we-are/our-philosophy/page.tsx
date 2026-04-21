@@ -100,6 +100,11 @@ export default function OurPhilosophyPage() {
       <PageHero
         label="Our Philosophy"
         title="A Salutogenic Approach to Recovery"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who We Are', href: '/who-we-are' },
+          { label: 'Our Philosophy' },
+        ]}
         description="At Seven Arrows Recovery, we believe lasting recovery requires more than stopping substance use. Our philosophy is rooted in the science of health creation — addressing the mind, body, and spirit through the TraumAddiction® and Forward-Facing Freedom® framework."
         image="/images/horses-grazing.jpg"
       />

@@ -3,218 +3,199 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Tour Our Campus',
   description:
-    'Take a virtual tour of Seven Arrows Recovery, nestled at the base of the Swisshelm Mountains in Cochise County, Arizona. Explore our sweat lodge, equine area, living quarters, and more.',
+    'Take a visual tour of Seven Arrows Recovery, nestled at the base of the Swisshelm Mountains in Cochise County, Arizona. Explore our sweat lodge, equine area, living quarters, and more.',
 };
 
 import Link from 'next/link';
 
 import PageHero from '@/components/PageHero';
 
-const campusHighlights = [
-  {
-    title: 'Sweat Lodge',
-    description:
-      'A sacred space for ceremonial healing and spiritual renewal, guided by experienced practitioners.',
-    image: '/images/campfire-ceremony-circle.webp',
-  },
-  {
-    title: 'Equine Area',
-    description:
-      'Our equine-assisted therapy grounds provide a powerful setting for building trust, empathy, and emotional awareness.',
-    image: '/images/horses-grazing.jpg',
-  },
-  {
-    title: 'Swisshelm Mountains',
-    description:
-      'Surrounded by the dramatic Swisshelm Mountain range, our campus offers breathtaking views and a profound sense of peace.',
-    image: '/images/facility-exterior-mountains.jpg',
-  },
-  {
-    title: 'Living Quarters',
-    description:
-      'Comfortable, well-appointed private and semi-private rooms designed to feel like home during your stay.',
-    image: '/images/bedroom-shared.jpg',
-  },
-  {
-    title: 'Common Areas',
-    description:
-      'Warm gathering spaces for group sessions, peer connection, and relaxation between therapeutic activities.',
-    image: '/images/common-area-living-room.jpg',
-  },
-  {
-    title: 'Dining Facilities',
-    description:
-      'Nutritious, chef-prepared meals served in a communal dining space that fosters fellowship and healthy habits.',
-    image: '/images/covered-porch-desert-view.jpg',
-  },
+// Ordered for visual rhythm — alternating wide/portrait shots, people/
+// landscape/interior so the masonry doesn't clump all horses together
+// or all rooms together. CSS columns flow top-to-bottom per column, so
+// neighbors in this array end up stacked vertically, not side-by-side.
+const galleryImages: { src: string; alt: string }[] = [
+  { src: '/images/facility-exterior-mountains.jpg', alt: 'Facility exterior against the Swisshelm Mountains' },
+  { src: '/images/horses-grazing.jpg', alt: 'Two horses grazing on the ranch' },
+  { src: '/images/group-sunset-desert.jpg', alt: 'Group watching sunset over the desert' },
+  { src: '/images/bedroom-shared.jpg', alt: 'Comfortable shared bedroom' },
+  { src: '/images/campfire-ceremony-circle.webp', alt: 'Indoor campfire ceremony circle' },
+  { src: '/images/covered-porch-desert-view.jpg', alt: 'Covered porch with rocking chairs and desert view' },
+  { src: '/images/sound-healing-session.jpg', alt: 'Sound healing session with singing bowls' },
+  { src: '/images/equine-therapy-portrait.jpg', alt: 'Portrait with horse during equine-assisted therapy' },
+  { src: '/images/common-area-living-room.jpg', alt: 'Warm common-area living room' },
+  { src: '/images/group-gathering-pavilion.jpg', alt: 'Evening group gathering under a pavilion' },
+  { src: '/images/individual-therapy-session.jpg', alt: 'Individual therapy session' },
+  { src: '/images/resident-reading-window.jpg', alt: 'Resident reading quietly by a window' },
+  { src: '/images/horse-sketch-artwork.jpg', alt: 'Horse sketch artwork in a common room' },
+  { src: '/images/group-therapy-room.jpg', alt: 'Light-filled group therapy room' },
+  { src: '/images/embrace-connection.jpg', alt: 'Two people embracing in a moment of connection' },
+  { src: '/images/sign-night-sky-milky-way.jpg', alt: 'Seven Arrows sign under the Milky Way' },
+];
+
+const quickFacts = [
+  { label: '160 Acres', description: 'Private Arizona ranch' },
+  { label: 'Swisshelm Mts.', description: 'Direct mountain views' },
+  { label: '6:1', description: 'Client-to-staff ratio' },
+  { label: 'Chef-Prepared', description: 'Meals on-site daily' },
 ];
 
 export default function TourPage() {
   return (
     <>
       <PageHero
-        label="Virtual Tour"
-        title="Tour Our Campus"
-        description="Explore the grounds of Seven Arrows Recovery, a boutique treatment center set at the base of Arizona's Swisshelm Mountains. Every detail of our campus was designed to support healing, reflection, and renewal."
+        label="Campus Tour"
+        title="Step Onto the Ranch"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Tour' },
+        ]}
+        description="A visual walk through Seven Arrows — our residences, therapy spaces, the ranch, the horses, and the Arizona sky that made us choose this land."
         image="/images/facility-exterior-mountains.jpg"
       />
 
-      {/* Virtual Tour Placeholder */}
-      <section className="py-16 lg:py-24 bg-warm-bg">
+      {/* Quick facts strip — sits right below the hero so the gallery that
+          follows isn't the first thing demanding attention. */}
+      <section className="bg-warm-bg py-10 lg:py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <p className="section-label justify-center mb-4">Experience Our Facility</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">
-              Virtual Tour
-            </h2>
-            <p
-              className="text-foreground/70 max-w-2xl mx-auto"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              Our full interactive virtual tour is coming soon. In the meantime, explore the
-              highlights of our campus below or{' '}
-              <Link href="/contact" className="text-primary underline hover:text-primary-dark">
-                schedule an in-person visit
-              </Link>
-              .
-            </p>
-          </div>
-
-          <div
-            className="relative rounded-2xl overflow-hidden"
-          >
-            <img
-              src="/images/sign-night-sky-milky-way.jpg"
-              alt="Seven Arrows sign under starry night sky"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            <div className="relative flex items-center justify-center h-72 lg:h-96">
-              <div className="text-center text-white/90">
-                <svg
-                  className="mx-auto mb-4 w-16 h-16 opacity-80"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                  />
-                </svg>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-10">
+            {quickFacts.map((fact) => (
+              <div key={fact.label} className="text-center sm:text-left">
                 <p
-                  className="text-lg font-semibold"
+                  className="text-2xl lg:text-3xl font-bold text-foreground leading-tight"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
+                  {fact.label}
+                </p>
+                <p
+                  className="text-xs lg:text-sm text-foreground/60 mt-1 tracking-wide"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  360° Virtual Tour Coming Soon
+                  {fact.description}
                 </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Campus Highlights Grid */}
-      <section className="py-16 lg:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <p className="section-label justify-center mb-4">Our Grounds</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">
-              Campus Highlights
-            </h2>
-            <p
-              className="text-foreground/70 max-w-2xl mx-auto"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              Nestled in Cochise County at the base of the Swisshelm Mountains, every corner
-              of our campus is purposefully designed to nurture recovery and personal growth.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {campusHighlights.map((item) => (
-              <div
-                key={item.title}
-                className="rounded-2xl overflow-hidden bg-warm-card shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="relative h-48 overflow-hidden">
-                  <img
-                    src={item.image}
-                    alt={`Photo of ${item.title}`}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-foreground mb-2">{item.title}</h3>
-                  <p
-                    className="text-foreground/70 leading-relaxed"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {item.description}
-                  </p>
-                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Swisshelm Mountains Setting */}
+      {/* Masonry gallery — CSS columns preserve each photo's natural aspect
+          ratio without us hand-assigning row spans. break-inside-avoid keeps
+          an individual tile from splitting across columns. */}
+      <section className="py-14 lg:py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl mb-10 lg:mb-14">
+            <p className="section-label mb-4">A Visual Tour</p>
+            <h2
+              className="text-3xl lg:text-[2.75rem] font-bold text-foreground leading-[1.05] mb-4"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              The Ranch, Room by Room
+            </h2>
+            <p
+              className="text-foreground/70 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Every corner of the property was chosen for a reason — wide skies, direct mountain
+              views, quiet rooms to think, and a working ranch that lets equine therapy happen
+              every single day.
+            </p>
+          </div>
+
+          <div className="columns-2 md:columns-3 lg:columns-4 gap-3 lg:gap-4 space-y-3 lg:space-y-4">
+            {galleryImages.map((img) => (
+              <figure
+                key={img.src}
+                className="break-inside-avoid overflow-hidden rounded-xl lg:rounded-2xl bg-warm-bg group"
+              >
+                <img
+                  src={img.src}
+                  alt={img.alt}
+                  className="w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+                  loading="lazy"
+                />
+              </figure>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Swisshelm setting — one last editorial moment before the CTA. */}
       <section className="py-16 lg:py-24 bg-warm-bg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-14 items-center">
+            <div className="lg:col-span-2">
               <p className="section-label mb-4">Our Setting</p>
-              <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
+              <h2
+                className="text-3xl lg:text-[2.5rem] font-bold text-foreground leading-[1.05] mb-6"
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
                 The Swisshelm Mountains
               </h2>
               <p
                 className="text-foreground/70 leading-relaxed mb-4"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                Seven Arrows Recovery sits at the base of Arizona&apos;s majestic Swisshelm
-                Mountains in Cochise County. The rugged, unspoiled landscape provides a
-                naturally therapeutic environment — far removed from the triggers and stressors
-                of everyday life.
+                Seven Arrows sits at the base of Arizona&apos;s Swisshelm Mountains in Cochise
+                County. The rugged, unspoiled landscape provides a naturally therapeutic
+                environment — far removed from the triggers and stressors of everyday life.
               </p>
               <p
                 className="text-foreground/70 leading-relaxed mb-8"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                Wide-open skies, desert sunsets, and mountain vistas create the ideal backdrop
-                for reflection, healing, and rediscovery. Our clients consistently describe the
-                setting as one of the most powerful parts of their recovery journey.
+                Wide-open skies, desert sunsets, and mountain vistas create the backdrop for
+                reflection, healing, and rediscovery. Our clients consistently describe the
+                setting as one of the most powerful parts of their recovery.
               </p>
               <Link href="/contact" className="btn-primary">
                 Schedule a Visit
               </Link>
             </div>
-            <div
-              className="relative rounded-2xl h-80 lg:h-96 overflow-hidden"
-              aria-label="Scenic view of the Swisshelm Mountains"
-            >
-              <img
-                src="/images/facility-exterior-mountains.jpg"
-                alt="Scenic view of the Swisshelm Mountains"
-                className="w-full h-full object-cover"
-              />
+            <div className="lg:col-span-3 grid grid-cols-2 gap-3">
+              <div className="col-span-2 aspect-[16/9] rounded-2xl overflow-hidden">
+                <img
+                  src="/images/facility-exterior-mountains.jpg"
+                  alt="Seven Arrows at the base of the Swisshelm Mountains"
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+              <div className="aspect-square rounded-2xl overflow-hidden">
+                <img
+                  src="/images/group-sunset-desert.jpg"
+                  alt="Group at sunset"
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+              <div className="aspect-square rounded-2xl overflow-hidden">
+                <img
+                  src="/images/sign-night-sky-milky-way.jpg"
+                  alt="Seven Arrows sign under the Milky Way"
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="py-16 lg:py-20">
+      <section className="py-16 lg:py-20 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">
+          <h2
+            className="text-3xl lg:text-4xl font-bold text-foreground mb-4"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
             See It for Yourself
           </h2>
           <p
             className="text-foreground/70 mb-8 max-w-xl mx-auto"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Nothing compares to experiencing our campus in person. Contact our admissions team
+            Nothing compares to experiencing the campus in person. Contact our admissions team
             to arrange a private tour or start the admissions process today.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

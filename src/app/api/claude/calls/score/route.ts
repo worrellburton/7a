@@ -358,8 +358,16 @@ async function scoreWithClaudeMetadata(
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Accept either a signed-in Supabase user or the Vercel-Cron /
+  // auto-score worker bearing CRON_SECRET. The latter lets the
+  // background queue score calls without a human request.
+  const authHeader = req.headers.get('authorization') || '';
+  const cronSecret = process.env.CRON_SECRET;
+  const viaCron = !!(cronSecret && authHeader === `Bearer ${cronSecret}`);
+  if (!viaCron) {
+    const user = await getUserFromRequest(req);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const supabase = getAdminSupabase();
 

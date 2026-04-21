@@ -76,6 +76,11 @@ export default function InsuranceUHCPage() {
       <PageHero
         label="Insurance Coverage"
         title="UnitedHealthcare Rehab Coverage"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Insurance' },
+          { label: 'UnitedHealthcare' },
+        ]}
         description="Seven Arrows Recovery accepts most UnitedHealthcare plans for drug and alcohol addiction treatment. As the largest health insurer in the U.S., UHC provides coverage for tens of millions of Americans seeking recovery."
         image="/images/embrace-connection.jpg"
       />

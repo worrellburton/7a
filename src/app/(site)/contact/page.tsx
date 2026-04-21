@@ -17,6 +17,10 @@ export default function ContactPage() {
       <PageHero
         label="Get in Touch"
         title="Contact Us"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Contact' },
+        ]}
         description="Our compassionate admissions team is available around the clock to answer your questions, verify insurance, and help you or your loved one take the first step toward lasting recovery."
         image="/images/covered-porch-desert-view.jpg"
       />

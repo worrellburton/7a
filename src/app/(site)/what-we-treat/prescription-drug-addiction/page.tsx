@@ -15,6 +15,11 @@ export default function PrescriptionDrugAddictionPage() {
       <PageHero
         label="What We Treat"
         title="Prescription Drug Addiction Treatment"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'What We Treat', href: '/what-we-treat' },
+          { label: 'Prescription Drug Addiction' },
+        ]}
         description="Prescription drug addiction can develop quickly and quietly, even when medications are taken as directed. At Seven Arrows Recovery, we provide specialized treatment for all forms of prescription drug dependence in a safe, compassionate environment."
         image="/images/covered-porch-desert-view.jpg"
       />

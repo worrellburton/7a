@@ -3,15 +3,16 @@
 @theme inline {
   --color-background: #ffffff;
   --color-foreground: #1a1a1a;
-  --color-primary: #a0522d;
-  --color-primary-dark: #3d1a0e;
-  --color-accent: #c67a4a;
+  --color-primary: #bc6b4a;
+  --color-primary-dark: #6b2a14;
+  --color-accent: #d88966;
   --color-warm-bg: #f5f0eb;
   --color-warm-card: #ede4da;
   --color-dark-section: #2a0f0a;
   --color-text-muted: #6b7280;
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
 }
 
 body {
@@ -61,10 +62,10 @@ body {
 .section-label {
   display: inline-flex;
   align-items: center;
-  gap: 1rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.2em;
+  gap: 0.875rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--color-primary);
   font-family: var(--font-body), system-ui, sans-serif;
@@ -73,50 +74,62 @@ body {
 .section-label::before {
   content: '';
   display: block;
-  width: 3rem;
-  height: 2px;
+  width: 2.25rem;
+  height: 1px;
   background: var(--color-primary);
 }
+
+/* Buttons — updated to a softer, more modern pill aesthetic inspired
+   by the recovery.com pattern. Same class names, no template changes
+   needed; existing uses automatically pick up the new treatment.
+   Specifically:
+     - mixed-case text at 14px, ~0 letter-spacing (was uppercase 12.8px)
+     - diffuse colored shadow so the button looks like it's floating
+     - subtle 1px lift on hover + shadow deepen instead of a full
+       color swap, which was making every hover feel crunchy
+   Hairline (1.5px) border on the outline button reads cleaner than
+   the old 2px stroke at display sizes. */
 
 .btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem 2.5rem;
+  gap: 0.5rem;
+  padding: 1rem 2.25rem;
   background: var(--color-primary);
   color: white;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   border-radius: 9999px;
-  transition: all 0.3s ease;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.2s ease;
   text-decoration: none;
   font-family: var(--font-body), system-ui, sans-serif;
+  box-shadow: 0 6px 22px -8px rgba(188, 107, 74, 0.55);
 }
 
 .btn-primary:hover {
   background: var(--color-primary-dark);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(160, 82, 45, 0.3);
+  box-shadow: 0 14px 32px -12px rgba(107, 42, 20, 0.5);
 }
 
 .btn-outline {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem 2.5rem;
+  gap: 0.5rem;
+  padding: 1rem 2.25rem;
   background: transparent;
   color: var(--color-foreground);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   border-radius: 9999px;
-  border-width: 2px;
+  border-width: 1.5px;
   border-style: solid;
-  border-color: var(--color-foreground);
-  transition: all 0.3s ease;
+  border-color: rgba(26, 26, 26, 0.85);
+  transition: transform 0.25s ease, background-color 0.2s ease, color 0.2s ease, box-shadow 0.25s ease;
   text-decoration: none;
   font-family: var(--font-body), system-ui, sans-serif;
 }
@@ -124,29 +137,52 @@ body {
 .btn-outline:hover {
   background: var(--color-foreground);
   color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px -12px rgba(0, 0, 0, 0.35);
 }
 
 .btn-dark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem 2.5rem;
+  gap: 0.5rem;
+  padding: 1rem 2.25rem;
   background: var(--color-primary-dark);
   color: white;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   border-radius: 9999px;
-  transition: all 0.3s ease;
+  transition: transform 0.25s ease, background-color 0.2s ease, box-shadow 0.25s ease;
   text-decoration: none;
   font-family: var(--font-body), system-ui, sans-serif;
+  box-shadow: 0 6px 22px -8px rgba(0, 0, 0, 0.35);
 }
 
 .btn-dark:hover {
   background: var(--color-foreground);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 14px 32px -12px rgba(0, 0, 0, 0.45);
+}
+
+/* Soft card — use wherever you'd previously reach for
+   "bg-white rounded-2xl shadow-sm border border-gray-100". Diffuse,
+   layered shadow + no hard border gives the airy Recovery.com feel
+   and lifts a bit more on hover. */
+.card-soft {
+  background: white;
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 2px rgba(26, 26, 26, 0.04),
+    0 8px 24px -12px rgba(26, 26, 26, 0.12);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-soft:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 2px rgba(26, 26, 26, 0.04),
+    0 18px 40px -18px rgba(26, 26, 26, 0.22);
 }
 
 /* Ticker animation */
@@ -159,7 +195,12 @@ body {
   animation: ticker 40s linear infinite;
 }
 
-.animate-ticker:hover {
+.animate-ticker-slow {
+  animation: ticker 75s linear infinite;
+}
+
+.animate-ticker:hover,
+.animate-ticker-slow:hover {
   animation-play-state: paused;
 }
 
@@ -290,3 +331,7 @@ html.dark .bg-dark-section {
   outline-offset: 2px;
 }
 
+
+/* Utility used by horizontal scroll rows (range preset bar, etc.) */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

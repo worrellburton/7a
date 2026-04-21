@@ -22,6 +22,7 @@ interface RecentUser {
   job_title: string | null;
   last_path: string | null;
   last_seen_at: string | null;
+  status: 'active' | 'on_hold' | 'denied' | null;
 }
 
 interface PendingSignature {
@@ -129,11 +130,21 @@ export default function HomeContent() {
   useEffect(() => {
     if (!session?.access_token) return;
     async function fetchRecentUsers() {
-      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title', order: { column: 'last_sign_in', ascending: false } });
+      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title, status', order: { column: 'last_sign_in', ascending: false } });
       if (Array.isArray(data)) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        setRecentUsers(data.filter((u: RecentUser) => u.last_sign_in && new Date(u.last_sign_in) >= today));
+        setRecentUsers(
+          data.filter(
+            (u: RecentUser) =>
+              // Hide users who aren't allowed in: on_hold or denied. Treat
+              // a missing status as active so older rows before the
+              // migration still render.
+              (u.status == null || u.status === 'active') &&
+              u.last_sign_in &&
+              new Date(u.last_sign_in) >= today,
+          ),
+        );
       }
       setTimeout(() => setLoaded(true), 100);
     }
@@ -215,7 +226,7 @@ export default function HomeContent() {
   if (!user) return null;
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col min-h-full relative">
       {/* New facilities request — upper right on desktop. On mobile the
           parent shell already has a sticky top bar, so we keep this button
           inline (top-3) and shrink the label to an icon-only pill. */}

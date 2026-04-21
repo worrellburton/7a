@@ -85,21 +85,21 @@ export default function Amenities() {
           </h2>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
           {amenities.map((amenity) => (
             <div
               key={amenity.title}
-              className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-start gap-4 hover:shadow-md transition-shadow"
+              className="card-soft p-6 lg:p-7 flex items-start gap-4"
             >
-              <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
                 {amenity.icon}
               </div>
               <div>
-                <h3 className="text-sm font-bold text-foreground mb-1">
+                <h3 className="text-base font-bold text-foreground mb-1.5">
                   {amenity.title}
                 </h3>
                 <p
-                  className="text-xs text-foreground/50 leading-relaxed"
+                  className="text-sm text-foreground/60 leading-relaxed"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {amenity.description}
