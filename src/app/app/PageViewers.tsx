@@ -16,6 +16,7 @@ interface Viewer {
   job_title: string | null;
   last_seen_at: string | null;
   last_path: string | null;
+  status: 'active' | 'on_hold' | 'denied' | null;
 }
 
 // Consider a user "here" if seen in the last 3 minutes and on this exact path.
@@ -35,12 +36,15 @@ export default function PageViewers() {
       const data = await db({
         action: 'select',
         table: 'users',
-        select: 'id, full_name, avatar_url, job_title, last_seen_at, last_path',
+        select: 'id, full_name, avatar_url, job_title, last_seen_at, last_path, status',
       });
       if (cancelled || !Array.isArray(data)) return;
       const now = Date.now();
       const here = (data as Viewer[]).filter((u) => {
         if (!user || u.id === user.id) return false;
+        // Users on hold / denied aren't allowed in, so don't advertise
+        // their presence. null status is treated as active for old rows.
+        if (u.status != null && u.status !== 'active') return false;
         if (u.last_path !== pathname) return false;
         if (!u.last_seen_at) return false;
         return now - new Date(u.last_seen_at).getTime() < HERE_WINDOW_MS;
@@ -59,7 +63,7 @@ export default function PageViewers() {
   if (viewers.length === 0) return null;
 
   return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#2a2118]/90 backdrop-blur border border-gray-100 dark:border-white/10 shadow-sm">
+    <div className="fixed bottom-20 left-1/2 lg:left-[calc(50%+8rem)] -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#2a2118]/90 backdrop-blur border border-gray-100 dark:border-white/10 shadow-sm">
       <span
         className="text-[10px] font-semibold text-foreground/70 dark:text-white/80 uppercase tracking-wider"
         style={{ fontFamily: 'var(--font-body)' }}

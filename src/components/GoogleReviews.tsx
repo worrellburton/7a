@@ -41,27 +41,9 @@ const reviews = [
   },
 ];
 
-function StarRating({ rating }: { rating: number }) {
+function GoogleIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
-    <div className="flex gap-0.5" aria-label={`${rating} out of 5 stars`}>
-      {[1, 2, 3, 4, 5].map((star) => (
-        <svg
-          key={star}
-          className={`w-4 h-4 ${star <= rating ? "text-yellow-400" : "text-gray-300"}`}
-          fill="currentColor"
-          viewBox="0 0 20 20"
-          aria-hidden="true"
-        >
-          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-        </svg>
-      ))}
-    </div>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
       <path
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
         fill="#4285F4"
@@ -82,13 +64,106 @@ function GoogleIcon() {
   );
 }
 
+function VerifiedBadge() {
+  return (
+    <svg className="w-4 h-4 text-[#4285F4]" viewBox="0 0 24 24" fill="currentColor" aria-label="Verified">
+      <path d="M12 2l2.4 2.8 3.6-.4.4 3.6L21 10.4 18.4 12l2.4 2.4-3 2.4.4 3.6-3.6-.4L12 22l-2.4-2.8-3.6.4-.4-3.6L3 13.6 5.6 12 3.2 9.6l3-2.4-.4-3.6 3.6.4L12 2z" />
+      <path d="M10.5 13.5l-2-2-1 1 3 3 5.5-5.5-1-1z" fill="#fff" />
+    </svg>
+  );
+}
+
+function ReviewStars() {
+  return (
+    <div className="flex gap-0.5" aria-label="5 out of 5 stars">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <svg
+          key={star}
+          className="w-4 h-4 text-yellow-400"
+          fill="currentColor"
+          viewBox="0 0 20 20"
+          aria-hidden="true"
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
+// Truncate reviews to keep the speech-bubble cards visually uniform. Users
+// can expand to read the full text inline.
+function truncate(text: string, max: number) {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return cut.slice(0, lastSpace > 80 ? lastSpace : cut.length);
+}
+
+function ReviewBubble({ review }: { review: typeof reviews[number] }) {
+  const [expanded, setExpanded] = useState(false);
+  const SHORT_LEN = 140;
+  const isLong = review.text.length > SHORT_LEN;
+  const initial = review.name.trim().charAt(0);
+
+  return (
+    <div className="flex flex-col">
+      {/* Speech bubble */}
+      <div
+        className="relative bg-warm-card rounded-2xl p-5 text-left"
+        style={{ fontFamily: "var(--font-body)" }}
+      >
+        <ReviewStars />
+        <p className="mt-3 text-foreground text-sm leading-relaxed">
+          {expanded || !isLong ? review.text : `${truncate(review.text, SHORT_LEN)}…`}
+        </p>
+        {isLong && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="mt-2 text-xs text-foreground/40 hover:text-primary transition-colors"
+          >
+            {expanded ? "Show less" : "Read more"}
+          </button>
+        )}
+        {/* Tail */}
+        <div
+          className="absolute -bottom-2 left-8 w-4 h-4 bg-warm-card rotate-45"
+          aria-hidden="true"
+        />
+      </div>
+      {/* Reviewer */}
+      <div className="flex items-center gap-3 mt-5 pl-2">
+        <div className="relative">
+          <div
+            className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm"
+            aria-hidden="true"
+          >
+            {initial}
+          </div>
+          <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5">
+            <GoogleIcon className="w-3.5 h-3.5" />
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center gap-1">
+            <p className="font-semibold text-foreground text-sm">{review.name}</p>
+            <VerifiedBadge />
+          </div>
+          <p className="text-foreground/50 text-xs">{review.date}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function GoogleReviews() {
   const [visibleCount, setVisibleCount] = useState(3);
   const showingAll = visibleCount >= reviews.length;
 
   return (
     <section
-      className="py-20 lg:py-28 bg-white"
+      className="py-20 lg:py-28 bg-warm-bg"
       aria-labelledby="reviews-heading"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -134,55 +209,16 @@ export default function GoogleReviews() {
           </p>
         </div>
 
-        {/* Review Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Review bubbles */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12 max-w-6xl mx-auto">
           {reviews.slice(0, visibleCount).map((review) => (
-            <div
-              key={review.name}
-              className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col"
-            >
-              {/* Reviewer header */}
-              <div className="flex items-center gap-3 mb-3">
-                <div
-                  className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm"
-                  aria-hidden="true"
-                >
-                  {review.name.charAt(0)}
-                </div>
-                <div>
-                  <p
-                    className="font-semibold text-foreground text-sm"
-                    style={{ fontFamily: "var(--font-body)" }}
-                  >
-                    {review.name}
-                  </p>
-                  <p
-                    className="text-foreground/50 text-xs"
-                    style={{ fontFamily: "var(--font-body)" }}
-                  >
-                    {review.date}
-                  </p>
-                </div>
-                <GoogleIcon />
-              </div>
-
-              {/* Stars */}
-              <StarRating rating={review.rating} />
-
-              {/* Review text */}
-              <p
-                className="mt-3 text-foreground/70 text-sm leading-relaxed flex-1"
-                style={{ fontFamily: "var(--font-body)" }}
-              >
-                &ldquo;{review.text}&rdquo;
-              </p>
-            </div>
+            <ReviewBubble key={review.name} review={review} />
           ))}
         </div>
 
         {/* Show more / Show less */}
         {reviews.length > 3 && (
-          <div className="text-center mt-10">
+          <div className="text-center mt-12">
             <button
               type="button"
               onClick={() => setVisibleCount(showingAll ? 3 : reviews.length)}

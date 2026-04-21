@@ -25,26 +25,6 @@ export const updates: UpdateEntry[] = [
     ],
   },
   {
-    at: '2026-04-17T08:00:00Z',
-    title: 'AI call scoring: audio analysis + UI fixes',
-    items: [
-      'AI call scoring now downloads and listens to the actual call recording when available — analysis is based on what was said, not just metadata.',
-      'Falls back to metadata-only scoring if audio can\'t be downloaded or the API doesn\'t support it.',
-      'AI review popup no longer gets clipped by the table — renders as a floating panel.',
-      'Sign-in activity spam fixed — one log per session, not per auth event.',
-      'Home dashboard: "Admitting soon" clients now appear on the right side. Hovering admitted clients shows days left until discharge.',
-    ],
-  },
-  {
-    at: '2026-04-17T07:00:00Z',
-    title: 'Calls: AI scoring for admins',
-    items: [
-      'Admins now see an "AI" badge on every call row. Hover (or click) to get a Claude-generated analysis: 0–100 score, inferred caller name + interest, sentiment, call summary, operator strengths, areas to coach, and a recommended next step.',
-      'Scores are cached per-call in call_ai_scores so they don\'t re-run on every hover. Hit the refresh icon to re-score.',
-      'Gated to admins only \u2014 RLS on the scores table backs that up server-side.',
-    ],
-  },
-  {
     at: '2026-04-17T06:00:00Z',
     title: 'Clients module + home dashboard: who\'s in care, who\'s coming, who\'s on the team',
     items: [

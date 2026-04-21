@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function BlogPreview() {
   return (
-    <section className="py-16 lg:py-20 bg-warm-bg" aria-labelledby="blog-preview-heading">
+    <section className="py-16 lg:py-20 bg-white" aria-labelledby="blog-preview-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-end justify-between mb-10">
           <div>
@@ -15,7 +15,7 @@ export default function BlogPreview() {
             </h2>
           </div>
           <Link
-            href="/who-we-are/blog"
+            href="/who-we-are/recovery-roadmap"
             className="hidden sm:inline-flex text-sm font-semibold text-primary hover:text-primary-dark transition-colors"
             style={{ fontFamily: 'var(--font-body)' }}
           >
@@ -97,7 +97,7 @@ export default function BlogPreview() {
 
         <div className="sm:hidden text-center mt-6">
           <Link
-            href="/who-we-are/blog"
+            href="/who-we-are/recovery-roadmap"
             className="text-sm font-semibold text-primary hover:text-primary-dark transition-colors"
             style={{ fontFamily: 'var(--font-body)' }}
           >
