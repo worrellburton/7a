@@ -68,6 +68,11 @@ export default function EquineAssistedPage() {
       <PageHero
         label="Equine-Assisted Psychotherapy"
         title="Healing Happens in the Arena"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our Program', href: '/our-program' },
+          { label: 'Equine-Assisted Psychotherapy' },
+        ]}
         description="Equine-Assisted Psychotherapy (EAP) creates a powerful, experiential way to access emotions, patterns, and relational dynamics that are often difficult to reach through talk therapy alone."
         image="/images/equine-therapy-portrait.jpg"
       />

@@ -43,6 +43,11 @@ export default function EvidenceBasedPage() {
       <PageHero
         label="Evidence-Based Treatment"
         title="Grounded in Proven Science"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our Program', href: '/our-program' },
+          { label: 'Evidence-Based Treatment' },
+        ]}
         description="At Seven Arrows Recovery, our clinical programming is built on therapies that decades of research have shown to be effective. We combine these proven methods with our unique setting and philosophy to deliver treatment that is both rigorous and deeply human."
         image="/images/group-therapy-room.jpg"
       />

@@ -48,6 +48,11 @@ export default function AreasWeServePage() {
       <PageHero
         label="Areas We Serve"
         title="Areas We Serve"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who We Are', href: '/who-we-are' },
+          { label: 'Areas We Serve' },
+        ]}
         description="Seven Arrows Recovery is located in southeastern Arizona at the base of the Swisshelm Mountains. We serve individuals and families across Arizona and beyond."
         image="/images/sign-night-sky-milky-way.jpg"
       />

@@ -38,6 +38,11 @@ export default function IndigenousApproachPage() {
       <PageHero
         label="Indigenous Approach"
         title="Rooted in Ancient Wisdom"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our Program', href: '/our-program' },
+          { label: 'Indigenous Approach' },
+        ]}
         description="At Seven Arrows Recovery, we honor indigenous healing traditions as a vital part of the recovery journey. The land, the ceremonies, and the wisdom of generations past guide our clients toward deep, lasting transformation."
         image="/images/campfire-ceremony-circle.webp"
       />

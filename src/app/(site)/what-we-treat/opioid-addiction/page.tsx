@@ -15,6 +15,11 @@ export default function OpioidAddictionPage() {
       <PageHero
         label="What We Treat"
         title="Opioid Addiction Treatment"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'What We Treat', href: '/what-we-treat' },
+          { label: 'Opioid Addiction' },
+        ]}
         description="Opioid addiction has become one of the most devastating public health crises in American history. At Seven Arrows Recovery, we provide comprehensive, medically supervised treatment to help individuals overcome opioid dependence and rebuild their lives."
         image="/images/group-therapy-room.jpg"
       />

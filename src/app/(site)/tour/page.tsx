@@ -55,6 +55,10 @@ export default function TourPage() {
       <PageHero
         label="Virtual Tour"
         title="Tour Our Campus"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Tour' },
+        ]}
         description="Explore the grounds of Seven Arrows Recovery, a boutique treatment center set at the base of Arizona's Swisshelm Mountains. Every detail of our campus was designed to support healing, reflection, and renewal."
         image="/images/facility-exterior-mountains.jpg"
       />

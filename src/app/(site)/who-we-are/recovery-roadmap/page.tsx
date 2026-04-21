@@ -15,6 +15,11 @@ export default function RecoveryRoadmapPage() {
       <PageHero
         label="Investigative Series"
         title="The Recovery Roadmap"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who We Are', href: '/who-we-are' },
+          { label: 'Recovery Roadmap' },
+        ]}
         description="An in-depth investigative series exploring the reality of addiction, treatment, and recovery — told with honesty, science, and compassion by the clinical team at Seven Arrows Recovery."
         image="/images/resident-reading-window.jpg"
       />

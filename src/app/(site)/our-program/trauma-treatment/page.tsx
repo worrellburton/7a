@@ -48,6 +48,11 @@ export default function TraumaTreatmentPage() {
       <PageHero
         label="TraumAddiction® Treatment"
         title="Healing Trauma at the Root"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our Program', href: '/our-program' },
+          { label: 'Trauma Treatment' },
+        ]}
         description="Addiction rarely exists in isolation. Our TraumAddiction® approach treats trauma and substance use as one integrated condition through the Forward-Facing Freedom® model — unlocking deeper and more lasting healing."
         image="/images/embrace-connection.jpg"
       />

@@ -61,6 +61,10 @@ export default function OurProgramPage() {
       <PageHero
         label="Our Program"
         title="A Different Kind of Recovery"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our Program' },
+        ]}
         description="At Seven Arrows Recovery, we blend clinical excellence with the healing power of the land, indigenous wisdom, and trauma-focused care. Our intimate, boutique setting ensures every client receives deeply personalized treatment."
         image="/images/sound-healing-session.jpg"
       />

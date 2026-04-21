@@ -76,6 +76,11 @@ export default function InsuranceHumanaPage() {
       <PageHero
         label="Insurance Coverage"
         title="Humana Rehab Coverage"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Insurance' },
+          { label: 'Humana' },
+        ]}
         description="Seven Arrows Recovery accepts most Humana plans for drug and alcohol addiction treatment. Our admissions team verifies your behavioral health benefits at no cost and handles all insurance coordination."
         image="/images/embrace-connection.jpg"
       />

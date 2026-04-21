@@ -309,6 +309,12 @@ export default function PageContent() {
       <PageHero
         label="Episode 2 — The Recovery Roadmap"
         title="What Happens When You Walk Through the Door"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who We Are', href: '/who-we-are' },
+          { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
+          { label: 'What Happens Your First Week' },
+        ]}
         description="Your first week in treatment, demystified. A day-by-day guide for anyone afraid to make the call."
         image="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1600&q=80"
       />

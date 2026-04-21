@@ -279,6 +279,12 @@ export default function PageContent() {
       <PageHero
         label="The Recovery Roadmap — Episode 1"
         title="When Drinking Stops Working: Recognizing the Signs of Addiction"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who We Are', href: '/who-we-are' },
+          { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
+          { label: 'When Drinking Stops Working' },
+        ]}
         description="A compassionate guide to understanding when substance use has crossed from choice to compulsion — and why reaching out is an act of courage, not weakness."
         image="/images/resident-reading-window.jpg"
       />

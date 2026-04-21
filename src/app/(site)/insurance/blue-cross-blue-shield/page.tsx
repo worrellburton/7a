@@ -76,6 +76,11 @@ export default function InsuranceBCBSPage() {
       <PageHero
         label="Insurance Coverage"
         title="Blue Cross Blue Shield Rehab Coverage"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Insurance' },
+          { label: 'Blue Cross Blue Shield' },
+        ]}
         description="Seven Arrows Recovery accepts most Blue Cross Blue Shield plans for drug and alcohol addiction treatment. As one of the nation's largest insurers, BCBS provides coverage for millions of Americans seeking recovery."
         image="/images/embrace-connection.jpg"
       />

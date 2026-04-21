@@ -38,6 +38,11 @@ export default function FamilyProgramPage() {
       <PageHero
         label="Family Program"
         title="Healing the Whole Family"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our Program', href: '/our-program' },
+          { label: 'Family Program' },
+        ]}
         description="Addiction affects everyone in the family. At Seven Arrows Recovery, our family program brings loved ones into the healing process through therapy, education, and ongoing connection."
         image="/images/group-sunset-desert.jpg"
       />
