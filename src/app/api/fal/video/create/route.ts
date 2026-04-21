@@ -55,23 +55,24 @@ export async function POST(req: NextRequest) {
 
   const supabase = getAdminSupabase();
 
-  // Fire off the request to fal.ai's queue endpoint. We don't subscribe /
-  // webhook here — /status polls for completion. Keeps the route dumb and
-  // retryable.
+  // Each model builds its own payload — some fal endpoints want duration
+  // as a string, some ignore resolution, some upper-case it, etc.
+  const payload = videoModel.buildPayload({
+    imageUrl,
+    prompt,
+    duration: resolvedDuration,
+    resolution: resolvedResolution,
+    aspect: resolvedAspect,
+    seed,
+  });
+
   const falRes = await fetch(`${FAL_QUEUE_BASE}/${videoModel.endpoint}`, {
     method: 'POST',
     headers: {
       Authorization: `Key ${falKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      image_url: imageUrl,
-      prompt: prompt || '',
-      duration: resolvedDuration,
-      ...(resolvedResolution ? { resolution: resolvedResolution } : {}),
-      ...(resolvedAspect ? { aspect_ratio: resolvedAspect } : {}),
-      ...(typeof seed === 'number' ? { seed } : {}),
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!falRes.ok) {
