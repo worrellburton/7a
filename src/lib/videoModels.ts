@@ -123,13 +123,16 @@ const seedance1Lite: VideoModel = {
   typicalSeconds: typicalSecondsOf(15, 4, { '480p': 0.7, '720p': 1, '1080p': 1.6 }),
 };
 
-const seedance2Pro: VideoModel = {
-  id: 'seedance-2-pro',
-  label: 'Seedance 2.0 Pro',
+// Seedance 2.0 on fal.ai uses a different URL pattern than v1
+// (seedance-2.0 with a dot, /fast/ for the lighter tier, no Pro/Lite
+// suffix). Verified against fal.ai/explore/seedance-20.
+const seedance2: VideoModel = {
+  id: 'seedance-2',
+  label: 'Seedance 2.0',
   family: 'ByteDance Seedance',
-  endpoint: 'fal-ai/bytedance/seedance/v2/pro/image-to-video',
+  endpoint: 'fal-ai/bytedance/seedance-2.0/image-to-video',
   description:
-    'Latest ByteDance Seedance — best motion coherence and prompt adherence.',
+    'Latest ByteDance Seedance — best motion coherence and prompt adherence. Newly released on fal.',
   durations: [5, 10],
   resolutions: ['480p', '720p', '1080p'],
   aspects: ['auto', '16:9', '9:16', '1:1'],
@@ -138,13 +141,13 @@ const seedance2Pro: VideoModel = {
   typicalSeconds: typicalSecondsOf(30, 10, { '480p': 0.7, '720p': 1, '1080p': 1.6 }),
 };
 
-const seedance2Lite: VideoModel = {
-  id: 'seedance-2-lite',
-  label: 'Seedance 2.0 Lite',
+const seedance2Fast: VideoModel = {
+  id: 'seedance-2-fast',
+  label: 'Seedance 2.0 Fast',
   family: 'ByteDance Seedance',
-  endpoint: 'fal-ai/bytedance/seedance/v2/lite/image-to-video',
+  endpoint: 'fal-ai/bytedance/seedance-2.0/fast/image-to-video',
   description:
-    'Lighter v2 variant — faster and cheaper than v2 Pro.',
+    'Faster, cheaper Seedance 2.0 tier — good for iterating on prompts.',
   durations: [5, 10],
   resolutions: ['480p', '720p', '1080p'],
   aspects: ['auto', '16:9', '9:16', '1:1'],
@@ -352,8 +355,8 @@ const veo3: VideoModel = {
 
 export const VIDEO_MODELS: VideoModel[] = [
   // Seedance family first — current default pick.
-  seedance2Pro,
-  seedance2Lite,
+  seedance2,
+  seedance2Fast,
   seedance1Pro,
   seedance1Lite,
   // Kling family
