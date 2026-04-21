@@ -87,10 +87,29 @@ export async function GET(req: NextRequest) {
     { headers: { Authorization: `Key ${falKey}` } },
   );
 
+  // If fal.ai's status endpoint errors (404 for unknown endpoint, 401 for
+  // bad key, 5xx when fal is sick), record the upstream error on the row
+  // itself — otherwise a misbehaving request sits in `queued` forever and
+  // the user has no signal as to why. We only auto-fail the row once the
+  // job has been queued long enough that fal almost certainly isn't just
+  // being slow (>5 min). Short transient errors remain quiet.
   if (!statusRes.ok) {
     const text = await statusRes.text();
+    const upstreamError = `fal.ai status ${statusRes.status}: ${text.slice(0, 500)}`;
+    const queuedForMs = Date.now() - new Date(row.created_at).getTime();
+    const shouldPersist = queuedForMs > 5 * 60 * 1000;
+    if (shouldPersist) {
+      await supabase
+        .from('site_videos')
+        .update({
+          status: 'failed',
+          error: upstreamError,
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+    }
     return NextResponse.json(
-      { error: `fal.ai status ${statusRes.status}: ${text.slice(0, 500)}`, video: row },
+      { error: upstreamError, video: row },
       { status: 502 },
     );
   }
