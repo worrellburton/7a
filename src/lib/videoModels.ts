@@ -39,6 +39,13 @@ export interface VideoModel {
     duration: number | null | undefined,
     resolution: string | null | undefined,
   ) => number | null;
+  // How long a generation typically takes from queue to completion, as a
+  // rough UI estimate for the progress bar. Returns seconds. Not
+  // authoritative — fal queue depth + current load dominate in practice.
+  typicalSeconds: (
+    duration: number | null | undefined,
+    resolution: string | null | undefined,
+  ) => number;
 }
 
 // ─── shared helpers ───────────────────────────────────────────────────
@@ -67,6 +74,16 @@ function flatPerGeneration(price: number) {
   return () => price;
 }
 
+// base overhead in seconds (queue + model init) + per-clip-second cost.
+// Resolution multiplies the per-second cost (bigger frames = slower).
+function typicalSecondsOf(base: number, perClipSec: number, resMult: Record<string, number> = {}) {
+  return (duration: number | null | undefined, resolution: string | null | undefined) => {
+    const d = duration ?? 5;
+    const mult = resolution ? resMult[resolution] ?? 1 : 1;
+    return Math.round(base + perClipSec * d * mult);
+  };
+}
+
 // ─── ByteDance Seedance ────────────────────────────────────────────────
 
 const seedance1Pro: VideoModel = {
@@ -88,6 +105,7 @@ const seedance1Pro: VideoModel = {
     ...(typeof seed === 'number' ? { seed } : {}),
   }),
   estimateCostUSD: perSecondTable({ '480p': 0.062, '720p': 0.124, '1080p': 0.248 }),
+  typicalSeconds: typicalSecondsOf(25, 8, { '480p': 0.7, '720p': 1, '1080p': 1.6 }),
 };
 
 const seedance1Lite: VideoModel = {
@@ -102,6 +120,7 @@ const seedance1Lite: VideoModel = {
   aspects: ['auto', '16:9', '9:16', '1:1'],
   buildPayload: seedance1Pro.buildPayload,
   estimateCostUSD: perSecondTable({ '480p': 0.018, '720p': 0.036, '1080p': 0.072 }),
+  typicalSeconds: typicalSecondsOf(15, 4, { '480p': 0.7, '720p': 1, '1080p': 1.6 }),
 };
 
 const seedance2Pro: VideoModel = {
@@ -116,6 +135,7 @@ const seedance2Pro: VideoModel = {
   aspects: ['auto', '16:9', '9:16', '1:1'],
   buildPayload: seedance1Pro.buildPayload,
   estimateCostUSD: perSecondTable({ '480p': 0.08, '720p': 0.16, '1080p': 0.32 }),
+  typicalSeconds: typicalSecondsOf(30, 10, { '480p': 0.7, '720p': 1, '1080p': 1.6 }),
 };
 
 const seedance2Lite: VideoModel = {
@@ -130,6 +150,7 @@ const seedance2Lite: VideoModel = {
   aspects: ['auto', '16:9', '9:16', '1:1'],
   buildPayload: seedance1Pro.buildPayload,
   estimateCostUSD: perSecondTable({ '480p': 0.024, '720p': 0.048, '1080p': 0.096 }),
+  typicalSeconds: typicalSecondsOf(20, 5, { '480p': 0.7, '720p': 1, '1080p': 1.6 }),
 };
 
 // ─── Kuaishou Kling ────────────────────────────────────────────────────
@@ -155,6 +176,7 @@ const kling21Master: VideoModel = {
   aspects: ['16:9', '9:16', '1:1'],
   buildPayload: klingBuildPayload,
   estimateCostUSD: perSecondFlat(0.28),
+  typicalSeconds: typicalSecondsOf(60, 18),
 };
 
 const kling21Pro: VideoModel = {
@@ -169,6 +191,7 @@ const kling21Pro: VideoModel = {
   aspects: ['16:9', '9:16', '1:1'],
   buildPayload: klingBuildPayload,
   estimateCostUSD: perSecondFlat(0.19),
+  typicalSeconds: typicalSecondsOf(45, 14),
 };
 
 const kling21Std: VideoModel = {
@@ -183,6 +206,7 @@ const kling21Std: VideoModel = {
   aspects: ['16:9', '9:16', '1:1'],
   buildPayload: klingBuildPayload,
   estimateCostUSD: perSecondFlat(0.05),
+  typicalSeconds: typicalSecondsOf(30, 9),
 };
 
 const kling16Pro: VideoModel = {
@@ -196,6 +220,7 @@ const kling16Pro: VideoModel = {
   aspects: ['16:9', '9:16', '1:1'],
   buildPayload: klingBuildPayload,
   estimateCostUSD: perSecondFlat(0.095),
+  typicalSeconds: typicalSecondsOf(40, 11),
 };
 
 // ─── Luma Ray ──────────────────────────────────────────────────────────
@@ -222,6 +247,7 @@ const lumaRay2: VideoModel = {
   aspects: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', '9:21'],
   buildPayload: lumaBuildPayload,
   estimateCostUSD: perSecondTable({ '540p': 0.08, '720p': 0.144, '1080p': 0.28 }),
+  typicalSeconds: typicalSecondsOf(30, 10, { '540p': 0.7, '720p': 1, '1080p': 1.6 }),
 };
 
 const lumaRay2Flash: VideoModel = {
@@ -235,6 +261,7 @@ const lumaRay2Flash: VideoModel = {
   aspects: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', '9:21'],
   buildPayload: lumaBuildPayload,
   estimateCostUSD: perSecondTable({ '540p': 0.03, '720p': 0.048, '1080p': 0.1 }),
+  typicalSeconds: typicalSecondsOf(18, 6, { '540p': 0.7, '720p': 1, '1080p': 1.6 }),
 };
 
 // ─── MiniMax Hailuo 02 ─────────────────────────────────────────────────
@@ -261,6 +288,7 @@ const hailuo02Pro: VideoModel = {
   aspects: [],
   buildPayload: hailuoBuildPayload,
   estimateCostUSD: perSecondTable({ '768p': 0.08, '1080p': 0.12 }),
+  typicalSeconds: typicalSecondsOf(40, 10, { '768p': 1, '1080p': 1.5 }),
 };
 
 const hailuo02Std: VideoModel = {
@@ -274,6 +302,7 @@ const hailuo02Std: VideoModel = {
   aspects: [],
   buildPayload: hailuoBuildPayload,
   estimateCostUSD: perSecondTable({ '512p': 0.02, '768p': 0.045 }),
+  typicalSeconds: typicalSecondsOf(25, 6, { '512p': 0.8, '768p': 1 }),
 };
 
 // ─── Alibaba Wan ───────────────────────────────────────────────────────
@@ -295,6 +324,7 @@ const wan22: VideoModel = {
     ...(aspect ? { aspect_ratio: aspect } : {}),
   }),
   estimateCostUSD: perSecondTable({ '480p': 0.04, '720p': 0.08 }),
+  typicalSeconds: typicalSecondsOf(50, 14, { '480p': 0.8, '720p': 1 }),
 };
 
 // ─── Google Veo 3 ──────────────────────────────────────────────────────
@@ -315,6 +345,7 @@ const veo3: VideoModel = {
     ...(aspect ? { aspect_ratio: aspect } : {}),
   }),
   estimateCostUSD: flatPerGeneration(6.0),
+  typicalSeconds: typicalSecondsOf(180, 15),
 };
 
 // ─── Exported catalog ──────────────────────────────────────────────────

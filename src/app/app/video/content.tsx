@@ -9,6 +9,7 @@ import {
   VIDEO_MODELS,
   estimateVideoCostUSD,
   findVideoModel,
+  findVideoModelByEndpoint,
   videoModelFamilies,
 } from '@/lib/videoModels';
 
@@ -54,6 +55,9 @@ export default function VideoContent() {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<SiteVideo | null>(null);
+  // Re-render every second while any tile is pending so the time-based
+  // progress bar animates smoothly between the 5s status polls.
+  const [, setProgressTick] = useState(0);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const showToast = (msg: string) => {
@@ -116,6 +120,14 @@ export default function VideoContent() {
     loadImages();
     loadVideos();
   }, [session, loadImages, loadVideos]);
+
+  // Advance the progress bar smoothly between status polls.
+  useEffect(() => {
+    const anyPending = videos.some((v) => v.status === 'queued' || v.status === 'in_progress');
+    if (!anyPending) return;
+    const id = setInterval(() => setProgressTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [videos]);
 
   // Poll in-flight videos every 5s until they resolve. One interval
   // runs the batch to keep network usage predictable.
@@ -446,6 +458,13 @@ export default function VideoContent() {
             const source = v.source_image_id ? imagesById.get(v.source_image_id) : null;
             const isPending = v.status === 'queued' || v.status === 'in_progress';
             const isFailed = v.status === 'failed';
+            // Time-based progress estimate — fal.ai doesn't hand us a real
+            // percentage, so we approximate from elapsed / typical.
+            const pendingModel = isPending ? findVideoModelByEndpoint(v.model_endpoint) : null;
+            const elapsedSec = isPending ? Math.max(0, (Date.now() - new Date(v.created_at).getTime()) / 1000) : 0;
+            const typicalSec = pendingModel ? pendingModel.typicalSeconds(v.duration_seconds, v.resolution) : 60;
+            const progressFraction = isPending ? Math.min(0.98, elapsedSec / Math.max(typicalSec, 1)) : 0;
+            const etaSec = isPending ? Math.max(0, Math.round(typicalSec - elapsedSec)) : 0;
             return (
               <div key={v.id} className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-lg transition-shadow">
                 <button
@@ -471,12 +490,25 @@ export default function VideoContent() {
                     <div className="absolute inset-0 bg-warm-bg" />
                   )}
                   {isPending && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 text-foreground text-xs font-semibold shadow" style={{ fontFamily: 'var(--font-body)' }}>
-                        <span className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        {v.status === 'queued' ? 'In queue' : 'Generating…'}
+                    <>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 text-foreground text-xs font-semibold shadow" style={{ fontFamily: 'var(--font-body)' }}>
+                          <span className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                          {v.status === 'queued'
+                            ? 'In queue'
+                            : `Generating… ${Math.round(progressFraction * 100)}%`}
+                          {v.status === 'in_progress' && etaSec > 0 && (
+                            <span className="text-foreground/50 font-normal"> · ~{etaSec}s</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                      <div className="absolute left-0 right-0 bottom-0 h-1.5 bg-black/30">
+                        <div
+                          className="h-full bg-primary transition-[width] duration-1000 ease-linear"
+                          style={{ width: `${Math.round(progressFraction * 100)}%` }}
+                        />
+                      </div>
+                    </>
                   )}
                   {v.video_url && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/25 transition-colors">
