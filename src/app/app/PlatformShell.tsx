@@ -408,6 +408,31 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
     </svg>
   ),
+  '/app/seo': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <path d="M8 11h6M11 8v6" />
+    </svg>
+  ),
+  '/app/geo': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
+    </svg>
+  ),
+  '/app/analytics': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18" />
+      <path d="M7 15l4-6 4 4 5-9" />
+    </svg>
+  ),
+  '/app/research': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3h4.875c.621 0 1.125-.504 1.125-1.125V11.25c0-1.243-1.007-2.25-2.25-2.25H8.25c-1.243 0-2.25 1.007-2.25 2.25v9a1.125 1.125 0 001.125 1.125z" />
+    </svg>
+  ),
   '/app/video': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="6" width="14" height="12" rx="2" />
@@ -806,33 +831,47 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               </button>
             </div>
           )}
-          <button
-            onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-warm-bg transition-colors text-left"
-          >
-            {user.user_metadata?.avatar_url ? (
-              <img src={user.user_metadata.avatar_url} alt="" className="w-8 h-8 rounded-full" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
-                {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">
-                {user.user_metadata?.full_name || 'User'}
-              </p>
-              {latestSignedJd ? (
-                <p className="text-xs text-foreground/50 truncate" title={`Signed: ${latestSignedJd.title}`}>
-                  {latestSignedJd.title}
-                </p>
+          {/* Avatar → My Profile (primary). Name + chevron still toggles
+              the popup menu (admin pages, in-progress link, sign out)
+              so the power-user affordance is preserved. */}
+          <div className="w-full flex items-stretch gap-3 px-3 py-2.5 rounded-xl hover:bg-warm-bg transition-colors">
+            <Link
+              href="/app/profile"
+              aria-label="My Profile"
+              className="shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              title="My Profile"
+            >
+              {user.user_metadata?.avatar_url ? (
+                <img src={user.user_metadata.avatar_url} alt="" className="w-8 h-8 rounded-full" />
               ) : (
-                <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
+                  {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
+                </div>
               )}
-            </div>
-            <svg className="w-4 h-4 text-foreground/30 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-            </svg>
-          </button>
+            </Link>
+            <button
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              className="flex-1 min-w-0 flex items-center gap-3 text-left"
+              aria-label="Account menu"
+              aria-expanded={userMenuOpen}
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user.user_metadata?.full_name || 'User'}
+                </p>
+                {latestSignedJd ? (
+                  <p className="text-xs text-foreground/50 truncate" title={`Signed: ${latestSignedJd.title}`}>
+                    {latestSignedJd.title}
+                  </p>
+                ) : (
+                  <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+                )}
+              </div>
+              <svg className="w-4 h-4 text-foreground/30 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+              </svg>
+            </button>
+          </div>
         </div>
       </aside>
 
