@@ -30,10 +30,17 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
+  const qStart = url.searchParams.get('startDate');
+  const qEnd = url.searchParams.get('endDate');
   const days = Math.min(90, Math.max(1, Number(url.searchParams.get('days') ?? '28')));
-  // Search Console data lags ~2 days — shift the window back.
-  const startDate = daysAgo(days + 2);
-  const endDate = daysAgo(2);
+  // Search Console data lags ~2 days. When the caller supplies explicit
+  // dates we still clamp the end to "today - 2" so queries for very recent
+  // ranges don't come back empty.
+  const today = new Date();
+  today.setUTCDate(today.getUTCDate() - 2);
+  const gscCap = today.toISOString().slice(0, 10);
+  const startDate = qStart || daysAgo(days + 2);
+  const endDate = qEnd && qEnd < gscCap ? qEnd : qEnd ? gscCap : daysAgo(2);
 
   try {
     const [totals, topQueries, topPages] = await Promise.all([

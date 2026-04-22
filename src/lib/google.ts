@@ -88,12 +88,18 @@ async function googleFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
 
 // -------- GA4 Data API --------
 
+interface Ga4OrderBy {
+  metric?: { metricName: string };
+  dimension?: { dimensionName: string };
+  desc?: boolean;
+}
+
 interface Ga4RunRequest {
   dateRanges: { startDate: string; endDate: string }[];
   metrics: { name: string }[];
   dimensions?: { name: string }[];
   limit?: number;
-  orderBys?: { metric?: { metricName: string }; desc?: boolean }[];
+  orderBys?: Ga4OrderBy[];
 }
 
 export interface Ga4RunReportResponse {
