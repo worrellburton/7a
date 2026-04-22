@@ -6,6 +6,7 @@
 import Link from 'next/link';
 
 import PageHero from '@/components/PageHero';
+import { siteVideos } from '@/lib/siteVideos';
 import AdmissionsForm from '@/components/AdmissionsForm';
 import { useState } from 'react';
 
@@ -109,6 +110,7 @@ export default function PageContent() {
           { label: 'Admissions' },
         ]}
         description="At Seven Arrows we have streamlined your admissions process. You will always have access to a live person to answer any concerns that you or your loved one might have — both prior to admission and throughout your stay."
+        video={siteVideos.ranchLife}
         image="/images/embrace-connection.jpg"
       />
 
