@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import WhoHero from '@/components/who-we-help/WhoHero';
+import AtAGlance from '@/components/who-we-help/AtAGlance';
 
 export const metadata: Metadata = {
   title: 'Who We Help | Arizona Drug & Alcohol Rehab for Adults 18+',
@@ -94,6 +95,7 @@ export default function WhoWeHelpPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
       />
       <WhoHero />
+      <AtAGlance />
     </main>
   );
 }
