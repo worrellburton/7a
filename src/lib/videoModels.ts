@@ -353,12 +353,12 @@ const veo3: VideoModel = {
 
 // ─── Exported catalog ──────────────────────────────────────────────────
 
-// Full catalog — every family we've wired up. If fal.ai responds 404
-// for a specific endpoint slug, patch the `endpoint` string on that
-// model rather than removing it from this list.
+// Exported catalog. Seedance 2.0 stays off the list until we confirm
+// the endpoint slug against fal.ai — submitting to the guessed URL was
+// completing at the queue layer but returning empty video_urls, so the
+// UI showed only the source-image poster. If/when the slug is verified
+// add `seedance2` and `seedance2Fast` back to the top of this list.
 export const VIDEO_MODELS: VideoModel[] = [
-  seedance2,
-  seedance2Fast,
   seedance1Pro,
   seedance1Lite,
   kling21Master,

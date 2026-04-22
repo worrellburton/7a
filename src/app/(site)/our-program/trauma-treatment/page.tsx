@@ -7,6 +7,9 @@ export const metadata: Metadata = {
 };
 
 import TraumaHero from '@/components/trauma/TraumaHero';
+import ClinicalGap from '@/components/trauma/ClinicalGap';
+import PostTraumaticAdaptation from '@/components/trauma/PostTraumaticAdaptation';
+import SocDomains from '@/components/trauma/SocDomains';
 import Link from 'next/link';
 
 const clinicalApproaches = [
@@ -50,111 +53,16 @@ export default function TraumaTreatmentPage() {
           the shared PageHero component. */}
       <TraumaHero />
 
-      {/* The Problem */}
-      <section id="forward-facing" className="py-16 lg:py-24 bg-warm-bg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto mb-16">
-            <p className="section-label mb-4">The Clinical Gap</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
-              Why Traditional Models Fall Short
-            </h2>
-            <p
-              className="text-foreground/70 text-lg leading-relaxed mb-6"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              Trauma and addiction have historically been treated as separate clinical domains.
-              Trauma-focused therapies often rely on exposure and memory processing, which may
-              destabilize individuals in early recovery due to increased arousal and craving
-              activation. Meanwhile, substance use treatment prioritizes stabilization, often
-              delaying trauma work indefinitely.
-            </p>
-            <p
-              className="text-foreground/70 text-lg leading-relaxed"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              This creates a clinical gap where trauma remains unaddressed while addiction persists.
-              The ACE study demonstrated that individuals with higher adverse childhood experience
-              scores show significantly increased risk for both addiction and mental health challenges
-              — confirming what our clinicians see every day: these conditions cannot be separated.
-            </p>
-          </div>
+      {/* Phase 2: The Clinical Gap — animated SVG glyph section */}
+      <ClinicalGap />
 
-          {/* Reframe block */}
-          <div className="max-w-4xl mx-auto bg-white rounded-2xl p-8 lg:p-12 shadow-sm">
-            <h3 className="text-xl font-bold text-foreground mb-4">
-              Addiction as a Post-Traumatic Adaptation
-            </h3>
-            <p
-              className="text-foreground/70 leading-relaxed mb-4"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              At Seven Arrows, we do not view addiction as moral failure. Substance use can be
-              understood as a <strong>functional adaptation</strong> that regulates overwhelming
-              emotional and physiological states — functioning as dissociation, numbing distress,
-              or modulating nervous system activation.
-            </p>
-            <p
-              className="text-foreground/70 leading-relaxed"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              Research indicates that trauma impacts interoception, emotional regulation, and
-              autonomic functioning. By recognizing addiction as an adaptive capacity rather than
-              a character defect, we remove shame and open the door to genuine, lasting healing.
-            </p>
-          </div>
-        </div>
-      </section>
+      {/* Phase 3: Post-Traumatic Adaptation — full-bleed photo +
+          overlay card + ACE stats that count up on scroll-in */}
+      <PostTraumaticAdaptation />
 
-      {/* Forward-Facing Freedom */}
-      <section className="py-16 lg:py-24 bg-dark-section text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center mb-16">
-            <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-white/50 mb-4" style={{ fontFamily: 'var(--font-body)' }}>
-              The Forward-Facing Freedom® Approach
-            </p>
-            <h2 className="text-3xl lg:text-4xl font-bold mb-6">
-              Stabilize. Understand. Grow.
-            </h2>
-            <p
-              className="text-white/70 leading-relaxed text-lg"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              Forward-Facing Freedom is a present-focused, salutogenic model developed by
-              J. Eric Gentry, PhD and Lindsay Rothschild, LCSW. Rather than beginning with
-              retrospective trauma processing, FFF builds capacity first — creating the
-              neurological foundation needed for deep, lasting change.
-            </p>
-          </div>
-
-          {/* Three SOC domains */}
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {[
-              {
-                title: 'Comprehensibility',
-                description: 'Develop a coherent understanding of your nervous system. Learn to recognize the threat response and how to interrupt it. Understand urges and cravings as predictable responses to dysregulation — not failures of willpower.',
-              },
-              {
-                title: 'Manageability',
-                description: 'Cultivate self-regulation through neuroception, interoception, and acute relaxation strategies. Intentionally interrupt adaptive threat responses to return to physiological safety, enhancing emotional regulation and behavioral effectiveness.',
-              },
-              {
-                title: 'Meaningfulness',
-                description: 'Develop a personal code of honor, mission statement, and vision for your life and recovery. Engage with life\'s challenges as purposeful and worthy of sustained investment through intentional, values-driven living.',
-              },
-            ].map((domain, i) => (
-              <div key={domain.title} className="relative">
-                <div className="w-12 h-12 rounded-full border-2 border-primary flex items-center justify-center mb-5">
-                  <span className="text-primary font-bold">{i + 1}</span>
-                </div>
-                <h3 className="text-lg font-bold mb-3">{domain.title}</h3>
-                <p className="text-white/60 leading-relaxed text-sm" style={{ fontFamily: 'var(--font-body)' }}>
-                  {domain.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Phase 4: Forward-Facing Freedom three SOC domains with
+          custom animated SVG diagrams per domain */}
+      <SocDomains />
 
       {/* Clinical Approaches */}
       <section className="py-16 lg:py-24 bg-white">
