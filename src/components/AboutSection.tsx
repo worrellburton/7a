@@ -9,8 +9,8 @@ export default function AboutSection() {
           <div className="relative">
             <div className="rounded-2xl overflow-hidden aspect-[4/3] bg-white shadow-sm">
               <img
-                src="/images/common-area-living-room.jpg"
-                alt="Interior common area with couches"
+                src="https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776816150591-1rvhqyrln5p-7a-new-1.webp"
+                alt="Seven Arrows Recovery — ranch exterior"
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
