@@ -304,10 +304,16 @@ export default function Footer() {
             <div>
               <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 text-white/70">Quick Links</h3>
               <ul className="space-y-2.5" role="list">
-                {['Who We Are', 'Treatment', 'Our Program', 'Admissions'].map((item) => (
-                  <li key={item}>
-                    <Link href={`/${item.toLowerCase().replace(/\s+/g, '-')}`} className="text-white/40 text-xs hover:text-primary transition-colors">
-                      {item}
+                {[
+                  { label: 'Who We Are', href: '/who-we-are' },
+                  { label: 'Our Program', href: '/our-program' },
+                  { label: 'What We Treat', href: '/what-we-treat' },
+                  { label: 'Admissions', href: '/admissions' },
+                  { label: 'Areas We Serve', href: '/who-we-are/areas-we-serve' },
+                ].map((item) => (
+                  <li key={item.href}>
+                    <Link href={item.href} className="text-white/40 text-xs hover:text-primary transition-colors">
+                      {item.label}
                     </Link>
                   </li>
                 ))}
@@ -361,14 +367,68 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Bottom bar */}
-          <div className="border-t border-white/[0.06] mt-10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3">
-            <p className="text-white/25 text-xs">
-              &copy; {new Date().getFullYear()} Seven Arrows Recovery. All rights reserved.
-            </p>
-            <div className="flex gap-5 text-xs text-white/25">
-              <Link href="/privacy-policy" className="hover:text-white/60 transition-colors">Privacy Policy</Link>
-              <Link href="/terms" className="hover:text-white/60 transition-colors">Terms of Service</Link>
+          {/* Accreditation strip — Joint Commission Gold Seal + the
+              LegitScript seal, both linking to their respective
+              verification pages. Keeps the trust signals visible on
+              every page, not just the homepage TrustBadges block. */}
+          <div className="border-t border-white/[0.06] mt-10 pt-8 flex flex-col md:flex-row gap-6 md:gap-10 items-center md:items-start justify-between">
+            <div>
+              <p
+                className="text-white/45 text-[10px] font-semibold tracking-[0.22em] uppercase mb-4"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Accredited &amp; Certified
+              </p>
+              <div className="flex items-center gap-6">
+                <a
+                  href="https://www.qualitycheck.org/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block opacity-80 hover:opacity-100 transition-opacity"
+                  aria-label="The Joint Commission — Gold Seal of Approval"
+                  title="Joint Commission Gold Seal of Approval"
+                >
+                  <img
+                    src="https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776808204322-pzyzhrow2ib-joint-commission-gold-seal-of-approval.jpg"
+                    alt="Joint Commission Gold Seal of Approval"
+                    className="h-16 w-auto rounded"
+                    loading="lazy"
+                  />
+                </a>
+                <a
+                  href="https://www.legitscript.com/websites/?checker_keywords=sevenarrowsrecovery.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block opacity-85 hover:opacity-100 transition-opacity"
+                  aria-label="Verify LegitScript Certification for sevenarrowsrecovery.com"
+                  title="LegitScript Certified"
+                >
+                  <img
+                    src="https://static.legitscript.com/seals/11087571.png"
+                    alt="LegitScript Certified — verify at legitscript.com"
+                    className="h-16 w-auto"
+                    width={65}
+                    height={79}
+                    loading="lazy"
+                  />
+                </a>
+              </div>
+              <p
+                className="mt-3 text-[10px] uppercase tracking-[0.22em] text-white/35"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                HIPAA Compliant
+              </p>
+            </div>
+
+            <div className="flex flex-col items-center md:items-end gap-3 text-xs">
+              <p className="text-white/25">
+                &copy; {new Date().getFullYear()} Seven Arrows Recovery. All rights reserved.
+              </p>
+              <div className="flex gap-5 text-white/25">
+                <Link href="/privacy-policy" className="hover:text-white/60 transition-colors">Privacy Policy</Link>
+                <Link href="/terms" className="hover:text-white/60 transition-colors">Terms of Service</Link>
+              </div>
             </div>
           </div>
         </div>

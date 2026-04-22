@@ -15,6 +15,11 @@ export default function AlumniAftercarePage() {
       <PageHero
         label="Treatment Programs"
         title="Alumni & Aftercare"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Treatment', href: '/treatment' },
+          { label: 'Alumni & Aftercare' },
+        ]}
         description="Recovery does not end when you leave our facility. Seven Arrows Recovery offers a robust alumni network and individualized aftercare planning to help you build a fulfilling, substance-free life for years to come."
         image="/images/group-gathering-pavilion.jpg"
       />

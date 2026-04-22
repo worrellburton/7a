@@ -16,6 +16,11 @@ export interface PageConfig {
   // The department this page is grouped under in the sidebar nav.
   // null = appears in the ungrouped section at the top.
   departmentId: string | null;
+  // Optional named group label (e.g. "Media") that overrides departmentId
+  // for sidebar grouping purposes. Pure code-side concept — not stored in
+  // the `page_permissions` DB table — so product areas like Media can hang
+  // off a shared header without needing a fake department row.
+  navGroup?: string | null;
 }
 
 const defaultPages: PageConfig[] = [
@@ -35,8 +40,15 @@ const defaultPages: PageConfig[] = [
   { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [], departmentId: null },
   { path: '/app/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },
   { path: '/app/tours', label: 'Tours', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/admissions', label: 'Admissions', adminOnly: false, section: 'nav', sort_order: 15, allowedDepartments: [], departmentId: null },
-  { path: '/app/intake-paperwork', label: 'Intake Paperwork', adminOnly: false, section: 'nav', sort_order: 16, allowedDepartments: [], departmentId: null },
+  { path: '/app/admissions', label: 'Admissions', adminOnly: false, section: 'nav', sort_order: 15, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/intake-paperwork', label: 'Intake Paperwork', adminOnly: false, section: 'nav', sort_order: 16, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/seo', label: 'SEO', adminOnly: false, section: 'nav', sort_order: 20, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/geo', label: 'GEO', adminOnly: false, section: 'nav', sort_order: 21, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/analytics', label: 'Analytics', adminOnly: false, section: 'nav', sort_order: 22, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/research', label: 'Research', adminOnly: false, section: 'nav', sort_order: 23, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/images', label: 'Images', adminOnly: false, section: 'nav', sort_order: 18, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
+  { path: '/app/video', label: 'Video', adminOnly: false, section: 'nav', sort_order: 19, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
+  { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
@@ -196,7 +208,19 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
     });
   }, []);
 
-  const sorted = [...pages].sort((a, b) => a.sort_order - b.sort_order);
+  const sorted = (() => {
+    // Dedupe by path: DB may contain stale rows (e.g. the same page saved
+    // twice with different sections) that would otherwise render multiple
+    // sidebar entries for the same path. First occurrence wins.
+    const seen = new Set<string>();
+    const unique: PageConfig[] = [];
+    for (const p of pages) {
+      if (seen.has(p.path)) continue;
+      seen.add(p.path);
+      unique.push(p);
+    }
+    return unique.sort((a, b) => a.sort_order - b.sort_order);
+  })();
   const navPages = sorted.filter((p) => p.section === 'nav');
   const popupPages = sorted.filter((p) => p.section === 'popup');
 

@@ -309,12 +309,19 @@ export default function PageContent() {
       <PageHero
         label="Episode 2 — The Recovery Roadmap"
         title="What Happens When You Walk Through the Door"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who We Are', href: '/who-we-are' },
+          { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
+          { label: 'What Happens Your First Week' },
+        ]}
         description="Your first week in treatment, demystified. A day-by-day guide for anyone afraid to make the call."
         image="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1600&q=80"
+        width="narrow"
       />
 
       <article className="py-16 lg:py-24">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Back link */}
           <Link href="/who-we-are/blog/when-drinking-stops-working" className="text-primary text-sm font-semibold hover:underline mb-8 inline-block" style={{ fontFamily: 'var(--font-body)' }}>
@@ -354,7 +361,7 @@ export default function PageContent() {
           <TimelineInfographic />
         </div>
 
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Image break */}
           <div className="my-12 rounded-2xl overflow-hidden aspect-[16/7]">
@@ -398,8 +405,8 @@ export default function PageContent() {
           {/* Image break */}
           <div className="my-12 rounded-2xl overflow-hidden aspect-[16/7]">
             <img
-              src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=1200&q=80"
-              alt="Calm healthcare environment"
+              src="/images/group-gathering-pavilion.jpg"
+              alt="Residents and clinicians gathered at the Seven Arrows pavilion."
               className="w-full h-full object-cover"
               loading="lazy"
             />
@@ -463,7 +470,7 @@ export default function PageContent() {
               &larr; Episode 1: When Drinking Stops Working
             </Link>
             <Link
-              href="/who-we-are/blog"
+              href="/who-we-are/recovery-roadmap"
               className="text-primary text-sm font-semibold hover:underline"
               style={{ fontFamily: 'var(--font-body)' }}
             >

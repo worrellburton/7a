@@ -303,6 +303,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   'FAQs': QuestionIcon,
   'Blog': BlogIcon,
   'Investigative Series': BlogIcon,
+  'Recovery Roadmap': BlogIcon,
   'Careers': CareersIcon,
   'Areas We Serve': MapIcon,
   'Residential Inpatient': HomeIcon,
@@ -313,16 +314,21 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   'Indigenous Approach': IndigenousIcon,
   'Family Program': FamilyIcon,
   'Holistic Approaches': HolisticIcon,
+  'Holistic & Indigenous': HolisticIcon,
   'Equine-Assisted Psychotherapy': HorseIcon,
   'Evidence-Based Treatment': EvidenceIcon,
   'Who We Help': WhoWeHelpIcon,
   'Dual-Diagnosis': DualDiagnosisIcon,
   'Alcohol Addiction': BottleIcon,
+  'Benzodiazepine Addiction': PillIcon,
+  'Cocaine Addiction': PillIcon,
   'Heroin Addiction': PillIcon,
+  'Inhalant Addiction': PillIcon,
+  'Ketamine Addiction': PillIcon,
   'Marijuana Addiction': HolisticIcon,
+  'Methamphetamine Addiction': PillIcon,
   'Opioid Addiction': PillIcon,
   'Prescription Drug Addiction': PillIcon,
-  'Xanax Addiction': PillIcon,
 };
 
 /* ── Navigation data ───────────────────────────────────────────────── */
@@ -331,6 +337,10 @@ interface DropdownItem {
   label: string;
   href: string;
   description?: string;
+  /** Optional category heading used by the "What We Treat" mega menu
+      to group items under a list-style column (e.g. Addiction, Dual
+      Diagnosis). Ignored by dropdowns that don't opt in. */
+  group?: string;
 }
 
 interface NavItem {
@@ -350,33 +360,24 @@ const navLinks: NavItem[] = [
       { label: 'Why Us?', href: '/who-we-are/why-us', description: 'What sets Seven Arrows apart' },
       { label: 'Our Philosophy', href: '/who-we-are/our-philosophy', description: 'TraumAddiction\u2122 & holistic healing' },
       { label: 'FAQs', href: '/who-we-are/faqs', description: 'Common questions answered' },
-      { label: 'Investigative Series', href: '/who-we-are/blog', description: 'The Recovery Roadmap' },
+      { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap', description: 'Our investigative series on addiction & healing' },
       { label: 'Careers', href: '/who-we-are/careers', description: 'Join our healing community' },
-      { label: 'Areas We Serve', href: '/who-we-are/areas-we-serve', description: 'Nationwide admissions from Arizona' },
-    ],
-  },
-  {
-    label: 'Treatment',
-    href: '/treatment',
-    description: 'Clinical & residential programs tailored to your needs.',
-    dropdown: [
-      { label: 'Interventions', href: '/treatment/interventions', description: 'Professional intervention services' },
-      { label: 'Residential Inpatient', href: '/treatment/residential-inpatient', description: '90+ day immersive treatment' },
-      { label: 'Alumni & Aftercare', href: '/treatment/alumni-aftercare', description: 'Lifelong support network' },
     ],
   },
   {
     label: 'Our Program',
     href: '/our-program',
-    description: 'Seven core components for mind, body, and spirit.',
+    description: 'Clinical and residential programs tailored to your needs.',
     dropdown: [
-      { label: 'Trauma Treatment', href: '/our-program/trauma-treatment', description: 'Addressing root causes of addiction' },
-      { label: 'Indigenous Approach', href: '/our-program/indigenous-approach', description: 'Cultural & spiritual healing practices' },
-      { label: 'Family Program', href: '/our-program/family-program', description: 'Healing the whole family system' },
-      { label: 'Holistic Approaches', href: '/our-program/holistic-approaches', description: 'Yoga, meditation & wellness' },
-      { label: 'Equine-Assisted Psychotherapy', href: '/our-program/equine-assisted', description: 'EAP for trauma & recovery' },
-      { label: 'Evidence-Based Treatment', href: '/our-program/evidence-based', description: 'Proven clinical methodologies' },
-      { label: 'Who We Help', href: '/our-program/who-we-help', description: 'Adults seeking lasting recovery' },
+      { label: 'Residential Inpatient', href: '/treatment/residential-inpatient', description: '30–90 day immersive treatment', group: 'Levels of Care' },
+      { label: 'Interventions', href: '/treatment/interventions', description: 'Professional intervention services', group: 'Levels of Care' },
+      { label: 'Alumni & Aftercare', href: '/treatment/alumni-aftercare', description: 'Lifelong support network', group: 'Levels of Care' },
+      { label: 'Trauma Treatment', href: '/our-program/trauma-treatment', description: 'Addressing root causes', group: 'Clinical Approach' },
+      { label: 'Evidence-Based Treatment', href: '/our-program/evidence-based', description: 'CBT · DBT · EMDR', group: 'Clinical Approach' },
+      { label: 'Holistic & Indigenous', href: '/our-program/holistic-approaches', description: 'Yoga, sweat lodge, ceremony', group: 'Clinical Approach' },
+      { label: 'Equine-Assisted Psychotherapy', href: '/our-program/equine-assisted', description: 'EAP for trauma & recovery', group: 'Clinical Approach' },
+      { label: 'Family Program', href: '/our-program/family-program', description: 'Healing the whole family system', group: 'Whole Person' },
+      { label: 'Who We Help', href: '/our-program/who-we-help', description: 'Adults seeking lasting recovery', group: 'Whole Person' },
     ],
   },
   {
@@ -384,13 +385,17 @@ const navLinks: NavItem[] = [
     href: '/what-we-treat',
     description: 'Specialized care for substance use & co-occurring disorders.',
     dropdown: [
-      { label: 'Dual-Diagnosis', href: '/what-we-treat/dual-diagnosis', description: 'Addiction & mental health together' },
-      { label: 'Alcohol Addiction', href: '/what-we-treat/alcohol-addiction', description: 'Comprehensive alcohol recovery' },
-      { label: 'Heroin Addiction', href: '/what-we-treat/heroin-addiction', description: 'Heroin & opioid recovery path' },
-      { label: 'Marijuana Addiction', href: '/what-we-treat/marijuana-addiction', description: 'Cannabis dependency treatment' },
-      { label: 'Opioid Addiction', href: '/what-we-treat/opioid-addiction', description: 'Fentanyl & opioid detox + recovery' },
-      { label: 'Prescription Drug Addiction', href: '/what-we-treat/prescription-drug-addiction', description: 'Safe tapering & recovery' },
-      { label: 'Xanax Addiction', href: '/what-we-treat/xanax-addiction', description: 'Benzodiazepine recovery support' },
+      { label: 'Alcohol Addiction', href: '/what-we-treat/alcohol-addiction', group: 'Addiction' },
+      { label: 'Benzodiazepine Addiction', href: '/what-we-treat/benzodiazepine', group: 'Addiction' },
+      { label: 'Cocaine Addiction', href: '/what-we-treat/cocaine', group: 'Addiction' },
+      { label: 'Heroin Addiction', href: '/what-we-treat/heroin-addiction', group: 'Addiction' },
+      { label: 'Inhalant Addiction', href: '/what-we-treat/inhalants', group: 'Addiction' },
+      { label: 'Ketamine Addiction', href: '/what-we-treat/ketamine', group: 'Addiction' },
+      { label: 'Marijuana Addiction', href: '/what-we-treat/marijuana-addiction', group: 'Addiction' },
+      { label: 'Methamphetamine Addiction', href: '/what-we-treat/methamphetamine', group: 'Addiction' },
+      { label: 'Opioid Addiction', href: '/what-we-treat/opioid-addiction', group: 'Addiction' },
+      { label: 'Prescription Drug Addiction', href: '/what-we-treat/prescription-drug-addiction', group: 'Addiction' },
+      { label: 'Dual-Diagnosis', href: '/what-we-treat/dual-diagnosis', group: 'Dual Diagnosis', description: 'Addiction & mental health together' },
     ],
   },
   { label: 'Tour', href: '/tour' },
@@ -400,9 +405,51 @@ const navLinks: NavItem[] = [
 
 /* ── Mega Menu Dropdown ────────────────────────────────────────────── */
 
-function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React.RefObject<HTMLElement | null> }) {
+function MegaMenuDropdown({
+  item,
+  transparent,
+  onOpenChange,
+}: {
+  item: NavItem;
+  transparent: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const [open, setOpen] = useState(false);
   const timeout = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
+
+  // Panel theme flips with the nav — translucent dark when the nav is
+  // sitting on the dark hero, solid white after you scroll past it.
+  // Every color below reads from this object so we don't have to fan
+  // the `transparent` flag out through the JSX.
+  const theme = transparent
+    ? {
+        bg: 'rgba(20,10,6,0.72)',
+        backdropFilter: 'blur(20px) saturate(140%)',
+        text: '#ffffff',
+        muted: 'rgba(255,255,255,0.7)',
+        mutedHeavy: 'rgba(255,255,255,0.55)',
+        cardBg: 'rgba(255,255,255,0.06)',
+        cardBgHover: 'rgba(255,255,255,0.14)',
+        iconBg: 'rgba(255,255,255,0.15)',
+        border: 'rgba(255,255,255,0.12)',
+        featuredBorder: 'rgba(255,255,255,0.18)',
+      }
+    : {
+        bg: '#ffffff',
+        backdropFilter: 'none',
+        text: '#1a1a1a',
+        muted: 'rgba(26,26,26,0.5)',
+        mutedHeavy: 'rgba(26,26,26,0.45)',
+        cardBg: 'rgba(188,107,74,0.05)',
+        cardBgHover: 'rgba(188,107,74,0.1)',
+        iconBg: 'rgba(188,107,74,0.12)',
+        border: 'rgba(0,0,0,0.06)',
+        featuredBorder: 'rgba(188,107,74,0.18)',
+      };
 
   const enter = () => {
     if (timeout.current) clearTimeout(timeout.current);
@@ -410,15 +457,23 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
   };
 
   const leave = () => {
-    timeout.current = setTimeout(() => setOpen(false), 200);
+    if (timeout.current) clearTimeout(timeout.current);
+    // Generous grace period so the cursor can travel from the trigger
+    // button down across the (small) gap into the panel without the menu
+    // collapsing mid-traverse.
+    timeout.current = setTimeout(() => setOpen(false), 320);
   };
 
-  // Close on scroll so users can scroll past the menu
+  // Close when navigating with the keyboard (Esc) — but stay open on scroll.
+  // Closing on every scroll tick was too aggressive: trackpad nudges would
+  // collapse the panel before the user could click anything.
   useEffect(() => {
     if (!open) return;
-    const handleScroll = () => setOpen(false);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
   }, [open]);
 
   useEffect(() => {
@@ -435,7 +490,9 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
     <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
       <button
         type="button"
-        className="flex items-center gap-0.5 px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
+        className={`flex items-center gap-0.5 px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase transition-colors whitespace-nowrap ${
+          transparent ? 'text-white/90 hover:text-white' : 'text-foreground/80 hover:text-primary'
+        }`}
         style={{ fontFamily: 'var(--font-body)' }}
         aria-expanded={open}
       >
@@ -445,6 +502,18 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
         </svg>
       </button>
 
+      {/* Invisible "hover bridge" between the trigger button and the panel
+          so the cursor can travel down across the gap without the wrapper's
+          mouseleave firing and starting the close timer. */}
+      {open && (
+        <div
+          className="absolute left-0 right-0 h-3 top-full"
+          aria-hidden="true"
+          onMouseEnter={enter}
+          onMouseLeave={leave}
+        />
+      )}
+
       {/* Backdrop — only covers area below header, allows scroll-through */}
       {open && (
         <div
@@ -452,7 +521,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
           onClick={() => setOpen(false)}
           aria-hidden="true"
           style={{
-            top: (headerRef.current?.getBoundingClientRect().bottom ?? 68) + 'px',
+            top: 'var(--site-header-height, 68px)',
             backgroundColor: 'rgba(0,0,0,0.15)',
             transition: 'background-color 0.3s ease',
           }}
@@ -463,7 +532,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         style={{
-          top: (headerRef.current?.getBoundingClientRect().bottom ?? 68) + 'px',
+          top: 'var(--site-header-height, 68px)',
         }}
         onMouseEnter={enter}
         onMouseLeave={leave}
@@ -484,22 +553,24 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
           style={{
             transform: open ? 'translateY(0)' : 'translateY(-8px)',
             opacity: open ? 1 : 0,
-            backgroundColor: '#ffffff',
+            backgroundColor: theme.bg,
+            backdropFilter: theme.backdropFilter,
+            WebkitBackdropFilter: theme.backdropFilter,
           }}
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Header */}
-            <div className="py-4 border-b" style={{ borderColor: 'rgba(0,0,0,0.06)' }}>
+            <div className="py-4 border-b" style={{ borderColor: theme.border }}>
               <Link
                 href={item.href}
                 className="text-xs font-bold hover:text-primary transition-colors tracking-wider uppercase"
-                style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}
+                style={{ fontFamily: 'var(--font-body)', color: theme.text }}
                 onClick={() => setOpen(false)}
               >
                 {item.label} Overview →
               </Link>
               {item.description && (
-                <p className="text-[11px] mt-0.5" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{item.description}</p>
+                <p className="text-[11px] mt-0.5" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{item.description}</p>
               )}
             </div>
 
@@ -520,18 +591,18 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                           opacity: open ? 1 : 0,
                           transform: open ? 'translateY(0)' : 'translateY(8px)',
                           transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
-                          backgroundColor: 'rgba(160,82,45,0.03)',
+                          backgroundColor: theme.cardBg,
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.07)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.03)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.cardBg; }}
                       >
                         {Icon && (
-                          <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-3" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-3" style={{ backgroundColor: theme.iconBg }}>
                             <Icon className="w-6 h-6 text-primary" />
                           </div>
                         )}
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                        {sub.description && <p className="text-[11px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.45)' }}>{sub.description}</p>}
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
+                        {sub.description && <p className="text-[11px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.mutedHeavy }}>{sub.description}</p>}
                       </Link>
                     );
                   })}
@@ -551,17 +622,17 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                         href={sub.href}
                         className="group row-span-2 flex flex-col items-center justify-center text-center px-6 py-8 rounded-xl border border-primary/15 transition-all duration-200 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5"
                         onClick={() => setOpen(false)}
-                        style={{ backgroundColor: 'rgba(160,82,45,0.05)', opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: 'all 0.3s ease-out 0.05s' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.1)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.05)'; }}
+                        style={{ backgroundColor: theme.cardBg, opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: 'all 0.3s ease-out 0.05s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.cardBg; }}
                       >
                         {Icon && (
-                          <div className="w-14 h-14 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-4" style={{ backgroundColor: 'rgba(160,82,45,0.12)' }}>
+                          <div className="w-14 h-14 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-4" style={{ backgroundColor: theme.iconBg }}>
                             <Icon className="w-7 h-7 text-primary" />
                           </div>
                         )}
-                        <div className="text-[15px] font-bold group-hover:text-primary transition-colors mb-1" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                        {sub.description && <p className="text-[11px] leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
+                        <div className="text-[15px] font-bold group-hover:text-primary transition-colors mb-1" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
+                        {sub.description && <p className="text-[11px] leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{sub.description}</p>}
                       </Link>
                     );
                   })}
@@ -575,17 +646,17 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                         className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
                         onClick={() => setOpen(false)}
                         style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + (idx + 1) * 0.03}s` }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
                         onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                       >
                         {Icon && (
-                          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: theme.iconBg }}>
                             <Icon className="w-4 h-4 text-primary" />
                           </div>
                         )}
                         <div>
-                          <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                          {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
+                          <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
+                          {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{sub.description}</p>}
                         </div>
                       </Link>
                     );
@@ -593,64 +664,168 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                 </div>
               </div>
             ) : item.label === 'What We Treat' ? (
-              /* What We Treat: 4 columns of 2 rows */
-              <div className="grid grid-cols-4 gap-x-4 gap-y-1 py-5">
-                {item.dropdown?.map((sub, idx) => {
-                  const Icon = iconMap[sub.label];
-                  return (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
-                      onClick={() => setOpen(false)}
-                      style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s` }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                    >
-                      {Icon && (
-                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
-                          <Icon className="w-4 h-4 text-primary" />
-                        </div>
-                      )}
-                      <div>
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                        {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
+              /* What We Treat: grouped list columns — a heading per
+                 category (Addiction, Dual Diagnosis) with the
+                 corresponding items stacked as a simple list of links,
+                 matching the recovery-site reference layout. */
+              (() => {
+                const groups: { name: string; items: DropdownItem[] }[] = [];
+                for (const sub of item.dropdown ?? []) {
+                  const name = sub.group ?? 'More';
+                  let g = groups.find((x) => x.name === name);
+                  if (!g) {
+                    g = { name, items: [] };
+                    groups.push(g);
+                  }
+                  g.items.push(sub);
+                }
+                return (
+                  <div
+                    className="grid gap-x-10 gap-y-4 py-6"
+                    style={{ gridTemplateColumns: `repeat(${groups.length}, minmax(0, 1fr))` }}
+                  >
+                    {groups.map((group, gIdx) => (
+                      <div
+                        key={group.name}
+                        style={{
+                          opacity: open ? 1 : 0,
+                          transform: open ? 'translateY(0)' : 'translateY(8px)',
+                          transition: `all 0.3s ease-out ${0.08 + gIdx * 0.05}s`,
+                        }}
+                      >
+                        <p
+                          className="text-[10px] font-semibold tracking-[0.22em] uppercase mb-3 pb-2"
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            color: 'var(--color-accent)',
+                            borderBottom: `1px solid ${theme.border}`,
+                          }}
+                        >
+                          {group.name}
+                        </p>
+                        <ul
+                          className={`${group.items.length > 5 ? 'grid grid-cols-2 gap-x-6' : 'flex flex-col'}`}
+                        >
+                          {group.items.map((sub, idx) => (
+                            <li
+                              key={sub.href}
+                              style={{
+                                opacity: open ? 1 : 0,
+                                transform: open ? 'translateY(0)' : 'translateY(6px)',
+                                transition: `all 0.3s ease-out ${0.12 + gIdx * 0.05 + idx * 0.03}s`,
+                              }}
+                            >
+                              <Link
+                                href={sub.href}
+                                onClick={() => setOpen(false)}
+                                className="block px-2 py-2 rounded-md text-[13px] transition-colors hover:text-primary"
+                                style={{ fontFamily: 'var(--font-body)', color: theme.text }}
+                              >
+                                {sub.label}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    </Link>
-                  );
-                })}
-              </div>
+                    ))}
+                  </div>
+                );
+              })()
             ) : item.label === 'Our Program' ? (
-              /* Our Program: icon cards like Treatment but in a 4-col grid with wrapping */
-              <div className="grid grid-cols-4 gap-4 py-6">
-                {item.dropdown?.map((sub, idx) => {
-                  const Icon = iconMap[sub.label];
-                  return (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className="group flex flex-col items-center text-center px-4 py-4 rounded-xl border border-transparent transition-all duration-200 hover:border-primary/20 hover:shadow-md hover:-translate-y-0.5"
-                      onClick={() => setOpen(false)}
-                      style={{
-                        opacity: open ? 1 : 0,
-                        transform: open ? 'translateY(0)' : 'translateY(8px)',
-                        transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
-                        backgroundColor: 'rgba(160,82,45,0.03)',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.07)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.03)'; }}
-                    >
-                      {Icon && (
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
-                          <Icon className="w-5 h-5 text-primary" />
-                        </div>
-                      )}
-                      <div className="text-[12px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                      {sub.description && <p className="text-[10px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.45)' }}>{sub.description}</p>}
-                    </Link>
-                  );
-                })}
-              </div>
+              /* Our Program: three grouped columns — Levels of Care,
+                 Clinical Approach, Whole Person — with icon + copy
+                 tiles inside each column. Uses each item's `group`
+                 field. Avoids the orphan-row problem the old 4-col
+                 grid left when the total item count wasn't divisible
+                 by four. */
+              (() => {
+                const groups: { name: string; items: DropdownItem[] }[] = [];
+                for (const sub of item.dropdown ?? []) {
+                  const name = sub.group ?? 'More';
+                  let g = groups.find((x) => x.name === name);
+                  if (!g) {
+                    g = { name, items: [] };
+                    groups.push(g);
+                  }
+                  g.items.push(sub);
+                }
+                return (
+                  <div
+                    className="grid gap-x-6 gap-y-4 py-6"
+                    style={{ gridTemplateColumns: `repeat(${groups.length}, minmax(0, 1fr))` }}
+                  >
+                    {groups.map((group, gIdx) => (
+                      <div
+                        key={group.name}
+                        style={{
+                          opacity: open ? 1 : 0,
+                          transform: open ? 'translateY(0)' : 'translateY(8px)',
+                          transition: `all 0.3s ease-out ${0.08 + gIdx * 0.05}s`,
+                        }}
+                      >
+                        <p
+                          className="text-[10px] font-semibold tracking-[0.22em] uppercase mb-3 pb-2"
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            color: 'var(--color-accent)',
+                            borderBottom: `1px solid ${theme.border}`,
+                          }}
+                        >
+                          {group.name}
+                        </p>
+                        <ul className="flex flex-col gap-1">
+                          {group.items.map((sub, idx) => {
+                            const Icon = iconMap[sub.label];
+                            return (
+                              <li
+                                key={sub.href}
+                                style={{
+                                  opacity: open ? 1 : 0,
+                                  transform: open ? 'translateY(0)' : 'translateY(6px)',
+                                  transition: `all 0.3s ease-out ${0.12 + gIdx * 0.05 + idx * 0.03}s`,
+                                }}
+                              >
+                                <Link
+                                  href={sub.href}
+                                  onClick={() => setOpen(false)}
+                                  className="group flex items-start gap-2.5 px-2 py-2 rounded-lg transition-colors"
+                                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                >
+                                  {Icon && (
+                                    <div
+                                      className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5"
+                                      style={{ backgroundColor: theme.iconBg }}
+                                    >
+                                      <Icon className="w-3.5 h-3.5 text-primary" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <div
+                                      className="text-[13px] font-semibold group-hover:text-primary transition-colors"
+                                      style={{ fontFamily: 'var(--font-body)', color: theme.text }}
+                                    >
+                                      {sub.label}
+                                    </div>
+                                    {sub.description && (
+                                      <p
+                                        className="text-[11px] mt-0.5 leading-snug"
+                                        style={{ fontFamily: 'var(--font-body)', color: theme.muted }}
+                                      >
+                                        {sub.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </Link>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
             ) : (
               /* Fallback: standard grid */
               <div className={`grid gap-x-4 gap-y-0.5 py-4`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
@@ -663,17 +838,17 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
                       className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
                       onClick={() => setOpen(false)}
                       style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s` }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(160,82,45,0.06)'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
                       onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                     >
                       {Icon && (
-                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: 'rgba(160,82,45,0.1)' }}>
+                        <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: theme.iconBg }}>
                           <Icon className="w-4 h-4 text-primary" />
                         </div>
                       )}
                       <div>
-                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: '#1a1a1a' }}>{sub.label}</div>
-                        {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'rgba(26,26,26,0.5)' }}>{sub.description}</p>}
+                        <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
+                        {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{sub.description}</p>}
                       </div>
                     </Link>
                   );
@@ -682,7 +857,7 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
             )}
 
             {/* Footer CTA */}
-            <div className="py-3" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            <div className="py-3" style={{ borderTop: `1px solid ${theme.border}` }}>
               <a href="tel:+18669964308" className="flex items-center gap-2 text-[11px] text-primary font-semibold hover:text-primary-dark transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
                 <PhoneIcon className="w-3 h-3" />
                 Questions? Call (866) 996-4308
@@ -700,22 +875,77 @@ function MegaMenuDropdown({ item, headerRef }: { item: NavItem; headerRef: React
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+  // Track how many mega-menu panels are currently open — if any are, the
+  // Header drops its transparent treatment so the panel has a solid nav
+  // above it instead of floating over the dark hero video.
+  const [openDropdowns, setOpenDropdowns] = useState(0);
   const headerRef = useRef<HTMLElement>(null);
 
   const toggleMobileDropdown = (label: string) => {
     setMobileExpanded(mobileExpanded === label ? null : label);
   };
 
+  // Two things to track on scroll:
+  //   1. Whether the nav has left the hero — flips the color scheme from
+  //      white-over-dark (hero-backed) to the solid white bar.
+  //   2. The header's live bottom in viewport coordinates so the mega-menu
+  //      panels align just under the nav (the TopBar above is non-sticky,
+  //      so that bottom shifts as the page scrolls).
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const update = () => {
+      const bottom = el.getBoundingClientRect().bottom;
+      el.style.setProperty('--site-header-height', `${Math.max(bottom, 0)}px`);
+      // 80px threshold — enough distance that a light flick of the wheel
+      // doesn't flip the bar, but short enough that it's obvious the
+      // treatment changes once you start scrolling.
+      setScrolled(window.scrollY > 80);
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
+  // When the mobile drawer is open we always want the solid treatment so the
+  // menu items stay legible — otherwise the drawer renders over dark hero
+  // video and "text-white/90 over white drawer" becomes invisible.
+  //
+  // Mega-menu dropdowns used to flip the nav to solid when open; we now
+  // keep the nav transparent so the dropdown panel itself can render in a
+  // matching translucent dark treatment — the "nav is on top" aesthetic
+  // stays consistent rather than snapping to a different color scheme.
+  const transparent = !scrolled && !mobileMenuOpen;
+
   return (
-    <header ref={headerRef} className="bg-white sticky top-0 z-50 shadow-sm" role="banner">
-      <nav className="px-4 sm:px-6 xl:px-10" aria-label="Main navigation">
+    <header
+      ref={headerRef}
+      data-nav-transparent={transparent ? 'true' : 'false'}
+      className={`sticky top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-300 ${
+        transparent
+          ? 'bg-transparent shadow-none'
+          : 'bg-white shadow-sm'
+      }`}
+      role="banner"
+      style={{ ['--site-header-height' as string]: '68px' }}
+    >
+      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
         <div className="flex items-center h-16 lg:h-[68px]">
-          {/* Logo — compact */}
+          {/* Logo — compact. We have one color asset; over the dark hero
+              we invert it to pure white so the wordmark stays legible. */}
           <Link href="/" className="shrink-0 mr-2 xl:mr-6" aria-label="Seven Arrows Recovery - Home">
             <img
               src="/images/logo.png"
               alt="Seven Arrows Recovery"
-              className="h-11 lg:h-12 w-auto"
+              className="h-11 lg:h-12 w-auto transition-[filter] duration-300"
+              style={{
+                filter: transparent ? 'brightness(0) invert(1)' : 'none',
+              }}
             />
           </Link>
 
@@ -723,12 +953,21 @@ export default function Header() {
           <div className="hidden lg:flex items-center gap-0 xl:gap-1 ml-auto min-w-0">
             {navLinks.map((item) =>
               item.dropdown ? (
-                <MegaMenuDropdown key={item.href} item={item} headerRef={headerRef} />
+                <MegaMenuDropdown
+                  key={item.href}
+                  item={item}
+                  transparent={transparent}
+                  onOpenChange={(isOpen) =>
+                    setOpenDropdowns((n) => Math.max(0, n + (isOpen ? 1 : -1)))
+                  }
+                />
               ) : (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
+                  className={`px-1.5 xl:px-3 py-2 text-[10px] xl:text-xs font-semibold tracking-[0.06em] xl:tracking-[0.08em] uppercase transition-colors whitespace-nowrap ${
+                    transparent ? 'text-white/90 hover:text-white' : 'text-foreground/80 hover:text-primary'
+                  }`}
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {item.label}
@@ -737,25 +976,49 @@ export default function Header() {
             )}
           </div>
 
-          {/* Phone CTA — prominent with pulse */}
+          {/* Phone CTA — two-line, live-indicator dot, soft glow. */}
           <a
             href="tel:+18669964308"
-            className="hidden lg:inline-flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white px-3 xl:px-5 py-2 xl:py-2.5 rounded-full text-xs xl:text-sm font-bold tracking-wide transition-all whitespace-nowrap shrink-0 ml-2 xl:ml-4 relative"
-            style={{ fontFamily: 'var(--font-body)', boxShadow: '0 2px 12px rgba(160,82,45,0.35)' }}
-            aria-label="Call us at (866) 996-4308"
+            className="group hidden lg:inline-flex items-center gap-3 bg-primary hover:bg-primary-dark text-white pl-2.5 pr-4 xl:pl-3 xl:pr-5 py-1.5 xl:py-2 rounded-full transition-all whitespace-nowrap shrink-0 ml-2 xl:ml-4"
+            style={{
+              fontFamily: 'var(--font-body)',
+              boxShadow:
+                '0 12px 28px -10px rgba(107,42,20,0.55), inset 0 0 0 1px rgba(255,255,255,0.1)',
+            }}
+            aria-label="Call us 24/7 at (866) 996-4308"
           >
-            {/* Pulse ring */}
-            <span className="absolute inset-0 rounded-full animate-ping opacity-20 bg-primary" style={{ animationDuration: '2s' }} />
-            <span className="relative flex items-center gap-2">
-              <PhoneIcon className="w-4 h-4" />
-              (866) 996-4308
+            <span
+              className="relative inline-flex items-center justify-center w-8 h-8 rounded-full shrink-0"
+              style={{ backgroundColor: 'rgba(255,255,255,0.14)' }}
+            >
+              <PhoneIcon className="w-3.5 h-3.5 transition-transform group-hover:-rotate-12" />
+              {/* Availability dot — tiny pulse on a solid base */}
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#4ade80] ring-2 ring-primary group-hover:ring-primary-dark">
+                <span className="absolute inset-0 rounded-full bg-[#4ade80] animate-ping opacity-70" />
+              </span>
+            </span>
+            <span className="flex flex-col items-start leading-tight text-left">
+              <span
+                className="text-[9px] font-semibold tracking-[0.22em] uppercase text-white/75"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Available 24/7
+              </span>
+              <span
+                className="text-sm xl:text-[15px] font-bold tracking-wide"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                (866) 996-4308
+              </span>
             </span>
           </a>
 
           {/* Mobile menu button */}
           <button
             type="button"
-            className="lg:hidden p-2 text-foreground ml-auto"
+            className={`lg:hidden p-3 ml-auto -mr-1 transition-colors ${
+              transparent ? 'text-white' : 'text-foreground'
+            }`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
             aria-label="Toggle navigation menu"

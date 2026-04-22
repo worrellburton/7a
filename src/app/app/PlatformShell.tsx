@@ -395,6 +395,50 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 11.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V4.5A2.25 2.25 0 016 2.25h2.25m3.75 11.25v2.25m0 0l-3-3m3 3l3-3" />
     </svg>
   ),
+  '/app/document-manager': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.25 3.104c.251.023.501.05.75.082M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m5.394 13.94-1.425-1.425m-3.104-.196h.008v.008h-.008v-.008ZM8.25 21h7.5A2.25 2.25 0 0 0 18 18.75V9A2.25 2.25 0 0 0 15.75 6.75h-7.5A2.25 2.25 0 0 0 6 9v9.75A2.25 2.25 0 0 0 8.25 21Z" />
+      <path d="M9 12.75h6M9 15.75h4" />
+    </svg>
+  ),
+  '/app/images': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+    </svg>
+  ),
+  '/app/seo': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <path d="M8 11h6M11 8v6" />
+    </svg>
+  ),
+  '/app/geo': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
+    </svg>
+  ),
+  '/app/analytics': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18" />
+      <path d="M7 15l4-6 4 4 5-9" />
+    </svg>
+  ),
+  '/app/research': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3h4.875c.621 0 1.125-.504 1.125-1.125V11.25c0-1.243-1.007-2.25-2.25-2.25H8.25c-1.243 0-2.25 1.007-2.25 2.25v9a1.125 1.125 0 001.125 1.125z" />
+    </svg>
+  ),
+  '/app/video': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="14" height="12" rx="2" />
+      <path d="m22 8-6 4 6 4V8z" />
+    </svg>
+  ),
 };
 
 function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
@@ -410,7 +454,7 @@ function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
 export { pageIcons };
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, signInWithGoogle, signOut, session } = useAuth();
+  const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session } = useAuth();
   const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
@@ -476,12 +520,34 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     return () => { cancelled = true; };
   }, [session, user?.id]);
 
-  // Group visible nav pages: ungrouped first, then by department
+  // Group visible nav pages. Hierarchy, highest priority first:
+  //   1. `navGroup` — a purely code-side label like "Media" so product
+  //      areas can share a header without needing a fake department.
+  //   2. `departmentId` — existing dept-based grouping from the DB.
+  //   3. Ungrouped bucket at the very top of the sidebar.
   const visibleNavPages = navPages.filter(canSeePage);
-  const ungroupedPages = visibleNavPages.filter(p => !p.departmentId);
+  const ungroupedPages = visibleNavPages.filter((p) => !p.departmentId && !p.navGroup);
+
+  // Preserve first-seen order of navGroups so Media shows up in the same
+  // spot across renders regardless of React's map ordering.
+  const navGroupLabels: string[] = [];
+  const navGroupPages: Record<string, PageConfig[]> = {};
+  for (const p of visibleNavPages) {
+    if (!p.navGroup) continue;
+    if (!navGroupPages[p.navGroup]) {
+      navGroupLabels.push(p.navGroup);
+      navGroupPages[p.navGroup] = [];
+    }
+    navGroupPages[p.navGroup].push(p);
+  }
+  const navGroupGroups = navGroupLabels.map((label) => ({
+    label,
+    pages: navGroupPages[label],
+  }));
+
   const deptGroups: { dept: NavDepartment; pages: PageConfig[] }[] = [];
   for (const dept of navDepartments) {
-    const deptPages = visibleNavPages.filter(p => p.departmentId === dept.id);
+    const deptPages = visibleNavPages.filter((p) => !p.navGroup && p.departmentId === dept.id);
     if (deptPages.length > 0) {
       deptGroups.push({ dept, pages: deptPages });
     }
@@ -593,6 +659,42 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     );
   }
 
+  // Signed in but awaiting approval — block app access until a super admin
+  // approves the user from the Team page.
+  if (status === 'on_hold' || status === 'denied') {
+    const denied = status === 'denied';
+    return (
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <LoginBackground />
+        <div className="relative z-10 max-w-md w-full mx-4 text-center bg-white/90 backdrop-blur rounded-2xl border border-gray-100 shadow-xl p-8">
+          <img
+            src="/images/logo.png"
+            alt="Seven Arrows Recovery"
+            className="h-16 w-auto mx-auto mb-5"
+          />
+          <h1 className="text-lg font-semibold text-foreground mb-2">
+            {denied ? 'Access denied' : 'Waiting for approval'}
+          </h1>
+          <p className="text-sm text-foreground/60 mb-6" style={{ fontFamily: 'var(--font-body)' }}>
+            {denied
+              ? 'Your account was denied access. If you believe this was a mistake, please contact a Seven Arrows administrator.'
+              : 'Your email isn\u2019t on the Seven Arrows domain, so an administrator needs to approve your account before you can continue.'}
+          </p>
+          <p className="text-xs text-foreground/40 mb-6" style={{ fontFamily: 'var(--font-body)' }}>
+            Signed in as <span className="font-medium text-foreground/60">{user.email}</span>
+          </p>
+          <button
+            onClick={signOut}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-foreground text-white hover:bg-foreground/90 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Signed in — platform with sidebar
   return (
     <div className="flex min-h-screen app-shell relative">
@@ -618,6 +720,18 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 <Link
                   key={item.path}
                   href={item.path}
+                  onClick={(e) => {
+                    // If we're already on this pathname but with a query
+                    // string (e.g. /app/calls?tab=operators), Next.js's
+                    // default Link behavior can skip the navigation and
+                    // leave stale tab state behind. Force a clean replace
+                    // to the bare path so URL-derived state (tabs, etc.)
+                    // resets to the default.
+                    if (pathname === item.path) {
+                      e.preventDefault();
+                      router.replace(item.path, { scroll: false });
+                    }
+                  }}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out ${
                     isActive
                       ? 'bg-primary/10 text-primary'
@@ -633,6 +747,20 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             return (
               <>
                 {ungroupedPages.map(renderLink)}
+                {navGroupGroups.map(({ label, pages }) => {
+                  const hdrIdx = animIdx++;
+                  return (
+                    <div key={`nav-group-${label}`}>
+                      <p
+                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
+                        style={{ fontFamily: 'var(--font-body)', transitionDelay: `${hdrIdx * 50}ms` }}
+                      >
+                        {label}
+                      </p>
+                      {pages.map(renderLink)}
+                    </div>
+                  );
+                })}
                 {deptGroups.map(({ dept, pages }) => {
                   const hdrIdx = animIdx++;
                   return (
@@ -703,33 +831,47 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               </button>
             </div>
           )}
-          <button
-            onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-warm-bg transition-colors text-left"
-          >
-            {user.user_metadata?.avatar_url ? (
-              <img src={user.user_metadata.avatar_url} alt="" className="w-8 h-8 rounded-full" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
-                {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">
-                {user.user_metadata?.full_name || 'User'}
-              </p>
-              {latestSignedJd ? (
-                <p className="text-xs text-foreground/50 truncate" title={`Signed: ${latestSignedJd.title}`}>
-                  {latestSignedJd.title}
-                </p>
+          {/* Avatar → My Profile (primary). Name + chevron still toggles
+              the popup menu (admin pages, in-progress link, sign out)
+              so the power-user affordance is preserved. */}
+          <div className="w-full flex items-stretch gap-3 px-3 py-2.5 rounded-xl hover:bg-warm-bg transition-colors">
+            <Link
+              href="/app/profile"
+              aria-label="My Profile"
+              className="shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              title="My Profile"
+            >
+              {user.user_metadata?.avatar_url ? (
+                <img src={user.user_metadata.avatar_url} alt="" className="w-8 h-8 rounded-full" />
               ) : (
-                <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
+                  {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
+                </div>
               )}
-            </div>
-            <svg className="w-4 h-4 text-foreground/30 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-            </svg>
-          </button>
+            </Link>
+            <button
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              className="flex-1 min-w-0 flex items-center gap-3 text-left"
+              aria-label="Account menu"
+              aria-expanded={userMenuOpen}
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user.user_metadata?.full_name || 'User'}
+                </p>
+                {latestSignedJd ? (
+                  <p className="text-xs text-foreground/50 truncate" title={`Signed: ${latestSignedJd.title}`}>
+                    {latestSignedJd.title}
+                  </p>
+                ) : (
+                  <p className="text-xs text-foreground/40 truncate">{user.email}</p>
+                )}
+              </div>
+              <svg className="w-4 h-4 text-foreground/30 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+              </svg>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -805,6 +947,37 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     </Link>
                   );
                 })}
+                {navGroupGroups.map(({ label, pages }) => (
+                  <div key={`mobile-nav-group-${label}`}>
+                    <p
+                      className="px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {label}
+                    </p>
+                    {pages.map((item) => {
+                      const isActive = pathname === item.path;
+                      return (
+                        <Link
+                          key={item.path}
+                          href={item.path}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                          }`}
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                            {getPageIcon(item.path)}
+                          </span>
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ))}
                 {deptGroups.map(({ dept, pages }) => (
                   <div key={dept.id}>
                     <p

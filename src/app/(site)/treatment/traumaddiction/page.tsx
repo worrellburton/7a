@@ -48,6 +48,11 @@ export default function TraumAddictionPage() {
       <PageHero
         label="TraumAddiction®"
         title="Trauma & Addiction Are One Condition"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Treatment', href: '/treatment' },
+          { label: 'TraumAddiction' },
+        ]}
         description="TraumAddiction® is our integrated model for treating trauma and substance use together — not as separate conditions, but as deeply interconnected challenges that require a unified, salutogenic approach."
         image="/images/embrace-connection.jpg"
       />

@@ -52,8 +52,12 @@ export default function HomeHorsesRow() {
     })();
   }, [session]);
 
-  const active = useMemo(
-    () => horses.filter((h) => h.image_url && ((h.rideable || '').toLowerCase() !== 'no')),
+  // Show every horse on the roster. Previously this filtered on
+  // rideable !== 'no', which hid foals, retired horses, and any not
+  // currently rideable from the home strip — leaving the team looking
+  // smaller than it is.
+  const rideableCount = useMemo(
+    () => horses.filter((h) => (h.rideable || '').toLowerCase() !== 'no').length,
     [horses]
   );
 
@@ -62,7 +66,7 @@ export default function HomeHorsesRow() {
   const lastFeedFor = (horseId: string): FeedLog | null =>
     feeds.find((f) => f.horse_id === horseId) || null;
 
-  if (loading || active.length === 0) return null;
+  if (loading || horses.length === 0) return null;
 
   return (
     <div className="w-full max-w-4xl mx-auto flex flex-col gap-2 px-4 sm:px-6">
@@ -71,11 +75,12 @@ export default function HomeHorsesRow() {
           Horses on the team
         </p>
         <span className="text-[10px] text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-          {active.length} active
+          {horses.length} {horses.length === 1 ? 'horse' : 'horses'}
+          {rideableCount !== horses.length ? ` · ${rideableCount} rideable` : ''}
         </span>
       </div>
       <div className="flex items-center justify-center gap-3 flex-wrap">
-        {active.map((h) => {
+        {horses.map((h) => {
           const lastWeight = lastWeightFor(h.id);
           const lastFeed = lastFeedFor(h.id);
           return (

@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 
 import Hero from "@/components/Hero";
 import TrustBadges from "@/components/TrustBadges";
+import PlaceToHeal from "@/components/PlaceToHeal";
 import ProgramSection from "@/components/ProgramSection";
 import TreatmentServices from "@/components/TreatmentServices";
 import StatsSection from "@/components/StatsSection";
@@ -18,7 +19,7 @@ import CampusTour from "@/components/CampusTour";
 import SevenArrowsExperience from "@/components/SevenArrowsExperience";
 import Amenities from "@/components/Amenities";
 
-import TraumAddictionSection from "@/components/TraumAddictionSection";
+import DailyLifeSection from "@/components/DailyLifeSection";
 import AboutSection from "@/components/AboutSection";
 import FAQSection from "@/components/FAQSection";
 import GoogleReviews from "@/components/GoogleReviews";
@@ -196,11 +197,12 @@ export default function Home() {
       <Hero />
       <TrustBadges />
       <StatsSection />
+      <PlaceToHeal />
       <ProgramSection />
       <TreatmentServices />
       <CampusTour />
       <InsuranceCarousel />
-      <TraumAddictionSection />
+      <DailyLifeSection />
       <GoogleReviews />
       <SevenArrowsExperience />
       <Amenities />

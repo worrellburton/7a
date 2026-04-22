@@ -279,12 +279,19 @@ export default function PageContent() {
       <PageHero
         label="The Recovery Roadmap — Episode 1"
         title="When Drinking Stops Working: Recognizing the Signs of Addiction"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who We Are', href: '/who-we-are' },
+          { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
+          { label: 'When Drinking Stops Working' },
+        ]}
         description="A compassionate guide to understanding when substance use has crossed from choice to compulsion — and why reaching out is an act of courage, not weakness."
         image="/images/resident-reading-window.jpg"
+        width="narrow"
       />
 
       <article className="py-16 lg:py-24 bg-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
           {/* Body font for the article */}
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
@@ -383,7 +390,7 @@ export default function PageContent() {
                 <a href="tel:8669964308" className="btn-primary">
                   Call (866) 996-4308
                 </a>
-                <Link href="/who-we-are/blog" className="btn-outline">
+                <Link href="/who-we-are/recovery-roadmap" className="btn-outline">
                   View Full Series
                 </Link>
               </div>
@@ -394,31 +401,46 @@ export default function PageContent() {
               <p className="text-sm text-foreground/50 mb-4">
                 <strong className="text-foreground/70">This is Episode 1 of &ldquo;The Recovery Roadmap&rdquo;</strong> — an investigative series from Seven Arrows Recovery guiding you from recognition to lasting recovery.
               </p>
-              <div
-                className="flex items-center gap-3 p-4 rounded-xl border border-primary/20"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(160,82,45,0.05), rgba(160,82,45,0.02))',
-                  animation: 'glowPulse 2.5s ease-in-out infinite',
-                }}
+              <Link
+                href="/who-we-are/blog/what-happens-first-week"
+                className="group flex items-stretch gap-4 p-4 rounded-xl border border-primary/25 hover:border-primary/55 hover:shadow-lg transition-all duration-300 bg-white"
               >
-                <div
-                  className="shrink-0 text-primary text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-primary/30"
-                  style={{ fontFamily: 'var(--font-body)', animation: 'glowPulse 2.5s ease-in-out infinite' }}
-                >
-                  Coming Soon
+                <div className="shrink-0 w-24 sm:w-32 aspect-[4/3] rounded-lg overflow-hidden bg-warm-bg">
+                  <img
+                    src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=600&q=80"
+                    alt="What Happens When You Walk Through the Door — Your First Week in Treatment"
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    loading="lazy"
+                  />
                 </div>
-                <p className="text-sm text-foreground/40">
-                  <strong className="text-foreground/50">Episode 2:</strong> What Happens When You Walk Through the Door — Your First Week in Treatment
-                </p>
-              </div>
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <span
+                    className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-primary mb-1.5"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Episode 2
+                    <span className="w-5 h-px bg-primary/40" aria-hidden="true" />
+                    Next up
+                  </span>
+                  <p
+                    className="text-foreground font-bold leading-snug group-hover:text-primary transition-colors"
+                    style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem' }}
+                  >
+                    What Happens When You Walk Through the Door — Your First Week in Treatment
+                  </p>
+                  <span
+                    className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary/80 group-hover:text-primary transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Read Episode 2
+                    <svg className="w-3 h-3 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                      <polyline points="12 5 19 12 12 19" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                </div>
+              </Link>
             </div>
-
-            <style>{`
-              @keyframes glowPulse {
-                0%, 100% { opacity: 0.7; box-shadow: 0 0 10px rgba(160,82,45,0.08); }
-                50% { opacity: 1; box-shadow: 0 0 20px rgba(160,82,45,0.18); }
-              }
-            `}</style>
 
           </div>
         </div>
