@@ -7,6 +7,7 @@ import SubstancesAndConditions from '@/components/who-we-help/SubstancesAndCondi
 import FitCriteria from '@/components/who-we-help/FitCriteria';
 import ComplexityWeHold from '@/components/who-we-help/ComplexityWeHold';
 import GeographicReach from '@/components/who-we-help/GeographicReach';
+import FamilyAndLovedOnes from '@/components/who-we-help/FamilyAndLovedOnes';
 
 export const metadata: Metadata = {
   title: 'Who We Help | Arizona Drug & Alcohol Rehab for Adults 18+',
@@ -106,6 +107,7 @@ export default function WhoWeHelpPage() {
       <FitCriteria />
       <ComplexityWeHold />
       <GeographicReach />
+      <FamilyAndLovedOnes />
     </main>
   );
 }
