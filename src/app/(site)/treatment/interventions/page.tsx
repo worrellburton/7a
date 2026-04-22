@@ -1,179 +1,69 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Interventions | Seven Arrows Recovery',
+  title: 'Professional Interventions | Seven Arrows Recovery',
   description:
-    'Professional intervention services at Seven Arrows Recovery help families guide loved ones toward treatment through a compassionate, structured process with expert support.',
+    'Structured, compassionate professional interventions — planned with your family, held by a trained specialist, and followed by immediate admission to Seven Arrows Recovery in Arizona.',
 };
 
-import PageHero from "@/components/PageHero";
-import Link from 'next/link';
+import PageHero from '@/components/PageHero';
+import TheTippingPoint from '@/components/interventions/TheTippingPoint';
+import WithoutGuidance from '@/components/interventions/WithoutGuidance';
+import WhenToIntervene from '@/components/interventions/WhenToIntervene';
+import TheProcess from '@/components/interventions/TheProcess';
+import ModelsCompared from '@/components/interventions/ModelsCompared';
+import DayOfIntervention from '@/components/interventions/DayOfIntervention';
+import SuccessFactors from '@/components/interventions/SuccessFactors';
+import AfterTheYes from '@/components/interventions/AfterTheYes';
+import FamilyVoices from '@/components/interventions/FamilyVoices';
+import InterventionsCTA from '@/components/interventions/InterventionsCTA';
 
 export default function InterventionsPage() {
   return (
-    <>
+    <main>
+      {/* Phase 1 — shared video-backdrop hero. */}
       <PageHero
-        label="Treatment Programs"
-        title="Interventions"
+        label="Professional Interventions"
+        title="When the conversation can't wait any longer."
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Treatment', href: '/treatment' },
           { label: 'Interventions' },
         ]}
-        description="When someone you love is struggling with addiction and is not yet ready to seek help, a professional intervention can be the turning point. Our intervention specialists guide families through a compassionate, structured process that opens the door to treatment."
-        image="/images/group-therapy-room.jpg"
+        description="A professional intervention is a carefully planned, compassionate interruption of a pattern that will not interrupt itself. We help families prepare, hold the room on the day, and move directly into treatment the moment your loved one says yes."
       />
 
-      {/* Overview */}
-      <section className="py-20 bg-warm-bg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="section-label mb-4">Professional Guidance</p>
-          <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
-            Expert Intervention Services
-          </h2>
-          <div className="grid lg:grid-cols-2 gap-12 items-start">
-            <div>
-              <p
-                className="text-foreground/70 leading-relaxed text-lg mb-6"
-                style={{ fontFamily: "var(--font-body)" }}
-              >
-                An intervention is a carefully planned conversation in which
-                family members, friends, and a trained professional come together
-                to help a person recognize the impact of their addiction and
-                accept treatment. Without professional guidance, these
-                conversations can escalate or stall. Our intervention specialists
-                bring structure, expertise, and empathy to ensure the best
-                possible outcome.
-              </p>
-              <p
-                className="text-foreground/70 leading-relaxed text-lg"
-                style={{ fontFamily: "var(--font-body)" }}
-              >
-                At Seven Arrows Recovery, we work closely with families before,
-                during, and after the intervention. We help you prepare
-                emotionally, set healthy boundaries, and create a clear plan so
-                that when your loved one says yes, the path to treatment is
-                already in place.
-              </p>
-            </div>
-            <div className="bg-warm-card rounded-2xl p-8">
-              <h3 className="text-xl font-bold text-foreground mb-6">
-                Our Intervention Approach
-              </h3>
-              <ul className="space-y-4">
-                {[
-                  "Certified, experienced intervention professionals",
-                  "Family education and preparation sessions",
-                  "Compassionate, non-confrontational methodology",
-                  "Customized intervention plans for each situation",
-                  "Coordination of travel and treatment logistics",
-                  "Post-intervention family support and guidance",
-                  "Immediate transition into treatment upon acceptance",
-                ].map((item) => (
-                  <li
-                    key={item}
-                    className="flex items-start gap-3 text-foreground/70"
-                    style={{ fontFamily: "var(--font-body)" }}
-                  >
-                    <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Phase 2 — Tipping-point curve, animated SVG. */}
+      <TheTippingPoint />
 
-      {/* The Guided Process */}
-      <section className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="section-label mb-4">The Guided Process</p>
-          <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
-            How a Professional Intervention Works
-          </h2>
-          <p
-            className="text-foreground/70 leading-relaxed max-w-3xl text-lg mb-12"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            A successful intervention is the result of thoughtful preparation.
-            Here is how we walk families through each stage of the process.
-          </p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              {
-                step: "01",
-                title: "Initial Consultation",
-                description:
-                  "We speak privately with the family to understand the situation, assess the severity of addiction, and determine the best approach.",
-              },
-              {
-                step: "02",
-                title: "Family Preparation",
-                description:
-                  "Family members participate in coaching sessions where they learn how to express concern, set boundaries, and stay focused on love and support.",
-              },
-              {
-                step: "03",
-                title: "The Intervention",
-                description:
-                  "Our specialist facilitates the conversation, guiding each participant and keeping the discussion productive, compassionate, and on track.",
-              },
-              {
-                step: "04",
-                title: "Transition to Care",
-                description:
-                  "When your loved one agrees to treatment, we coordinate immediate travel and admission so there is no delay between acceptance and action.",
-              },
-            ].map((item) => (
-              <div key={item.step} className="bg-warm-card rounded-2xl p-6">
-                <span className="text-primary font-bold text-3xl mb-4 block">
-                  {item.step}
-                </span>
-                <h3 className="text-lg font-bold text-foreground mb-3">
-                  {item.title}
-                </h3>
-                <p
-                  className="text-foreground/70 leading-relaxed text-sm"
-                  style={{ fontFamily: "var(--font-body)" }}
-                >
-                  {item.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Phase 3 — Without guidance vs. with a specialist: two-panel
+          contrasting SVG diagrams. */}
+      <WithoutGuidance />
 
-      {/* Family Involvement */}
-      <section className="py-20 bg-warm-bg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="section-label mb-4">Family Involvement</p>
-          <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
-            Healing Is a Family Journey
-          </h2>
-          <p
-            className="text-foreground/70 leading-relaxed max-w-3xl text-lg mb-6"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            Addiction affects every member of the family. Our intervention
-            process does more than help your loved one enter treatment; it
-            begins the healing process for the entire family system. We provide
-            education about addiction as a disease, guidance on establishing
-            healthy boundaries, and resources to support your own well-being
-            throughout your loved one&apos;s recovery journey.
-          </p>
-          <p
-            className="text-foreground/70 leading-relaxed max-w-3xl text-lg"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            After the intervention, we remain available to the family for
-            ongoing support, answering questions and connecting you with
-            resources that can help you navigate the weeks and months ahead.
-          </p>
-        </div>
-      </section>
+      {/* Phase 4 — Eight signals it's time to call. */}
+      <WhenToIntervene />
 
-    </>
+      {/* Phase 5 — Five-step process with horizontal progress rail. */}
+      <TheProcess />
+
+      {/* Phase 6 — Four intervention models compared (Johnson, ARISE,
+          Systemic, Seven Arrows Hybrid). */}
+      <ModelsCompared />
+
+      {/* Phase 7 — Day-of timeline with animated clock arc. */}
+      <DayOfIntervention />
+
+      {/* Phase 8 — Factors that predict a "yes" — animated bars. */}
+      <SuccessFactors />
+
+      {/* Phase 9 — What happens in the 72 hours after yes. */}
+      <AfterTheYes />
+
+      {/* Phase 9b — Family voices overlaid on portrait tiles. */}
+      <FamilyVoices />
+
+      {/* Phase 10 — Final CTA with aurora backdrop. */}
+      <InterventionsCTA />
+    </main>
   );
 }
