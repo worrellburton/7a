@@ -24,16 +24,46 @@ const conditions = [
       'Comprehensive alcohol addiction treatment including medically supervised detox, individual therapy, and relapse prevention planning.',
   },
   {
+    title: 'Benzodiazepine Addiction',
+    href: '/what-we-treat/benzodiazepine',
+    description:
+      'Safe, physician-supervised tapering off Xanax, Klonopin, Ativan, and Valium, paired with evidence-based anxiety care.',
+  },
+  {
+    title: 'Cocaine Addiction',
+    href: '/what-we-treat/cocaine',
+    description:
+      'Trauma-informed treatment for cocaine dependence — addressing the neurochemistry and the dysregulation driving it.',
+  },
+  {
     title: 'Heroin Addiction',
     href: '/what-we-treat/heroin-addiction',
     description:
       'Specialized heroin and opioid addiction treatment with medically supervised detox and evidence-based clinical care.',
   },
   {
+    title: 'Inhalant Addiction',
+    href: '/what-we-treat/inhalants',
+    description:
+      'Medical assessment, cognitive rehabilitation, and long-runway residential care for inhalant dependence.',
+  },
+  {
+    title: 'Ketamine Addiction',
+    href: '/what-we-treat/ketamine',
+    description:
+      'Residential care for problematic ketamine use — treating dissociation, trauma, and the pull to escape.',
+  },
+  {
     title: 'Marijuana Addiction',
     href: '/what-we-treat/marijuana-addiction',
     description:
       'Treatment for marijuana dependence addressing psychological reliance, withdrawal symptoms, and underlying emotional issues.',
+  },
+  {
+    title: 'Methamphetamine Addiction',
+    href: '/what-we-treat/methamphetamine',
+    description:
+      'Long-runway residential recovery designed around the actual dopamine-system healing timeline.',
   },
   {
     title: 'Opioid Addiction',
@@ -46,12 +76,6 @@ const conditions = [
     href: '/what-we-treat/prescription-drug-addiction',
     description:
       'Specialized treatment for addiction to benzodiazepines, stimulants, pain medications, and other prescription substances.',
-  },
-  {
-    title: 'Xanax Addiction',
-    href: '/what-we-treat/xanax-addiction',
-    description:
-      'Safe, medically supervised Xanax and benzodiazepine detox with individualized tapering protocols and therapeutic support.',
   },
 ];
 
