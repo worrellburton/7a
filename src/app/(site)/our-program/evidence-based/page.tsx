@@ -9,6 +9,8 @@ export const metadata: Metadata = {
 import EvidenceHero from '@/components/evidence-based/EvidenceHero';
 import FrameworkIntro from '@/components/evidence-based/FrameworkIntro';
 import RelationalInsight from '@/components/evidence-based/RelationalInsight';
+import RegulatedPresence from '@/components/evidence-based/RegulatedPresence';
+import PhaseFramework from '@/components/evidence-based/PhaseFramework';
 import Link from 'next/link';
 
 const modalities = [
@@ -51,7 +53,13 @@ export default function EvidenceBasedPage() {
       {/* Phase 3 — relational primacy pull-quote with interwoven arcs */}
       <RelationalInsight />
 
-      {/* Legacy introduction / modalities — phases 4-10 will replace
+      {/* Phase 4 — regulated presence as the miracle intervention */}
+      <RegulatedPresence />
+
+      {/* Phase 5 — the four-phase healing framework */}
+      <PhaseFramework />
+
+      {/* Legacy introduction / modalities — phases 6-10 will replace
           these in subsequent commits. */}
       <section className="py-16 lg:py-24 bg-warm-bg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
