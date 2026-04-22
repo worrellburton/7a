@@ -57,6 +57,22 @@ export async function getServerSupabase() {
   });
 }
 
+// Cookieless anon client — safe to use from statically-prerendered
+// routes (generateStaticParams) and public pages that read data
+// governed by an anon RLS policy. Unlike getServerSupabase(), this
+// does not touch `cookies()` and therefore does not force the route
+// to become dynamic at runtime.
+let cachedPublic: SupabaseClient | null = null;
+export function getPublicSupabase(): SupabaseClient {
+  if (cachedPublic) return cachedPublic;
+  const url = requireEnv(supabaseUrl, 'NEXT_PUBLIC_SUPABASE_URL');
+  const key = requireEnv(supabaseAnonKey, 'NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  cachedPublic = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return cachedPublic;
+}
+
 let cachedAdmin: SupabaseClient | null = null;
 export function getAdminSupabase(): SupabaseClient {
   if (cachedAdmin) return cachedAdmin;

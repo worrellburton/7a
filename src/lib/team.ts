@@ -1,4 +1,4 @@
-import { getServerSupabase } from '@/lib/supabase-server';
+import { getPublicSupabase } from '@/lib/supabase-server';
 
 export interface PublicTeamMember {
   id: string;
@@ -95,7 +95,7 @@ type TeamRow = {
 };
 
 export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {  try {
-    const supabase = await getServerSupabase();
+    const supabase = getPublicSupabase();
 
     // Try the full select first (includes favorite_quote +
     // favorite_seven_arrows). If that errors — most likely because the
