@@ -10,7 +10,7 @@ const services = [
   {
     title: 'Residential Inpatient',
     href: '/treatment/residential-inpatient',
-    image: '/images/bedroom-shared.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776855988197-mah7icy291-twin-beds-southwest-guest-room.jpg',
     description: '30–90 day residential programs',
   },
   {

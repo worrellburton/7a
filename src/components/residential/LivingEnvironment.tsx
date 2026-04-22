@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 
 const tiles = [
   {
-    image: '/images/bedroom-shared.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776855988197-mah7icy291-twin-beds-southwest-guest-room.jpg',
     eyebrow: 'Residences',
     title: 'Home-like shared rooms',
     body: 'Comfortable, considered, and designed to feel nothing like a clinic. Small-census ranch living with real linens, real windows, real rest.',

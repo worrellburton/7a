@@ -29,7 +29,7 @@ const zones: Zone[] = [
     title: 'Residences',
     eyebrow: 'Where you live',
     body: 'Home-like shared rooms, real linens, windows that open onto the desert. Nothing institutional.',
-    image: '/images/bedroom-shared.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776855988197-mah7icy291-twin-beds-southwest-guest-room.jpg',
   },
   {
     title: 'Common spaces',

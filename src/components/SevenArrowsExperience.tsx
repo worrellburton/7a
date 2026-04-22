@@ -45,7 +45,7 @@ export default function SevenArrowsExperience() {
           ))}
         </div>
 
-        <Link href="/our-program" className="btn-outline">
+        <Link href="/who-we-are/why-us" className="btn-outline">
           Our Seven Core Principles
         </Link>
       </div>
