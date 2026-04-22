@@ -2,19 +2,21 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { siteVideos } from '@/lib/siteVideos';
 
 /**
  * Phase 3 — "A Healing Sanctuary in the Sonoran Desert".
  *
- * Full-bleed photo (facility-exterior-mountains) with a slow parallax
- * drift. Left-aligned glass card over the photo holds the narrative,
- * with inline metro links (Phoenix / Tucson / Scottsdale / Mesa) that
- * preserve the deep-link SEO we had in the prose version.
+ * Full-bleed looping video backdrop (sourced from our Supabase
+ * site-videos catalog) layered under a plum scrim. Left-aligned card
+ * holds the narrative, with inline metro links (Phoenix / Tucson /
+ * Scottsdale / Mesa) preserving the deep-link SEO of the prose
+ * version.
  */
 export default function SonoranSanctuary() {
   const ref = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [visible, setVisible] = useState(false);
-  const [parY, setParY] = useState(0);
 
   useEffect(() => {
     const el = ref.current;
@@ -34,19 +36,15 @@ export default function SonoranSanctuary() {
     return () => io.disconnect();
   }, []);
 
+  // The `autoPlay` attribute alone can be unreliable on inner pages
+  // after Next 16 hydration, so we explicitly call play() once the
+  // component mounts. Muted + playsInline so mobile browsers don't
+  // block autoplay.
   useEffect(() => {
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) return;
-    const onScroll = () => {
-      const el = ref.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const progress = (window.innerHeight / 2 - rect.top) / window.innerHeight;
-      setParY(progress * 32);
-    };
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    const el = videoRef.current;
+    if (!el) return;
+    el.muted = true;
+    el.play().catch(() => {});
   }, []);
 
   return (
@@ -55,15 +53,17 @@ export default function SonoranSanctuary() {
       className="relative py-28 lg:py-36 text-white overflow-hidden"
       aria-labelledby="sanctuary-heading"
     >
-      <div
+      <video
+        ref={videoRef}
+        src={siteVideos.sonoranRanch}
+        poster="/images/facility-exterior-mountains.jpg"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
         aria-hidden="true"
-        className="absolute inset-0 will-change-transform"
-        style={{
-          backgroundImage: "url('/images/facility-exterior-mountains.jpg')",
-          backgroundSize: 'cover',
-          backgroundPosition: `center calc(50% + ${parY}px)`,
-          transition: 'background-position 0.1s linear',
-        }}
+        className="absolute inset-0 w-full h-full object-cover"
       />
       <div
         aria-hidden="true"

@@ -139,7 +139,7 @@ export default function PageHero({
       />
 
       <div
-        className={`relative z-10 ${width === 'narrow' ? 'max-w-3xl' : 'max-w-7xl'} mx-auto px-4 sm:px-6 lg:px-8`}
+        className={`relative z-10 ${width === 'narrow' ? 'max-w-[1000px]' : 'max-w-7xl'} mx-auto px-4 sm:px-6 lg:px-8`}
         style={{ paddingTop: 'calc(var(--site-header-height, 68px) + 2.5rem)' }}
       >
         <div className="pb-16 lg:pb-24 min-h-[380px] lg:min-h-[440px] flex flex-col justify-end">

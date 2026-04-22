@@ -151,23 +151,24 @@ export default function WhyDifference() {
                   lineHeight: 1.1,
                 }}
               >
-                Indigenous Healing Traditions
+                Holistic &amp; Indigenous Healing
               </h3>
               <p
                 className="text-white/85 leading-relaxed text-[15.5px] mb-5"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                Sweat lodge ceremonies, smudging rituals, talking circles, and land-based
-                therapies rooted in centuries of earth-based wisdom. These practices
-                complement clinical treatment and offer a spiritual dimension of healing
-                conventional programs rarely provide.
+                Breathwork, yoga, sound healing, and mindfulness alongside sweat lodge
+                ceremonies, smudging rituals, talking circles, and land-based therapies
+                rooted in centuries of earth-based wisdom. A full-spectrum holistic
+                practice that complements clinical treatment and offers a spiritual
+                dimension of healing conventional programs rarely provide.
               </p>
               <Link
-                href="/our-program/indigenous-approach"
+                href="/our-program/holistic-approaches"
                 className="inline-flex items-center gap-2 text-accent font-semibold border-b border-accent/60 hover:border-accent pb-1 tracking-[0.1em] uppercase text-[12px] transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                Learn about our Indigenous approach
+                Learn about our holistic approach
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <line x1="5" y1="12" x2="19" y2="12" />
                   <polyline points="12 5 19 12 12 19" strokeLinecap="round" strokeLinejoin="round" />

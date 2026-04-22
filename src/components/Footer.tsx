@@ -304,10 +304,16 @@ export default function Footer() {
             <div>
               <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 text-white/70">Quick Links</h3>
               <ul className="space-y-2.5" role="list">
-                {['Who We Are', 'Treatment', 'Our Program', 'Admissions'].map((item) => (
-                  <li key={item}>
-                    <Link href={`/${item.toLowerCase().replace(/\s+/g, '-')}`} className="text-white/40 text-xs hover:text-primary transition-colors">
-                      {item}
+                {[
+                  { label: 'Who We Are', href: '/who-we-are' },
+                  { label: 'Our Program', href: '/our-program' },
+                  { label: 'What We Treat', href: '/what-we-treat' },
+                  { label: 'Admissions', href: '/admissions' },
+                  { label: 'Areas We Serve', href: '/who-we-are/areas-we-serve' },
+                ].map((item) => (
+                  <li key={item.href}>
+                    <Link href={item.href} className="text-white/40 text-xs hover:text-primary transition-colors">
+                      {item.label}
                     </Link>
                   </li>
                 ))}
