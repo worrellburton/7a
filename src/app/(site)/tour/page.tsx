@@ -14,7 +14,8 @@ import TourGallery from '@/components/tour/TourGallery';
 import DayOnTheRanch from '@/components/tour/DayOnTheRanch';
 import TheHorses from '@/components/tour/TheHorses';
 import NightSky from '@/components/tour/NightSky';
-import TourVoices from '@/components/tour/TourVoices';
+import LiveReviewsBand from '@/components/LiveReviewsBand';
+import { tourVoicesFallback } from '@/components/tour/TourVoices';
 import TourCTA from '@/components/tour/TourCTA';
 
 export default function TourPage() {
@@ -44,8 +45,16 @@ export default function TourPage() {
       {/* Phase 8 — night sky feature */}
       <NightSky />
 
-      {/* Phase 9 — alumni voices about the setting */}
-      <TourVoices />
+      {/* Phase 9 — alumni voices. Pulled live from our public Google
+           listing via the Places API (server-cached 1hr). Falls back
+           to editorial stubs if the API is unavailable. */}
+      <LiveReviewsBand
+        eyebrow="What the Place Did For Them"
+        headlineLead="Alumni don't talk about"
+        headlineAccent="the program"
+        headlineTail={'. They talk about the land.'}
+        fallback={tourVoicesFallback}
+      />
 
       {/* Phase 10 — closing cinematic CTA */}
       <TourCTA />
