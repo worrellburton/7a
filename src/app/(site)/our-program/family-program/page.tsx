@@ -7,6 +7,7 @@ import FamilyComponents from '@/components/family/FamilyComponents';
 import FamilyPersonas from '@/components/family/FamilyPersonas';
 import WhileTheyAreIn from '@/components/family/WhileTheyAreIn';
 import BoundariesVsEnabling from '@/components/family/BoundariesVsEnabling';
+import FamilyWeekend from '@/components/family/FamilyWeekend';
 
 export const metadata: Metadata = {
   title: 'Family Program | Seven Arrows Recovery',
@@ -90,6 +91,7 @@ export default function FamilyProgramPage() {
       <FamilyPersonas />
       <WhileTheyAreIn />
       <BoundariesVsEnabling />
+      <FamilyWeekend />
     </main>
   );
 }
