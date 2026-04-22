@@ -62,7 +62,12 @@ export async function GET(req: Request) {
       }),
     ]);
 
-    const totals = summary.totals?.[0]?.metricValues ?? [];
+    // GA4 runReport without dimensions returns the aggregate in rows[0];
+    // totals[] is only populated when dimensions + metricAggregations are set.
+    const totals =
+      summary.rows?.[0]?.metricValues ??
+      summary.totals?.[0]?.metricValues ??
+      [];
     const summaryOut = {
       sessions: Number(totals[0]?.value ?? 0),
       activeUsers: Number(totals[1]?.value ?? 0),
