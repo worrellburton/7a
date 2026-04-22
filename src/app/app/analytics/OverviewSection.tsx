@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DeltaPill } from './DeltaPill';
 import { Sparkline } from './Sparkline';
 import { TrendChart } from './TrendChart';
+import { InsightsSection } from './InsightsSection';
 import {
   type DateRange,
   fmtDuration,
@@ -191,6 +192,8 @@ export function OverviewSection({ range }: { range: DateRange }) {
           }))}
         />
       </div>
+
+      <InsightsSection range={range} compact />
 
       {ga4?.fetched_at ? (
         <p className="mt-4 text-xs text-foreground/40">

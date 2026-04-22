@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { RangeSelector } from './RangeSelector';
-import { SectionNav, SECTIONS, type AnalyticsSection } from './SectionNav';
+import { SectionNav, type AnalyticsSection } from './SectionNav';
 import { OverviewSection } from './OverviewSection';
 import { AcquisitionSection } from './AcquisitionSection';
 import { EngagementSection } from './EngagementSection';
@@ -12,6 +12,7 @@ import { ConversionsSection } from './ConversionsSection';
 import { AudienceSection } from './AudienceSection';
 import { RealtimeSection } from './RealtimeSection';
 import { CompareSection } from './CompareSection';
+import { InsightsSection } from './InsightsSection';
 import { type DateRange, rangeForPreset } from './shared';
 
 export default function AnalyticsContent() {
@@ -43,32 +44,7 @@ export default function AnalyticsContent() {
       {section === 'audience' && <AudienceSection range={range} />}
       {section === 'realtime' && <RealtimeSection />}
       {section === 'compare' && <CompareSection range={range} />}
-      {section !== 'overview' &&
-        section !== 'acquisition' &&
-        section !== 'engagement' &&
-        section !== 'pages' &&
-        section !== 'seo' &&
-        section !== 'conversions' &&
-        section !== 'audience' &&
-        section !== 'realtime' &&
-        section !== 'compare' && <SectionStub section={section} />}
-    </div>
-  );
-}
-
-function SectionStub({ section }: { section: AnalyticsSection }) {
-  const meta = useMemo(() => SECTIONS.find((s) => s.key === section), [section]);
-  return (
-    <div className="rounded-2xl border border-dashed border-black/10 bg-white/50 p-10 text-center">
-      <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-foreground/40 mb-2">
-        Coming next
-      </p>
-      <h2 className="text-xl font-bold text-foreground mb-1">{meta?.label}</h2>
-      <p className="text-sm text-foreground/60 max-w-md mx-auto">
-        {meta?.hint}. This section lands in a following phase — the range
-        selector and navigation above are already wired, so it&apos;ll light up
-        with live data as each phase ships.
-      </p>
+      {section === 'insights' && <InsightsSection range={range} />}
     </div>
   );
 }
