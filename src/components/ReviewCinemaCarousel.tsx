@@ -49,12 +49,14 @@ function clipQuote(text: string): { display: string; clipped: boolean } {
 
 // Length-scaled font size — short cinematic punchlines get the big
 // poster treatment; long reviews step down so the slide composes
-// cleanly without overflowing.
+// cleanly without overflowing. Display-font editorial feel now; pushed
+// one notch larger across the board since the surrounding frame is
+// cinematic rather than a card.
 function quoteSizeClass(len: number): string {
-  if (len <= 110) return 'text-2xl sm:text-3xl lg:text-4xl';
-  if (len <= 200) return 'text-xl sm:text-2xl lg:text-3xl';
-  if (len <= 280) return 'text-lg sm:text-xl lg:text-2xl';
-  return 'text-base sm:text-lg lg:text-xl';
+  if (len <= 110) return 'text-3xl sm:text-4xl lg:text-5xl';
+  if (len <= 200) return 'text-2xl sm:text-3xl lg:text-4xl';
+  if (len <= 280) return 'text-xl sm:text-2xl lg:text-3xl';
+  return 'text-lg sm:text-xl lg:text-2xl';
 }
 
 function GoogleIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -263,10 +265,16 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
               }}
             />
 
-            {/* Quote overlay */}
+            {/* Quote overlay — editorial treatment: display-font italic
+                quote framed by two oversized decorative quote glyphs
+                (large display-font marks in the warm accent color,
+                pushed to quarter-opacity so they feel etched on the
+                frame rather than printed on it). A thin accent hairline
+                separates the quote from the author block so the
+                composition reads like a pull-quote on a poster. */}
             <div className="relative z-10 h-full flex items-center justify-center px-6 sm:px-12 lg:px-24 py-10">
               <div
-                className="max-w-2xl text-center text-white"
+                className="relative w-full max-w-3xl text-center text-white"
                 style={{
                   transform: isActive ? 'translateY(0)' : 'translateY(12px)',
                   opacity: isActive ? 1 : 0,
@@ -274,61 +282,87 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
                     'opacity 700ms ease 120ms, transform 700ms cubic-bezier(0.22,1,0.36,1) 120ms',
                 }}
               >
-                <div className="flex justify-center mb-5">
-                  <Stars rating={slide.review.rating} />
+                {/* Oversized decorative opening quote — positioned
+                    behind-left of the text in the accent warm-orange.
+                    Hidden on small screens so the layout doesn't get
+                    cramped on phones. */}
+                <span
+                  aria-hidden="true"
+                  className="hidden sm:block absolute -top-12 -left-4 lg:-left-10 select-none leading-none text-[var(--color-accent,#d88966)]/30"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'clamp(6rem, 11vw, 11rem)',
+                  }}
+                >
+                  &ldquo;
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="hidden sm:block absolute -bottom-20 -right-4 lg:-right-10 select-none leading-none text-[var(--color-accent,#d88966)]/30"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'clamp(6rem, 11vw, 11rem)',
+                  }}
+                >
+                  &rdquo;
+                </span>
+
+                <div className="relative">
+                  <div className="flex justify-center mb-6">
+                    <Stars rating={slide.review.rating} />
+                  </div>
+
+                  {(() => {
+                    const { display, clipped } = clipQuote(slide.review.text);
+                    return (
+                      <div
+                        className="reveal-mask"
+                        style={{
+                          animation: isActive
+                            ? 'reveal-sweep 7000ms cubic-bezier(0.22,1,0.36,1) forwards'
+                            : 'none',
+                        }}
+                      >
+                        <blockquote
+                          className={`${quoteSizeClass(display.length)} leading-[1.15] tracking-tight font-normal italic text-white`}
+                          style={{
+                            fontFamily: 'var(--font-display)',
+                            textShadow: '0 2px 24px rgba(0,0,0,0.55)',
+                          }}
+                        >
+                          {display}
+                        </blockquote>
+                        {clipped && (
+                          <a
+                            href="https://maps.google.com/?cid=4853411833030648789"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-4 text-xs text-white/55 hover:text-white/90 underline decoration-white/30 hover:decoration-white/60 transition-colors tracking-wider"
+                            style={{ fontFamily: 'var(--font-body)' }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Read full review on Google
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                <svg
-                  className="mx-auto mb-3 w-8 h-8 text-white/40"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
+                {/* Accent hairline between quote and author — warm
+                    gradient that fades into nothing on both ends so it
+                    reads as "pulled from a longer piece" rather than a
+                    box edge. */}
+                <div
                   aria-hidden="true"
-                >
-                  <path d="M7.17 6A5.17 5.17 0 002 11.17V18h6v-6.83H4.83A2.34 2.34 0 017.17 9V6zm10 0A5.17 5.17 0 0012 11.17V18h6v-6.83h-3.17A2.34 2.34 0 0117.17 9V6z" />
-                </svg>
+                  className="mx-auto my-8 h-px w-24"
+                  style={{
+                    background:
+                      'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(216,137,102,0.85) 50%, rgba(255,255,255,0) 100%)',
+                  }}
+                />
 
-                {(() => {
-                  const { display, clipped } = clipQuote(slide.review.text);
-                  // Diagonal mask sweep — the quote is invisible at first
-                  // and a soft transparent-to-opaque gradient is dragged
-                  // across it (top-left → bottom-right) to gradually
-                  // reveal the words. The mask only animates when the
-                  // slide is the active one so non-active slides don't
-                  // burn paint frames in the background.
-                  return (
-                    <div
-                      className="reveal-mask"
-                      style={{
-                        // Custom prop drives the mask-position animation
-                        // declared in the global keyframes block below.
-                        animation: isActive
-                          ? 'reveal-sweep 7000ms cubic-bezier(0.22,1,0.36,1) forwards'
-                          : 'none',
-                      }}
-                    >
-                      <p
-                        className={`${quoteSizeClass(display.length)} leading-snug font-light text-white/95`}
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        {display}
-                      </p>
-                      {clipped && (
-                        <a
-                          href="https://maps.google.com/?cid=4853411833030648789"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 mt-3 text-xs text-white/50 hover:text-white/80 underline decoration-white/30 hover:decoration-white/60 transition-colors"
-                          style={{ fontFamily: 'var(--font-body)' }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Read full review on Google
-                        </a>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                <div className="mt-7 flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-2">
                   {/* Reviewer avatar — Places photo if available, otherwise
                       a brand-color initials disc. Small Google ribbon at
                       the bottom-right matches the in-card review style. */}
@@ -339,10 +373,10 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
                         src={slide.review.photoUrl}
                         alt=""
                         referrerPolicy="no-referrer"
-                        className="w-14 h-14 rounded-full object-cover border-2 border-white/30 shadow-lg"
+                        className="w-14 h-14 rounded-full object-cover border-2 border-white/40 shadow-lg"
                       />
                     ) : (
-                      <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center text-white text-xl font-bold border-2 border-white/30 shadow-lg">
+                      <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center text-white text-xl font-bold border-2 border-white/40 shadow-lg">
                         {(slide.review.name || '?').trim().charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -353,18 +387,19 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
                     )}
                   </div>
                   <p
-                    className="text-2xl sm:text-3xl font-bold tracking-tight text-white"
-                    style={{ fontFamily: 'var(--font-sans)' }}
+                    className="text-xl sm:text-2xl font-bold tracking-tight text-white"
+                    style={{ fontFamily: 'var(--font-display)' }}
                   >
                     {slide.review.name}
                   </p>
-                  <div className="flex items-center gap-2 text-white/60 text-xs sm:text-sm">
-                    <span style={{ fontFamily: 'var(--font-body)' }}>
-                      {slide.review.source === 'curated'
-                        ? slide.review.date || 'Verified alum review'
-                        : `Verified Google review · ${slide.review.date}`}
-                    </span>
-                  </div>
+                  <p
+                    className="text-[10px] sm:text-[11px] tracking-[0.24em] uppercase font-semibold text-white/55"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {slide.review.source === 'curated'
+                      ? slide.review.date || 'Verified alum review'
+                      : `Verified Google review · ${slide.review.date}`}
+                  </p>
                 </div>
               </div>
             </div>
