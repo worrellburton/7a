@@ -1,78 +1,117 @@
 import type { Metadata } from 'next';
 
+import FAQHero from '@/components/faqs/FAQHero';
+import FAQCategoryNav from '@/components/faqs/FAQCategoryNav';
+import FAQCategorySection from '@/components/faqs/FAQCategorySection';
+import FAQIntake from '@/components/faqs/FAQIntake';
+import FAQCTA from '@/components/faqs/FAQCTA';
+import { faqCategories, allFaqs } from '@/components/faqs/faqData';
+
 export const metadata: Metadata = {
-  title: 'FAQs',
+  title: 'FAQs | Arizona Drug & Alcohol Rehab — Seven Arrows Recovery',
   description:
-    'Find answers to frequently asked questions about Seven Arrows Recovery, including insurance, treatment length, what to bring, family involvement, and the admissions process.',
+    'Answers to the most common questions about Seven Arrows Recovery: admissions, insurance (Aetna, BCBS, Cigna, UnitedHealthcare, Humana, TRICARE), detox, treatment length, family involvement, dual diagnosis, aftercare, and privacy.',
+  keywords:
+    'rehab FAQ Arizona, drug rehab questions, alcohol rehab insurance, TRICARE rehab, dual diagnosis FAQ, residential treatment FAQ, medical detox FAQ, MAT rehab, family visitation rehab, HIPAA 42 CFR Part 2, JCAHO rehab, LegitScript rehab, Arizona rehab admissions',
+  alternates: {
+    canonical: 'https://sevenarrowsrecovery.com/who-we-are/faqs',
+  },
+  openGraph: {
+    type: 'article',
+    url: 'https://sevenarrowsrecovery.com/who-we-are/faqs',
+    title: 'FAQs | Seven Arrows Recovery',
+    description:
+      'Direct answers to common rehab questions — admissions, insurance, detox, treatment length, family, dual diagnosis, aftercare, and privacy.',
+    images: [
+      {
+        url: '/images/common-area-living-room.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Common area at Seven Arrows Recovery in Cochise County, Arizona',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'FAQs | Seven Arrows Recovery',
+    description:
+      'Direct answers to common rehab questions about admissions, insurance, detox, clinical approach, family, aftercare, and privacy.',
+  },
 };
 
-import PageHero from '@/components/PageHero';
-import Link from 'next/link';
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecovery.com' },
+    { '@type': 'ListItem', position: 2, name: 'Who We Are', item: 'https://sevenarrowsrecovery.com/who-we-are' },
+    {
+      '@type': 'ListItem',
+      position: 3,
+      name: 'FAQs',
+      item: 'https://sevenarrowsrecovery.com/who-we-are/faqs',
+    },
+  ],
+};
 
-import FAQAccordion from '@/components/FAQAccordion';
+const faqPageSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: allFaqs.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
+};
+
+const medicalWebPageSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'MedicalWebPage',
+  name: 'FAQs — Seven Arrows Recovery',
+  url: 'https://sevenarrowsrecovery.com/who-we-are/faqs',
+  description:
+    'Frequently asked questions about admissions, insurance, detox, clinical care, family involvement, aftercare, and privacy at Seven Arrows Recovery, a residential drug and alcohol rehab in Arizona.',
+  inLanguage: 'en-US',
+  isPartOf: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
+  about: [
+    { '@type': 'MedicalBusiness', '@id': 'https://sevenarrowsrecovery.com/#organization' },
+    { '@type': 'MedicalCondition', name: 'Substance Use Disorder' },
+    { '@type': 'MedicalCondition', name: 'Dual Diagnosis' },
+    { '@type': 'MedicalProcedure', name: 'Medical Detoxification' },
+    { '@type': 'MedicalProcedure', name: 'Medication-Assisted Treatment' },
+    { '@type': 'MedicalTherapy', name: 'Residential Addiction Treatment' },
+  ],
+  mainContentOfPage: { '@type': 'WebPageElement', cssSelector: 'main' },
+  lastReviewed: '2026-04-22',
+  reviewedBy: {
+    '@type': 'Organization',
+    '@id': 'https://sevenarrowsrecovery.com/#organization',
+    name: 'Seven Arrows Recovery clinical team',
+  },
+};
 
 export default function FAQsPage() {
   return (
-    <>
-      <PageHero
-        label="Frequently Asked Questions"
-        title="FAQs"
-        breadcrumbs={[
-          { label: 'Home', href: '/' },
-          { label: 'Who We Are', href: '/who-we-are' },
-          { label: 'FAQs' },
-        ]}
-        description="We understand that choosing a treatment center comes with many questions. Here are answers to the ones we hear most often. If you do not see your question below, please reach out directly."
-        image="/images/common-area-living-room.jpg"
+    <main>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-
-      {/* FAQ List */}
-      <section className="py-16 lg:py-24 bg-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <FAQAccordion />
-        </div>
-      </section>
-
-      {/* Still Have Questions */}
-      <section className="py-16 lg:py-24 bg-warm-bg">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="section-label mb-4">Still Have Questions?</p>
-          <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
-            We Are Here to Help
-          </h2>
-          <p
-            className="text-foreground/70 text-lg leading-relaxed mb-8"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Our admissions team is available around the clock to answer your questions with
-            compassion and confidentiality. No question is too small, and there is no obligation.
-          </p>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-16 lg:py-24 bg-dark-section text-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold mb-6">
-            Ready to Learn More?
-          </h2>
-          <p
-            className="text-white/80 text-lg leading-relaxed mb-8 max-w-2xl mx-auto"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Our admissions counselors can walk you through the process, verify your insurance, and
-            answer any remaining questions you may have.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="tel:8669964308" className="btn-primary">
-              Call (866) 996-4308
-            </a>
-            <Link href="/contact" className="btn-outline border-white text-white hover:bg-white hover:text-foreground">
-              Contact Us Online
-            </Link>
-          </div>
-        </div>
-      </section>
-    </>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPageSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
+      />
+      <FAQHero />
+      <FAQCategoryNav />
+      {faqCategories.map((c) => (
+        <FAQCategorySection key={c.id} category={c} />
+      ))}
+      <FAQIntake />
+      <FAQCTA />
+    </main>
   );
 }
