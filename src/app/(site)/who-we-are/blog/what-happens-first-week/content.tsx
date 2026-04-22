@@ -405,8 +405,8 @@ export default function PageContent() {
           {/* Image break */}
           <div className="my-12 rounded-2xl overflow-hidden aspect-[16/7]">
             <img
-              src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=1200&q=80"
-              alt="Calm healthcare environment"
+              src="/images/group-gathering-pavilion.jpg"
+              alt="Residents and clinicians gathered at the Seven Arrows pavilion."
               className="w-full h-full object-cover"
               loading="lazy"
             />
