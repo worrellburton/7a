@@ -23,6 +23,7 @@ import DailyLifeSection from "@/components/DailyLifeSection";
 import AboutSection from "@/components/AboutSection";
 import FAQSection from "@/components/FAQSection";
 import GoogleReviews from "@/components/GoogleReviews";
+import BusinessListingCard from "@/components/BusinessListingCard";
 import StickyMobileCTA from "@/components/StickyMobileCTA";
 import BlogPreview from "@/components/BlogPreview";
 
@@ -204,6 +205,7 @@ export default function Home() {
       <InsuranceCarousel />
       <DailyLifeSection />
       <GoogleReviews />
+      <BusinessListingCard />
       <SevenArrowsExperience />
       <Amenities />
       <InsuranceVerification />
