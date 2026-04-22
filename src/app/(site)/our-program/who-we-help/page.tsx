@@ -8,6 +8,8 @@ import FitCriteria from '@/components/who-we-help/FitCriteria';
 import ComplexityWeHold from '@/components/who-we-help/ComplexityWeHold';
 import GeographicReach from '@/components/who-we-help/GeographicReach';
 import FamilyAndLovedOnes from '@/components/who-we-help/FamilyAndLovedOnes';
+import WhoFAQ from '@/components/who-we-help/WhoFAQ';
+import { whoFaqs } from '@/components/who-we-help/whoFaqs';
 
 export const metadata: Metadata = {
   title: 'Who We Help | Arizona Drug & Alcohol Rehab for Adults 18+',
@@ -56,6 +58,16 @@ const breadcrumbSchema = {
   ],
 };
 
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: whoFaqs.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
+};
+
 const medicalWebPageSchema = {
   '@context': 'https://schema.org',
   '@type': 'MedicalWebPage',
@@ -100,6 +112,10 @@ export default function WhoWeHelpPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       <WhoHero />
       <AtAGlance />
       <Populations />
@@ -108,6 +124,7 @@ export default function WhoWeHelpPage() {
       <ComplexityWeHold />
       <GeographicReach />
       <FamilyAndLovedOnes />
+      <WhoFAQ />
     </main>
   );
 }
