@@ -4,6 +4,7 @@ import CareersHero from '@/components/careers/CareersHero';
 import CareersAtAGlance from '@/components/careers/CareersAtAGlance';
 import WhyWorkHere from '@/components/careers/WhyWorkHere';
 import Benefits from '@/components/careers/Benefits';
+import OpenPositions from '@/components/careers/OpenPositions';
 
 export const metadata: Metadata = {
   title: 'Careers | Arizona Addiction Treatment Jobs — Seven Arrows Recovery',
@@ -58,6 +59,7 @@ export default function CareersPage() {
       <CareersAtAGlance />
       <WhyWorkHere />
       <Benefits />
+      <OpenPositions />
     </main>
   );
 }
