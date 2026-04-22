@@ -1,13 +1,78 @@
 import type { Metadata } from 'next';
 
+import AdmissionsHero from '@/components/admissions/AdmissionsHero';
+
 export const metadata: Metadata = {
-  title: 'Admissions | Seven Arrows Recovery',
+  title: 'Admissions | Arizona Drug & Alcohol Rehab — Seven Arrows Recovery',
   description:
-    'Begin your recovery journey at Seven Arrows Recovery. Our streamlined admissions process includes insurance verification, a brief phone assessment, and transportation coordination — most clients arrive within 24-48 hours.',
+    'Start residential addiction treatment at Seven Arrows Recovery. Free 24/7 insurance verification (Aetna, BCBS, Cigna, UnitedHealthcare, Humana, TRICARE), phone assessment, travel coordination. Most clients arrive within 24–48 hours. Call (866) 996-4308.',
+  keywords:
+    'rehab admissions Arizona, drug rehab insurance verification, fast rehab admission, 24-hour rehab admissions, residential treatment Arizona, TRICARE rehab admission, what to bring to rehab, airport pickup rehab Arizona, sober transport, intervention support',
+  alternates: {
+    canonical: 'https://sevenarrowsrecovery.com/admissions',
+  },
+  openGraph: {
+    type: 'article',
+    url: 'https://sevenarrowsrecovery.com/admissions',
+    title: 'Admissions | Seven Arrows Recovery',
+    description:
+      'Start with a phone call. Free insurance verification, phone assessment, and travel coordination — most clients arrive within 24 to 48 hours.',
+    images: [
+      {
+        url: '/images/embrace-connection.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Arriving at Seven Arrows Recovery in Cochise County, Arizona',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Admissions | Seven Arrows Recovery',
+    description:
+      'Residential addiction treatment in Arizona. Free insurance verification, phone assessment, and travel coordination within 24–48 hours.',
+  },
 };
 
-import PageContent from './content';
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecovery.com' },
+    { '@type': 'ListItem', position: 2, name: 'Admissions', item: 'https://sevenarrowsrecovery.com/admissions' },
+  ],
+};
 
-export default function Page() {
-  return <PageContent />;
+const medicalWebPageSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'MedicalWebPage',
+  name: 'Admissions — Seven Arrows Recovery',
+  url: 'https://sevenarrowsrecovery.com/admissions',
+  description:
+    'How to begin residential addiction treatment at Seven Arrows Recovery: insurance verification, phone assessment, travel coordination, and what to bring.',
+  inLanguage: 'en-US',
+  isPartOf: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
+  about: [
+    { '@type': 'MedicalBusiness', '@id': 'https://sevenarrowsrecovery.com/#organization' },
+    { '@type': 'MedicalTherapy', name: 'Residential Addiction Treatment' },
+    { '@type': 'MedicalProcedure', name: 'Medical Detoxification' },
+  ],
+  mainContentOfPage: { '@type': 'WebPageElement', cssSelector: 'main' },
+  lastReviewed: '2026-04-22',
+};
+
+export default function AdmissionsPage() {
+  return (
+    <main>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
+      />
+      <AdmissionsHero />
+    </main>
+  );
 }
