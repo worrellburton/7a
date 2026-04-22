@@ -32,7 +32,7 @@ export default function TopBar() {
           href="/app"
           className="font-semibold tracking-widest text-xs hover:opacity-80 transition-opacity uppercase"
         >
-          Patient Portal
+          Sign In
         </Link>
       </div>
     </div>
