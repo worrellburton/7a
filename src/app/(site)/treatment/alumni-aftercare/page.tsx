@@ -7,6 +7,7 @@ import AftercarePlan from '@/components/alumni/AftercarePlan';
 import AlumniCommunity from '@/components/alumni/AlumniCommunity';
 import RelapseToolkit from '@/components/alumni/RelapseToolkit';
 import StepDown from '@/components/alumni/StepDown';
+import Milestones from '@/components/alumni/Milestones';
 
 export const metadata: Metadata = {
   title: 'Alumni & Aftercare | Seven Arrows Recovery',
@@ -92,6 +93,7 @@ export default function AlumniAftercarePage() {
       <AlumniCommunity />
       <RelapseToolkit />
       <StepDown />
+      <Milestones />
     </main>
   );
 }
