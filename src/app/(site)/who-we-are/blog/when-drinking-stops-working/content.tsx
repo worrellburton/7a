@@ -287,6 +287,7 @@ export default function PageContent() {
         ]}
         description="A compassionate guide to understanding when substance use has crossed from choice to compulsion — and why reaching out is an act of courage, not weakness."
         image="/images/resident-reading-window.jpg"
+        width="narrow"
       />
 
       <article className="py-16 lg:py-24 bg-white">
