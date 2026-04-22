@@ -22,6 +22,11 @@ interface ScoreRow {
   sentiment: string | null;
   transcript: string | null;
   scored_at: string;
+  // `model` encodes which path produced this score — `gemini-audio:...`
+  // used the actual recording, `claude:...` is metadata-only. The UI
+  // badges the metadata-only case so the user knows why the summary is
+  // cautious rather than assuming it was computed from audio.
+  model?: string | null;
 }
 
 interface Call {
@@ -2260,6 +2265,21 @@ function CallDetail({
       {/* AI analysis body */}
       {score ? (
         <div className="pt-4 space-y-4">
+          {/* Badge metadata-only analyses so it's obvious why the
+              summary is more cautious — saves the "this looks wrong"
+              moment when Claude can't actually hear the call. */}
+          {typeof score.model === 'string' && score.model.startsWith('claude:') && (
+            <div className="rounded-xl bg-amber-50/70 border border-amber-200 px-3 py-2 flex items-start gap-2">
+              <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <p className="text-[11px] text-amber-900/90 leading-snug">
+                Metadata-only analysis — no audio was available. Summary and
+                coaching are limited to what the call record tells us. Click
+                Re-analyze once the recording is attached.
+              </p>
+            </div>
+          )}
           {score.summary && (
             <div>
               <p className="text-[11px] font-bold text-foreground/50 uppercase tracking-wider mb-1">Summary</p>

@@ -62,8 +62,23 @@ function fmtDuration(seconds: number | null | undefined): string {
 
 function buildPrompt(call: CallInput, hasAudio: boolean): string {
   const audioInstruction = hasAudio
-    ? `\n\nYou have the actual audio recording of this call. Listen to the entire conversation. Identify what was actually said, the caller's tone, the operator's tone, specific phrases used, hesitations, interruptions, whether key information (program details, insurance, location) was conveyed, and how the call ended. Quote specific lines from the audio when relevant. The audio is the source of truth — the metadata below is just context.`
-    : '';
+    ? `\n\nYou have the actual audio recording of this call. Listen to the entire conversation. Identify what was actually said, the caller's tone, the operator's tone, specific phrases used, hesitations, interruptions, whether key information (program details, insurance, location) was conveyed, and how the call ended. Quote specific lines from the audio when relevant. The audio is the source of truth — the metadata below is just context.
+
+CONSISTENCY CHECK — very important:
+- If what you hear in the audio clearly contradicts the metadata (a different caller name is stated aloud, the location mentioned is different, the conversation topic has nothing to do with the tracking label, the duration you hear is vastly different from the metadata duration), treat this as a likely cross-wired recording. Say so explicitly in "summary" ("The audio appears not to match this call's metadata — …"), set sentiment to "unclear", and score conservatively. Do NOT fabricate a narrative that reconciles the two; prefer honesty about the mismatch.`
+    : `\n\nNO AUDIO is available for this call. You are working from metadata ONLY.
+
+Hard rules for this no-audio path:
+- You do NOT know what was said, who answered, the caller's tone, the operator's tone, whether the call was routed through an IVR, whether the caller was transferred, what specific topics were discussed, or how engaged the conversation was. Do not invent any of these details.
+- The only concrete facts you have are: direction, timestamp, caller number, city/state, marketing source, tracking label, total duration, talk time, ring time, status, tags, and any existing notes. Ground every statement in one of these.
+- If you state a fact, it must map to a metadata field above. If there is no metadata signal for a claim, do NOT make the claim.
+- Phrases like "suggesting a substantive discussion", "moderate-to-high engagement", "routed through the main IVR", "successfully handled the lead", "rapport was established", or anything describing what the operator did or said are FABRICATIONS when you have no audio. Do not write them.
+- The "summary" field must explicitly say "No audio available; analysis is metadata-only." as its first clause, so a reader can tell they are looking at a low-confidence summary.
+- Set sentiment to "unclear" unless a metadata field (e.g. voicemail=true, status=missed) directly implies otherwise.
+- Score more conservatively in this path — even obviously promising lead metadata still warrants only a mid-range (50-70) score with no-audio context, because we cannot verify how the call actually went.
+- "transcript" MUST be null.
+- "operator_name" MUST be null.
+- "operator_strengths" and "operator_weaknesses" should be empty arrays, or contain at most one item that is explicitly framed as a metadata-level observation (e.g. "Metadata only: 26s ring time is within acceptable range"). Do not invent behavioral observations about the operator.`;
 
   return `You are an expert call-center performance analyst for Seven Arrows Recovery, an addiction treatment facility. You are reviewing a single inbound or outbound phone call. Produce a realistic, grounded assessment.
 
