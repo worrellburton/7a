@@ -356,12 +356,12 @@ const navLinks: NavItem[] = [
     href: '/who-we-are',
     description: 'Learn about our mission, team, and commitment to recovery.',
     dropdown: [
-      { label: 'Meet Our Team', href: '/who-we-are/meet-our-team', description: 'Experienced clinicians & compassionate staff' },
-      { label: 'Why Us?', href: '/who-we-are/why-us', description: 'What sets Seven Arrows apart' },
-      { label: 'Our Philosophy', href: '/who-we-are/our-philosophy', description: 'TraumAddiction\u2122 & holistic healing' },
-      { label: 'FAQs', href: '/who-we-are/faqs', description: 'Common questions answered' },
-      { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap', description: 'Our investigative series on addiction & healing' },
-      { label: 'Careers', href: '/who-we-are/careers', description: 'Join our healing community' },
+      { label: 'Meet Our Team', href: '/who-we-are/meet-our-team', description: 'Experienced clinicians & compassionate staff', group: 'The Team' },
+      { label: 'Why Us?', href: '/who-we-are/why-us', description: 'What sets Seven Arrows apart', group: 'The Approach' },
+      { label: 'Our Philosophy', href: '/who-we-are/our-philosophy', description: 'TraumAddiction\u2122 & holistic healing', group: 'The Approach' },
+      { label: 'FAQs', href: '/who-we-are/faqs', description: 'Common questions answered', group: 'Resources' },
+      { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap', description: 'Our investigative series on addiction & healing', group: 'Resources' },
+      { label: 'Careers', href: '/who-we-are/careers', description: 'Join our healing community', group: 'The Team' },
     ],
   },
   {
@@ -610,59 +610,97 @@ function MegaMenuDropdown({
                 <p className="text-center text-[11px] tracking-[0.15em] uppercase pb-3" style={{ fontFamily: 'var(--font-body)', color: 'rgba(160,82,45,0.6)' }}>Here for every step of the way</p>
               </div>
             ) : item.label === 'Who We Are' ? (
-              /* Who We Are: Featured "Meet Our Team" + 3 cols of 2 for the rest */
-              <div className="py-5">
-                <div className="grid grid-cols-4 gap-4">
-                  {/* Featured: Meet Our Team */}
-                  {item.dropdown?.slice(0, 1).map((sub, idx) => {
-                    const Icon = iconMap[sub.label];
-                    return (
-                      <Link
-                        key={sub.href}
-                        href={sub.href}
-                        className="group row-span-2 flex flex-col items-center justify-center text-center px-6 py-8 rounded-xl border border-primary/15 transition-all duration-200 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5"
-                        onClick={() => setOpen(false)}
-                        style={{ backgroundColor: theme.cardBg, opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: 'all 0.3s ease-out 0.05s' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.cardBg; }}
+              /* Who We Are: grouped columns (The Team · The Approach ·
+                 Resources) using each item's `group` field. Mirrors
+                 the Our Program dropdown treatment. */
+              (() => {
+                const groups: { name: string; items: DropdownItem[] }[] = [];
+                for (const sub of item.dropdown ?? []) {
+                  const name = sub.group ?? 'More';
+                  let g = groups.find((x) => x.name === name);
+                  if (!g) {
+                    g = { name, items: [] };
+                    groups.push(g);
+                  }
+                  g.items.push(sub);
+                }
+                return (
+                  <div
+                    className="grid gap-x-6 gap-y-4 py-6"
+                    style={{ gridTemplateColumns: `repeat(${groups.length}, minmax(0, 1fr))` }}
+                  >
+                    {groups.map((group, gIdx) => (
+                      <div
+                        key={group.name}
+                        style={{
+                          opacity: open ? 1 : 0,
+                          transform: open ? 'translateY(0)' : 'translateY(8px)',
+                          transition: `all 0.3s ease-out ${0.08 + gIdx * 0.05}s`,
+                        }}
                       >
-                        {Icon && (
-                          <div className="w-14 h-14 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-4" style={{ backgroundColor: theme.iconBg }}>
-                            <Icon className="w-7 h-7 text-primary" />
-                          </div>
-                        )}
-                        <div className="text-[15px] font-bold group-hover:text-primary transition-colors mb-1" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
-                        {sub.description && <p className="text-[11px] leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{sub.description}</p>}
-                      </Link>
-                    );
-                  })}
-                  {/* Rest: 3 cols of 2 rows */}
-                  {item.dropdown?.slice(1).map((sub, idx) => {
-                    const Icon = iconMap[sub.label];
-                    return (
-                      <Link
-                        key={sub.href}
-                        href={sub.href}
-                        className="group flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all duration-200"
-                        onClick={() => setOpen(false)}
-                        style={{ opacity: open ? 1 : 0, transform: open ? 'translateY(0)' : 'translateY(8px)', transition: `all 0.3s ease-out ${0.05 + (idx + 1) * 0.03}s` }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                      >
-                        {Icon && (
-                          <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5" style={{ backgroundColor: theme.iconBg }}>
-                            <Icon className="w-4 h-4 text-primary" />
-                          </div>
-                        )}
-                        <div>
-                          <div className="text-[13px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
-                          {sub.description && <p className="text-[11px] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.muted }}>{sub.description}</p>}
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
+                        <p
+                          className="text-[10px] font-semibold tracking-[0.22em] uppercase mb-3 pb-2"
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            color: 'var(--color-accent)',
+                            borderBottom: `1px solid ${theme.border}`,
+                          }}
+                        >
+                          {group.name}
+                        </p>
+                        <ul className="flex flex-col gap-1">
+                          {group.items.map((sub, idx) => {
+                            const Icon = iconMap[sub.label];
+                            return (
+                              <li
+                                key={sub.href}
+                                style={{
+                                  opacity: open ? 1 : 0,
+                                  transform: open ? 'translateY(0)' : 'translateY(6px)',
+                                  transition: `all 0.3s ease-out ${0.12 + gIdx * 0.05 + idx * 0.03}s`,
+                                }}
+                              >
+                                <Link
+                                  href={sub.href}
+                                  onClick={() => setOpen(false)}
+                                  className="group flex items-start gap-2.5 px-2 py-2 rounded-lg transition-colors"
+                                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                >
+                                  {Icon && (
+                                    <div
+                                      className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5"
+                                      style={{ backgroundColor: theme.iconBg }}
+                                    >
+                                      <Icon className="w-3.5 h-3.5 text-primary" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <div
+                                      className="text-[13px] font-semibold group-hover:text-primary transition-colors"
+                                      style={{ fontFamily: 'var(--font-body)', color: theme.text }}
+                                    >
+                                      {sub.label}
+                                    </div>
+                                    {sub.description && (
+                                      <p
+                                        className="text-[11px] mt-0.5 leading-snug"
+                                        style={{ fontFamily: 'var(--font-body)', color: theme.muted }}
+                                      >
+                                        {sub.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </Link>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
             ) : item.label === 'What We Treat' ? (
               /* What We Treat: grouped list columns — a heading per
                  category (Addiction, Dual Diagnosis) with the
