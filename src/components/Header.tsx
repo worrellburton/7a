@@ -368,15 +368,15 @@ const navLinks: NavItem[] = [
     href: '/our-program',
     description: 'Clinical and residential programs tailored to your needs.',
     dropdown: [
-      { label: 'Residential Inpatient', href: '/treatment/residential-inpatient', description: '30–90 day immersive treatment' },
-      { label: 'Interventions', href: '/treatment/interventions', description: 'Professional intervention services' },
-      { label: 'Alumni & Aftercare', href: '/treatment/alumni-aftercare', description: 'Lifelong support network' },
-      { label: 'Trauma Treatment', href: '/our-program/trauma-treatment', description: 'Addressing root causes of addiction' },
-      { label: 'Holistic & Indigenous', href: '/our-program/holistic-approaches', description: 'Yoga, sweat lodge, sound healing, ceremony' },
-      { label: 'Family Program', href: '/our-program/family-program', description: 'Healing the whole family system' },
-      { label: 'Equine-Assisted Psychotherapy', href: '/our-program/equine-assisted', description: 'EAP for trauma & recovery' },
-      { label: 'Evidence-Based Treatment', href: '/our-program/evidence-based', description: 'Proven clinical methodologies' },
-      { label: 'Who We Help', href: '/our-program/who-we-help', description: 'Adults seeking lasting recovery' },
+      { label: 'Residential Inpatient', href: '/treatment/residential-inpatient', description: '30–90 day immersive treatment', group: 'Levels of Care' },
+      { label: 'Interventions', href: '/treatment/interventions', description: 'Professional intervention services', group: 'Levels of Care' },
+      { label: 'Alumni & Aftercare', href: '/treatment/alumni-aftercare', description: 'Lifelong support network', group: 'Levels of Care' },
+      { label: 'Trauma Treatment', href: '/our-program/trauma-treatment', description: 'Addressing root causes', group: 'Clinical Approach' },
+      { label: 'Evidence-Based Treatment', href: '/our-program/evidence-based', description: 'CBT · DBT · EMDR', group: 'Clinical Approach' },
+      { label: 'Holistic & Indigenous', href: '/our-program/holistic-approaches', description: 'Yoga, sweat lodge, ceremony', group: 'Clinical Approach' },
+      { label: 'Equine-Assisted Psychotherapy', href: '/our-program/equine-assisted', description: 'EAP for trauma & recovery', group: 'Clinical Approach' },
+      { label: 'Family Program', href: '/our-program/family-program', description: 'Healing the whole family system', group: 'Whole Person' },
+      { label: 'Who We Help', href: '/our-program/who-we-help', description: 'Adults seeking lasting recovery', group: 'Whole Person' },
     ],
   },
   {
@@ -731,36 +731,100 @@ function MegaMenuDropdown({
                 );
               })()
             ) : item.label === 'Our Program' ? (
-              /* Our Program: icon cards like Treatment but in a 4-col grid with wrapping */
-              <div className="grid grid-cols-4 gap-4 py-6">
-                {item.dropdown?.map((sub, idx) => {
-                  const Icon = iconMap[sub.label];
-                  return (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className="group flex flex-col items-center text-center px-4 py-4 rounded-xl border border-transparent transition-all duration-200 hover:border-primary/20 hover:shadow-md hover:-translate-y-0.5"
-                      onClick={() => setOpen(false)}
-                      style={{
-                        opacity: open ? 1 : 0,
-                        transform: open ? 'translateY(0)' : 'translateY(8px)',
-                        transition: `all 0.3s ease-out ${0.05 + idx * 0.03}s`,
-                        backgroundColor: theme.cardBg,
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.cardBg; }}
-                    >
-                      {Icon && (
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2" style={{ backgroundColor: theme.iconBg }}>
-                          <Icon className="w-5 h-5 text-primary" />
-                        </div>
-                      )}
-                      <div className="text-[12px] font-semibold group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)', color: theme.text }}>{sub.label}</div>
-                      {sub.description && <p className="text-[10px] mt-1 leading-snug" style={{ fontFamily: 'var(--font-body)', color: theme.mutedHeavy }}>{sub.description}</p>}
-                    </Link>
-                  );
-                })}
-              </div>
+              /* Our Program: three grouped columns — Levels of Care,
+                 Clinical Approach, Whole Person — with icon + copy
+                 tiles inside each column. Uses each item's `group`
+                 field. Avoids the orphan-row problem the old 4-col
+                 grid left when the total item count wasn't divisible
+                 by four. */
+              (() => {
+                const groups: { name: string; items: DropdownItem[] }[] = [];
+                for (const sub of item.dropdown ?? []) {
+                  const name = sub.group ?? 'More';
+                  let g = groups.find((x) => x.name === name);
+                  if (!g) {
+                    g = { name, items: [] };
+                    groups.push(g);
+                  }
+                  g.items.push(sub);
+                }
+                return (
+                  <div
+                    className="grid gap-x-6 gap-y-4 py-6"
+                    style={{ gridTemplateColumns: `repeat(${groups.length}, minmax(0, 1fr))` }}
+                  >
+                    {groups.map((group, gIdx) => (
+                      <div
+                        key={group.name}
+                        style={{
+                          opacity: open ? 1 : 0,
+                          transform: open ? 'translateY(0)' : 'translateY(8px)',
+                          transition: `all 0.3s ease-out ${0.08 + gIdx * 0.05}s`,
+                        }}
+                      >
+                        <p
+                          className="text-[10px] font-semibold tracking-[0.22em] uppercase mb-3 pb-2"
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            color: 'var(--color-accent)',
+                            borderBottom: `1px solid ${theme.border}`,
+                          }}
+                        >
+                          {group.name}
+                        </p>
+                        <ul className="flex flex-col gap-1">
+                          {group.items.map((sub, idx) => {
+                            const Icon = iconMap[sub.label];
+                            return (
+                              <li
+                                key={sub.href}
+                                style={{
+                                  opacity: open ? 1 : 0,
+                                  transform: open ? 'translateY(0)' : 'translateY(6px)',
+                                  transition: `all 0.3s ease-out ${0.12 + gIdx * 0.05 + idx * 0.03}s`,
+                                }}
+                              >
+                                <Link
+                                  href={sub.href}
+                                  onClick={() => setOpen(false)}
+                                  className="group flex items-start gap-2.5 px-2 py-2 rounded-lg transition-colors"
+                                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.cardBgHover; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                >
+                                  {Icon && (
+                                    <div
+                                      className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center group-hover:scale-110 transition-transform mt-0.5"
+                                      style={{ backgroundColor: theme.iconBg }}
+                                    >
+                                      <Icon className="w-3.5 h-3.5 text-primary" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <div
+                                      className="text-[13px] font-semibold group-hover:text-primary transition-colors"
+                                      style={{ fontFamily: 'var(--font-body)', color: theme.text }}
+                                    >
+                                      {sub.label}
+                                    </div>
+                                    {sub.description && (
+                                      <p
+                                        className="text-[11px] mt-0.5 leading-snug"
+                                        style={{ fontFamily: 'var(--font-body)', color: theme.muted }}
+                                      >
+                                        {sub.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </Link>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
             ) : (
               /* Fallback: standard grid */
               <div className={`grid gap-x-4 gap-y-0.5 py-4`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
@@ -869,7 +933,7 @@ export default function Header() {
       role="banner"
       style={{ ['--site-header-height' as string]: '68px' }}
     >
-      <nav className="px-4 sm:px-6 xl:px-10" aria-label="Main navigation">
+      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
         <div className="flex items-center h-16 lg:h-[68px]">
           {/* Logo — compact. We have one color asset; over the dark hero
               we invert it to pure white so the wordmark stays legible. */}
