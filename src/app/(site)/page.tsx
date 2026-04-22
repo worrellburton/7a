@@ -196,6 +196,7 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbData) }}
       />
       <Hero />
+      <AboutSection />
       <StatsSection />
       <PlaceToHeal />
       <ProgramSection />
@@ -207,7 +208,6 @@ export default function Home() {
       <SevenArrowsExperience />
       <Amenities />
       <InsuranceVerification />
-      <AboutSection />
       <BlogPreview />
       <FAQSection />
       <StickyMobileCTA />
