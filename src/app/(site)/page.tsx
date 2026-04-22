@@ -23,7 +23,6 @@ import DailyLifeSection from "@/components/DailyLifeSection";
 import AboutSection from "@/components/AboutSection";
 import FAQSection from "@/components/FAQSection";
 import GoogleReviewsCinema from "@/components/GoogleReviewsCinema";
-import BusinessListingCard from "@/components/BusinessListingCard";
 import StickyMobileCTA from "@/components/StickyMobileCTA";
 import BlogPreview from "@/components/BlogPreview";
 
@@ -38,9 +37,11 @@ const structuredData = {
   telephone: "+1-866-996-4308",
   address: {
     "@type": "PostalAddress",
+    streetAddress: "2491 W Jefferson Rd",
+    addressLocality: "Elfrida",
     addressRegion: "AZ",
+    postalCode: "85610",
     addressCountry: "US",
-    addressLocality: "Cochise County",
   },
   geo: {
     "@type": "GeoCoordinates",
@@ -205,7 +206,6 @@ export default function Home() {
       <InsuranceCarousel />
       <DailyLifeSection />
       <GoogleReviewsCinema />
-      <BusinessListingCard />
       <SevenArrowsExperience />
       <Amenities />
       <InsuranceVerification />

@@ -20,6 +20,36 @@ interface Props {
   autoplayMs?: number;
 }
 
+// Hard cap for the displayed quote — longer reviews get clipped on a
+// sentence boundary so the slide always fits without dominating the
+// viewport. The full review is one click away on Google.
+const QUOTE_CAP = 320;
+
+function clipQuote(text: string): { display: string; clipped: boolean } {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (cleaned.length <= QUOTE_CAP) return { display: cleaned, clipped: false };
+  const cut = cleaned.slice(0, QUOTE_CAP);
+  // Prefer a sentence ending if one is reasonably close to the cap.
+  const sentenceEnd = Math.max(
+    cut.lastIndexOf('. '),
+    cut.lastIndexOf('! '),
+    cut.lastIndexOf('? '),
+  );
+  if (sentenceEnd > 200) return { display: cut.slice(0, sentenceEnd + 1), clipped: true };
+  const space = cut.lastIndexOf(' ');
+  return { display: (space > 200 ? cut.slice(0, space) : cut) + '…', clipped: true };
+}
+
+// Length-scaled font size — short cinematic punchlines get the big
+// poster treatment; long reviews step down so the slide composes
+// cleanly without overflowing.
+function quoteSizeClass(len: number): string {
+  if (len <= 110) return 'text-2xl sm:text-3xl lg:text-4xl';
+  if (len <= 200) return 'text-xl sm:text-2xl lg:text-3xl';
+  if (len <= 280) return 'text-lg sm:text-xl lg:text-2xl';
+  return 'text-base sm:text-lg lg:text-xl';
+}
+
 function GoogleIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
@@ -190,9 +220,9 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000 }: Prop
             />
 
             {/* Quote overlay */}
-            <div className="relative z-10 h-full flex items-center justify-center px-6 sm:px-12 lg:px-24">
+            <div className="relative z-10 h-full flex items-center justify-center px-6 sm:px-12 lg:px-24 py-10">
               <div
-                className="max-w-3xl text-center text-white"
+                className="max-w-2xl text-center text-white"
                 style={{
                   transform: isActive ? 'translateY(0)' : 'translateY(12px)',
                   opacity: isActive ? 1 : 0,
@@ -200,12 +230,12 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000 }: Prop
                     'opacity 700ms ease 120ms, transform 700ms cubic-bezier(0.22,1,0.36,1) 120ms',
                 }}
               >
-                <div className="flex justify-center mb-6">
+                <div className="flex justify-center mb-5">
                   <Stars rating={slide.review.rating} />
                 </div>
 
                 <svg
-                  className="mx-auto mb-4 w-10 h-10 text-white/40"
+                  className="mx-auto mb-3 w-8 h-8 text-white/40"
                   viewBox="0 0 24 24"
                   fill="currentColor"
                   aria-hidden="true"
@@ -213,21 +243,40 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000 }: Prop
                   <path d="M7.17 6A5.17 5.17 0 002 11.17V18h6v-6.83H4.83A2.34 2.34 0 017.17 9V6zm10 0A5.17 5.17 0 0012 11.17V18h6v-6.83h-3.17A2.34 2.34 0 0117.17 9V6z" />
                 </svg>
 
-                <p
-                  className="text-xl sm:text-2xl lg:text-3xl leading-relaxed font-light text-white/95"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  {slide.review.text}
-                </p>
+                {(() => {
+                  const { display, clipped } = clipQuote(slide.review.text);
+                  return (
+                    <>
+                      <p
+                        className={`${quoteSizeClass(display.length)} leading-snug font-light text-white/95`}
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {display}
+                      </p>
+                      {clipped && (
+                        <a
+                          href="https://maps.google.com/?cid=4853411833030648789"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-3 text-xs text-white/50 hover:text-white/80 underline decoration-white/30 hover:decoration-white/60 transition-colors"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Read full review on Google
+                        </a>
+                      )}
+                    </>
+                  );
+                })()}
 
-                <div className="mt-8 flex flex-col items-center gap-2">
+                <div className="mt-7 flex flex-col items-center gap-1.5">
                   <p
                     className="text-2xl sm:text-3xl font-bold tracking-tight text-white"
                     style={{ fontFamily: 'var(--font-sans)' }}
                   >
                     {slide.review.name}
                   </p>
-                  <div className="flex items-center gap-2 text-white/60 text-sm">
+                  <div className="flex items-center gap-2 text-white/60 text-xs sm:text-sm">
                     <GoogleIcon className="w-4 h-4" />
                     <span style={{ fontFamily: 'var(--font-body)' }}>
                       Verified Google review · {slide.review.date}

@@ -23,7 +23,7 @@ const services = [
   {
     title: 'Trauma Treatment',
     href: '/our-program/trauma-treatment',
-    image: '/images/individual-therapy-session.jpg',
+    image: '/images/equine-therapy-portrait.jpg',
     description: 'TraumAddiction™ — addressing root causes',
   },
   {
@@ -64,7 +64,7 @@ export default function TreatmentServices() {
     <section className="py-20 lg:py-28 bg-warm-bg" aria-labelledby="treatment-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14 max-w-2xl mx-auto">
-          <p className="section-label justify-center mb-4">Our Treatment Services</p>
+          <p className="section-label justify-center mb-4">Our Program</p>
           <h2
             id="treatment-heading"
             className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground leading-tight mb-4"
