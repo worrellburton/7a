@@ -1,22 +1,54 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { siteVideos } from '@/lib/siteVideos';
 
 /**
- * Footer-adjacent CTA block. Full-bleed looping video under a warm
- * terracotta scrim; text sits over the video, anchored left with
- * plenty of breathing room. Poster image keeps first paint clean.
+ * Footer-adjacent CTA block. Full-bleed looping video backdrop that
+ * cycles through the catalog. Two (or more) videos sit stacked and
+ * each plays muted on its own loop; every ~11 seconds we flip which
+ * one is visible with a crossfade. Both videos are warmed up on
+ * mount so the crossfade never stutters waiting on metadata.
  */
-export default function BeforeFooterCTA() {
-  const videoRef = useRef<HTMLVideoElement>(null);
 
+const cycle = [
+  siteVideos.sonoranRanch,
+  siteVideos.horsesRail,
+  siteVideos.ranchLife,
+];
+
+const DWELL_MS = 11_000; // how long each frame is foregrounded
+const FADE_MS = 900; // opacity crossfade duration
+
+export default function BeforeFooterCTA() {
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+  const [active, setActive] = useState(0);
+
+  // Kick every video into play on mount. autoPlay alone is flaky
+  // after hydration and with hidden (opacity 0) elements on some
+  // mobile browsers; explicit play() + muted covers every case.
   useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    el.muted = true;
-    el.play().catch(() => {});
+    for (const v of videoRefs.current) {
+      if (!v) continue;
+      v.muted = true;
+      v.play().catch(() => {});
+    }
+  }, []);
+
+  // Advance the visible video on a dwell timer. If the tab is
+  // backgrounded we pause the cycle so the user doesn't return to a
+  // mid-crossfade frozen on whichever tick fired last.
+  useEffect(() => {
+    let id: number | undefined;
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return;
+      setActive((i) => (i + 1) % cycle.length);
+    };
+    id = window.setInterval(tick, DWELL_MS);
+    return () => {
+      if (id) window.clearInterval(id);
+    };
   }, []);
 
   return (
@@ -24,24 +56,33 @@ export default function BeforeFooterCTA() {
       className="relative overflow-hidden text-white"
       aria-labelledby="before-footer-cta-heading"
     >
-      {/* Full-bleed looping video */}
-      <video
-        ref={videoRef}
-        src={siteVideos.sonoranRanch}
-        poster="/images/facility-exterior-mountains.jpg"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        aria-hidden="true"
-        className="absolute inset-0 w-full h-full object-cover"
-      />
+      {/* Stacked full-bleed video layer — each clip autoPlays on its
+          own loop, we just fade between them. */}
+      <div className="absolute inset-0" aria-hidden="true">
+        {cycle.map((src, i) => (
+          <video
+            key={src}
+            ref={(el) => {
+              videoRefs.current[i] = el;
+            }}
+            src={src}
+            poster={i === 0 ? '/images/facility-exterior-mountains.jpg' : undefined}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{
+              opacity: i === active ? 1 : 0,
+              transition: `opacity ${FADE_MS}ms ease-in-out`,
+            }}
+          />
+        ))}
+      </div>
 
-      {/* Warm terracotta scrim — keeps the text legible against any
-          frame of the video without dragging the mood away from the
-          brand color. Slightly stronger from the left so the CTA
-          column reads cleanly. */}
+      {/* Warm terracotta scrim — stronger on the left where the CTA
+          column sits so the headline stays legible against any frame. */}
       <div
         aria-hidden="true"
         className="absolute inset-0 pointer-events-none"
@@ -50,8 +91,6 @@ export default function BeforeFooterCTA() {
             'linear-gradient(90deg, rgba(107,42,20,0.82) 0%, rgba(107,42,20,0.6) 40%, rgba(107,42,20,0.25) 75%, rgba(107,42,20,0.15) 100%)',
         }}
       />
-      {/* Soft vertical falloff so the top and bottom ease into the
-          surrounding page chrome. */}
       <div
         aria-hidden="true"
         className="absolute inset-0 pointer-events-none"

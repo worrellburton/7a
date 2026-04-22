@@ -314,6 +314,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   'Indigenous Approach': IndigenousIcon,
   'Family Program': FamilyIcon,
   'Holistic Approaches': HolisticIcon,
+  'Holistic & Indigenous': HolisticIcon,
   'Equine-Assisted Psychotherapy': HorseIcon,
   'Evidence-Based Treatment': EvidenceIcon,
   'Who We Help': WhoWeHelpIcon,
@@ -975,18 +976,40 @@ export default function Header() {
             )}
           </div>
 
-          {/* Phone CTA — prominent with pulse */}
+          {/* Phone CTA — two-line, live-indicator dot, soft glow. */}
           <a
             href="tel:+18669964308"
-            className="hidden lg:inline-flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white px-3 xl:px-5 py-2 xl:py-2.5 rounded-full text-xs xl:text-sm font-bold tracking-wide transition-all whitespace-nowrap shrink-0 ml-2 xl:ml-4 relative"
-            style={{ fontFamily: 'var(--font-body)', boxShadow: '0 2px 12px rgba(160,82,45,0.35)' }}
-            aria-label="Call us at (866) 996-4308"
+            className="group hidden lg:inline-flex items-center gap-3 bg-primary hover:bg-primary-dark text-white pl-2.5 pr-4 xl:pl-3 xl:pr-5 py-1.5 xl:py-2 rounded-full transition-all whitespace-nowrap shrink-0 ml-2 xl:ml-4"
+            style={{
+              fontFamily: 'var(--font-body)',
+              boxShadow:
+                '0 12px 28px -10px rgba(107,42,20,0.55), inset 0 0 0 1px rgba(255,255,255,0.1)',
+            }}
+            aria-label="Call us 24/7 at (866) 996-4308"
           >
-            {/* Pulse ring */}
-            <span className="absolute inset-0 rounded-full animate-ping opacity-20 bg-primary" style={{ animationDuration: '2s' }} />
-            <span className="relative flex items-center gap-2">
-              <PhoneIcon className="w-4 h-4" />
-              (866) 996-4308
+            <span
+              className="relative inline-flex items-center justify-center w-8 h-8 rounded-full shrink-0"
+              style={{ backgroundColor: 'rgba(255,255,255,0.14)' }}
+            >
+              <PhoneIcon className="w-3.5 h-3.5 transition-transform group-hover:-rotate-12" />
+              {/* Availability dot — tiny pulse on a solid base */}
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#4ade80] ring-2 ring-primary group-hover:ring-primary-dark">
+                <span className="absolute inset-0 rounded-full bg-[#4ade80] animate-ping opacity-70" />
+              </span>
+            </span>
+            <span className="flex flex-col items-start leading-tight text-left">
+              <span
+                className="text-[9px] font-semibold tracking-[0.22em] uppercase text-white/75"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Available 24/7
+              </span>
+              <span
+                className="text-sm xl:text-[15px] font-bold tracking-wide"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                (866) 996-4308
+              </span>
             </span>
           </a>
 
