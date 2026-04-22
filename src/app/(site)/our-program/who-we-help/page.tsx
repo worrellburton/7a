@@ -4,6 +4,7 @@ import WhoHero from '@/components/who-we-help/WhoHero';
 import AtAGlance from '@/components/who-we-help/AtAGlance';
 import Populations from '@/components/who-we-help/Populations';
 import SubstancesAndConditions from '@/components/who-we-help/SubstancesAndConditions';
+import FitCriteria from '@/components/who-we-help/FitCriteria';
 
 export const metadata: Metadata = {
   title: 'Who We Help | Arizona Drug & Alcohol Rehab for Adults 18+',
@@ -100,6 +101,7 @@ export default function WhoWeHelpPage() {
       <AtAGlance />
       <Populations />
       <SubstancesAndConditions />
+      <FitCriteria />
     </main>
   );
 }
