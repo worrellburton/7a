@@ -19,16 +19,20 @@ export default function TeamMemberHero({ member }: { member: PublicTeamMember })
 
   return (
     <section
-      className="relative overflow-hidden bg-warm-bg"
+      className="relative overflow-hidden text-white"
       aria-labelledby="team-member-heading"
-      style={{ marginTop: 'calc(var(--site-header-height, 68px) * -1)' }}
+      style={{
+        marginTop: 'calc(var(--site-header-height, 68px) * -1)',
+        background:
+          'linear-gradient(150deg, var(--color-dark-section) 0%, var(--color-primary-dark) 60%, var(--color-primary) 100%)',
+      }}
     >
       <div
         aria-hidden="true"
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(ellipse 55% 55% at 20% 30%, rgba(216,137,102,0.15) 0%, rgba(216,137,102,0) 60%), radial-gradient(ellipse 50% 50% at 85% 75%, rgba(188,107,74,0.1) 0%, rgba(188,107,74,0) 55%)',
+            'radial-gradient(ellipse 55% 55% at 20% 30%, rgba(216,137,102,0.28) 0%, rgba(216,137,102,0) 60%), radial-gradient(ellipse 50% 50% at 85% 75%, rgba(107,42,20,0.35) 0%, rgba(107,42,20,0) 55%)',
         }}
       />
 
@@ -50,9 +54,9 @@ export default function TeamMemberHero({ member }: { member: PublicTeamMember })
               {/* Decorative accent ring offset behind */}
               <div
                 aria-hidden="true"
-                className="absolute inset-0 rounded-[32px] bg-accent/20 translate-x-3 translate-y-3"
+                className="absolute inset-0 rounded-[32px] bg-accent/35 translate-x-3 translate-y-3"
               />
-              <div className="relative rounded-[32px] overflow-hidden bg-white aspect-[4/5] shadow-xl">
+              <div className="relative rounded-[32px] overflow-hidden bg-white/5 aspect-[4/5] shadow-[0_40px_80px_-30px_rgba(0,0,0,0.6)] ring-1 ring-white/10">
                 {member.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -62,7 +66,7 @@ export default function TeamMemberHero({ member }: { member: PublicTeamMember })
                     loading="eager"
                   />
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-primary/25 text-9xl font-bold">
+                  <div className="absolute inset-0 flex items-center justify-center text-white/25 text-9xl font-bold">
                     {member.full_name.charAt(0).toUpperCase()}
                   </div>
                 )}
@@ -81,37 +85,37 @@ export default function TeamMemberHero({ member }: { member: PublicTeamMember })
           >
             <nav
               aria-label="Breadcrumb"
-              className="mb-7 text-[11px] tracking-[0.18em] uppercase font-semibold text-foreground/60"
+              className="mb-7 text-[11px] tracking-[0.18em] uppercase font-semibold text-white/70"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               <ol className="flex items-center gap-2 flex-wrap">
                 <li>
-                  <Link href="/" className="hover:text-primary transition-colors text-primary">Home</Link>
+                  <Link href="/" className="hover:text-white transition-colors" style={{ color: 'var(--color-accent)' }}>Home</Link>
                 </li>
-                <li className="text-foreground/30">/</li>
+                <li className="text-white/40">/</li>
                 <li>
-                  <Link href="/who-we-are" className="hover:text-primary transition-colors text-primary">Who We Are</Link>
+                  <Link href="/who-we-are" className="hover:text-white transition-colors" style={{ color: 'var(--color-accent)' }}>Who We Are</Link>
                 </li>
-                <li className="text-foreground/30">/</li>
+                <li className="text-white/40">/</li>
                 <li>
-                  <Link href="/who-we-are/meet-our-team" className="hover:text-primary transition-colors text-primary">Meet Our Team</Link>
+                  <Link href="/who-we-are/meet-our-team" className="hover:text-white transition-colors" style={{ color: 'var(--color-accent)' }}>Meet Our Team</Link>
                 </li>
-                <li className="text-foreground/30">/</li>
-                <li className="text-foreground/80">{member.full_name}</li>
+                <li className="text-white/40">/</li>
+                <li className="text-white/85">{member.full_name}</li>
               </ol>
             </nav>
 
             <p
-              className="flex items-center gap-4 text-[11px] tracking-[0.24em] uppercase font-semibold text-primary mb-5"
+              className="flex items-center gap-4 text-[11px] tracking-[0.24em] uppercase font-semibold text-accent mb-5"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              <span className="block w-10 h-px bg-primary/70" aria-hidden="true" />
+              <span className="block w-10 h-px bg-white/70" aria-hidden="true" />
               Our Team
             </p>
 
             <h1
               id="team-member-heading"
-              className="text-foreground font-bold tracking-tight leading-[1.02] mb-5"
+              className="font-bold tracking-tight leading-[1.02] mb-5"
               style={{
                 fontFamily: 'var(--font-display)',
                 fontSize: 'clamp(2.6rem, 6vw, 5.2rem)',
@@ -122,7 +126,7 @@ export default function TeamMemberHero({ member }: { member: PublicTeamMember })
 
             {member.job_title && (
               <p
-                className="text-primary text-lg lg:text-xl font-semibold tracking-wide max-w-lg"
+                className="text-white/85 text-lg lg:text-xl font-semibold tracking-wide max-w-lg"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 {member.job_title}
@@ -132,14 +136,14 @@ export default function TeamMemberHero({ member }: { member: PublicTeamMember })
             <div className="mt-10 flex flex-col sm:flex-row gap-4">
               <a
                 href="tel:+18669964308"
-                className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-full px-7 py-3.5 text-sm font-semibold transition-colors"
+                className="inline-flex items-center gap-2 bg-white text-primary-dark hover:bg-warm-bg rounded-full px-7 py-3.5 text-sm font-semibold shadow-[0_18px_40px_-18px_rgba(0,0,0,0.7)] transition-all"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 Call (866) 996-4308
               </a>
               <Link
                 href="/contact"
-                className="inline-flex items-center gap-2 border-2 border-foreground/85 text-foreground hover:bg-foreground hover:text-white rounded-full px-7 py-3.5 text-sm font-semibold transition-colors"
+                className="inline-flex items-center gap-2 border border-white/35 hover:border-white text-white hover:bg-white/10 rounded-full px-7 py-3.5 text-sm font-semibold transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 Contact Seven Arrows
