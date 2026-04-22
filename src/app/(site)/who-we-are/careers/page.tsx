@@ -8,6 +8,7 @@ import OpenPositions from '@/components/careers/OpenPositions';
 import LifeAtTheRanch from '@/components/careers/LifeAtTheRanch';
 import OurValues from '@/components/careers/OurValues';
 import HiringProcess from '@/components/careers/HiringProcess';
+import TeamVoices from '@/components/careers/TeamVoices';
 
 export const metadata: Metadata = {
   title: 'Careers | Arizona Addiction Treatment Jobs — Seven Arrows Recovery',
@@ -66,6 +67,7 @@ export default function CareersPage() {
       <LifeAtTheRanch />
       <OurValues />
       <HiringProcess />
+      <TeamVoices />
     </main>
   );
 }
