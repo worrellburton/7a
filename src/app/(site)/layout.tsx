@@ -2,7 +2,7 @@ import TopBar from '@/components/TopBar';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import BeforeFooterCTA from '@/components/BeforeFooterCTA';
-import BottomTicker from '@/components/BottomTicker';
+import BottomTicker from '@/components/BottomTickerServer';
 import GoogleReviewsBadge from '@/components/GoogleReviewsBadge';
 import FloatingContactCTA from '@/components/FloatingContactCTA';
 

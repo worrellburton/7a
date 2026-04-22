@@ -114,14 +114,21 @@ export async function fetchPlaceDetails(): Promise<PlaceDetails | null> {
     if (json.status !== 'OK' || !json.result) return null;
     const result = json.result;
 
-    const reviews: PlaceReview[] = (result.reviews ?? []).map((r) => ({
-      authorName: r.author_name ?? 'Anonymous',
-      profilePhotoUrl: r.profile_photo_url ?? null,
-      rating: Number(r.rating ?? 0),
-      relativeTime: r.relative_time_description ?? '',
-      text: r.text ?? '',
-      time: Number(r.time ?? 0),
-    }));
+    // Filter out low-rated reviews at the data layer so individual
+    // components can't accidentally display them. The aggregate rating
+    // and total count below still come straight from Google's full
+    // corpus — only the *displayed* review cards are curated.
+    const MIN_DISPLAYED_RATING = 4;
+    const reviews: PlaceReview[] = (result.reviews ?? [])
+      .map((r) => ({
+        authorName: r.author_name ?? 'Anonymous',
+        profilePhotoUrl: r.profile_photo_url ?? null,
+        rating: Number(r.rating ?? 0),
+        relativeTime: r.relative_time_description ?? '',
+        text: r.text ?? '',
+        time: Number(r.time ?? 0),
+      }))
+      .filter((r) => r.rating >= MIN_DISPLAYED_RATING);
 
     const loc = result.geometry?.location;
     const listing: PlaceListing = {

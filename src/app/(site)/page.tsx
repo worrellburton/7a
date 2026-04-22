@@ -22,7 +22,7 @@ import Amenities from "@/components/Amenities";
 import DailyLifeSection from "@/components/DailyLifeSection";
 import AboutSection from "@/components/AboutSection";
 import FAQSection from "@/components/FAQSection";
-import GoogleReviews from "@/components/GoogleReviews";
+import GoogleReviewsCinema from "@/components/GoogleReviewsCinema";
 import BusinessListingCard from "@/components/BusinessListingCard";
 import StickyMobileCTA from "@/components/StickyMobileCTA";
 import BlogPreview from "@/components/BlogPreview";
@@ -204,7 +204,7 @@ export default function Home() {
       <CampusTour />
       <InsuranceCarousel />
       <DailyLifeSection />
-      <GoogleReviews />
+      <GoogleReviewsCinema />
       <BusinessListingCard />
       <SevenArrowsExperience />
       <Amenities />
