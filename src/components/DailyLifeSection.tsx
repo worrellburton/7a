@@ -1,69 +1,69 @@
 import Link from 'next/link';
 
+// Homepage — "The path to admission." Replaces the former "A Day in
+// Recovery" daily-schedule timeline. Same 5-beat horizontal-rail
+// layout, but each beat now maps to a step in the admissions
+// journey (call → verify → assess → travel → arrive) so the
+// homepage earns its conversion. CTA goes to /admissions.
+
 const blocks = [
   {
-    time: '6:30 – 9:00',
-    title: 'Mindful Morning',
+    time: 'Minutes',
+    title: 'Start with a call',
     description:
-      'Sunrise meditation, breathwork, and a nutrient-dense breakfast prepared by our on-site chef.',
+      'Dial (866) 996-4308 or submit the form. A real person picks up, listens first, and walks you through next steps.',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-        <circle cx="12" cy="14" r="4" />
-        <path d="M12 3v3M5.64 7.64l2.12 2.12M2 14h3M19 14h3M16.24 9.76l2.12-2.12M3 18h18" />
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
       </svg>
     ),
   },
   {
-    time: '9:00 – 12:30',
-    title: 'Clinical Sessions',
+    time: '15–30 min',
+    title: 'Verify insurance',
     description:
-      'Individual therapy, small-group work, EMDR, and the body-based modalities that power our TraumAddiction™ approach.',
+      'Free, confidential benefits check with most major plans. We return a plain-English summary of coverage before you decide anything.',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-        <circle cx="9" cy="9" r="3" />
-        <circle cx="17" cy="10" r="2" />
-        <path d="M3 20v-1a4 4 0 014-4h4a4 4 0 014 4v1" />
-        <path d="M21 20v-1a3 3 0 00-2.4-2.94" />
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        <path d="M9 12l2 2 4-4" />
       </svg>
     ),
   },
   {
-    time: '12:30 – 2:30',
-    title: 'Shared Table',
+    time: '20–30 min',
+    title: 'Phone assessment',
     description:
-      'Chef-prepared lunch, rest, and reflection time on the covered porch with views of the Swisshelm Mountains.',
+      'A brief clinical screen with our admissions team — substance use, mental health, medications, recent detox needs. Confidential.',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-        <path d="M3 11h18v2a4 4 0 01-4 4H7a4 4 0 01-4-4v-2z" />
-        <path d="M7 11V6a2 2 0 012-2h6a2 2 0 012 2v5" />
-        <path d="M12 17v3" />
+        <path d="M6 2h12v20l-6-4-6 4z" />
+        <path d="M9 10h6" />
+        <path d="M9 14h4" />
       </svg>
     ),
   },
   {
-    time: '2:30 – 5:30',
-    title: 'Experiential Work',
+    time: 'Same day',
+    title: 'Travel coordinated',
     description:
-      'Equine-assisted psychotherapy, sound healing, somatic practice, and guided time outdoors on the ranch.',
+      'Airport pickup at Tucson (TUS) or Phoenix (PHX), or sober-transport from anywhere in the country. We handle the logistics.',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-        <path d="M3 20c0-4 3-7 7-7s7 3 7 7" />
-        <path d="M17 13l2-2 2 1-1 2-2 1" />
-        <path d="M10 11V7a2 2 0 014 0v4" />
-        <circle cx="10" cy="5" r="1" />
+        <path d="M3 15l6-6 4 2 5-8h2l-2 10 4 3-2 3-7-3-3 3h-4l2-5-6 2z" />
       </svg>
     ),
   },
   {
-    time: '5:30 – 9:00',
-    title: 'Community & Rest',
+    time: '24–48 hrs',
+    title: 'Arrive at the ranch',
     description:
-      'Shared dinner, community circle, 12-step or peer support, and unhurried time under a dark-sky desert canopy.',
+      'Most clients land on campus within two days of the first call. You are welcomed, oriented, and the clinical work begins.',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-        <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
-        <circle cx="17" cy="6" r="0.8" fill="currentColor" />
-        <circle cx="14" cy="4" r="0.5" fill="currentColor" />
+        <path d="M3 12l9-8 9 8" />
+        <path d="M5 11v10h14V11" />
+        <path d="M10 21v-6h4v6" />
       </svg>
     ),
   },
@@ -71,22 +71,23 @@ const blocks = [
 
 export default function DailyLifeSection() {
   return (
-    <section className="py-20 lg:py-28 bg-white" aria-labelledby="daily-life-heading">
+    <section className="py-20 lg:py-28 bg-white" aria-labelledby="admissions-path-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-2xl mx-auto mb-14">
-          <p className="section-label justify-center mb-4">Life at Seven Arrows</p>
+          <p className="section-label justify-center mb-4">The path to admission</p>
           <h2
-            id="daily-life-heading"
+            id="admissions-path-heading"
             className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground leading-tight mb-4"
           >
-            A Day in Recovery
+            Five steps from first call to first day.
           </h2>
           <p
             className="text-foreground/60 leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Our days are structured so rest, clinical work, connection, and movement each get their
-            own protected space. Here&apos;s what a typical weekday looks like on the ranch.
+            Our admissions team answers 24/7. Most clients land on campus
+            within 24 to 48 hours of the first call. Here&apos;s how the
+            path unfolds.
           </p>
         </div>
 
@@ -132,8 +133,8 @@ export default function DailyLifeSection() {
         </div>
 
         <div className="text-center mt-14">
-          <Link href="/our-program" className="btn-dark">
-            See the Full Program
+          <Link href="/admissions" className="btn-dark">
+            Start admissions
           </Link>
         </div>
       </div>
