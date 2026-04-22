@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 const BRANDFETCH_CLIENT_ID = '1id3n10pdBTarCHI0db';
@@ -22,24 +22,53 @@ const insuranceProviders = [
 ];
 
 function InsuranceLogo({ name, domain }: { name: string; domain: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
+  // Pre-validate the logo in-memory before we render any <img>. Keeps the
+  // browser's native "broken image" icon from flashing when Brandfetch
+  // 404s (which we saw on BCBS / Humana / TRICARE / Magellan), and lets
+  // us cleanly swap in a typeset wordmark when the CDN has nothing.
+  const src = `https://cdn.brandfetch.io/${domain}/fallback/404/w/240/h/80/logo?c=${BRANDFETCH_CLIENT_ID}`;
+  const [status, setStatus] = useState<'loading' | 'ok' | 'failed'>('loading');
+
+  useEffect(() => {
+    let cancelled = false;
+    const probe = new window.Image();
+    probe.onload = () => {
+      if (!cancelled) setStatus('ok');
+    };
+    probe.onerror = () => {
+      if (!cancelled) setStatus('failed');
+    };
+    probe.src = src;
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  if (status !== 'ok') {
+    // Typeset wordmark fallback — reads cleanly as a "logo" in its own
+    // right, matches the serif tone of the section heading, and never
+    // flickers a broken-image icon.
     return (
       <span
-        className="text-foreground/70 text-sm font-bold tracking-wide whitespace-nowrap"
-        style={{ fontFamily: 'var(--font-body)' }}
+        className="whitespace-nowrap text-foreground/80 font-bold tracking-tight text-xl lg:text-2xl"
+        style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}
+        aria-label={name}
       >
         {name}
       </span>
     );
   }
+
+  // Force a uniform dark monochrome silhouette so a dozen payer logos
+  // drawn from a dozen brand systems read as one coherent row. Matches
+  // the reference recovery-site treatment.
   return (
     <img
-      src={`https://cdn.brandfetch.io/${domain}/fallback/404/theme/light/h/80/w/240/logo?c=${BRANDFETCH_CLIENT_ID}`}
+      src={src}
       alt={name}
       className="h-10 lg:h-12 w-auto max-w-[170px] object-contain"
+      style={{ filter: 'brightness(0) saturate(100%) opacity(0.78)' }}
       loading="eager"
-      onError={() => setFailed(true)}
     />
   );
 }
