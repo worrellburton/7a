@@ -124,6 +124,25 @@ export async function ga4Run(body: Ga4RunRequest): Promise<Ga4RunReportResponse>
   });
 }
 
+interface Ga4RealtimeRequest {
+  dimensions?: { name: string }[];
+  metrics: { name: string }[];
+  limit?: number;
+  orderBys?: Ga4OrderBy[];
+  minuteRanges?: { startMinutesAgo: number; endMinutesAgo: number }[];
+}
+
+export async function ga4RunRealtime(body: Ga4RealtimeRequest): Promise<Ga4RunReportResponse> {
+  const propertyId = process.env.GA4_PROPERTY_ID;
+  if (!propertyId) throw new Error('GA4_PROPERTY_ID is not set');
+  const cleanId = propertyId.replace(/^properties\//, '');
+  const url = `https://analyticsdata.googleapis.com/v1beta/properties/${cleanId}:runRealtimeReport`;
+  return googleFetch<Ga4RunReportResponse>(url, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 // -------- Search Console --------
 
 interface GscQueryRequest {

@@ -10,6 +10,8 @@ import { PagesSection } from './PagesSection';
 import { SeoSection } from './SeoSection';
 import { ConversionsSection } from './ConversionsSection';
 import { AudienceSection } from './AudienceSection';
+import { RealtimeSection } from './RealtimeSection';
+import { CompareSection } from './CompareSection';
 import { type DateRange, rangeForPreset } from './shared';
 
 export default function AnalyticsContent() {
@@ -39,13 +41,17 @@ export default function AnalyticsContent() {
       {section === 'seo' && <SeoSection range={range} />}
       {section === 'conversions' && <ConversionsSection range={range} />}
       {section === 'audience' && <AudienceSection range={range} />}
+      {section === 'realtime' && <RealtimeSection />}
+      {section === 'compare' && <CompareSection range={range} />}
       {section !== 'overview' &&
         section !== 'acquisition' &&
         section !== 'engagement' &&
         section !== 'pages' &&
         section !== 'seo' &&
         section !== 'conversions' &&
-        section !== 'audience' && <SectionStub section={section} />}
+        section !== 'audience' &&
+        section !== 'realtime' &&
+        section !== 'compare' && <SectionStub section={section} />}
     </div>
   );
 }
