@@ -94,8 +94,7 @@ type TeamRow = {
   public_team?: boolean | null;
 };
 
-export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {
-  try {
+export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {  try {
     const supabase = await getServerSupabase();
 
     // Try the full select first (includes favorite_quote +
@@ -155,5 +154,19 @@ export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {
     console.error('[team] fetchPublicTeam threw', err);
     return [];
   }
+}
+
+/**
+ * Look up a single public team member by their stable URL slug.
+ * Returns null if the member does not exist or is not publicly listed
+ * (status !== 'active' or public_team !== true). Relies on
+ * fetchPublicTeam so the slug resolution logic matches the grid.
+ */
+export async function fetchPublicTeamMemberBySlug(
+  slug: string,
+): Promise<PublicTeamMember | null> {
+  if (!slug) return null;
+  const team = await fetchPublicTeam();
+  return team.find((m) => m.slug === slug) ?? null;
 }
 
