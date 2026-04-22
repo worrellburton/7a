@@ -9,6 +9,7 @@ import WhatToBring from '@/components/admissions/WhatToBring';
 import TravelLogistics from '@/components/admissions/TravelLogistics';
 import PaymentOptions from '@/components/admissions/PaymentOptions';
 import AdmissionsFAQ from '@/components/admissions/AdmissionsFAQ';
+import AdmissionsCTA from '@/components/admissions/AdmissionsCTA';
 import { admissionsFaqs } from '@/components/admissions/admissionsFaqs';
 
 export const metadata: Metadata = {
@@ -104,6 +105,7 @@ export default function AdmissionsPage() {
       <TravelLogistics />
       <PaymentOptions />
       <AdmissionsFAQ />
+      <AdmissionsCTA />
     </main>
   );
 }
