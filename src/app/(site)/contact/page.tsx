@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import ContactHero from '@/components/contact/ContactHero';
 import ContactAtAGlance from '@/components/contact/ContactAtAGlance';
+import WaysToReach from '@/components/contact/WaysToReach';
 
 export const metadata: Metadata = {
   title: 'Contact Us | Seven Arrows Recovery',
@@ -69,6 +70,7 @@ export default function ContactPage() {
       />
       <ContactHero />
       <ContactAtAGlance />
+      <WaysToReach />
     </main>
   );
 }
