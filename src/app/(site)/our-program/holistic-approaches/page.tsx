@@ -11,6 +11,7 @@ import HolisticHero from '@/components/holistic/HolisticHero';
 import WhyHolistic from '@/components/holistic/WhyHolistic';
 import FourDimensions from '@/components/holistic/FourDimensions';
 import ModalitiesBento from '@/components/holistic/ModalitiesBento';
+import IndigenousFeature from '@/components/holistic/IndigenousFeature';
 
 export default function HolisticApproachesPage() {
   return (
@@ -20,6 +21,7 @@ export default function HolisticApproachesPage() {
       <FourDimensions />
       <div id="practices" className="scroll-mt-20" />
       <ModalitiesBento />
+      <IndigenousFeature />
 
       {/* CTA */}
       <section className="py-16 lg:py-24 bg-warm-card">
