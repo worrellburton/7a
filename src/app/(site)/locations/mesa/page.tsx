@@ -106,7 +106,7 @@ export default function LocationMesaPage() {
               For East Valley families, the logistics are straightforward. Our admissions team
               can coordinate same-day intake, and Phoenix-Mesa Gateway Airport is a convenient
               arrival point for out-of-state family members who want to participate in our
-              family therapy program. We take care of the details so the focus stays where
+              family support program. We take care of the details so the focus stays where
               it belongs: on healing.
             </p>
           </div>

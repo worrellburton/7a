@@ -27,7 +27,7 @@ const programs = [
     title: 'Family Program',
     href: '/our-program/family-program',
     description:
-      'Family therapy, education, and weekly sessions designed to heal relationships and build a strong foundation for lasting recovery.',
+      'Family support sessions, education, and weekly touchpoints designed to heal relationships and build a strong foundation for lasting recovery.',
   },
   {
     title: 'Holistic Approaches',

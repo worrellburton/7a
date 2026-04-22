@@ -44,7 +44,7 @@ const components: Component[] = [
   },
   {
     title: 'Family plan',
-    body: 'If family was involved during treatment, aftercare extends to them: continued family therapy referrals, a family-support track in the alumni community, and guidance on boundaries and co-regulation.',
+    body: 'If family was involved during treatment, aftercare extends to them: continued family support referrals, a family-support track in the alumni community, and guidance on boundaries and co-regulation.',
     glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><path d="M16 27s-10-6-10-14a6 6 0 0 1 10-4 6 6 0 0 1 10 4c0 8-10 14-10 14z" /></svg>),
   },
 ];

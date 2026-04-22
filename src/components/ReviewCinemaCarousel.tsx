@@ -18,6 +18,13 @@ interface Props {
   slides: CarouselSlide[];
   /** Milliseconds between auto-advances. Set 0 to disable. */
   autoplayMs?: number;
+  /**
+   * Optional overlay rendered at the top of the carousel, above the
+   * video. Used by the homepage to drop the "Real Stories of
+   * Recovery" section title directly onto the film frame instead of
+   * living in a separate strip above it.
+   */
+  header?: React.ReactNode;
 }
 
 // Hard cap for the displayed quote — longer reviews get clipped on a
@@ -106,7 +113,7 @@ function Chevron({
   );
 }
 
-export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000 }: Props) {
+export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header }: Props) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const total = slides.length;
@@ -201,8 +208,16 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000 }: Prop
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
       className="relative w-full overflow-hidden bg-black focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-      style={{ aspectRatio: '16 / 9', minHeight: '520px' }}
+      style={{ aspectRatio: '16 / 9', minHeight: header ? '620px' : '520px' }}
     >
+      {/* Optional overlay header (section title, rating, etc.) layered
+          above every slide. Sits on top of the radial gradient so it
+          stays legible regardless of which video is running. */}
+      {header && (
+        <div className="absolute top-0 inset-x-0 z-20 pt-10 lg:pt-14 px-4 sm:px-6 lg:px-8 pointer-events-none">
+          {header}
+        </div>
+      )}
       {/* Slides (stacked, cross-fade via opacity) */}
       {slides.map((slide, i) => {
         const isActive = i === index;

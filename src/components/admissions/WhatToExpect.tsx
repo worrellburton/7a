@@ -79,7 +79,7 @@ const arrival: Beat[] = [
   {
     when: 'Weeks 2–4',
     title: 'Deeper work',
-    body: 'EMDR, ART, or IFS work with your primary as indicated. Equine-assisted sessions begin. Family therapy phone call with loved ones. Aftercare planning starts.',
+    body: 'EMDR, ART, or IFS work with your primary as indicated. Equine-assisted sessions begin. Family support session by phone with loved ones. Aftercare planning starts.',
     // Spiral (deeper work)
     glyph: (
       <svg viewBox="0 0 32 32" className="w-[18px] h-[18px]" aria-hidden="true" {...s}>

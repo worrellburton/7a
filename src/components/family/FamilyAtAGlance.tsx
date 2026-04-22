@@ -5,9 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 const facts = [
   { term: 'Who', value: 'Parents, partners, adult children, siblings, and chosen family of Seven Arrows clients' },
   { term: 'Cost', value: 'Included in your loved one\'s program of care at no additional charge' },
-  { term: 'Family therapy', value: 'Weekly virtual sessions with a licensed family therapist, starting the second week of residential' },
+  { term: 'Family support sessions', value: 'Weekly virtual family support sessions, starting the second week of residential' },
   { term: 'Education', value: 'Open-enrollment multi-week psychoeducation groups on addiction, trauma, boundaries, and co-regulation' },
-  { term: 'Coordinator', value: 'Single point of contact for visitation, ROI paperwork, travel, and anything else the family needs' },
   { term: 'After discharge', value: 'Family program continues — quarterly alumni family events and referrals to family-focused outpatient providers' },
 ];
 
@@ -50,7 +49,7 @@ export default function FamilyAtAGlance() {
               lineHeight: 1.05,
             }}
           >
-            Six things families ask first.
+            Five things families ask first.
           </h2>
         </div>
 

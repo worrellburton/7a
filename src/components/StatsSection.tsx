@@ -84,6 +84,39 @@ const stats = [
   },
 ];
 
+type Badge = {
+  name: string;
+  abbr: string;
+  seal?: { src: string; href: string; width: number; height: number; alt: string };
+};
+
+const BADGES: Badge[] = [
+  {
+    name: 'Joint Commission Accredited',
+    abbr: 'JCAHO',
+    seal: {
+      src: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776808204322-pzyzhrow2ib-joint-commission-gold-seal-of-approval.jpg',
+      href: 'https://www.qualitycheck.org/',
+      width: 120,
+      height: 120,
+      alt: 'Joint Commission Gold Seal of Approval',
+    },
+  },
+  {
+    name: 'LegitScript Certified',
+    abbr: 'LegitScript',
+    seal: {
+      src: 'https://static.legitscript.com/seals/11087571.png',
+      href: 'https://www.legitscript.com/websites/?checker_keywords=sevenarrowsrecovery.com',
+      width: 65,
+      height: 79,
+      alt: 'Verify Approval for www.sevenarrowsrecovery.com',
+    },
+  },
+  { name: 'CARF Accredited', abbr: 'CARF' },
+  { name: 'HIPAA Compliant', abbr: 'HIPAA' },
+];
+
 export default function StatsSection() {
   const ref = useRef<HTMLElement>(null);
   const [started, setStarted] = useState(false);
@@ -105,8 +138,66 @@ export default function StatsSection() {
   }, []);
 
   return (
-    <section ref={ref} className="py-16 lg:py-20 bg-warm-bg" aria-label="Key statistics">
+    <section
+      ref={ref}
+      className="py-12 lg:py-16 bg-warm-bg"
+      aria-label="Accreditations and key statistics"
+    >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Accreditations row — previously rendered as its own section
+            on a white backdrop. Merged here so credentials and outcome
+            stats read as one trust block instead of two strips. */}
+        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 lg:gap-x-12 pb-8 lg:pb-10 mb-10 lg:mb-12 border-b border-foreground/10">
+          <span
+            className="text-xs tracking-[0.15em] uppercase text-foreground/40 font-semibold"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Trusted by
+          </span>
+          {BADGES.map((badge) =>
+            badge.seal ? (
+              <a
+                key={badge.abbr}
+                href={badge.seal.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={badge.seal.alt}
+                className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={badge.seal.src}
+                  alt={badge.seal.alt}
+                  width={badge.seal.width}
+                  height={badge.seal.height}
+                  className="h-10 w-auto"
+                />
+                <span
+                  className="text-xs text-foreground/60 hidden sm:block"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {badge.name}
+                </span>
+              </a>
+            ) : (
+              <div
+                key={badge.abbr}
+                className="flex items-center gap-2 opacity-50 hover:opacity-80 transition-opacity"
+              >
+                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
+                  <span className="text-[10px] font-bold text-primary tracking-wide">{badge.abbr}</span>
+                </div>
+                <span
+                  className="text-xs text-foreground/60 hidden sm:block"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {badge.name}
+                </span>
+              </div>
+            )
+          )}
+        </div>
+
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
           {stats.map((stat, i) => {
             const count = useCountUp(stat.value, 1800, started, stat.decimals);

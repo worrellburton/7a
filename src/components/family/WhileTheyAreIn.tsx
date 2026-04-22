@@ -10,7 +10,7 @@ interface Do {
 const dos: Do[] = [
   {
     title: 'Rest, actually.',
-    body: 'You have probably been in crisis mode for longer than you realize. Sleep. Eat. See your doctor. The nervous system you bring to family therapy needs to be regulated enough to do the work.',
+    body: 'You have probably been in crisis mode for longer than you realize. Sleep. Eat. See your doctor. The nervous system you bring to family support sessions needs to be regulated enough to do the work.',
   },
   {
     title: 'Start your own therapy.',
@@ -30,7 +30,7 @@ const dos: Do[] = [
   },
   {
     title: 'Let us handle the logistics.',
-    body: 'Insurance calls, visitation paperwork, travel. That\'s what the family coordinator is for. Don\'t waste bandwidth on operations — spend it on the clinical work.',
+    body: 'Insurance calls, visitation paperwork, travel. Our admissions and clinical teams help shoulder that load — don\'t waste bandwidth on operations when you could be spending it on the clinical work.',
   },
 ];
 

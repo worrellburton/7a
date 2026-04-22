@@ -31,6 +31,58 @@ const CURSOR_COLORS: { label: string; value: string }[] = [
   { label: 'Rose', value: '#f43f5e' },
 ];
 
+// Curated "interesting fact" prompts. A blank textarea is paralyzing;
+// a prompt is an invitation. Members pick any they like, fill in the
+// blank, and can remove them. Keep each prompt short, human, and
+// something a visitor would actually enjoy reading.
+const FACT_PROMPTS: string[] = [
+  "I'm secretly great at…",
+  'My go-to comfort food is…',
+  'Something that always makes me laugh is…',
+  'A book that shaped me is…',
+  'My favorite place on earth is…',
+  "I'm currently obsessed with…",
+  "A skill I'm working on is…",
+  "If you asked my friends, they'd say I…",
+  'One thing most people don’t know about me is…',
+  'My first job was…',
+  'The best advice I ever got was…',
+  "I can't start the day without…",
+  'My spirit animal is…',
+  'On my days off, you’ll find me…',
+  'A cause close to my heart is…',
+];
+
+interface FactEntry {
+  prompt: string;
+  answer: string;
+}
+
+// Safely coerce whatever came back from the DB into FactEntry[] so a
+// malformed row never crashes the editor.
+function coerceFacts(raw: unknown): FactEntry[] {
+  if (!raw) return [];
+  let arr: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      arr = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((f) => {
+      if (!f || typeof f !== 'object') return null;
+      const entry = f as { prompt?: unknown; answer?: unknown };
+      return {
+        prompt: typeof entry.prompt === 'string' ? entry.prompt : '',
+        answer: typeof entry.answer === 'string' ? entry.answer : '',
+      } satisfies FactEntry;
+    })
+    .filter((f): f is FactEntry => !!f && !!f.prompt);
+}
+
 function GoogleIcon({ className = 'w-3 h-3' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
@@ -108,9 +160,12 @@ export default function ProfileContent() {
   const { user, session } = useAuth();
   const [fullName, setFullName] = useState('');
   const [jobTitle, setJobTitle] = useState('');
+  const [hometown, setHometown] = useState('');
   const [bio, setBio] = useState('');
   const [favoriteQuote, setFavoriteQuote] = useState('');
   const [favoriteSevenArrows, setFavoriteSevenArrows] = useState('');
+  const [facts, setFacts] = useState<FactEntry[]>([]);
+  const [factsMenuOpen, setFactsMenuOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [publicTeam, setPublicTeam] = useState(true);
   const [cursorColor, setCursorColor] = useState<string | null>(null);
@@ -130,22 +185,43 @@ export default function ProfileContent() {
   useEffect(() => {
     if (!session?.access_token || !user) return;
     async function load() {
-      const data = await db({
+      // Prefer the full select with the newer columns; if the migration
+      // hasn't been applied yet (hometown / interesting_facts missing),
+      // PostgREST returns an error instead of rows — fall back to the
+      // stable subset so the editor still loads the rest of the profile.
+      const FULL =
+        'full_name, job_title, hometown, cursor_color, bio, favorite_quote, favorite_seven_arrows, interesting_facts, avatar_url, public_team';
+      const SAFE =
+        'full_name, job_title, cursor_color, bio, favorite_quote, favorite_seven_arrows, avatar_url, public_team';
+
+      let data = await db({
         action: 'select',
         table: 'users',
         match: { id: user!.id },
-        select:
-          'full_name, job_title, cursor_color, bio, favorite_quote, favorite_seven_arrows, avatar_url, public_team',
+        select: FULL,
       });
+
+      if (!Array.isArray(data)) {
+        // eslint-disable-next-line no-console
+        console.warn('[profile] falling back to stable select — migration likely pending', data);
+        data = await db({
+          action: 'select',
+          table: 'users',
+          match: { id: user!.id },
+          select: SAFE,
+        });
+      }
 
       if (Array.isArray(data) && data[0]) {
         const row = data[0];
         setFullName(row.full_name || '');
         setJobTitle(row.job_title || '');
+        setHometown(row.hometown || '');
         setCursorColor(row.cursor_color || null);
         setBio(row.bio || '');
         setFavoriteQuote(row.favorite_quote || '');
         setFavoriteSevenArrows(row.favorite_seven_arrows || '');
+        setFacts(coerceFacts(row.interesting_facts));
         setAvatarUrl(row.avatar_url || user!.user_metadata?.avatar_url || null);
         setPublicTeam(row.public_team !== false); // default true
       }
@@ -153,6 +229,18 @@ export default function ProfileContent() {
     }
     load();
   }, [session, user]);
+
+  function addFact(prompt: string) {
+    if (facts.some((f) => f.prompt === prompt)) return; // no dupes
+    setFacts((prev) => [...prev, { prompt, answer: '' }]);
+    setFactsMenuOpen(false);
+  }
+  function updateFact(index: number, answer: string) {
+    setFacts((prev) => prev.map((f, i) => (i === index ? { ...f, answer } : f)));
+  }
+  function removeFact(index: number) {
+    setFacts((prev) => prev.filter((_, i) => i !== index));
+  }
 
   async function pickCursorColor(value: string | null) {
     if (!user) return;
@@ -240,20 +328,48 @@ export default function ProfileContent() {
   async function saveProfile() {
     if (!user) return;
     setSaving(true);
-    const result = await db({
+
+    // Drop empty-answer facts before persisting so we don't keep rows
+    // the member opened and never filled in.
+    const cleanFacts = facts
+      .map((f) => ({ prompt: f.prompt, answer: f.answer.trim() }))
+      .filter((f) => f.answer.length > 0);
+
+    const basePayload: Record<string, unknown> = {
+      full_name: fullName.trim() || null,
+      job_title: jobTitle.trim() || null,
+      bio: bio.trim() || null,
+      favorite_quote: favoriteQuote.trim() || null,
+      favorite_seven_arrows: favoriteSevenArrows.trim() || null,
+      avatar_url: avatarUrl || null,
+      public_team: publicTeam,
+    };
+    const fullPayload = {
+      ...basePayload,
+      hometown: hometown.trim() || null,
+      interesting_facts: cleanFacts,
+    };
+
+    let result = await db({
       action: 'update',
       table: 'users',
-      data: {
-        full_name: fullName.trim() || null,
-        job_title: jobTitle.trim() || null,
-        bio: bio.trim() || null,
-        favorite_quote: favoriteQuote.trim() || null,
-        favorite_seven_arrows: favoriteSevenArrows.trim() || null,
-        avatar_url: avatarUrl || null,
-        public_team: publicTeam,
-      },
+      data: fullPayload,
       match: { id: user.id },
     });
+
+    // Migration not applied yet? Retry without the new columns so the
+    // rest of the profile still saves. We surface a soft warning so the
+    // member isn't surprised when their hometown doesn't appear.
+    if (result?.error && /hometown|interesting_facts/i.test(result.error)) {
+      // eslint-disable-next-line no-console
+      console.warn('[profile] new columns missing — saving stable subset only', result.error);
+      result = await db({
+        action: 'update',
+        table: 'users',
+        data: basePayload,
+        match: { id: user.id },
+      });
+    }
 
     if (result?.error) {
       showToast(`Failed to save: ${result.error}`);
@@ -373,13 +489,25 @@ export default function ProfileContent() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Email</label>
-                <input
-                  value={email}
-                  disabled
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-100 text-sm bg-warm-bg/50 text-foreground/50 cursor-not-allowed"
-                />
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Email</label>
+                  <input
+                    value={email}
+                    disabled
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-100 text-sm bg-warm-bg/50 text-foreground/50 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Home Town</label>
+                  <input
+                    value={hometown}
+                    onChange={(e) => setHometown(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none"
+                    placeholder="e.g. Bisbee, AZ"
+                    maxLength={80}
+                  />
+                </div>
               </div>
 
               {/* Bio with Claude assist */}
@@ -425,6 +553,105 @@ export default function ProfileContent() {
                   placeholder="A specific moment, place, or person — what makes the ranch feel like home for you?"
                 />
                 <p className="text-[11px] text-foreground/40 mt-1">{favoriteSevenArrows.length}/400</p>
+              </div>
+
+              {/* Interesting facts — pick-a-prompt picker. Members see a
+                  list of lightweight prompts, pick the ones that fit, and
+                  fill in the blank. Easier than a cold "write something
+                  interesting about yourself" box. */}
+              <div>
+                <div className="flex items-end justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider">
+                    Interesting Facts
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setFactsMenuOpen((o) => !o)}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80"
+                    aria-expanded={factsMenuOpen}
+                    aria-haspopup="listbox"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+                    </svg>
+                    {factsMenuOpen ? 'Close' : 'Add a prompt'}
+                  </button>
+                </div>
+                <p className="text-xs text-foreground/40 mb-3">
+                  Pick a prompt, finish the sentence. Anything you skip stays hidden.
+                </p>
+
+                {factsMenuOpen && (
+                  <div className="mb-3 rounded-xl border border-gray-200 bg-warm-bg/40 p-3">
+                    <div className="flex flex-wrap gap-2">
+                      {FACT_PROMPTS.map((p) => {
+                        const already = facts.some((f) => f.prompt === p);
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            disabled={already}
+                            onClick={() => addFact(p)}
+                            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                              already
+                                ? 'border-gray-200 bg-white text-foreground/30 cursor-not-allowed'
+                                : 'border-gray-200 bg-white text-foreground/70 hover:border-primary hover:text-primary'
+                            }`}
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          >
+                            {p}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {facts.length === 0 && !factsMenuOpen && (
+                  <button
+                    type="button"
+                    onClick={() => setFactsMenuOpen(true)}
+                    className="w-full rounded-xl border border-dashed border-gray-300 bg-warm-bg/30 py-4 text-sm text-foreground/50 hover:text-primary hover:border-primary transition-colors"
+                  >
+                    + Pick a prompt to get started
+                  </button>
+                )}
+
+                <div className="space-y-3">
+                  {facts.map((f, i) => (
+                    <div
+                      key={`${f.prompt}-${i}`}
+                      className="rounded-xl border border-gray-200 bg-white p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <p
+                          className="text-xs font-semibold text-foreground/70"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          {f.prompt}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => removeFact(i)}
+                          aria-label="Remove this fact"
+                          className="text-foreground/30 hover:text-foreground/70 shrink-0"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
+                          </svg>
+                        </button>
+                      </div>
+                      <input
+                        value={f.answer}
+                        onChange={(e) => updateFact(i, e.target.value)}
+                        maxLength={140}
+                        placeholder="Your answer"
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-primary focus:outline-none"
+                      />
+                      <p className="text-[10px] text-foreground/40 mt-1">{f.answer.length}/140</p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Favorite quote with Claude assist */}

@@ -6,31 +6,31 @@ export interface FamilyFaq {
 export const familyFaqs: FamilyFaq[] = [
   {
     q: 'Who counts as "family" for the family program?',
-    a: 'Family includes spouses, partners, parents, adult children, siblings, and chosen family (close friends, co-parents) — anyone the client wants involved, within clinical boundaries. Our dedicated family coordinator helps decide who to include and when.',
+    a: 'Family includes spouses, partners, parents, adult children, siblings, and chosen family (close friends, co-parents) — anyone the client wants involved, within clinical boundaries. The clinical team helps decide who to include and when.',
   },
   {
     q: 'Is there an additional cost for the family program?',
-    a: 'No. Family therapy, education groups, the family coordinator, visitation, and quarterly family weekends are included in your loved one\'s program of care at no additional charge.',
+    a: 'No. Family support sessions, education groups, visitation, and quarterly family weekends are included in your loved one\'s program of care at no additional charge.',
   },
   {
-    q: 'When does family therapy start?',
-    a: 'Family therapy typically begins in the second week of residential, after the client has had time to stabilize and our clinical team has built the initial treatment plan. Sessions are weekly by default.',
+    q: 'When do family support sessions start?',
+    a: 'Family support sessions typically begin in the second week of residential, after the client has had time to stabilize and our clinical team has built the initial treatment plan. Sessions are weekly by default.',
   },
   {
     q: 'Can I visit my loved one during treatment?',
-    a: 'Yes. Structured in-person visitation begins after the first two weeks. Our family coordinator handles scheduling, campus tours for loved ones, and family weekend logistics on a rhythm that supports the clinical work.',
+    a: 'Yes. Structured in-person visitation begins after the first two weeks. The clinical team schedules in-person visits, campus tours for loved ones, and family weekend logistics on a rhythm that supports the clinical work.',
   },
   {
     q: 'How do I reach the clinical team with questions?',
-    a: 'Every family is assigned a family coordinator at admission who serves as a single point of contact. They handle ROI paperwork, visitation, travel, and any communication the clinical team can authorize.',
+    a: 'Admissions gives every family a direct line into the clinical team at intake. Operational items — visitation logistics, ROI paperwork, travel — are handled by admissions, and your loved one\'s primary clinician is the point of contact for clinical questions once an ROI is in place.',
   },
   {
     q: 'My loved one doesn\'t want me involved. What do we do?',
-    a: 'That is common early in treatment and the clinical team respects it. The family coordinator can still provide general information about the program, and our family education groups are available whether your loved one is actively engaged or not.',
+    a: 'That is common early in treatment and the clinical team respects it. Admissions and our family education leads can still provide general information about the program, and our family education groups are available whether your loved one is actively engaged or not.',
   },
   {
     q: 'Will my loved one\'s clinician tell me how they are doing?',
-    a: 'Only with your loved one\'s signed release of information. Once signed, the family coordinator and clinician can share clinical progress within the scope you and your loved one have agreed to. Without an ROI, we can confirm admission and general schedule but nothing more.',
+    a: 'Only with your loved one\'s signed release of information. Once signed, the primary clinician can share clinical progress within the scope you and your loved one have agreed to. Without an ROI, we can confirm admission and general schedule but nothing more.',
   },
   {
     q: 'Do you offer family education groups I can attend from home?',

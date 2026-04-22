@@ -154,14 +154,39 @@ export async function GET(req: NextRequest) {
       { headers: { Authorization: `Key ${falKey}` } },
     );
     if (resultRes.ok) {
+      // fal's newer endpoints (Seedance 2, some Kling tags) wrap the
+      // result under `output` and/or return a `videos` array rather
+      // than a single `video`. Accept every shape we've seen so
+      // upgrades don't silently produce poster-only rows.
       const resultJson = (await resultRes.json()) as {
         video?: { url?: string };
         video_url?: string;
+        videos?: Array<{ url?: string }>;
         thumbnail?: { url?: string };
         thumbnail_url?: string;
+        output?: {
+          video?: { url?: string };
+          video_url?: string;
+          videos?: Array<{ url?: string }>;
+          thumbnail?: { url?: string };
+          thumbnail_url?: string;
+        };
       };
-      const falVideoUrl = resultJson.video?.url || resultJson.video_url || null;
-      const falThumbUrl = resultJson.thumbnail?.url || resultJson.thumbnail_url || null;
+      const out = resultJson.output ?? {};
+      const falVideoUrl =
+        resultJson.video?.url ||
+        resultJson.video_url ||
+        resultJson.videos?.[0]?.url ||
+        out.video?.url ||
+        out.video_url ||
+        out.videos?.[0]?.url ||
+        null;
+      const falThumbUrl =
+        resultJson.thumbnail?.url ||
+        resultJson.thumbnail_url ||
+        out.thumbnail?.url ||
+        out.thumbnail_url ||
+        null;
 
       if (falVideoUrl) {
         const archivedVideo = await archiveAsset(

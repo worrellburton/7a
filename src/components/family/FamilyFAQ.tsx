@@ -50,8 +50,8 @@ export default function FamilyFAQ() {
             className="text-foreground/70 text-lg leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Ten direct answers to the questions our family coordinator
-            fields most often. If yours isn&rsquo;t here, call us at{' '}
+            Ten direct answers to the questions our admissions team fields
+            most often. If yours isn&rsquo;t here, call us at{' '}
             <a href="tel:+18669964308" className="text-primary font-semibold underline decoration-primary/40 hover:decoration-primary">
               (866) 996-4308
             </a>

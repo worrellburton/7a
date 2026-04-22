@@ -15,9 +15,9 @@ import FamilyCTA from '@/components/family/FamilyCTA';
 export const metadata: Metadata = {
   title: 'Family Program | Seven Arrows Recovery',
   description:
-    'Family therapy, family education groups, boundary coaching, and dedicated family coordinator for loved ones of clients at Seven Arrows Recovery. The whole system heals, or nothing does.',
+    'Weekly family support sessions, family education groups, and boundary coaching for loved ones of clients at Seven Arrows Recovery. The whole system heals, or nothing does.',
   keywords:
-    'family program rehab, family therapy addiction, rehab for loved ones, codependency support, boundaries addiction family, family visitation rehab Arizona, rehab family weekend, adult child of addict support',
+    'family program rehab, family support sessions addiction, rehab for loved ones, codependency support, boundaries addiction family, family visitation rehab Arizona, rehab family weekend, adult child of addict support',
   alternates: {
     canonical: 'https://sevenarrowsrecovery.com/our-program/family-program',
   },
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     url: 'https://sevenarrowsrecovery.com/our-program/family-program',
     title: 'Family Program | Seven Arrows Recovery',
     description:
-      'The whole system heals, or nothing does. Weekly family therapy, education groups, boundary coaching, and a dedicated family coordinator.',
+      'The whole system heals, or nothing does. Weekly family support sessions, education groups, and boundary coaching.',
     images: [
       {
         url: '/images/embrace-connection.jpg',
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Family Program | Seven Arrows Recovery',
     description:
-      'Weekly family therapy, education groups, boundary coaching, and a dedicated family coordinator.',
+      'Weekly family support sessions, education groups, and boundary coaching.',
   },
 };
 
@@ -75,11 +75,11 @@ const medicalWebPageSchema = {
   name: 'Family Program — Seven Arrows Recovery',
   url: 'https://sevenarrowsrecovery.com/our-program/family-program',
   description:
-    'Family therapy, education, and coordination for the loved ones of Seven Arrows Recovery clients. The whole system heals, or nothing does.',
+    'Family support sessions, education, and coordination for the loved ones of Seven Arrows Recovery clients. The whole system heals, or nothing does.',
   inLanguage: 'en-US',
   isPartOf: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
   about: [
-    { '@type': 'MedicalTherapy', name: 'Family Therapy' },
+    { '@type': 'MedicalTherapy', name: 'Family Support Sessions' },
     { '@type': 'MedicalTherapy', name: 'Psychoeducation' },
   ],
   mainContentOfPage: { '@type': 'WebPageElement', cssSelector: 'main' },

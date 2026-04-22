@@ -122,7 +122,7 @@ export const faqCategories: FaqCategory[] = [
       {
         id: 'therapy-frequency',
         q: 'How often will I meet with a therapist?',
-        a: 'Every client has weekly individual therapy with a primary clinician, plus daily group therapy, family therapy on a scheduled cadence, and adjunctive work like EMDR or ART as clinically indicated. One-to-one time is protected and not swapped out for group coverage.',
+        a: 'Every client has weekly individual therapy with a primary clinician, plus daily group therapy, family support sessions on a scheduled cadence, and adjunctive work like EMDR or ART as clinically indicated. One-to-one time is protected and not swapped out for group coverage.',
       },
       {
         id: 'holistic',
@@ -193,12 +193,12 @@ export const faqCategories: FaqCategory[] = [
       {
         id: 'family-involvement',
         q: 'Can family be involved during treatment?',
-        a: 'Yes. Family involvement is a core part of our program. We offer weekly family therapy, open-enrollment family education groups, and a dedicated family coordinator who handles visitation, ROI paperwork, and communication throughout the stay.',
+        a: 'Yes. Family involvement is a core part of our program. We offer weekly family support sessions, open-enrollment family education groups, and coordinated visitation, ROI paperwork, and communication handled by admissions and the clinical team throughout the stay.',
       },
       {
         id: 'visitation',
         q: 'How does visitation work?',
-        a: 'Visitation is structured and typically scheduled after the first two weeks. Our family coordinator schedules in-person visits, campus tours for loved ones, and family weekends on a rhythm that supports the clinical work rather than interrupts it.',
+        a: 'Visitation is structured and typically scheduled after the first two weeks. The clinical team schedules in-person visits, campus tours for loved ones, and family weekends on a rhythm that supports the clinical work rather than interrupts it.',
       },
       {
         id: 'communication',

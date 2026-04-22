@@ -16,7 +16,7 @@ const beats: Beat[] = [
   },
   {
     when: 'Saturday morning',
-    title: 'Family therapy intensive',
+    title: 'Family support intensive',
     body: 'Two 75-minute sessions with your loved one\'s primary clinician. Structured agenda, real repair, honest work. Breakfast and coffee on campus between sessions.',
   },
   {

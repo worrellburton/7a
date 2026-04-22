@@ -76,6 +76,12 @@ const modalities: Modality[] = [
     Icon: BreathIcon,
   },
   {
+    title: 'Narrative Exposure Therapy',
+    abbr: 'NET',
+    body: 'Structured life-narrative work for complex and cumulative trauma — weaving memories into a coherent timeline so they stop hijacking the present.',
+    Icon: NarrativeIcon,
+  },
+  {
     title: 'Mindfulness Practices',
     body: 'Daily formal and informal practice that trains present-moment attention — the engine of every other modality.',
     Icon: MindfulnessIcon,
@@ -121,12 +127,14 @@ export default function Modalities() {
             className="text-foreground font-bold tracking-tight mb-6"
             style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 3.9vw, 3rem)', lineHeight: 1.03 }}
           >
-            Ten modalities, <em className="not-italic text-primary">one relational spine</em>.
+            A wide clinical toolkit, <em className="not-italic text-primary">one relational spine</em>.
           </h2>
           <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-            Every service we offer is delivered through a polyvagal-informed
-            lens. The modalities do the specific work; the relationship holds
-            the container.
+            The modalities below are the ones most people recognize — our
+            clinicians draw on many more as each client&rsquo;s work unfolds.
+            Every service is delivered through a polyvagal-informed lens. The
+            modalities do the specific work; the relationship holds the
+            container.
           </p>
         </div>
 
@@ -322,6 +330,18 @@ function BreathIcon({ className }: { className?: string }) {
       <circle cx="12" cy="12" r="3" />
       <circle cx="12" cy="12" r="7" opacity="0.6" strokeDasharray="3 3" />
       <circle cx="12" cy="12" r="10" opacity="0.3" strokeDasharray="2 5" />
+    </svg>
+  );
+}
+function NarrativeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6l16 0" />
+      <path d="M4 12l12 0" />
+      <path d="M4 18l14 0" />
+      <circle cx="20" cy="6" r="1.25" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="12" r="1.25" fill="currentColor" stroke="none" />
+      <circle cx="18" cy="18" r="1.25" fill="currentColor" stroke="none" />
     </svg>
   );
 }

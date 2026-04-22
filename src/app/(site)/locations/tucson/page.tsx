@@ -94,7 +94,7 @@ export default function LocationTucsonPage() {
               Seven Arrows Recovery sits approximately 90 miles east of Tucson along I-10—about
               a ninety-minute drive through the rolling grasslands and sky islands of southeastern
               Arizona. This proximity is a meaningful advantage for Tucson residents: family
-              members can participate in our family therapy program with regular weekend visits,
+              members can participate in our family support program with regular weekend visits,
               and the Tucson International Airport makes travel straightforward for out-of-state
               loved ones joining the process.
             </p>

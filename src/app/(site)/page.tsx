@@ -8,7 +8,6 @@ export const metadata: Metadata = {
 
 
 import Hero from "@/components/Hero";
-import TrustBadges from "@/components/TrustBadges";
 import PlaceToHeal from "@/components/PlaceToHeal";
 import ProgramSection from "@/components/ProgramSection";
 import TreatmentServices from "@/components/TreatmentServices";
@@ -197,7 +196,6 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbData) }}
       />
       <Hero />
-      <TrustBadges />
       <StatsSection />
       <PlaceToHeal />
       <ProgramSection />

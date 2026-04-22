@@ -32,7 +32,7 @@ const coverageItems = [
       'Aetna covers FDA-approved medications like Suboxone, naltrexone, and Vivitrol as part of a comprehensive treatment plan.',
   },
   {
-    title: 'Family Therapy',
+    title: 'Family Support Sessions',
     description:
       'Family involvement sessions and education programs to rebuild relationships and create a supportive recovery environment.',
   },

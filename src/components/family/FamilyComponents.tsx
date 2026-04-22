@@ -19,9 +19,9 @@ const s = {
 
 const components: Component[] = [
   {
-    title: 'Weekly family therapy',
+    title: 'Weekly family support sessions',
     cadence: 'Every week during residential',
-    body: 'Licensed family therapist facilitates structured virtual sessions with the client and their closest family members. Not open-ended venting — targeted work on the specific dynamics that substance use has shaped in your system.',
+    body: 'Structured virtual sessions with the client and their closest family members, held by a member of the clinical team. Not open-ended venting — targeted support on the specific dynamics that substance use has shaped in your system.',
     glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><circle cx="11" cy="12" r="3" /><circle cx="21" cy="12" r="3" /><path d="M5 26c0-4 3-7 6-7s6 3 6 7" /><path d="M15 26c0-4 3-7 6-7s6 3 6 7" /></svg>),
   },
   {
@@ -31,27 +31,21 @@ const components: Component[] = [
     glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><path d="M4 12l12-6 12 6-12 6z" /><path d="M8 14v6c0 2 4 4 8 4s8-2 8-4v-6" /></svg>),
   },
   {
-    title: 'Dedicated family coordinator',
-    cadence: 'One point of contact, the whole stay',
-    body: 'A single human handles visitation, ROI paperwork, travel logistics, and any communication the clinical team can authorize. You call one number, you know one name.',
-    glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" /></svg>),
-  },
-  {
     title: 'Visitation on the ranch',
     cadence: 'After week two',
-    body: 'Structured in-person visits begin after the initial stabilization window. Family tours of campus are welcome, meals on site are encouraged, and our coordinator handles all scheduling.',
+    body: 'Structured in-person visits begin after the initial stabilization window. Family tours of campus are welcome, meals on site are encouraged, and the clinical team coordinates scheduling around each client\'s treatment plan.',
     glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><path d="M4 14l12-10 12 10" /><path d="M7 14v14h18V14" /><path d="M13 28v-7h6v7" /></svg>),
   },
   {
     title: 'Family weekends',
     cadence: 'Quarterly',
-    body: 'Two-day intensives on campus — guided family therapy, joint sessions, shared meals, and optional time in the arena with the horses. Partners and kids welcome for the Saturday evening.',
+    body: 'Two-day intensives on campus — guided family support sessions, joint work, shared meals, and optional time in the arena with the horses. Partners and kids welcome for the Saturday evening.',
     glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><circle cx="16" cy="16" r="12" /><path d="M16 8v8l5 3" /></svg>),
   },
   {
     title: 'Post-discharge family plan',
     cadence: 'Ongoing',
-    body: 'Continued family therapy referrals, a family-support track inside the alumni community, and guidance on the first 90 days at home. Family work doesn\'t stop at discharge — the hardest months are still ahead.',
+    body: 'Continued family support referrals, a family-support track inside the alumni community, and guidance on the first 90 days at home. Family work doesn\'t stop at discharge — the hardest months are still ahead.',
     glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><path d="M16 27s-10-6-10-14a6 6 0 0 1 10-4 6 6 0 0 1 10 4c0 8-10 14-10 14z" /></svg>),
   },
 ];
@@ -96,7 +90,7 @@ export default function FamilyComponents() {
               lineHeight: 1.04,
             }}
           >
-            Six <em className="not-italic text-primary">concrete</em> supports.
+            Five <em className="not-italic text-primary">concrete</em> supports.
           </h2>
           <p
             className="text-foreground/70 text-lg leading-relaxed"

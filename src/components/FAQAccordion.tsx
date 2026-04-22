@@ -23,7 +23,7 @@ const faqs = [
   {
     question: 'Can my family be involved in my treatment?',
     answer:
-      'Absolutely. Family involvement is a core part of our program. We offer weekly family therapy sessions, a dedicated Family Program with educational workshops, and structured family visitation. We believe that healing the family system is essential to sustaining long-term recovery.',
+      'Absolutely. Family involvement is a core part of our program. We offer weekly family support sessions, a dedicated Family Program with educational workshops, and structured family visitation. We believe that healing the family system is essential to sustaining long-term recovery.',
   },
   {
     question: 'What types of addiction do you treat?',
@@ -53,7 +53,7 @@ const faqs = [
   {
     question: 'What happens after I complete treatment?',
     answer:
-      'Before discharge, our clinical team works with you to develop a comprehensive aftercare plan. This may include outpatient therapy referrals, sober living recommendations, alumni support groups, ongoing family therapy, and relapse prevention strategies. We remain a resource long after you leave our campus.',
+      'Before discharge, our clinical team works with you to develop a comprehensive aftercare plan. This may include outpatient therapy referrals, sober living recommendations, alumni support groups, ongoing family support sessions, and relapse prevention strategies. We remain a resource long after you leave our campus.',
   },
 ];
 

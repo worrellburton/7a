@@ -103,6 +103,14 @@ export default function PhaseFramework() {
             is asked to process a memory their nervous system is not yet
             equipped to hold.
           </p>
+          <p
+            className="mt-5 text-[12px] text-foreground/50 leading-relaxed italic"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Framework informed by Gentry, J. E., &amp; Rhoton, R. (2021).{' '}
+            <span className="not-italic">Trauma competency for the 21st century: A salutogenic “active ingredients” approach to treatment.</span>{' '}
+            Outskirts Press, Inc.
+          </p>
         </div>
 
         {/* Desktop progress rail + stacked cards */}

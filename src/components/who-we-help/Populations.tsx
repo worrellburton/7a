@@ -71,7 +71,7 @@ const personas: Persona[] = [
     title: 'Parents & spouses',
     subtitle: 'Balancing family and recovery',
     body:
-      'Still-at-home parents, empty-nest parents, and spouses whose addiction is affecting the family system. Weekly family therapy, our Family Program, and a clear pathway for loved ones to participate without blurring clinical boundaries.',
+      'Still-at-home parents, empty-nest parents, and spouses whose addiction is affecting the family system. Weekly family support sessions, our Family Program, and a clear pathway for loved ones to participate without blurring clinical boundaries.',
     glyph: (
       <svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}>
         <circle cx="11" cy="12" r="3" />

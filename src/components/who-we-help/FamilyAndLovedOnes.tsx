@@ -20,9 +20,9 @@ interface Support {
 
 const supports: Support[] = [
   {
-    title: 'Weekly family therapy',
+    title: 'Weekly family support sessions',
     body:
-      'Licensed family therapists facilitate weekly virtual sessions with the client and their closest family members. Structured, boundaried, and focused on the work that has to happen inside the family system for recovery to last.',
+      'Structured virtual sessions with the client and their closest family members, held by a member of the clinical team. Boundaried and focused on the work that has to happen inside the family system for recovery to last.',
   },
   {
     title: 'Family education groups',
@@ -30,9 +30,9 @@ const supports: Support[] = [
       'Open-enrollment, multi-week psychoeducation on addiction as a family disease, co-regulation, boundaries, enabling patterns, and what to expect during and after residential care. Families can attend whether their loved one is in care or not.',
   },
   {
-    title: 'Dedicated family coordinator',
+    title: 'Coordinated logistics',
     body:
-      'A single point of contact from admission through discharge. They handle visitation requests, family weekend logistics, release-of-information paperwork, and any communication the clinical team can authorize.',
+      'Admissions and the clinical team handle visitation requests, family weekend logistics, release-of-information paperwork, and any communication the clinical team can authorize — so families can spend their bandwidth on the work, not the operations.',
   },
 ];
 

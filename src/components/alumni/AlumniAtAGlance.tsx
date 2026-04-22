@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 const facts = [
   { term: 'Alumni line', value: '24/7 phone line for alumni, families, and referrers — answered by someone who knew you during your stay whenever possible' },
   { term: 'Aftercare plan', value: 'Individualized, written plan built with your primary clinician before discharge — never boilerplate' },
-  { term: 'Check-ins', value: 'Weekly calls from your clinician for the first 30 days post-discharge, tapering to monthly through year one' },
+  { term: 'Outreach check-ins', value: 'Ongoing check-ins from our outreach coordinator after discharge — frequency tailored to where you are in your first year out, not on a fixed script' },
   { term: 'Step-down', value: 'PHP, IOP, outpatient therapy, and sober-living referrals to vetted partners across Arizona and nationally' },
   { term: 'Alumni community', value: 'Weekly virtual meetings, a private alumni app, quarterly reunion weekends on the ranch, and peer mentorship' },
   { term: 'Re-admission', value: 'If you slip, call the alumni line. Re-admission is streamlined and every returning client gets a clinical review, not a sales call' },

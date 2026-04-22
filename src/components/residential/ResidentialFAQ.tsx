@@ -18,7 +18,7 @@ const faqs = [
   {
     question: 'Can family members visit during residential care?',
     answer:
-      'Family engagement is a core part of our program. After an initial stabilization period, we schedule structured family therapy sessions and organize family program weekends where loved ones can participate in psychoeducation, group work, and in-person visits. Visitation policies are tailored per client by the clinical team.',
+      'Family engagement is a core part of our program. After an initial stabilization period, we schedule structured family support sessions and organize family program weekends where loved ones can participate in psychoeducation, group work, and in-person visits. Visitation policies are tailored per client by the clinical team.',
   },
   {
     question: 'What about phones, laptops, and work commitments?',

@@ -51,7 +51,7 @@ export const admissionsFaqs: AdmissionsFaq[] = [
   },
   {
     q: 'Can my family call or visit while I am in treatment?',
-    a: 'Yes. Structured phone check-ins with approved family members begin in the first week. Visitation is typically scheduled after the first two weeks; a dedicated family coordinator handles visit scheduling and family-weekend logistics.',
+    a: 'Yes. Structured phone check-ins with approved family members begin in the first week. Visitation is typically scheduled after the first two weeks; the clinical team handles visit scheduling and family-weekend logistics.',
   },
   {
     q: 'Is my admission confidential?',
