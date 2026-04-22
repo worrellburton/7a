@@ -1,6 +1,12 @@
 import Link from 'next/link';
 
+// Homepage treatment-services grid. Mirrors the 'Our Program' header
+// dropdown so clicks from either surface land on the same set of
+// pages (dropdown has 9; we drop the lowest-traffic one — Interventions
+// — to fit the homepage's 4×2 tile grid). Labels match the dropdown
+// exactly so the two surfaces feel like one site, not two.
 const services = [
+  // Levels of care
   {
     title: 'Residential Inpatient',
     href: '/treatment/residential-inpatient',
@@ -8,16 +14,29 @@ const services = [
     description: '30–90 day residential programs',
   },
   {
-    title: 'Dual-Diagnosis',
-    href: '/what-we-treat/dual-diagnosis',
+    title: 'Alumni & Aftercare',
+    href: '/treatment/alumni-aftercare',
+    image: '/images/group-sunset-desert.jpg',
+    description: 'Lifelong recovery support',
+  },
+  // Clinical approach
+  {
+    title: 'Trauma Treatment',
+    href: '/our-program/trauma-treatment',
     image: '/images/individual-therapy-session.jpg',
-    description: 'Co-occurring mental health care',
+    description: 'TraumAddiction™ — addressing root causes',
   },
   {
-    title: 'Holistic Therapies',
+    title: 'Evidence-Based Treatment',
+    href: '/our-program/evidence-based',
+    image: '/images/common-area-living-room.jpg',
+    description: 'CBT · DBT · EMDR · ART · IFS',
+  },
+  {
+    title: 'Holistic & Indigenous',
     href: '/our-program/holistic-approaches',
     image: '/images/sound-healing-session.jpg',
-    description: 'Sound healing, meditation & more',
+    description: 'Yoga, sweat lodge, sound, ceremony',
   },
   {
     title: 'Equine-Assisted Psychotherapy',
@@ -25,29 +44,18 @@ const services = [
     image: '/images/horses-grazing.jpg',
     description: 'EAP for trauma & recovery',
   },
-  {
-    title: 'Evidence-Based',
-    href: '/our-program/evidence-based',
-    image: '/images/common-area-living-room.jpg',
-    description: 'CBT, DBT, EMDR & proven methods',
-  },
-  {
-    title: 'Indigenous Healing',
-    href: '/our-program/indigenous-approach',
-    image: '/images/campfire-ceremony-circle.webp',
-    description: 'Ancient wisdom traditions',
-  },
-  {
-    title: 'Aftercare & Alumni',
-    href: '/treatment/alumni-aftercare',
-    image: '/images/group-sunset-desert.jpg',
-    description: 'Lifelong recovery support',
-  },
+  // Whole person
   {
     title: 'Family Program',
     href: '/our-program/family-program',
     image: '/images/embrace-connection.jpg',
     description: 'Healing the whole family system',
+  },
+  {
+    title: 'Who We Help',
+    href: '/our-program/who-we-help',
+    image: '/images/group-gathering-pavilion.jpg',
+    description: 'Adults 18+ seeking lasting recovery',
   },
 ];
 
