@@ -10,6 +10,7 @@ import StepDown from '@/components/alumni/StepDown';
 import Milestones from '@/components/alumni/Milestones';
 import LiveReviewsBand from '@/components/LiveReviewsBand';
 import { alumniVoicesFallback } from '@/components/alumni/alumniVoicesFallback';
+import AlumniCTA from '@/components/alumni/AlumniCTA';
 
 export const metadata: Metadata = {
   title: 'Alumni & Aftercare | Seven Arrows Recovery',
@@ -104,6 +105,7 @@ export default function AlumniAftercarePage() {
         lede="Pulled live from our public Google listing when available; editorial stubs shown otherwise. Either way, every word used with permission."
         fallback={alumniVoicesFallback}
       />
+      <AlumniCTA />
     </main>
   );
 }
