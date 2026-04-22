@@ -6,6 +6,7 @@ import { SectionNav, SECTIONS, type AnalyticsSection } from './SectionNav';
 import { OverviewSection } from './OverviewSection';
 import { AcquisitionSection } from './AcquisitionSection';
 import { EngagementSection } from './EngagementSection';
+import { PagesSection } from './PagesSection';
 import { type DateRange, rangeForPreset } from './shared';
 
 export default function AnalyticsContent() {
@@ -31,9 +32,11 @@ export default function AnalyticsContent() {
       {section === 'overview' && <OverviewSection range={range} />}
       {section === 'acquisition' && <AcquisitionSection range={range} />}
       {section === 'engagement' && <EngagementSection range={range} />}
+      {section === 'pages' && <PagesSection range={range} />}
       {section !== 'overview' &&
         section !== 'acquisition' &&
-        section !== 'engagement' && <SectionStub section={section} />}
+        section !== 'engagement' &&
+        section !== 'pages' && <SectionStub section={section} />}
     </div>
   );
 }
