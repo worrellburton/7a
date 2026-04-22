@@ -5,6 +5,7 @@
 
 import { fetchPlaceDetails } from '@/lib/places';
 import { siteVideos } from '@/lib/siteVideos';
+import { CURATED_REVIEWS } from '@/lib/curatedReviews';
 import ReviewCinemaCarousel from './ReviewCinemaCarousel';
 import type { ReviewBubbleData } from './ReviewBubble';
 
@@ -15,26 +16,12 @@ const VIDEO_POOL = [
   siteVideos.ranchLife,
 ];
 
-const FALLBACK_REVIEWS: ReviewBubbleData[] = [
-  {
-    name: 'Michael T.',
-    date: '2 months ago',
-    rating: 5,
-    text: "Seven Arrows saved my life. The staff genuinely cares about every person who walks through the door. The small group setting made me feel like I wasn't just a number. I'm 8 months sober now and I owe it to this incredible team.",
-  },
-  {
-    name: 'Sarah K.',
-    date: '3 months ago',
-    rating: 5,
-    text: 'My son attended Seven Arrows and the difference has been night and day. The communication from the clinical team was outstanding — they kept us informed every step of the way. We finally have our son back.',
-  },
-  {
-    name: 'James R.',
-    date: '1 month ago',
-    rating: 5,
-    text: "I've been to three other treatment centers before finding Seven Arrows. This place is different. The 6:1 staff ratio means you actually get attention. The setting at the base of the Swisshelm Mountains helped me find peace I didn't know was possible.",
-  },
-];
+// First ~60 chars of a review text, stripped of whitespace/punctuation —
+// used as a de-dupe key so a curated quote that was later posted to
+// Google doesn't appear twice in the carousel.
+function quoteKey(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 60);
+}
 
 const FALLBACK_RATING = 4.9;
 const FALLBACK_TOTAL = 27;
@@ -53,16 +40,36 @@ function GoogleIcon({ className = 'w-5 h-5' }: { className?: string }) {
 export default async function GoogleReviewsCinema() {
   const place = await fetchPlaceDetails();
 
+  // Google reviews first (freshest, verified via Places), then the
+  // curated editorial pool to push the carousel past Google's 5-review
+  // cap. Dedupe so a curated quote that was later posted to Google
+  // doesn't appear twice.
+  const googleReviews: ReviewBubbleData[] = (place?.reviews ?? []).map((r) => ({
+    name: r.authorName,
+    date: r.relativeTime,
+    rating: r.rating,
+    text: r.text,
+    photoUrl: r.profilePhotoUrl,
+    source: 'google',
+  }));
+
+  const googleKeys = new Set(googleReviews.map((r) => quoteKey(r.text)));
+  const curated: ReviewBubbleData[] = CURATED_REVIEWS.filter(
+    (c) => !googleKeys.has(quoteKey(c.text)),
+  ).map((c) => ({
+    name: c.name,
+    // Curated items carry an alum/family attribution instead of a
+    // relative-time string — the slide footer renders it verbatim.
+    date: c.attribution,
+    rating: c.rating,
+    text: c.text,
+    source: 'curated',
+  }));
+
   const reviews: ReviewBubbleData[] =
-    place?.reviews && place.reviews.length > 0
-      ? place.reviews.map((r) => ({
-          name: r.authorName,
-          date: r.relativeTime,
-          rating: r.rating,
-          text: r.text,
-          photoUrl: r.profilePhotoUrl,
-        }))
-      : FALLBACK_REVIEWS;
+    googleReviews.length + curated.length > 0
+      ? [...googleReviews, ...curated]
+      : [];
 
   const slides = reviews.map((review, i) => ({
     review,

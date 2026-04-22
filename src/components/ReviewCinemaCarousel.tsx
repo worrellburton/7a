@@ -302,7 +302,7 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
                         // Custom prop drives the mask-position animation
                         // declared in the global keyframes block below.
                         animation: isActive
-                          ? 'reveal-sweep 3000ms cubic-bezier(0.22,1,0.36,1) forwards'
+                          ? 'reveal-sweep 7000ms cubic-bezier(0.22,1,0.36,1) forwards'
                           : 'none',
                       }}
                     >
@@ -346,9 +346,11 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
                         {(slide.review.name || '?').trim().charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <div className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5 shadow">
-                      <GoogleIcon className="w-3.5 h-3.5" />
-                    </div>
+                    {slide.review.source !== 'curated' && (
+                      <div className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5 shadow">
+                        <GoogleIcon className="w-3.5 h-3.5" />
+                      </div>
+                    )}
                   </div>
                   <p
                     className="text-2xl sm:text-3xl font-bold tracking-tight text-white"
@@ -358,7 +360,9 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
                   </p>
                   <div className="flex items-center gap-2 text-white/60 text-xs sm:text-sm">
                     <span style={{ fontFamily: 'var(--font-body)' }}>
-                      Verified Google review · {slide.review.date}
+                      {slide.review.source === 'curated'
+                        ? slide.review.date || 'Verified alum review'
+                        : `Verified Google review · ${slide.review.date}`}
                     </span>
                   </div>
                 </div>

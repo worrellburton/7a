@@ -53,6 +53,13 @@ export interface ReviewBubbleData {
   rating: number;
   text: string;
   photoUrl?: string | null;
+  /**
+   * Where this review came from. 'google' renders the Google ribbon +
+   * "Verified Google review" footer; 'curated' treats the entry as an
+   * alum/family testimonial and renders `date` as a plain attribution
+   * with no Google branding.
+   */
+  source?: 'google' | 'curated';
 }
 
 export function ReviewBubble({ review }: { review: ReviewBubbleData }) {
