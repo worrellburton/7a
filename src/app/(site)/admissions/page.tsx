@@ -8,6 +8,8 @@ import WhatToExpect from '@/components/admissions/WhatToExpect';
 import WhatToBring from '@/components/admissions/WhatToBring';
 import TravelLogistics from '@/components/admissions/TravelLogistics';
 import PaymentOptions from '@/components/admissions/PaymentOptions';
+import AdmissionsFAQ from '@/components/admissions/AdmissionsFAQ';
+import { admissionsFaqs } from '@/components/admissions/admissionsFaqs';
 
 export const metadata: Metadata = {
   title: 'Admissions | Arizona Drug & Alcohol Rehab — Seven Arrows Recovery',
@@ -50,6 +52,16 @@ const breadcrumbSchema = {
   ],
 };
 
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: admissionsFaqs.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
+};
+
 const medicalWebPageSchema = {
   '@context': 'https://schema.org',
   '@type': 'MedicalWebPage',
@@ -79,6 +91,10 @@ export default function AdmissionsPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       <AdmissionsHero />
       <AdmissionsAtAGlance />
       <ThreeStepIntake />
@@ -87,6 +103,7 @@ export default function AdmissionsPage() {
       <WhatToBring />
       <TravelLogistics />
       <PaymentOptions />
+      <AdmissionsFAQ />
     </main>
   );
 }
