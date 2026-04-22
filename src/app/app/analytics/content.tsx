@@ -5,6 +5,7 @@ import { RangeSelector } from './RangeSelector';
 import { SectionNav, SECTIONS, type AnalyticsSection } from './SectionNav';
 import { OverviewSection } from './OverviewSection';
 import { AcquisitionSection } from './AcquisitionSection';
+import { EngagementSection } from './EngagementSection';
 import { type DateRange, rangeForPreset } from './shared';
 
 export default function AnalyticsContent() {
@@ -29,7 +30,10 @@ export default function AnalyticsContent() {
 
       {section === 'overview' && <OverviewSection range={range} />}
       {section === 'acquisition' && <AcquisitionSection range={range} />}
-      {section !== 'overview' && section !== 'acquisition' && <SectionStub section={section} />}
+      {section === 'engagement' && <EngagementSection range={range} />}
+      {section !== 'overview' &&
+        section !== 'acquisition' &&
+        section !== 'engagement' && <SectionStub section={section} />}
     </div>
   );
 }
