@@ -10,6 +10,7 @@ import GeographicReach from '@/components/who-we-help/GeographicReach';
 import FamilyAndLovedOnes from '@/components/who-we-help/FamilyAndLovedOnes';
 import WhoFAQ from '@/components/who-we-help/WhoFAQ';
 import { whoFaqs } from '@/components/who-we-help/whoFaqs';
+import WhoCTA from '@/components/who-we-help/WhoCTA';
 
 export const metadata: Metadata = {
   title: 'Who We Help | Arizona Drug & Alcohol Rehab for Adults 18+',
@@ -125,6 +126,7 @@ export default function WhoWeHelpPage() {
       <GeographicReach />
       <FamilyAndLovedOnes />
       <WhoFAQ />
+      <WhoCTA />
     </main>
   );
 }
