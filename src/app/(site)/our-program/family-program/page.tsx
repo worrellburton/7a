@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import FamilyHero from '@/components/family/FamilyHero';
 import FamilyAtAGlance from '@/components/family/FamilyAtAGlance';
 import WhyFamilyMatters from '@/components/family/WhyFamilyMatters';
+import FamilyComponents from '@/components/family/FamilyComponents';
 
 export const metadata: Metadata = {
   title: 'Family Program | Seven Arrows Recovery',
@@ -82,6 +83,7 @@ export default function FamilyProgramPage() {
       <FamilyHero />
       <FamilyAtAGlance />
       <WhyFamilyMatters />
+      <FamilyComponents />
     </main>
   );
 }
