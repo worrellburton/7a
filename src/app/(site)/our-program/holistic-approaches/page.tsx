@@ -15,6 +15,7 @@ import IndigenousFeature from '@/components/holistic/IndigenousFeature';
 import DayOfPractice from '@/components/holistic/DayOfPractice';
 import EvidenceStats from '@/components/holistic/EvidenceStats';
 import Practitioners from '@/components/holistic/Practitioners';
+import AlumniVoices from '@/components/holistic/AlumniVoices';
 
 export default function HolisticApproachesPage() {
   return (
@@ -28,6 +29,7 @@ export default function HolisticApproachesPage() {
       <DayOfPractice />
       <EvidenceStats />
       <Practitioners />
+      <AlumniVoices />
 
       {/* CTA */}
       <section className="py-16 lg:py-24 bg-warm-card">
