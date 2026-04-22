@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 
 import Link from 'next/link';
 import HolisticHero from '@/components/holistic/HolisticHero';
+import WhyHolistic from '@/components/holistic/WhyHolistic';
 
 const therapies = [
   {
@@ -46,6 +47,7 @@ export default function HolisticApproachesPage() {
   return (
     <main>
       <HolisticHero />
+      <WhyHolistic />
 
       {/* Introduction */}
       <section id="practices" className="py-16 lg:py-24 bg-warm-bg scroll-mt-20">
