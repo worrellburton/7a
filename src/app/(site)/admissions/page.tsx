@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import AdmissionsHero from '@/components/admissions/AdmissionsHero';
 import AdmissionsAtAGlance from '@/components/admissions/AdmissionsAtAGlance';
+import ThreeStepIntake from '@/components/admissions/ThreeStepIntake';
 
 export const metadata: Metadata = {
   title: 'Admissions | Arizona Drug & Alcohol Rehab — Seven Arrows Recovery',
@@ -75,6 +76,7 @@ export default function AdmissionsPage() {
       />
       <AdmissionsHero />
       <AdmissionsAtAGlance />
+      <ThreeStepIntake />
     </main>
   );
 }
