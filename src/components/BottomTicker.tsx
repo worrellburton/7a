@@ -3,22 +3,15 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-const tickerItems = [
-  { type: 'stat', text: '4.9/5 Google Rating' },
-  { type: 'review', text: '"Seven Arrows saved my life." — Michael T.' },
-  { type: 'stat', text: '6:1 Client to Staff Ratio' },
-  { type: 'link', text: 'NEW: When Drinking Stops Working →', href: '/who-we-are/blog/when-drinking-stops-working' },
-  { type: 'stat', text: '90+ Day Programs Available' },
-  { type: 'review', text: '"We finally have our son back." — Sarah K.' },
-  { type: 'stat', text: '24/7 Admissions Support' },
-  { type: 'review', text: '"This place is different." — James R.' },
-  { type: 'stat', text: 'JCAHO Accredited • LegitScript Certified' },
-];
+export type TickerItem =
+  | { type: 'stat'; text: string }
+  | { type: 'review'; text: string }
+  | { type: 'link'; text: string; href: string };
 
-function TickerContent() {
+function TickerContent({ items }: { items: TickerItem[] }) {
   return (
     <>
-      {tickerItems.map((item, i) => (
+      {items.map((item, i) => (
         <span key={i} className="inline-flex items-center gap-3 mx-6 whitespace-nowrap">
           {item.type === 'stat' && (
             <span
@@ -33,7 +26,7 @@ function TickerContent() {
               {item.text}
             </span>
           )}
-          {item.type === 'link' && item.href && (
+          {item.type === 'link' && (
             <Link
               href={item.href}
               className="text-white text-xs font-semibold hover:text-accent transition-colors underline decoration-accent/50"
@@ -56,7 +49,7 @@ function TickerContent() {
  * accreditation strip. Desktop-only (mobile viewports are already
  * tight and the sticky CTA pill lives in that slot instead).
  */
-export default function BottomTicker() {
+export default function BottomTicker({ items }: { items: TickerItem[] }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -64,14 +57,8 @@ export default function BottomTicker() {
       const y = window.scrollY;
       const viewport = window.innerHeight;
       const docEnd = document.documentElement.scrollHeight - viewport;
-
-      // Show after the user is past the first screen's worth of content.
       const pastHero = y > viewport * 0.6;
-
-      // Hide in the final stretch so the ticker doesn't overlap the
-      // footer's contact form and accreditation row.
       const nearFooter = y > docEnd - 640;
-
       setVisible(pastHero && !nearFooter);
     };
     onScroll();
@@ -97,10 +84,10 @@ export default function BottomTicker() {
     >
       <div className="py-3 flex animate-ticker" style={{ width: 'max-content' }}>
         <div className="flex items-center shrink-0">
-          <TickerContent />
+          <TickerContent items={items} />
         </div>
         <div className="flex items-center shrink-0">
-          <TickerContent />
+          <TickerContent items={items} />
         </div>
       </div>
     </div>
