@@ -8,6 +8,8 @@ import FamilyPersonas from '@/components/family/FamilyPersonas';
 import WhileTheyAreIn from '@/components/family/WhileTheyAreIn';
 import BoundariesVsEnabling from '@/components/family/BoundariesVsEnabling';
 import FamilyWeekend from '@/components/family/FamilyWeekend';
+import FamilyFAQ from '@/components/family/FamilyFAQ';
+import { familyFaqs } from '@/components/family/familyFaqs';
 
 export const metadata: Metadata = {
   title: 'Family Program | Seven Arrows Recovery',
@@ -56,6 +58,16 @@ const breadcrumbSchema = {
   ],
 };
 
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: familyFaqs.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
+};
+
 const medicalWebPageSchema = {
   '@context': 'https://schema.org',
   '@type': 'MedicalWebPage',
@@ -84,6 +96,10 @@ export default function FamilyProgramPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       <FamilyHero />
       <FamilyAtAGlance />
       <WhyFamilyMatters />
@@ -92,6 +108,7 @@ export default function FamilyProgramPage() {
       <WhileTheyAreIn />
       <BoundariesVsEnabling />
       <FamilyWeekend />
+      <FamilyFAQ />
     </main>
   );
 }
