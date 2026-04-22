@@ -7,6 +7,8 @@ export const metadata: Metadata = {
 };
 
 import EvidenceHero from '@/components/evidence-based/EvidenceHero';
+import FrameworkIntro from '@/components/evidence-based/FrameworkIntro';
+import RelationalInsight from '@/components/evidence-based/RelationalInsight';
 import Link from 'next/link';
 
 const modalities = [
@@ -43,7 +45,14 @@ export default function EvidenceBasedPage() {
       {/* Phase 1 — cinematic hero */}
       <EvidenceHero />
 
-      {/* Introduction */}
+      {/* Phase 2 — framework intro (Rhoton / Gentry + shift glyph) */}
+      <FrameworkIntro />
+
+      {/* Phase 3 — relational primacy pull-quote with interwoven arcs */}
+      <RelationalInsight />
+
+      {/* Legacy introduction / modalities — phases 4-10 will replace
+          these in subsequent commits. */}
       <section className="py-16 lg:py-24 bg-warm-bg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto mb-16">
