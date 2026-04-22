@@ -321,7 +321,7 @@ export default function PageContent() {
       />
 
       <article className="py-16 lg:py-24">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Back link */}
           <Link href="/who-we-are/blog/when-drinking-stops-working" className="text-primary text-sm font-semibold hover:underline mb-8 inline-block" style={{ fontFamily: 'var(--font-body)' }}>
@@ -361,7 +361,7 @@ export default function PageContent() {
           <TimelineInfographic />
         </div>
 
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Image break */}
           <div className="my-12 rounded-2xl overflow-hidden aspect-[16/7]">
