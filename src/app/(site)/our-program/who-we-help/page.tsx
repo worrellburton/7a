@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import WhoHero from '@/components/who-we-help/WhoHero';
 import AtAGlance from '@/components/who-we-help/AtAGlance';
 import Populations from '@/components/who-we-help/Populations';
+import SubstancesAndConditions from '@/components/who-we-help/SubstancesAndConditions';
 
 export const metadata: Metadata = {
   title: 'Who We Help | Arizona Drug & Alcohol Rehab for Adults 18+',
@@ -98,6 +99,7 @@ export default function WhoWeHelpPage() {
       <WhoHero />
       <AtAGlance />
       <Populations />
+      <SubstancesAndConditions />
     </main>
   );
 }
