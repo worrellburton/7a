@@ -6,8 +6,8 @@ export const metadata: Metadata = {
     'Seven Arrows Recovery offers holistic therapies including yoga, meditation, mindfulness, art therapy, music therapy, and nutritional wellness to support whole-person healing.',
 };
 
-import PageHero from '@/components/PageHero';
 import Link from 'next/link';
+import HolisticHero from '@/components/holistic/HolisticHero';
 
 const therapies = [
   {
@@ -45,20 +45,10 @@ const therapies = [
 export default function HolisticApproachesPage() {
   return (
     <main>
-      <PageHero
-        label="Holistic Approaches"
-        title="Nurturing the Whole Person"
-        breadcrumbs={[
-          { label: 'Home', href: '/' },
-          { label: 'Our Program', href: '/our-program' },
-          { label: 'Holistic Approaches' },
-        ]}
-        description="True recovery goes beyond treating symptoms. Our holistic therapies nourish the mind, body, and spirit, giving clients the tools they need to build a balanced and fulfilling life in sobriety."
-        image="/images/sound-healing-session.jpg"
-      />
+      <HolisticHero />
 
       {/* Introduction */}
-      <section className="py-16 lg:py-24 bg-warm-bg">
+      <section id="practices" className="py-16 lg:py-24 bg-warm-bg scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto mb-16">
             <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
