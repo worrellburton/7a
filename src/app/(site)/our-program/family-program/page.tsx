@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import FamilyHero from '@/components/family/FamilyHero';
+import FamilyAtAGlance from '@/components/family/FamilyAtAGlance';
 
 export const metadata: Metadata = {
   title: 'Family Program | Seven Arrows Recovery',
@@ -78,6 +79,7 @@ export default function FamilyProgramPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
       />
       <FamilyHero />
+      <FamilyAtAGlance />
     </main>
   );
 }
