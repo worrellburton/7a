@@ -317,6 +317,7 @@ export default function PageContent() {
         ]}
         description="Your first week in treatment, demystified. A day-by-day guide for anyone afraid to make the call."
         image="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1600&q=80"
+        width="narrow"
       />
 
       <article className="py-16 lg:py-24">

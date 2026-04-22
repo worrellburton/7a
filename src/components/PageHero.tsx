@@ -20,6 +20,10 @@ interface PageHeroProps {
   breadcrumbs?: { label: string; href?: string }[];
   /** Small meta row under the description (author / dates / read time). */
   meta?: MetaItem[];
+  /** Content column width. "wide" (default) matches marketing pages'
+   *  max-w-7xl container; "narrow" uses max-w-3xl so the hero's left
+   *  edge lines up with a 3xl reading column beneath it (blog posts). */
+  width?: 'wide' | 'narrow';
 }
 
 // Temporary placeholder backdrop used on every inner page until we
@@ -69,6 +73,7 @@ export default function PageHero({
   video = DEFAULT_VIDEO,
   breadcrumbs,
   meta,
+  width = 'wide',
 }: PageHeroProps) {
   // A `video` (defaulted) takes precedence. Callers can still pass an
   // explicit `image` to opt out of the shared placeholder clip.
@@ -134,7 +139,7 @@ export default function PageHero({
       />
 
       <div
-        className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
+        className={`relative z-10 ${width === 'narrow' ? 'max-w-3xl' : 'max-w-7xl'} mx-auto px-4 sm:px-6 lg:px-8`}
         style={{ paddingTop: 'calc(var(--site-header-height, 68px) + 2.5rem)' }}
       >
         <div className="pb-16 lg:pb-24 min-h-[380px] lg:min-h-[440px] flex flex-col justify-end">

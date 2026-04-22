@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     'Seven Arrows Recovery',
 };
 
-import TraumaHero from '@/components/trauma/TraumaHero';
+import PageHero from '@/components/PageHero';
 import ClinicalGap from '@/components/trauma/ClinicalGap';
 import PostTraumaticAdaptation from '@/components/trauma/PostTraumaticAdaptation';
 import SocDomains from '@/components/trauma/SocDomains';
@@ -20,8 +20,19 @@ import TraumaCTA from '@/components/trauma/TraumaCTA';
 export default function TraumaTreatmentPage() {
   return (
     <main>
-      {/* Phase 1 — cinematic WebGL-aurora hero. */}
-      <TraumaHero />
+      {/* Phase 1 — shared video-backdrop hero for consistency with
+          every other inner page. The Swisshelm mp4 loops under the
+          scrim on first paint. */}
+      <PageHero
+        label="TraumAddiction® Treatment"
+        title="Healing trauma at the root of recovery."
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our Program', href: '/our-program' },
+          { label: 'Trauma Treatment' },
+        ]}
+        description="Addiction rarely exists in isolation. Our TraumAddiction® approach treats trauma and substance use as one integrated condition through the Forward-Facing Freedom® model — unlocking deeper and more lasting healing."
+      />
 
       {/* Phase 2 — The Clinical Gap, animated SVG glyph section. */}
       <ClinicalGap />
