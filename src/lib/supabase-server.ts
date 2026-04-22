@@ -84,6 +84,64 @@ export function getAdminSupabase(): SupabaseClient {
   return cachedAdmin;
 }
 
+// Turn a Supabase Storage public URL into a signed URL that external
+// downloaders (fal.ai, for example) can always pull — regardless of
+// whether the bucket is actually flagged public or whether the object
+// ACL has drifted. Non-Supabase URLs (or malformed input) are returned
+// unchanged so callers can pipe any input through safely.
+//
+// Pattern we need to rewrite:
+//   https://<proj>.supabase.co/storage/v1/object/public/<bucket>/<path>
+//     → signed URL valid for `expiresInSeconds`.
+// Already-signed URLs (/sign/ path with ?token=...) are passed through
+// as-is since they're already long-lived enough for a single job.
+export async function signedUrlForSupabaseAsset(
+  url: string | null | undefined,
+  expiresInSeconds = 60 * 60 * 24, // 24h — safely outlives any fal.ai queue
+): Promise<string | null> {
+  if (!url) return null;
+  const projectUrl = supabaseUrl;
+  if (!projectUrl) return url;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+
+  // Only rewrite URLs that point at our Supabase project's storage API.
+  const projectHost = new URL(projectUrl).host;
+  if (parsed.host !== projectHost) return url;
+
+  // Expected path: /storage/v1/object/public/<bucket>/<rest...>
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  if (parts.length < 6) return url;
+  if (parts[0] !== 'storage' || parts[1] !== 'v1' || parts[2] !== 'object') return url;
+
+  // Already signed? Pass through; re-signing a signed URL just adds latency.
+  if (parts[3] === 'sign') return url;
+  if (parts[3] !== 'public') return url;
+
+  const bucket = parts[4];
+  const objectPath = parts.slice(5).map(decodeURIComponent).join('/');
+
+  const admin = getAdminSupabase();
+  const { data, error } = await admin.storage
+    .from(bucket)
+    .createSignedUrl(objectPath, expiresInSeconds);
+  if (error || !data?.signedUrl) {
+    // eslint-disable-next-line no-console
+    console.warn('[signedUrlForSupabaseAsset] sign failed, falling back to public URL', {
+      bucket,
+      objectPath,
+      error: error?.message,
+    });
+    return url;
+  }
+  return data.signedUrl;
+}
+
 export async function getUserFromRequest(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
   if (!authHeader) return null;

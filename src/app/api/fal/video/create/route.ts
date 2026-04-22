@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminSupabase, getUserFromRequest } from '@/lib/supabase-server';
+import {
+  getAdminSupabase,
+  getUserFromRequest,
+  signedUrlForSupabaseAsset,
+} from '@/lib/supabase-server';
 import { DEFAULT_VIDEO_MODEL_ID, findVideoModel } from '@/lib/videoModels';
 
 const FAL_QUEUE_BASE = 'https://queue.fal.run';
@@ -65,10 +69,19 @@ export async function POST(req: NextRequest) {
     ? `${CINEMATIC_PREFIX} ${userPrompt}`
     : CINEMATIC_PREFIX;
 
+  // Hand fal a signed URL rather than the raw /public/ URL. Fal pulls the
+  // source image server-to-server and has been known to fail with
+  // "Failed to download the file" when the bucket policy isn't fully
+  // public or when an intermediate CDN is cold. Signed URLs are always
+  // directly fetchable by the service role token we're issuing. Falls
+  // back to the original URL for non-Supabase inputs (e.g. external
+  // test images) so this is safe to pipe every request through.
+  const falImageUrl = (await signedUrlForSupabaseAsset(imageUrl)) || imageUrl;
+
   // Each model builds its own payload — some fal endpoints want duration
   // as a string, some ignore resolution, some upper-case it, etc.
   const payload = videoModel.buildPayload({
-    imageUrl,
+    imageUrl: falImageUrl,
     prompt: finalPrompt,
     duration: resolvedDuration,
     resolution: resolvedResolution,
