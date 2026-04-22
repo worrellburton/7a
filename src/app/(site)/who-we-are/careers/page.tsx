@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import CareersHero from '@/components/careers/CareersHero';
+import CareersAtAGlance from '@/components/careers/CareersAtAGlance';
 
 export const metadata: Metadata = {
   title: 'Careers | Arizona Addiction Treatment Jobs — Seven Arrows Recovery',
@@ -52,6 +53,7 @@ export default function CareersPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
       <CareersHero />
+      <CareersAtAGlance />
     </main>
   );
 }
