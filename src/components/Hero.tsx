@@ -299,7 +299,7 @@ export default function Hero() {
             >
               <h1
                 id="hero-heading"
-                className="font-bold leading-[1.02] tracking-tight mb-8"
+                className="font-bold leading-[1.02] tracking-tight mb-6"
                 style={{
                   fontFamily: 'var(--font-display)',
                   fontSize: 'clamp(2.5rem, 6vw, 4.5rem)',
@@ -308,10 +308,21 @@ export default function Hero() {
                   transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.2s',
                 }}
               >
-                Recovery starts here.
-                <br />
-                Find <em className="not-italic font-bold" style={{ color: 'var(--color-accent)' }}>a plan made for you</em>.
+                A place to <em className="not-italic font-bold" style={{ color: 'var(--color-accent)' }}>land</em>.
               </h1>
+
+              <p
+                className="mx-auto max-w-xl text-white/85 leading-relaxed mb-8 text-base sm:text-lg"
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
+                  transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.35s',
+                }}
+              >
+                Seven Arrows Recovery is a residential addiction treatment
+                ranch at the base of the Swisshelm Mountains in Arizona.
+              </p>
 
               {/* Primary CTA — replacing the directory-style search input
                   from Recovery.com with an honest, single-purpose button.

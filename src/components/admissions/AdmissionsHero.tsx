@@ -112,7 +112,7 @@ export default function AdmissionsHero() {
               transition: 'all 1.05s cubic-bezier(0.16,1,0.3,1) 0.3s',
             }}
           >
-            A place to <em className="not-italic" style={{ color: 'var(--color-accent)' }}>land</em>.
+            Start with a call. <em className="not-italic" style={{ color: 'var(--color-accent)' }}>We&rsquo;ll take it from here</em>.
           </h1>
 
           <p
