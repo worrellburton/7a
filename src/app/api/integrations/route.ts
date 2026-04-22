@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 import { listStoredTokens } from '@/lib/quickbooks';
+import { ga4Run, gscSearchAnalytics, hasGoogleOAuth } from '@/lib/google';
 
 // GET /api/integrations
 // Admin-only snapshot of every third-party integration the app talks to.
@@ -192,6 +193,86 @@ async function probeCTM(): Promise<IntegrationStatus> {
   return base;
 }
 
+// -- Google Analytics 4 -------------------------------------------------
+// Live probe: runReport for 1 day with sessions only. Cheap call, confirms
+// the refresh token still works AND the GA4 property is reachable.
+async function probeGoogleAnalytics(): Promise<IntegrationStatus> {
+  const configured = hasGoogleOAuth() && !!process.env.GA4_PROPERTY_ID;
+  const base: IntegrationStatus = {
+    id: 'ga4',
+    name: 'Google Analytics 4',
+    description: 'Site traffic, sessions, and landing-page performance.',
+    category: 'auth',
+    configured,
+    connected: false,
+    detail: null,
+    error: null,
+    docsUrl: 'https://analytics.google.com/',
+  };
+
+  if (!configured) {
+    base.error = 'Missing GOOGLE_OAUTH_* env or GA4_PROPERTY_ID';
+    return base;
+  }
+
+  try {
+    const result = await withTimeout(
+      ga4Run({
+        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        metrics: [{ name: 'sessions' }],
+      }),
+      PROBE_TIMEOUT_MS,
+      'GA4'
+    );
+    const sessions = Number(result.totals?.[0]?.metricValues?.[0]?.value ?? 0);
+    base.connected = true;
+    base.detail = `property ${process.env.GA4_PROPERTY_ID} · ${sessions.toLocaleString()} sessions (7d)`;
+  } catch (err) {
+    base.error = err instanceof Error ? err.message : String(err);
+  }
+  return base;
+}
+
+// -- Google Search Console ---------------------------------------------
+// Live probe: tiny searchAnalytics query against the verified site.
+async function probeSearchConsole(): Promise<IntegrationStatus> {
+  const configured = hasGoogleOAuth() && !!process.env.GSC_SITE_URL;
+  const base: IntegrationStatus = {
+    id: 'gsc',
+    name: 'Google Search Console',
+    description: 'Organic search impressions, clicks, and query rankings.',
+    category: 'auth',
+    configured,
+    connected: false,
+    detail: null,
+    error: null,
+    docsUrl: 'https://search.google.com/search-console',
+  };
+
+  if (!configured) {
+    base.error = 'Missing GOOGLE_OAUTH_* env or GSC_SITE_URL';
+    return base;
+  }
+
+  try {
+    const result = await withTimeout(
+      gscSearchAnalytics({
+        startDate: '30daysAgo',
+        endDate: 'today',
+        rowLimit: 1,
+      }),
+      PROBE_TIMEOUT_MS,
+      'Search Console'
+    );
+    const clicks = Number(result.rows?.[0]?.clicks ?? 0);
+    base.connected = true;
+    base.detail = `${process.env.GSC_SITE_URL} · ${clicks.toLocaleString()} clicks (30d)`;
+  } catch (err) {
+    base.error = err instanceof Error ? err.message : String(err);
+  }
+  return base;
+}
+
 // -- Stedi --------------------------------------------------------------
 // No cheap probe — the only endpoint is a destructive professional-claim
 // POST. Configured = key present; we mark connected true if configured
@@ -222,6 +303,8 @@ export async function GET() {
   const integrations = await Promise.all([
     probeSupabase(),
     probeGoogleOauth(),
+    probeGoogleAnalytics(),
+    probeSearchConsole(),
     probeQuickBooks(),
     probeCTM(),
     probeStedi(),
