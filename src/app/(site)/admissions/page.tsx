@@ -7,6 +7,7 @@ import InsuranceVerify from '@/components/admissions/InsuranceVerify';
 import WhatToExpect from '@/components/admissions/WhatToExpect';
 import WhatToBring from '@/components/admissions/WhatToBring';
 import TravelLogistics from '@/components/admissions/TravelLogistics';
+import PaymentOptions from '@/components/admissions/PaymentOptions';
 
 export const metadata: Metadata = {
   title: 'Admissions | Arizona Drug & Alcohol Rehab — Seven Arrows Recovery',
@@ -85,6 +86,7 @@ export default function AdmissionsPage() {
       <WhatToExpect />
       <WhatToBring />
       <TravelLogistics />
+      <PaymentOptions />
     </main>
   );
 }
