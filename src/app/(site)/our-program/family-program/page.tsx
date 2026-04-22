@@ -10,6 +10,7 @@ import BoundariesVsEnabling from '@/components/family/BoundariesVsEnabling';
 import FamilyWeekend from '@/components/family/FamilyWeekend';
 import FamilyFAQ from '@/components/family/FamilyFAQ';
 import { familyFaqs } from '@/components/family/familyFaqs';
+import FamilyCTA from '@/components/family/FamilyCTA';
 
 export const metadata: Metadata = {
   title: 'Family Program | Seven Arrows Recovery',
@@ -109,6 +110,7 @@ export default function FamilyProgramPage() {
       <BoundariesVsEnabling />
       <FamilyWeekend />
       <FamilyFAQ />
+      <FamilyCTA />
     </main>
   );
 }
