@@ -702,7 +702,9 @@ function MegaMenuDropdown({
                         >
                           {group.name}
                         </p>
-                        <ul className="flex flex-col">
+                        <ul
+                          className={`${group.items.length > 5 ? 'grid grid-cols-2 gap-x-6' : 'flex flex-col'}`}
+                        >
                           {group.items.map((sub, idx) => (
                             <li
                               key={sub.href}
