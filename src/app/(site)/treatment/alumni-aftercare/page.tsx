@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import AlumniHero from '@/components/alumni/AlumniHero';
+import AlumniAtAGlance from '@/components/alumni/AlumniAtAGlance';
 
 export const metadata: Metadata = {
   title: 'Alumni & Aftercare | Seven Arrows Recovery',
@@ -80,6 +81,7 @@ export default function AlumniAftercarePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
       />
       <AlumniHero />
+      <AlumniAtAGlance />
     </main>
   );
 }
