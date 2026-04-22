@@ -22,6 +22,12 @@ export const siteVideos = {
   /** Ranch / Sonoran desert establishing shot — used behind the
       "Healing sanctuary in the Sonoran Desert" section. */
   sonoranRanch: url('e2553f79-28a2-49d1-a854-71497d464658.mp4'),
+  /** Horses at the rail — close-up character shot, cycled as the
+      second frame behind the footer-adjacent "Change your life"
+      block. */
+  horsesRail: url('6f59f6c8-d694-46a6-8f22-2cdb9dc8f96f.mp4'),
+  /** Third clip in the footer-adjacent cycle. */
+  ranchLife: url('1154bc20-200c-455f-a9c1-90ae1a2f78d5.mp4'),
 } as const;
 
 export type SiteVideoKey = keyof typeof siteVideos;
