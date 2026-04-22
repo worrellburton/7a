@@ -4,6 +4,7 @@ import PageHero from '@/components/PageHero';
 import WhyStats from '@/components/why-us/WhyStats';
 import SonoranSanctuary from '@/components/why-us/SonoranSanctuary';
 import WhyDifference from '@/components/why-us/WhyDifference';
+import OurPromise from '@/components/why-us/OurPromise';
 import VsTraditional from '@/components/why-us/VsTraditional';
 import TeamTeaser from '@/components/why-us/TeamTeaser';
 import WhyTestimonials from '@/components/why-us/WhyTestimonials';
@@ -42,6 +43,11 @@ export default function PageContent() {
 
       {/* Phase 4 — The Seven Arrows Difference bento */}
       <WhyDifference />
+
+      {/* Our Promise — quiet editorial beat between the bento and the
+          comparison. Sets the philosophical tone before the factual
+          vs-traditional grid. */}
+      <OurPromise />
 
       {/* Phase 5 — Seven Arrows vs traditional rehab */}
       <VsTraditional />
