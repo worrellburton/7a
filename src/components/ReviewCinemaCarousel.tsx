@@ -161,6 +161,35 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000 }: Prop
   if (total === 0) return null;
 
   return (
+    <>
+      {/* Diagonal reveal sweep — a soft transparent→opaque gradient is
+          dragged from top-left to bottom-right across the quote text,
+          gradually unveiling it. Pure CSS so there's no JS RAF cost
+          per frame. Falls back to fully visible text when the browser
+          doesn't support mask-image. */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+        .reveal-mask {
+          -webkit-mask-image: linear-gradient(115deg, black 0%, black 30%, transparent 70%, transparent 100%);
+                  mask-image: linear-gradient(115deg, black 0%, black 30%, transparent 70%, transparent 100%);
+          -webkit-mask-size: 220% 220%;
+                  mask-size: 220% 220%;
+          -webkit-mask-repeat: no-repeat;
+                  mask-repeat: no-repeat;
+          -webkit-mask-position: 100% 100%;
+                  mask-position: 100% 100%;
+        }
+        @keyframes reveal-sweep {
+          0%   { -webkit-mask-position: 100% 100%; mask-position: 100% 100%; }
+          100% { -webkit-mask-position: 0% 0%;     mask-position: 0% 0%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .reveal-mask { -webkit-mask-image: none; mask-image: none; animation: none !important; }
+        }
+      `,
+        }}
+      />
     <div
       ref={containerRef}
       tabIndex={0}
@@ -245,8 +274,23 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000 }: Prop
 
                 {(() => {
                   const { display, clipped } = clipQuote(slide.review.text);
+                  // Diagonal mask sweep — the quote is invisible at first
+                  // and a soft transparent-to-opaque gradient is dragged
+                  // across it (top-left → bottom-right) to gradually
+                  // reveal the words. The mask only animates when the
+                  // slide is the active one so non-active slides don't
+                  // burn paint frames in the background.
                   return (
-                    <>
+                    <div
+                      className="reveal-mask"
+                      style={{
+                        // Custom prop drives the mask-position animation
+                        // declared in the global keyframes block below.
+                        animation: isActive
+                          ? 'reveal-sweep 3000ms cubic-bezier(0.22,1,0.36,1) forwards'
+                          : 'none',
+                      }}
+                    >
                       <p
                         className={`${quoteSizeClass(display.length)} leading-snug font-light text-white/95`}
                         style={{ fontFamily: 'var(--font-body)' }}
@@ -265,11 +309,32 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000 }: Prop
                           Read full review on Google
                         </a>
                       )}
-                    </>
+                    </div>
                   );
                 })()}
 
-                <div className="mt-7 flex flex-col items-center gap-1.5">
+                <div className="mt-7 flex flex-col items-center gap-2">
+                  {/* Reviewer avatar — Places photo if available, otherwise
+                      a brand-color initials disc. Small Google ribbon at
+                      the bottom-right matches the in-card review style. */}
+                  <div className="relative mb-1">
+                    {slide.review.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={slide.review.photoUrl}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="w-14 h-14 rounded-full object-cover border-2 border-white/30 shadow-lg"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center text-white text-xl font-bold border-2 border-white/30 shadow-lg">
+                        {(slide.review.name || '?').trim().charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5 shadow">
+                      <GoogleIcon className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
                   <p
                     className="text-2xl sm:text-3xl font-bold tracking-tight text-white"
                     style={{ fontFamily: 'var(--font-sans)' }}
@@ -277,7 +342,6 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000 }: Prop
                     {slide.review.name}
                   </p>
                   <div className="flex items-center gap-2 text-white/60 text-xs sm:text-sm">
-                    <GoogleIcon className="w-4 h-4" />
                     <span style={{ fontFamily: 'var(--font-body)' }}>
                       Verified Google review · {slide.review.date}
                     </span>
@@ -342,5 +406,6 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000 }: Prop
         </div>
       )}
     </div>
+    </>
   );
 }
