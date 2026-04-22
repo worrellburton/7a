@@ -4,6 +4,7 @@ import AlumniHero from '@/components/alumni/AlumniHero';
 import AlumniAtAGlance from '@/components/alumni/AlumniAtAGlance';
 import TheTransition from '@/components/alumni/TheTransition';
 import AftercarePlan from '@/components/alumni/AftercarePlan';
+import AlumniCommunity from '@/components/alumni/AlumniCommunity';
 
 export const metadata: Metadata = {
   title: 'Alumni & Aftercare | Seven Arrows Recovery',
@@ -86,6 +87,7 @@ export default function AlumniAftercarePage() {
       <AlumniAtAGlance />
       <TheTransition />
       <AftercarePlan />
+      <AlumniCommunity />
     </main>
   );
 }
