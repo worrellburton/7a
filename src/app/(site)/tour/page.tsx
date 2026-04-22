@@ -14,6 +14,7 @@ import TourGallery from '@/components/tour/TourGallery';
 import DayOnTheRanch from '@/components/tour/DayOnTheRanch';
 import TheHorses from '@/components/tour/TheHorses';
 import NightSky from '@/components/tour/NightSky';
+import TourVoices from '@/components/tour/TourVoices';
 
 export default function TourPage() {
   return (
@@ -42,8 +43,10 @@ export default function TourPage() {
       {/* Phase 8 — night sky feature */}
       <NightSky />
 
-      {/* Phases 9 and 10 coming next — alumni voices about the setting,
-          then the closing CTA. */}
+      {/* Phase 9 — alumni voices about the setting */}
+      <TourVoices />
+
+      {/* Phase 10 coming next — closing CTA. */}
     </>
   );
 }
