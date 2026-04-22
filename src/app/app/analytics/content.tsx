@@ -9,6 +9,7 @@ import { EngagementSection } from './EngagementSection';
 import { PagesSection } from './PagesSection';
 import { SeoSection } from './SeoSection';
 import { ConversionsSection } from './ConversionsSection';
+import { AudienceSection } from './AudienceSection';
 import { type DateRange, rangeForPreset } from './shared';
 
 export default function AnalyticsContent() {
@@ -37,12 +38,14 @@ export default function AnalyticsContent() {
       {section === 'pages' && <PagesSection range={range} />}
       {section === 'seo' && <SeoSection range={range} />}
       {section === 'conversions' && <ConversionsSection range={range} />}
+      {section === 'audience' && <AudienceSection range={range} />}
       {section !== 'overview' &&
         section !== 'acquisition' &&
         section !== 'engagement' &&
         section !== 'pages' &&
         section !== 'seo' &&
-        section !== 'conversions' && <SectionStub section={section} />}
+        section !== 'conversions' &&
+        section !== 'audience' && <SectionStub section={section} />}
     </div>
   );
 }
