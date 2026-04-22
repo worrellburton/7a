@@ -123,17 +123,18 @@ const seedance1Lite: VideoModel = {
   typicalSeconds: typicalSecondsOf(15, 4, { '480p': 0.7, '720p': 1, '1080p': 1.6 }),
 };
 
-// Seedance 2.0 — matches v1's URL pattern (bytedance/seedance/v{N}/{tier}).
-// Both Pro and Lite share v1's payload shape; the status/result route now
-// tolerates multiple fal response shapes (video.url, video_url, videos[0],
-// and output-nested variants) so 2.0 completions are extracted correctly.
-const seedance2Pro: VideoModel = {
-  id: 'seedance-2-pro',
-  label: 'Seedance 2.0 Pro',
+// Seedance 2.0 — fal.ai's real endpoints use a dotted "-2.0" segment and
+// a /fast/ tier suffix (not v1's /pro|/lite split). Verified against
+// fal.ai's model listing. Payload shape mirrors v1. The status/result
+// route accepts multiple fal response shapes so 2.0 completions return
+// a video URL correctly.
+const seedance2: VideoModel = {
+  id: 'seedance-2',
+  label: 'Seedance 2.0',
   family: 'ByteDance Seedance',
-  endpoint: 'fal-ai/bytedance/seedance/v2/pro/image-to-video',
+  endpoint: 'fal-ai/bytedance/seedance-2.0/image-to-video',
   description:
-    'Latest ByteDance Seedance — best motion coherence and prompt adherence.',
+    'Latest ByteDance Seedance — best motion coherence and prompt adherence. Optional synchronized audio.',
   durations: [5, 10],
   resolutions: ['480p', '720p', '1080p'],
   aspects: ['auto', '16:9', '9:16', '1:1'],
@@ -142,13 +143,13 @@ const seedance2Pro: VideoModel = {
   typicalSeconds: typicalSecondsOf(30, 10, { '480p': 0.7, '720p': 1, '1080p': 1.6 }),
 };
 
-const seedance2Lite: VideoModel = {
-  id: 'seedance-2-lite',
-  label: 'Seedance 2.0 Lite',
+const seedance2Fast: VideoModel = {
+  id: 'seedance-2-fast',
+  label: 'Seedance 2.0 Fast',
   family: 'ByteDance Seedance',
-  endpoint: 'fal-ai/bytedance/seedance/v2/lite/image-to-video',
+  endpoint: 'fal-ai/bytedance/seedance-2.0/fast/image-to-video',
   description:
-    'Lighter v2 variant — faster and cheaper, good for iterating on prompts.',
+    'Faster, cheaper Seedance 2.0 tier — good for iterating on prompts.',
   durations: [5, 10],
   resolutions: ['480p', '720p', '1080p'],
   aspects: ['auto', '16:9', '9:16', '1:1'],
@@ -357,8 +358,8 @@ const veo3: VideoModel = {
 // Exported catalog. Seedance 2.0 sits at the top as the default tier
 // since it's the newest ByteDance generation.
 export const VIDEO_MODELS: VideoModel[] = [
-  seedance2Pro,
-  seedance2Lite,
+  seedance2,
+  seedance2Fast,
   seedance1Pro,
   seedance1Lite,
   kling21Master,
@@ -373,7 +374,7 @@ export const VIDEO_MODELS: VideoModel[] = [
   veo3,
 ];
 
-export const DEFAULT_VIDEO_MODEL_ID = seedance2Pro.id;
+export const DEFAULT_VIDEO_MODEL_ID = seedance2.id;
 
 export function findVideoModel(id: string | null | undefined): VideoModel | null {
   if (!id) return null;
