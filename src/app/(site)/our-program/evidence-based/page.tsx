@@ -11,6 +11,8 @@ import FrameworkIntro from '@/components/evidence-based/FrameworkIntro';
 import RelationalInsight from '@/components/evidence-based/RelationalInsight';
 import RegulatedPresence from '@/components/evidence-based/RegulatedPresence';
 import PhaseFramework from '@/components/evidence-based/PhaseFramework';
+import SelfCompassion from '@/components/evidence-based/SelfCompassion';
+import Modalities from '@/components/evidence-based/Modalities';
 import Link from 'next/link';
 
 const modalities = [
@@ -59,7 +61,13 @@ export default function EvidenceBasedPage() {
       {/* Phase 5 — the four-phase healing framework */}
       <PhaseFramework />
 
-      {/* Legacy introduction / modalities — phases 6-10 will replace
+      {/* Phase 6 — self-compassion editorial beat */}
+      <SelfCompassion />
+
+      {/* Phase 7 — clinical modalities bento */}
+      <Modalities />
+
+      {/* Legacy introduction / modalities — phases 8-10 will replace
           these in subsequent commits. */}
       <section className="py-16 lg:py-24 bg-warm-bg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
