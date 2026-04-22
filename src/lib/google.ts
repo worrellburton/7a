@@ -88,12 +88,18 @@ async function googleFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
 
 // -------- GA4 Data API --------
 
+interface Ga4OrderBy {
+  metric?: { metricName: string };
+  dimension?: { dimensionName: string };
+  desc?: boolean;
+}
+
 interface Ga4RunRequest {
   dateRanges: { startDate: string; endDate: string }[];
   metrics: { name: string }[];
   dimensions?: { name: string }[];
   limit?: number;
-  orderBys?: { metric?: { metricName: string }; desc?: boolean }[];
+  orderBys?: Ga4OrderBy[];
 }
 
 export interface Ga4RunReportResponse {
@@ -112,6 +118,25 @@ export async function ga4Run(body: Ga4RunRequest): Promise<Ga4RunReportResponse>
   if (!propertyId) throw new Error('GA4_PROPERTY_ID is not set');
   const cleanId = propertyId.replace(/^properties\//, '');
   const url = `https://analyticsdata.googleapis.com/v1beta/properties/${cleanId}:runReport`;
+  return googleFetch<Ga4RunReportResponse>(url, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+interface Ga4RealtimeRequest {
+  dimensions?: { name: string }[];
+  metrics: { name: string }[];
+  limit?: number;
+  orderBys?: Ga4OrderBy[];
+  minuteRanges?: { startMinutesAgo: number; endMinutesAgo: number }[];
+}
+
+export async function ga4RunRealtime(body: Ga4RealtimeRequest): Promise<Ga4RunReportResponse> {
+  const propertyId = process.env.GA4_PROPERTY_ID;
+  if (!propertyId) throw new Error('GA4_PROPERTY_ID is not set');
+  const cleanId = propertyId.replace(/^properties\//, '');
+  const url = `https://analyticsdata.googleapis.com/v1beta/properties/${cleanId}:runRealtimeReport`;
   return googleFetch<Ga4RunReportResponse>(url, {
     method: 'POST',
     body: JSON.stringify(body),

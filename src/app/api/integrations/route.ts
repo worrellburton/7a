@@ -224,7 +224,11 @@ async function probeGoogleAnalytics(): Promise<IntegrationStatus> {
       PROBE_TIMEOUT_MS,
       'GA4'
     );
-    const sessions = Number(result.totals?.[0]?.metricValues?.[0]?.value ?? 0);
+    const sessions = Number(
+      result.rows?.[0]?.metricValues?.[0]?.value ??
+        result.totals?.[0]?.metricValues?.[0]?.value ??
+        0
+    );
     base.connected = true;
     base.detail = `property ${process.env.GA4_PROPERTY_ID} · ${sessions.toLocaleString()} sessions (7d)`;
   } catch (err) {
