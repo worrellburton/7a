@@ -10,6 +10,7 @@ import TraumaHero from '@/components/trauma/TraumaHero';
 import ClinicalGap from '@/components/trauma/ClinicalGap';
 import PostTraumaticAdaptation from '@/components/trauma/PostTraumaticAdaptation';
 import SocDomains from '@/components/trauma/SocDomains';
+import WisdomGallery from '@/components/trauma/WisdomGallery';
 import Link from 'next/link';
 
 const clinicalApproaches = [
@@ -63,6 +64,10 @@ export default function TraumaTreatmentPage() {
       {/* Phase 4: Forward-Facing Freedom three SOC domains with
           custom animated SVG diagrams per domain */}
       <SocDomains />
+
+      {/* Phase 5: four full-bleed photos carrying overlaid wisdom
+          quotes about trauma-informed recovery */}
+      <WisdomGallery />
 
       {/* Clinical Approaches */}
       <section className="py-16 lg:py-24 bg-white">
