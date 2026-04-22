@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     'Seven Arrows Recovery',
 };
 
-import PageHero from '@/components/PageHero';
+import TraumaHero from '@/components/trauma/TraumaHero';
 import Link from 'next/link';
 
 const clinicalApproaches = [
@@ -45,20 +45,13 @@ const clinicalApproaches = [
 export default function TraumaTreatmentPage() {
   return (
     <main>
-      <PageHero
-        label="TraumAddiction® Treatment"
-        title="Healing Trauma at the Root"
-        breadcrumbs={[
-          { label: 'Home', href: '/' },
-          { label: 'Our Program', href: '/our-program' },
-          { label: 'Trauma Treatment' },
-        ]}
-        description="Addiction rarely exists in isolation. Our TraumAddiction® approach treats trauma and substance use as one integrated condition through the Forward-Facing Freedom® model — unlocking deeper and more lasting healing."
-        image="/images/embrace-connection.jpg"
-      />
+      {/* Phase 1: cinematic WebGL-aurora hero. Replaces the generic
+          PageHero on this page only; all other inner pages still use
+          the shared PageHero component. */}
+      <TraumaHero />
 
       {/* The Problem */}
-      <section className="py-16 lg:py-24 bg-warm-bg">
+      <section id="forward-facing" className="py-16 lg:py-24 bg-warm-bg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto mb-16">
             <p className="section-label mb-4">The Clinical Gap</p>
