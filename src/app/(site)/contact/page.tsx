@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import ContactHero from '@/components/contact/ContactHero';
+import ContactAtAGlance from '@/components/contact/ContactAtAGlance';
 
 export const metadata: Metadata = {
   title: 'Contact Us | Seven Arrows Recovery',
@@ -67,6 +68,7 @@ export default function ContactPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(contactPageSchema) }}
       />
       <ContactHero />
+      <ContactAtAGlance />
     </main>
   );
 }
