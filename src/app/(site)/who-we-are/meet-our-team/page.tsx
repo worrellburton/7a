@@ -37,18 +37,24 @@ export default async function MeetOurTeamPage() {
       <section className="py-16 lg:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
-            <p className="section-label mb-4">Compassionate Professionals</p>
+            <p className="section-label mb-4">Clinicians · Healers · Carriers</p>
             <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
-              Expertise Meets Empathy
+              Clinical rigor. <em className="not-italic text-primary">Ancient wisdom.</em> One team.
             </h2>
             <p
               className="text-foreground/70 leading-relaxed text-lg"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Our multidisciplinary team includes licensed therapists, board-certified physicians,
-              certified addiction counselors, and holistic practitioners. Many of our staff members
-              are in recovery themselves, bringing a unique understanding and authenticity to the
-              therapeutic relationship.
+              At Seven Arrows, addiction and trauma are treated as one condition — so our team is
+              built to meet it from every side. Licensed therapists, board-certified physicians,
+              and certified addiction counselors hold the clinical arc: EMDR, somatic experiencing,
+              and the Forward-Facing Freedom<sup className="text-xs">®</sup> model at the heart of
+              our TraumAddiction<sup className="text-xs">®</sup> approach. Alongside them, yoga
+              and breathwork teachers, sound and movement practitioners, equine specialists, and
+              indigenous carriers of sweat lodge and talking circle hold the body- and land-based
+              work that reaches where words alone cannot. Many of us are in recovery ourselves. All
+              of us walk the parallel path with every client — mind, body, and spirit, never in
+              isolation.
             </p>
           </div>
 
