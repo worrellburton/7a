@@ -77,9 +77,11 @@ const organizationSchema = {
   ],
   address: {
     '@type': 'PostalAddress',
+    streetAddress: '2491 W Jefferson Rd',
+    addressLocality: 'Elfrida',
     addressRegion: 'AZ',
+    postalCode: '85610',
     addressCountry: 'US',
-    addressLocality: 'Cochise County',
   },
   foundingDate: '2020',
   numberOfEmployees: { '@type': 'QuantitativeValue', minValue: 10, maxValue: 50 },

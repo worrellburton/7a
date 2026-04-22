@@ -5,14 +5,21 @@ export default function AboutSection() {
     <section className="py-20 lg:py-28 bg-warm-bg" aria-labelledby="about-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
-          {/* Left: Image stack */}
+          {/* Left: Video + sunset overlay */}
           <div className="relative">
-            <div className="rounded-2xl overflow-hidden aspect-[4/3] bg-white shadow-sm">
-              <img
-                src="https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776816150591-1rvhqyrln5p-7a-new-1.webp"
-                alt="Seven Arrows Recovery — ranch exterior"
+            <div className="rounded-2xl overflow-hidden aspect-[4/3] bg-dark-section shadow-sm">
+              {/* Looping ranch video — replaces a broken still that
+                  used to live here. Muted+playsInline so it autoplays
+                  on iOS without breaking accessibility. */}
+              <video
+                src="https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-videos/06fd6821-a892-42bb-8fce-4eac19ee15d3.mp4"
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="metadata"
+                aria-hidden="true"
                 className="w-full h-full object-cover"
-                loading="lazy"
               />
             </div>
             <div className="absolute -bottom-6 right-4 lg:right-8 w-1/2 rounded-2xl overflow-hidden aspect-[4/3] shadow-xl border-4 border-white">
