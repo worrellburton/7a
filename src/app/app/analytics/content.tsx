@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { RangeSelector } from './RangeSelector';
 import { SectionNav, SECTIONS, type AnalyticsSection } from './SectionNav';
 import { OverviewSection } from './OverviewSection';
+import { AcquisitionSection } from './AcquisitionSection';
 import { type DateRange, rangeForPreset } from './shared';
 
 export default function AnalyticsContent() {
@@ -27,7 +28,8 @@ export default function AnalyticsContent() {
       <SectionNav active={section} onChange={setSection} />
 
       {section === 'overview' && <OverviewSection range={range} />}
-      {section !== 'overview' && <SectionStub section={section} />}
+      {section === 'acquisition' && <AcquisitionSection range={range} />}
+      {section !== 'overview' && section !== 'acquisition' && <SectionStub section={section} />}
     </div>
   );
 }
