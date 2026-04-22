@@ -30,9 +30,11 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
+  const qStart = url.searchParams.get('startDate');
+  const qEnd = url.searchParams.get('endDate');
   const days = Math.min(365, Math.max(1, Number(url.searchParams.get('days') ?? '28')));
-  const startDate = daysAgo(days);
-  const endDate = 'today';
+  const startDate = qStart || daysAgo(days);
+  const endDate = qEnd || 'today';
 
   try {
     const [summary, channels, topPages] = await Promise.all([
