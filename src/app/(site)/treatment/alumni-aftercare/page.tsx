@@ -8,6 +8,8 @@ import AlumniCommunity from '@/components/alumni/AlumniCommunity';
 import RelapseToolkit from '@/components/alumni/RelapseToolkit';
 import StepDown from '@/components/alumni/StepDown';
 import Milestones from '@/components/alumni/Milestones';
+import LiveReviewsBand from '@/components/LiveReviewsBand';
+import { alumniVoicesFallback } from '@/components/alumni/alumniVoicesFallback';
 
 export const metadata: Metadata = {
   title: 'Alumni & Aftercare | Seven Arrows Recovery',
@@ -94,6 +96,14 @@ export default function AlumniAftercarePage() {
       <RelapseToolkit />
       <StepDown />
       <Milestones />
+      <LiveReviewsBand
+        eyebrow="Alumni voices"
+        headlineLead="In their"
+        headlineAccent="own words"
+        headlineTail={'.'}
+        lede="Pulled live from our public Google listing when available; editorial stubs shown otherwise. Either way, every word used with permission."
+        fallback={alumniVoicesFallback}
+      />
     </main>
   );
 }
