@@ -23,6 +23,14 @@ function CountUp({
   const [value, setValue] = useState(0);
   useEffect(() => {
     if (!active) return;
+    // Reduced-motion: snap to final value, skip the rAF loop.
+    const reduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      setValue(to);
+      return;
+    }
     let raf = 0;
     const start = performance.now();
     const loop = (t: number) => {

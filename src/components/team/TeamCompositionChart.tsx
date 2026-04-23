@@ -39,6 +39,15 @@ function useInView<T extends Element>() {
   const [inView, setInView] = useState(false);
   useEffect(() => {
     if (!ref.current || inView) return;
+    // Honor prefers-reduced-motion by jumping to the finished state
+    // immediately instead of running the IO-driven animation.
+    const reduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      setInView(true);
+      return;
+    }
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
