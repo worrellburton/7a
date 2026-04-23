@@ -47,6 +47,13 @@ float sdSegment(vec2 p, float halfLen, float w) {
   return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
 
+// SDF for a filled disc of radius r centered at the origin.
+float sdDisc(vec2 p, float r) {
+  return length(p) - r;
+}
+
+const float TAU = 6.28318530718;
+
 void main() {
   // Center-anchored coordinates with aspect correction so the radial
   // hot-spot stays circular regardless of viewport shape.
@@ -91,6 +98,32 @@ void main() {
   float aaC = fwidth(crossSdf) * 0.75 + 1e-5;
   float crossMask = 1.0 - smoothstep(0.0, aaC, crossSdf);
   col += C_AMBER * crossMask * 0.14;
+
+  // ── Beaded fringe (7 dangling beads) ──────────────────────────
+  // Seven beads dangle below the medallion in a soft fan, evoking the
+  // brand mark's beaded chains. Bead i sits at angle a (range
+  // [-fan/2, +fan/2] sweeping past straight-down), at radius
+  // ringR + chainLen, with size that tapers slightly toward the
+  // outermost beads for a natural drape.
+  const int BEAD_COUNT = 7;
+  float fan = 1.45;            // total angular fan, ~83°
+  float chainLen = 0.075;      // distance from ring edge to bead center
+  float beadR = 0.006;         // base bead radius
+  float beadMaskAcc = 0.0;
+  for (int i = 0; i < BEAD_COUNT; i++) {
+    float t = float(i) / float(BEAD_COUNT - 1);    // 0..1
+    float a = -3.14159265 * 0.5 + (t - 0.5) * fan; // angle, anchored straight down
+    vec2 bp = vec2(cos(a), sin(a)) * (ringR + chainLen);
+    // Subtle taper — outer beads slightly smaller than the center bead.
+    float taper = 1.0 - 0.25 * abs(t - 0.5) * 2.0;
+    float r = beadR * taper;
+    float sdf = sdDisc(mp - bp, r);
+    float aaB = fwidth(sdf) * 0.75 + 1e-5;
+    beadMaskAcc += 1.0 - smoothstep(0.0, aaB, sdf);
+  }
+  // Clamp so overlapping bead halos don't compound past full intensity.
+  beadMaskAcc = clamp(beadMaskAcc, 0.0, 1.0);
+  col += C_AMBER * beadMaskAcc * 0.16;
 
   // Soft gamma so on-brand warmth survives the canvas → display path.
   col = pow(col, vec3(0.92));
