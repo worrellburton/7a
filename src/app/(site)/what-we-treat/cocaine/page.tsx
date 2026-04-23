@@ -14,7 +14,6 @@ import WithdrawalTimeline from '@/components/cocaine/WithdrawalTimeline';
 import WhoWeSee from '@/components/cocaine/WhoWeSee';
 import OurApproach from '@/components/cocaine/OurApproach';
 import RewardRewiring from '@/components/cocaine/RewardRewiring';
-import AlumniVoices from '@/components/cocaine/AlumniVoices';
 import CocaineCTA from '@/components/cocaine/CocaineCTA';
 
 export default function CocaineAddictionPage() {
@@ -53,8 +52,9 @@ export default function CocaineAddictionPage() {
       {/* Phase 8 — Rebuilding reward: natural-reward climb curve */}
       <RewardRewiring />
 
-      {/* Phase 9 — Cocaine-specific alumni voices over portrait tiles */}
-      <AlumniVoices />
+      {/* Phase 9 (alumni voices) intentionally omitted — we only
+          surface real, verified reviews on the site. Google reviews
+          live on the homepage carousel. */}
 
       {/* Phase 10 — Final CTA with animated aurora backdrop */}
       <CocaineCTA />

@@ -1,41 +1,14 @@
 // Holistic & Indigenous — alumni voices section.
 //
-// Server component: pulls real Google reviews from Places, picks the
-// top 3 newest >= 4★, and hands them to the client view for animation.
-// Falls back to a small curated set if Places isn't configured — keeps
-// the section from rendering empty in local dev or quota-exhausted
-// states.
+// Pulls real Google reviews from Places and hands the top 3 to the
+// client view for animation. If fewer than 3 real reviews are
+// available (Places not configured, quota exhausted, or the review
+// pool is thin), we render nothing — we only show real, verified
+// reviews on the site.
 
 import { fetchPlaceDetails } from '@/lib/places';
-import AlumniVoicesView, { type Voice } from './AlumniVoicesView';
+import AlumniVoicesView from './AlumniVoicesView';
 
-const FALLBACK_VOICES: Voice[] = [
-  {
-    quote:
-      'Yoga was the first place I felt anything in my body again without wanting to run from it. Small thing. Enormous thing.',
-    name: 'M.',
-    stay: '90-day stay · 2024',
-    practice: 'Trauma-informed yoga',
-  },
-  {
-    quote:
-      'The sweat lodge wasn&rsquo;t what I came for. It&rsquo;s what I still carry. I didn&rsquo;t know I was allowed to belong anywhere that old.',
-    name: 'J.',
-    stay: '60-day stay · 2023',
-    practice: 'Sweat lodge · evening circle',
-    quoteHtml: true,
-  },
-  {
-    quote:
-      'I was skeptical about the sound bath for exactly one session. Then my shoulders came down from my ears for the first time in a decade.',
-    name: 'A.',
-    stay: 'Extended stay · 2024',
-    practice: 'Sound · breathwork',
-  },
-];
-
-// Hard cap the quote length so long reviews don't overwhelm the tile.
-// Clip on a sentence boundary when we can.
 const CARD_CAP = 320;
 function trimQuote(text: string): string {
   const cleaned = text.replace(/\s+/g, ' ').trim();
@@ -55,15 +28,18 @@ export default async function AlumniVoices() {
   const place = await fetchPlaceDetails();
   const reviews = place?.reviews ?? [];
 
-  const voices: Voice[] =
-    reviews.length >= 3
-      ? reviews.slice(0, 3).map((r) => ({
-          quote: trimQuote(r.text || ''),
-          name: r.authorName || 'Anonymous',
-          stay: r.relativeTime || 'Verified review',
-          practice: 'Verified Google review',
-        }))
-      : FALLBACK_VOICES;
+  if (reviews.length < 3) {
+    // No curated fallback — we only surface real reviews. Skip the
+    // section entirely when there aren't enough verified ones.
+    return null;
+  }
+
+  const voices = reviews.slice(0, 3).map((r) => ({
+    quote: trimQuote(r.text || ''),
+    name: r.authorName || 'Anonymous',
+    stay: r.relativeTime || 'Verified Google review',
+    practice: 'Verified Google review',
+  }));
 
   return <AlumniVoicesView voices={voices} />;
 }

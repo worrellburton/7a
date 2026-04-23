@@ -12,10 +12,16 @@ import SubstanceWithdrawal from './SubstanceWithdrawal';
 import SubstancePersonas from './SubstancePersonas';
 import SubstanceApproach from './SubstanceApproach';
 import SubstanceRewiring from './SubstanceRewiring';
-import SubstanceVoices from './SubstanceVoices';
 import SubstanceCTA from './SubstanceCTA';
 import type { SubstanceContent } from '@/lib/substances/types';
 
+// Note: we deliberately do NOT render `SubstanceVoices` here. The
+// voice content in each substance file is editorial / representative
+// and would present as testimonial — we only show real reviews on the
+// site (via the GoogleReviewsCinema homepage carousel). Keeping the
+// field on the content shape so a future version can feed real,
+// verified quotes in substance-specific slots when that pipeline
+// exists.
 export default function SubstancePage10Phase({ content }: { content: SubstanceContent }) {
   return (
     <main>
@@ -32,7 +38,6 @@ export default function SubstancePage10Phase({ content }: { content: SubstanceCo
       <SubstancePersonas content={content.personas} />
       <SubstanceApproach content={content.approach} />
       <SubstanceRewiring content={content.rewiring} />
-      <SubstanceVoices content={content.voices} />
       <SubstanceCTA content={content.cta} />
     </main>
   );

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Meet Our Team',
   description:
-    'Meet the compassionate clinical team at Seven Arrows Recovery. Our therapists, counselors, and medical professionals are dedicated to guiding you through every step of recovery.',
+    'Meet the team at Seven Arrows Recovery — clinicians, medical staff, holistic facilitators, and the admissions team you will actually talk to when you call.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -16,6 +16,16 @@ export const revalidate = 60;
 
 export default async function MeetOurTeamPage() {
   const team = await fetchPublicTeam();
+
+  // Try to surface Lindsay Rothschild's avatar next to the "Our Vision"
+  // block below the hero. Matching loosely so "Lindsay Rothschild" or
+  // "Lindsay Rothchild" (the spelling variant the admissions team
+  // sometimes uses) both land. Falls back to the default vision photo
+  // when no match or no avatar_url is present.
+  const lindsay = team.find((m) =>
+    /lindsay/i.test(m.full_name) && /roth/i.test(m.full_name),
+  );
+  const directorImage = lindsay?.avatar_url || '/images/equine-therapy-portrait.jpg';
 
   return (
     <>
@@ -31,30 +41,26 @@ export default async function MeetOurTeamPage() {
         image="/images/equine-therapy-portrait.jpg"
       />
 
-      <MissionVision />
+      <MissionVision directorImage={directorImage} />
 
       {/* Team Intro */}
       <section className="py-16 lg:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
-            <p className="section-label mb-4">Clinicians · Healers · Carriers</p>
+            <p className="section-label mb-4">The people you will meet</p>
             <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
-              Clinical rigor. <em className="not-italic text-primary">Ancient wisdom.</em> One team.
+              A small team, <em className="not-italic text-primary">on purpose.</em>
             </h2>
             <p
               className="text-foreground/70 leading-relaxed text-lg"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              At Seven Arrows, addiction and trauma are treated as one condition — so our team is
-              built to meet it from every side. Licensed therapists, board-certified physicians,
-              and certified addiction counselors hold the clinical arc: EMDR, somatic experiencing,
-              and the Forward-Facing Freedom<sup className="text-xs">®</sup> model at the heart of
-              our TraumAddiction<sup className="text-xs">®</sup> approach. Alongside them, yoga
-              and breathwork teachers, sound and movement practitioners, equine specialists, and
-              indigenous carriers of sweat lodge and talking circle hold the body- and land-based
-              work that reaches where words alone cannot. Many of us are in recovery ourselves. All
-              of us walk the parallel path with every client — mind, body, and spirit, never in
-              isolation.
+              Seven Arrows runs on a 6:1 client-to-staff ratio for a reason — it is
+              how individual attention becomes structural instead of aspirational.
+              Our clinicians, admissions team, medical staff, and holistic
+              facilitators are the people you will actually talk to on the phone,
+              meet on your first day, and keep in touch with after discharge.
+              Many of us are in recovery ourselves.
             </p>
           </div>
 

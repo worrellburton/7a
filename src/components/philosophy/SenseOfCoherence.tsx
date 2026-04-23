@@ -89,11 +89,14 @@ function TripleVenn({ active }: { active: boolean }) {
   const a = Math.PI * 2 / 3;
   const positions = [
     { x: cx + Math.cos(-Math.PI / 2) * d, y: cy + Math.sin(-Math.PI / 2) * d, color: 'var(--color-primary)', label: 'Comprehensibility', labelXY: { x: cx, y: 38 } },
-    { x: cx + Math.cos(-Math.PI / 2 + a) * d, y: cy + Math.sin(-Math.PI / 2 + a) * d, color: 'var(--color-accent)', label: 'Manageability', labelXY: { x: 380, y: 310 } },
-    { x: cx + Math.cos(-Math.PI / 2 + 2 * a) * d, y: cy + Math.sin(-Math.PI / 2 + 2 * a) * d, color: 'var(--color-primary-dark)', label: 'Meaningfulness', labelXY: { x: 20, y: 310 } },
+    { x: cx + Math.cos(-Math.PI / 2 + a) * d, y: cy + Math.sin(-Math.PI / 2 + a) * d, color: 'var(--color-accent)', label: 'Manageability', labelXY: { x: 350, y: 330 } },
+    { x: cx + Math.cos(-Math.PI / 2 + 2 * a) * d, y: cy + Math.sin(-Math.PI / 2 + 2 * a) * d, color: 'var(--color-primary-dark)', label: 'Meaningfulness', labelXY: { x: 50, y: 330 } },
   ];
+  // Viewbox padded on both sides so the longest label ("Meaningfulness")
+  // never clips its leftmost letter. Without this padding the label sits
+  // flush against x=0 and gets cropped by the parent overflow-hidden.
   return (
-    <svg viewBox="0 0 400 400" className="w-full aspect-square" role="img" aria-label="Triple Venn diagram of Comprehensibility, Manageability, and Meaningfulness meeting at Coherence.">
+    <svg viewBox="-20 0 440 400" className="w-full aspect-square" role="img" aria-label="Triple Venn diagram of Comprehensibility, Manageability, and Meaningfulness meeting at Coherence." overflow="visible">
       {positions.map((p, i) => (
         <circle
           key={i}

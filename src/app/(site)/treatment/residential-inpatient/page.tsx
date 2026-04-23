@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 import PageHero from '@/components/PageHero';
 import ResidentialStats from '@/components/residential/ResidentialStats';
 import ProgramOverview from '@/components/residential/ProgramOverview';
-import DailyRhythm from '@/components/residential/DailyRhythm';
+import DayAtRanch from '@/components/landing/DayAtRanch';
 import LivingEnvironment from '@/components/residential/LivingEnvironment';
 import WhatsIncluded from '@/components/residential/WhatsIncluded';
 import RoundTheClockCare from '@/components/residential/RoundTheClockCare';
@@ -38,8 +38,11 @@ export default function ResidentialInpatientPage() {
       {/* Phase 3 — program overview + highlights + feature photo */}
       <ProgramOverview />
 
-      {/* Phase 4 — daily rhythm timeline */}
-      <DailyRhythm />
+      {/* Phase 4 — day-at-the-ranch scroll-coupled timeline (replaces
+          the older DailyRhythm section — same concept, much richer
+          execution: sticky image well cross-fades to the active hour
+          as the visitor scrolls through the beats). */}
+      <DayAtRanch />
 
       {/* Phase 5 — living environment gallery */}
       <LivingEnvironment />

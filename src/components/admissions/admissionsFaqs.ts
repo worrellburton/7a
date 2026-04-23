@@ -23,7 +23,7 @@ export const admissionsFaqs: AdmissionsFaq[] = [
   },
   {
     q: 'Which insurance plans do you accept?',
-    a: 'Seven Arrows Recovery is in-network with most major insurance plans, including Aetna, Blue Cross Blue Shield, Cigna, UnitedHealthcare, Humana, and TRICARE. We also work with many out-of-network PPO plans.',
+    a: 'Seven Arrows Recovery works with most major insurance plans — Aetna, Blue Cross Blue Shield, Cigna, UnitedHealthcare, Humana, TRICARE, and most PPO plans — as an out-of-network provider. Our admissions team runs a free benefits check so you know your coverage before you commit.',
   },
   {
     q: 'Do you accept Medicaid or Medicare?',

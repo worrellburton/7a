@@ -35,21 +35,15 @@ const modalities: Modality[] = [
     Icon: BreathIcon,
   },
   {
-    tag: 'Sound',
-    title: 'Sound healing',
-    body: 'Crystal bowls, gongs, and drums. Vibratory immersion that lets the body settle when words have run out.',
-    Icon: SoundIcon,
-  },
-  {
     tag: 'Creative',
-    title: 'Art therapy',
-    body: 'Paint, clay, collage. A non-verbal route to what lives underneath the story we already know how to tell.',
+    title: 'Expressive arts for healing',
+    body: 'Paint, clay, collage — non-clinical facilitation, not art therapy. A non-verbal route to what lives underneath the story we already know how to tell.',
     Icon: ArtIcon,
   },
   {
     tag: 'Creative',
-    title: 'Music therapy',
-    body: 'Songwriting, guided listening, rhythm circles. Music reaches the limbic system before the mind has a word for it.',
+    title: 'Music for healing',
+    body: 'Songwriting, guided listening, rhythm circles — a facilitated offering, not music therapy. Music reaches the limbic system before the mind has a word for it.',
     Icon: MusicIcon,
   },
   {

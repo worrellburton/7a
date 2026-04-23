@@ -81,7 +81,7 @@ export default function InsuranceAetnaPage() {
           { label: 'Insurance' },
           { label: 'Aetna' },
         ]}
-        description="Seven Arrows Recovery is an in-network provider with Aetna. We accept most Aetna plans for drug and alcohol addiction treatment, and our admissions team will verify your benefits at no cost."
+        description="Seven Arrows Recovery works with most Aetna plans as an out-of-network provider for drug and alcohol addiction treatment. Our admissions team will verify your benefits at no cost."
         image="/images/embrace-connection.jpg"
       />
 
@@ -105,16 +105,16 @@ export default function InsuranceAetnaPage() {
                   surgical care.
                 </p>
                 <p>
-                  Seven Arrows Recovery is proud to be an in-network provider with Aetna. This means
-                  lower out-of-pocket costs for you and a streamlined admissions process. Our team
-                  works directly with Aetna to handle pre-authorizations and ongoing utilization
-                  reviews.
+                  Seven Arrows Recovery works with most Aetna plans as an out-of-network provider.
+                  Our admissions team runs a free benefits check, handles any pre-authorizations,
+                  and walks you through likely out-of-pocket cost before you commit.
                 </p>
                 <p>
-                  Aetna covers a full continuum of care including medically supervised detoxification,
-                  residential inpatient treatment, individual and group therapy, medication-assisted
-                  treatment, and aftercare support — all services we provide at our campus in Cochise
-                  County, Arizona.
+                  Aetna typically covers a continuum of care including residential inpatient
+                  treatment, individual and group therapy, and aftercare support — services we
+                  provide at our campus in Cochise County, Arizona. When medical detox is clinically
+                  needed, we coordinate a short stay at a trusted detox partner so you arrive at
+                  Seven Arrows medically stable.
                 </p>
               </div>
             </div>
@@ -233,7 +233,7 @@ export default function InsuranceAetnaPage() {
             {[
               {
                 q: 'Does Aetna cover drug and alcohol rehab?',
-                a: 'Yes. Aetna provides coverage for substance abuse treatment under its behavioral health benefits. This typically includes medically supervised detox, residential inpatient treatment, outpatient therapy, and medication-assisted treatment. Seven Arrows Recovery is an in-network provider with Aetna.',
+                a: 'Yes. Aetna provides coverage for substance abuse treatment under its behavioral health benefits. This typically includes residential inpatient treatment, outpatient therapy, and medication-assisted treatment. Seven Arrows Recovery works with most Aetna plans as an out-of-network provider.',
               },
               {
                 q: 'How much does rehab cost with Aetna insurance?',

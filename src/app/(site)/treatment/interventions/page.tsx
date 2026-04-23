@@ -15,7 +15,6 @@ import ModelsCompared from '@/components/interventions/ModelsCompared';
 import DayOfIntervention from '@/components/interventions/DayOfIntervention';
 import SuccessFactors from '@/components/interventions/SuccessFactors';
 import AfterTheYes from '@/components/interventions/AfterTheYes';
-import FamilyVoices from '@/components/interventions/FamilyVoices';
 import InterventionsCTA from '@/components/interventions/InterventionsCTA';
 
 export default function InterventionsPage() {
@@ -59,8 +58,8 @@ export default function InterventionsPage() {
       {/* Phase 9 — What happens in the 72 hours after yes. */}
       <AfterTheYes />
 
-      {/* Phase 9b — Family voices overlaid on portrait tiles. */}
-      <FamilyVoices />
+      {/* Phase 9b (family voices) intentionally omitted — we only
+          surface real, verified reviews on the site. */}
 
       {/* Phase 10 — Final CTA with aurora backdrop. */}
       <InterventionsCTA />

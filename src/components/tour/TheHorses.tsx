@@ -104,15 +104,16 @@ export default function TheHorses() {
               className="text-foreground font-bold tracking-tight mb-6"
               style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 3.7vw, 2.8rem)', lineHeight: 1.05 }}
             >
-              One client. <em className="not-italic text-primary">One horse.</em> For the whole stay.
+              Many horses. <em className="not-italic text-primary">One matched to the week.</em>
             </h2>
             <div className="space-y-4 text-foreground/75 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
               <p>
-                Every client at Seven Arrows is paired with their own horse
-                for the duration of treatment. That daily one-on-one
-                relationship builds trust, emotional regulation, and the kind
-                of nonverbal honesty that accelerates breakthroughs in ways
-                talk therapy alone cannot.
+                Every client at Seven Arrows works with multiple horses across
+                their stay — each pairing chosen based on the client&rsquo;s
+                history, presentation, and what the nervous system is asking
+                for that week. That daily one-on-one relationship builds trust,
+                emotional regulation, and the kind of nonverbal honesty that
+                accelerates breakthroughs in ways talk therapy alone cannot.
               </p>
               <p>
                 The herd is worked in the open desert by certified

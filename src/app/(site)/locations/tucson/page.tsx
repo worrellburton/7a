@@ -28,7 +28,7 @@ const services = [
   {
     title: 'Holistic Healing Modalities',
     description:
-      'Desert-informed wellness practices including outdoor meditation, yoga, breathwork, sound healing, nutrition therapy, and creative expression sessions.',
+      'Desert-informed wellness practices including outdoor meditation, yoga, breathwork, nutrition support, and expressive arts and music for healing (facilitated, non-clinical offerings).',
   },
   {
     title: 'Equine-Assisted Therapy',

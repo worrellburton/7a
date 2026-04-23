@@ -6,6 +6,7 @@ import { logActivity } from '@/lib/activity';
 import { useModal } from '@/lib/ModalProvider';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import TeamPageOrderModal from './TeamPageOrderModal';
 
 interface AppUser {
   id: string;
@@ -117,6 +118,7 @@ export default function UsersContent() {
   const [signedByUser, setSignedByUser] = useState<Map<string, Set<string>>>(new Map());
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   // force presence labels to re-render every 15s
@@ -331,22 +333,42 @@ export default function UsersContent() {
             People who have signed into the patient portal.
           </p>
         </div>
-        <button
-          onClick={() => router.push('/app/org-chart')}
-          className="inline-flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold bg-primary text-white hover:bg-primary-dark shadow-sm hover:shadow-md transition-all shrink-0"
-          style={{ fontFamily: 'var(--font-body)' }}
-          title="View organization chart"
-        >
-          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="9" y="3" width="6" height="4" rx="1" />
-            <rect x="3" y="15" width="6" height="4" rx="1" />
-            <rect x="15" y="15" width="6" height="4" rx="1" />
-            <path d="M12 7v4" />
-            <path d="M6 15v-2h12v2" />
-          </svg>
-          Org Chart
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setOrderModalOpen(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold bg-white text-foreground border border-black/10 hover:border-primary/40 hover:text-primary shadow-sm transition-all"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="Set the order of people on the public /who-we-are/meet-our-team page"
+          >
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="7" y1="6" x2="21" y2="6" />
+              <line x1="7" y1="12" x2="21" y2="12" />
+              <line x1="7" y1="18" x2="21" y2="18" />
+              <polyline points="3 4 4 6 3 8" />
+              <polyline points="3 10 4 12 3 14" />
+              <polyline points="3 16 4 18 3 20" />
+            </svg>
+            Team Page Order
+          </button>
+          <button
+            onClick={() => router.push('/app/org-chart')}
+            className="inline-flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold bg-primary text-white hover:bg-primary-dark shadow-sm hover:shadow-md transition-all"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="View organization chart"
+          >
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="3" width="6" height="4" rx="1" />
+              <rect x="3" y="15" width="6" height="4" rx="1" />
+              <rect x="15" y="15" width="6" height="4" rx="1" />
+              <path d="M12 7v4" />
+              <path d="M6 15v-2h12v2" />
+            </svg>
+            Org Chart
+          </button>
+        </div>
       </div>
+
+      <TeamPageOrderModal open={orderModalOpen} onClose={() => setOrderModalOpen(false)} />
 
       {isAdmin && (() => {
         const pending = users.filter((u) => u.status === 'on_hold');

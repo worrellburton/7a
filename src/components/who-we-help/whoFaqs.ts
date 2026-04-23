@@ -29,8 +29,8 @@ export const whoFaqs: WhoFaq[] = [
     a: 'Residential stays at Seven Arrows Recovery typically run 30, 60, or 90 days, with length of stay determined by clinical assessment, insurance authorization, and client needs. Many clients step down to outpatient or sober living after completing residential care.',
   },
   {
-    q: 'Is Seven Arrows Recovery in-network with insurance?',
-    a: 'Seven Arrows is in-network with most major insurance plans, including Aetna, Blue Cross Blue Shield, Cigna, UnitedHealthcare, Humana, and TRICARE. Our admissions team provides free insurance verification, usually within 15 to 30 minutes.',
+    q: 'Which insurance plans do you work with?',
+    a: 'Seven Arrows works with most major insurance plans — Aetna, Blue Cross Blue Shield, Cigna, UnitedHealthcare, Humana, TRICARE, and most PPO plans — as an out-of-network provider. Our admissions team runs a free benefits verification, usually within 15 to 30 minutes.',
   },
   {
     q: 'Do you accept clients from outside Arizona?',
@@ -38,6 +38,6 @@ export const whoFaqs: WhoFaq[] = [
   },
   {
     q: 'Do you treat first responders and veterans?',
-    a: 'Yes. Seven Arrows regularly treats police, fire, EMS, active-duty military, and veterans. We are in-network with TRICARE, and our TraumAddiction™ approach is specifically designed for trauma-impacted populations including first responders.',
+    a: 'Yes. Seven Arrows regularly treats police, fire, EMS, active-duty military, and veterans. We work with TRICARE as an out-of-network provider, and our TraumAddiction™ approach is specifically designed for trauma-impacted populations including first responders.',
   },
 ];

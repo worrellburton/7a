@@ -78,7 +78,7 @@ function jobRank(jobTitle: string | null): number {
 }
 
 const FULL_SELECT =
-  'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, public_slug, status, public_team';
+  'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, public_slug, status, public_team, team_page_order';
 const MINIMAL_SELECT = 'id, full_name, job_title, avatar_url, bio, public_slug, status, public_team';
 
 type TeamRow = {
@@ -92,6 +92,7 @@ type TeamRow = {
   public_slug: string | null;
   status?: string | null;
   public_team?: boolean | null;
+  team_page_order?: number | null;
 };
 
 export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {  try {
@@ -131,6 +132,16 @@ export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {  try {
     const rows = (data || [])
       .filter((row) => (row.full_name || '').trim().length > 0)
       .sort((a, b) => {
+        // Manual override from /app/team "Team Page Order" wins when
+        // present. Nulls sink to the bottom so pinning the first few
+        // people doesn't rearrange the long tail of unordered rows.
+        const oa = a.team_page_order;
+        const ob = b.team_page_order;
+        const hasA = typeof oa === 'number';
+        const hasB = typeof ob === 'number';
+        if (hasA && hasB && oa !== ob) return (oa as number) - (ob as number);
+        if (hasA !== hasB) return hasA ? -1 : 1;
+        // Fallback: jobRank, then alphabetical.
         const ra = jobRank(a.job_title);
         const rb = jobRank(b.job_title);
         if (ra !== rb) return ra - rb;

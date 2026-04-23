@@ -5,7 +5,6 @@
 
 import { fetchPlaceDetails } from '@/lib/places';
 import { siteVideos } from '@/lib/siteVideos';
-import { CURATED_REVIEWS } from '@/lib/curatedReviews';
 import ReviewCinemaCarousel from './ReviewCinemaCarousel';
 import type { ReviewBubbleData } from './ReviewBubble';
 
@@ -15,13 +14,6 @@ const VIDEO_POOL = [
   siteVideos.horsesRail,
   siteVideos.ranchLife,
 ];
-
-// First ~60 chars of a review text, stripped of whitespace/punctuation —
-// used as a de-dupe key so a curated quote that was later posted to
-// Google doesn't appear twice in the carousel.
-function quoteKey(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 60);
-}
 
 const FALLBACK_RATING = 4.9;
 const FALLBACK_TOTAL = 27;
@@ -40,11 +32,10 @@ function GoogleIcon({ className = 'w-5 h-5' }: { className?: string }) {
 export default async function GoogleReviewsCinema() {
   const place = await fetchPlaceDetails();
 
-  // Google reviews first (freshest, verified via Places), then the
-  // curated editorial pool to push the carousel past Google's 5-review
-  // cap. Dedupe so a curated quote that was later posted to Google
-  // doesn't appear twice.
-  const googleReviews: ReviewBubbleData[] = (place?.reviews ?? []).map((r) => ({
+  // Real Google reviews only — no curated / editorial quotes. If
+  // Google Places is unavailable the carousel renders nothing (the
+  // surrounding rating line still reflects the live aggregate).
+  const reviews: ReviewBubbleData[] = (place?.reviews ?? []).map((r) => ({
     name: r.authorName,
     date: r.relativeTime,
     rating: r.rating,
@@ -52,24 +43,6 @@ export default async function GoogleReviewsCinema() {
     photoUrl: r.profilePhotoUrl,
     source: 'google',
   }));
-
-  const googleKeys = new Set(googleReviews.map((r) => quoteKey(r.text)));
-  const curated: ReviewBubbleData[] = CURATED_REVIEWS.filter(
-    (c) => !googleKeys.has(quoteKey(c.text)),
-  ).map((c) => ({
-    name: c.name,
-    // Curated items carry an alum/family attribution instead of a
-    // relative-time string — the slide footer renders it verbatim.
-    date: c.attribution,
-    rating: c.rating,
-    text: c.text,
-    source: 'curated',
-  }));
-
-  const reviews: ReviewBubbleData[] =
-    googleReviews.length + curated.length > 0
-      ? [...googleReviews, ...curated]
-      : [];
 
   const slides = reviews.map((review, i) => ({
     review,

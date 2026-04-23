@@ -236,7 +236,7 @@ export default function InsuranceBCBSPage() {
               },
               {
                 q: 'How much does rehab cost with BCBS insurance?',
-                a: 'Costs vary depending on your BCBS plan type, deductible, copay, and whether you use an in-network facility. Many BCBS members have low out-of-pocket costs for addiction treatment. Call (866) 996-4308 for a free benefits verification.',
+                a: 'Costs vary depending on your BCBS plan, deductible, copay, and out-of-network benefits. Seven Arrows works with most BCBS plans as an out-of-network provider. Call (866) 996-4308 for a free benefits verification before you commit.',
               },
               {
                 q: 'Does BCBS cover out-of-state rehab?',

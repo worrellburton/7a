@@ -65,7 +65,7 @@ export const faqCategories: FaqCategory[] = [
       {
         id: 'insurance-accepted',
         q: 'Which insurance plans does Seven Arrows accept?',
-        a: 'Seven Arrows Recovery is in-network with most major insurance plans, including Aetna, Blue Cross Blue Shield (BCBS), Cigna, UnitedHealthcare, Humana, and TRICARE. We also work with many out-of-network PPO plans.',
+        a: 'Seven Arrows Recovery works with most major insurance plans — Aetna, Blue Cross Blue Shield (BCBS), Cigna, UnitedHealthcare, Humana, TRICARE, and most PPO plans — as an out-of-network provider. Our admissions team runs a free benefits check so you know your coverage before you commit.',
       },
       {
         id: 'insurance-verification',
@@ -80,12 +80,12 @@ export const faqCategories: FaqCategory[] = [
       {
         id: 'tricare',
         q: 'Do you accept TRICARE for active-duty military and veterans?',
-        a: 'Yes. Seven Arrows is in-network with TRICARE and regularly treats active-duty service members, reservists, veterans, and TRICARE-covered dependents. Our TraumAddiction™ approach is designed for trauma-impacted populations including the military community.',
+        a: 'Yes. Seven Arrows regularly treats active-duty service members, reservists, veterans, and TRICARE-covered dependents. We are an out-of-network provider with TRICARE; admissions will verify your benefits and walk you through coverage before you commit. Our TraumAddiction™ approach is designed for trauma-impacted populations including the military community.',
       },
       {
         id: 'medicaid-medicare',
         q: 'Do you accept Medicaid or Medicare?',
-        a: 'Seven Arrows does not currently accept Medicaid or Medicare as primary insurance. Clients with Medicaid or Medicare coverage should call us and we will refer to trusted partner programs that are in-network with those plans.',
+        a: 'Seven Arrows does not currently accept Medicaid or Medicare as primary insurance. Clients with Medicaid or Medicare coverage should call us and we will refer to trusted partner programs that accept those plans.',
       },
       {
         id: 'financing',
@@ -127,7 +127,7 @@ export const faqCategories: FaqCategory[] = [
       {
         id: 'holistic',
         q: 'Do you offer holistic therapies?',
-        a: 'Yes. Trauma-informed yoga, breathwork, sound healing, art and music therapy, mindfulness, nutrition, and equine-assisted psychotherapy are woven through the week alongside clinical sessions. Indigenous practices (sweat lodge, talking circle, land-based ceremony) are offered by trusted carriers.',
+        a: 'Yes. Trauma-informed yoga, breathwork, expressive arts and music for healing (facilitated, non-clinical offerings), mindfulness, nutrition, and equine-assisted psychotherapy are woven through the week alongside clinical sessions. Indigenous practices (sweat lodge, talking circle, land-based ceremony) are offered by trusted carriers.',
       },
     ],
   },

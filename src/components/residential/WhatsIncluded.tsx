@@ -30,7 +30,7 @@ const items: Item[] = [
   },
   {
     title: 'Group therapy',
-    body: 'Evidence-based process groups, psychoeducation, and peer-support circles.',
+    body: 'Evidence-based process groups and psychoeducation held by licensed clinicians.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="9" r="2.5" />
@@ -41,18 +41,8 @@ const items: Item[] = [
     ),
   },
   {
-    title: 'Medical detox',
-    body: 'On-site medically supervised detox with 24/7 clinical oversight.',
-    Icon: ({ className }) => (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 3v4m0 14v-4m9-5h-4M7 12H3" />
-        <circle cx="12" cy="12" r="4" />
-      </svg>
-    ),
-  },
-  {
     title: 'Equine-assisted therapy',
-    body: 'Dedicated 1:1 partnership with a horse for the duration of your stay.',
+    body: 'Work with several ranch horses across your stay, paired to what each week of treatment calls for.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M6 18c0-4 3-7 7-7h2l2-3 2 1-1 3 1 2v6H6z" />
@@ -71,8 +61,8 @@ const items: Item[] = [
     ),
   },
   {
-    title: 'Holistic modalities',
-    body: 'Breathwork, sound healing, yoga, mindfulness, and body-based practice.',
+    title: 'Holistic practice',
+    body: 'Breathwork, yoga, mindfulness, and expressive arts and music for healing — non-clinical offerings that support the work.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3v18M3 12h18M6 6l12 12M18 6l-12 12" />
@@ -80,8 +70,8 @@ const items: Item[] = [
     ),
   },
   {
-    title: 'Family program',
-    body: 'Structured education and therapy so the people who love you heal alongside you.',
+    title: 'Family support sessions',
+    body: 'Structured family support sessions and education so the people who love you move alongside you.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="7" cy="8" r="2.5" />
@@ -92,8 +82,18 @@ const items: Item[] = [
     ),
   },
   {
+    title: 'Detox coordination',
+    body: 'When detox is clinically needed we coordinate a short stay at a trusted medical detox partner so you arrive stable.',
+    Icon: ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3v4m0 14v-4m9-5h-4M7 12H3" />
+        <circle cx="12" cy="12" r="4" />
+      </svg>
+    ),
+  },
+  {
     title: 'Aftercare planning',
-    body: 'Structured step-down, alumni community, and ongoing support from day one.',
+    body: 'Structured step-down, alumni community, and ongoing outreach from day one.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 12h4l3-8 4 16 3-8h4" />

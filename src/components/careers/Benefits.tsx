@@ -9,14 +9,14 @@ interface Benefit {
 }
 
 const benefits: Benefit[] = [
-  { tag: 'Health', title: 'Medical, dental, vision', body: 'Comprehensive coverage starting day 1 of the month after hire. Low-premium options available.' },
-  { tag: 'Retirement', title: '401(k) with match', body: 'Pre-tax and Roth options. Company match up to a percentage of salary after 90 days.' },
-  { tag: 'Time off', title: 'PTO + holidays + sick', body: 'Generous PTO that accrues from day one. 8 paid holidays plus separate sick-time bank.' },
-  { tag: 'Development', title: 'CEU stipend + on-site trainings', body: 'Annual CEU budget for license renewal, plus on-site EMDR/ART/IFS/SE consultation groups for free.' },
-  { tag: 'Licensure', title: 'Supervision hours', body: 'Clinical supervision toward independent licensure available for associate-level clinicians on staff.' },
-  { tag: 'Wellness', title: 'Staff yoga + sauna', body: 'Group yoga, access to the ranch sauna, and a sound-bath practice you can slip into between sessions.' },
+  { tag: 'Signature', title: 'Paid FFTA training', body: 'Every staff member is paid to train in the Forward-Facing TraumAddiction Model (FFTA) — we are the only residential program in the world offering it right now.' },
+  { tag: 'Health', title: 'Medical, dental, vision', body: 'Comprehensive coverage begins two months after hire. Low-premium options available.' },
+  { tag: 'Time off', title: 'PTO + sick time', body: 'Generous PTO that accrues from day one, plus a separate sick-time bank.' },
+  { tag: 'Licensure', title: 'Licensure supervision', body: 'Clinical supervision toward independent licensure available on-site for associate-level clinicians on staff.' },
+  { tag: 'Development', title: 'CEU stipend', body: 'Annual CEU budget for license renewal plus on-site trainings built into the week.' },
   { tag: 'Meals', title: 'Meals on campus', body: 'Whole-food meals prepared on-site, included during shift. Kitchen accommodates dietary restrictions.' },
-  { tag: 'EAP', title: 'Confidential EAP', body: 'Third-party employee assistance program — counseling, legal, financial, and crisis support at no cost.' },
+  { tag: 'Setting', title: 'The ranch', body: '160 acres of open Arizona sky, working horses, and quiet porches — the kind of worksite that changes how a week feels.' },
+  { tag: 'Interns', title: 'Internship pathways', body: 'We are actively building out internship roles — masters-level clinical, holistic, and admissions tracks. Reach out if you are mid-program.' },
 ];
 
 export default function Benefits() {

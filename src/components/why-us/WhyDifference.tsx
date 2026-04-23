@@ -36,7 +36,7 @@ const diffs: Diff[] = [
   },
   {
     title: 'Dedicated Equine Therapy',
-    body: 'Each client is paired with their own horse for the duration of treatment. One-on-one work in the open desert builds trust, emotional regulation, and the kind of nonverbal honesty that accelerates breakthroughs.',
+    body: 'Clients work with multiple horses across their stay — each one matched to the week\'s work based on history, presentation, and what the nervous system is asking for. One-on-one time in the open desert builds trust, emotional regulation, and the kind of nonverbal honesty that accelerates breakthroughs.',
     href: '/our-program/equine-assisted',
     cta: 'Discover our equine therapy program',
     Icon: ({ className }) => (
@@ -157,7 +157,7 @@ export default function WhyDifference() {
                 className="text-white/85 leading-relaxed text-[15.5px] mb-5"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                Breathwork, yoga, sound healing, and mindfulness alongside sweat lodge
+                Breathwork, yoga, expressive arts and music for healing, and mindfulness alongside sweat lodge
                 ceremonies, smudging rituals, talking circles, and land-based therapies
                 rooted in centuries of earth-based wisdom. A full-spectrum holistic
                 practice that complements clinical treatment and offers a spiritual

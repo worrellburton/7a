@@ -36,7 +36,7 @@ const days = [
   {
     day: 3,
     title: 'Meeting Your Team',
-    desc: 'You\'ll meet your primary counselor, psychiatrist, and peer support specialists. Together you\'ll review your treatment plan and set goals.',
+    desc: 'You\'ll meet your primary counselor, psychiatrist, and the clinical team. Together you\'ll review your treatment plan and set goals for the week.',
     icon: (
       <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
         <circle cx="16" cy="10" r="5" />
@@ -278,8 +278,8 @@ const teamRoles = [
     ),
   },
   {
-    title: 'Peer Support',
-    desc: 'People who\'ve walked this road before you. They offer lived experience, practical wisdom, and proof that recovery is possible. They remember what Day 1 feels like.',
+    title: 'Clinical Team',
+    desc: 'Your primary clinician plus the trauma-informed group facilitators who hold process work, psychoeducation, and one-on-one sessions through the week.',
     icon: (
       <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-10 h-10">
         <circle cx="14" cy="14" r="5" />
@@ -290,8 +290,8 @@ const teamRoles = [
     ),
   },
   {
-    title: 'Holistic Practitioners',
-    desc: 'Yoga instructors, equine therapists, and breathwork guides who help you reconnect with your body and find peace in ways that don\'t require words.',
+    title: 'Holistic Facilitators',
+    desc: 'Yoga instructors, equine specialists, breathwork guides, and expressive arts and music-for-healing facilitators who help you reconnect with your body in ways that don\'t require words.',
     icon: (
       <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-10 h-10">
         <path d="M20 8 Q8 20 20 32 Q32 20 20 8Z" />
@@ -373,18 +373,18 @@ export default function PageContent() {
             />
           </div>
 
-          {/* What Detox Really Feels Like */}
+          {/* Detox — coordinated, not on-site */}
           <h2 className="text-2xl lg:text-3xl font-bold text-foreground mt-14 mb-4">
-            What Detox Really Feels Like
+            If detox is part of the picture
           </h2>
           <p className="text-foreground/70 leading-relaxed mb-4" style={{ fontFamily: 'var(--font-body)' }}>
-            Let&apos;s be honest: detox is uncomfortable. Your body has been depending on a substance, and when you stop, it protests. But here&apos;s what most people don&apos;t know — <strong>you don&apos;t have to do it alone, and modern medicine makes it far more manageable than you imagine.</strong>
+            Seven Arrows is a residential treatment program, not a detox facility. If the clinical team determines you need medical detox before admission, our admissions team coordinates a short stay at a trusted detox partner so you arrive at the ranch medically stable and ready for the work.
           </p>
           <p className="text-foreground/70 leading-relaxed mb-4" style={{ fontFamily: 'var(--font-body)' }}>
-            At Seven Arrows, our medical team uses <strong>medication-assisted treatment (MAT)</strong> when appropriate. This means carefully selected medications that ease withdrawal symptoms, reduce cravings, and help your nervous system recalibrate. You&apos;re monitored around the clock by professionals who&apos;ve guided hundreds of people through this process.
+            Withdrawal symptoms typically peak between days 2–3 and begin to subside by days 5–7. With medical support at our partner detox, that peak is significantly lower and shorter — the difference between white-knuckling a storm and having shelter. Once detox is complete, your first day at Seven Arrows begins.
           </p>
           <p className="text-foreground/70 leading-relaxed mb-4" style={{ fontFamily: 'var(--font-body)' }}>
-            Withdrawal symptoms typically peak between days 2-3 and begin to subside by days 5-7. With medical support, that peak is significantly lower and shorter. Think of it as the difference between white-knuckling a storm and having a shelter.
+            Medication-assisted treatment (MAT) for opioid use is continued here in coordination with an addiction-medicine physician when clinically appropriate. We do not require clients to discontinue MAT as a condition of admission.
           </p>
 
           {/* Withdrawal Chart */}
