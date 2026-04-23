@@ -9,6 +9,7 @@
 // exists so we never invent a quote.
 
 import { fetchPlaceDetails } from '@/lib/places';
+import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import { hasBusinessProfileConfig, mbReviews } from '@/lib/google';
 import { siteVideos } from '@/lib/siteVideos';
 import EquineReviewClient from './EquineReviewClient';
@@ -74,7 +75,10 @@ async function resolveLiveReviews(): Promise<{
     }
   }
   const place = await fetchPlaceDetails();
-  const reviews: ReviewBubbleData[] = (place?.reviews ?? [])
+  const cached = await fetchCachedReviews({ minRating: 4, sort: 'newest', limit: 100 });
+  const liveReviews = (place?.reviews ?? []).filter((r) => r.rating >= 4 && r.text.trim().length > 0);
+  const sourcePool = cached.length > 0 ? cached : liveReviews;
+  const reviews: ReviewBubbleData[] = sourcePool
     .filter((r) => r.rating >= 4 && r.text.trim().length > 0)
     .map((r) => ({
       name: r.authorName,

@@ -4,6 +4,7 @@
 // always renders.
 
 import { fetchPlaceDetails } from '@/lib/places';
+import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import BottomTicker, { type TickerItem } from './BottomTicker';
 
 const STATIC_ITEMS: TickerItem[] = [
@@ -47,15 +48,18 @@ function shortName(full: string): string {
 
 export default async function BottomTickerServer() {
   const place = await fetchPlaceDetails();
+  const cached = await fetchCachedReviews({ minRating: 4, sort: 'random', limit: 4 });
+  const sourcePool = cached.length > 0 ? cached : (place?.reviews ?? []);
 
   const reviewItems: TickerItem[] =
-    place?.reviews
-      ?.filter((r) => r.rating >= 4 && r.text.trim().length >= 30)
+    sourcePool
+      .filter((r) => r.rating >= 4 && r.text.trim().length >= 30)
       .slice(0, 4)
       .map((r) => ({
         type: 'review' as const,
         text: `"${snippet(r.text)}" — ${shortName(r.authorName)}`,
-      })) ?? FALLBACK_REVIEWS;
+      }));
+  const finalReviewItems = reviewItems.length > 0 ? reviewItems : FALLBACK_REVIEWS;
 
   const ratingItem: TickerItem = {
     type: 'stat',
@@ -67,9 +71,9 @@ export default async function BottomTickerServer() {
   // Interleave: rating, then alternate stats and reviews so the marquee
   // doesn't clump category-by-category.
   const interleaved: TickerItem[] = [ratingItem];
-  const maxLen = Math.max(STATIC_ITEMS.length, reviewItems.length);
+  const maxLen = Math.max(STATIC_ITEMS.length, finalReviewItems.length);
   for (let i = 0; i < maxLen; i++) {
-    if (reviewItems[i]) interleaved.push(reviewItems[i]);
+    if (finalReviewItems[i]) interleaved.push(finalReviewItems[i]);
     if (STATIC_ITEMS[i]) interleaved.push(STATIC_ITEMS[i]);
   }
 
