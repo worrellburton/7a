@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import SevenArrowsMark from '../team-member/SevenArrowsMark';
 
 /**
  * Mobile navigation drawer. Extracted from `Header.tsx` so that the
@@ -174,6 +175,22 @@ export default function MobileMenu({
           transition: `opacity ${duration}ms ${EASE}, transform ${duration}ms ${EASE}`,
         }}
       >
+        {/* Brand flourish — a faint SevenArrowsMark anchored to the
+            bottom-right corner of the drawer. Draws itself in with
+            its standard mount animation after the drawer has
+            finished settling, so the arrival sequence is
+            drawer → nav items → brand mark, each handing off to
+            the next. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4"
+          style={{
+            opacity: showing ? 0.08 : 0,
+            transition: `opacity 700ms ${EASE} 320ms`,
+          }}
+        >
+          <SevenArrowsMark size={240} animated={showing} tone="warm" />
+        </div>
         <div className="pt-3 pb-4 space-y-0.5">
           {navLinks.map((item, i) => (
             <StaggeredItem key={item.href} show={showing} index={i}>
