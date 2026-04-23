@@ -1,11 +1,11 @@
 // Google Places Details fetch for the public site.
 //
 // Place ID is a public, stable identifier (visible on any Google Maps URL)
-// so we hard-code it here. GOOGLE_API_KEY is server-only — it never leaves
-// the Next.js server runtime. Responses are cached at the edge for 1 hour
-// to stay well within Google's 30-day ToS cap and keep Place Details quota
-// down (each call is billed per-field-mask SKU, so we fetch reviews +
-// listing data in a single request and split the result downstream).
+// so we hard-code it here. GOOGLE_PLACES_API_KEY is server-only — it never
+// leaves the Next.js server runtime. Responses are cached at the edge for 1
+// hour to stay well within Google's 30-day ToS cap and keep Place Details
+// quota down (each call is billed per-field-mask SKU, so we fetch reviews
+// + listing data in a single request and split the result downstream).
 
 export const SEVEN_ARROWS_PLACE_ID = 'ChIJkx6TLLFX14YR1XG008rPWUM';
 
@@ -95,7 +95,7 @@ const FIELDS = [
 ].join(',');
 
 export async function fetchPlaceDetails(): Promise<PlaceDetails | null> {
-  const apiKey = process.env.GOOGLE_API_KEY;
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) return null;
 
   const url = new URL(PLACES_URL);
