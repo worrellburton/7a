@@ -42,6 +42,7 @@ export async function fetchCachedReviews(opts: FetchOpts = {}): Promise<PlaceRev
     .from('google_reviews')
     .select('author_name, profile_photo_url, rating, relative_time, text, review_time')
     .eq('place_id', placeId)
+    .eq('hidden', false)
     .gte('rating', minRating);
 
   if (sort === 'newest') {
@@ -79,6 +80,141 @@ export async function fetchCachedReviews(opts: FetchOpts = {}): Promise<PlaceRev
     text: r.text ?? '',
     time: Math.floor(new Date(r.review_time).getTime() / 1000),
   }));
+}
+
+// ---- Curated + unified reads (phase 13) ----------------------------------
+//
+// Curated rows live in public.curated_reviews and are admin-managed.
+// fetchAllReviews merges Google cache + curated, respects hidden/featured
+// flags, and returns a single sorted list ready for render.
+
+export type ReviewSource = 'google' | 'curated';
+
+export interface UnifiedReview {
+  id: string;
+  source: ReviewSource;
+  authorName: string;
+  rating: number;
+  text: string;
+  /** "2 weeks ago" for Google, "Alumnus · 8 months sober" for curated. */
+  byline: string;
+  photoUrl: string | null;
+  featured: boolean;
+  /** unix seconds — present on google rows for ordering, undefined on curated. */
+  reviewTime?: number;
+  /** Manual ordering when set by an admin. */
+  displayOrder: number | null;
+}
+
+interface UnifiedOpts {
+  /** Max rows. Default 50. */
+  limit?: number;
+  /** Filter by source. Default both. */
+  sources?: ReviewSource[];
+  /** Filter by minimum rating. Default 4. */
+  minRating?: number;
+  /** Featured rows first regardless of sort. Default true. */
+  featuredFirst?: boolean;
+}
+
+interface CuratedRow {
+  id: string;
+  author_name: string;
+  attribution: string | null;
+  rating: number;
+  text: string;
+  featured: boolean;
+  display_order: number | null;
+}
+
+interface GoogleRow {
+  id: string;
+  author_name: string;
+  profile_photo_url: string | null;
+  rating: number;
+  relative_time: string | null;
+  text: string | null;
+  review_time: string;
+  featured: boolean;
+  display_order: number | null;
+}
+
+export async function fetchAllReviews(opts: UnifiedOpts = {}): Promise<UnifiedReview[]> {
+  const limit = opts.limit ?? 50;
+  const sources = opts.sources ?? ['google', 'curated'];
+  const minRating = opts.minRating ?? 4;
+  const featuredFirst = opts.featuredFirst ?? true;
+  const admin = getAdminSupabase();
+
+  const collected: UnifiedReview[] = [];
+
+  if (sources.includes('google')) {
+    const { data, error } = await admin
+      .from('google_reviews')
+      .select('id, author_name, profile_photo_url, rating, relative_time, text, review_time, featured, display_order')
+      .eq('place_id', SEVEN_ARROWS_PLACE_ID)
+      .eq('hidden', false)
+      .gte('rating', minRating)
+      .order('review_time', { ascending: false });
+    if (error) {
+      console.error(`[reviewsDb] google select failed: ${error.message}`);
+    } else {
+      for (const r of (data ?? []) as GoogleRow[]) {
+        collected.push({
+          id: r.id,
+          source: 'google',
+          authorName: r.author_name,
+          rating: r.rating,
+          text: r.text ?? '',
+          byline: r.relative_time ?? 'Verified Google review',
+          photoUrl: r.profile_photo_url,
+          featured: r.featured,
+          reviewTime: Math.floor(new Date(r.review_time).getTime() / 1000),
+          displayOrder: r.display_order,
+        });
+      }
+    }
+  }
+
+  if (sources.includes('curated')) {
+    const { data, error } = await admin
+      .from('curated_reviews')
+      .select('id, author_name, attribution, rating, text, featured, display_order')
+      .eq('hidden', false)
+      .gte('rating', minRating)
+      .order('display_order', { ascending: true, nullsFirst: false });
+    if (error) {
+      console.error(`[reviewsDb] curated select failed: ${error.message}`);
+    } else {
+      for (const r of (data ?? []) as CuratedRow[]) {
+        collected.push({
+          id: r.id,
+          source: 'curated',
+          authorName: r.author_name,
+          rating: r.rating,
+          text: r.text,
+          byline: r.attribution ?? 'Verified alum review',
+          photoUrl: null,
+          featured: r.featured,
+          displayOrder: r.display_order,
+        });
+      }
+    }
+  }
+
+  collected.sort((a, b) => {
+    if (featuredFirst && a.featured !== b.featured) return a.featured ? -1 : 1;
+    const aOrder = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    const bOrder = b.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    // Then freshest first for google, alphabetical for curated/no-time.
+    const aTime = a.reviewTime ?? 0;
+    const bTime = b.reviewTime ?? 0;
+    if (aTime !== bTime) return bTime - aTime;
+    return a.authorName.localeCompare(b.authorName);
+  });
+
+  return collected.slice(0, limit);
 }
 
 export async function countCachedReviews(placeId: string = SEVEN_ARROWS_PLACE_ID): Promise<number> {
