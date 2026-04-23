@@ -10,6 +10,7 @@ import PageHero from '@/components/PageHero';
 import Link from 'next/link';
 import TeamGrid from '@/components/TeamGrid';
 import MissionVision from '@/components/MissionVision';
+import TeamCompositionChart from '@/components/team/TeamCompositionChart';
 import { fetchPublicTeam } from '@/lib/team';
 
 export const revalidate = 60;
@@ -54,6 +55,8 @@ export default async function MeetOurTeamPage() {
       />
 
       <MissionVision directorImage={directorImage} />
+
+      <TeamCompositionChart team={team} />
 
       {/* Team Intro */}
       <section className="py-16 lg:py-24 bg-white">
