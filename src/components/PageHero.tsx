@@ -9,9 +9,34 @@ interface MetaItem {
   icon?: 'author' | 'published' | 'modified' | 'reading';
 }
 
+// Title can be plain text, or an array of { text, accent } segments so
+// callers can highlight a single word in the brand accent color the way
+// the inner-page heros do (e.g. "Recovery doesn't end at the gate." with
+// "the" in accent).
+export type TitleSegment = string | { text: string; accent?: boolean };
+
+interface CtaPhone {
+  kind: 'phone';
+  /** Tap target — defaults to the main admissions number. */
+  href?: string;
+  /** Display number, e.g. "(866) 996-4308". */
+  display: string;
+  /** Eyebrow above the number, e.g. "ALUMNI LINE · 24/7". */
+  eyebrow?: string;
+}
+
+interface CtaLink {
+  kind: 'link';
+  href: string;
+  label: string;
+}
+
+export type HeroCta = CtaPhone | CtaLink;
+
 interface PageHeroProps {
   label: string;
-  title: string;
+  /** Either a plain string, or an array of segments for accent-word styling. */
+  title: string | TitleSegment[];
   description?: string;
   image?: string;
   /** Optional backdrop video URL — takes precedence over `image`. */
@@ -20,6 +45,8 @@ interface PageHeroProps {
   breadcrumbs?: { label: string; href?: string }[];
   /** Small meta row under the description (author / dates / read time). */
   meta?: MetaItem[];
+  /** Optional CTA row under the description — phone pill + text link. */
+  ctas?: HeroCta[];
   /** Content column width. "wide" (default) matches marketing pages'
    *  max-w-7xl container; "narrow" uses max-w-3xl so the hero's left
    *  edge lines up with a 3xl reading column beneath it (blog posts). */
@@ -65,6 +92,93 @@ function MetaIcon({ kind }: { kind: MetaItem['icon'] }) {
   }
 }
 
+function PhoneIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+    </svg>
+  );
+}
+
+function LiveDot() {
+  return (
+    <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+      <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />
+      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-400 ring-2 ring-primary" />
+    </span>
+  );
+}
+
+function renderTitle(title: PageHeroProps['title']) {
+  if (typeof title === 'string') return title;
+  return title.map((seg, i) => {
+    if (typeof seg === 'string') return <span key={i}>{seg}</span>;
+    return seg.accent ? (
+      <em
+        key={i}
+        className="not-italic"
+        style={{ color: 'var(--color-accent)' }}
+      >
+        {seg.text}
+      </em>
+    ) : (
+      <span key={i}>{seg.text}</span>
+    );
+  });
+}
+
+function HeroCtaRow({ ctas }: { ctas: HeroCta[] }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-7 gap-y-3">
+      {ctas.map((c, i) => {
+        if (c.kind === 'phone') {
+          return (
+            <a
+              key={i}
+              href={c.href || 'tel:+18669964308'}
+              className="inline-flex items-center gap-3 bg-primary hover:bg-primary-dark transition-colors rounded-full pl-3.5 pr-5 py-3 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.45)] ring-1 ring-white/10"
+            >
+              <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/12 ring-1 ring-white/15">
+                <PhoneIcon className="w-4 h-4 text-white" />
+                <span className="absolute -top-0.5 -right-0.5">
+                  <LiveDot />
+                </span>
+              </span>
+              <span className="flex flex-col items-start leading-tight text-left">
+                {c.eyebrow && (
+                  <span
+                    className="text-[10px] font-semibold tracking-[0.18em] uppercase text-white/75"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {c.eyebrow}
+                  </span>
+                )}
+                <span
+                  className="text-white font-bold text-base sm:text-lg tracking-tight"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
+                  {c.display}
+                </span>
+              </span>
+            </a>
+          );
+        }
+        // Secondary text link with underline rule
+        return (
+          <Link
+            key={i}
+            href={c.href}
+            className="text-white text-[12px] font-semibold tracking-[0.22em] uppercase border-b border-white/40 hover:border-white pb-1 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            {c.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function PageHero({
   label,
   title,
@@ -73,6 +187,7 @@ export default function PageHero({
   video = DEFAULT_VIDEO,
   breadcrumbs,
   meta,
+  ctas,
   width = 'wide',
 }: PageHeroProps) {
   // A `video` (defaulted) takes precedence. Callers can still pass an
@@ -182,7 +297,7 @@ export default function PageHero({
             className="text-4xl sm:text-5xl lg:text-[4rem] font-bold tracking-tight leading-[1.05] mb-5"
             style={{ fontFamily: 'var(--font-display)' }}
           >
-            {title}
+            {renderTitle(title)}
           </h1>
 
           {description && (
@@ -212,6 +327,8 @@ export default function PageHero({
               ))}
             </ul>
           )}
+
+          {ctas && ctas.length > 0 && <HeroCtaRow ctas={ctas} />}
         </div>
       </div>
     </section>
