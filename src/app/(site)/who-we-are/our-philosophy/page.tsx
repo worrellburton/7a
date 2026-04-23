@@ -23,13 +23,25 @@ export default function OurPhilosophyPage() {
       {/* Phase 1 — shared video hero */}
       <PageHero
         label="Our Philosophy"
-        title="Lasting recovery through health creation."
+        title={[
+          { text: 'Lasting recovery through ' },
+          { text: 'health creation', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Our Philosophy' },
         ]}
         description="Our philosophy is rooted in the science of health creation — addressing mind, body, and spirit through the TraumAddiction® model and Forward-Facing Freedom® framework."
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* Phase 2 — pathology → salutogenesis reframe */}

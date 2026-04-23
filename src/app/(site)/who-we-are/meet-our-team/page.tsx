@@ -31,7 +31,11 @@ export default async function MeetOurTeamPage() {
     <>
       <PageHero
         label="Our Team"
-        title="Meet Our Team"
+        title={[
+          { text: 'Meet ' },
+          { text: 'our team', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
@@ -39,6 +43,14 @@ export default async function MeetOurTeamPage() {
         ]}
         description="Behind every successful recovery is a dedicated team of professionals. At Seven Arrows Recovery, our clinicians, therapists, and support staff bring expertise, empathy, and genuine care to everything they do."
         image="/images/equine-therapy-portrait.jpg"
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       <MissionVision directorImage={directorImage} />
