@@ -262,6 +262,24 @@ body {
   to { opacity: 1; }
 }
 
+/* Team-member view transitions — when a named tile (avatar) morphs
+   from the grid into the hero, the browser generates two pseudo
+   images: the old and the new. We let the browser crossfade them
+   and slow the curve to match the team-member page eased-out
+   aesthetic. Non-named content (hero copy, surrounding sections)
+   uses the default root crossfade, shortened a hair. */
+@supports (view-transition-name: none) {
+  ::view-transition-group(*) {
+    animation-duration: 520ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 380ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;

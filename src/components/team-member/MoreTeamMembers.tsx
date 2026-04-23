@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { PublicTeamMember } from '@/lib/team';
+import MemberNavLink from './MemberNavLink';
 import { EASE_OUT_QUART, useInView, useReducedMotion } from './motion';
 
 /**
@@ -75,7 +76,7 @@ export default function MoreTeamMembers({
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 lg:gap-5">
           {others.map((m, i) => (
-            <Link
+            <MemberNavLink
               key={m.slug}
               href={`/who-we-are/meet-our-team/${m.slug}`}
               className="group relative block aspect-[4/5] overflow-hidden rounded-2xl bg-dark-section shadow-sm transition-all duration-500"
@@ -83,6 +84,7 @@ export default function MoreTeamMembers({
                 opacity: show ? 1 : 0,
                 transform: show ? 'translateY(0)' : 'translateY(18px)',
                 transition: `opacity 0.85s ${EASE_OUT_QUART} ${0.15 + i * 0.07}s, transform 0.85s ${EASE_OUT_QUART} ${0.15 + i * 0.07}s, box-shadow 0.4s ease`,
+                viewTransitionName: `member-avatar-${m.slug}`,
               }}
             >
               {m.avatar_url ? (
@@ -156,7 +158,7 @@ export default function MoreTeamMembers({
                   </svg>
                 </span>
               </div>
-            </Link>
+            </MemberNavLink>
           ))}
         </div>
       </div>

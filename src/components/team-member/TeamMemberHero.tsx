@@ -126,7 +126,10 @@ export default function TeamMemberHero({ member }: { member: PublicTeamMember })
                   vectorEffect="non-scaling-stroke"
                 />
               </svg>
-              <div className="relative rounded-[32px] overflow-hidden bg-white/5 aspect-[4/5] shadow-[0_40px_80px_-30px_rgba(0,0,0,0.6)] ring-1 ring-white/10">
+              <div
+                className="relative rounded-[32px] overflow-hidden bg-white/5 aspect-[4/5] shadow-[0_40px_80px_-30px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+                style={{ viewTransitionName: `member-avatar-${member.slug}` }}
+              >
                 {member.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
