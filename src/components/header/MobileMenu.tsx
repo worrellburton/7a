@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import SevenArrowsMark from '../team-member/SevenArrowsMark';
+import { useReducedMotion } from '../team-member/motion';
 
 /**
  * Mobile navigation drawer. Extracted from `Header.tsx` so that the
@@ -59,6 +60,7 @@ export default function MobileMenu({
   const [expanded, setExpanded] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const reduced = useReducedMotion();
 
   // Determine which top-level item represents the current page.
   // A nav item is active when its href matches the current path
@@ -122,15 +124,66 @@ export default function MobileMenu({
     };
   }, [mounted]);
 
-  // Escape key closes the drawer. Attached at the document level so
-  // it works regardless of which element currently has focus.
+  // Escape key closes the drawer, and Tab is intercepted so focus
+  // stays trapped inside the panel while the drawer is modal.
+  // Initial focus moves into the panel shortly after open; on close
+  // we return focus to whatever triggered the open (typically the
+  // hamburger button).
   useEffect(() => {
     if (!open) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    // Defer the initial focus by a frame so the drawer's entry
+    // animation has started and the element is actually focusable.
+    const focusRaf = requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const first = panel.querySelector<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      first?.focus();
+    });
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      // Focus trap — the drawer is modal, so Tab should cycle within
+      // the panel's focusable elements instead of escaping to the
+      // underlying page.
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => el.offsetParent !== null); // skip hidden
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      cancelAnimationFrame(focusRaf);
+      document.removeEventListener('keydown', onKey);
+      // Return focus only when the drawer actually closes, not on
+      // unmount from e.g. HMR. We check that we're not inside the
+      // panel anymore when restoring focus.
+      if (previouslyFocused && document.contains(previouslyFocused)) {
+        previouslyFocused.focus();
+      }
+    };
   }, [open, onClose]);
 
   if (!mounted) return null;
@@ -167,7 +220,9 @@ export default function MobileMenu({
       <div
         ref={panelRef}
         className="lg:hidden border-t border-gray-100 bg-white overflow-y-auto relative z-40"
-        role="menu"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Main navigation"
         style={{
           maxHeight: `calc(100dvh - var(--site-header-height, 68px))`,
           opacity: showing ? 1 : 0,
@@ -314,7 +369,7 @@ export default function MobileMenu({
           ))}
           <StaggeredItem show={showing} index={navLinks.length}>
             <div className="px-3 pt-3">
-              <PhoneCTA />
+              <PhoneCTA reduced={reduced} />
             </div>
           </StaggeredItem>
         </div>
@@ -335,7 +390,7 @@ export default function MobileMenu({
  *  - An SVG phone glyph whose receiver subtly wobbles when the
  *    pill is pressed, mirroring the "calling" gesture.
  */
-function PhoneCTA() {
+function PhoneCTA({ reduced }: { reduced: boolean }) {
   return (
     <a
       href="tel:+18669964308"
@@ -344,17 +399,20 @@ function PhoneCTA() {
     >
       {/* Copper shimmer — a diagonal white-translucent band that
           drifts across the pill. Clipped by the button's overflow
-          so it never escapes the pill edge. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.28) 50%, transparent 65%)',
-          transform: 'translateX(-120%)',
-          animation: 'sa-phone-shimmer 6s ease-in-out infinite',
-        }}
-      />
+          so it never escapes the pill edge. Disabled under
+          prefers-reduced-motion. */}
+      {!reduced && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.28) 50%, transparent 65%)',
+            transform: 'translateX(-120%)',
+            animation: 'sa-phone-shimmer 6s ease-in-out infinite',
+          }}
+        />
+      )}
       <style>{`
         @keyframes sa-phone-shimmer {
           0%, 25% { transform: translateX(-120%); }
