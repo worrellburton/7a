@@ -221,11 +221,41 @@ export default function ReviewsContent() {
       )}
 
       <ul className="divide-y divide-black/5 border border-black/10 rounded-xl bg-white overflow-hidden">
-        {rows.map((r) => (
+        {rows.map((r, idx) => (
           <ReviewRow
             key={`${r.source}-${r.id}`}
             row={r}
+            isFirst={idx === 0}
+            isLast={idx === rows.length - 1}
             onClick={() => setEditing(r)}
+            onMove={async (direction) => {
+              const partner = direction === 'up' ? rows[idx - 1] : rows[idx + 1];
+              if (!partner) return;
+              // Resolve effective orders. If null, fall back to current
+              // sorted index so we never write a null-vs-null swap that
+              // produces no visible change.
+              const meOrder = r.displayOrder ?? idx + 1;
+              const themOrder = partner.displayOrder ?? (direction === 'up' ? idx : idx + 2);
+              try {
+                await Promise.all([
+                  fetch(`/api/reviews/${r.id}?source=${r.source}`, {
+                    method: 'PATCH',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ display_order: themOrder }),
+                  }),
+                  fetch(`/api/reviews/${partner.id}?source=${partner.source}`, {
+                    method: 'PATCH',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ display_order: meOrder }),
+                  }),
+                ]);
+                refresh();
+              } catch (e) {
+                alert(`Move failed: ${e instanceof Error ? e.message : String(e)}`);
+              }
+            }}
             onToggleFlag={async (flag, value) => {
               try {
                 const res = await fetch(`/api/reviews/${r.id}?source=${r.source}`, {
@@ -293,11 +323,17 @@ function FilterChips({
 
 function ReviewRow({
   row,
+  isFirst,
+  isLast,
   onClick,
+  onMove,
   onToggleFlag,
 }: {
   row: UnifiedRow;
+  isFirst: boolean;
+  isLast: boolean;
   onClick: () => void;
+  onMove: (direction: 'up' | 'down') => void;
   onToggleFlag: (flag: 'featured' | 'hidden', value: boolean) => void;
 }) {
   const stars = '★'.repeat(row.rating) + '☆'.repeat(5 - row.rating);
@@ -322,6 +358,26 @@ function ReviewRow({
         </div>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0" onClick={stop}>
+        <button
+          type="button"
+          onClick={() => onMove('up')}
+          disabled={isFirst}
+          title="Move up"
+          aria-label="Move up"
+          className="w-7 h-7 inline-flex items-center justify-center rounded border border-black/10 bg-white text-foreground/40 hover:text-foreground hover:border-foreground/30 disabled:opacity-30 disabled:cursor-not-allowed text-sm"
+        >
+          ↑
+        </button>
+        <button
+          type="button"
+          onClick={() => onMove('down')}
+          disabled={isLast}
+          title="Move down"
+          aria-label="Move down"
+          className="w-7 h-7 inline-flex items-center justify-center rounded border border-black/10 bg-white text-foreground/40 hover:text-foreground hover:border-foreground/30 disabled:opacity-30 disabled:cursor-not-allowed text-sm"
+        >
+          ↓
+        </button>
         <QuickToggle
           on={row.featured}
           onClick={() => onToggleFlag('featured', !row.featured)}
