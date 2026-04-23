@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function BlogPreview() {
   return (
-    <section className="py-16 lg:py-20 bg-white" aria-labelledby="blog-preview-heading">
+    <section className="py-16 lg:py-20 bg-warm-bg" aria-labelledby="blog-preview-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-end justify-between mb-10">
           <div>

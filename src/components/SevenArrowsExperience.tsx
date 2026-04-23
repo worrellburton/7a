@@ -18,6 +18,26 @@ const principles = [
 
 const amenities = [
   {
+    title: 'Trauma Treatment',
+    description: 'Addressing root causes',
+    icon: (
+      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 21s-7-4.5-7-11a7 7 0 0114 0c0 6.5-7 11-7 11z" />
+        <path d="M12 13a2 2 0 100-4 2 2 0 000 4z" fill="currentColor" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Evidence-Based Treatment',
+    description: 'CBT · DBT · EMDR',
+    icon: (
+      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 3v5a2 2 0 01-.59 1.59L5 13M9 3l6 0M15 3v5a2 2 0 00.59 1.59L19 13" />
+        <path d="M19 13l-1.48 4.45A2.25 2.25 0 0115.38 19H8.62a2.25 2.25 0 01-2.14-1.55L5 13Z" />
+      </svg>
+    ),
+  },
+  {
     title: 'Airport Transfer',
     description: 'Free transport to & from the airport.',
     icon: (
@@ -138,7 +158,7 @@ export default function SevenArrowsExperience() {
           </h3>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
           {amenities.map((amenity) => (
             <div key={amenity.title} className="card-soft p-6 lg:p-7 flex items-start gap-4">
               <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
