@@ -18,6 +18,9 @@ export default function APIsContent() {
   const [qbCompanies, setQbCompanies] = useState<number>(0);
   const [ctmOk, setCtmOk] = useState(false);
   const [stediOk, setStediOk] = useState(false);
+  const [ga4State, setGa4State] = useState<{ ok: boolean; detail?: string }>({ ok: false });
+  const [gscState, setGscState] = useState<{ ok: boolean; detail?: string; error?: string }>({ ok: false });
+  const [gbpState, setGbpState] = useState<{ ok: boolean; detail?: string; error?: string }>({ ok: false });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,16 +34,22 @@ export default function APIsContent() {
         });
         if (res.ok) {
           const body = await res.json();
-          const list: { id: string; connected: boolean; detail?: string }[] = body.integrations || [];
+          const list: { id: string; connected: boolean; detail?: string; error?: string }[] = body.integrations || [];
           const qb = list.find(i => i.id === 'quickbooks');
           const ctm = list.find(i => i.id === 'ctm');
           const stedi = list.find(i => i.id === 'stedi');
+          const ga4 = list.find(i => i.id === 'ga4');
+          const gsc = list.find(i => i.id === 'gsc');
+          const gbp = list.find(i => i.id === 'gbp');
           if (qb?.connected) {
             const match = (qb.detail || '').match(/(\d+)/);
             setQbCompanies(match ? parseInt(match[1], 10) : 1);
           }
           if (ctm?.connected) setCtmOk(true);
           if (stedi?.connected) setStediOk(true);
+          if (ga4) setGa4State({ ok: !!ga4.connected, detail: ga4.detail });
+          if (gsc) setGscState({ ok: !!gsc.connected, detail: gsc.detail, error: gsc.error });
+          if (gbp) setGbpState({ ok: !!gbp.connected, detail: gbp.detail, error: gbp.error });
         }
       } catch { /* ignore */ }
       setLoading(false);
@@ -61,6 +70,27 @@ export default function APIsContent() {
       description: 'Single sign-on for all users',
       status: 'connected',
       details: 'Via Supabase Auth',
+    },
+    {
+      name: 'Google Analytics 4',
+      description: 'Site traffic, sessions, landing-page performance',
+      status: ga4State.ok ? 'connected' : 'disconnected',
+      details: ga4State.detail,
+      manageUrl: '/app/seo',
+    },
+    {
+      name: 'Google Search Console',
+      description: 'Organic impressions, clicks, and query rankings',
+      status: gscState.ok ? 'connected' : 'disconnected',
+      details: gscState.ok ? gscState.detail : gscState.error,
+      manageUrl: '/app/seo',
+    },
+    {
+      name: 'Google Business Profile',
+      description: 'Map listing, reviews, calls, directions, website clicks',
+      status: gbpState.ok ? 'connected' : 'disconnected',
+      details: gbpState.ok ? gbpState.detail : gbpState.error,
+      manageUrl: '/app/seo',
     },
     {
       name: 'QuickBooks Online',

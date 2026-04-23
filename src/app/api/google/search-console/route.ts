@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
-import { gscSearchAnalytics, hasGoogleOAuth } from '@/lib/google';
+import {
+  GoogleApiError,
+  gscListSites,
+  gscSearchAnalytics,
+  hasGoogleOAuth,
+  resolveGscSite,
+} from '@/lib/google';
 
 // GET /api/google/search-console?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&compare=prev
 // Admin-only. Powers the SEO section + overview digest. Returns:
@@ -47,9 +53,9 @@ export async function GET(req: Request) {
   const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
   if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  if (!hasGoogleOAuth() || !process.env.GSC_SITE_URL) {
+  if (!hasGoogleOAuth()) {
     return NextResponse.json(
-      { error: 'Search Console not configured (GOOGLE_OAUTH_* and GSC_SITE_URL required)' },
+      { error: 'Search Console not configured (GOOGLE_OAUTH_CLIENT_ID / CLIENT_SECRET / REFRESH_TOKEN required)' },
       { status: 412 }
     );
   }
@@ -70,50 +76,61 @@ export async function GET(req: Request) {
   const prevEnd = addDays(startDate, -1);
   const prevStart = addDays(prevEnd, -(rangeDays - 1));
 
+  let site: string;
+  try {
+    site = await resolveGscSite();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      { error: message, configuredSite: process.env.GSC_SITE_URL ?? null },
+      { status: 502 }
+    );
+  }
+
   try {
     const fetches = [
-      gscSearchAnalytics({ startDate, endDate, rowLimit: 1 }),
+      gscSearchAnalytics({ startDate, endDate, rowLimit: 1 }, site),
       gscSearchAnalytics({
         startDate,
         endDate,
         dimensions: ['date'],
         rowLimit: 400,
-      }),
+      }, site),
       gscSearchAnalytics({
         startDate,
         endDate,
         dimensions: ['query'],
         rowLimit: 25,
-      }),
+      }, site),
       gscSearchAnalytics({
         startDate,
         endDate,
         dimensions: ['page'],
         rowLimit: 25,
-      }),
+      }, site),
       // Large query dump for quick-wins analysis (up to 500 queries)
       gscSearchAnalytics({
         startDate,
         endDate,
         dimensions: ['query'],
         rowLimit: 500,
-      }),
+      }, site),
       gscSearchAnalytics({
         startDate,
         endDate,
         dimensions: ['device'],
         rowLimit: 10,
-      }),
+      }, site),
       gscSearchAnalytics({
         startDate,
         endDate,
         dimensions: ['country'],
         rowLimit: 25,
-      }),
+      }, site),
     ];
     if (withCompare) {
       fetches.push(
-        gscSearchAnalytics({ startDate: prevStart, endDate: prevEnd, rowLimit: 1 })
+        gscSearchAnalytics({ startDate: prevStart, endDate: prevEnd, rowLimit: 1 }, site)
       );
     }
 
@@ -229,7 +246,8 @@ export async function GET(req: Request) {
     return NextResponse.json({
       range: { startDate, endDate, days: rangeDays },
       previousRange: withCompare ? { startDate: prevStart, endDate: prevEnd, days: rangeDays } : null,
-      site: process.env.GSC_SITE_URL,
+      site,
+      configuredSite: process.env.GSC_SITE_URL ?? null,
       summary,
       previous,
       daily,
@@ -243,6 +261,30 @@ export async function GET(req: Request) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+
+    // On a 403, the OAuth account has no access to this specific property.
+    // Help the admin out: list the sites the account *does* see.
+    if (err instanceof GoogleApiError && err.status === 403) {
+      let accessible: { siteUrl: string; permissionLevel: string }[] = [];
+      try {
+        accessible = await gscListSites();
+      } catch {
+        /* ignore — fall through to bare 403 message */
+      }
+      return NextResponse.json(
+        {
+          error: `Search Console denied access to ${site}. The connected Google account is not an owner or user on that property.`,
+          configuredSite: process.env.GSC_SITE_URL ?? null,
+          resolvedSite: site,
+          accessibleSites: accessible,
+          hint:
+            accessible.length > 0
+              ? 'Either grant the connected Google account access to the configured site, or set GSC_SITE_URL to one of the accessible sites above.'
+              : 'The connected Google account has no Search Console properties. Add it as an owner or full user in Search Console → Settings → Users and permissions.',
+        },
+        { status: 403 }
+      );
+    }
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

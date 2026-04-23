@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 import { listStoredTokens } from '@/lib/quickbooks';
-import { ga4Run, gscSearchAnalytics, hasGoogleOAuth } from '@/lib/google';
+import {
+  ga4Run,
+  gbpMultiDailyMetrics,
+  gscSearchAnalytics,
+  hasGoogleOAuth,
+  resolveGbpLocation,
+  resolveGscSite,
+} from '@/lib/google';
 
 // GET /api/integrations
 // Admin-only snapshot of every third-party integration the app talks to.
@@ -238,9 +245,10 @@ async function probeGoogleAnalytics(): Promise<IntegrationStatus> {
 }
 
 // -- Google Search Console ---------------------------------------------
-// Live probe: tiny searchAnalytics query against the verified site.
+// Live probe: tiny searchAnalytics query against the resolved site (either
+// GSC_SITE_URL, or the first site the OAuth account actually owns).
 async function probeSearchConsole(): Promise<IntegrationStatus> {
-  const configured = hasGoogleOAuth() && !!process.env.GSC_SITE_URL;
+  const configured = hasGoogleOAuth();
   const base: IntegrationStatus = {
     id: 'gsc',
     name: 'Google Search Console',
@@ -254,23 +262,83 @@ async function probeSearchConsole(): Promise<IntegrationStatus> {
   };
 
   if (!configured) {
-    base.error = 'Missing GOOGLE_OAUTH_* env or GSC_SITE_URL';
+    base.error = 'Missing GOOGLE_OAUTH_* env';
     return base;
   }
 
   try {
+    const site = await withTimeout(resolveGscSite(), PROBE_TIMEOUT_MS, 'Search Console site lookup');
     const result = await withTimeout(
-      gscSearchAnalytics({
-        startDate: '30daysAgo',
-        endDate: 'today',
-        rowLimit: 1,
-      }),
+      gscSearchAnalytics(
+        {
+          startDate: '30daysAgo',
+          endDate: 'today',
+          rowLimit: 1,
+        },
+        site
+      ),
       PROBE_TIMEOUT_MS,
       'Search Console'
     );
     const clicks = Number(result.rows?.[0]?.clicks ?? 0);
+    const configured_site = process.env.GSC_SITE_URL;
+    const mismatch = configured_site && configured_site !== site;
     base.connected = true;
-    base.detail = `${process.env.GSC_SITE_URL} · ${clicks.toLocaleString()} clicks (30d)`;
+    base.detail = mismatch
+      ? `${site} (auto-resolved; GSC_SITE_URL=${configured_site} not accessible) · ${clicks.toLocaleString()} clicks (30d)`
+      : `${site} · ${clicks.toLocaleString()} clicks (30d)`;
+  } catch (err) {
+    base.error = err instanceof Error ? err.message : String(err);
+  }
+  return base;
+}
+
+// -- Google Business Profile -------------------------------------------
+// Live probe: resolve the location, then fetch one metric for the last
+// week. This is the smallest-useful call — confirms auth, location
+// access, and Performance API access in one round trip.
+async function probeBusinessProfile(): Promise<IntegrationStatus> {
+  const configured = hasGoogleOAuth();
+  const base: IntegrationStatus = {
+    id: 'gbp',
+    name: 'Google Business Profile',
+    description: 'Map listing, reviews, calls, directions, and website clicks.',
+    category: 'auth',
+    configured,
+    connected: false,
+    detail: null,
+    error: null,
+    docsUrl: 'https://business.google.com/',
+  };
+
+  if (!configured) {
+    base.error = 'Missing GOOGLE_OAUTH_* env';
+    return base;
+  }
+
+  try {
+    const { location } = await withTimeout(
+      resolveGbpLocation(),
+      PROBE_TIMEOUT_MS,
+      'Business Profile location lookup'
+    );
+    const end = new Date();
+    end.setUTCDate(end.getUTCDate() - 2);
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - 7);
+    const series = await withTimeout(
+      gbpMultiDailyMetrics(
+        location.name,
+        ['WEBSITE_CLICKS'],
+        start.toISOString().slice(0, 10),
+        end.toISOString().slice(0, 10)
+      ),
+      PROBE_TIMEOUT_MS,
+      'Business Profile metrics'
+    );
+    const total = series[0]?.total ?? 0;
+    base.connected = true;
+    base.detail = `${location.title ?? location.name} · ${total.toLocaleString()} website clicks (7d)`;
   } catch (err) {
     base.error = err instanceof Error ? err.message : String(err);
   }
@@ -309,6 +377,7 @@ export async function GET() {
     probeGoogleOauth(),
     probeGoogleAnalytics(),
     probeSearchConsole(),
+    probeBusinessProfile(),
     probeQuickBooks(),
     probeCTM(),
     probeStedi(),
