@@ -160,16 +160,31 @@ export default function MobileMenu({
                   >
                     {item.label}
                     <svg
-                      className={`w-3.5 h-3.5 transition-transform ${expanded === item.label ? 'rotate-180' : ''}`}
+                      className="w-3.5 h-3.5"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
+                      style={{
+                        transform: expanded === item.label ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: `transform 380ms ${EASE}`,
+                      }}
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  {expanded === item.label && (
-                    <div className="bg-warm-bg">
+                  {/* Accordion body — uses the CSS grid-rows "0fr
+                      ↔ 1fr" trick to transition intrinsic height
+                      without measuring it in JS. The child has
+                      overflow:hidden so content is clipped while
+                      the row shrinks/grows. */}
+                  <div
+                    className="grid bg-warm-bg"
+                    style={{
+                      gridTemplateRows: expanded === item.label ? '1fr' : '0fr',
+                      transition: `grid-template-rows 380ms ${EASE}`,
+                    }}
+                  >
+                    <div className="overflow-hidden">
                       {item.dropdown.map((sub) => {
                         const Icon = iconMap[sub.label];
                         return (
@@ -179,6 +194,8 @@ export default function MobileMenu({
                             className="flex items-center gap-2.5 px-5 py-2.5 text-sm text-foreground hover:text-primary border-b border-foreground/5 last:border-b-0"
                             role="menuitem"
                             onClick={onClose}
+                            tabIndex={expanded === item.label ? 0 : -1}
+                            aria-hidden={expanded === item.label ? undefined : true}
                           >
                             {Icon && (
                               <div className="shrink-0 w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
@@ -194,7 +211,7 @@ export default function MobileMenu({
                         );
                       })}
                     </div>
-                  )}
+                  </div>
                 </>
               ) : (
                 <Link
