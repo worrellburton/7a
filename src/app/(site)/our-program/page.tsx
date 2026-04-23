@@ -60,13 +60,25 @@ export default function OurProgramPage() {
     <main>
       <PageHero
         label="Our Program"
-        title="A Different Kind of Recovery"
+        title={[
+          { text: 'A different kind of ' },
+          { text: 'recovery', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Our Program' },
         ]}
         description="At Seven Arrows Recovery, we blend clinical excellence with the healing power of the land, indigenous wisdom, and trauma-focused care. Our intimate, boutique setting ensures every client receives deeply personalized treatment."
         image="/images/sound-healing-session.jpg"
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* Overview */}

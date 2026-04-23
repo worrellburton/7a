@@ -23,13 +23,25 @@ export default function DualDiagnosisPage() {
       {/* Phase 1 — shared video hero */}
       <PageHero
         label="What We Treat"
-        title="Two conditions. One integrated plan."
+        title={[
+          { text: 'Two conditions. ' },
+          { text: 'One integrated plan', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'What We Treat', href: '/what-we-treat' },
           { label: 'Dual-Diagnosis' },
         ]}
         description="When a mental-health condition and a substance use disorder show up together, only integrated care resolves them. Our dual-diagnosis program treats both under one clinical team, one treatment plan, one roof."
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* Phase 2 — destructive cycle diagram */}

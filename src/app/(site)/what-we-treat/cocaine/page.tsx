@@ -22,13 +22,25 @@ export default function CocaineAddictionPage() {
       {/* Phase 1 — video-backdrop hero */}
       <PageHero
         label="Cocaine Addiction Treatment"
-        title="Cocaine rewires reward. We help you rebuild it."
+        title={[
+          { text: 'Cocaine rewires reward. We help you ' },
+          { text: 'rebuild it', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'What We Treat', href: '/what-we-treat' },
           { label: 'Cocaine Addiction' },
         ]}
         description="At Seven Arrows Recovery, cocaine use disorder is treated as a nervous-system and reward-circuit condition, not a willpower problem. Our residential program in Arizona sequences cardiac-safe stabilization, trauma-informed therapy, and body-based work so the brain's natural reward baseline can actually return."
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* Phase 2 — Dopamine curve (animated SVG) */}
