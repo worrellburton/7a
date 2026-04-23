@@ -135,12 +135,23 @@ export default function SiteBackground() {
     window.addEventListener('pointermove', onPointer, { passive: true });
     window.addEventListener('scroll', onScroll, { passive: true });
 
-    // Cap DPR at 1.5 — the background is so subtle that a 1:1 pixel
-    // grid is plenty, and capping saves a lot of fragment work on
-    // 3x retina phones.
+    // Power profile — coarse pointer (touch) or low memory (≤4GB) or
+    // narrow viewport (<640px) all signal "phone or tablet". On these
+    // we cap DPR harder (1.0) and clamp the rAF loop to 30fps to halve
+    // the GPU bill. Desktop keeps the smoother 1.5 DPR / 60fps path.
+    const isLowPower =
+      typeof window !== 'undefined' &&
+      (window.matchMedia?.('(pointer: coarse)').matches ||
+        // navigator.deviceMemory is not in lib.dom; tolerate undefined.
+        ((navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8) <= 4 ||
+        window.innerWidth < 640);
+    const dprCap = isLowPower ? 1.0 : 1.5;
+    const targetFps = isLowPower ? 30 : 60;
+    const minFrameMs = 1000 / targetFps;
+
     function resize() {
       if (!canvas || !gl) return;
-      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      const dpr = Math.min(dprCap, window.devicePixelRatio || 1);
       const w = Math.floor(canvas.clientWidth * dpr);
       const h = Math.floor(canvas.clientHeight * dpr);
       if (canvas.width !== w || canvas.height !== h) {
@@ -181,9 +192,17 @@ export default function SiteBackground() {
       gl.uniform1f(uTime, 0);
       renderOnce();
     } else {
-      const loop = () => {
+      // Frame-cap loop — only render when at least minFrameMs has
+      // elapsed since the last paint. Saves ~50% of fragment work on
+      // mobile without affecting visual quality (the animations are
+      // all sub-1Hz and don't need 60fps to look smooth).
+      let lastPaint = 0;
+      const loop = (now: number) => {
         if (cancelled) return;
-        if (active) renderOnce();
+        if (active && now - lastPaint >= minFrameMs) {
+          lastPaint = now;
+          renderOnce();
+        }
         raf = requestAnimationFrame(loop);
       };
       raf = requestAnimationFrame(loop);
