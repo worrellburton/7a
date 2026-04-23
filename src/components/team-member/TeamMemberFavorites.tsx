@@ -73,7 +73,7 @@ function FavoriteQuoteCard({
 }) {
   return (
     <article
-      className="group rounded-2xl p-8 lg:p-10 text-white relative overflow-hidden will-change-transform"
+      className="group rounded-2xl p-8 lg:p-10 text-white relative overflow-hidden"
       style={{
         background: 'linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%)',
         opacity: show ? 1 : 0,
