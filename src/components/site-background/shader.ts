@@ -105,6 +105,12 @@ void main() {
   // [-fan/2, +fan/2] sweeping past straight-down), at radius
   // ringR + chainLen, with size that tapers slightly toward the
   // outermost beads for a natural drape.
+  //
+  // Phase 6 motion: each bead's angle gets a small phase-offset
+  // pendulum sway driven by u_time so the chain feels like it's
+  // breathing in a breeze. Inner beads sway less, outer beads sway
+  // more — same intuition as a real chain. Period and amplitude
+  // are deliberately quiet (~7s loop, ~3° peak).
   const int BEAD_COUNT = 7;
   float fan = 1.45;            // total angular fan, ~83°
   float chainLen = 0.075;      // distance from ring edge to bead center
@@ -112,7 +118,12 @@ void main() {
   float beadMaskAcc = 0.0;
   for (int i = 0; i < BEAD_COUNT; i++) {
     float t = float(i) / float(BEAD_COUNT - 1);    // 0..1
-    float a = -3.14159265 * 0.5 + (t - 0.5) * fan; // angle, anchored straight down
+    float baseA = -3.14159265 * 0.5 + (t - 0.5) * fan;
+    // Sway: outer beads (|t-0.5| larger) swing further. Phase is
+    // staggered so the chain feels like a wave, not a rigid wing.
+    float swayAmp = 0.05 * abs(t - 0.5) * 2.0;     // 0..0.05 rad (~2.9°)
+    float sway = sin(u_time * 0.9 + t * 1.6) * swayAmp;
+    float a = baseA + sway;
     vec2 bp = vec2(cos(a), sin(a)) * (ringR + chainLen);
     // Subtle taper — outer beads slightly smaller than the center bead.
     float taper = 1.0 - 0.25 * abs(t - 0.5) * 2.0;
