@@ -147,8 +147,8 @@ export default function MobileMenu({
         }}
       >
         <div className="pt-3 pb-4 space-y-0.5">
-          {navLinks.map((item) => (
-            <div key={item.href}>
+          {navLinks.map((item, i) => (
+            <StaggeredItem key={item.href} show={showing} index={i}>
               {item.dropdown ? (
                 <>
                   <button
@@ -207,21 +207,53 @@ export default function MobileMenu({
                   {item.label}
                 </Link>
               )}
-            </div>
+            </StaggeredItem>
           ))}
-          <div className="px-3 pt-3">
-            <a
-              href="tel:+18669964308"
-              className="btn-primary w-full text-center flex items-center justify-center gap-2 text-xs py-3"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
-              </svg>
-              (866) 996-4308
-            </a>
-          </div>
+          <StaggeredItem show={showing} index={navLinks.length}>
+            <div className="px-3 pt-3">
+              <a
+                href="tel:+18669964308"
+                className="btn-primary w-full text-center flex items-center justify-center gap-2 text-xs py-3"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+                </svg>
+                (866) 996-4308
+              </a>
+            </div>
+          </StaggeredItem>
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * Wraps a nav item in a slide-up + fade reveal that's staggered by
+ * its index. Each successive item arrives 40ms after the previous,
+ * with a small initial delay so the drawer's own open transition
+ * has begun before the list starts populating. On close, the fade
+ * is quick and uniform across items to avoid a noisy tail-out.
+ */
+function StaggeredItem({
+  show,
+  index,
+  children,
+}: {
+  show: boolean;
+  index: number;
+  children: React.ReactNode;
+}) {
+  const delay = show ? 120 + index * 40 : 0;
+  return (
+    <div
+      style={{
+        opacity: show ? 1 : 0,
+        transform: show ? 'translateY(0)' : 'translateY(6px)',
+        transition: `opacity 420ms ${EASE} ${delay}ms, transform 520ms ${EASE} ${delay}ms`,
+      }}
+    >
+      {children}
+    </div>
   );
 }
