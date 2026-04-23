@@ -236,11 +236,21 @@ export default function SiteBackground() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-      // `contain: strict` keeps paint scoped to this element so the
-      // browser can short-circuit hit-testing / layout against the
-      // body content above us.
-      style={{ contain: 'strict' }}
+      // Overlay mode: sit above page content (z-30) but below the
+      // interactive sticky CTAs (z-50). pointer-events:none so the
+      // overlay never blocks taps. Opacity is held very low so the
+      // brand atmosphere reads as a warm wash and never compromises
+      // text legibility.
+      className="pointer-events-none fixed inset-0 z-30 overflow-hidden"
+      style={{
+        contain: 'strict',
+        opacity: 0.07,
+        // multiply blend warms the underlying pixels (deepens whites,
+        // tints toward the brand palette) instead of simply covering
+        // them with a flat film. Reads as ambient glow rather than
+        // a layer on top.
+        mixBlendMode: 'multiply',
+      }}
     >
       <canvas
         ref={canvasRef}
