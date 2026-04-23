@@ -297,20 +297,74 @@ export default function MobileMenu({
           ))}
           <StaggeredItem show={showing} index={navLinks.length}>
             <div className="px-3 pt-3">
-              <a
-                href="tel:+18669964308"
-                className="btn-primary w-full text-center flex items-center justify-center gap-2 text-xs py-3"
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
-                </svg>
-                (866) 996-4308
-              </a>
+              <PhoneCTA />
             </div>
           </StaggeredItem>
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * Drawer footer CTA — the big copper "(866) 996-4308" pill. Three
+ * layered treatments beyond the base btn-primary styling:
+ *
+ *  - A diagonal copper shimmer that sweeps across the button on
+ *    a slow 6s loop, giving the pill a quiet sense of liveness
+ *    without being a distracting pulse.
+ *  - A press state that drops the button a pixel and deepens its
+ *    shadow so it feels physically tactile on mobile.
+ *  - An SVG phone glyph whose receiver subtly wobbles when the
+ *    pill is pressed, mirroring the "calling" gesture.
+ */
+function PhoneCTA() {
+  return (
+    <a
+      href="tel:+18669964308"
+      className="group/phone btn-primary relative overflow-hidden w-full text-center flex items-center justify-center gap-2 text-xs py-3 active:translate-y-px active:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.55)]"
+      style={{ transition: `transform 160ms ${EASE}, box-shadow 200ms ${EASE}` }}
+    >
+      {/* Copper shimmer — a diagonal white-translucent band that
+          drifts across the pill. Clipped by the button's overflow
+          so it never escapes the pill edge. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.28) 50%, transparent 65%)',
+          transform: 'translateX(-120%)',
+          animation: 'sa-phone-shimmer 6s ease-in-out infinite',
+        }}
+      />
+      <style>{`
+        @keyframes sa-phone-shimmer {
+          0%, 25% { transform: translateX(-120%); }
+          55% { transform: translateX(120%); }
+          100% { transform: translateX(120%); }
+        }
+        @keyframes sa-phone-wobble {
+          0%, 100% { transform: rotate(0deg); }
+          20% { transform: rotate(-8deg); }
+          40% { transform: rotate(6deg); }
+          60% { transform: rotate(-4deg); }
+          80% { transform: rotate(2deg); }
+        }
+      `}</style>
+      <svg
+        className="relative w-3.5 h-3.5 group-active/phone:[animation:sa-phone-wobble_0.6s_ease-out]"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+      </svg>
+      <span className="relative">(866) 996-4308</span>
+    </a>
   );
 }
 
