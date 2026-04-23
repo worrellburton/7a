@@ -57,11 +57,13 @@ async function fetchCarouselReviews(): Promise<{
   if (hasBusinessProfileConfig()) {
     try {
       const bp = await getBpReviews();
-      // Best-12 selection: rating desc, then freshness desc.
+      // Best-N selection: rating desc, then freshness desc. Same cap
+      // as the Places path below so BP and cache pipelines agree on
+      // carousel size.
       const ranked = bp.reviews
         .filter((r) => r.rating >= MIN_STAR_RATING && r.text.trim().length > 0)
         .sort((a, b) => (b.rating - a.rating) || ((b.createdAt || '').localeCompare(a.createdAt || '')))
-        .slice(0, 12);
+        .slice(0, 6);
       if (ranked.length > 0) {
         return {
           reviews: ranked.map((r) => ({
@@ -92,10 +94,13 @@ async function fetchCarouselReviews(): Promise<{
   const liveReviews = (place?.reviews ?? []).filter((r) => r.rating >= MIN_STAR_RATING);
   const sourcePool = cached.length > 0 ? cached : liveReviews;
 
-  // "Best 12": rating desc, then time desc. Cap at 12 slides max.
+  // "Best N": rating desc, then time desc. Cap matches our current
+  // cache size so the carousel never looks deficit — bump upward as
+  // the sync cron accumulates more rotations, and when BP API approval
+  // unlocks the full 28+.
   const ranked = [...sourcePool]
     .sort((a, b) => (b.rating - a.rating) || (b.time - a.time))
-    .slice(0, 12);
+    .slice(0, 6);
 
   const reviews: ReviewBubbleData[] = ranked.map((r) => ({
     name: r.authorName,
