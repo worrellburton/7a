@@ -1,4 +1,5 @@
 import { fetchPlaceDetails } from '@/lib/places';
+import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import { GoogleReviewsList } from './GoogleReviewsList';
 import type { ReviewBubbleData } from './ReviewBubble';
 
@@ -43,10 +44,13 @@ function GoogleIcon({ className = 'w-5 h-5' }: { className?: string }) {
 
 export default async function GoogleReviews() {
   const place = await fetchPlaceDetails();
+  const cached = await fetchCachedReviews({ minRating: 4, limit: 50 });
+  const liveReviews = place?.reviews ?? [];
+  const sourcePool = cached.length > 0 ? cached : liveReviews;
 
   const reviews: ReviewBubbleData[] =
-    place?.reviews && place.reviews.length > 0
-      ? place.reviews.map((r) => ({
+    sourcePool.length > 0
+      ? sourcePool.map((r) => ({
           name: r.authorName,
           date: r.relativeTime,
           rating: r.rating,
