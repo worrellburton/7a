@@ -130,7 +130,10 @@ void main() {
   float ringMask = 1.0 - smoothstep(0.0, aaR, ringSdf);
   // Additive amber accent — sits on top of the gradient at low alpha
   // so it reads as a "ghost" of the brand mark, not a foreground asset.
-  col += C_AMBER * ringMask * 0.18;
+  // Phase 10: bumped from 0.18 → 0.24 so on the rare occasion the
+  // background is actually visible (overscroll, transparent gaps,
+  // route transitions) the medallion has actual presence.
+  col += C_AMBER * ringMask * 0.24;
 
   // ── 4-direction cross inside the medallion ────────────────────
   // Two perpendicular segments that span the diameter of the ring;
@@ -143,7 +146,7 @@ void main() {
   float crossSdf = min(horizSdf, vertSdf);
   float aaC = fwidth(crossSdf) * 0.75 + 1e-5;
   float crossMask = 1.0 - smoothstep(0.0, aaC, crossSdf);
-  col += C_AMBER * crossMask * 0.14;
+  col += C_AMBER * crossMask * 0.18;
 
   // ── Beaded fringe (7 dangling beads) ──────────────────────────
   // Seven beads dangle below the medallion in a soft fan, evoking the
@@ -180,7 +183,7 @@ void main() {
   }
   // Clamp so overlapping bead halos don't compound past full intensity.
   beadMaskAcc = clamp(beadMaskAcc, 0.0, 1.0);
-  col += C_AMBER * beadMaskAcc * 0.16;
+  col += C_AMBER * beadMaskAcc * 0.22;
 
   // ── Atmospheric haze ──────────────────────────────────────────
   // 3-octave FBM scrolled slowly along x — soft warm bands that

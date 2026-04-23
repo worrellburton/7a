@@ -8,10 +8,24 @@ import { FRAGMENT_SHADER, VERTEX_SHADER } from './shader';
 // only where page sections leave transparent gaps. Subtle on purpose —
 // it should never compete with content.
 //
-// Phase 2: WebGL2 context + fullscreen quad + the brand-color radial
-// gradient shader. Animation loop ticks `u_time` once per rAF when the
-// component is `active` (tab visible). Reduced-motion users get a
-// single static frame and no loop.
+// Most page sections paint their own opaque background (warm-bg or
+// white) and fully cover the canvas. The atmosphere is intended to
+// peek through where the design opens up: route transitions, scroll
+// overscroll on iOS, the body's edges before/after content has
+// loaded, and any future section that opts into a transparent or
+// semi-transparent background.
+//
+// Architecture summary across the 10 build phases:
+//   1. Scaffold canvas + lifecycle hooks.
+//   2. WebGL2 fullscreen quad + brand radial gradient base.
+//   3-5. Brand mark layers — medallion ring, cross, dangling beads.
+//   6.  Time-driven sway on the bead chain.
+//   7.  3-octave FBM warm-haze layer for atmospheric texture.
+//   8.  Pointer + scroll parallax with critically-damped smoothing.
+//   9.  Mobile / low-power profile: DPR cap 1.0 and 30fps frame cap
+//       on coarse-pointer / low-memory / narrow-viewport devices.
+//   10. Final opacity tuning so the brand mark reads with presence
+//       when the atmosphere does become visible.
 
 function compileShader(gl: WebGL2RenderingContext, type: number, src: string): WebGLShader | null {
   const shader = gl.createShader(type);
