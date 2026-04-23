@@ -184,6 +184,10 @@ export default function CallsContent() {
   const { user, session, isAdmin } = useAuth();
   const [bulkAnalyzing, setBulkAnalyzing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+  // Batch selection — checkbox in every row, sticky action bar appears
+  // when any are selected, "Analyze N selected" runs the same per-call
+  // scoring pipeline as the floating "Analyze all" CTA but scoped.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -695,10 +699,15 @@ export default function CallsContent() {
     });
   }, []);
 
-  const analyzeAllCalls = useCallback(async () => {
+  // Score a list of calls in parallel (concurrency 3). Generic so the
+  // same path powers both the floating "Analyze all" CTA and the
+  // sticky "Analyze selected" action. `force=true` re-scores already
+  // analyzed calls (used by the selection action so the user can
+  // re-run on a curated set).
+  const analyzeCalls = useCallback(async (targets: Call[], opts: { force?: boolean } = {}) => {
     if (!session?.access_token) return;
-    const targets = calls.slice();
     if (!targets.length) return;
+    const force = opts.force === true;
     setBulkAnalyzing(true);
     setBulkProgress({ done: 0, total: targets.length });
     const concurrency = 3;
@@ -709,13 +718,14 @@ export default function CallsContent() {
         const myIdx = idx++;
         const call = targets[myIdx];
         const callId = String(call.id);
-        if (scores[callId]) { done++; setBulkProgress({ done, total: targets.length }); continue; }
+        // When `force` is off, skip already-scored calls to save API calls.
+        if (!force && scores[callId]) { done++; setBulkProgress({ done, total: targets.length }); continue; }
         setScoringIds((prev) => { const n = new Set(prev); n.add(callId); return n; });
         try {
           const res = await fetch('/api/claude/calls/score', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session!.access_token}` },
-            body: JSON.stringify({ callId, call, force: false }),
+            body: JSON.stringify({ callId, call, force }),
           });
           if (res.ok) {
             const data = await res.json();
@@ -736,7 +746,26 @@ export default function CallsContent() {
     }
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
     setBulkAnalyzing(false);
-  }, [calls, scores, session]);
+  }, [scores, session]);
+
+  const analyzeAllCalls = useCallback(() => analyzeCalls(calls), [analyzeCalls, calls]);
+
+  const analyzeSelectedCalls = useCallback(() => {
+    const targets = calls.filter((c) => selectedIds.has(String(c.id)));
+    // Selection implies intent — re-score even if already analyzed.
+    analyzeCalls(targets, { force: true });
+  }, [analyzeCalls, calls, selectedIds]);
+
+  // Selection helpers
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   const rescoreCall = useCallback(async (callId: string, force: boolean) => {
     if (!session?.access_token) {
@@ -1424,6 +1453,18 @@ export default function CallsContent() {
                       >
                         <div className="flex items-stretch">
                           <div className={`w-1 shrink-0 ${accentBar}`} />
+                          <div
+                            className="shrink-0 flex items-center pl-2.5 pr-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(String(call.id))}
+                              onChange={() => toggleSelect(String(call.id))}
+                              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                              aria-label={`Select call ${call.id}`}
+                            />
+                          </div>
                           <div className="flex-1 min-w-0 px-3.5 py-3">
                             {/* Top: fit score + call name + chevron */}
                             <div className="flex items-center gap-3">
@@ -1545,6 +1586,13 @@ export default function CallsContent() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100 bg-warm-bg/50">
+                      <th className="w-9 px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <SelectAllCheckbox
+                          visibleCalls={visibleCalls}
+                          selectedIds={selectedIds}
+                          setSelectedIds={setSelectedIds}
+                        />
+                      </th>
                       <SortTh label="Call ID" sortKeyName="id" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       <SortTh label="Fit" sortKeyName="fit_score" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       <SortTh label="Call Name" sortKeyName="call_name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
@@ -1600,7 +1648,16 @@ export default function CallsContent() {
                       const expanded = expandedId === call.id;
                       return (
                         <Fragment key={call.id}>
-                          <tr data-call-id={call.id} onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${isSpamCall(call) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isSpamCall(call) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
+                          <tr data-call-id={call.id} onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${selectedIds.has(String(call.id)) ? 'bg-primary/5' : ''} ${isSpamCall(call) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isSpamCall(call) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
+                            <td className="w-9 px-3 py-3.5 align-top" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(String(call.id))}
+                                onChange={() => toggleSelect(String(call.id))}
+                                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                aria-label={`Select call ${call.id}`}
+                              />
+                            </td>
                             <td className="px-3 sm:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex flex-col items-start gap-1.5">
                                 <button
@@ -1790,7 +1847,7 @@ export default function CallsContent() {
                           </tr>
                           {expanded && (
                             <tr className="bg-warm-bg/30 border-b border-gray-50">
-                              <td colSpan={14} className="px-5 py-5">
+                              <td colSpan={15} className="px-5 py-5">
                                 <CallDetail
                                   call={call}
                                   score={scores[String(call.id)] || null}
@@ -1803,7 +1860,7 @@ export default function CallsContent() {
                           )}
                           {!expanded && miniPopoverId === call.id && (
                             <tr className="bg-gradient-to-r from-primary/5 to-transparent border-b border-gray-50" onClick={(e) => e.stopPropagation()}>
-                              <td colSpan={14} className="px-5 py-4">
+                              <td colSpan={15} className="px-5 py-4">
                                 <ScoreMiniPopover
                                   score={scores[String(call.id)] || null}
                                   scoring={scoringIds.has(String(call.id))}
@@ -1866,6 +1923,37 @@ export default function CallsContent() {
             }, 300);
           }}
         />
+      )}
+
+      {/* Selection action bar — appears when one or more calls are
+          checked. Sits bottom-center so it doesn't fight the existing
+          "Analyze missing" floating CTA at bottom-right. */}
+      {isAdmin && selectedIds.size > 0 && !bulkAnalyzing && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 inline-flex items-center gap-2 bg-foreground text-white rounded-full pl-5 pr-2 py-2 shadow-2xl ring-1 ring-white/10">
+          <span className="text-sm font-semibold" style={{ fontFamily: 'var(--font-body)' }}>
+            {selectedIds.size} selected
+          </span>
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="text-[11px] font-semibold uppercase tracking-wider text-white/70 hover:text-white px-3 py-1.5 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={analyzeSelectedCalls}
+            className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title={`Analyze ${selectedIds.size} selected call${selectedIds.size === 1 ? '' : 's'}`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            Analyze {selectedIds.size}
+          </button>
+        </div>
       )}
 
       {isAdmin && calls.length > 0 && (() => {
@@ -2054,6 +2142,49 @@ function ClientTypePicker({ currentType, knownTypes, onPick }: {
         <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-current opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
       </div>
     </div>
+  );
+}
+
+// Tri-state select-all checkbox for the calls table header. Reflects
+// "all visible selected" (checked), "some visible selected"
+// (indeterminate), or "none selected" (unchecked). Toggling it adds /
+// removes every visible call id from the selection set.
+function SelectAllCheckbox({
+  visibleCalls,
+  selectedIds,
+  setSelectedIds,
+}: {
+  visibleCalls: Call[];
+  selectedIds: Set<string>;
+  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const visibleIds = visibleCalls.map((c) => String(c.id));
+  const visibleSelectedCount = visibleIds.filter((id) => selectedIds.has(id)).length;
+  const allChecked = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
+  const someChecked = visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.length;
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = someChecked;
+  }, [someChecked]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={allChecked}
+      onChange={() => {
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          if (allChecked) {
+            for (const id of visibleIds) next.delete(id);
+          } else {
+            for (const id of visibleIds) next.add(id);
+          }
+          return next;
+        });
+      }}
+      className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+      aria-label={allChecked ? 'Unselect all visible calls' : 'Select all visible calls'}
+    />
   );
 }
 
