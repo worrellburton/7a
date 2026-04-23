@@ -14,7 +14,6 @@ import WisdomGallery from '@/components/trauma/WisdomGallery';
 import ClinicalModalities from '@/components/trauma/ClinicalModalities';
 import TreatmentTimeline from '@/components/trauma/TreatmentTimeline';
 import PostTraumaticGrowth from '@/components/trauma/PostTraumaticGrowth';
-import AlumniVoices from '@/components/trauma/AlumniVoices';
 import TraumaCTA from '@/components/trauma/TraumaCTA';
 
 export default function TraumaTreatmentPage() {
@@ -73,9 +72,8 @@ export default function TraumaTreatmentPage() {
           counting-up outcome stats. */}
       <PostTraumaticGrowth />
 
-      {/* Phase 9 — Alumni voices: portrait tiles with overlay quotes
-          + slow Ken-Burns zoom. */}
-      <AlumniVoices />
+      {/* Phase 9 — Alumni voices section removed under the
+          real-reviews-only policy (was hardcoded fabricated quotes). */}
 
       {/* Phase 10 — WebGL aurora CTA with trust line. */}
       <TraumaCTA />

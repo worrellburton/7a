@@ -22,7 +22,11 @@ interface LiveReviewsBandProps {
   headlineAccent: string;
   headlineTail?: string;
   lede?: string;
-  fallback: VoiceEntry[];
+  /** Legacy prop — was used to render editorial stubs when live reviews
+      were thin. Real-reviews-only policy retired this; the band now
+      returns null when not enough verified reviews are available.
+      Prop kept optional for backwards-compat with existing callers. */
+  fallback?: VoiceEntry[];
   /** How many reviews to render. Defaults to 4 to fit the 2-column
       masonry layout. */
   count?: number;
@@ -38,7 +42,6 @@ export default async function LiveReviewsBand({
   headlineAccent,
   headlineTail,
   lede,
-  fallback,
   count = 4,
   minLength = 140,
 }: LiveReviewsBandProps) {
@@ -58,13 +61,11 @@ export default async function LiveReviewsBand({
     .sort((a, b) => b.time - a.time)
     .slice(0, count);
 
-  // If we couldn't assemble a full set of live reviews, fall back
-  // to the editorial stubs. We do *not* mix sources — either live or
-  // fallback — to keep attribution honest.
-  const useLive = substantive.length >= count;
-  const voices: VoiceEntry[] = useLive
-    ? substantive.map(toVoiceEntry)
-    : fallback.slice(0, count);
+  // Real reviews only — no editorial stubs. If we don't have enough
+  // verified reviews to fill the layout, render nothing. The page
+  // gets one less section rather than fabricated quotes.
+  if (substantive.length < count) return null;
+  const voices: VoiceEntry[] = substantive.map(toVoiceEntry);
 
   return (
     <LiveReviewsBandClient
@@ -74,7 +75,7 @@ export default async function LiveReviewsBand({
       headlineTail={headlineTail}
       lede={lede}
       voices={voices}
-      showGoogleFooter={useLive}
+      showGoogleFooter={true}
     />
   );
 }

@@ -63,8 +63,6 @@ const heroSources: HeroSource[] = [
 const tickerItems = [
   { type: 'stat', text: '★ 4.9/5 Google Rating' },
   { type: 'divider' },
-  { type: 'review', text: '"Seven Arrows saved my life." — Michael T.' },
-  { type: 'divider' },
   { type: 'stat', text: '6:1 Client to Staff Ratio' },
   { type: 'divider' },
   { type: 'link', text: 'Read: When Drinking Stops Working →', href: '/who-we-are/blog/when-drinking-stops-working' },
