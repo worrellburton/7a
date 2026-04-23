@@ -15,6 +15,7 @@ import TeamCompositionChart from '@/components/team/TeamCompositionChart';
 import TeamStatBand from '@/components/team/TeamStatBand';
 import InRecoverySection from '@/components/team/InRecoverySection';
 import TeamQuoteCarousel from '@/components/team/TeamQuoteCarousel';
+import HowWeHire from '@/components/team/HowWeHire';
 import { fetchPublicTeam } from '@/lib/team';
 
 export const revalidate = 60;
@@ -91,6 +92,8 @@ export default async function MeetOurTeamPage() {
       <InRecoverySection />
 
       <TeamQuoteCarousel team={team} />
+
+      <HowWeHire />
 
       {/* CTA Section */}
       <section className="py-16 lg:py-24 bg-dark-section text-white">
