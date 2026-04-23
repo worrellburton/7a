@@ -13,6 +13,7 @@
 
 import { unstable_cache } from 'next/cache';
 import { fetchPlaceDetails } from '@/lib/places';
+import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import { CURATED_REVIEWS } from '@/lib/curatedReviews';
 import { hasBusinessProfileConfig, mbReviews } from '@/lib/google';
 import { siteVideos } from '@/lib/siteVideos';
@@ -80,8 +81,17 @@ async function fetchCarouselReviews(): Promise<{
     }
   }
 
+  // DB-backed cache (phase 6) — accumulates the full corpus of
+  // Google reviews we've ever seen, far past the Places per-call cap
+  // of 5. Sync cron in /api/google/places-sync keeps this fresh
+  // hourly. Live Places call below is still made because we need its
+  // aggregate (rating, user_ratings_total) which the cache doesn't
+  // store yet, and as a freshness fallback if the DB is empty.
   const place = await fetchPlaceDetails();
-  const reviews: ReviewBubbleData[] = (place?.reviews ?? []).map((r) => ({
+  const cached = await fetchCachedReviews({ minRating: MIN_STAR_RATING, sort: 'newest', limit: 50 });
+  const liveReviews = (place?.reviews ?? []).filter((r) => r.rating >= MIN_STAR_RATING);
+  const sourcePool = cached.length > 0 ? cached : liveReviews;
+  const reviews: ReviewBubbleData[] = sourcePool.map((r) => ({
     name: r.authorName,
     date: r.relativeTime,
     rating: r.rating,
