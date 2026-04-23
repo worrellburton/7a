@@ -7,7 +7,7 @@
 // trimmed on a sentence boundary so the serif quote doesn't run
 // into a wall of text.
 //
-// Fallback: if GOOGLE_API_KEY is unset, the Places call fails, or
+// Fallback: if GOOGLE_PLACES_API_KEY is unset, the Places call fails, or
 // we don't have enough substantive reviews, we render the `fallback`
 // voices passed by the parent (so the page always has content and
 // the build never breaks in a preview env without secrets).
