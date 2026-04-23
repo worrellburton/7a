@@ -176,17 +176,30 @@ export default function MobileMenu({
                       ↔ 1fr" trick to transition intrinsic height
                       without measuring it in JS. The child has
                       overflow:hidden so content is clipped while
-                      the row shrinks/grows. */}
+                      the row shrinks/grows. A copper accent bar
+                      runs up the left edge whenever the section is
+                      open. */}
                   <div
-                    className="grid bg-warm-bg"
+                    className="grid relative"
                     style={{
                       gridTemplateRows: expanded === item.label ? '1fr' : '0fr',
                       transition: `grid-template-rows 380ms ${EASE}`,
                     }}
                   >
-                    <div className="overflow-hidden">
-                      {item.dropdown.map((sub) => {
+                    <div className="overflow-hidden bg-warm-bg">
+                      {/* Copper accent bar on the left edge — scales
+                          up from 0 as the accordion opens. */}
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute left-0 top-0 bottom-0 w-[3px] bg-primary origin-top"
+                        style={{
+                          transform: expanded === item.label ? 'scaleY(1)' : 'scaleY(0)',
+                          transition: `transform 420ms ${EASE} ${expanded === item.label ? '80ms' : '0ms'}`,
+                        }}
+                      />
+                      {item.dropdown.map((sub, subIndex) => {
                         const Icon = iconMap[sub.label];
+                        const subShow = expanded === item.label;
                         return (
                           <Link
                             key={sub.href}
@@ -194,8 +207,13 @@ export default function MobileMenu({
                             className="flex items-center gap-2.5 px-5 py-2.5 text-sm text-foreground hover:text-primary border-b border-foreground/5 last:border-b-0"
                             role="menuitem"
                             onClick={onClose}
-                            tabIndex={expanded === item.label ? 0 : -1}
-                            aria-hidden={expanded === item.label ? undefined : true}
+                            tabIndex={subShow ? 0 : -1}
+                            aria-hidden={subShow ? undefined : true}
+                            style={{
+                              opacity: subShow ? 1 : 0,
+                              transform: subShow ? 'translateX(0)' : 'translateX(-8px)',
+                              transition: `opacity 360ms ${EASE} ${subShow ? 140 + subIndex * 30 : 0}ms, transform 380ms ${EASE} ${subShow ? 140 + subIndex * 30 : 0}ms`,
+                            }}
                           >
                             {Icon && (
                               <div className="shrink-0 w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
