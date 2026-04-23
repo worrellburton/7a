@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   let q = supabase
     .from('calls')
     .select(
-      'ctm_id, called_at, direction, duration, talk_time, ring_time, voicemail, status, caller_number, caller_number_formatted, receiving_number, receiving_number_formatted, tracking_number_formatted, source, source_name, tracking_label, city, state, audio_url, caller_name',
+      'ctm_id, called_at, direction, duration, talk_time, ring_time, voicemail, status, caller_number, caller_number_formatted, receiving_number, receiving_number_formatted, tracking_number_formatted, source, source_name, tracking_label, city, state, audio_url, caller_name, needs_score, score_attempts, score_error, score_errored_at',
       { count: 'exact' },
     )
     .order('called_at', { ascending: false });
