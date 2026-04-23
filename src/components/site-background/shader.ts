@@ -40,6 +40,13 @@ float sdRing(vec2 p, float r, float w) {
   return abs(length(p) - r) - w;
 }
 
+// SDF for a horizontal segment from -halfLen..+halfLen along x with
+// thickness w along y. Used twice (rotated) for the brand cross.
+float sdSegment(vec2 p, float halfLen, float w) {
+  vec2 d = abs(p) - vec2(halfLen, w);
+  return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
+
 void main() {
   // Center-anchored coordinates with aspect correction so the radial
   // hot-spot stays circular regardless of viewport shape.
@@ -66,11 +73,24 @@ void main() {
   float ringR = 0.16;          // radius in aspect-normalized space
   float ringW = 0.0035;        // stroke half-width
   float ringSdf = sdRing(mp, ringR, ringW);
-  float aa = fwidth(ringSdf) * 0.75 + 1e-5;
-  float ringMask = 1.0 - smoothstep(0.0, aa, ringSdf);
+  float aaR = fwidth(ringSdf) * 0.75 + 1e-5;
+  float ringMask = 1.0 - smoothstep(0.0, aaR, ringSdf);
   // Additive amber accent — sits on top of the gradient at low alpha
   // so it reads as a "ghost" of the brand mark, not a foreground asset.
   col += C_AMBER * ringMask * 0.18;
+
+  // ── 4-direction cross inside the medallion ────────────────────
+  // Two perpendicular segments that span the diameter of the ring;
+  // the brand mark's cardinal-direction cross. Stop the segments
+  // just shy of the ring so the strokes never poke through.
+  float crossHalf = ringR - ringW * 1.5;
+  float crossW = 0.0028;
+  float horizSdf = sdSegment(mp, crossHalf, crossW);
+  float vertSdf  = sdSegment(mp.yx, crossHalf, crossW);
+  float crossSdf = min(horizSdf, vertSdf);
+  float aaC = fwidth(crossSdf) * 0.75 + 1e-5;
+  float crossMask = 1.0 - smoothstep(0.0, aaC, crossSdf);
+  col += C_AMBER * crossMask * 0.14;
 
   // Soft gamma so on-brand warmth survives the canvas → display path.
   col = pow(col, vec3(0.92));
