@@ -13,6 +13,7 @@ import FilterableTeamGrid from '@/components/team/FilterableTeamGrid';
 import MissionVision from '@/components/MissionVision';
 import TeamCompositionChart from '@/components/team/TeamCompositionChart';
 import TeamStatBand from '@/components/team/TeamStatBand';
+import InRecoverySection from '@/components/team/InRecoverySection';
 import { fetchPublicTeam } from '@/lib/team';
 
 export const revalidate = 60;
@@ -79,13 +80,14 @@ export default async function MeetOurTeamPage() {
               Our clinicians, admissions team, medical staff, and holistic
               facilitators are the people you will actually talk to on the phone,
               meet on your first day, and keep in touch with after discharge.
-              Many of us are in recovery ourselves.
             </p>
           </div>
 
           <FilterableTeamGrid team={team} />
         </div>
       </section>
+
+      <InRecoverySection />
 
       {/* CTA Section */}
       <section className="py-16 lg:py-24 bg-dark-section text-white">
