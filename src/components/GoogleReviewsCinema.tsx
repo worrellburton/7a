@@ -13,7 +13,7 @@
 
 import { unstable_cache } from 'next/cache';
 import { fetchPlaceDetails } from '@/lib/places';
-import { fetchCachedReviews, fetchAllReviews } from '@/lib/googleReviewsDb';
+import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import { hasBusinessProfileConfig, mbReviews } from '@/lib/google';
 import { siteVideos } from '@/lib/siteVideos';
 import ReviewCinemaCarousel from './ReviewCinemaCarousel';
@@ -57,13 +57,14 @@ async function fetchCarouselReviews(): Promise<{
   if (hasBusinessProfileConfig()) {
     try {
       const bp = await getBpReviews();
-      const filtered = bp.reviews
+      // Best-12 selection: rating desc, then freshness desc.
+      const ranked = bp.reviews
         .filter((r) => r.rating >= MIN_STAR_RATING && r.text.trim().length > 0)
-        // Business Profile doesn't server-sort — freshest first.
-        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-      if (filtered.length > 0) {
+        .sort((a, b) => (b.rating - a.rating) || ((b.createdAt || '').localeCompare(a.createdAt || '')))
+        .slice(0, 12);
+      if (ranked.length > 0) {
         return {
-          reviews: filtered.map((r) => ({
+          reviews: ranked.map((r) => ({
             name: r.authorName,
             date: r.relativeTime,
             rating: r.rating,
@@ -72,7 +73,7 @@ async function fetchCarouselReviews(): Promise<{
             source: 'google',
           })),
           rating: bp.averageRating ?? FALLBACK_RATING,
-          total: bp.totalReviewCount ?? filtered.length,
+          total: bp.totalReviewCount ?? ranked.length,
         };
       }
     } catch {
@@ -80,17 +81,23 @@ async function fetchCarouselReviews(): Promise<{
     }
   }
 
-  // DB-backed cache (phase 6) — accumulates the full corpus of
-  // Google reviews we've ever seen, far past the Places per-call cap
-  // of 5. Sync cron in /api/google/places-sync keeps this fresh
-  // hourly. Live Places call below is still made because we need its
-  // aggregate (rating, user_ratings_total) which the cache doesn't
-  // store yet, and as a freshness fallback if the DB is empty.
+  // Real reviews only. Sources tried in order:
+  //   1. DB cache (accumulates past Google's 5-per-call cap as the
+  //      sync cron rotates through newest + most_relevant)
+  //   2. Live Places /details (5-cap, fresh on every render)
+  // No curated / editorial fallback — if both are empty the carousel
+  // simply renders zero slides rather than fabricated content.
   const place = await fetchPlaceDetails();
   const cached = await fetchCachedReviews({ minRating: MIN_STAR_RATING, sort: 'newest', limit: 50 });
   const liveReviews = (place?.reviews ?? []).filter((r) => r.rating >= MIN_STAR_RATING);
   const sourcePool = cached.length > 0 ? cached : liveReviews;
-  const reviews: ReviewBubbleData[] = sourcePool.map((r) => ({
+
+  // "Best 12": rating desc, then time desc. Cap at 12 slides max.
+  const ranked = [...sourcePool]
+    .sort((a, b) => (b.rating - a.rating) || (b.time - a.time))
+    .slice(0, 12);
+
+  const reviews: ReviewBubbleData[] = ranked.map((r) => ({
     name: r.authorName,
     date: r.relativeTime,
     rating: r.rating,
@@ -98,28 +105,6 @@ async function fetchCarouselReviews(): Promise<{
     photoUrl: r.profilePhotoUrl,
     source: 'google',
   }));
-
-  // Final resilience layer: when neither BP nor Places nor the
-  // Google cache has returned anything renderable, fall back to the
-  // curated alumni quotes from public.curated_reviews (admin-managed
-  // via /app/reviews). Phase 20 retired the in-code CURATED_REVIEWS
-  // const so this is now a single-source-of-truth read from DB.
-  // Attribution still reads "Verified alum review" so provenance
-  // stays honest.
-  if (reviews.length === 0) {
-    const curated = await fetchAllReviews({ sources: ['curated'], limit: 50 });
-    return {
-      reviews: curated.map((r) => ({
-        name: r.authorName,
-        date: r.byline,
-        rating: r.rating,
-        text: r.text,
-        source: 'curated' as const,
-      })),
-      rating: place?.rating ?? FALLBACK_RATING,
-      total: place?.userRatingsTotal ?? FALLBACK_TOTAL,
-    };
-  }
 
   return {
     reviews,

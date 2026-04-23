@@ -203,7 +203,7 @@ function ReviewStars({ rating }: { rating: number }) {
 }
 
 interface Props {
-  review: ReviewBubbleData;
+  review: ReviewBubbleData | null;
   rating: number;
   total: number;
 }
@@ -230,12 +230,13 @@ export default function HeroStatsBandClient({ review, rating, total }: Props) {
   }, []);
 
   const SHORT_LEN = 240;
-  const isLong = review.text.length > SHORT_LEN;
-  const initial = review.name.trim().charAt(0) || '•';
-  const displayText =
-    expanded || !isLong
+  const isLong = review ? review.text.length > SHORT_LEN : false;
+  const initial = review ? (review.name.trim().charAt(0) || '•') : '•';
+  const displayText = review
+    ? expanded || !isLong
       ? review.text
-      : `${review.text.slice(0, SHORT_LEN).replace(/\s+\S*$/, '')}…`;
+      : `${review.text.slice(0, SHORT_LEN).replace(/\s+\S*$/, '')}…`
+    : '';
 
   return (
     <section
@@ -295,7 +296,7 @@ export default function HeroStatsBandClient({ review, rating, total }: Props) {
           )}
         </div>
         <div className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
-          <div className="lg:col-span-7">
+          <div className={review ? 'lg:col-span-7' : 'lg:col-span-12'}>
             <p className="section-label mb-5">At a glance</p>
             <h2
               className="text-foreground font-bold tracking-tight mb-8 lg:mb-10 max-w-xl"
@@ -314,6 +315,7 @@ export default function HeroStatsBandClient({ review, rating, total }: Props) {
             </div>
           </div>
 
+          {review && (
           <div
             className="lg:col-span-5"
             style={{
@@ -408,6 +410,7 @@ export default function HeroStatsBandClient({ review, rating, total }: Props) {
               </div>
             </article>
           </div>
+          )}
         </div>
       </div>
     </section>

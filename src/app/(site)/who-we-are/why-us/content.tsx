@@ -7,7 +7,6 @@ import WhyDifference from '@/components/why-us/WhyDifference';
 import OurPromise from '@/components/why-us/OurPromise';
 import VsTraditional from '@/components/why-us/VsTraditional';
 import TeamTeaser from '@/components/why-us/TeamTeaser';
-import WhyTestimonials from '@/components/why-us/WhyTestimonials';
 import WhyAccreditation from '@/components/why-us/WhyAccreditation';
 import WhyFAQ from '@/components/why-us/WhyFAQ';
 import WhyCTA from '@/components/why-us/WhyCTA';
@@ -55,8 +54,8 @@ export default function PageContent() {
       {/* Phase 6 — Team teaser with rotating portraits */}
       <TeamTeaser />
 
-      {/* Phase 7 — Alumni voices + Google rating */}
-      <WhyTestimonials />
+      {/* Phase 7 — Alumni voices were hardcoded fabricated quotes;
+          removed under the real-reviews-only policy. */}
 
       {/* Phase 8 — Accreditation strip */}
       <WhyAccreditation />

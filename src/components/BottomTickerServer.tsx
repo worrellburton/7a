@@ -19,12 +19,6 @@ const STATIC_ITEMS: TickerItem[] = [
   { type: 'stat', text: 'JCAHO Accredited • LegitScript Certified' },
 ];
 
-const FALLBACK_REVIEWS: TickerItem[] = [
-  { type: 'review', text: '"Seven Arrows saved my life." — Michael T.' },
-  { type: 'review', text: '"Life changing." — Jessica C.' },
-  { type: 'review', text: '"This place is different." — James R.' },
-];
-
 // Pull a short, punchy snippet out of a long review. Prefer the first
 // complete sentence under ~70 chars; otherwise word-truncate.
 function snippet(text: string, max = 70): string {
@@ -59,7 +53,9 @@ export default async function BottomTickerServer() {
         type: 'review' as const,
         text: `"${snippet(r.text)}" — ${shortName(r.authorName)}`,
       }));
-  const finalReviewItems = reviewItems.length > 0 ? reviewItems : FALLBACK_REVIEWS;
+  // Real reviews only — empty array means the ticker shows stats + links
+  // without any review snippets, never fabricated ones.
+  const finalReviewItems = reviewItems;
 
   const ratingItem: TickerItem = {
     type: 'stat',
