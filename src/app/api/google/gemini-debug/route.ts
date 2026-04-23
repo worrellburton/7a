@@ -34,9 +34,14 @@ export async function GET() {
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  // Gemini 2.5 models enable "thinking" by default and burn output
+  // tokens on internal reasoning before emitting user-visible text.
+  // Budget has to cover both thinking + the final word, so 64 is the
+  // smallest number that reliably gets a reply. (The production call
+  // scoring route uses 8000.)
   const body = {
     contents: [{ role: 'user', parts: [{ text: 'Respond with exactly the word: OK' }] }],
-    generationConfig: { temperature: 0, maxOutputTokens: 8 },
+    generationConfig: { temperature: 0, maxOutputTokens: 64 },
   };
 
   try {
@@ -53,13 +58,22 @@ export async function GET() {
     } catch {
       parsed = text.slice(0, 500);
     }
-    const asObj = parsed as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>; error?: { message?: string; status?: string; code?: number } };
+    const asObj = parsed as {
+      candidates?: Array<{
+        content?: { parts?: Array<{ text?: string }> };
+        finishReason?: string;
+      }>;
+      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number };
+      error?: { message?: string; status?: string; code?: number };
+    };
     const replyText = asObj?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
     return NextResponse.json({
       env,
       http: res.status,
       ok: res.ok,
       reply: replyText,
+      finishReason: asObj?.candidates?.[0]?.finishReason ?? null,
+      usage: asObj?.usageMetadata ?? null,
       error: asObj?.error ?? null,
       raw: typeof parsed === 'string' ? parsed : undefined,
     });
