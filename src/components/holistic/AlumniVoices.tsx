@@ -7,6 +7,7 @@
 // reviews on the site.
 
 import { fetchPlaceDetails } from '@/lib/places';
+import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import AlumniVoicesView from './AlumniVoicesView';
 
 const CARD_CAP = 320;
@@ -25,8 +26,12 @@ function trimQuote(text: string): string {
 }
 
 export default async function AlumniVoices() {
-  const place = await fetchPlaceDetails();
-  const reviews = place?.reviews ?? [];
+  const cached = await fetchCachedReviews({ minRating: 4, sort: 'newest', limit: 10 });
+  let reviews = cached;
+  if (reviews.length < 3) {
+    const place = await fetchPlaceDetails();
+    reviews = place?.reviews ?? [];
+  }
 
   if (reviews.length < 3) {
     // No curated fallback — we only surface real reviews. Skip the
