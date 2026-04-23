@@ -1,22 +1,27 @@
-// Sticky bottom-of-screen CTA for mobile. The full phone number is the
-// tap target — one press and the dialer opens — with a green pulsing
-// "live" dot + "Available 24/7" reassurance so it's immediately obvious
-// someone answers. iOS safe-area padding is respected so the button
-// never sits under the home-bar.
+// Floating mobile call button. Sits fixed bottom-right instead of as a
+// full-width bar so it doesn't cover the underlying review carousel /
+// page content. Pill-shaped with a pulsing green "live" dot + phone
+// number + "Available 24/7". iOS safe-area inset respected so it never
+// sits under the home-bar.
 
 export default function StickyMobileCTA() {
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-primary shadow-[0_-8px_24px_-8px_rgba(42,15,10,0.35)]"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="fixed right-4 z-50 lg:hidden"
+      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
     >
       <a
         href="tel:+18669964308"
         aria-label="Call (866) 996-4308 — available 24/7"
-        className="flex items-center justify-center gap-3 py-4 px-5 active:bg-primary-dark transition-colors"
+        className="inline-flex items-center gap-2.5 bg-primary active:bg-primary-dark transition-colors rounded-full pl-4 pr-5 py-3 shadow-[0_12px_30px_-6px_rgba(42,15,10,0.55)] ring-1 ring-black/5"
       >
+        <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-400 ring-2 ring-primary" />
+        </span>
+
         <svg
-          className="w-5 h-5 text-white shrink-0"
+          className="w-4 h-4 text-white shrink-0"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -32,19 +37,15 @@ export default function StickyMobileCTA() {
 
         <div className="flex flex-col items-start leading-tight">
           <span
-            className="text-white font-bold text-base tracking-tight"
+            className="text-white font-bold text-sm tracking-tight"
             style={{ fontFamily: 'var(--font-display)' }}
           >
             (866) 996-4308
           </span>
           <span
-            className="flex items-center gap-1.5 text-white/90 text-[11px] font-medium tracking-wide"
+            className="text-white/85 text-[10px] font-medium tracking-wide"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            <span className="relative flex h-2 w-2" aria-hidden="true">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-green-400" />
-            </span>
             Available 24/7
           </span>
         </div>

@@ -114,10 +114,35 @@ export default function InsuranceCarousel() {
         </h2>
       </div>
 
-      {/* Edge-to-edge marquee. Duplicated track shifted -50% so the loop
-          is seamless; pauses on hover so a visitor can read a logo. */}
+      {/* Mobile: static 3-col grid so every payer is visible at once
+          without any scrolling / marquee motion. */}
+      <div className="lg:hidden max-w-3xl mx-auto px-4 sm:px-6 mb-10">
+        <div className="grid grid-cols-3 gap-x-4 gap-y-6">
+          {insuranceProviders.map((p) => (
+            <Link
+              key={p.name}
+              href={p.href}
+              aria-label={p.name}
+              className="flex flex-col items-center justify-end gap-2"
+            >
+              <div className="h-10 flex items-center justify-center">
+                <InsuranceLogo name={p.name} domain={p.domain} />
+              </div>
+              <span
+                className="text-foreground/55 text-[11px] italic text-center leading-tight"
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
+                {p.name}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop: edge-to-edge marquee. Duplicated track shifted -50% so
+          the loop is seamless. */}
       <div
-        className="relative mb-14"
+        className="hidden lg:block relative mb-14"
         style={{
           WebkitMaskImage:
             'linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%)',

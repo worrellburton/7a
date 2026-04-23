@@ -355,9 +355,10 @@ export default function Hero() {
 
               {/* Payer trust strip — shows the visitor at a glance that we
                   accept their plan, which is exactly the reassurance the
-                  removed search field was gesturing at. */}
+                  removed search field was gesturing at. Hidden on mobile
+                  so the hero stays focused on headline + primary CTA. */}
               <div
-                className="mt-8 mx-auto max-w-3xl"
+                className="mt-8 mx-auto max-w-3xl hidden lg:block"
                 style={{
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(20px)',
@@ -378,7 +379,7 @@ export default function Hero() {
               </div>
 
               <div
-                className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-5 text-sm text-white/85"
+                className="mt-7 hidden lg:flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-5 text-sm text-white/85"
                 style={{
                   fontFamily: 'var(--font-body)',
                   opacity: visible ? 1 : 0,
@@ -405,7 +406,7 @@ export default function Hero() {
               </div>
 
               <p
-                className="mt-10 text-white/55 text-[11px] tracking-[0.22em] uppercase"
+                className="mt-10 text-white/55 text-[11px] tracking-[0.22em] uppercase hidden lg:block"
                 style={{
                   fontFamily: 'var(--font-body)',
                   opacity: visible ? 1 : 0,

@@ -32,7 +32,7 @@ export default function TourStats() {
     return () => io.disconnect();
   }, []);
   return (
-    <section ref={ref} className="bg-warm-bg py-16 lg:py-20" aria-label="The ranch by the numbers">
+    <section ref={ref} className="bg-white py-16 lg:py-20" aria-label="The ranch by the numbers">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-6">
           {stats.map((s, i) => (
