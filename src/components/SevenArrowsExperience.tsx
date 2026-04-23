@@ -1,10 +1,14 @@
 import Link from 'next/link';
 
-// Home-page "What makes us different" section. Previously split across
-// two adjacent sections (SevenArrowsExperience + Amenities). Merged
-// here so the 7 guiding principles and the boutique amenities read as
-// one unified story of the ranch experience instead of two unrelated
-// strips on nearly-identical backgrounds.
+// Home-page "What makes us different" section. Three-part structure:
+//
+//   1. Guiding principles (pill chips)
+//   2. Clinical Approach — Trauma Treatment + Evidence-Based Treatment,
+//      linked to their dedicated program pages so visitors can drill in.
+//   3. Home-away-from-home amenities — boutique facility tangibles.
+//
+// Keeps all three on one unified background so they read as one arc
+// rather than three unrelated strips.
 
 const principles = [
   { label: 'Holistic' },
@@ -16,10 +20,11 @@ const principles = [
   { label: 'Indigenous' },
 ];
 
-const amenities = [
+const clinical = [
   {
     title: 'Trauma Treatment',
     description: 'Addressing root causes',
+    href: '/our-program/trauma-treatment',
     icon: (
       <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 21s-7-4.5-7-11a7 7 0 0114 0c0 6.5-7 11-7 11z" />
@@ -30,6 +35,7 @@ const amenities = [
   {
     title: 'Evidence-Based Treatment',
     description: 'CBT · DBT · EMDR',
+    href: '/our-program/evidence-based',
     icon: (
       <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M9 3v5a2 2 0 01-.59 1.59L5 13M9 3l6 0M15 3v5a2 2 0 00.59 1.59L19 13" />
@@ -37,6 +43,9 @@ const amenities = [
       </svg>
     ),
   },
+];
+
+const amenities = [
   {
     title: 'Airport Transfer',
     description: 'Free transport to & from the airport.',
@@ -145,10 +154,52 @@ export default function SevenArrowsExperience() {
           </Link>
         </div>
 
-        {/* Divider between the principle chips above and the tangible
-            amenities below — same warm tone, feels like a continuation
-            rather than a new section. */}
+        {/* Divider between the principle chips above and the clinical
+            approach cards below — same warm tone, feels like a
+            continuation rather than a new section. */}
         <div className="my-16 lg:my-20 max-w-xs mx-auto h-px bg-foreground/10" aria-hidden="true" />
+
+        {/* Clinical Approach — linked to dedicated program pages */}
+        <div className="text-center mb-10 max-w-2xl mx-auto">
+          <p className="section-label justify-center mb-3">Clinical Approach</p>
+          <h3 className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
+            The work that makes recovery last
+          </h3>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-5 lg:gap-6 max-w-4xl mx-auto mb-16 lg:mb-20">
+          {clinical.map((item) => (
+            <Link
+              key={item.title}
+              href={item.href}
+              className="card-soft p-6 lg:p-7 flex items-start gap-4 group hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-12px_rgba(42,15,10,0.18)] transition-all"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                {item.icon}
+              </div>
+              <div className="flex-1">
+                <h4 className="text-base font-bold text-foreground mb-1.5 group-hover:text-primary transition-colors">
+                  {item.title}
+                </h4>
+                <p
+                  className="text-sm text-foreground/60 leading-relaxed mb-3"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {item.description}
+                </p>
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-primary"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Learn more
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
 
         {/* Amenities — the concrete side of the experience */}
         <div className="text-center mb-10 max-w-2xl mx-auto">
@@ -158,7 +209,7 @@ export default function SevenArrowsExperience() {
           </h3>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
           {amenities.map((amenity) => (
             <div key={amenity.title} className="card-soft p-6 lg:p-7 flex items-start gap-4">
               <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
