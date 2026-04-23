@@ -13,8 +13,7 @@
 
 import { unstable_cache } from 'next/cache';
 import { fetchPlaceDetails } from '@/lib/places';
-import { fetchCachedReviews } from '@/lib/googleReviewsDb';
-import { CURATED_REVIEWS } from '@/lib/curatedReviews';
+import { fetchCachedReviews, fetchAllReviews } from '@/lib/googleReviewsDb';
 import { hasBusinessProfileConfig, mbReviews } from '@/lib/google';
 import { siteVideos } from '@/lib/siteVideos';
 import ReviewCinemaCarousel from './ReviewCinemaCarousel';
@@ -100,18 +99,19 @@ async function fetchCarouselReviews(): Promise<{
     source: 'google',
   }));
 
-  // Final resilience layer: when neither BP nor Places has returned
-  // anything renderable, fall back to the editorial alumni quotes in
-  // curatedReviews.ts. Without this, an empty reviews array leaves
-  // the carousel slot as a blank warm-bg band above the "Leave us a
-  // review" CTA — exactly the bug we shipped when GOOGLE_PLACES_API_KEY
-  // was missing in Vercel. Attribution reads "Verified alum review"
-  // rather than "Verified Google review" so provenance stays honest.
+  // Final resilience layer: when neither BP nor Places nor the
+  // Google cache has returned anything renderable, fall back to the
+  // curated alumni quotes from public.curated_reviews (admin-managed
+  // via /app/reviews). Phase 20 retired the in-code CURATED_REVIEWS
+  // const so this is now a single-source-of-truth read from DB.
+  // Attribution still reads "Verified alum review" so provenance
+  // stays honest.
   if (reviews.length === 0) {
+    const curated = await fetchAllReviews({ sources: ['curated'], limit: 50 });
     return {
-      reviews: CURATED_REVIEWS.map((r) => ({
-        name: r.name,
-        date: r.attribution,
+      reviews: curated.map((r) => ({
+        name: r.authorName,
+        date: r.byline,
         rating: r.rating,
         text: r.text,
         source: 'curated' as const,
