@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import SevenArrowsMark from '../team-member/SevenArrowsMark';
 import { useReducedMotion } from '../team-member/motion';
 
 /**
@@ -195,58 +194,27 @@ export default function MobileMenu({
   const duration = showing ? OPEN_DURATION : CLOSE_DURATION;
 
   return (
-    <>
-      {/* Backdrop — dims the page below the header and captures
-          outside taps to close. Rendered as a sibling to the panel
-          rather than behind it so click targeting is unambiguous. */}
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        className="lg:hidden fixed inset-x-0 bottom-0 z-30"
-        style={{
-          top: 'var(--site-header-height, 68px)',
-          background: 'rgba(20, 10, 6, 0.45)',
-          opacity: showing ? 1 : 0,
-          transition: `opacity ${duration}ms ${EASE}`,
-          backdropFilter: 'blur(2px)',
-          WebkitBackdropFilter: 'blur(2px)',
-        }}
-      />
-
-      {/* The drawer itself — stays inline in the header layout for
-          simplicity but uses transform + opacity for its animation.
-          Scrolls internally if content exceeds viewport minus the
-          header chrome. */}
-      <div
-        ref={panelRef}
-        className="lg:hidden border-t border-gray-100 bg-white overflow-y-auto relative z-40"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Main navigation"
-        style={{
-          maxHeight: `calc(100dvh - var(--site-header-height, 68px))`,
-          opacity: showing ? 1 : 0,
-          transform: showing ? 'translateY(0)' : 'translateY(-8px)',
-          transition: `opacity ${duration}ms ${EASE}, transform ${duration}ms ${EASE}`,
-        }}
-      >
-        {/* Brand flourish — a faint SevenArrowsMark anchored to the
-            bottom-right corner of the drawer. Draws itself in with
-            its standard mount animation after the drawer has
-            finished settling, so the arrival sequence is
-            drawer → nav items → brand mark, each handing off to
-            the next. */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4"
-          style={{
-            opacity: showing ? 0.08 : 0,
-            transition: `opacity 700ms ${EASE} 320ms`,
-          }}
-        >
-          <SevenArrowsMark size={240} animated={showing} tone="warm" />
-        </div>
-        <div className="pt-3 pb-4 space-y-0.5">
+    <div
+      ref={panelRef}
+      // Full-screen fixed panel pinned below the nav (TopBar +
+      // Header). Escapes the parent <nav>'s max-w-7xl / px
+      // container so the drawer spans the entire viewport width
+      // rather than being cropped into the centered column. A tap
+      // on the hamburger (now the X) or pressing Escape is the
+      // only way to close — no need for a separate backdrop since
+      // the panel owns the whole lower viewport.
+      className="lg:hidden fixed left-0 right-0 bottom-0 z-40 bg-white overflow-y-auto"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Main navigation"
+      style={{
+        top: 'var(--site-header-height, 68px)',
+        opacity: showing ? 1 : 0,
+        transform: showing ? 'translateY(0)' : 'translateY(-8px)',
+        transition: `opacity ${duration}ms ${EASE}, transform ${duration}ms ${EASE}`,
+      }}
+    >
+      <div className="pt-4 pb-6 px-4 space-y-0.5">
           {navLinks.map((item, i) => (
             <StaggeredItem key={item.href} show={showing} index={i}>
               {item.dropdown ? (
@@ -373,8 +341,7 @@ export default function MobileMenu({
             </div>
           </StaggeredItem>
         </div>
-      </div>
-    </>
+    </div>
   );
 }
 
