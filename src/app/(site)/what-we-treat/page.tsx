@@ -84,13 +84,25 @@ export default function WhatWeTreatPage() {
     <>
       <PageHero
         label="What We Treat"
-        title="Conditions We Treat"
+        title={[
+          { text: 'Conditions ' },
+          { text: 'we treat', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'What We Treat' },
         ]}
         description="At Seven Arrows Recovery, we provide individualized, evidence-based treatment for a wide range of substance use disorders and co-occurring mental health conditions. Our clinical team creates personalized plans to guide you toward lasting recovery."
         image="/images/resident-reading-window.jpg"
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* Conditions Grid */}

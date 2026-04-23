@@ -30,6 +30,14 @@ export default function SubstancePage10Phase({ content }: { content: SubstanceCo
         title={content.hero.title}
         description={content.hero.description}
         breadcrumbs={content.hero.breadcrumbs}
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
       <SubstanceReward content={content.reward} />
       <SubstanceCycle content={content.cycle} />
