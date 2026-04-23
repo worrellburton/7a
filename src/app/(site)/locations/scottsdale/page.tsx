@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Drug Rehab in Scottsdale AZ | Addiction Treatment Scottsdale | Seven Arrows Recovery',
   description:
-    'Seeking drug rehab in Scottsdale, AZ? Seven Arrows Recovery provides discreet, luxury-level addiction treatment for Scottsdale residents including medical detox, residential programs, equine therapy, and dual diagnosis care. Call (866) 996-4308.',
+    'Seeking drug rehab in Scottsdale, AZ? Seven Arrows Recovery provides discreet, luxury-level addiction treatment for Scottsdale residents including residential programs, equine therapy, dual diagnosis care, and coordinated detox with partnered facilities. Call (866) 996-4308.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -11,9 +11,9 @@ import Link from 'next/link';
 
 const services = [
   {
-    title: 'Medical Detoxification',
+    title: 'Detox Coordination',
     description:
-      'Physician-led detox with continuous monitoring, medication-assisted comfort protocols, and individualized care from the first hour of admission.',
+      'For clients who need medical detox first, our admissions team coordinates a short stay at a partnered detox facility and a warm hand-off into residential care — no scrambling for detox on your own.',
   },
   {
     title: 'Residential Inpatient Treatment',

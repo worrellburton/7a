@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 
 const facts = [
   { term: 'How to start', value: 'Call (866) 996-4308 or submit the insurance-verification form below' },
-  { term: 'Availability', value: 'Admissions counselors answer 24/7, every day of the year' },
+  { term: 'Availability', value: 'Our admissions team answers 24/7, every day of the year' },
   { term: 'Insurance check', value: 'Free, confidential, usually returned in 15 to 30 minutes during business hours' },
-  { term: 'Clinical intake', value: 'A 20–30 minute phone assessment with licensed admissions staff' },
+  { term: 'Clinical intake', value: 'A 20–30 minute phone assessment with our admissions team' },
   { term: 'Typical timeline', value: 'Most clients are admitted within 24 to 48 hours of their first call' },
   { term: 'Travel', value: 'Airport pickup at Tucson International (TUS) and Phoenix Sky Harbor (PHX); sober transport available nationwide' },
 ];

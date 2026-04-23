@@ -33,9 +33,9 @@ const rows: { trait: string; us: string; them: string }[] = [
     them: 'Group therapy + worksheets',
   },
   {
-    trait: 'Medical detox',
-    us: 'On-site, 24/7 clinical oversight',
-    them: 'Referred out — handoff breaks continuity',
+    trait: 'Detox coordination',
+    us: 'Partnered detox facilities — warm hand-off into residential care',
+    them: 'Clients left to find detox on their own',
   },
   {
     trait: 'Program length',

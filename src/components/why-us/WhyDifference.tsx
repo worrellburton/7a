@@ -24,7 +24,7 @@ type Diff = {
 const diffs: Diff[] = [
   {
     title: 'Evidence-Based & Medical Care',
-    body: 'Multidisciplinary clinical care grounded in CBT, DBT, EMDR, and Motivational Interviewing, with on-site medically supervised detox and integrated dual-diagnosis protocols for anxiety, depression, PTSD, and co-occurring conditions.',
+    body: 'Multidisciplinary clinical care grounded in CBT, DBT, EMDR, and Motivational Interviewing, with medication management and integrated dual-diagnosis protocols for anxiety, depression, PTSD, and co-occurring conditions.',
     href: '/our-program/evidence-based',
     cta: 'Explore our evidence-based methods',
     Icon: ({ className }) => (

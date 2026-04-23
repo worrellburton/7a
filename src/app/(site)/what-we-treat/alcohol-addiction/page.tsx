@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Alcohol Addiction Treatment | Seven Arrows Recovery',
   description:
-    'Comprehensive alcohol addiction treatment including medically supervised detox, therapy, and aftercare at Seven Arrows Recovery in Arizona. Call (866) 996-4308.',
+    'Comprehensive alcohol addiction treatment including trauma-informed therapy, medication management, and aftercare at Seven Arrows Recovery in Arizona. Detox coordinated through partnered facilities when needed. Call (866) 996-4308.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -20,7 +20,7 @@ export default function AlcoholAddictionPage() {
           { label: 'What We Treat', href: '/what-we-treat' },
           { label: 'Alcohol Addiction' },
         ]}
-        description="Alcohol use disorder is one of the most common and dangerous forms of addiction. At Seven Arrows Recovery, we provide comprehensive, medically supervised treatment to help you reclaim your life."
+        description="Alcohol use disorder is one of the most common and dangerous forms of addiction. At Seven Arrows Recovery, we provide comprehensive, trauma-informed residential treatment to help you reclaim your life."
         image="/images/group-gathering-pavilion.jpg"
       />
 
@@ -51,8 +51,9 @@ export default function AlcoholAddictionPage() {
                 </p>
                 <p>
                   Alcohol withdrawal can be medically dangerous and even life-threatening in severe
-                  cases. Professional, medically supervised detox is essential for safe recovery from
-                  alcohol dependence.
+                  cases. If you still need acute detox, our admissions team coordinates a short stay
+                  at a partnered detox facility so you arrive at Seven Arrows medically stable and
+                  ready for residential care.
                 </p>
               </div>
             </div>
@@ -97,17 +98,18 @@ export default function AlcoholAddictionPage() {
               className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-lg"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Our alcohol addiction treatment program combines medically supervised detox with
-              evidence-based therapy and holistic care for complete healing.
+              Our alcohol addiction treatment program combines evidence-based therapy, medication
+              management, and holistic care — with coordinated detox through partnered facilities
+              for clients who need it first.
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
               {
-                title: 'Medically Supervised Detox',
+                title: 'Detox Coordination',
                 description:
-                  'Safe, comfortable detoxification under 24/7 medical supervision to manage withdrawal symptoms and prevent complications.',
+                  'For clients who need acute detox first, our admissions team coordinates a short stay at a partnered detox facility and a warm hand-off into residential care.',
               },
               {
                 title: 'Individual Counseling',

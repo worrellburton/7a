@@ -16,7 +16,7 @@ const voices = [
     tag: '90-day stay · Residential',
   },
   {
-    quote: 'Detox on-site was the difference. We didn&rsquo;t have to hand our son off to another facility and hope. He stayed in one place with one team.',
+    quote: 'Admissions walked us through every piece of it — insurance, travel, what to pack. By the time our son arrived, the team already knew him. He stayed with one team the whole way through.',
     author: 'Family member',
     tag: 'Admissions · 2026',
   },

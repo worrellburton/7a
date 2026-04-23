@@ -12,9 +12,9 @@ import PageHero from '@/components/PageHero';
 
 const coverageItems = [
   {
-    title: 'Medical Detoxification',
+    title: 'Coordinated Detox',
     description:
-      'TRICARE covers inpatient medical detox for safe, medically supervised withdrawal from alcohol, opioids, and other substances.',
+      'TRICARE covers inpatient medical detox at partnered facilities when clinically needed before residential admission.',
   },
   {
     title: 'Residential Treatment',

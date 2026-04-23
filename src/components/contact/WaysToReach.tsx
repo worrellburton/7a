@@ -25,7 +25,7 @@ const channels: Channel[] = [
   {
     title: 'Call',
     primary: '(866) 996-4308',
-    meta: '24/7 · licensed admissions counselor',
+    meta: '24/7 · compassionate admissions team member',
     body: 'The fastest path. Real person picks up. Insurance check runs in parallel while we talk.',
     href: 'tel:+18669964308',
     glyph: (

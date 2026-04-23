@@ -233,7 +233,7 @@ export default function InsuranceCignaPage() {
             {[
               {
                 q: 'Does Cigna cover drug and alcohol rehab?',
-                a: 'Yes. Cigna covers substance abuse treatment as part of its behavioral health benefits. This includes medically supervised detox, residential treatment, outpatient therapy, and medication-assisted treatment. Seven Arrows Recovery accepts most Cigna plans.',
+                a: 'Yes. Cigna covers substance abuse treatment as part of its behavioral health benefits. This includes medically supervised detox (at partnered facilities), residential treatment, outpatient therapy, and medication-assisted treatment. Seven Arrows Recovery accepts most Cigna plans.',
               },
               {
                 q: 'How much does rehab cost with Cigna?',

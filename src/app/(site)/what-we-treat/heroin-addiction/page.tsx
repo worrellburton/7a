@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Heroin Addiction Treatment | Seven Arrows Recovery',
   description:
-    'Specialized heroin addiction treatment with medically supervised detox and evidence-based therapy at Seven Arrows Recovery in Arizona. Call (866) 996-4308.',
+    'Specialized heroin addiction treatment with trauma-informed therapy and evidence-based clinical care at Seven Arrows Recovery in Arizona. Detox coordinated through partnered facilities when needed. Call (866) 996-4308.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -20,7 +20,7 @@ export default function HeroinAddictionPage() {
           { label: 'What We Treat', href: '/what-we-treat' },
           { label: 'Heroin Addiction' },
         ]}
-        description="Heroin addiction is a devastating and life-threatening condition, but recovery is possible with the right support. Seven Arrows Recovery provides medically supervised detox and comprehensive treatment in a safe, compassionate environment."
+        description="Heroin addiction is a devastating and life-threatening condition, but recovery is possible with the right support. Seven Arrows Recovery provides trauma-informed residential treatment in a safe, compassionate environment — with coordinated detox through partnered facilities for clients who need it first."
         image="/images/embrace-connection.jpg"
       />
 
@@ -51,9 +51,9 @@ export default function HeroinAddictionPage() {
                 </p>
                 <p>
                   At Seven Arrows Recovery, we understand the complexity of heroin addiction and the
-                  courage it takes to seek help. Our medically supervised detox program ensures safe
-                  withdrawal management, while our clinical team addresses the underlying causes of
-                  addiction.
+                  courage it takes to seek help. If you still need acute detox, our admissions team
+                  coordinates a short stay at a partnered detox facility so you arrive medically
+                  stable and ready for our trauma-informed residential program.
                 </p>
               </div>
             </div>
@@ -106,9 +106,9 @@ export default function HeroinAddictionPage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
               {
-                title: 'Medically Supervised Detox',
+                title: 'Detox Coordination',
                 description:
-                  'Round-the-clock medical monitoring during withdrawal with medication-assisted treatment to ease symptoms and ensure safety.',
+                  'For clients who need acute detox first, our admissions team coordinates a short stay at a partnered detox facility and a warm hand-off into residential care.',
               },
               {
                 title: 'Medication-Assisted Treatment',
@@ -161,8 +161,8 @@ export default function HeroinAddictionPage() {
             style={{ fontFamily: 'var(--font-body)' }}
           >
             You do not have to face heroin addiction alone. Our compassionate team is ready to help
-            you through every step of recovery, from detox to aftercare. Call now for a confidential
-            consultation.
+            you through every step of recovery, from admissions to aftercare. Call now for a
+            confidential consultation.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/contact" className="btn-primary">

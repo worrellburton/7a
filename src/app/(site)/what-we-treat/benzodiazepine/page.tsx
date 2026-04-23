@@ -4,21 +4,21 @@ import SubstancePage from '@/components/SubstancePage';
 export const metadata: Metadata = {
   title: 'Benzodiazepine Addiction Treatment | Seven Arrows Recovery',
   description:
-    'Safe, medically supervised benzodiazepine detox and trauma-informed residential treatment in Arizona. Individualized tapering, 24/7 monitoring, anxiety management. Call (866) 996-4308.',
+    'Trauma-informed residential treatment for benzodiazepine addiction in Arizona, with coordinated medical detox through partnered facilities and evidence-based anxiety care. Call (866) 996-4308.',
 };
 
 export default function BenzoAddictionPage() {
   return (
     <SubstancePage
       heroTitle="Benzodiazepine Addiction Treatment"
-      heroDescription="Benzodiazepine dependence can form faster than most people realize — and withdrawal can be medically dangerous. Our residential program pairs supervised tapering with trauma-informed therapy so you can come off benzos safely and address the anxiety that led there."
+      heroDescription="Benzodiazepine dependence can form faster than most people realize — and withdrawal can be medically dangerous. Because acute benzo taper must be done under medical care, we coordinate a stay at a partnered detox facility first, then welcome you into our trauma-informed residential program to address the anxiety that led there."
       overview={{
         eyebrow: 'Understanding the Risks',
         title: 'Why benzodiazepine withdrawal requires clinical care.',
         paragraphs: [
           'Benzodiazepines — alprazolam (Xanax), clonazepam (Klonopin), lorazepam (Ativan), diazepam (Valium), and others — enhance GABA activity in the brain, producing sedation, muscle relaxation, and anti-anxiety effects. Physical dependence can develop within just a few weeks of regular use.',
           'Abrupt cessation can trigger seizures, severe anxiety, psychosis, and life-threatening complications. Unlike opioid withdrawal, benzodiazepine withdrawal is one of the few detox scenarios that can be medically fatal — which is why tapered, supervised withdrawal is non-negotiable.',
-          'At Seven Arrows, benzodiazepine treatment goes beyond the taper. We address the underlying anxiety, panic, insomnia, or trauma that led to benzodiazepine use in the first place — because without that work, the risk of returning to the medication is high.',
+          'Because the acute benzodiazepine taper requires medical oversight that goes beyond our scope, our admissions team coordinates the detox portion with a partnered facility. Once you are medically stable, benzodiazepine treatment at Seven Arrows goes beyond the taper — we address the underlying anxiety, panic, insomnia, or trauma that led to benzodiazepine use in the first place.',
         ],
       }}
       symptoms={{
@@ -38,17 +38,17 @@ export default function BenzoAddictionPage() {
         eyebrow: 'Treatment Approach',
         title: 'Safe tapering paired with real anxiety work.',
         intro:
-          'We never recommend stopping benzodiazepines without medical supervision. Our team uses individualized tapering protocols alongside evidence-based anxiety treatment so your nervous system has another way to regulate.',
+          'We never recommend stopping benzodiazepines without medical supervision. Our admissions team coordinates the acute taper at a partnered detox facility, then welcomes you into residential care for the evidence-based anxiety work that keeps you off benzos long term.',
         items: [
           {
-            title: 'Individualized Tapering Protocol',
+            title: 'Coordinated Detox with Partnered Facility',
             description:
-              'Gradual, physician-designed dose reduction tailored to your usage history — the safest possible path off benzodiazepines.',
+              'A short stay at a partnered medical detox facility for the individualized, physician-supervised taper — then a warm hand-off into residential care.',
           },
           {
-            title: '24/7 Medical Monitoring',
+            title: 'Post-Detox Residential Care',
             description:
-              'Round-the-clock clinical supervision during the high-risk early detox period, with immediate intervention available for complications.',
+              'You arrive at Seven Arrows medically stable and stay with one team from that point on — no second hand-off, no scrambling for your next step.',
           },
           {
             title: 'Non-Addictive Anxiety Management',

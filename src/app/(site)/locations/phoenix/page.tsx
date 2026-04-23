@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Drug Rehab in Phoenix AZ | Addiction Treatment Phoenix | Seven Arrows Recovery',
   description:
-    'Looking for drug rehab in Phoenix, AZ? Seven Arrows Recovery offers personalized addiction treatment for Phoenix residents including detox, residential care, dual diagnosis, and equine therapy at our private Cochise County campus. Call (866) 996-4308.',
+    'Looking for drug rehab in Phoenix, AZ? Seven Arrows Recovery offers personalized addiction treatment for Phoenix residents including residential care, dual diagnosis, equine therapy, and coordinated detox with partnered facilities at our private Cochise County campus. Call (866) 996-4308.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -11,9 +11,9 @@ import Link from 'next/link';
 
 const services = [
   {
-    title: 'Medical Detoxification',
+    title: 'Detox Coordination',
     description:
-      'Round-the-clock medically supervised detox with physician oversight, ensuring a safe and comfortable withdrawal process tailored to each substance type.',
+      'For clients who need medical detox first, our admissions team coordinates a short stay at a partnered detox facility and a warm hand-off into residential care — no scrambling for detox on your own.',
   },
   {
     title: 'Residential Inpatient Treatment',

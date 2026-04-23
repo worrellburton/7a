@@ -12,9 +12,9 @@ import PageHero from '@/components/PageHero';
 
 const coverageItems = [
   {
-    title: 'Medically Supervised Detox',
+    title: 'Coordinated Detox',
     description:
-      'Aetna covers inpatient medical detoxification for safe withdrawal management under 24/7 clinical supervision.',
+      'Aetna covers inpatient medical detoxification at partnered facilities when clinically needed before residential admission.',
   },
   {
     title: 'Residential Inpatient Treatment',
@@ -111,10 +111,10 @@ export default function InsuranceAetnaPage() {
                   reviews.
                 </p>
                 <p>
-                  Aetna covers a full continuum of care including medically supervised detoxification,
-                  residential inpatient treatment, individual and group therapy, medication-assisted
-                  treatment, and aftercare support — all services we provide at our campus in Cochise
-                  County, Arizona.
+                  Aetna covers a full continuum of care including coordinated detoxification at
+                  partnered facilities, residential inpatient treatment, individual and group therapy,
+                  medication-assisted treatment, and aftercare support — with residential care
+                  provided at our campus in Cochise County, Arizona.
                 </p>
               </div>
             </div>
@@ -233,7 +233,7 @@ export default function InsuranceAetnaPage() {
             {[
               {
                 q: 'Does Aetna cover drug and alcohol rehab?',
-                a: 'Yes. Aetna provides coverage for substance abuse treatment under its behavioral health benefits. This typically includes medically supervised detox, residential inpatient treatment, outpatient therapy, and medication-assisted treatment. Seven Arrows Recovery is an in-network provider with Aetna.',
+                a: 'Yes. Aetna provides coverage for substance abuse treatment under its behavioral health benefits. This typically includes medically supervised detox (at partnered facilities), residential inpatient treatment, outpatient therapy, and medication-assisted treatment. Seven Arrows Recovery is an in-network provider with Aetna.',
               },
               {
                 q: 'How much does rehab cost with Aetna insurance?',

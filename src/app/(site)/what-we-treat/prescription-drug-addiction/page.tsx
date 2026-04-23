@@ -107,9 +107,9 @@ export default function PrescriptionDrugAddictionPage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
               {
-                title: 'Safe Medical Detox',
+                title: 'Detox Coordination',
                 description:
-                  'Medically supervised detoxification with individualized tapering protocols to safely manage withdrawal from prescription medications.',
+                  'For clients who need acute detox first, our admissions team coordinates a short stay at a partnered detox facility and a warm hand-off into residential care.',
               },
               {
                 title: 'Psychiatric Evaluation',

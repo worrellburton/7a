@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 const facts = [
-  { term: 'Phone', value: '(866) 996-4308 — answered 24/7 by a licensed admissions counselor' },
+  { term: 'Phone', value: '(866) 996-4308 — answered 24/7 by a compassionate admissions team member' },
   { term: 'Email', value: 'admissions@sevenarrowsrecovery.com — responses within 1 business day' },
   { term: 'Text', value: 'Text (866) 996-4308 if a phone call isn\'t an option right now' },
   { term: 'Average first-call length', value: '15 to 30 minutes — short enough to fit on a lunch break, long enough to get real answers' },

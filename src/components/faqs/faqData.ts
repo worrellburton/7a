@@ -134,7 +134,7 @@ export const faqCategories: FaqCategory[] = [
   {
     id: 'detox',
     label: 'Detox & medical',
-    hint: 'On-site care · MAT · medical oversight',
+    hint: 'Coordinated detox · MAT · medical oversight',
     items: [
       {
         id: 'detox-on-site',

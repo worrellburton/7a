@@ -20,7 +20,7 @@ export default function OpioidAddictionPage() {
           { label: 'What We Treat', href: '/what-we-treat' },
           { label: 'Opioid Addiction' },
         ]}
-        description="Opioid addiction has become one of the most devastating public health crises in American history. At Seven Arrows Recovery, we provide comprehensive, medically supervised treatment to help individuals overcome opioid dependence and rebuild their lives."
+        description="Opioid addiction has become one of the most devastating public health crises in American history. At Seven Arrows Recovery, we provide comprehensive, trauma-informed residential treatment to help individuals overcome opioid dependence and rebuild their lives."
         image="/images/group-therapy-room.jpg"
       />
 
@@ -52,9 +52,10 @@ export default function OpioidAddictionPage() {
                 </p>
                 <p>
                   At Seven Arrows Recovery, we understand the powerful grip of opioid addiction and
-                  provide a compassionate, evidence-based path to recovery. Our medically supervised
-                  detox and comprehensive treatment program address both the physical dependence and
-                  the underlying factors that drive opioid use.
+                  provide a compassionate, evidence-based path to recovery. If you still need acute
+                  detox, our admissions team coordinates a short stay at a partnered detox facility
+                  so you arrive medically stable — then our residential program addresses both the
+                  physical dependence and the underlying factors that drive opioid use.
                 </p>
               </div>
             </div>

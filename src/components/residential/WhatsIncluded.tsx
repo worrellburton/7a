@@ -41,8 +41,8 @@ const items: Item[] = [
     ),
   },
   {
-    title: 'Medical detox',
-    body: 'On-site medically supervised detox with 24/7 clinical oversight.',
+    title: 'Medication management',
+    body: 'Psychiatric medication coordination and on-call medical oversight throughout your stay.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3v4m0 14v-4m9-5h-4M7 12H3" />

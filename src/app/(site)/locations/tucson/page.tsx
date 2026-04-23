@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Drug Rehab in Tucson AZ | Addiction Treatment Tucson | Seven Arrows Recovery',
   description:
-    'Find drug rehab near Tucson, AZ. Seven Arrows Recovery is located just 90 miles from Tucson, offering medical detox, residential treatment, trauma therapy, equine-assisted therapy, and dual diagnosis care. Call (866) 996-4308.',
+    'Find drug rehab near Tucson, AZ. Seven Arrows Recovery is located just 90 miles from Tucson, offering residential treatment, trauma therapy, equine-assisted therapy, dual diagnosis care, and coordinated detox with partnered facilities. Call (866) 996-4308.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -11,9 +11,9 @@ import Link from 'next/link';
 
 const services = [
   {
-    title: 'Medical Detoxification',
+    title: 'Detox Coordination',
     description:
-      'Safe, medically managed withdrawal in a comfortable environment with around-the-clock nursing care and physician supervision from day one.',
+      'For clients who need medical detox first, our admissions team coordinates a short stay at a partnered detox facility and a warm hand-off into residential care — no scrambling for detox on your own.',
   },
   {
     title: 'Residential Inpatient Treatment',
