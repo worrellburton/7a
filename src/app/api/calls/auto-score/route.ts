@@ -12,6 +12,22 @@ import { getAdminSupabase, getUserFromRequest } from '@/lib/supabase-server';
 const BATCH = 10;
 const MAX_ATTEMPTS = 5;
 
+// Pull a usable error message out of the scoring response. Prefer
+// the JSON `error` / `detail` field; fall back to raw text.
+async function extractErrorText(res: Response): Promise<string> {
+  try {
+    const text = await res.text();
+    try {
+      const parsed = JSON.parse(text) as { error?: string; detail?: string };
+      return parsed.error || parsed.detail || text.slice(0, 500);
+    } catch {
+      return text.slice(0, 500);
+    }
+  } catch {
+    return '(no body)';
+  }
+}
+
 async function handle(req: NextRequest) {
   const authHeader = req.headers.get('authorization') || '';
   const expectedSecret = process.env.CRON_SECRET;
@@ -81,22 +97,41 @@ async function handle(req: NextRequest) {
       });
       if (!res.ok) {
         failed++;
+        const errText = await extractErrorText(res);
         await supabase
           .from('calls')
-          .update({ score_attempts: (c.score_attempts ?? 0) + 1, score_attempted_at: new Date().toISOString() })
+          .update({
+            score_attempts: (c.score_attempts ?? 0) + 1,
+            score_attempted_at: new Date().toISOString(),
+            score_error: `HTTP ${res.status}: ${errText}`.slice(0, 2000),
+            score_errored_at: new Date().toISOString(),
+          })
           .eq('ctm_id', c.ctm_id);
         continue;
       }
+      // Clear any prior error on a successful score.
       await supabase
         .from('calls')
-        .update({ needs_score: false, score_attempts: (c.score_attempts ?? 0) + 1, score_attempted_at: new Date().toISOString() })
+        .update({
+          needs_score: false,
+          score_attempts: (c.score_attempts ?? 0) + 1,
+          score_attempted_at: new Date().toISOString(),
+          score_error: null,
+          score_errored_at: null,
+        })
         .eq('ctm_id', c.ctm_id);
       processed++;
-    } catch {
+    } catch (err) {
       failed++;
+      const message = err instanceof Error ? err.message : String(err);
       await supabase
         .from('calls')
-        .update({ score_attempts: (c.score_attempts ?? 0) + 1, score_attempted_at: new Date().toISOString() })
+        .update({
+          score_attempts: (c.score_attempts ?? 0) + 1,
+          score_attempted_at: new Date().toISOString(),
+          score_error: `fetch threw: ${message}`.slice(0, 2000),
+          score_errored_at: new Date().toISOString(),
+        })
         .eq('ctm_id', c.ctm_id);
     }
   }
