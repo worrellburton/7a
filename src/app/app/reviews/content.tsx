@@ -226,6 +226,24 @@ export default function ReviewsContent() {
             key={`${r.source}-${r.id}`}
             row={r}
             onClick={() => setEditing(r)}
+            onToggleFlag={async (flag, value) => {
+              try {
+                const res = await fetch(`/api/reviews/${r.id}?source=${r.source}`, {
+                  method: 'PATCH',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ [flag]: value }),
+                });
+                if (!res.ok) {
+                  const body = await res.json().catch(() => ({}));
+                  alert(`Toggle failed: ${body.error || res.status}`);
+                  return;
+                }
+                refresh();
+              } catch (e) {
+                alert(`Toggle failed: ${e instanceof Error ? e.message : String(e)}`);
+              }
+            }}
           />
         ))}
       </ul>
@@ -273,8 +291,17 @@ function FilterChips({
   );
 }
 
-function ReviewRow({ row, onClick }: { row: UnifiedRow; onClick: () => void }) {
+function ReviewRow({
+  row,
+  onClick,
+  onToggleFlag,
+}: {
+  row: UnifiedRow;
+  onClick: () => void;
+  onToggleFlag: (flag: 'featured' | 'hidden', value: boolean) => void;
+}) {
   const stars = '★'.repeat(row.rating) + '☆'.repeat(5 - row.rating);
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
   return (
     <li
       className={`px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-warm-bg/50 transition-colors ${row.hidden ? 'opacity-50' : ''}`}
@@ -294,7 +321,53 @@ function ReviewRow({ row, onClick }: { row: UnifiedRow; onClick: () => void }) {
           {row.displayOrder !== null && <Badge tone="gray">Order #{row.displayOrder}</Badge>}
         </div>
       </div>
+      <div className="flex items-center gap-1 flex-shrink-0" onClick={stop}>
+        <QuickToggle
+          on={row.featured}
+          onClick={() => onToggleFlag('featured', !row.featured)}
+          title={row.featured ? 'Unfeature' : 'Feature'}
+          label={row.featured ? '★' : '☆'}
+          tone="amber"
+        />
+        <QuickToggle
+          on={row.hidden}
+          onClick={() => onToggleFlag('hidden', !row.hidden)}
+          title={row.hidden ? 'Unhide' : 'Hide'}
+          label={row.hidden ? '⊘' : '👁'}
+          tone="gray"
+        />
+      </div>
     </li>
+  );
+}
+
+function QuickToggle({
+  on,
+  onClick,
+  title,
+  label,
+  tone,
+}: {
+  on: boolean;
+  onClick: () => void;
+  title: string;
+  label: string;
+  tone: 'amber' | 'gray';
+}) {
+  const onCls = tone === 'amber'
+    ? 'bg-amber-100 text-amber-800 border-amber-300'
+    : 'bg-gray-200 text-gray-700 border-gray-300';
+  const offCls = 'bg-white text-foreground/40 border-black/10 hover:border-foreground/30 hover:text-foreground/70';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={`w-7 h-7 inline-flex items-center justify-center rounded border text-sm transition-colors ${on ? onCls : offCls}`}
+    >
+      {label}
+    </button>
   );
 }
 
