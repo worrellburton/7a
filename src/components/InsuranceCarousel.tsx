@@ -21,7 +21,18 @@ const insuranceProviders = [
   { name: 'ComPsych', domain: 'compsych.com', href: '/admissions' },
 ];
 
-function InsuranceLogo({ name, domain }: { name: string; domain: string }) {
+function InsuranceLogo({
+  name,
+  domain,
+  compact = false,
+}: {
+  name: string;
+  domain: string;
+  /** When true, sizes for cramped mobile grid cells (smaller logo,
+   *  wrapping wordmark fallback so long brand names like
+   *  "Blue Cross Blue Shield" don't blow past the cell width). */
+  compact?: boolean;
+}) {
   // Pre-validate the logo in-memory before we render any <img>. Keeps the
   // browser's native "broken image" icon from flashing when Brandfetch
   // 404s (which we saw on BCBS / Humana / TRICARE / Magellan), and lets
@@ -47,10 +58,16 @@ function InsuranceLogo({ name, domain }: { name: string; domain: string }) {
   if (status !== 'ok') {
     // Typeset wordmark fallback — reads cleanly as a "logo" in its own
     // right, matches the serif tone of the section heading, and never
-    // flickers a broken-image icon.
+    // flickers a broken-image icon. In compact mode we drop the
+    // whitespace-nowrap and shrink the type so long brand names wrap
+    // inside their cell instead of overflowing.
     return (
       <span
-        className="whitespace-nowrap text-foreground/80 font-bold tracking-tight text-xl lg:text-2xl"
+        className={
+          compact
+            ? 'block text-foreground/80 font-bold tracking-tight text-[13px] leading-tight text-center max-w-full'
+            : 'whitespace-nowrap text-foreground/80 font-bold tracking-tight text-xl lg:text-2xl'
+        }
         style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}
         aria-label={name}
       >
@@ -66,7 +83,11 @@ function InsuranceLogo({ name, domain }: { name: string; domain: string }) {
     <img
       src={src}
       alt={name}
-      className="h-10 lg:h-12 w-auto max-w-[170px] object-contain"
+      className={
+        compact
+          ? 'h-7 w-auto max-w-full object-contain'
+          : 'h-10 lg:h-12 w-auto max-w-[170px] object-contain'
+      }
       style={{ filter: 'brightness(0) saturate(100%) opacity(0.78)' }}
       loading="eager"
     />
@@ -114,22 +135,25 @@ export default function InsuranceCarousel() {
         </h2>
       </div>
 
-      {/* Mobile: static 3-col grid so every payer is visible at once
-          without any scrolling / marquee motion. */}
-      <div className="lg:hidden max-w-3xl mx-auto px-4 sm:px-6 mb-10">
-        <div className="grid grid-cols-3 gap-x-4 gap-y-6">
+      {/* Mobile: static 2-col grid so long brand names ("Blue Cross
+          Blue Shield", "Carelon Behavioral Health") have enough room
+          to render without overflowing. Each cell is overflow-hidden
+          + min-w-0 so even an oversized logo gets clipped to the cell
+          rather than stretching the row. */}
+      <div className="lg:hidden max-w-md mx-auto px-4 sm:px-6 mb-10">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-6">
           {insuranceProviders.map((p) => (
             <Link
               key={p.name}
               href={p.href}
               aria-label={p.name}
-              className="flex flex-col items-center justify-end gap-2"
+              className="flex flex-col items-center justify-end gap-2 min-w-0 overflow-hidden px-2"
             >
-              <div className="h-10 flex items-center justify-center">
-                <InsuranceLogo name={p.name} domain={p.domain} />
+              <div className="h-8 w-full flex items-center justify-center overflow-hidden">
+                <InsuranceLogo name={p.name} domain={p.domain} compact />
               </div>
               <span
-                className="text-foreground/55 text-[11px] italic text-center leading-tight"
+                className="text-foreground/55 text-[11px] italic text-center leading-tight max-w-full truncate px-1"
                 style={{ fontFamily: 'var(--font-display)' }}
               >
                 {p.name}
