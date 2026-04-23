@@ -96,7 +96,10 @@ const FIELDS = [
 
 export async function fetchPlaceDetails(): Promise<PlaceDetails | null> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.error('[places] GOOGLE_PLACES_API_KEY not set — review UI will render fallback values');
+    return null;
+  }
 
   const url = new URL(PLACES_URL);
   url.searchParams.set('place_id', SEVEN_ARROWS_PLACE_ID);
@@ -109,9 +112,17 @@ export async function fetchPlaceDetails(): Promise<PlaceDetails | null> {
     const res = await fetch(url.toString(), {
       next: { revalidate: CACHE_SECONDS, tags: ['google-place'] },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[places] HTTP ${res.status} from Places API — review UI will render fallback values`);
+      return null;
+    }
     const json = (await res.json()) as PlacesApiResponse;
-    if (json.status !== 'OK' || !json.result) return null;
+    if (json.status !== 'OK' || !json.result) {
+      console.error(
+        `[places] Places API status=${json.status} error_message=${json.error_message ?? '(none)'} — review UI will render fallback values`,
+      );
+      return null;
+    }
     const result = json.result;
 
     // Filter out low-rated reviews at the data layer so individual
@@ -157,7 +168,9 @@ export async function fetchPlaceDetails(): Promise<PlaceDetails | null> {
       listing,
       fetchedAt: Date.now(),
     };
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[places] fetch threw: ${message} — review UI will render fallback values`);
     return null;
   }
 }
