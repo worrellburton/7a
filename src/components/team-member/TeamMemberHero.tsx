@@ -231,7 +231,7 @@ export default function TeamMemberHero({ member }: { member: PublicTeamMember })
               ))}
             </h1>
 
-            {member.job_title && (
+            {(member.job_title || member.hometown) && (
               <p
                 className="text-white/85 text-lg lg:text-xl font-semibold tracking-wide max-w-lg"
                 style={{
@@ -242,6 +242,12 @@ export default function TeamMemberHero({ member }: { member: PublicTeamMember })
                 }}
               >
                 {member.job_title}
+                {member.job_title && member.hometown && (
+                  <span className="mx-2 text-white/45" aria-hidden="true">·</span>
+                )}
+                {member.hometown && (
+                  <span className="text-white/70 font-normal">{member.hometown}</span>
+                )}
               </p>
             )}
 
