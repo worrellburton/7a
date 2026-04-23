@@ -58,7 +58,11 @@ export default function LocationPhoenixPage() {
     <>
       <PageHero
         label="Drug Rehab in Phoenix"
-        title="Addiction Treatment for Phoenix, Arizona Residents"
+        title={[
+          { text: 'Addiction treatment for ' },
+          { text: 'Phoenix', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Locations' },
@@ -66,6 +70,14 @@ export default function LocationPhoenixPage() {
         ]}
         description="Phoenix is Arizona's largest city—and one of the most impacted by the substance abuse crisis. Seven Arrows Recovery gives Phoenix residents a private, evidence-based path to lasting recovery at our boutique campus in the Swisshelm Mountains."
         image="/images/sign-night-sky-milky-way.jpg"
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Phoenix admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* City Context */}

@@ -58,7 +58,11 @@ export default function LocationScottsdalePage() {
     <>
       <PageHero
         label="Drug Rehab in Scottsdale"
-        title="Private Addiction Treatment for Scottsdale, Arizona"
+        title={[
+          { text: 'Private addiction treatment for ' },
+          { text: 'Scottsdale', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Locations' },
@@ -66,6 +70,14 @@ export default function LocationScottsdalePage() {
         ]}
         description="Scottsdale's reputation for wellness and luxury extends to how its residents approach recovery. Seven Arrows Recovery offers discreet, clinically rigorous treatment in a serene mountain setting where privacy and personal attention come standard."
         image="/images/sign-night-sky-milky-way.jpg"
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Scottsdale admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* City Context */}

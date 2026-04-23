@@ -58,7 +58,11 @@ export default function LocationTucsonPage() {
     <>
       <PageHero
         label="Drug Rehab Near Tucson"
-        title="Addiction Treatment Close to Home for Tucson Residents"
+        title={[
+          { text: 'Addiction treatment ' },
+          { text: 'close to home', accent: true },
+          { text: ' for Tucson.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Locations' },
@@ -66,6 +70,14 @@ export default function LocationTucsonPage() {
         ]}
         description="As the closest major city to our campus, Tucson holds a special place in the Seven Arrows community. Just 90 miles separate you from a world-class recovery experience in the Swisshelm Mountains—close enough for family involvement, far enough for real change."
         image="/images/sign-night-sky-milky-way.jpg"
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Tucson admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* City Context */}
