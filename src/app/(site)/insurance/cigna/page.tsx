@@ -75,7 +75,19 @@ export default function InsuranceCignaPage() {
     <>
       <PageHero
         label="Insurance Coverage"
-        title="Cigna Rehab Coverage"
+        title={[
+          { text: 'Rehab coverage with ' },
+          { text: 'Cigna', accent: true },
+          { text: '.' },
+        ]}
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Verify benefits · 24/7',
+          },
+          { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Insurance' },

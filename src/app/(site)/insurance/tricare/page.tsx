@@ -75,7 +75,19 @@ export default function InsuranceTRICAREPage() {
     <>
       <PageHero
         label="Insurance Coverage"
-        title="TRICARE Rehab Coverage"
+        title={[
+          { text: 'Rehab coverage with ' },
+          { text: 'TRICARE', accent: true },
+          { text: '.' },
+        ]}
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Military line · 24/7',
+          },
+          { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Insurance' },

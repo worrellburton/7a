@@ -75,7 +75,19 @@ export default function InsuranceUHCPage() {
     <>
       <PageHero
         label="Insurance Coverage"
-        title="UnitedHealthcare Rehab Coverage"
+        title={[
+          { text: 'Rehab coverage with ' },
+          { text: 'UnitedHealthcare', accent: true },
+          { text: '.' },
+        ]}
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Verify benefits · 24/7',
+          },
+          { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Insurance' },

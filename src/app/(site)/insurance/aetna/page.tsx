@@ -75,13 +75,25 @@ export default function InsuranceAetnaPage() {
     <>
       <PageHero
         label="Insurance Coverage"
-        title="Aetna Rehab Coverage"
+        title={[
+          { text: 'Rehab coverage with ' },
+          { text: 'Aetna', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Insurance' },
           { label: 'Aetna' },
         ]}
         description="Seven Arrows Recovery works with most Aetna plans as an out-of-network provider for drug and alcohol addiction treatment. Our admissions team will verify your benefits at no cost."
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Verify benefits · 24/7',
+          },
+          { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
+        ]}
         image="/images/embrace-connection.jpg"
       />
 

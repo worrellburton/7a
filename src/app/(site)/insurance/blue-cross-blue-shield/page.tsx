@@ -75,7 +75,19 @@ export default function InsuranceBCBSPage() {
     <>
       <PageHero
         label="Insurance Coverage"
-        title="Blue Cross Blue Shield Rehab Coverage"
+        title={[
+          { text: 'Rehab coverage with ' },
+          { text: 'Blue Cross Blue Shield', accent: true },
+          { text: '.' },
+        ]}
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Verify benefits · 24/7',
+          },
+          { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Insurance' },
