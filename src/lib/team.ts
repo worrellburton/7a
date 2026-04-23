@@ -1,5 +1,14 @@
 import { getPublicSupabase } from '@/lib/supabase-server';
 
+/** Interesting-fact prompt + member-authored answer. Mirrors the
+ *  `interesting_facts` JSONB column written by the /app/profile
+ *  editor. Answers can be empty strings on entries the editor
+ *  added but hasn't filled out; the public page filters those. */
+export interface PublicTeamFact {
+  prompt: string;
+  answer: string;
+}
+
 export interface PublicTeamMember {
   id: string;
   full_name: string;
@@ -8,6 +17,8 @@ export interface PublicTeamMember {
   bio: string | null;
   favorite_quote: string | null;
   favorite_seven_arrows: string | null;
+  hometown: string | null;
+  interesting_facts: PublicTeamFact[];
   slug: string;
 }
 
@@ -77,6 +88,13 @@ function jobRank(jobTitle: string | null): number {
   return 7;
 }
 
+// Three-tier select so degraded Supabase schemas still render. The
+// extended select includes `hometown` + `interesting_facts` (latest
+// profile fields). If the migration hasn't been applied we fall
+// back to the previous FULL_SELECT, and if *that* fails we fall
+// back further to the minimal columns.
+const EXTENDED_SELECT =
+  'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, hometown, interesting_facts, public_slug, status, public_team, team_page_order';
 const FULL_SELECT =
   'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, public_slug, status, public_team, team_page_order';
 const MINIMAL_SELECT = 'id, full_name, job_title, avatar_url, bio, public_slug, status, public_team';
@@ -89,33 +107,72 @@ type TeamRow = {
   bio: string | null;
   favorite_quote?: string | null;
   favorite_seven_arrows?: string | null;
+  hometown?: string | null;
+  interesting_facts?: unknown;
   public_slug: string | null;
   status?: string | null;
   public_team?: boolean | null;
   team_page_order?: number | null;
 };
 
+// Coerce the `interesting_facts` JSONB column into a well-typed
+// array. Accepts JSON strings, plain arrays, or garbage — returns
+// an empty array when anything looks off so one malformed row can't
+// crash the page.
+function coerceFacts(raw: unknown): PublicTeamFact[] {
+  if (!raw) return [];
+  let arr: unknown = raw;
+  if (typeof raw === 'string') {
+    try { arr = JSON.parse(raw); } catch { return []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((f) => {
+      if (!f || typeof f !== 'object') return null;
+      const entry = f as { prompt?: unknown; answer?: unknown };
+      const prompt = typeof entry.prompt === 'string' ? entry.prompt.trim() : '';
+      const answer = typeof entry.answer === 'string' ? entry.answer.trim() : '';
+      if (!prompt || !answer) return null;
+      return { prompt, answer } satisfies PublicTeamFact;
+    })
+    .filter((f): f is PublicTeamFact => !!f);
+}
+
 export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {  try {
     const supabase = getPublicSupabase();
 
-    // Try the full select first (includes favorite_quote +
-    // favorite_seven_arrows). If that errors — most likely because the
-    // new columns aren't deployed yet — fall back to the minimal select
-    // so the grid still renders instead of showing nothing.
+    // Try the extended select first (profile fields incl. hometown
+    // + interesting_facts). If it errors, fall back to the previous
+    // full select, then finally to the minimal one. The page should
+    // render whatever columns the deployed schema actually has.
     let data: TeamRow[] | null = null;
-    let error: { message: string } | null = null;
     {
+      const q = await supabase
+        .from('users')
+        .select(EXTENDED_SELECT)
+        .eq('status', 'active')
+        .eq('public_team', true)
+        .order('full_name', { ascending: true });
+      if (!q.error) {
+        data = (q.data || []) as unknown as TeamRow[];
+      } else {
+        console.warn('[team] extended select failed, retrying full:', q.error.message);
+      }
+    }
+    if (!data) {
       const q = await supabase
         .from('users')
         .select(FULL_SELECT)
         .eq('status', 'active')
         .eq('public_team', true)
         .order('full_name', { ascending: true });
-      data = (q.data || []) as unknown as TeamRow[] | null;
-      error = q.error;
+      if (!q.error) {
+        data = (q.data || []) as unknown as TeamRow[];
+      } else {
+        console.warn('[team] full select failed, retrying minimal:', q.error.message);
+      }
     }
-    if (error) {
-      console.warn('[team] full select failed, retrying minimal:', error.message);
+    if (!data) {
       const q = await supabase
         .from('users')
         .select(MINIMAL_SELECT)
@@ -156,6 +213,8 @@ export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {  try {
       bio: row.bio,
       favorite_quote: row.favorite_quote ?? null,
       favorite_seven_arrows: row.favorite_seven_arrows ?? null,
+      hometown: row.hometown ?? null,
+      interesting_facts: coerceFacts(row.interesting_facts),
       slug: row.slug,
     }));
   } catch (err) {

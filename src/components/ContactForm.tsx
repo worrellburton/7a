@@ -141,11 +141,31 @@ export default function ContactForm() {
     consent: false,
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    // TODO: Integrate with backend/API
-    setSubmitted(true);
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch('/api/public/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        setSubmitError('Something went wrong. Please call (866) 996-4308 and we’ll help directly.');
+        return;
+      }
+      setSubmitted(true);
+    } catch {
+      setSubmitError('Something went wrong. Please call (866) 996-4308 and we’ll help directly.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -283,9 +303,22 @@ export default function ContactForm() {
             </div>
 
             <div className="text-center pt-4">
-              <button type="submit" className="btn-primary px-12">
-                Send
+              <button
+                type="submit"
+                className="btn-primary px-12 disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={submitting}
+              >
+                {submitting ? 'Sending…' : 'Send'}
               </button>
+              {submitError && (
+                <p
+                  role="alert"
+                  className="mt-4 text-sm text-[#ffb59a]"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {submitError}
+                </p>
+              )}
             </div>
           </form>
         )}

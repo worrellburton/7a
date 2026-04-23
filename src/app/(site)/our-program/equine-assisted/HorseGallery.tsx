@@ -68,7 +68,8 @@ function HorsePlaceholder({ name }: { name: string }) {
         {/* Mane suggestion */}
         <path d="M70 58 L62 54 M68 64 L58 62 M68 72 L58 74" strokeOpacity="0.7" />
       </svg>
-      {/* Tiny footer stripe so the card feels intentional, not broken */}
+      {/* Just the horse's name — no "coming soon" copy; the silhouette
+          reads as a stylized placeholder rather than a broken state. */}
       <span
         className="absolute bottom-[28%] text-[9px] tracking-[0.28em] uppercase font-bold text-white/70 px-2 py-0.5 rounded-full"
         style={{
@@ -77,7 +78,7 @@ function HorsePlaceholder({ name }: { name: string }) {
           backdropFilter: 'blur(4px)',
         }}
       >
-        {name} · portrait coming soon
+        {name}
       </span>
     </div>
   );
