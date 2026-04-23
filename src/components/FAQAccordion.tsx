@@ -46,9 +46,9 @@ const faqs = [
       'Getting started is simple. Call our admissions line at (866) 996-4308 or fill out our online contact form. Our team will conduct a confidential assessment, verify your insurance, and help coordinate travel to our facility in southeastern Arizona. Many clients are admitted within 24 to 48 hours of their first call.',
   },
   {
-    question: 'Is detox available on-site?',
+    question: 'Do you offer medical detox on-site?',
     answer:
-      'Yes. We offer medically supervised detoxification on-site with 24/7 medical oversight. Our medical team ensures that the withdrawal process is as safe and comfortable as possible, using evidence-based protocols and medication-assisted treatment when clinically appropriate.',
+      'We admit clients who are post-detox or who do not require acute detoxification. If you still need medical detox, our admissions team coordinates a short stay at a partnered detox facility so you arrive at Seven Arrows medically stable and ready to begin residential treatment — with a warm hand-off rather than a cold transfer.',
   },
   {
     question: 'What happens after I complete treatment?',

@@ -21,7 +21,7 @@ const conditions = [
     title: 'Alcohol Addiction',
     href: '/what-we-treat/alcohol-addiction',
     description:
-      'Comprehensive alcohol addiction treatment including medically supervised detox, individual therapy, and relapse prevention planning.',
+      'Comprehensive alcohol addiction treatment including individual therapy, evidence-based relapse prevention, and coordinated detox with partnered facilities when needed.',
   },
   {
     title: 'Benzodiazepine Addiction',
@@ -39,7 +39,7 @@ const conditions = [
     title: 'Heroin Addiction',
     href: '/what-we-treat/heroin-addiction',
     description:
-      'Specialized heroin and opioid addiction treatment with medically supervised detox and evidence-based clinical care.',
+      'Specialized heroin and opioid addiction treatment with evidence-based clinical care and coordinated detox through partnered facilities when needed.',
   },
   {
     title: 'Inhalant Addiction',

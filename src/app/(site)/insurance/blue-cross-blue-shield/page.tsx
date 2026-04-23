@@ -12,9 +12,9 @@ import PageHero from '@/components/PageHero';
 
 const coverageItems = [
   {
-    title: 'Medical Detoxification',
+    title: 'Coordinated Detox',
     description:
-      'BCBS covers medically supervised detox to safely manage withdrawal symptoms from alcohol, opioids, benzodiazepines, and other substances.',
+      'BCBS covers medically supervised detox at partnered facilities when clinically needed before residential admission.',
   },
   {
     title: 'Residential Inpatient Treatment',

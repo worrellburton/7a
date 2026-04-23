@@ -11,9 +11,9 @@ const faqs = [
       'Most clients stay 30, 60, or 90+ days depending on clinical need and insurance authorization. Longer stays are frequently more effective for clients with complex trauma or high-severity addiction, and our Forward-Facing Freedom® model is designed around the actual timeline of nervous-system healing rather than a fixed insurance window.',
   },
   {
-    question: 'Is medical detox handled on-site?',
+    question: 'Do I need to complete detox before admission?',
     answer:
-      'Yes. We provide medically supervised detox on-site with 24/7 clinical oversight, so you stay in one place with one team from day one. You never have to hand off to an outside detox facility and hope for continuity — the clinicians who detox you are the clinicians who treat you.',
+      'We admit clients who are post-detox or who do not require acute detoxification. If you still need medical detox — severe alcohol, benzodiazepine, or complicated opioid withdrawal — our admissions team coordinates a short stay at a partnered detox facility so you arrive at Seven Arrows medically stable and ready to begin residential care.',
   },
   {
     question: 'Can family members visit during residential care?',

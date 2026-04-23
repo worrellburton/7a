@@ -76,7 +76,6 @@ const medicalWebPageSchema = {
     { '@type': 'MedicalBusiness', '@id': 'https://sevenarrowsrecovery.com/#organization' },
     { '@type': 'MedicalCondition', name: 'Substance Use Disorder' },
     { '@type': 'MedicalCondition', name: 'Dual Diagnosis' },
-    { '@type': 'MedicalProcedure', name: 'Medical Detoxification' },
     { '@type': 'MedicalProcedure', name: 'Medication-Assisted Treatment' },
     { '@type': 'MedicalTherapy', name: 'Residential Addiction Treatment' },
   ],

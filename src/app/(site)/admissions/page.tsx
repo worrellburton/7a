@@ -75,7 +75,6 @@ const medicalWebPageSchema = {
   about: [
     { '@type': 'MedicalBusiness', '@id': 'https://sevenarrowsrecovery.com/#organization' },
     { '@type': 'MedicalTherapy', name: 'Residential Addiction Treatment' },
-    { '@type': 'MedicalProcedure', name: 'Medical Detoxification' },
   ],
   mainContentOfPage: { '@type': 'WebPageElement', cssSelector: 'main' },
   lastReviewed: '2026-04-22',

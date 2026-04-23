@@ -41,6 +41,16 @@ const items: Item[] = [
     ),
   },
   {
+    title: 'Medication management',
+    body: 'Psychiatric medication coordination and on-call medical oversight throughout your stay.',
+    Icon: ({ className }) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3v4m0 14v-4m9-5h-4M7 12H3" />
+        <circle cx="12" cy="12" r="4" />
+      </svg>
+    ),
+  },
+  {
     title: 'Equine-assisted therapy',
     body: 'Work with several ranch horses across your stay, paired to what each week of treatment calls for.',
     Icon: ({ className }) => (

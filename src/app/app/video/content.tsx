@@ -54,8 +54,10 @@ export default function VideoContent() {
   const [resolution, setResolution] = useState('720p');
   const [aspectRatio, setAspectRatio] = useState('auto');
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<SiteVideo | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
   // Re-render every second while any tile is pending so the time-based
   // progress bar animates smoothly between the 5s status polls.
   const [, setProgressTick] = useState(0);
@@ -234,6 +236,39 @@ export default function VideoContent() {
     }
   }
 
+  async function uploadVideoFile(file: File) {
+    if (!session?.access_token) return;
+    if (!file.type.startsWith('video/')) {
+      showToast(`Expected a video file, got ${file.type || 'unknown type'}`);
+      return;
+    }
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/fal/video/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: formData,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(json?.error || `Upload failed (${res.status})`);
+        return;
+      }
+      const video = json.video as SiteVideo | undefined;
+      if (video) {
+        setVideos((prev) => [video, ...prev]);
+        showToast('Video uploaded');
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUploading(false);
+      if (uploadInputRef.current) uploadInputRef.current.value = '';
+    }
+  }
+
   async function deleteVideo(v: SiteVideo) {
     const ok = await confirm('Delete this video?', {
       message: 'The generated clip will be removed from the gallery. Anything linking to this URL will break.',
@@ -256,11 +291,48 @@ export default function VideoContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10">
-      <div className="mb-6">
-        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Video</h1>
-        <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-          Animate any image from the Images gallery into a short clip with fal.ai video models. Click a generated video to copy its URL.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Video</h1>
+          <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+            Animate any image from the Images gallery into a short clip with fal.ai video models, or upload an existing video. Click a generated or uploaded video to copy its URL.
+          </p>
+        </div>
+        <div>
+          <input
+            ref={uploadInputRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) uploadVideoFile(f);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => uploadInputRef.current?.click()}
+            disabled={uploading}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-white text-foreground border border-gray-200 hover:border-primary/40 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-all"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            {uploading ? (
+              <>
+                <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                Uploading…
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3v12" />
+                  <path d="m7 8 5-5 5 5" />
+                  <rect x="3" y="15" width="18" height="6" rx="2" />
+                </svg>
+                Upload video
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Create form */}

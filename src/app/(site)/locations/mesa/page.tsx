@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Drug Rehab in Mesa AZ | Addiction Treatment Mesa | Seven Arrows Recovery',
   description:
-    'Drug rehab for Mesa, AZ residents at Seven Arrows Recovery. Our Cochise County campus offers medical detox, residential addiction treatment, dual diagnosis care, equine therapy, and trauma treatment. Call (866) 996-4308 today.',
+    'Drug rehab for Mesa, AZ residents at Seven Arrows Recovery. Our Cochise County campus offers residential addiction treatment, dual diagnosis care, equine therapy, trauma treatment, and coordinated detox with partnered facilities. Call (866) 996-4308 today.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -11,9 +11,9 @@ import Link from 'next/link';
 
 const services = [
   {
-    title: 'Medical Detoxification',
+    title: 'Detox Coordination',
     description:
-      'Clinician-supervised detox with personalized medication protocols, 24/7 nursing, and a comfortable setting designed to ease the first and most difficult stage of recovery.',
+      'For clients who need medical detox first, our admissions team coordinates a short stay at a partnered detox facility and a warm hand-off into residential care — no scrambling for detox on your own.',
   },
   {
     title: 'Residential Inpatient Treatment',

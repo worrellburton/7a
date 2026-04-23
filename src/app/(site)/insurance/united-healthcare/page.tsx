@@ -12,9 +12,9 @@ import PageHero from '@/components/PageHero';
 
 const coverageItems = [
   {
-    title: 'Medical Detoxification',
+    title: 'Coordinated Detox',
     description:
-      'UHC covers inpatient medical detox with 24/7 clinical supervision for safe withdrawal from alcohol, opioids, benzodiazepines, and stimulants.',
+      'UHC covers inpatient medical detox at partnered facilities when clinically needed before residential admission.',
   },
   {
     title: 'Residential Inpatient Care',
@@ -107,9 +107,9 @@ export default function InsuranceUHCPage() {
                 </p>
                 <p>
                   UnitedHealthcare plans typically cover the full continuum of addiction care — from
-                  medically supervised detoxification through residential inpatient treatment and
-                  aftercare planning. Coverage is based on medical necessity as determined by Optum
-                  Behavioral Health clinical reviewers.
+                  coordinated detoxification at partnered facilities through residential inpatient
+                  treatment and aftercare planning. Coverage is based on medical necessity as
+                  determined by Optum Behavioral Health clinical reviewers.
                 </p>
                 <p>
                   Seven Arrows Recovery works with most UHC plan types including Choice Plus, Options

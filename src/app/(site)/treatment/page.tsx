@@ -41,7 +41,7 @@ export default function TreatmentPage() {
           { label: 'Home', href: '/' },
           { label: 'Treatment' },
         ]}
-        description="Seven Arrows Recovery offers a full continuum of care designed to meet you wherever you are on your recovery journey. From medical detox through alumni aftercare, every program is built around clinical excellence and personal attention."
+        description="Seven Arrows Recovery offers a full continuum of care designed to meet you wherever you are on your recovery journey. From coordinated detox through alumni aftercare, every program is built around clinical excellence and personal attention."
         image="/images/group-therapy-room.jpg"
       />
 
@@ -57,11 +57,11 @@ export default function TreatmentPage() {
             style={{ fontFamily: "var(--font-body)" }}
           >
             Addiction is complex, and lasting recovery demands more than a single
-            intervention. At Seven Arrows Recovery we combine medically supervised
-            detoxification, intensive residential treatment, professional
-            intervention guidance, and long-term aftercare into one seamless
-            pathway. Our clinical team tailors each phase to the individual,
-            ensuring you receive the right level of care at every step.
+            intervention. At Seven Arrows Recovery we combine coordinated detox
+            through partnered facilities, intensive residential treatment,
+            professional intervention guidance, and long-term aftercare into one
+            seamless pathway. Our clinical team tailors each phase to the
+            individual, ensuring you receive the right level of care at every step.
           </p>
 
           <div className="grid md:grid-cols-2 gap-8">

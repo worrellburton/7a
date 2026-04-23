@@ -68,7 +68,7 @@ const lovedOneSteps = [
     number: '04',
     title: 'Admission & Ongoing Updates',
     description:
-      'We arrange medical detox or direct admission, plus airport pickup in Tucson for those flying in. Once admitted, your loved one signs a release of information so our team can keep you updated as treatment progresses.',
+      'We coordinate detox at a partnered facility or direct admission, plus airport pickup in Tucson for those flying in. Once admitted, your loved one signs a release of information so our team can keep you updated as treatment progresses.',
   },
 ];
 

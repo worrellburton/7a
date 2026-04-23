@@ -12,9 +12,9 @@ import PageHero from '@/components/PageHero';
 
 const coverageItems = [
   {
-    title: 'Medically Supervised Detox',
+    title: 'Coordinated Detox',
     description:
-      'Aetna covers inpatient medical detoxification for safe withdrawal management under 24/7 clinical supervision.',
+      'Aetna covers inpatient medical detoxification at partnered facilities when clinically needed before residential admission.',
   },
   {
     title: 'Residential Inpatient Treatment',
