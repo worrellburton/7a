@@ -1,14 +1,16 @@
-// Floating mobile call button. Sits fixed bottom-right instead of as a
-// full-width bar so it doesn't cover the underlying review carousel /
-// page content. Pill-shaped with a pulsing green "live" dot + phone
-// number + "Available 24/7". iOS safe-area inset respected so it never
-// sits under the home-bar.
+// Floating mobile call button. Sits fixed bottom-center, above the
+// Google reviews badge (which is anchored at bottom-0), so neither
+// covers the other. Pill-shaped with a pulsing green "live" dot +
+// phone number + "Available 24/7". iOS safe-area inset respected so
+// it never sits under the home-bar.
 
 export default function StickyMobileCTA() {
   return (
     <div
-      className="fixed right-4 z-50 lg:hidden"
-      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+      className="fixed left-1/2 -translate-x-1/2 z-50 lg:hidden"
+      // Lift above the GoogleReviewsBadge bar (~52px tall) plus the
+      // device safe-area inset and a small breathing-room gap.
+      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 60px)' }}
     >
       <a
         href="tel:+18669964308"
