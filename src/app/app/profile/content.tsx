@@ -335,9 +335,12 @@ export default function ProfileContent() {
       .map((f) => ({ prompt: f.prompt, answer: f.answer.trim() }))
       .filter((f) => f.answer.length > 0);
 
+    // Note: `job_title` is intentionally omitted from the save
+    // payload. It is assigned by admins from the Team page and must
+    // not be clobbered by a profile self-save. The read-only display
+    // input still reflects whatever the admin set.
     const basePayload: Record<string, unknown> = {
       full_name: fullName.trim() || null,
-      job_title: jobTitle.trim() || null,
       bio: bio.trim() || null,
       favorite_quote: favoriteQuote.trim() || null,
       favorite_seven_arrows: favoriteSevenArrows.trim() || null,
@@ -482,10 +485,19 @@ export default function ProfileContent() {
                   <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Job Title</label>
                   <input
                     value={jobTitle}
-                    onChange={(e) => setJobTitle(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none"
-                    placeholder="e.g. Clinical Director"
+                    disabled
+                    readOnly
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-100 text-sm bg-warm-bg/50 text-foreground/60 cursor-not-allowed"
+                    placeholder="Assigned by your admin"
+                    aria-describedby="job-title-hint"
                   />
+                  <p
+                    id="job-title-hint"
+                    className="mt-1.5 text-[11px] text-foreground/45"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Set by your admin on the Team page. Reach out to them if this needs to change.
+                  </p>
                 </div>
               </div>
 
