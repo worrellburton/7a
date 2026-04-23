@@ -35,10 +35,10 @@ const diffs: Diff[] = [
     ),
   },
   {
-    title: 'Dedicated Equine Therapy',
-    body: 'Clients work with multiple horses across their stay — each one matched to the week\'s work based on history, presentation, and what the nervous system is asking for. One-on-one time in the open desert builds trust, emotional regulation, and the kind of nonverbal honesty that accelerates breakthroughs.',
+    title: 'Equine-Assisted Psychotherapy',
+    body: 'Licensed clinicians co-lead every session with a dedicated equine specialist. Clients work with multiple horses across their stay — each matched to the week\'s work based on history, presentation, and what the nervous system is asking for. One-on-one time in the open desert builds trust, emotional regulation, and the kind of nonverbal honesty that accelerates breakthroughs.',
     href: '/our-program/equine-assisted',
-    cta: 'Discover our equine therapy program',
+    cta: 'Discover our equine-assisted psychotherapy program',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
         <path d="M6 18c0-4 3-7 7-7h2l2-3 2 1-1 3 1 2v6H6z" />

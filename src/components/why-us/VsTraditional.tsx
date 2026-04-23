@@ -29,7 +29,7 @@ const rows: { trait: string; us: string; them: string }[] = [
   },
   {
     trait: 'Experiential modalities',
-    us: 'Dedicated equine therapy, sweat lodge, land-based ritual',
+    us: 'Equine-assisted psychotherapy, sweat lodge, land-based ritual',
     them: 'Group therapy + worksheets',
   },
   {
