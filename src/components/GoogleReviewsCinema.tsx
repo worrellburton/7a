@@ -13,6 +13,7 @@
 
 import { unstable_cache } from 'next/cache';
 import { fetchPlaceDetails } from '@/lib/places';
+import { CURATED_REVIEWS } from '@/lib/curatedReviews';
 import { hasBusinessProfileConfig, mbReviews } from '@/lib/google';
 import { siteVideos } from '@/lib/siteVideos';
 import ReviewCinemaCarousel from './ReviewCinemaCarousel';
@@ -88,6 +89,28 @@ async function fetchCarouselReviews(): Promise<{
     photoUrl: r.profilePhotoUrl,
     source: 'google',
   }));
+
+  // Final resilience layer: when neither BP nor Places has returned
+  // anything renderable, fall back to the editorial alumni quotes in
+  // curatedReviews.ts. Without this, an empty reviews array leaves
+  // the carousel slot as a blank warm-bg band above the "Leave us a
+  // review" CTA — exactly the bug we shipped when GOOGLE_PLACES_API_KEY
+  // was missing in Vercel. Attribution reads "Verified alum review"
+  // rather than "Verified Google review" so provenance stays honest.
+  if (reviews.length === 0) {
+    return {
+      reviews: CURATED_REVIEWS.map((r) => ({
+        name: r.name,
+        date: r.attribution,
+        rating: r.rating,
+        text: r.text,
+        source: 'curated' as const,
+      })),
+      rating: place?.rating ?? FALLBACK_RATING,
+      total: place?.userRatingsTotal ?? FALLBACK_TOTAL,
+    };
+  }
+
   return {
     reviews,
     rating: place?.rating ?? FALLBACK_RATING,
