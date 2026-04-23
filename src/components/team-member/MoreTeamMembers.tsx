@@ -79,7 +79,8 @@ export default function MoreTeamMembers({
             <MemberNavLink
               key={m.slug}
               href={`/who-we-are/meet-our-team/${m.slug}`}
-              className="group relative block aspect-[4/5] overflow-hidden rounded-2xl bg-dark-section shadow-sm transition-all duration-500"
+              ariaLabel={`Read ${m.full_name}'s profile`}
+              className="group relative block aspect-[4/5] overflow-hidden rounded-2xl bg-dark-section shadow-sm transition-all duration-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               style={{
                 opacity: show ? 1 : 0,
                 transform: show ? 'translateY(0)' : 'translateY(18px)',

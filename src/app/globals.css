@@ -280,6 +280,20 @@ body {
   }
 }
 
+/* Reduced-motion belt-and-suspenders: TS-side code already gates
+   the big animations (SevenArrowsMark sway, hero spin) on
+   useReducedMotion, but if any animation slips through via a CSS
+   class or third-party fragment, force a short no-op here. Avoids
+   blanket rules that would also kill essential transitions like
+   drawer open/close, which still need enough motion to read as
+   state changes (200ms is the accessible minimum we target). */
+@media (prefers-reduced-motion: reduce) {
+  .sa-mark-chain,
+  [class*='sa-mark-'][class*='-chain'] {
+    animation: none !important;
+  }
+}
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
