@@ -9,6 +9,7 @@
 // other humans say" (quoted review).
 
 import { fetchPlaceDetails } from '@/lib/places';
+import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import HeroStatsBandClient from './HeroStatsBandClient';
 import type { ReviewBubbleData } from './ReviewBubble';
 
@@ -24,15 +25,16 @@ const FALLBACK_TOTAL = 27;
 
 export default async function HeroStatsBand() {
   const place = await fetchPlaceDetails();
+  const cached = await fetchCachedReviews({ minRating: 4, sort: 'newest', limit: 1 });
 
-  const firstLiveReview = place?.reviews?.[0];
-  const review: ReviewBubbleData = firstLiveReview
+  const featured = cached[0] ?? place?.reviews?.[0];
+  const review: ReviewBubbleData = featured
     ? {
-        name: firstLiveReview.authorName,
-        date: firstLiveReview.relativeTime,
-        rating: firstLiveReview.rating,
-        text: firstLiveReview.text,
-        photoUrl: firstLiveReview.profilePhotoUrl,
+        name: featured.authorName,
+        date: featured.relativeTime,
+        rating: featured.rating,
+        text: featured.text,
+        photoUrl: featured.profilePhotoUrl,
       }
     : FALLBACK_REVIEW;
 
