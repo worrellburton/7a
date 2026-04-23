@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 /**
@@ -56,6 +57,24 @@ export default function MobileMenu({
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  // Determine which top-level item represents the current page.
+  // A nav item is active when its href matches the current path
+  // exactly, when the path starts with its href plus a slash, or
+  // when any of its dropdown children matches. Returns the label
+  // of the active item or null.
+  const activeLabel = (() => {
+    if (!pathname) return null;
+    for (const item of navLinks) {
+      const prefix = item.href.endsWith('/') ? item.href.slice(0, -1) : item.href;
+      if (pathname === prefix || pathname.startsWith(prefix + '/')) return item.label;
+      if (item.dropdown?.some((d) => pathname === d.href || pathname.startsWith(d.href + '/'))) {
+        return item.label;
+      }
+    }
+    return null;
+  })();
 
   // Two-phase mount state — see component-level comment.
   const [mounted, setMounted] = useState(open);
@@ -74,10 +93,19 @@ export default function MobileMenu({
     return () => clearTimeout(t);
   }, [open]);
 
-  // Collapse any expanded section whenever the drawer closes so the
-  // next open starts from the clean "everything collapsed" state.
+  // When the drawer opens, pre-expand the section that contains
+  // the current page so visitors can see siblings to their current
+  // route without an extra tap. On close, collapse everything so
+  // the next open starts clean.
   useEffect(() => {
-    if (!open) setExpanded(null);
+    if (open) {
+      setExpanded(activeLabel);
+    } else {
+      setExpanded(null);
+    }
+    // activeLabel is derived from navLinks + pathname which are
+    // stable at mount; we intentionally only re-run on open flip.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // Body scroll lock — prevents the underlying page from scrolling
@@ -153,11 +181,21 @@ export default function MobileMenu({
                 <>
                   <button
                     type="button"
-                    className="flex items-center justify-between w-full px-3 py-2.5 text-xs font-semibold tracking-wider uppercase text-foreground hover:text-primary"
+                    className={`relative flex items-center justify-between w-full px-3 py-2.5 text-xs font-semibold tracking-wider uppercase hover:text-primary ${
+                      activeLabel === item.label ? 'text-primary' : 'text-foreground'
+                    }`}
                     style={{ fontFamily: 'var(--font-body)' }}
                     onClick={() => toggle(item.label)}
                     aria-expanded={expanded === item.label}
+                    aria-current={activeLabel === item.label ? 'page' : undefined}
                   >
+                    {/* Active-page indicator — a tiny copper dot
+                        to the left of the current section's label.
+                        Scales in when the drawer opens on an active
+                        page, providing a clear "you are here" cue
+                        without clashing with the expand-accent
+                        rail that appears inside the open section. */}
+                    <ActiveDot active={activeLabel === item.label} show={showing} />
                     {item.label}
                     <svg
                       className="w-3.5 h-3.5"
@@ -200,15 +238,20 @@ export default function MobileMenu({
                       {item.dropdown.map((sub, subIndex) => {
                         const Icon = iconMap[sub.label];
                         const subShow = expanded === item.label;
+                        const subActive =
+                          pathname === sub.href || (pathname?.startsWith(sub.href + '/') ?? false);
                         return (
                           <Link
                             key={sub.href}
                             href={sub.href}
-                            className="flex items-center gap-2.5 px-5 py-2.5 text-sm text-foreground hover:text-primary border-b border-foreground/5 last:border-b-0"
+                            className={`flex items-center gap-2.5 px-5 py-2.5 text-sm border-b border-foreground/5 last:border-b-0 hover:text-primary ${
+                              subActive ? 'text-primary font-semibold' : 'text-foreground'
+                            }`}
                             role="menuitem"
                             onClick={onClose}
                             tabIndex={subShow ? 0 : -1}
                             aria-hidden={subShow ? undefined : true}
+                            aria-current={subActive ? 'page' : undefined}
                             style={{
                               opacity: subShow ? 1 : 0,
                               transform: subShow ? 'translateX(0)' : 'translateX(-8px)',
@@ -216,8 +259,12 @@ export default function MobileMenu({
                             }}
                           >
                             {Icon && (
-                              <div className="shrink-0 w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
-                                <Icon className="w-3 h-3 text-primary" />
+                              <div
+                                className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center ${
+                                  subActive ? 'bg-primary' : 'bg-primary/10'
+                                }`}
+                              >
+                                <Icon className={`w-3 h-3 ${subActive ? 'text-white' : 'text-primary'}`} />
                               </div>
                             )}
                             <div>
@@ -234,11 +281,15 @@ export default function MobileMenu({
               ) : (
                 <Link
                   href={item.href}
-                  className="block px-3 py-2.5 text-xs font-semibold tracking-wider uppercase text-foreground hover:text-primary"
+                  className={`relative block px-3 py-2.5 text-xs font-semibold tracking-wider uppercase hover:text-primary ${
+                    activeLabel === item.label ? 'text-primary' : 'text-foreground'
+                  }`}
                   style={{ fontFamily: 'var(--font-body)' }}
                   role="menuitem"
                   onClick={onClose}
+                  aria-current={activeLabel === item.label ? 'page' : undefined}
                 >
+                  <ActiveDot active={activeLabel === item.label} show={showing} />
                   {item.label}
                 </Link>
               )}
@@ -260,6 +311,26 @@ export default function MobileMenu({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * Active-page dot — rendered inside each top-level nav button / link
+ * when its section represents the current route. Sits flush left of
+ * the label text and scales up from zero when the drawer reveals,
+ * so the "you are here" cue arrives as part of the open choreography.
+ */
+function ActiveDot({ active, show }: { active: boolean; show: boolean }) {
+  if (!active) return null;
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-block w-1.5 h-1.5 rounded-full bg-primary mr-2 align-middle"
+      style={{
+        transform: show ? 'scale(1)' : 'scale(0)',
+        transition: `transform 420ms ${EASE} 220ms`,
+      }}
+    />
   );
 }
 
