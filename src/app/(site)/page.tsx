@@ -20,7 +20,6 @@ import DailyLifeSection from "@/components/DailyLifeSection";
 import AboutSection from "@/components/AboutSection";
 import FAQSection from "@/components/FAQSection";
 import GoogleReviewsCinema from "@/components/GoogleReviewsCinema";
-import StickyMobileCTA from "@/components/StickyMobileCTA";
 import BlogPreview from "@/components/BlogPreview";
 
 const structuredData = {
@@ -206,7 +205,6 @@ export default function Home() {
       <InsuranceVerification />
       <BlogPreview />
       <FAQSection />
-      <StickyMobileCTA />
     </>
   );
 }
