@@ -33,6 +33,13 @@ const vec3 C_AMBER  = vec3(0.737, 0.420, 0.290); // ~ #bc6b4a primary
 const vec3 C_DUSK   = vec3(0.227, 0.094, 0.063); // ~ #3a1810 deep brown
 const vec3 C_HORIZON = vec3(0.949, 0.851, 0.769); // ~ #f2d9c4 warm bg
 
+// Signed-distance function for a single circle ring (annulus) of
+// radius r and stroke half-width w. Returns the SDF value so the
+// caller can antialias against fwidth.
+float sdRing(vec2 p, float r, float w) {
+  return abs(length(p) - r) - w;
+}
+
 void main() {
   // Center-anchored coordinates with aspect correction so the radial
   // hot-spot stays circular regardless of viewport shape.
@@ -51,6 +58,19 @@ void main() {
   vec3 col = mix(C_AMBER * 0.45 + C_HORIZON * 0.15, C_DUSK, smoothstep(0.0, 0.85, dr));
   // Pull the very far corners down toward C_DEEP for vignette.
   col = mix(col, C_DEEP, smoothstep(0.6, 1.4, d));
+
+  // ── Medallion ring layer ───────────────────────────────────────
+  // Single translucent ring centered on the breath-drifting hot-spot.
+  // Antialiased via fwidth so the edge stays crisp at every DPR.
+  vec2 mp = p - center;
+  float ringR = 0.16;          // radius in aspect-normalized space
+  float ringW = 0.0035;        // stroke half-width
+  float ringSdf = sdRing(mp, ringR, ringW);
+  float aa = fwidth(ringSdf) * 0.75 + 1e-5;
+  float ringMask = 1.0 - smoothstep(0.0, aa, ringSdf);
+  // Additive amber accent — sits on top of the gradient at low alpha
+  // so it reads as a "ghost" of the brand mark, not a foreground asset.
+  col += C_AMBER * ringMask * 0.18;
 
   // Soft gamma so on-brand warmth survives the canvas → display path.
   col = pow(col, vec3(0.92));
