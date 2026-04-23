@@ -37,7 +37,11 @@ export default function IndigenousApproachPage() {
     <main>
       <PageHero
         label="Indigenous Approach"
-        title="Rooted in Ancient Wisdom"
+        title={[
+          { text: 'Rooted in ' },
+          { text: 'ancient wisdom', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Our Program', href: '/our-program' },
@@ -45,6 +49,14 @@ export default function IndigenousApproachPage() {
         ]}
         description="At Seven Arrows Recovery, we honor indigenous healing traditions as a vital part of the recovery journey. The land, the ceremonies, and the wisdom of generations past guide our clients toward deep, lasting transformation."
         image="/images/campfire-ceremony-circle.webp"
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* Introduction */}

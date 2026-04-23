@@ -25,13 +25,25 @@ export default function TraumaTreatmentPage() {
           scrim on first paint. */}
       <PageHero
         label="TraumAddiction® Treatment"
-        title="Healing trauma at the root of recovery."
+        title={[
+          { text: 'Healing trauma at ' },
+          { text: 'the root', accent: true },
+          { text: ' of recovery.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Our Program', href: '/our-program' },
           { label: 'Trauma Treatment' },
         ]}
         description="Addiction rarely exists in isolation. Our TraumAddiction® approach treats trauma and substance use as one integrated condition through the Forward-Facing Freedom® model — unlocking deeper and more lasting healing."
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Clinical line · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'See the plan' },
+        ]}
       />
 
       {/* Phase 2 — The Clinical Gap, animated SVG glyph section. */}
