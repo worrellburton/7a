@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import type { PublicTeamMember } from '@/lib/team';
+import MemberNavLink from './team-member/MemberNavLink';
 
 interface TeamGridProps {
   team: PublicTeamMember[];
@@ -28,11 +28,12 @@ export default function TeamGrid({ team }: TeamGridProps) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
       {team.map((member) => (
-        <Link
+        <MemberNavLink
           key={member.id}
           href={`/who-we-are/meet-our-team/${member.slug}`}
           className="group relative block aspect-[4/5] w-full overflow-hidden rounded-xl sm:rounded-2xl bg-dark-section shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          aria-label={`Read ${member.full_name}'s profile`}
+          ariaLabel={`Read ${member.full_name}'s profile`}
+          style={{ viewTransitionName: `member-avatar-${member.slug}` }}
         >
           {member.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -113,7 +114,7 @@ export default function TeamGrid({ team }: TeamGridProps) {
               </svg>
             </span>
           </div>
-        </Link>
+        </MemberNavLink>
       ))}
     </div>
   );
