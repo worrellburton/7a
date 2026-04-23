@@ -8,7 +8,7 @@ import AdmissionsForm from './AdmissionsForm';
 
 export default function InsuranceVerification() {
   return (
-    <section className="py-16 lg:py-20 bg-white" aria-labelledby="insurance-heading">
+    <section className="py-16 lg:py-20 bg-warm-bg" aria-labelledby="insurance-heading">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-8">
           <p className="section-label justify-center mb-3">Insurance Verification</p>
