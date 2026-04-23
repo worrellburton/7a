@@ -60,23 +60,39 @@ export default function TeamGrid({ team }: TeamGridProps) {
             }}
           />
 
-          {/* Subtle corner glyph — Seven Arrows medallion silhouette, top-right. */}
+          {/* Subtle corner glyph — Seven Arrows medallion silhouette, top-right.
+              Animates a soft pulse on hover so the tile feels alive without
+              competing with the portrait. */}
           <svg
             aria-hidden="true"
             viewBox="0 0 32 32"
-            className="absolute top-2.5 right-2.5 w-5 h-5 text-white/20 group-hover:text-accent/80 transition-colors duration-500"
+            className="absolute top-2.5 right-2.5 w-5 h-5 text-white/20 group-hover:text-accent/90 transition-all duration-700 group-hover:scale-110"
           >
             <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" strokeWidth="1.25" />
             <line x1="16" y1="3" x2="16" y2="29" stroke="currentColor" strokeWidth="1.25" />
             <line x1="3" y1="16" x2="29" y2="16" stroke="currentColor" strokeWidth="1.25" />
+            <circle cx="16" cy="16" r="2" fill="currentColor" opacity="0" className="group-hover:opacity-100 transition-opacity duration-700" />
           </svg>
+
+          {/* Top-left fade-in accent rule that draws when the tile is
+              hovered — subtle "this card is interactive" affordance. */}
+          <span
+            aria-hidden="true"
+            className="absolute top-3 left-3 h-px bg-accent/80 w-0 group-hover:w-10 transition-all duration-500 ease-out"
+          />
 
           <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 lg:p-6">
             <h3
-              className="text-white text-[15px] sm:text-lg lg:text-2xl font-bold leading-tight tracking-tight"
+              className="text-white text-[15px] sm:text-lg lg:text-2xl font-bold leading-tight tracking-tight relative inline-block"
               style={{ fontFamily: 'var(--font-display)' }}
             >
               {member.full_name}
+              {/* Underline reveal on hover — desktop only so it doesn't
+                  flash on mobile tap. */}
+              <span
+                aria-hidden="true"
+                className="absolute left-0 -bottom-1 hidden lg:block h-[2px] w-0 group-hover:w-full bg-accent transition-all duration-500 ease-out"
+              />
             </h3>
             {member.job_title && (
               <p
