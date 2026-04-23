@@ -1,12 +1,32 @@
-// Server-rendered "Real Stories of Recovery" section. Fetches live
-// Google reviews (already filtered to >=4 stars at the data layer),
-// pairs each one with a looping background video from the site's
-// catalog, and hands it off to the client carousel.
+// Server-rendered "Real Stories of Recovery" section. Pulls the full
+// live review corpus (not capped at 5) via the Google Business Profile
+// API when credentials are set, then falls back to Places /details for
+// the legacy 4-slide case. Every review shown here is a real, verified
+// Google review — no curated / editorial quotes.
+//
+// Env to activate Business Profile mode (unlocks all reviews):
+//   GOOGLE_OAUTH_CLIENT_ID / CLIENT_SECRET / REFRESH_TOKEN
+//     (already wired for GA4 etc. — refresh token must be minted with
+//      the https://www.googleapis.com/auth/business.manage scope)
+//   GOOGLE_BP_ACCOUNT_ID   — numeric id, GET /api/google/bp-discover to find
+//   GOOGLE_BP_LOCATION_ID  — numeric id, same endpoint
 
+import { unstable_cache } from 'next/cache';
 import { fetchPlaceDetails } from '@/lib/places';
+import { hasBusinessProfileConfig, mbReviews } from '@/lib/google';
 import { siteVideos } from '@/lib/siteVideos';
 import ReviewCinemaCarousel from './ReviewCinemaCarousel';
 import type { ReviewBubbleData } from './ReviewBubble';
+
+// Business Profile has tight per-minute quotas and the full review
+// corpus barely changes hour-to-hour. Wrap the fetch in unstable_cache
+// keyed on the account/location so the public site shares a single
+// cached response across all concurrent renders.
+const getBpReviews = unstable_cache(
+  async () => mbReviews(),
+  ['bp-reviews'],
+  { revalidate: 60 * 60, tags: ['bp-reviews'] }, // 1 hour
+);
 
 const VIDEO_POOL = [
   siteVideos.swisshelm,
@@ -15,29 +35,65 @@ const VIDEO_POOL = [
   siteVideos.ranchLife,
 ];
 
-const FALLBACK_REVIEWS: ReviewBubbleData[] = [
-  {
-    name: 'Michael T.',
-    date: '2 months ago',
-    rating: 5,
-    text: "Seven Arrows saved my life. The staff genuinely cares about every person who walks through the door. The small group setting made me feel like I wasn't just a number. I'm 8 months sober now and I owe it to this incredible team.",
-  },
-  {
-    name: 'Sarah K.',
-    date: '3 months ago',
-    rating: 5,
-    text: 'My son attended Seven Arrows and the difference has been night and day. The communication from the clinical team was outstanding — they kept us informed every step of the way. We finally have our son back.',
-  },
-  {
-    name: 'James R.',
-    date: '1 month ago',
-    rating: 5,
-    text: "I've been to three other treatment centers before finding Seven Arrows. This place is different. The 6:1 staff ratio means you actually get attention. The setting at the base of the Swisshelm Mountains helped me find peace I didn't know was possible.",
-  },
-];
-
 const FALLBACK_RATING = 4.9;
 const FALLBACK_TOTAL = 27;
+
+// Only show reviews with at least 4 stars in the carousel. Aggregate
+// rating + total still reflect the full corpus so we don't misstate
+// the score.
+const MIN_STAR_RATING = 4;
+
+/**
+ * Resolve the live review set we're willing to render. Prefers
+ * Business Profile (paginated, full history) with a graceful fallback
+ * to Places. Always returns real, verified Google reviews only.
+ */
+async function fetchCarouselReviews(): Promise<{
+  reviews: ReviewBubbleData[];
+  rating: number;
+  total: number;
+}> {
+  if (hasBusinessProfileConfig()) {
+    try {
+      const bp = await getBpReviews();
+      const filtered = bp.reviews
+        .filter((r) => r.rating >= MIN_STAR_RATING && r.text.trim().length > 0)
+        // Business Profile doesn't server-sort — freshest first.
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      if (filtered.length > 0) {
+        return {
+          reviews: filtered.map((r) => ({
+            name: r.authorName,
+            date: r.relativeTime,
+            rating: r.rating,
+            text: r.text,
+            photoUrl: r.profilePhotoUrl,
+            source: 'google',
+          })),
+          rating: bp.averageRating ?? FALLBACK_RATING,
+          total: bp.totalReviewCount ?? filtered.length,
+        };
+      }
+    } catch {
+      // BP misconfigured or over quota — fall through to Places.
+    }
+  }
+
+  const place = await fetchPlaceDetails();
+  const reviews: ReviewBubbleData[] = (place?.reviews ?? []).map((r) => ({
+    name: r.authorName,
+    date: r.relativeTime,
+    rating: r.rating,
+    text: r.text,
+    photoUrl: r.profilePhotoUrl,
+    source: 'google',
+  }));
+  return {
+    reviews,
+    rating: place?.rating ?? FALLBACK_RATING,
+    total: place?.userRatingsTotal ?? FALLBACK_TOTAL,
+  };
+}
 
 function GoogleIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
@@ -51,26 +107,12 @@ function GoogleIcon({ className = 'w-5 h-5' }: { className?: string }) {
 }
 
 export default async function GoogleReviewsCinema() {
-  const place = await fetchPlaceDetails();
-
-  const reviews: ReviewBubbleData[] =
-    place?.reviews && place.reviews.length > 0
-      ? place.reviews.map((r) => ({
-          name: r.authorName,
-          date: r.relativeTime,
-          rating: r.rating,
-          text: r.text,
-          photoUrl: r.profilePhotoUrl,
-        }))
-      : FALLBACK_REVIEWS;
+  const { reviews, rating, total } = await fetchCarouselReviews();
 
   const slides = reviews.map((review, i) => ({
     review,
     videoUrl: VIDEO_POOL[i % VIDEO_POOL.length],
   }));
-
-  const rating = place?.rating ?? FALLBACK_RATING;
-  const total = place?.userRatingsTotal ?? FALLBACK_TOTAL;
 
   return (
     <section
