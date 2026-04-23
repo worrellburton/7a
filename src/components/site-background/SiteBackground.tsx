@@ -111,6 +111,29 @@ export default function SiteBackground() {
 
     const uTime = gl.getUniformLocation(program, 'u_time');
     const uResolution = gl.getUniformLocation(program, 'u_resolution');
+    const uMouse = gl.getUniformLocation(program, 'u_mouse');
+    const uScroll = gl.getUniformLocation(program, 'u_scroll');
+
+    // Smoothed pointer + scroll state. Raw input is captured in the
+    // listeners; the rAF loop eases the rendered values toward target
+    // so parallax doesn't strobe with mouse jitter or wheel scroll.
+    const target = { mx: 0, my: 0, scroll: 0 };
+    const smooth = { mx: 0, my: 0, scroll: 0 };
+
+    const onPointer = (e: PointerEvent) => {
+      const w = window.innerWidth || 1;
+      const h = window.innerHeight || 1;
+      target.mx = (e.clientX / w) * 2 - 1; // [-1, 1]
+      target.my = (e.clientY / h) * 2 - 1;
+    };
+    const onScroll = () => {
+      const doc = document.documentElement;
+      const max = Math.max(1, doc.scrollHeight - window.innerHeight);
+      target.scroll = Math.min(1, Math.max(0, window.scrollY / max));
+    };
+    onScroll();
+    window.addEventListener('pointermove', onPointer, { passive: true });
+    window.addEventListener('scroll', onScroll, { passive: true });
 
     // Cap DPR at 1.5 — the background is so subtle that a 1:1 pixel
     // grid is plenty, and capping saves a lot of fragment work on
@@ -137,12 +160,25 @@ export default function SiteBackground() {
       if (!gl) return;
       resize();
       const tSec = (performance.now() - start) / 1000;
+      // Critically-damped-ish lerp toward target — k tuned so a full
+      // 60 fps frame moves about 8% of the gap, giving us perceptually
+      // smooth tracking without a feel of input lag.
+      const k = 0.08;
+      smooth.mx += (target.mx - smooth.mx) * k;
+      smooth.my += (target.my - smooth.my) * k;
+      smooth.scroll += (target.scroll - smooth.scroll) * k;
       gl.uniform1f(uTime, tSec);
+      gl.uniform2f(uMouse, smooth.mx, smooth.my);
+      gl.uniform1f(uScroll, smooth.scroll);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
 
     if (reduced) {
-      // Static single-frame render path.
+      // Static single-frame render path. Skip parallax inputs so the
+      // page is visually identical for users who opted out of motion.
+      gl.uniform2f(uMouse, 0, 0);
+      gl.uniform1f(uScroll, 0);
+      gl.uniform1f(uTime, 0);
       renderOnce();
     } else {
       const loop = () => {
@@ -157,6 +193,8 @@ export default function SiteBackground() {
       cancelled = true;
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
+      window.removeEventListener('pointermove', onPointer);
+      window.removeEventListener('scroll', onScroll);
       gl.deleteProgram(program);
       gl.deleteBuffer(buffer);
     };

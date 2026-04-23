@@ -24,6 +24,11 @@ out vec4 fragColor;
 
 uniform vec2 u_resolution;
 uniform float u_time;
+// Pointer position normalized to [-1, 1] across the viewport. Smoothed
+// on the JS side before being uploaded so the parallax never jitters.
+uniform vec2 u_mouse;
+// Page scroll offset normalized to [0, 1] across the document height.
+uniform float u_scroll;
 
 // Brand palette — terracotta primary, deep amber dark, warm tan.
 // Stored linear-ish; final pass applies a soft gamma so the screen
@@ -99,8 +104,14 @@ void main() {
   // Slow vertical breath — the gradient center drifts up and down
   // ~5% of the height over a 22s loop. Subtle enough to feel like
   // ambient atmosphere rather than animation.
+  //
+  // Phase 8 parallax: pointer pushes the center inversely (so the
+  // medallion appears to "stay" while the world tilts under the
+  // cursor) and scroll lifts it gently as the user moves down the
+  // page. Both inputs come pre-smoothed from JS.
   float breath = sin(u_time * 0.28) * 0.05;
-  vec2 center = vec2(0.0, 0.05 + breath);
+  vec2 parallax = vec2(-u_mouse.x * 0.04, -u_mouse.y * 0.025 + u_scroll * 0.18);
+  vec2 center = vec2(0.0, 0.05 + breath) + parallax;
   float dr = length(p - center);
 
   // Two-stop radial: warm horizon glow at center → deep dusk at edges.
