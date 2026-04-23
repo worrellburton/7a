@@ -36,13 +36,25 @@ export default function TreatmentPage() {
     <>
       <PageHero
         label="Our Programs"
-        title="Treatment"
+        title={[
+          { text: 'A full ' },
+          { text: 'continuum of care', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Treatment' },
         ]}
         description="Seven Arrows Recovery offers a full continuum of care designed to meet you wherever you are on your recovery journey. From coordinated detox through alumni aftercare, every program is built around clinical excellence and personal attention."
         image="/images/group-therapy-room.jpg"
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* Overview */}

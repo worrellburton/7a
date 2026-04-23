@@ -47,7 +47,11 @@ export default function TraumAddictionPage() {
     <>
       <PageHero
         label="TraumAddiction®"
-        title="Trauma & Addiction Are One Condition"
+        title={[
+          { text: 'Trauma & addiction are ' },
+          { text: 'one condition', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Treatment', href: '/treatment' },
@@ -55,6 +59,14 @@ export default function TraumAddictionPage() {
         ]}
         description="TraumAddiction® is our integrated model for treating trauma and substance use together — not as separate conditions, but as deeply interconnected challenges that require a unified, salutogenic approach."
         image="/images/embrace-connection.jpg"
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Clinical line · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* The Problem */}

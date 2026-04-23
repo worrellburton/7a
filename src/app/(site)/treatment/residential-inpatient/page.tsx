@@ -23,13 +23,25 @@ export default function ResidentialInpatientPage() {
       {/* Phase 1 — shared video hero */}
       <PageHero
         label="Our Program"
-        title="Residential inpatient, paced to the nervous system."
+        title={[
+          { text: 'Residential inpatient, paced to ' },
+          { text: 'the nervous system', accent: true },
+          { text: '.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Our Program', href: '/our-program' },
           { label: 'Residential Inpatient' },
         ]}
         description="Immerse yourself in recovery with our 30-to-90-day residential inpatient program — round-the-clock clinical support in a safe, structured environment at the base of the Swisshelm Mountains."
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Admissions · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* Phase 2 — by-the-numbers stats */}

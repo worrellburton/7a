@@ -23,13 +23,25 @@ export default function InterventionsPage() {
       {/* Phase 1 — shared video-backdrop hero. */}
       <PageHero
         label="Professional Interventions"
-        title="When the conversation can't wait any longer."
+        title={[
+          { text: "When the conversation " },
+          { text: "can't wait", accent: true },
+          { text: ' any longer.' },
+        ]}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Treatment', href: '/treatment' },
           { label: 'Interventions' },
         ]}
         description="A professional intervention is a carefully planned, compassionate interruption of a pattern that will not interrupt itself. We help families prepare, hold the room on the day, and move directly into treatment the moment your loved one says yes."
+        ctas={[
+          {
+            kind: 'phone',
+            display: '(866) 996-4308',
+            eyebrow: 'Intervention line · 24/7',
+          },
+          { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
       />
 
       {/* Phase 2 — Tipping-point curve, animated SVG. */}
