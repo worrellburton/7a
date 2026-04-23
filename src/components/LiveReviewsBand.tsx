@@ -13,6 +13,7 @@
 // the build never breaks in a preview env without secrets).
 
 import { fetchPlaceDetails, type PlaceReview } from '@/lib/places';
+import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import LiveReviewsBandClient, { type VoiceEntry } from './LiveReviewsBandClient';
 
 interface LiveReviewsBandProps {
@@ -41,8 +42,16 @@ export default async function LiveReviewsBand({
   count = 4,
   minLength = 140,
 }: LiveReviewsBandProps) {
-  const details = await fetchPlaceDetails();
-  const source = details?.reviews ?? [];
+  // Prefer the DB-backed cache (phase 5/8) so we draw from the full
+  // accumulated corpus instead of just Google's 5-most-recent. Live
+  // Places call kept as a hot-path fallback if the cache is empty
+  // (e.g. brand new project, or right after a TTL eviction).
+  const cached = await fetchCachedReviews({ minRating: 4, sort: 'newest', limit: 100 });
+  let source: PlaceReview[] = cached;
+  if (source.length === 0) {
+    const details = await fetchPlaceDetails();
+    source = details?.reviews ?? [];
+  }
 
   const substantive = source
     .filter((r) => r.rating >= 4 && r.text.trim().length >= minLength)
