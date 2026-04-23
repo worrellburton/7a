@@ -1,6 +1,7 @@
 'use client';
 
 import type { PublicTeamMember } from '@/lib/team';
+import SevenArrowsMark from './SevenArrowsMark';
 import { EASE_OUT_QUART, useInView, useReducedMotion } from './motion';
 
 /**
@@ -32,6 +33,24 @@ export default function TeamMemberBio({ member }: { member: PublicTeamMember }) 
 
   return (
     <section ref={ref} className="relative py-20 lg:py-28 bg-white overflow-hidden" aria-labelledby="bio-heading">
+      {/* Ambient brand watermark — a faint Seven Arrows medallion
+          pinned to the right column, cropped by overflow. Fades in
+          as the bio scrolls into view and stays very low contrast
+          so it never fights with the prose. */}
+      <div
+        aria-hidden="true"
+        className="absolute pointer-events-none hidden lg:block"
+        style={{
+          right: '-140px',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          opacity: show ? 0.06 : 0,
+          transition: `opacity 1.6s ${EASE_OUT_QUART} 0.4s`,
+        }}
+      >
+        <SevenArrowsMark size={520} animated={show && !reduced} tone="warm" />
+      </div>
+
       <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Thin copper SVG divider — draws itself in as the section
             scrolls into view. Subtle transition from the dark hero. */}
