@@ -98,6 +98,9 @@ export default function ReviewsContent() {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
+  // null = closed, 'new' = create curated, otherwise the row being edited.
+  const [editing, setEditing] = useState<UnifiedRow | 'new' | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!user || !isAdmin) return;
@@ -121,7 +124,9 @@ export default function ReviewsContent() {
       }
     })();
     return () => { cancelled = true; };
-  }, [user, isAdmin]);
+  }, [user, isAdmin, refreshTick]);
+
+  function refresh() { setRefreshTick((n) => n + 1); }
 
   const rows: UnifiedRow[] = useMemo(() => {
     const all: UnifiedRow[] = [
@@ -199,6 +204,13 @@ export default function ReviewsContent() {
           placeholder="Search author or text…"
           className="ml-auto px-3 py-1.5 text-sm rounded-md border border-black/10 bg-white focus:outline-none focus:border-primary/50"
         />
+        <button
+          type="button"
+          onClick={() => setEditing('new')}
+          className="px-3 py-1.5 text-sm rounded-md bg-primary text-white hover:bg-primary/90"
+        >
+          + New
+        </button>
       </div>
 
       {loading && <p className="text-sm text-foreground/50">Loading…</p>}
@@ -209,8 +221,22 @@ export default function ReviewsContent() {
       )}
 
       <ul className="divide-y divide-black/5 border border-black/10 rounded-xl bg-white overflow-hidden">
-        {rows.map((r) => <ReviewRow key={`${r.source}-${r.id}`} row={r} />)}
+        {rows.map((r) => (
+          <ReviewRow
+            key={`${r.source}-${r.id}`}
+            row={r}
+            onClick={() => setEditing(r)}
+          />
+        ))}
       </ul>
+
+      {editing && (
+        <EditDrawer
+          target={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); refresh(); }}
+        />
+      )}
     </div>
   );
 }
@@ -247,10 +273,13 @@ function FilterChips({
   );
 }
 
-function ReviewRow({ row }: { row: UnifiedRow }) {
+function ReviewRow({ row, onClick }: { row: UnifiedRow; onClick: () => void }) {
   const stars = '★'.repeat(row.rating) + '☆'.repeat(5 - row.rating);
   return (
-    <li className={`px-4 py-3 flex items-start gap-3 ${row.hidden ? 'opacity-50' : ''}`}>
+    <li
+      className={`px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-warm-bg/50 transition-colors ${row.hidden ? 'opacity-50' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-sm">
           <span className="font-semibold text-foreground">{row.authorName}</span>
@@ -266,6 +295,236 @@ function ReviewRow({ row }: { row: UnifiedRow }) {
         </div>
       </div>
     </li>
+  );
+}
+
+interface DrawerForm {
+  author_name: string;
+  attribution: string;
+  rating: number;
+  text: string;
+  featured: boolean;
+  hidden: boolean;
+  display_order: string; // string in form, parsed on save
+}
+
+function EditDrawer({
+  target,
+  onClose,
+  onSaved,
+}: {
+  target: UnifiedRow | 'new';
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isNew = target === 'new';
+  const isGoogle = !isNew && target.source === 'google';
+
+  const [form, setForm] = useState<DrawerForm>(() => {
+    if (isNew) {
+      return { author_name: '', attribution: '', rating: 5, text: '', featured: false, hidden: false, display_order: '' };
+    }
+    return {
+      author_name: target.authorName,
+      attribution: target.source === 'curated' ? target.byline : '',
+      rating: target.rating,
+      text: target.text,
+      featured: target.featured,
+      hidden: target.hidden,
+      display_order: target.displayOrder !== null ? String(target.displayOrder) : '',
+    };
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    setErr(null);
+    setBusy(true);
+    try {
+      const display_order = form.display_order.trim() === '' ? null : Number(form.display_order);
+      if (display_order !== null && !Number.isFinite(display_order)) {
+        throw new Error('display_order must be a number or empty');
+      }
+      if (isNew) {
+        const res = await fetch('/api/reviews', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            author_name: form.author_name,
+            attribution: form.attribution || null,
+            rating: form.rating,
+            text: form.text,
+            featured: form.featured,
+            hidden: form.hidden,
+            display_order,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+      } else {
+        const source = (target as UnifiedRow).source;
+        const id = (target as UnifiedRow).id;
+        const body: Record<string, unknown> = {
+          featured: form.featured,
+          hidden: form.hidden,
+          display_order,
+        };
+        if (source === 'curated') {
+          body.author_name = form.author_name;
+          body.attribution = form.attribution || null;
+          body.text = form.text;
+          body.rating = form.rating;
+        }
+        const res = await fetch(`/api/reviews/${id}?source=${source}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+      }
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteRow() {
+    if (isNew || target.source !== 'curated') return;
+    if (!confirm('Delete this curated review? This is permanent.')) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/reviews/${target.id}?source=curated`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex" onClick={onClose}>
+      <div className="flex-1 bg-black/30" />
+      <div
+        className="w-full max-w-md bg-white shadow-2xl overflow-y-auto p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+            {isNew ? 'New curated review' : isGoogle ? 'Google review' : 'Curated review'}
+          </h2>
+          <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground text-xl leading-none">×</button>
+        </div>
+
+        {isGoogle && (
+          <p className="mb-4 text-xs text-foreground/50 bg-warm-bg/50 p-2 rounded">
+            Google reviews are read-only — only the curation flags below are editable. To remove from display, use Hide (deletion would be undone by the next sync).
+          </p>
+        )}
+
+        <div className="space-y-3 text-sm">
+          <Field label="Author">
+            <input
+              value={form.author_name}
+              onChange={(e) => setForm({ ...form, author_name: e.target.value })}
+              disabled={isGoogle}
+              className="w-full px-3 py-1.5 rounded-md border border-black/10 bg-white disabled:bg-gray-50 disabled:text-gray-500"
+            />
+          </Field>
+
+          <Field label={isGoogle ? 'Relative time' : 'Attribution'}>
+            <input
+              value={form.attribution}
+              onChange={(e) => setForm({ ...form, attribution: e.target.value })}
+              disabled={isGoogle}
+              placeholder={isGoogle ? '' : 'e.g. Alumnus · 8 months sober'}
+              className="w-full px-3 py-1.5 rounded-md border border-black/10 bg-white disabled:bg-gray-50 disabled:text-gray-500"
+            />
+          </Field>
+
+          <Field label="Rating">
+            <select
+              value={form.rating}
+              onChange={(e) => setForm({ ...form, rating: Number(e.target.value) })}
+              disabled={isGoogle}
+              className="w-full px-3 py-1.5 rounded-md border border-black/10 bg-white disabled:bg-gray-50 disabled:text-gray-500"
+            >
+              {[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{'★'.repeat(n)}{'☆'.repeat(5 - n)} ({n})</option>)}
+            </select>
+          </Field>
+
+          <Field label="Text">
+            <textarea
+              value={form.text}
+              onChange={(e) => setForm({ ...form, text: e.target.value })}
+              disabled={isGoogle}
+              rows={6}
+              className="w-full px-3 py-1.5 rounded-md border border-black/10 bg-white disabled:bg-gray-50 disabled:text-gray-500 resize-y"
+            />
+          </Field>
+
+          <Field label="Display order (lower = earlier)">
+            <input
+              value={form.display_order}
+              onChange={(e) => setForm({ ...form, display_order: e.target.value })}
+              placeholder="empty = unordered"
+              className="w-full px-3 py-1.5 rounded-md border border-black/10 bg-white"
+            />
+          </Field>
+
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={form.featured} onChange={(e) => setForm({ ...form, featured: e.target.checked })} />
+              <span>Featured (always sorted first)</span>
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={form.hidden} onChange={(e) => setForm({ ...form, hidden: e.target.checked })} />
+              <span>Hidden (not rendered on the public site)</span>
+            </label>
+          </div>
+
+          {err && <p className="text-sm text-red-600">Error: {err}</p>}
+
+          <div className="flex items-center gap-2 pt-4">
+            <button
+              type="button"
+              onClick={save}
+              disabled={busy}
+              className="flex-1 px-3 py-2 rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
+            >
+              {busy ? 'Saving…' : isNew ? 'Create' : 'Save'}
+            </button>
+            {!isNew && target.source === 'curated' && (
+              <button
+                type="button"
+                onClick={deleteRow}
+                disabled={busy}
+                className="px-3 py-2 rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 disabled:opacity-50"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="block mb-1 text-xs text-foreground/60">{label}</span>
+      {children}
+    </label>
   );
 }
 
