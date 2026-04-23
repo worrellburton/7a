@@ -1,15 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { faqCategories } from './faqData';
+import { faqCategories as allCategories, type FaqCategory } from './faqData';
 
 /**
  * FAQs — Category nav. Chip row of topic jump-links that scroll to
  * the matching <section id="category-<id>"> on the page. No sticky
  * behavior by default — it lives right under the hero so visitors
  * and LLMs can see the full topic inventory at a glance.
+ *
+ * Accepts an optional `categories` prop so the persona-tab container
+ * can narrow the chip list to just the categories that have questions
+ * for the active persona.
  */
-export default function FAQCategoryNav() {
+export default function FAQCategoryNav({ categories }: { categories?: FaqCategory[] }) {
+  const list = categories ?? allCategories;
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -22,6 +27,9 @@ export default function FAQCategoryNav() {
     io.observe(el);
     return () => io.disconnect();
   }, []);
+
+  const totalAnswers = list.reduce((n, c) => n + c.items.length, 0);
+  const topicNoun = list.length === 1 ? 'topic' : 'topics';
 
   return (
     <section
@@ -52,10 +60,10 @@ export default function FAQCategoryNav() {
             transition: 'all 0.85s cubic-bezier(0.16,1,0.3,1) 0.15s',
           }}
         >
-          Eight topics, {faqCategories.reduce((n, c) => n + c.items.length, 0)} answers.
+          {list.length} {topicNoun}, {totalAnswers} answer{totalAnswers === 1 ? '' : 's'}.
         </h2>
         <ul className="flex flex-wrap gap-2.5">
-          {faqCategories.map((c, i) => (
+          {list.map((c, i) => (
             <li
               key={c.id}
               style={{

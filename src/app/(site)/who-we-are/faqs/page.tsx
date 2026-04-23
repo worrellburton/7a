@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
 
 import FAQHero from '@/components/faqs/FAQHero';
-import FAQCategoryNav from '@/components/faqs/FAQCategoryNav';
-import FAQCategorySection from '@/components/faqs/FAQCategorySection';
+import FAQPersonaView from '@/components/faqs/FAQPersonaView';
 import FAQIntake from '@/components/faqs/FAQIntake';
 import FAQCTA from '@/components/faqs/FAQCTA';
-import { faqCategories, allFaqs } from '@/components/faqs/faqData';
+import { allFaqs } from '@/components/faqs/faqData';
 
 export const metadata: Metadata = {
   title: 'FAQs | Arizona Drug & Alcohol Rehab — Seven Arrows Recovery',
@@ -106,10 +105,7 @@ export default function FAQsPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
       />
       <FAQHero />
-      <FAQCategoryNav />
-      {faqCategories.map((c) => (
-        <FAQCategorySection key={c.id} category={c} />
-      ))}
+      <FAQPersonaView />
       <FAQIntake />
       <FAQCTA />
     </main>

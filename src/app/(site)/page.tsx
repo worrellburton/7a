@@ -11,7 +11,7 @@ import Hero from "@/components/Hero";
 import PlaceToHeal from "@/components/PlaceToHeal";
 import ProgramSection from "@/components/ProgramSection";
 import TreatmentServices from "@/components/TreatmentServices";
-import StatsSection from "@/components/StatsSection";
+import HeroStatsBand from "@/components/HeroStatsBand";
 import InsuranceVerification from "@/components/InsuranceVerification";
 import InsuranceCarousel from "@/components/InsuranceCarousel";
 import CampusTour from "@/components/CampusTour";
@@ -196,7 +196,7 @@ export default function Home() {
       />
       <Hero />
       <AboutSection />
-      <StatsSection />
+      <HeroStatsBand />
       <PlaceToHeal />
       <ProgramSection />
       <TreatmentServices />
