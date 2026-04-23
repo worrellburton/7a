@@ -23,6 +23,66 @@ function rideableLabel(r: string | null): string | null {
   return r;
 }
 
+/**
+ * Branded SVG placeholder for horses whose portrait photo hasn't been
+ * uploaded yet. Shown in both the grid tile and the detail modal so
+ * the roster never has empty or flat-color slots. The silhouette is a
+ * single-stroke illustration on a warm gradient that sits in the same
+ * visual family as the rest of the ranch chrome.
+ */
+function HorsePlaceholder({ name }: { name: string }) {
+  return (
+    <div
+      className="absolute inset-0 flex items-center justify-center overflow-hidden"
+      aria-hidden="true"
+      style={{
+        background:
+          'linear-gradient(135deg, rgba(216,137,102,0.35) 0%, rgba(107,42,20,0.55) 55%, rgba(42,15,10,0.85) 100%)',
+      }}
+    >
+      {/* Soft radial highlight behind the silhouette */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 60% 50% at 50% 45%, rgba(255,237,220,0.25) 0%, rgba(255,237,220,0) 70%)',
+        }}
+      />
+      <svg
+        viewBox="0 0 160 160"
+        className="relative w-3/5 h-3/5 text-white/80"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {/* Horse head & neck silhouette — based on a classic right-
+            facing profile used in western ranch branding. */}
+        <path
+          d="M44 126 L44 96 C44 78 52 64 66 56 L72 46 C74 42 78 38 84 36 L92 34 C96 30 102 28 108 30 C114 32 118 36 120 42 L122 50 L128 54 L124 62 L120 60 L118 68 L112 74 L108 82 L108 96 L112 108 L108 120 L100 124 L92 122 L86 116 L82 112 L76 114 L72 122 L66 126 Z"
+          fill="rgba(255,255,255,0.18)"
+        />
+        {/* Eye */}
+        <circle cx="108" cy="54" r="1.4" fill="currentColor" stroke="none" />
+        {/* Mane suggestion */}
+        <path d="M70 58 L62 54 M68 64 L58 62 M68 72 L58 74" strokeOpacity="0.7" />
+      </svg>
+      {/* Tiny footer stripe so the card feels intentional, not broken */}
+      <span
+        className="absolute bottom-[28%] text-[9px] tracking-[0.28em] uppercase font-bold text-white/70 px-2 py-0.5 rounded-full"
+        style={{
+          fontFamily: 'var(--font-body)',
+          background: 'rgba(0,0,0,0.22)',
+          backdropFilter: 'blur(4px)',
+        }}
+      >
+        {name} · portrait coming soon
+      </span>
+    </div>
+  );
+}
+
 export default function HorseGallery() {
   const [horses, setHorses] = useState<PublicHorse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +147,7 @@ export default function HorseGallery() {
                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               />
             ) : (
-              <div className="absolute inset-0 bg-primary/10" />
+              <HorsePlaceholder name={h.name} />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-4">
@@ -117,9 +177,11 @@ export default function HorseGallery() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative aspect-square md:aspect-auto md:min-h-full bg-warm-bg">
-              {selected.image_url && (
+              {selected.image_url ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={selected.image_url} alt={selected.name} className="absolute inset-0 w-full h-full object-cover" />
+              ) : (
+                <HorsePlaceholder name={selected.name} />
               )}
             </div>
             <div className="p-6 md:p-8 overflow-y-auto">
