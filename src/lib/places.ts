@@ -94,24 +94,29 @@ const FIELDS = [
   'opening_hours',
 ].join(',');
 
-export async function fetchPlaceDetails(): Promise<PlaceDetails | null> {
+export async function fetchPlaceDetails(
+  opts: { reviewsSort?: 'newest' | 'most_relevant'; cache?: boolean } = {},
+): Promise<PlaceDetails | null> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
     console.error('[places] GOOGLE_PLACES_API_KEY not set — review UI will render fallback values');
     return null;
   }
 
+  const reviewsSort = opts.reviewsSort ?? 'newest';
+  const useCache = opts.cache !== false;
+
   const url = new URL(PLACES_URL);
   url.searchParams.set('place_id', SEVEN_ARROWS_PLACE_ID);
   url.searchParams.set('fields', FIELDS);
-  url.searchParams.set('reviews_sort', 'newest');
+  url.searchParams.set('reviews_sort', reviewsSort);
   url.searchParams.set('language', 'en');
   url.searchParams.set('key', apiKey);
 
   try {
-    const res = await fetch(url.toString(), {
-      next: { revalidate: CACHE_SECONDS, tags: ['google-place'] },
-    });
+    const res = await fetch(url.toString(), useCache
+      ? { next: { revalidate: CACHE_SECONDS, tags: ['google-place'] } }
+      : { cache: 'no-store' });
     if (!res.ok) {
       console.error(`[places] HTTP ${res.status} from Places API — review UI will render fallback values`);
       return null;
