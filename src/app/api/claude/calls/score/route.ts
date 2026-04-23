@@ -261,8 +261,8 @@ async function scoreWithGeminiAudio(
   call: CallInput,
   audio: { buffer: Buffer; mediaType: string; bytes: number },
 ): Promise<{ result: ScoreResult; model: string } | { error: string }> {
-  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-  if (!apiKey) return { error: 'GOOGLE_API_KEY not configured' };
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { error: 'GEMINI_API_KEY not configured' };
 
   const model = process.env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL;
   const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
