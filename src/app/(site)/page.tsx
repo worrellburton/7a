@@ -15,7 +15,6 @@ import TreatmentServices from "@/components/TreatmentServices";
 import InsuranceVerification from "@/components/InsuranceVerification";
 import InsuranceCarousel from "@/components/InsuranceCarousel";
 import CampusTour from "@/components/CampusTour";
-import SevenArrowsExperience from "@/components/SevenArrowsExperience";
 
 import DailyLifeSection from "@/components/DailyLifeSection";
 import AboutSection from "@/components/AboutSection";
@@ -204,7 +203,6 @@ export default function Home() {
       <InsuranceCarousel />
       <DailyLifeSection />
       <GoogleReviewsCinema />
-      <SevenArrowsExperience />
       <InsuranceVerification />
       <BlogPreview />
       <FAQSection />
