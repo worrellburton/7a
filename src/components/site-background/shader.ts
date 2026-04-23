@@ -54,6 +54,41 @@ float sdDisc(vec2 p, float r) {
 
 const float TAU = 6.28318530718;
 
+// ── Cheap value-noise + 3-octave FBM ──────────────────────────────
+// Used as a slow, almost-imperceptible warm haze drifting across the
+// gradient. Three octaves keeps this affordable on mobile fragment
+// budgets while still giving us soft, organic banding.
+
+float hash21(vec2 p) {
+  // sin-based hash — not cryptographic, but visually stable enough
+  // for the low-amplitude haze layer.
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+float valueNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float a = hash21(i);
+  float b = hash21(i + vec2(1.0, 0.0));
+  float c = hash21(i + vec2(0.0, 1.0));
+  float d = hash21(i + vec2(1.0, 1.0));
+  vec2 u = f * f * (3.0 - 2.0 * f); // smoothstep
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float amp = 0.5;
+  for (int i = 0; i < 3; i++) {
+    v += amp * valueNoise(p);
+    p *= 2.07;       // slight irrational ratio so octaves don't align
+    amp *= 0.5;
+  }
+  return v;
+}
+
 void main() {
   // Center-anchored coordinates with aspect correction so the radial
   // hot-spot stays circular regardless of viewport shape.
@@ -135,6 +170,17 @@ void main() {
   // Clamp so overlapping bead halos don't compound past full intensity.
   beadMaskAcc = clamp(beadMaskAcc, 0.0, 1.0);
   col += C_AMBER * beadMaskAcc * 0.16;
+
+  // ── Atmospheric haze ──────────────────────────────────────────
+  // 3-octave FBM scrolled slowly along x — soft warm bands that
+  // drift across the screen like desert dust at dusk. Centered at 0
+  // (subtract 0.5) so it pulls some pixels brighter and others dimmer
+  // rather than just brightening everything.
+  vec2 nq = p * 1.6 + vec2(u_time * 0.018, u_time * 0.005);
+  float n = fbm(nq) - 0.5;
+  // Mute the haze near the page edges so vignette stays clean.
+  float edgeFade = 1.0 - smoothstep(0.55, 1.05, d);
+  col += C_HORIZON * n * 0.06 * edgeFade;
 
   // Soft gamma so on-brand warmth survives the canvas → display path.
   col = pow(col, vec3(0.92));
