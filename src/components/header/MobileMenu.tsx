@@ -8,12 +8,21 @@ import { useEffect, useRef, useState } from 'react';
  * header file can stay focused on the desktop mega-menu and this
  * component can own all mobile-specific behavior: scroll lock,
  * escape-to-close, click-outside, focus containment, and the
- * staggered/animated reveal of nav items.
+ * animated reveal of nav items.
  *
- * The nav tree itself is owned by the header and passed in as props
- * so that both surfaces stay in lockstep. The icon map is similarly
- * injected so the mobile drawer can render the same iconography as
- * the desktop mega menu without duplicating the map.
+ * Open/close choreography:
+ *
+ *   `open` prop          -> parent's source of truth
+ *   `mounted`  state     -> whether the panel element is in the DOM
+ *   `showing`  state     -> whether the panel is in its "visible"
+ *                           visual state (triggers the CSS transition)
+ *
+ * When `open` flips to true we mount the panel in its "hidden"
+ * visual state, then flip `showing` true on the next frame so the
+ * browser has committed the hidden frame before animating. When
+ * `open` flips to false we flip `showing` back to false and keep
+ * the element mounted through the closing transition, unmounting
+ * only once the transition has ended.
  */
 
 export interface MobileNavDropdownItem {
@@ -30,6 +39,10 @@ export interface MobileNavItem {
   dropdown?: MobileNavDropdownItem[];
 }
 
+const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
+const OPEN_DURATION = 360;
+const CLOSE_DURATION = 240;
+
 export default function MobileMenu({
   open,
   onClose,
@@ -44,6 +57,23 @@ export default function MobileMenu({
   const [expanded, setExpanded] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // Two-phase mount state — see component-level comment.
+  const [mounted, setMounted] = useState(open);
+  const [showing, setShowing] = useState(false);
+
+  // Mount on open, then on the *next* frame flip to "showing" so the
+  // hidden pose paints first and the transition animates the delta.
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      const raf = requestAnimationFrame(() => setShowing(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    setShowing(false);
+    const t = setTimeout(() => setMounted(false), CLOSE_DURATION);
+    return () => clearTimeout(t);
+  }, [open]);
+
   // Collapse any expanded section whenever the drawer closes so the
   // next open starts from the clean "everything collapsed" state.
   useEffect(() => {
@@ -54,14 +84,14 @@ export default function MobileMenu({
   // while the drawer is visible. Restores the prior overflow value
   // on close (rather than assuming the site default was 'visible').
   useEffect(() => {
-    if (!open) return;
+    if (!mounted) return;
     const { body } = document;
     const prev = body.style.overflow;
     body.style.overflow = 'hidden';
     return () => {
       body.style.overflow = prev;
     };
-  }, [open]);
+  }, [mounted]);
 
   // Escape key closes the drawer. Attached at the document level so
   // it works regardless of which element currently has focus.
@@ -74,100 +104,124 @@ export default function MobileMenu({
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   const toggle = (label: string) => {
     setExpanded((curr) => (curr === label ? null : label));
   };
 
+  const duration = showing ? OPEN_DURATION : CLOSE_DURATION;
+
   return (
-    <div
-      className="lg:hidden pb-4 border-t border-gray-100"
-      role="menu"
-      ref={panelRef}
-      // Click-outside — when the user taps the drawer background
-      // behind the list we close. The nav items themselves stop
-      // propagation via their own onClick. We only treat the panel's
-      // direct background as "outside" by checking target === panel.
-      onClick={(e) => {
-        if (e.target === panelRef.current) onClose();
-      }}
-    >
-      <div className="pt-3 space-y-0.5">
-        {navLinks.map((item) => (
-          <div key={item.href}>
-            {item.dropdown ? (
-              <>
-                <button
-                  type="button"
-                  className="flex items-center justify-between w-full px-3 py-2.5 text-xs font-semibold tracking-wider uppercase text-foreground hover:text-primary"
+    <>
+      {/* Backdrop — dims the page below the header and captures
+          outside taps to close. Rendered as a sibling to the panel
+          rather than behind it so click targeting is unambiguous. */}
+      <div
+        aria-hidden="true"
+        onClick={onClose}
+        className="lg:hidden fixed inset-x-0 bottom-0 z-30"
+        style={{
+          top: 'var(--site-header-height, 68px)',
+          background: 'rgba(20, 10, 6, 0.45)',
+          opacity: showing ? 1 : 0,
+          transition: `opacity ${duration}ms ${EASE}`,
+          backdropFilter: 'blur(2px)',
+          WebkitBackdropFilter: 'blur(2px)',
+        }}
+      />
+
+      {/* The drawer itself — stays inline in the header layout for
+          simplicity but uses transform + opacity for its animation.
+          Scrolls internally if content exceeds viewport minus the
+          header chrome. */}
+      <div
+        ref={panelRef}
+        className="lg:hidden border-t border-gray-100 bg-white overflow-y-auto relative z-40"
+        role="menu"
+        style={{
+          maxHeight: `calc(100dvh - var(--site-header-height, 68px))`,
+          opacity: showing ? 1 : 0,
+          transform: showing ? 'translateY(0)' : 'translateY(-8px)',
+          transition: `opacity ${duration}ms ${EASE}, transform ${duration}ms ${EASE}`,
+        }}
+      >
+        <div className="pt-3 pb-4 space-y-0.5">
+          {navLinks.map((item) => (
+            <div key={item.href}>
+              {item.dropdown ? (
+                <>
+                  <button
+                    type="button"
+                    className="flex items-center justify-between w-full px-3 py-2.5 text-xs font-semibold tracking-wider uppercase text-foreground hover:text-primary"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                    onClick={() => toggle(item.label)}
+                    aria-expanded={expanded === item.label}
+                  >
+                    {item.label}
+                    <svg
+                      className={`w-3.5 h-3.5 transition-transform ${expanded === item.label ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {expanded === item.label && (
+                    <div className="bg-warm-bg">
+                      {item.dropdown.map((sub) => {
+                        const Icon = iconMap[sub.label];
+                        return (
+                          <Link
+                            key={sub.href}
+                            href={sub.href}
+                            className="flex items-center gap-2.5 px-5 py-2.5 text-sm text-foreground hover:text-primary border-b border-foreground/5 last:border-b-0"
+                            role="menuitem"
+                            onClick={onClose}
+                          >
+                            {Icon && (
+                              <div className="shrink-0 w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
+                                <Icon className="w-3 h-3 text-primary" />
+                              </div>
+                            )}
+                            <div>
+                              <div className="text-sm font-medium" style={{ fontFamily: 'var(--font-body)' }}>
+                                {sub.label}
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <Link
+                  href={item.href}
+                  className="block px-3 py-2.5 text-xs font-semibold tracking-wider uppercase text-foreground hover:text-primary"
                   style={{ fontFamily: 'var(--font-body)' }}
-                  onClick={() => toggle(item.label)}
-                  aria-expanded={expanded === item.label}
+                  role="menuitem"
+                  onClick={onClose}
                 >
                   {item.label}
-                  <svg
-                    className={`w-3.5 h-3.5 transition-transform ${expanded === item.label ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {expanded === item.label && (
-                  <div className="bg-warm-bg">
-                    {item.dropdown.map((sub) => {
-                      const Icon = iconMap[sub.label];
-                      return (
-                        <Link
-                          key={sub.href}
-                          href={sub.href}
-                          className="flex items-center gap-2.5 px-5 py-2.5 text-sm text-foreground hover:text-primary border-b border-foreground/5 last:border-b-0"
-                          role="menuitem"
-                          onClick={onClose}
-                        >
-                          {Icon && (
-                            <div className="shrink-0 w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
-                              <Icon className="w-3 h-3 text-primary" />
-                            </div>
-                          )}
-                          <div>
-                            <div className="text-sm font-medium" style={{ fontFamily: 'var(--font-body)' }}>
-                              {sub.label}
-                            </div>
-                          </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            ) : (
-              <Link
-                href={item.href}
-                className="block px-3 py-2.5 text-xs font-semibold tracking-wider uppercase text-foreground hover:text-primary"
-                style={{ fontFamily: 'var(--font-body)' }}
-                role="menuitem"
-                onClick={onClose}
-              >
-                {item.label}
-              </Link>
-            )}
+                </Link>
+              )}
+            </div>
+          ))}
+          <div className="px-3 pt-3">
+            <a
+              href="tel:+18669964308"
+              className="btn-primary w-full text-center flex items-center justify-center gap-2 text-xs py-3"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+              </svg>
+              (866) 996-4308
+            </a>
           </div>
-        ))}
-        <div className="px-3 pt-3">
-          <a
-            href="tel:+18669964308"
-            className="btn-primary w-full text-center flex items-center justify-center gap-2 text-xs py-3"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
-            </svg>
-            (866) 996-4308
-          </a>
         </div>
       </div>
-    </div>
+    </>
   );
 }
