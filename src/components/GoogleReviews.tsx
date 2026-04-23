@@ -3,31 +3,8 @@ import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import { GoogleReviewsList } from './GoogleReviewsList';
 import type { ReviewBubbleData } from './ReviewBubble';
 
-// Fallback reviews — render when Places API is unreachable (missing key,
-// quota exhausted, network blip) so the homepage never ships an empty
-// section. These match the previously hard-coded content; real Google
-// reviews take over whenever the API responds.
-const FALLBACK_REVIEWS: ReviewBubbleData[] = [
-  {
-    name: 'Michael T.',
-    date: '2 months ago',
-    rating: 5,
-    text: "Seven Arrows saved my life. The staff genuinely cares about every person who walks through the door. The small group setting made me feel like I wasn't just a number. The equine therapy and outdoor activities in the mountains were transformative. I'm 8 months sober now and I owe it to this incredible team.",
-  },
-  {
-    name: 'Sarah K.',
-    date: '3 months ago',
-    rating: 5,
-    text: 'My son attended Seven Arrows and the difference has been night and day. The communication from the clinical team was outstanding — they kept us informed every step of the way. The TraumAddiction approach helped him address things he\'d been carrying for years. We finally have our son back.',
-  },
-  {
-    name: 'James R.',
-    date: '1 month ago',
-    rating: 5,
-    text: "I've been to three other treatment centers before finding Seven Arrows. This place is different. The 6:1 staff ratio means you actually get attention. The therapists here don't just follow a script — they build real treatment plans. The setting at the base of the Swisshelm Mountains helped me find peace I didn't know was possible.",
-  },
-];
-
+// Real reviews only — no hardcoded fallback. Section renders nothing
+// if neither the DB cache nor live Places returns reviews.
 const FALLBACK_RATING = 4.9;
 const FALLBACK_TOTAL = 27;
 
@@ -48,16 +25,15 @@ export default async function GoogleReviews() {
   const liveReviews = place?.reviews ?? [];
   const sourcePool = cached.length > 0 ? cached : liveReviews;
 
-  const reviews: ReviewBubbleData[] =
-    sourcePool.length > 0
-      ? sourcePool.map((r) => ({
-          name: r.authorName,
-          date: r.relativeTime,
-          rating: r.rating,
-          text: r.text,
-          photoUrl: r.profilePhotoUrl,
-        }))
-      : FALLBACK_REVIEWS;
+  if (sourcePool.length === 0) return null;
+
+  const reviews: ReviewBubbleData[] = sourcePool.map((r) => ({
+    name: r.authorName,
+    date: r.relativeTime,
+    rating: r.rating,
+    text: r.text,
+    photoUrl: r.profilePhotoUrl,
+  }));
 
   const rating = place?.rating ?? FALLBACK_RATING;
   const total = place?.userRatingsTotal ?? FALLBACK_TOTAL;

@@ -13,12 +13,9 @@ import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import HeroStatsBandClient from './HeroStatsBandClient';
 import type { ReviewBubbleData } from './ReviewBubble';
 
-const FALLBACK_REVIEW: ReviewBubbleData = {
-  name: 'Michael T.',
-  date: '2 months ago',
-  rating: 5,
-  text: "Seven Arrows saved my life. The staff genuinely cares about every person who walks through the door. The small group setting made me feel like I wasn't just a number. I'm 8 months sober now and I owe it to this incredible team.",
-};
+// "Real reviews only" — no fabricated fallback. When neither the DB
+// cache nor the live Places call returns a review, the right-side
+// review card is simply not rendered (stats span the full width).
 
 const FALLBACK_RATING = 4.9;
 const FALLBACK_TOTAL = 27;
@@ -27,8 +24,8 @@ export default async function HeroStatsBand() {
   const place = await fetchPlaceDetails();
   const cached = await fetchCachedReviews({ minRating: 4, sort: 'newest', limit: 1 });
 
-  const featured = cached[0] ?? place?.reviews?.[0];
-  const review: ReviewBubbleData = featured
+  const featured = cached[0] ?? place?.reviews?.[0] ?? null;
+  const review: ReviewBubbleData | null = featured
     ? {
         name: featured.authorName,
         date: featured.relativeTime,
@@ -36,7 +33,7 @@ export default async function HeroStatsBand() {
         text: featured.text,
         photoUrl: featured.profilePhotoUrl,
       }
-    : FALLBACK_REVIEW;
+    : null;
 
   const rating = place?.rating ?? FALLBACK_RATING;
   const total = place?.userRatingsTotal ?? FALLBACK_TOTAL;

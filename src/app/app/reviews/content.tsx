@@ -204,13 +204,12 @@ export default function ReviewsContent() {
           placeholder="Search author or text…"
           className="ml-auto px-3 py-1.5 text-sm rounded-md border border-black/10 bg-white focus:outline-none focus:border-primary/50"
         />
-        <button
-          type="button"
-          onClick={() => setEditing('new')}
-          className="px-3 py-1.5 text-sm rounded-md bg-primary text-white hover:bg-primary/90"
-        >
-          + New
-        </button>
+        {/* Real-reviews-only policy: no + New button. Curated rows
+            stay in the DB (hidden) and are not creatable from the UI. */}
+      </div>
+
+      <div className="mb-4 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+        Real-reviews-only policy is active. Only Google reviews render on the public site. The 14 curated rows below are kept hidden for history; new curated reviews can't be created from this UI.
       </div>
 
       {loading && <p className="text-sm text-foreground/50">Loading…</p>}

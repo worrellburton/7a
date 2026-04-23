@@ -15,7 +15,6 @@ import DayOnTheRanch from '@/components/tour/DayOnTheRanch';
 import TheHorses from '@/components/tour/TheHorses';
 import NightSky from '@/components/tour/NightSky';
 import LiveReviewsBand from '@/components/LiveReviewsBand';
-import { tourVoicesFallback } from '@/components/tour/TourVoices';
 import TourCTA from '@/components/tour/TourCTA';
 
 export default function TourPage() {
@@ -53,7 +52,6 @@ export default function TourPage() {
         headlineLead="Alumni don't talk about"
         headlineAccent="the program"
         headlineTail={'. They talk about the land.'}
-        fallback={tourVoicesFallback}
       />
 
       {/* Phase 10 — closing cinematic CTA */}

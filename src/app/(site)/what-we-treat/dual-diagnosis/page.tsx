@@ -14,7 +14,6 @@ import ParallelVsIntegrated from '@/components/dual-diagnosis/ParallelVsIntegrat
 import IntegratedApproach from '@/components/dual-diagnosis/IntegratedApproach';
 import MedTherapySynergy from '@/components/dual-diagnosis/MedTherapySynergy';
 import TraumaLayer from '@/components/dual-diagnosis/TraumaLayer';
-import DualVoices from '@/components/dual-diagnosis/DualVoices';
 import DualCTA from '@/components/dual-diagnosis/DualCTA';
 
 export default function DualDiagnosisPage() {
@@ -65,8 +64,11 @@ export default function DualDiagnosisPage() {
       {/* Phase 8 — trauma-informed layer */}
       <TraumaLayer />
 
-      {/* Phase 9 — dual-diagnosis alumni voices */}
-      <DualVoices />
+      {/* Phase 9 — dual-diagnosis alumni voices were hardcoded
+          fabricated quotes; removed under the real-reviews-only
+          policy. Restore via the public.google_reviews cache once the
+          BP API approval lands and we have enough verified
+          dual-diagnosis-relevant testimony. */}
 
       {/* Phase 10 — closing CTA */}
       <DualCTA />
