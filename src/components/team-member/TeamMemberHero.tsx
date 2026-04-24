@@ -77,7 +77,7 @@ export default function TeamMemberHero({ member }: { member: PublicTeamMember })
         className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
         style={{ paddingTop: 'calc(var(--site-header-height, 68px) + 3rem)' }}
       >
-        <div className="min-h-[75vh] lg:min-h-[82vh] pb-16 lg:pb-24 grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+        <div className="min-h-[55vh] sm:min-h-[70vh] lg:min-h-[82vh] pb-12 sm:pb-16 lg:pb-24 grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
           {/* Portrait */}
           <div
             className="lg:col-span-5 order-1 lg:order-1"
