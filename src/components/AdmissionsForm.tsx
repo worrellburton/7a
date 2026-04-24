@@ -6,11 +6,15 @@ import { compressImage } from '@/lib/upload';
 
 type CardSide = 'front' | 'back';
 
-// Upload a single card photo to the private `vob-cards` bucket using
-// the anon key. Storage RLS allows anon INSERT on this bucket only.
-// Returns the storage path on success — the admin VOBs page resolves
-// it to a short-lived signed URL when rendering thumbnails.
-async function uploadCard(file: File, side: CardSide): Promise<string | null> {
+// Upload a single card photo to the private `vob-cards` bucket. The
+// bucket's storage RLS allows public INSERT (anon + authenticated).
+// Returns either the storage path on success or the underlying error
+// message — the form bubbles failures up to the visitor instead of
+// dropping them silently like the previous implementation did.
+async function uploadCard(
+  file: File,
+  side: CardSide,
+): Promise<{ path: string | null; error: string | null }> {
   // Compress images aggressively so phone-sized JPEGs stay under the
   // bucket's 10 MB cap. PDFs pass through unchanged.
   const prepared = file.type.startsWith('image/') ? await compressImage(file, { maxEdge: 1800, targetBytes: 2 * 1024 * 1024 }) : file;
@@ -24,9 +28,9 @@ async function uploadCard(file: File, side: CardSide): Promise<string | null> {
   });
   if (error) {
     console.error(`[AdmissionsForm] upload (${side}) failed:`, error.message);
-    return null;
+    return { path: null, error: error.message };
   }
-  return path;
+  return { path, error: null };
 }
 
 interface FormState {
@@ -85,12 +89,20 @@ export default function AdmissionsForm() {
     setSubmitting(true);
     try {
       // Upload card photos to the `vob-cards` storage bucket first.
-      // Failures here are non-fatal — we still file the lead so the
-      // admissions team can call back and request the cards manually.
-      const [cardFrontPath, cardBackPath] = await Promise.all([
-        formData.cardFront ? uploadCard(formData.cardFront, 'front') : Promise.resolve(null),
-        formData.cardBack ? uploadCard(formData.cardBack, 'back') : Promise.resolve(null),
+      // Surface any storage error to the visitor before sending the
+      // form — silently dropping the photo (the old behavior) means
+      // the admissions team thinks they have a card and the visitor
+      // thinks the upload worked.
+      const [front, back] = await Promise.all([
+        formData.cardFront ? uploadCard(formData.cardFront, 'front') : Promise.resolve({ path: null, error: null }),
+        formData.cardBack ? uploadCard(formData.cardBack, 'back') : Promise.resolve({ path: null, error: null }),
       ]);
+      const uploadFailure = front.error || back.error;
+      if (uploadFailure) {
+        setUploadError(`Card photo upload failed (${uploadFailure}). Please try again or call (866) 996-4308.`);
+        setSubmitting(false);
+        return;
+      }
 
       const res = await fetch('/api/public/vob', {
         method: 'POST',
@@ -100,8 +112,8 @@ export default function AdmissionsForm() {
           phone: formData.phone,
           email: formData.email,
           insuranceProvider: formData.insuranceProvider,
-          cardFrontPath,
-          cardBackPath,
+          cardFrontPath: front.path,
+          cardBackPath: back.path,
         }),
       });
       if (!res.ok) {
