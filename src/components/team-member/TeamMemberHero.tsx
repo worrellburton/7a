@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { PublicTeamMember } from '@/lib/team';
-import SevenArrowsMark from './SevenArrowsMark';
 import { EASE_OUT_QUART, useReducedMotion } from './motion';
 
 /**
@@ -52,26 +51,6 @@ export default function TeamMemberHero({ member }: { member: PublicTeamMember })
             'radial-gradient(ellipse 55% 55% at 20% 30%, rgba(216,137,102,0.28) 0%, rgba(216,137,102,0) 60%), radial-gradient(ellipse 50% 50% at 85% 75%, rgba(107,42,20,0.35) 0%, rgba(107,42,20,0) 55%)',
         }}
       />
-
-      {/* Ambient Seven Arrows mark — pinned far right, slow rotation,
-          cropped by overflow. Adds quiet brand presence without
-          competing with the portrait or type. */}
-      <div
-        aria-hidden="true"
-        className="absolute pointer-events-none hidden md:block"
-        style={{
-          right: '-120px',
-          top: '12%',
-          opacity: show ? 0.16 : 0,
-          transform: show ? 'scale(1)' : 'scale(0.92)',
-          transformOrigin: 'center',
-          transition: `opacity 1.6s ${EASE_OUT_QUART} 0.3s, transform 1.6s ${EASE_OUT_QUART} 0.3s`,
-          animation: reduced ? undefined : 'sa-hero-spin 80s linear infinite',
-        }}
-      >
-        <style>{`@keyframes sa-hero-spin { from { rotate: 0deg } to { rotate: 360deg } }`}</style>
-        <SevenArrowsMark size={540} animated={false} tone="white" />
-      </div>
 
       <div
         className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
