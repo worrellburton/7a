@@ -11,7 +11,7 @@
  *     by freezing the pan/zoom (but still crossfades gently).
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 /* ── Hero slide deck ────────────────────────────────────────────── */
@@ -265,6 +265,113 @@ function AnimatedLogo() {
   );
 }
 
+/* ── Phase 4: Rotating quote / testimonial ribbon ───────────────── */
+
+interface QuoteBeat {
+  text: string;
+  attribution?: string;
+}
+
+// Evergreen lines — if supabase is unreachable (or no team member has
+// filled out `favorite_seven_arrows` yet), these keep the ribbon alive.
+const BASE_QUOTES: QuoteBeat[] = [
+  { text: 'Seven arrows. Seven virtues. One path home.', attribution: 'Seven Arrows Recovery' },
+  { text: 'Courage, Prudence, Fortitude, Justice, Faith, Hope, Love.', attribution: 'The seven virtues' },
+  { text: 'The horse will meet you exactly where you are.', attribution: 'Equine program' },
+  { text: 'You do not have to do this alone.', attribution: 'Welcome home' },
+];
+
+/**
+ * Pulls `favorite_seven_arrows` or `favorite_quote` from every public
+ * team member and rotates them alongside the evergreen lines. Each
+ * quote crossfades in/out on a 7s loop.
+ */
+function QuoteRibbon() {
+  const [quotes, setQuotes] = useState<QuoteBeat[]>(BASE_QUOTES);
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('full_name, favorite_quote, favorite_seven_arrows')
+          .eq('status', 'active')
+          .eq('public_team', true);
+        if (error) throw error;
+        if (cancelled || !data) return;
+        const teamQuotes = (data as { full_name: string | null; favorite_quote: string | null; favorite_seven_arrows: string | null }[])
+          .flatMap<QuoteBeat>((u) => {
+            const out: QuoteBeat[] = [];
+            if (u.favorite_seven_arrows && u.favorite_seven_arrows.trim()) {
+              out.push({ text: u.favorite_seven_arrows.trim(), attribution: u.full_name || undefined });
+            }
+            if (u.favorite_quote && u.favorite_quote.trim()) {
+              out.push({ text: u.favorite_quote.trim(), attribution: u.full_name || undefined });
+            }
+            return out;
+          });
+        // Interleave team quotes with base lines so visitors always see
+        // at least one brand voice before the next team voice arrives.
+        if (teamQuotes.length > 0) {
+          const mixed: QuoteBeat[] = [];
+          const maxLen = Math.max(teamQuotes.length, BASE_QUOTES.length);
+          for (let i = 0; i < maxLen; i++) {
+            if (teamQuotes[i]) mixed.push(teamQuotes[i]);
+            if (BASE_QUOTES[i]) mixed.push(BASE_QUOTES[i]);
+          }
+          setQuotes(mixed);
+        }
+      } catch {
+        // Silent — keep BASE_QUOTES.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      setIdx((i) => (i + 1) % quotes.length);
+    }, 7000);
+    return () => window.clearInterval(t);
+  }, [quotes.length]);
+
+  const current = quotes[idx % quotes.length] || quotes[0];
+
+  return (
+    <div
+      key={idx}
+      className="mt-1 mb-8 min-h-[4.5rem] animate-quote-in"
+      aria-live="polite"
+    >
+      <p
+        className="text-white/90 text-base sm:text-lg leading-snug font-light drop-shadow max-w-[28rem] mx-auto"
+        style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
+      >
+        &ldquo;{current.text}&rdquo;
+      </p>
+      {current.attribution && (
+        <p className="mt-2 text-[11px] uppercase tracking-[0.25em] text-white/60">
+          — {current.attribution}
+        </p>
+      )}
+      <style jsx global>{`
+        @keyframes quote-in {
+          0%   { opacity: 0; transform: translateY(6px); filter: blur(3px); }
+          35%  { opacity: 1; filter: blur(0); }
+          70%  { opacity: 1; }
+          100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+        .animate-quote-in { animation: quote-in 900ms cubic-bezier(.2,.7,.2,1) both; }
+        @media (prefers-reduced-motion: reduce) {
+          .animate-quote-in { animation: none !important; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 /* ── Phase 3: Staff & horse face mosaic ─────────────────────────── */
 
 interface FaceTile {
@@ -471,25 +578,14 @@ export default function LoginScreen({
 }: {
   onSignIn: () => void;
 }) {
-  // Phase 1 shell — subsequent phases will layer logo animation, avatar
-  // mosaic, quote ribbon, stats, and a delightful CTA on top.
-  const caption = useMemo(() => HERO_SLIDES[0].caption, []);
-
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-black">
       <HeroGallery />
       <FaceMarquee />
 
-      <div className="relative z-10 w-full max-w-sm mx-4 text-center pb-32 sm:pb-28">
+      <div className="relative z-10 w-full max-w-md mx-4 text-center pb-32 sm:pb-28">
         <AnimatedLogo />
-        {caption?.title && (
-          <p
-            className="text-white/90 text-lg font-light mb-10 drop-shadow-md"
-            style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
-          >
-            {caption.title}
-          </p>
-        )}
+        <QuoteRibbon />
         <button
           onClick={onSignIn}
           className="w-full flex items-center justify-center gap-3 bg-white hover:bg-white text-gray-900 rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-[0.99]"
