@@ -196,6 +196,166 @@ function scorePageForKeyword(page: CrawledPage, keyword: string): PageFit {
   };
 }
 
+export interface FitSuggestion {
+  /** Short heading the modal shows as the suggestion title. */
+  title: string;
+  /** One-sentence action the admin can take. */
+  detail: string;
+  /** Point value this suggestion would unlock (0 if already claimed). */
+  points: number;
+  /** True when the keyword already earns this signal's points. */
+  done: boolean;
+  /** Signal bucket for grouping / icon selection in the UI. */
+  signal: 'h1' | 'title' | 'url' | 'h2' | 'meta' | 'body';
+}
+
+export interface SuggestionInput {
+  keyword_text: string;
+  breakdown: FitBreakdown | null;
+  best_url: string | null;
+  best_h1: string | null;
+  best_title: string | null;
+}
+
+/**
+ * Turn a stored fit breakdown into an ordered list of concrete
+ * suggestions the admin can action. Every signal surfaces exactly one
+ * row: either a "done" checkmark with the points you've already
+ * banked, or an un-done row showing the points you'd gain by fixing
+ * it. The list is sorted by potential-gain desc so the biggest wins
+ * sit at the top of the modal.
+ */
+export function suggestionsForFit(input: SuggestionInput): FitSuggestion[] {
+  const { keyword_text, breakdown } = input;
+  const q = `"${keyword_text}"`;
+  const out: FitSuggestion[] = [];
+
+  // H1 — 40 pts
+  if (!breakdown || breakdown.matched.h1_exact) {
+    out.push({
+      title: breakdown?.matched.h1_exact ? 'H1 nails it' : 'Add H1 exact match',
+      detail: breakdown?.matched.h1_exact
+        ? `An H1 on-site already reads exactly "${input.best_h1 ?? keyword_text}". Keep it.`
+        : `Publish a page whose H1 is exactly ${q}. That single line is worth the most SEO weight on the page.`,
+      points: breakdown?.matched.h1_exact ? 40 : 40,
+      done: !!breakdown?.matched.h1_exact,
+      signal: 'h1',
+    });
+  } else if (breakdown.matched.h1_contains) {
+    out.push({
+      title: 'Tighten H1 to exact phrase',
+      detail: `Your best H1 contains every word of ${q} but not as a phrase. Rewriting it to include ${q} contiguously unlocks +15 pts.`,
+      points: 15,
+      done: false,
+      signal: 'h1',
+    });
+  } else {
+    out.push({
+      title: 'Add H1 exact match',
+      detail: `No H1 across the site matches ${q}. Put it at the top of a relevant page as the sole H1 — +40 pts.`,
+      points: 40,
+      done: false,
+      signal: 'h1',
+    });
+  }
+
+  // Title tag — 20 pts
+  if (!breakdown) {
+    out.push({ title: 'Add to <title> tag', detail: `Put ${q} inside the page <title>.`, points: 20, done: false, signal: 'title' });
+  } else if (breakdown.matched.title_exact) {
+    out.push({ title: 'Title tag matches', detail: `Page <title> contains ${q} as a phrase.`, points: 20, done: true, signal: 'title' });
+  } else if (breakdown.matched.title_contains) {
+    out.push({
+      title: 'Tighten title to exact phrase',
+      detail: `Title contains the words of ${q} but not as a phrase. Rewrite to include ${q} contiguously — +8 pts.`,
+      points: 8,
+      done: false,
+      signal: 'title',
+    });
+  } else {
+    out.push({
+      title: 'Add to <title> tag',
+      detail: `Page <title> has no match for ${q}. Edit the title tag (the one that shows in the browser tab + Google results) to include ${q} — +20 pts.`,
+      points: 20,
+      done: false,
+      signal: 'title',
+    });
+  }
+
+  // URL slug — 12 pts
+  if (!breakdown) {
+    out.push({ title: 'Use in URL slug', detail: `Slugify ${q} in the path.`, points: 12, done: false, signal: 'url' });
+  } else if (breakdown.matched.url_hit) {
+    out.push({ title: 'URL slug matches', detail: `The best page's slug contains all words of ${q}.`, points: 12, done: true, signal: 'url' });
+  } else {
+    out.push({
+      title: 'Use in URL slug',
+      detail: `Add ${q} to the page URL — e.g. /${keyword_text.toLowerCase().replace(/\s+/g, '-')}. +12 pts.`,
+      points: 12,
+      done: false,
+      signal: 'url',
+    });
+  }
+
+  // H2 — 10 pts
+  if (!breakdown) {
+    out.push({ title: 'Add a supporting H2', detail: `Include ${q} in at least one H2 heading.`, points: 10, done: false, signal: 'h2' });
+  } else if (breakdown.matched.h2_hit) {
+    out.push({ title: 'H2 supports the keyword', detail: `An H2 on the best page contains ${q}.`, points: 10, done: true, signal: 'h2' });
+  } else {
+    out.push({
+      title: 'Add a supporting H2',
+      detail: `No H2 on the best page contains the phrase. Add one sub-head that uses ${q} to reinforce topical focus — +10 pts.`,
+      points: 10,
+      done: false,
+      signal: 'h2',
+    });
+  }
+
+  // Meta description — 8 pts
+  if (!breakdown) {
+    out.push({ title: 'Work into meta description', detail: `Mention ${q} in the 150–160 char meta description.`, points: 8, done: false, signal: 'meta' });
+  } else if (breakdown.matched.meta_hit) {
+    out.push({ title: 'Meta description hits', detail: `Meta description contains ${q}.`, points: 8, done: true, signal: 'meta' });
+  } else {
+    out.push({
+      title: 'Work into meta description',
+      detail: `Meta description on the best page doesn't mention ${q}. Rewrite the 150–160 char snippet to include it naturally — +8 pts.`,
+      points: 8,
+      done: false,
+      signal: 'meta',
+    });
+  }
+
+  // Body — up to 5 pts
+  const occ = breakdown?.matched.body_occurrences ?? 0;
+  if (occ >= 3) {
+    out.push({ title: 'Body mentions look good', detail: `${q} appears ${occ} times in body copy.`, points: 5, done: true, signal: 'body' });
+  } else if (occ >= 1) {
+    out.push({
+      title: 'Bump body mentions to 3+',
+      detail: `${q} appears ${occ === 1 ? '1 time' : `${occ} times`} in body copy. Work it in a couple more times naturally to earn the full +5 — currently +3.`,
+      points: 2,
+      done: false,
+      signal: 'body',
+    });
+  } else {
+    out.push({
+      title: 'Mention in body copy',
+      detail: `Body copy never says ${q}. Use it 3+ times naturally — +5 pts.`,
+      points: 5,
+      done: false,
+      signal: 'body',
+    });
+  }
+
+  return out.sort((a, b) => {
+    // Un-done first, then by point value desc.
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return b.points - a.points;
+  });
+}
+
 export interface FitForKeywordArgs {
   keyword_id: string;
   keyword_text: string;
