@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/db';
 
@@ -21,10 +21,10 @@ interface FetchedRow {
  * 20260423_team_page_order.sql).
  *
  * UI choices:
- *   • Up / down arrows instead of native HTML drag-drop. Drag-drop is
- *     noticeably broken on touch screens without a polyfill and the
- *     ordering pool here tops out at ~30 rows — buttons are clearer
- *     and keyboard-accessible with no extra work.
+ *   • Native HTML5 drag-and-drop. The drop indicator shows where the
+ *     item will land based on cursor position within each target row
+ *     (upper half = above, lower half = below), and the dragged row
+ *     fades to half opacity until release.
  *   • Reset-to-default clears the override column for every visible
  *     row so the jobRank sort resumes.
  *   • Save is optimistic — we keep the previous order in state so a
@@ -62,6 +62,12 @@ export default function TeamPageOrderModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<OrderableMember[]>([]);
+  // Drag state. `dragIndex` is the index of the row currently being
+  // dragged; `overIndex` is the insertion point (0..members.length)
+  // computed from cursor position within the hovered row, so the
+  // indicator can render exactly where the dropped item will land.
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -125,14 +131,48 @@ export default function TeamPageOrderModal({
     };
   }, [open]);
 
-  function move(index: number, delta: -1 | 1) {
+  function resetDragState() {
+    setDragIndex(null);
+    setOverIndex(null);
+  }
+
+  function onDragStart(e: React.DragEvent<HTMLLIElement>, i: number) {
+    setDragIndex(i);
+    e.dataTransfer.effectAllowed = 'move';
+    // Required for Firefox to actually start the drag.
+    e.dataTransfer.setData('text/plain', String(i));
+  }
+
+  function onDragOverRow(e: React.DragEvent<HTMLLIElement>, i: number) {
+    if (dragIndex === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    const insertAt = e.clientY < midpoint ? i : i + 1;
+    setOverIndex((prev) => (prev === insertAt ? prev : insertAt));
+  }
+
+  function onDropRow(e: React.DragEvent<HTMLLIElement>) {
+    e.preventDefault();
+    if (dragIndex === null || overIndex === null) {
+      resetDragState();
+      return;
+    }
     setMembers((prev) => {
+      // No-op when the insertion point is the row's own position
+      // (above itself or directly below itself).
+      if (overIndex === dragIndex || overIndex === dragIndex + 1) return prev;
       const next = prev.slice();
-      const dest = index + delta;
-      if (dest < 0 || dest >= next.length) return prev;
-      [next[index], next[dest]] = [next[dest], next[index]];
+      const [moved] = next.splice(dragIndex, 1);
+      // If the item came from above the insertion point, removing
+      // it shifts every later index down by one — so the new
+      // insertion index has to compensate.
+      const insertAt = overIndex > dragIndex ? overIndex - 1 : overIndex;
+      next.splice(insertAt, 0, moved);
       return next;
     });
+    resetDragState();
   }
 
   async function save() {
@@ -240,67 +280,101 @@ export default function TeamPageOrderModal({
               No active, publicly-visible team members found.
             </div>
           ) : (
-            <ul className="space-y-1.5">
-              {members.map((m, i) => (
-                <li
-                  key={m.id}
-                  className="flex items-center gap-3 rounded-xl bg-warm-bg/60 border border-black/5 p-2.5"
-                >
-                  <span
-                    className="shrink-0 w-8 h-8 rounded-lg bg-white border border-black/10 flex items-center justify-center text-[11px] font-bold text-foreground/60 tabular-nums"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {i + 1}
-                  </span>
-                  {m.avatar_url ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={m.avatar_url}
-                      alt=""
-                      referrerPolicy="no-referrer"
-                      className="w-9 h-9 rounded-full object-cover"
+            <ul className="space-y-1.5" onDragLeave={(e) => {
+              // Only clear the indicator when the cursor leaves the
+              // entire list, not when crossing between sibling rows.
+              if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+              setOverIndex(null);
+            }}>
+              {members.map((m, i) => {
+                const isDragging = dragIndex === i;
+                const showIndicatorAbove = overIndex === i && dragIndex !== null && dragIndex !== i && dragIndex !== i - 1;
+                const showIndicatorBelow =
+                  i === members.length - 1 &&
+                  overIndex === members.length &&
+                  dragIndex !== null &&
+                  dragIndex !== i;
+                return (
+                  <Fragment key={m.id}>
+                    {/* Drop indicator above this row. Reserves no
+                        layout height when inactive so rows don't
+                        shift while dragging. */}
+                    <li
+                      aria-hidden="true"
+                      className={`h-0.5 -my-px rounded-full transition-colors ${
+                        showIndicatorAbove ? 'bg-primary' : 'bg-transparent'
+                      }`}
                     />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold">
-                      {m.full_name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">
-                      {m.full_name}
-                    </p>
-                    {m.job_title && (
-                      <p className="text-xs text-foreground/50 truncate" style={{ fontFamily: 'var(--font-body)' }}>
-                        {m.job_title}
-                      </p>
+                    <li
+                      draggable={!saving}
+                      onDragStart={(e) => onDragStart(e, i)}
+                      onDragOver={(e) => onDragOverRow(e, i)}
+                      onDrop={onDropRow}
+                      onDragEnd={resetDragState}
+                      className={`flex items-center gap-3 rounded-xl bg-warm-bg/60 border border-black/5 p-2.5 select-none transition-opacity ${
+                        isDragging ? 'opacity-40' : 'opacity-100'
+                      } ${saving ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
+                    >
+                      {/* Drag-handle grip — six dots, the conventional
+                          affordance for "this row is draggable". */}
+                      <span
+                        aria-hidden="true"
+                        className="shrink-0 w-5 flex items-center justify-center text-foreground/35"
+                        title="Drag to reorder"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <circle cx="9" cy="6" r="1.6" />
+                          <circle cx="15" cy="6" r="1.6" />
+                          <circle cx="9" cy="12" r="1.6" />
+                          <circle cx="15" cy="12" r="1.6" />
+                          <circle cx="9" cy="18" r="1.6" />
+                          <circle cx="15" cy="18" r="1.6" />
+                        </svg>
+                      </span>
+                      <span
+                        className="shrink-0 w-8 h-8 rounded-lg bg-white border border-black/10 flex items-center justify-center text-[11px] font-bold text-foreground/60 tabular-nums"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {i + 1}
+                      </span>
+                      {m.avatar_url ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={m.avatar_url}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          draggable={false}
+                          className="w-9 h-9 rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold shrink-0">
+                          {m.full_name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">
+                          {m.full_name}
+                        </p>
+                        {m.job_title && (
+                          <p className="text-xs text-foreground/50 truncate" style={{ fontFamily: 'var(--font-body)' }}>
+                            {m.job_title}
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                    {/* Trailing indicator only after the last row, so
+                        users can drop "to the very bottom". */}
+                    {i === members.length - 1 && (
+                      <li
+                        aria-hidden="true"
+                        className={`h-0.5 -my-px rounded-full transition-colors ${
+                          showIndicatorBelow ? 'bg-primary' : 'bg-transparent'
+                        }`}
+                      />
                     )}
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => move(i, -1)}
-                      disabled={i === 0 || saving}
-                      aria-label={`Move ${m.full_name} up`}
-                      className="w-8 h-8 rounded-lg border border-gray-200 text-foreground/60 hover:text-primary hover:border-primary/40 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed bg-white"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="18 15 12 9 6 15" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => move(i, 1)}
-                      disabled={i === members.length - 1 || saving}
-                      aria-label={`Move ${m.full_name} down`}
-                      className="w-8 h-8 rounded-lg border border-gray-200 text-foreground/60 hover:text-primary hover:border-primary/40 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed bg-white"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </button>
-                  </div>
-                </li>
-              ))}
+                  </Fragment>
+                );
+              })}
             </ul>
           )}
         </div>
