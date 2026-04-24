@@ -13,7 +13,10 @@ interface Params {
   params: Promise<{ slug: string }>;
 }
 
-export const revalidate = 300;
+// 60s ISR window — short enough that an admin reorder, photo
+// change, or bio edit shows up on the next page view rather than
+// after a long stale cache.
+export const revalidate = 60;
 
 export async function generateStaticParams() {
   try {
