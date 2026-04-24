@@ -1,17 +1,21 @@
 'use client';
 
-// Cinematic review carousel — full-bleed video backgrounds with the
-// review quote and author overlaid. Each slide cross-fades over the
-// next. Click left/right (or use arrow keys, or dot buttons) to cycle.
-// Auto-advances every ~9s when not paused (pauses on hover/focus and
-// when the tab is hidden).
+// Landing-page review carousel. Cursor-style pull quotes on a solid
+// dark frame: large sans-serif quote in curly marks, single muted
+// attribution line, no decorative flourishes.
+//
+// Controls: click arrows, dot buttons, or use arrow keys. Auto-advances
+// every ~9s when not paused (pauses on hover/focus and when the tab is
+// hidden).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReviewBubbleData } from './ReviewBubble';
 
 interface CarouselSlide {
   review: ReviewBubbleData;
-  videoUrl: string;
+  // Kept on the interface for backwards compatibility with upstream
+  // callers; the Cursor-style frame no longer renders per-slide video.
+  videoUrl?: string;
 }
 
 interface Props {
@@ -20,9 +24,9 @@ interface Props {
   autoplayMs?: number;
   /**
    * Optional overlay rendered at the top of the carousel, above the
-   * video. Used by the homepage to drop the "Real Stories of
-   * Recovery" section title directly onto the film frame instead of
-   * living in a separate strip above it.
+   * quote. Used by the homepage to drop the "Real Stories of Recovery"
+   * section title directly onto the frame instead of living in a
+   * separate strip above it.
    */
   header?: React.ReactNode;
 }
@@ -36,7 +40,6 @@ function clipQuote(text: string): { display: string; clipped: boolean } {
   const cleaned = text.replace(/\s+/g, ' ').trim();
   if (cleaned.length <= QUOTE_CAP) return { display: cleaned, clipped: false };
   const cut = cleaned.slice(0, QUOTE_CAP);
-  // Prefer a sentence ending if one is reasonably close to the cap.
   const sentenceEnd = Math.max(
     cut.lastIndexOf('. '),
     cut.lastIndexOf('! '),
@@ -47,45 +50,13 @@ function clipQuote(text: string): { display: string; clipped: boolean } {
   return { display: (space > 200 ? cut.slice(0, space) : cut) + '…', clipped: true };
 }
 
-// Length-scaled font size — short cinematic punchlines get the big
-// poster treatment; long reviews step down so the slide composes
-// cleanly without overflowing. Display-font editorial feel now; pushed
-// one notch larger across the board since the surrounding frame is
-// cinematic rather than a card.
+// Length-scaled sizing — short punchlines get the big poster treatment;
+// longer quotes step down to keep the slide composed on one screen.
 function quoteSizeClass(len: number): string {
   if (len <= 110) return 'text-3xl sm:text-4xl lg:text-5xl';
-  if (len <= 200) return 'text-2xl sm:text-3xl lg:text-4xl';
+  if (len <= 200) return 'text-2xl sm:text-3xl lg:text-[2.5rem]';
   if (len <= 280) return 'text-xl sm:text-2xl lg:text-3xl';
   return 'text-lg sm:text-xl lg:text-2xl';
-}
-
-function GoogleIcon({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-    </svg>
-  );
-}
-
-function Stars({ rating }: { rating: number }) {
-  return (
-    <div className="flex gap-0.5 sm:gap-1" aria-label={`${rating} out of 5 stars`}>
-      {[1, 2, 3, 4, 5].map((star) => (
-        <svg
-          key={star}
-          className={`w-4 h-4 sm:w-5 sm:h-5 ${star <= rating ? 'text-yellow-400 drop-shadow' : 'text-white/20'}`}
-          fill="currentColor"
-          viewBox="0 0 20 20"
-          aria-hidden="true"
-        >
-          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-        </svg>
-      ))}
-    </div>
-  );
 }
 
 function Chevron({
@@ -120,9 +91,6 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
   const [paused, setPaused] = useState(false);
   const total = slides.length;
   const containerRef = useRef<HTMLDivElement | null>(null);
-  // Track which video elements have actually started playing so we
-  // don't show a black flash before the first frame paints.
-  const [readyMap, setReadyMap] = useState<Record<number, boolean>>({});
 
   const go = useCallback(
     (next: number) => {
@@ -135,32 +103,23 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
   const next = useCallback(() => go(index + 1), [go, index]);
   const prev = useCallback(() => go(index - 1), [go, index]);
 
-  // Keyboard nav when the carousel is in viewport-focus.
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        next();
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        prev();
-      }
+      if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
     };
     node.addEventListener('keydown', onKey);
     return () => node.removeEventListener('keydown', onKey);
   }, [next, prev]);
 
-  // Pause autoplay when the tab is hidden so we don't burn frames in
-  // the background.
   useEffect(() => {
     const onVis = () => setPaused(document.hidden);
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
-  // Autoplay timer.
   useEffect(() => {
     if (autoplayMs <= 0 || paused || total <= 1) return;
     const id = window.setTimeout(next, autoplayMs);
@@ -170,35 +129,6 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
   if (total === 0) return null;
 
   return (
-    <>
-      {/* Diagonal reveal sweep — a soft transparent→opaque gradient is
-          dragged from top-left to bottom-right across the quote text,
-          gradually unveiling it. Pure CSS so there's no JS RAF cost
-          per frame. Falls back to fully visible text when the browser
-          doesn't support mask-image. */}
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-        .reveal-mask {
-          -webkit-mask-image: linear-gradient(115deg, black 0%, black 30%, transparent 70%, transparent 100%);
-                  mask-image: linear-gradient(115deg, black 0%, black 30%, transparent 70%, transparent 100%);
-          -webkit-mask-size: 220% 220%;
-                  mask-size: 220% 220%;
-          -webkit-mask-repeat: no-repeat;
-                  mask-repeat: no-repeat;
-          -webkit-mask-position: 100% 100%;
-                  mask-position: 100% 100%;
-        }
-        @keyframes reveal-sweep {
-          0%   { -webkit-mask-position: 100% 100%; mask-position: 100% 100%; }
-          100% { -webkit-mask-position: 0% 0%;     mask-position: 0% 0%; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .reveal-mask { -webkit-mask-image: none; mask-image: none; animation: none !important; }
-        }
-      `,
-        }}
-      />
     <div
       ref={containerRef}
       tabIndex={0}
@@ -210,20 +140,30 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
       className="relative w-full overflow-hidden bg-black focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-      style={{ aspectRatio: '16 / 9', minHeight: header ? '620px' : '520px' }}
+      style={{ minHeight: header ? '620px' : '480px' }}
     >
-      {/* Optional overlay header (section title, rating, etc.) layered
-          above every slide. Sits on top of the radial gradient so it
-          stays legible regardless of which video is running. */}
+      {/* Subtle radial lift so the quote sits on something softer than
+          pure black — still reads as Cursor-style "dark canvas" but
+          gives the composition a faint center of gravity. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse at 50% 45%, rgba(60,40,28,0.35) 0%, rgba(0,0,0,0.0) 60%)',
+        }}
+      />
+
       {header && (
         <div className="absolute top-0 inset-x-0 z-20 pt-10 lg:pt-14 px-4 sm:px-6 lg:px-8 pointer-events-none">
           {header}
         </div>
       )}
-      {/* Slides (stacked, cross-fade via opacity) */}
+
+      {/* Stacked slides, cross-fade via opacity. */}
       {slides.map((slide, i) => {
         const isActive = i === index;
-        const isReady = readyMap[i];
+        const { display } = clipQuote(slide.review.text);
         return (
           <div
             key={i}
@@ -234,47 +174,9 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
             }}
             aria-hidden={!isActive}
           >
-            {/* Background video. Muted+playsInline for autoplay on
-                iOS Safari. preload metadata only so we don't pay
-                bandwidth for slides the user never sees. */}
-            <video
-              className="absolute inset-0 w-full h-full object-cover"
-              src={slide.videoUrl}
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload={isActive || i === (index + 1) % total ? 'auto' : 'metadata'}
-              onCanPlay={() => setReadyMap((m) => (m[i] ? m : { ...m, [i]: true }))}
-              style={{
-                opacity: isReady ? 1 : 0,
-                transition: 'opacity 600ms ease',
-              }}
-              aria-hidden="true"
-            />
-
-            {/* Gradient stack — radial vignette + bottom-up dark
-                gradient so the quote is always legible regardless of
-                what the underlying video looks like. */}
-            <div
-              className="absolute inset-0"
-              aria-hidden="true"
-              style={{
-                background:
-                  'radial-gradient(ellipse at center, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.78) 100%), linear-gradient(180deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.05) 35%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.85) 100%)',
-              }}
-            />
-
-            {/* Quote overlay — editorial treatment: display-font italic
-                quote framed by two oversized decorative quote glyphs
-                (large display-font marks in the warm accent color,
-                pushed to quarter-opacity so they feel etched on the
-                frame rather than printed on it). A thin accent hairline
-                separates the quote from the author block so the
-                composition reads like a pull-quote on a poster. */}
-            <div className="relative z-10 h-full flex items-center justify-center px-6 sm:px-12 lg:px-24 pb-24 sm:pb-14 pt-52 sm:pt-44 lg:pt-32">
+            <div className="relative z-10 h-full flex items-center justify-center px-6 sm:px-12 lg:px-24 pb-24 pt-40 sm:pt-36 lg:pt-40">
               <div
-                className="relative w-full max-w-3xl text-center text-white"
+                className="w-full max-w-4xl text-center text-white"
                 style={{
                   transform: isActive ? 'translateY(0)' : 'translateY(12px)',
                   opacity: isActive ? 1 : 0,
@@ -282,154 +184,59 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
                     'opacity 700ms ease 120ms, transform 700ms cubic-bezier(0.22,1,0.36,1) 120ms',
                 }}
               >
-                {/* Oversized decorative opening quote — positioned
-                    behind-left of the text in the accent warm-orange.
-                    Hidden on small screens so the layout doesn't get
-                    cramped on phones. */}
-                <span
-                  aria-hidden="true"
-                  className="hidden sm:block absolute -top-12 -left-4 lg:-left-10 select-none leading-none text-[var(--color-accent,#d88966)]/30"
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 'clamp(6rem, 11vw, 11rem)',
-                  }}
+                <blockquote
+                  className={`${quoteSizeClass(display.length)} font-semibold leading-[1.25] tracking-tight text-white`}
+                  style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  &ldquo;
-                </span>
-                <span
-                  aria-hidden="true"
-                  className="hidden sm:block absolute -bottom-20 -right-4 lg:-right-10 select-none leading-none text-[var(--color-accent,#d88966)]/30"
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 'clamp(6rem, 11vw, 11rem)',
-                  }}
+                  <span aria-hidden="true" className="text-white/85">&ldquo;</span>
+                  {display}
+                  <span aria-hidden="true" className="text-white/85">&rdquo;</span>
+                </blockquote>
+
+                <p
+                  className="mt-8 text-sm sm:text-base text-white/55"
+                  style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  &rdquo;
-                </span>
-
-                <div className="relative">
-                  <div className="flex justify-center mb-6">
-                    <Stars rating={slide.review.rating} />
-                  </div>
-
-                  {(() => {
-                    const { display, clipped } = clipQuote(slide.review.text);
-                    return (
-                      <div
-                        className="reveal-mask"
-                        style={{
-                          animation: isActive
-                            ? 'reveal-sweep 7000ms cubic-bezier(0.22,1,0.36,1) forwards'
-                            : 'none',
-                        }}
-                      >
-                        <blockquote
-                          className={`${quoteSizeClass(display.length)} leading-[1.15] tracking-tight font-normal italic text-white`}
-                          style={{
-                            fontFamily: 'var(--font-display)',
-                            textShadow: '0 2px 24px rgba(0,0,0,0.55)',
-                          }}
-                        >
-                          {display}
-                        </blockquote>
-                        {clipped && (
-                          <a
-                            href="https://maps.google.com/?cid=4853411833030648789"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 mt-4 text-xs text-white/55 hover:text-white/90 underline decoration-white/30 hover:decoration-white/60 transition-colors tracking-wider"
-                            style={{ fontFamily: 'var(--font-body)' }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Read full review on Google
-                          </a>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Accent hairline between quote and author — warm
-                    gradient that fades into nothing on both ends so it
-                    reads as "pulled from a longer piece" rather than a
-                    box edge. */}
-                <div
-                  aria-hidden="true"
-                  className="mx-auto my-8 h-px w-24"
-                  style={{
-                    background:
-                      'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(216,137,102,0.85) 50%, rgba(255,255,255,0) 100%)',
-                  }}
-                />
-
-                <div className="flex flex-col items-center gap-2">
-                  {/* Reviewer avatar — Places photo if available, otherwise
-                      a brand-color initials disc. Small Google ribbon at
-                      the bottom-right matches the in-card review style. */}
-                  <div className="relative mb-1">
-                    {slide.review.photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={slide.review.photoUrl}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        className="w-14 h-14 rounded-full object-cover border-2 border-white/40 shadow-lg"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center text-white text-xl font-bold border-2 border-white/40 shadow-lg">
-                        {(slide.review.name || '?').trim().charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    {slide.review.source !== 'curated' && (
-                      <div className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5 shadow">
-                        <GoogleIcon className="w-3.5 h-3.5" />
-                      </div>
-                    )}
-                  </div>
-                  <p
-                    className="text-xl sm:text-2xl font-bold tracking-tight text-white"
-                    style={{ fontFamily: 'var(--font-display)' }}
-                  >
-                    {slide.review.name}
-                  </p>
-                  <p
-                    className="text-[10px] sm:text-[11px] tracking-[0.24em] uppercase font-semibold text-white/55"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {slide.review.source === 'curated'
-                      ? slide.review.date || 'Verified alum review'
-                      : `Verified Google review · ${slide.review.date}`}
-                  </p>
-                </div>
+                  <span aria-hidden="true" className="mr-2">&mdash;</span>
+                  <span className="text-white/75">{slide.review.name}</span>
+                  {slide.review.source !== 'curated' && (
+                    <>
+                      <span className="mx-2 text-white/30">·</span>
+                      <span>Verified Google review{slide.review.date ? ` · ${slide.review.date}` : ''}</span>
+                    </>
+                  )}
+                  {slide.review.source === 'curated' && slide.review.date && (
+                    <>
+                      <span className="mx-2 text-white/30">·</span>
+                      <span>{slide.review.date}</span>
+                    </>
+                  )}
+                </p>
               </div>
             </div>
           </div>
         );
       })}
 
-      {/* Prev / next arrows.
-          Mobile: pinned to the bottom corners of the carousel,
-          flanking the dots — `top-1/2` would land them right on the
-          quote text on phones where there's no horizontal margin
-          left for an off-quote position. sm+ restores the vertical-
-          center sides where there's room. */}
+      {/* Prev / next arrows. Mobile: pinned to bottom corners so they
+          don't overlap the quote. sm+ restores vertical-center sides. */}
       {total > 1 && (
         <>
           <button
             type="button"
             onClick={prev}
             aria-label="Previous review"
-            className="absolute bottom-4 left-4 sm:bottom-auto sm:top-1/2 sm:left-8 sm:-translate-y-1/2 z-20 w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white flex items-center justify-center transition-all hover:scale-105"
+            className="absolute bottom-4 left-4 sm:bottom-auto sm:top-1/2 sm:left-8 sm:-translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 backdrop-blur-md text-white flex items-center justify-center transition-all hover:scale-105"
           >
-            <Chevron direction="left" className="w-5 h-5 sm:w-7 sm:h-7" />
+            <Chevron direction="left" className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
           <button
             type="button"
             onClick={next}
             aria-label="Next review"
-            className="absolute bottom-4 right-4 sm:bottom-auto sm:top-1/2 sm:right-8 sm:-translate-y-1/2 z-20 w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white flex items-center justify-center transition-all hover:scale-105"
+            className="absolute bottom-4 right-4 sm:bottom-auto sm:top-1/2 sm:right-8 sm:-translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 backdrop-blur-md text-white flex items-center justify-center transition-all hover:scale-105"
           >
-            <Chevron direction="right" className="w-5 h-5 sm:w-7 sm:h-7" />
+            <Chevron direction="right" className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </>
       )}
@@ -447,17 +254,17 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
                   onClick={() => go(i)}
                   aria-label={`Go to review ${i + 1}`}
                   aria-current={active ? 'true' : 'false'}
-                  className="group h-2 rounded-full transition-all"
+                  className="group h-1.5 rounded-full transition-all"
                   style={{
-                    width: active ? '32px' : '8px',
-                    background: active ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.35)',
+                    width: active ? '28px' : '6px',
+                    background: active ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.3)',
                   }}
                 />
               );
             })}
           </div>
           <span
-            className="ml-2 text-white/70 text-xs tabular-nums"
+            className="ml-2 text-white/50 text-xs tabular-nums"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             {index + 1} / {total}
@@ -465,6 +272,5 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
         </div>
       )}
     </div>
-    </>
   );
 }
