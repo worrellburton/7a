@@ -225,12 +225,12 @@ export default function Hero() {
                 src={src.src}
                 alt={src.alt}
                 className="absolute inset-0 w-full h-full object-cover"
-                // object-position biased up-center keeps sky /
-                // mountain horizon visible on portrait crops of
-                // landscape photos (prevents the blurry-fur close-up
-                // that landed when a 16:9 image was cropped to a
-                // tight portrait slot).
-                style={{ objectPosition: 'center 30%' }}
+                // object-position biased below center so portrait
+                // mobile crops of these landscape photos show the
+                // subject (building, horses, group) instead of a
+                // ceiling of sky. 30% (sky-biased) rendered as an
+                // almost-blank blue portrait on mobile.
+                style={{ objectPosition: 'center 70%' }}
                 loading={i === 0 ? 'eager' : 'lazy'}
                 fetchPriority={i === 0 ? 'high' : 'auto'}
               />
