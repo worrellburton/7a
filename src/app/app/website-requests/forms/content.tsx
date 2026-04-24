@@ -3,21 +3,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 
+// Rows come from public.contact_submissions (master's table,
+// extended with source/consent/page_url/status columns in migration
+// 20260423/20260424). All four public forms flow here.
 interface Row {
   id: string;
   source: 'contact_page' | 'footer' | 'exit_intent' | 'other';
   first_name: string | null;
   last_name: string | null;
-  phone: string | null;
+  telephone: string | null;
   email: string | null;
   message: string | null;
   payment_method: string | null;
   consent: boolean;
   page_url: string | null;
+  referrer: string | null;
+  user_agent: string | null;
   status: string;
   notes: string | null;
-  received_at: string;
-  updated_at: string;
+  created_at: string;
 }
 
 type SourceFilter = 'all' | Row['source'];
@@ -118,22 +122,24 @@ export default function FormsContent() {
                           {r.payment_method}
                         </span>
                       )}
-                      {!r.consent && r.source === 'footer' && (
+                      {r.source === 'footer' && !r.consent && (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-red-50 text-red-700 border-red-200">
                           No consent
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-foreground/60 mt-0.5">
-                      {r.phone && <span>{r.phone}</span>}
-                      {r.phone && r.email && <span> · </span>}
+                      {r.telephone && <span>{r.telephone}</span>}
+                      {r.telephone && r.email && <span> · </span>}
                       {r.email && <span>{r.email}</span>}
                     </p>
                     {r.message && (
                       <p className="text-sm text-foreground/80 mt-2 whitespace-pre-wrap">{r.message}</p>
                     )}
-                    {r.page_url && (
-                      <p className="text-[11px] text-foreground/40 mt-1 truncate">From: {r.page_url}</p>
+                    {(r.page_url || r.referrer) && (
+                      <p className="text-[11px] text-foreground/40 mt-1 truncate">
+                        {r.page_url ? `From: ${r.page_url}` : `Referrer: ${r.referrer}`}
+                      </p>
                     )}
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -147,7 +153,7 @@ export default function FormsContent() {
                       {r.status}
                     </span>
                     <p className="text-[11px] text-foreground/50 mt-1">
-                      {new Date(r.received_at).toLocaleString('en-US', {
+                      {new Date(r.created_at).toLocaleString('en-US', {
                         month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                       })}
                     </p>

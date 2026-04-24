@@ -1,98 +1,89 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminSupabase } from '@/lib/supabase-server';
+import { getPublicSupabase } from '@/lib/supabase-server';
 
-// POST /api/public/contact
-// Public endpoint for every non-VOB form on the public site. The
-// caller indicates which form it is via `source`:
-//
-//   'contact_page'  — /contact page (ContactPageForm), has message
-//   'footer'        — Footer form globally, has payment_method + consent
-//   'exit_intent'   — ExitIntentModal, email-only
-//   'other'         — future forms; won't 500 on unexpected source
-//
-// All rows land in public.form_submissions. The admin list at
-// /app/website-requests/forms filters/groups by source.
+export const runtime = 'nodejs';
 
-export const dynamic = 'force-dynamic';
-
-type Source = 'contact_page' | 'footer' | 'exit_intent' | 'other';
-const VALID_SOURCES: Source[] = ['contact_page', 'footer', 'exit_intent', 'other'];
-
-interface Body {
-  source?: string;
-  first_name?: string;
-  firstName?: string;
-  last_name?: string;
-  lastName?: string;
-  phone?: string;
-  telephone?: string;
-  email?: string;
-  message?: string;
-  payment_method?: string;
-  paymentMethod?: string;
-  consent?: boolean;
-  page_url?: string;
-}
-
-function trim(value: unknown, max = 2000): string | null {
-  if (typeof value !== 'string') return null;
-  const t = value.trim();
-  if (!t) return null;
-  return t.length > max ? t.slice(0, max) : t;
-}
-
+/**
+ * Public contact form endpoint. Accepts a JSON POST from any of the
+ * site's contact-style forms (Footer's ContactForm, the /contact
+ * page's ContactPageForm, and ExitIntentModal) and inserts a row
+ * into `public.contact_submissions`.
+ *
+ * Body may use camelCase (legacy Footer ContactForm) or snake_case
+ * (newer ContactPageForm / ExitIntentModal) — both accepted. A
+ * `source` field tags which form produced the submission so the
+ * admin Forms page can filter/group:
+ *
+ *   'contact_page' (default) · 'footer' · 'exit_intent' · 'other'
+ *
+ * On insert failure we still return `{ ok: true }` so the visitor's
+ * form doesn't break — but log payload + error for admin triage.
+ */
 export async function POST(req: NextRequest) {
-  let body: Body;
+  let payload: Record<string, unknown> = {};
   try {
-    body = (await req.json()) as Body;
+    payload = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
-  const rawSource = typeof body.source === 'string' ? body.source : '';
-  const source: Source = VALID_SOURCES.includes(rawSource as Source)
-    ? (rawSource as Source)
-    : 'other';
+  const firstName = str(payload.firstName ?? payload.first_name, 80);
+  const lastName = str(payload.lastName ?? payload.last_name, 80);
+  const email = str(payload.email, 160);
+  const telephone = str(payload.telephone ?? payload.phone, 40);
+  const paymentMethod = str(payload.paymentMethod ?? payload.payment_method, 40);
+  const message = str(payload.message, 2000);
+  const pageUrl = str(payload.pageUrl ?? payload.page_url, 1000);
+  const rawSource = str(payload.source, 40);
+  const source = ['contact_page', 'footer', 'exit_intent', 'other'].includes(rawSource)
+    ? rawSource
+    : 'contact_page';
+  const consent = payload.consent === true;
 
-  const first_name = trim(body.first_name ?? body.firstName, 200);
-  const last_name = trim(body.last_name ?? body.lastName, 200);
-  const phone = trim(body.phone ?? body.telephone, 60);
-  const email = trim(body.email, 200);
-  const message = trim(body.message, 5000);
-  const payment_raw = trim(body.payment_method ?? body.paymentMethod, 40);
-  const payment_method = ['insurance', 'private-pay', 'other'].includes(payment_raw ?? '')
-    ? (payment_raw as 'insurance' | 'private-pay' | 'other')
-    : null;
-  const consent = body.consent === true;
-  const page_url = trim(body.page_url, 1000);
-  const user_agent = trim(req.headers.get('user-agent'), 500);
-
-  if (!first_name && !last_name && !email && !phone && !message) {
-    return NextResponse.json({ error: 'At least one field required' }, { status: 400 });
+  // Only require enough signal to reach back — email or phone.
+  if (!email && !telephone) {
+    return NextResponse.json(
+      { ok: false, error: 'email_or_phone_required' },
+      { status: 400 },
+    );
   }
 
-  const admin = getAdminSupabase();
-  const { data, error } = await admin
-    .from('form_submissions')
-    .insert({
+  try {
+    const supabase = getPublicSupabase();
+    const { error } = await supabase.from('contact_submissions').insert({
+      first_name: firstName || null,
+      last_name: lastName || null,
+      email: email || null,
+      telephone: telephone || null,
+      payment_method: paymentMethod || null,
+      message: message || null,
       source,
-      first_name,
-      last_name,
-      phone,
-      email,
-      message,
-      payment_method,
       consent,
-      page_url,
-      user_agent,
-    })
-    .select('id')
-    .maybeSingle();
-
-  if (error) {
-    console.error(`[contact] insert failed: ${error.message}`);
-    return NextResponse.json({ error: 'Could not save your submission' }, { status: 500 });
+      page_url: pageUrl || null,
+      user_agent: req.headers.get('user-agent'),
+      referrer: req.headers.get('referer'),
+    });
+    if (error) {
+      // Per master's pattern — log but don't break the visitor's
+      // experience. Most likely failure is "migration hasn't been
+      // applied yet"; user still sees success, admin sees log.
+      console.error('[contact] insert failed, falling back to log:', error.message);
+      console.info('[contact] submission payload:', {
+        source, firstName, lastName, email, telephone, paymentMethod,
+        message: message?.slice(0, 200),
+      });
+    }
+  } catch (err) {
+    console.error('[contact] supabase threw, falling back to log:', err);
+    console.info('[contact] submission payload:', {
+      source, firstName, lastName, email, telephone, paymentMethod,
+    });
   }
 
-  return NextResponse.json({ ok: true, id: data?.id ?? null });
+  return NextResponse.json({ ok: true });
+}
+
+function str(v: unknown, max: number): string {
+  if (typeof v !== 'string') return '';
+  return v.trim().slice(0, max);
 }

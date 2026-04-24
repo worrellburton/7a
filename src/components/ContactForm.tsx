@@ -144,9 +144,6 @@ export default function ContactForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitError(null);

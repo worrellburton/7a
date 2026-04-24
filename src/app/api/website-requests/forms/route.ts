@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
-// GET /api/website-requests/forms  — admin-only. Lists generic contact
-// submissions from public.form_submissions across all sources, newest
-// first. The UI groups/filters by source.
+// GET /api/website-requests/forms  — admin-only. Lists every contact
+// submission from public.contact_submissions (the table master
+// authored in migration 20260423_contact_submissions.sql, extended
+// by 20260424_website_requests.sql with source/consent/page_url).
 
 export const dynamic = 'force-dynamic';
 
@@ -16,9 +17,9 @@ export async function GET() {
 
   const admin = getAdminSupabase();
   const { data, error } = await admin
-    .from('form_submissions')
-    .select('id, source, first_name, last_name, phone, email, message, payment_method, consent, page_url, status, notes, received_at, updated_at')
-    .order('received_at', { ascending: false });
+    .from('contact_submissions')
+    .select('id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at')
+    .order('created_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ rows: data ?? [], total: data?.length ?? 0 });
