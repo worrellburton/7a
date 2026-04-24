@@ -3,6 +3,8 @@ import { getServerSupabase } from '@/lib/supabase-server';
 import { discoverSitemap } from '@/lib/seo/sitemap';
 import { crawlPage, type CrawledPage } from '@/lib/seo/crawl';
 import { crawlAll } from '@/lib/seo/runner';
+import { auditTitles } from '@/lib/seo/audits/title';
+import type { CategoryAudit } from '@/lib/seo/audits/types';
 
 // POST /api/seo/audit/run
 // Admin-only. Runs a full crawl + audit of the live marketing site and
@@ -29,6 +31,10 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const DEFAULT_ORIGIN = 'https://sevenarrowsrecoveryarizona.com';
+
+function severityRank(s: 'low' | 'medium' | 'high'): number {
+  return s === 'high' ? 3 : s === 'medium' ? 2 : 1;
+}
 
 export async function POST(req: Request) {
   const supabase = await getServerSupabase();
@@ -175,6 +181,35 @@ export async function POST(req: Request) {
       }
     : null;
 
+  // Per-category audits — phases 6+. Each function reads CrawledPages and
+  // returns a CategoryAudit. The aggregator (phase 17) combines them.
+  const categories: CategoryAudit[] = [];
+  if (crawl && crawl.pages.length > 0) {
+    categories.push(auditTitles(crawl.pages));
+  }
+
+  for (const cat of categories) {
+    if (cat.score >= 90 && cat.total > 0) {
+      strengths.push({
+        title: `${cat.label}: ${cat.score}/100`,
+        detail: cat.summary,
+      });
+    } else if (cat.total > 0) {
+      // Take the top issue (or pick one of a category's worst) as a teaser
+      // for the "What's not" panel. Phase 18 will rank these properly.
+      const worst = cat.issues
+        .slice()
+        .sort((a, b) => severityRank(b.severity) - severityRank(a.severity))[0];
+      issues.push({
+        title: `${cat.label}: ${cat.score}/100`,
+        detail: worst
+          ? `${cat.summary} Worst: ${worst.message}`
+          : cat.summary,
+        severity: cat.score < 60 ? 'high' : cat.score < 80 ? 'medium' : 'low',
+      });
+    }
+  }
+
   const crawlSummary = crawl
     ? {
         crawled: crawl.pages.length,
@@ -201,7 +236,7 @@ export async function POST(req: Request) {
     homepage: homepageSummary,
     crawl: crawlSummary,
     pages: [] as unknown[],
-    categories: {} as Record<string, unknown>,
+    categories,
     strengths,
     issues,
     notice:

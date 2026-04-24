@@ -3,6 +3,17 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
+interface CategoryAudit {
+  id: string;
+  label: string;
+  score: number;
+  weight: number;
+  passed: number;
+  total: number;
+  summary: string;
+  issues: { url: string; severity: 'low' | 'medium' | 'high'; message: string }[];
+}
+
 interface HomepageSummary {
   url: string;
   finalUrl: string;
@@ -50,7 +61,7 @@ interface AuditResult {
     avgFetchMs: number;
   } | null;
   pages: unknown[];
-  categories: Record<string, unknown>;
+  categories: CategoryAudit[];
   strengths: { title: string; detail: string }[];
   issues: { title: string; detail: string; severity: 'low' | 'medium' | 'high' }[];
   notice?: string;
@@ -155,6 +166,35 @@ export default function AuditContent() {
           )}
         </Panel>
       </div>
+
+      {result?.categories && result.categories.length > 0 ? (
+        <Panel title="Audit categories" className="mt-6">
+          <div className="space-y-2">
+            {result.categories.map((c) => (
+              <div
+                key={c.id}
+                className="flex items-baseline gap-3 border-b border-black/5 pb-2 last:border-b-0 last:pb-0"
+              >
+                <span className="min-w-[160px] text-sm font-semibold text-foreground">
+                  {c.label}
+                </span>
+                <span
+                  className={`min-w-[60px] text-sm font-bold ${
+                    c.score >= 90
+                      ? 'text-emerald-600'
+                      : c.score >= 70
+                        ? 'text-amber-600'
+                        : 'text-red-600'
+                  }`}
+                >
+                  {c.score}/100
+                </span>
+                <span className="text-xs text-foreground/60 flex-1">{c.summary}</span>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
 
       {result?.crawl ? (
         <Panel title="Crawl summary" className="mt-6">
