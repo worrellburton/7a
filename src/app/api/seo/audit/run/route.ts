@@ -8,6 +8,7 @@ import { auditMetaDescriptions } from '@/lib/seo/audits/meta';
 import { auditHeadings } from '@/lib/seo/audits/headings';
 import { auditCanonicals } from '@/lib/seo/audits/canonical';
 import { auditSocial } from '@/lib/seo/audits/social';
+import { auditSchema } from '@/lib/seo/audits/schema';
 import type { CategoryAudit } from '@/lib/seo/audits/types';
 
 // POST /api/seo/audit/run
@@ -194,6 +195,7 @@ export async function POST(req: Request) {
     categories.push(auditHeadings(crawl.pages));
     categories.push(auditCanonicals(crawl.pages));
     categories.push(auditSocial(crawl.pages));
+    categories.push(auditSchema(crawl.pages));
   }
 
   for (const cat of categories) {
