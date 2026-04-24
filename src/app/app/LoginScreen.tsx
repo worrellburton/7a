@@ -265,6 +265,157 @@ function AnimatedLogo() {
   );
 }
 
+/* ── Phase 8: Ambient ember + dust canvas ───────────────────────── */
+
+/**
+ * A light canvas layer that spawns warm dust motes and embers drifting
+ * up across the screen with a gentle horizontal wobble. On desktop the
+ * cursor acts as a soft repulsion field — nudges particles out of the
+ * way as it moves. Mobile skips the interaction handlers and runs a
+ * reduced particle count. `prefers-reduced-motion` disables the layer
+ * entirely (we return early, no canvas mounted).
+ */
+function AmbientParticles() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const reduceMotion = usePrefersReducedMotion();
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const isSmall = window.matchMedia('(max-width: 640px)').matches;
+    const COUNT = isSmall ? 28 : 60;
+
+    interface Mote {
+      x: number; y: number;
+      vx: number; vy: number;
+      r: number;
+      hue: 'ember' | 'dust';
+      phase: number;
+      life: number;
+    }
+
+    const motes: Mote[] = [];
+    let w = 0, h = 0;
+
+    const resize = () => {
+      w = window.innerWidth;
+      h = window.innerHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      ctx.scale(dpr, dpr);
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const rand = (a: number, b: number) => a + Math.random() * (b - a);
+    const spawn = (bottomOnly = false): Mote => ({
+      x: rand(0, w),
+      y: bottomOnly ? h + rand(0, 40) : rand(0, h),
+      vx: rand(-0.1, 0.1),
+      vy: rand(-0.45, -0.15),
+      r: rand(0.7, 2.4),
+      hue: Math.random() < 0.3 ? 'ember' : 'dust',
+      phase: Math.random() * Math.PI * 2,
+      life: 1,
+    });
+
+    for (let i = 0; i < COUNT; i++) motes.push(spawn());
+
+    // Cursor repulsion field (desktop only — mobile skips pointermove).
+    const pointer = { x: -9999, y: -9999, active: false };
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return;
+      pointer.x = e.clientX;
+      pointer.y = e.clientY;
+      pointer.active = true;
+    };
+    const onLeave = () => { pointer.active = false; };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointerleave', onLeave);
+
+    let raf = 0;
+    let last = performance.now();
+
+    const draw = (now: number) => {
+      const dt = Math.min(32, now - last); // clamp if tab was backgrounded
+      last = now;
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'lighter';
+
+      for (let i = 0; i < motes.length; i++) {
+        const m = motes[i];
+
+        // Sinusoidal wobble on the x-axis so motion doesn't look linear.
+        m.phase += dt * 0.0012;
+        m.x += m.vx + Math.sin(m.phase) * 0.25;
+        m.y += m.vy * (dt / 16);
+
+        // Cursor repulsion — only active on pointer devices.
+        if (pointer.active) {
+          const dx = m.x - pointer.x;
+          const dy = m.y - pointer.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < 14000) {
+            const d = Math.sqrt(d2) || 1;
+            const push = (1 - d / 120) * 0.8;
+            m.x += (dx / d) * push;
+            m.y += (dy / d) * push;
+          }
+        }
+
+        // Respawn when offscreen.
+        if (m.y < -20 || m.x < -20 || m.x > w + 20) {
+          motes[i] = spawn(true);
+          continue;
+        }
+
+        const alpha = m.hue === 'ember'
+          ? 0.6 + Math.sin(m.phase * 2) * 0.3
+          : 0.25 + Math.sin(m.phase) * 0.1;
+
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+        if (m.hue === 'ember') {
+          const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r * 4);
+          g.addColorStop(0, `rgba(255,210,150,${alpha})`);
+          g.addColorStop(0.45, `rgba(216,137,102,${alpha * 0.5})`);
+          g.addColorStop(1, 'rgba(188,107,74,0)');
+          ctx.fillStyle = g;
+        } else {
+          ctx.fillStyle = `rgba(245,240,230,${alpha})`;
+        }
+        ctx.fill();
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerleave', onLeave);
+    };
+  }, [reduceMotion]);
+
+  if (reduceMotion) return null;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="pointer-events-none absolute inset-0 z-[2]"
+      aria-hidden="true"
+    />
+  );
+}
+
 /* ── Phase 5: Heartbeat stat trio ───────────────────────────────── */
 
 interface StatPulse {
@@ -842,6 +993,7 @@ export default function LoginScreen({
       }}
     >
       <HeroGallery />
+      <AmbientParticles />
       <FaceMarquee />
 
       <div
