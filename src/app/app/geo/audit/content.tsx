@@ -52,6 +52,48 @@ interface MentionResult {
   error: string | null;
 }
 
+interface EngineScore {
+  engine: EngineId;
+  score: number;
+  total: number;
+  cited: number;
+  mentioned: number;
+  lostToCompetitor: number;
+  errors: number;
+}
+
+interface CategoryScore {
+  category: PromptCategory;
+  score: number;
+  total: number;
+  cited: number;
+  mentioned: number;
+}
+
+interface GeoScore {
+  score: number;
+  grade: 'F' | 'D' | 'C' | 'B' | 'A' | 'A+';
+  headline: string;
+  engines: EngineScore[];
+  categories: CategoryScore[];
+  competitorCitations: { name: string; count: number }[];
+  opportunityPrompts: {
+    promptId: string;
+    text: string;
+    category: PromptCategory;
+    priority: 1 | 2 | 3;
+    visibility: number;
+    impact: number;
+  }[];
+  wins: {
+    promptId: string;
+    text: string;
+    category: PromptCategory;
+    priority: 1 | 2 | 3;
+    visibility: number;
+  }[];
+}
+
 interface AuditResponse {
   ranAt: string;
   durationMs: number;
@@ -71,6 +113,7 @@ interface AuditResponse {
     brandMentioned: number;
     brandCited: number;
   };
+  score?: GeoScore;
   notice?: string;
 }
 
@@ -212,6 +255,7 @@ export default function AuditContent() {
 
       <ScoreCard
         summary={result?.summary ?? null}
+        score={result?.score ?? null}
         running={running}
         onRun={runAudit}
         ranAt={result?.ranAt ?? null}
@@ -241,6 +285,120 @@ export default function AuditContent() {
         <div className="mt-6 rounded-xl border border-black/10 bg-warm-bg/40 p-4 text-xs text-foreground/60">
           {result.notice}
         </div>
+      ) : null}
+
+      {result?.score && result.score.engines.length > 0 ? (
+        <Panel title="Visibility by engine" className="mt-6">
+          <div className="space-y-3">
+            {result.score.engines.map((e) => {
+              const color =
+                e.score >= 70
+                  ? 'bg-emerald-500'
+                  : e.score >= 40
+                    ? 'bg-amber-500'
+                    : 'bg-red-500';
+              const txt =
+                e.score >= 70
+                  ? 'text-emerald-600'
+                  : e.score >= 40
+                    ? 'text-amber-600'
+                    : 'text-red-600';
+              return (
+                <div
+                  key={e.engine}
+                  className="border-b border-black/5 pb-3 last:border-b-0 last:pb-0"
+                >
+                  <div className="flex items-baseline gap-3">
+                    <span className="min-w-[150px] text-sm font-semibold text-foreground">
+                      {ENGINE_LABELS[e.engine]}
+                    </span>
+                    <span className={`min-w-[60px] text-sm font-bold ${txt}`}>
+                      {e.score}/100
+                    </span>
+                    <span className="text-xs text-foreground/60 flex-1">
+                      {e.cited} cited · {e.mentioned} mentioned ·{' '}
+                      {e.lostToCompetitor} lost to competitor
+                      {e.errors > 0 ? ` · ${e.errors} errors` : ''}
+                    </span>
+                  </div>
+                  <div className="mt-2 ml-[150px] h-1.5 rounded-full bg-black/5 overflow-hidden">
+                    <div
+                      className={`h-full ${color}`}
+                      style={{ width: `${Math.max(2, e.score)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      ) : null}
+
+      {result?.score && result.score.categories.length > 0 ? (
+        <Panel title="Visibility by funnel category" className="mt-6">
+          <div className="space-y-3">
+            {result.score.categories
+              .slice()
+              .sort((a, b) => b.score - a.score)
+              .map((c) => {
+                const color =
+                  c.score >= 70
+                    ? 'bg-emerald-500'
+                    : c.score >= 40
+                      ? 'bg-amber-500'
+                      : 'bg-red-500';
+                const txt =
+                  c.score >= 70
+                    ? 'text-emerald-600'
+                    : c.score >= 40
+                      ? 'text-amber-600'
+                      : 'text-red-600';
+                return (
+                  <div
+                    key={c.category}
+                    className="border-b border-black/5 pb-3 last:border-b-0 last:pb-0"
+                  >
+                    <div className="flex items-baseline gap-3">
+                      <span className="min-w-[200px] text-sm font-semibold text-foreground">
+                        {CATEGORY_LABELS[c.category]}
+                      </span>
+                      <span className={`min-w-[60px] text-sm font-bold ${txt}`}>
+                        {c.score}/100
+                      </span>
+                      <span className="text-xs text-foreground/60 flex-1">
+                        {c.cited} / {c.total} cited · {c.mentioned} /{' '}
+                        {c.total} mentioned
+                      </span>
+                    </div>
+                    <div className="mt-2 ml-[200px] h-1.5 rounded-full bg-black/5 overflow-hidden">
+                      <div
+                        className={`h-full ${color}`}
+                        style={{ width: `${Math.max(2, c.score)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </Panel>
+      ) : null}
+
+      {result?.score && result.score.competitorCitations.length > 0 ? (
+        <Panel title="Who's winning our queries" className="mt-6">
+          <ul className="space-y-1 text-sm">
+            {result.score.competitorCitations.slice(0, 10).map((c) => (
+              <li
+                key={c.name}
+                className="flex items-baseline gap-3 border-b border-black/5 pb-1 last:border-b-0"
+              >
+                <span className="font-semibold text-foreground">{c.name}</span>
+                <span className="text-foreground/60 text-xs">
+                  cited in {c.count} answer{c.count === 1 ? '' : 's'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
       ) : null}
 
       {result?.engines && result.engines.length > 0 ? (
@@ -434,6 +592,7 @@ function EngineChip({
 
 function ScoreCard({
   summary,
+  score,
   running,
   onRun,
   ranAt,
@@ -443,6 +602,7 @@ function ScoreCard({
   estimatedMs,
 }: {
   summary: AuditResponse['summary'] | null;
+  score: GeoScore | null;
   running: boolean;
   onRun: () => void;
   ranAt: string | null;
@@ -452,18 +612,23 @@ function ScoreCard({
   estimatedMs: number;
 }) {
   const hasResult = summary != null && summary.total > 0;
-  const citeRate = hasResult ? summary!.brandCited / summary!.total : 0;
-  const mentionRate = hasResult ? summary!.brandMentioned / summary!.total : 0;
-  // Headline rate: mostly citation-driven, small bump from bare mentions.
-  const headlinePct = hasResult
-    ? Math.round((citeRate * 0.8 + mentionRate * 0.2) * 100)
-    : null;
+  // Prefer the weighted score from the aggregator. Fall back to a
+  // quick rate-based headline if we only have a legacy localStorage
+  // result with no `score` field yet.
+  const headlinePct = score?.score ?? (
+    hasResult
+      ? Math.round(
+          (summary!.brandCited / summary!.total) * 80 +
+          (summary!.brandMentioned / summary!.total) * 20,
+        )
+      : null
+  );
   const color =
     headlinePct == null
       ? 'text-foreground/30'
-      : headlinePct >= 60
+      : headlinePct >= 70
         ? 'text-emerald-600'
-        : headlinePct >= 30
+        : headlinePct >= 40
           ? 'text-amber-600'
           : 'text-red-600';
 
@@ -478,14 +643,18 @@ function ScoreCard({
         </div>
         <div className="text-[10px] font-semibold tracking-[0.22em] uppercase text-foreground/50 mt-2">
           visibility
+          {score?.grade ? (
+            <span className="ml-1 text-foreground/70">· {score.grade}</span>
+          ) : null}
         </div>
       </div>
       <div className="flex-1 min-w-0">
         <h2 className="text-base font-bold text-foreground mb-1">GEO visibility</h2>
         <p className="text-sm text-foreground/60">
-          {hasResult
-            ? `Cited on ${summary!.brandCited} / ${summary!.total} calls · mentioned on ${summary!.brandMentioned} / ${summary!.total}. Weighted 0-100 score lands in phase 10.`
-            : 'Weighted score across four AI answer engines. Rewards citations over bare mentions.'}
+          {score?.headline ??
+            (hasResult
+              ? `Cited on ${summary!.brandCited} / ${summary!.total} calls · mentioned on ${summary!.brandMentioned} / ${summary!.total}.`
+              : 'Weighted score across four AI answer engines. Citation position drives the score — first citation is worth 100, position 6+ is 60.')}
         </p>
         <button
           type="button"
