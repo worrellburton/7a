@@ -40,7 +40,21 @@ function lookup(map: RedirectMap, pathname: string): RedirectEntry | null {
 }
 
 export async function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
+  const { pathname, search, searchParams } = req.nextUrl;
+
+  // OAuth fallback: if Supabase's Site URL config ever drops a visitor
+  // back at the root with ?code=... (instead of /auth/callback), funnel
+  // the code through our real callback route so they still land on /app
+  // instead of stranding on the marketing homepage with a dangling code.
+  const oauthCode = searchParams.get('code');
+  if (oauthCode && !pathname.startsWith('/auth/')) {
+    const callback = req.nextUrl.clone();
+    callback.pathname = '/auth/callback';
+    if (!callback.searchParams.get('next')) {
+      callback.searchParams.set('next', '/app');
+    }
+    return NextResponse.redirect(callback);
+  }
 
   // Never redirect the admin surface, API, auth callback, Next
   // internals, or obvious static asset extensions.

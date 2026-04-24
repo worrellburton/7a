@@ -13,8 +13,8 @@ const offerings: Offering[] = [
   {
     tag: 'Weekly',
     title: 'Virtual alumni groups',
-    cadence: 'Thursdays, 7pm MT · on Zoom',
-    body: 'Facilitated alumni-only processing group — open to any alum at any stage of recovery. Drop in on the week that\'s hard, skip the week that isn\'t. Always the same facilitator.',
+    cadence: 'Mondays at 6pm (Arizona time)',
+    body: 'Facilitated alumni-only processing group — open to any alum at any stage of recovery. Attend when you need support, take space when you don’t. All meetings are consistently led by one of our Alumni Coordinators.',
   },
   {
     tag: 'Quarterly',
@@ -32,7 +32,7 @@ const offerings: Offering[] = [
     tag: 'Pairs',
     title: 'Peer mentorship',
     cadence: 'Matched pairs',
-    body: 'Alumni with longer recovery paired with newer alums for structured monthly check-ins. A real relationship with someone who has been exactly where you are, supported by a light clinical frame.',
+    body: 'Alumni with longer recovery paired with newer alums for structured monthly check-ins. A real relationship with someone who has been exactly where you are.',
   },
 ];
 

@@ -39,12 +39,12 @@ const components: Component[] = [
   },
   {
     title: 'Alumni program access',
-    body: 'Lifetime access to the alumni community: weekly virtual meetings, quarterly in-person reunion weekends, peer mentorship, and the private alumni app for day-to-day connection.',
+    body: 'Enjoy lifetime access to our alumni community with weekly virtual meetings, daily connection through our private app, in-person meetups, and an annual reunion at Seven Arrows.',
     glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><circle cx="16" cy="16" r="12" /><path d="M4 16h24" /><path d="M16 4c4 4 4 20 0 24" /><path d="M16 4c-4 4-4 20 0 24" /></svg>),
   },
   {
     title: 'Family plan',
-    body: 'If family was involved during treatment, aftercare extends to them: continued family support referrals, a family-support track in the alumni community, and guidance on boundaries and co-regulation.',
+    body: 'If family was involved during treatment, aftercare extends to them. We offer guidance and can connect them with resources to support ongoing growth and healing.',
     glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><path d="M16 27s-10-6-10-14a6 6 0 0 1 10-4 6 6 0 0 1 10 4c0 8-10 14-10 14z" /></svg>),
   },
 ];

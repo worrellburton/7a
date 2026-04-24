@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 
 const facts = [
-  { term: 'Alumni line', value: '24/7 phone line for alumni, families, and referrers — answered by someone who knew you during your stay whenever possible' },
+  { term: 'Alumni line', value: '24/7 phone line for alumni, families, and referrers — answered by experienced staff who understand our program and are here to help you navigate next steps.' },
   { term: 'Aftercare plan', value: 'Individualized, written plan built with your primary clinician before discharge — never boilerplate' },
   { term: 'Outreach check-ins', value: 'Scheduled check-ins from our discharge planner at 1 week, 2 weeks, 30, 60, and 90 days post-discharge — steady outreach without a clinician-driven schedule' },
   { term: 'Step-down', value: 'PHP, IOP, outpatient therapy, and sober-living referrals to vetted partners across Arizona and nationally' },
-  { term: 'Alumni community', value: 'Weekly virtual meetings, a private alumni app, quarterly reunion weekends on the ranch, and peer mentorship' },
-  { term: 'Re-admission', value: 'If you slip, call the alumni line. Re-admission is streamlined and every returning client gets a clinical review, not a sales call' },
+  { term: 'Alumni community', value: 'Weekly virtual meetings, a private alumni app (coming soon), quarterly local meetups in various cities and states, and a yearly reunion at Seven Arrows.' },
+  { term: 'Re-admission', value: 'If you slip, call the alumni line. Our experienced team is here to offer support, guidance, and resources to help you get back on track. If you decide to re-admit, we’ve got you — with a smooth, supportive, and streamlined process.' },
 ];
 
 export default function AlumniAtAGlance() {

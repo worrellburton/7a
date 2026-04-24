@@ -791,7 +791,7 @@ function FaceMarquee() {
               className="relative flex flex-col items-center shrink-0 group pointer-events-auto"
             >
               <div
-                className="relative h-14 w-14 sm:h-[4.5rem] sm:w-[4.5rem] rounded-full overflow-hidden ring-2 ring-white/70 ring-offset-2 ring-offset-black/30 shadow-[0_6px_18px_rgba(0,0,0,0.55)] transition-transform duration-300 group-hover:scale-110 face-tile-float"
+                className="relative h-14 w-14 sm:h-[4.5rem] sm:w-[4.5rem] rounded-full overflow-hidden ring-2 ring-white/60 shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition-transform duration-300 group-hover:scale-110 face-tile-float"
                 style={{ animationDelay: `${(i % 11) * 0.35}s` }}
               >
                 <img
