@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 import { discoverSitemap } from '@/lib/seo/sitemap';
 import { crawlPage, type CrawledPage } from '@/lib/seo/crawl';
 import { crawlAll } from '@/lib/seo/runner';
@@ -323,6 +323,29 @@ export async function POST(req: Request) {
         ? `Crawled ${crawlSummary.crawled} pages (${crawlSummary.ok} OK). Per-category audits + scoring land in phases 6–17.`
         : 'Crawl incomplete. Per-category audits + scoring land in phases 6–17.',
   };
+
+  // Persist this run to public.seo_audits for history + shared durability.
+  // Non-fatal: if the table isn't reachable or the write fails, we still
+  // return the computed result to the user. The admin client bypasses RLS.
+  try {
+    const admin = getAdminSupabase();
+    const { error: insertErr } = await admin.from('seo_audits').insert({
+      origin,
+      score: agg.score,
+      grade: agg.band,
+      payload: result,
+      duration_ms: result.durationMs,
+      ran_by: user.id,
+    });
+    if (insertErr) {
+      console.warn('[seo-audit] persist failed, returning anyway', insertErr.message);
+    }
+  } catch (err) {
+    console.warn(
+      '[seo-audit] persist threw, returning anyway',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 
   return NextResponse.json(result);
 }
