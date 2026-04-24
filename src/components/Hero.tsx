@@ -41,21 +41,24 @@ function HeroPayerLogo({ name, domain }: { name: string; domain: string }) {
 
 /* ── Media Sources ───────────────────────────────────────────────── */
 
-const CLOUDFLARE_CUSTOMER = 'customer-1sijhr9xl3yqixxu';
+interface HeroSource {
+  src: string;
+  label: string;
+  alt: string;
+}
 
-type HeroSource =
-  | { kind: 'cloudflare'; id: string; label: string }
-  | { kind: 'mp4'; url: string; label: string };
-
-// Backdrop rotation — every source fills the viewport and loops muted.
-// Cloudflare Stream sources use HLS; plain mp4s play directly.
+// Landing page hero — horizontally scrolling images instead of
+// cross-fading videos. object-cover on portrait mobile was cropping
+// into an unusable close-up; a scroll-snap band gives each image its
+// own panel, visitors swipe naturally, and auto-advance keeps the
+// section alive on desktop.
 const heroSources: HeroSource[] = [
-  { kind: 'cloudflare', id: '23efc2d576759452ccdf1a2b1813580a', label: 'Our Facility' },
-  {
-    kind: 'mp4',
-    url: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-videos/9c83abff-3c23-47a6-a407-467dd6d4dec4.mp4',
-    label: 'Swisshelm Mountains',
-  },
+  { src: '/images/facility-exterior-mountains.jpg',    label: 'The Ranch',         alt: 'Seven Arrows facility at the base of the Swisshelm Mountains' },
+  { src: '/images/horses-grazing.jpg',                  label: 'Equine Program',    alt: 'Horses grazing on the ranch' },
+  { src: '/images/covered-porch-desert-view.jpg',       label: 'Covered Porch',     alt: 'Covered porch with desert view' },
+  { src: '/images/group-sunset-desert.jpg',             label: 'Community',         alt: 'Group gathering in the desert at sunset' },
+  { src: '/images/common-area-living-room.jpg',         label: 'Residences',        alt: 'Common area living room' },
+  { src: '/images/group-gathering-pavilion.jpg',        label: 'Gathering Space',   alt: 'Group gathering in the pavilion' },
 ];
 
 /* ── Ticker Items ──────────────────────────────────────────────────── */
@@ -118,123 +121,39 @@ function TickerContent() {
   );
 }
 
-/* ── Cloudflare HLS slide ──────────────────────────────────────────── */
-
-function CloudflareSlide({ videoId, active }: { videoId: string; active: boolean }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<any>(null);
-  const [loaded, setLoaded] = useState(false);
-  const hlsUrl = `https://${CLOUDFLARE_CUSTOMER}.cloudflarestream.com/${videoId}/manifest/video.m3u8?clientBandwidthHint=10`;
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const onLoaded = () => setLoaded(true);
-
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = hlsUrl;
-      video.addEventListener('loadeddata', onLoaded, { once: true });
-    } else if (typeof (window as any).Hls !== 'undefined') {
-      const Hls = (window as any).Hls;
-      if (Hls.isSupported()) {
-        const hls = new Hls({ enableWorker: false, capLevelToPlayerSize: false });
-        hls.loadSource(hlsUrl);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, (_: unknown, data: { levels: unknown[] }) => {
-          hls.currentLevel = data.levels.length - 1;
-          onLoaded();
-        });
-        hlsRef.current = hls;
-      }
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js';
-      script.onload = () => {
-        const Hls = (window as any).Hls;
-        if (Hls && Hls.isSupported()) {
-          const hls = new Hls({ enableWorker: false, capLevelToPlayerSize: false });
-          hls.loadSource(hlsUrl);
-          hls.attachMedia(video);
-          hls.on(Hls.Events.MANIFEST_PARSED, (_: unknown, data: { levels: unknown[] }) => {
-            hls.currentLevel = data.levels.length - 1;
-            onLoaded();
-          });
-          hlsRef.current = hls;
-        }
-      };
-      document.head.appendChild(script);
-    }
-
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-    };
-  }, [hlsUrl]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (active) video.play().catch(() => {});
-    else video.pause();
-  }, [active, loaded]);
-
-  return (
-    <video
-      ref={videoRef}
-      muted
-      loop
-      playsInline
-      className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}
-    />
-  );
-}
-
-/* ── Plain mp4 slide ───────────────────────────────────────────────── */
-
-function Mp4Slide({ url, active }: { url: string; active: boolean }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (active) video.play().catch(() => {});
-    else video.pause();
-  }, [active, loaded]);
-
-  return (
-    <video
-      ref={videoRef}
-      src={url}
-      muted
-      loop
-      playsInline
-      preload="metadata"
-      onLoadedData={() => setLoaded(true)}
-      className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}
-    />
-  );
-}
-
 /* ── Hero Component ────────────────────────────────────────────────── */
 
 export default function Hero() {
   const [visible, setVisible] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
     return () => clearTimeout(timer);
   }, []);
 
+  // Auto-advance: scroll the horizontal track one viewport-width every
+  // 7 seconds. Loops back to the first slide after the last. Pauses
+  // while the user is interacting with the scroller (touch / drag).
   const startAutoPlay = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % heroSources.length);
-    }, 10000);
+      setActiveSlide((prev) => {
+        const next = (prev + 1) % heroSources.length;
+        const el = scrollRef.current;
+        if (el) el.scrollTo({ left: next * el.clientWidth, behavior: 'smooth' });
+        return next;
+      });
+    }, 7000);
+  }, []);
+
+  const stopAutoPlay = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -243,6 +162,28 @@ export default function Hero() {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [startAutoPlay]);
+
+  // Track active slide from user scroll so the dots + auto-advance
+  // stay in sync when the user manually swipes.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let frame: number | null = null;
+    const onScroll = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        if (!el.clientWidth) return;
+        const idx = Math.round(el.scrollLeft / el.clientWidth);
+        setActiveSlide((prev) => (prev === idx ? prev : idx));
+      });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, []);
 
   return (
     <section
@@ -253,24 +194,37 @@ export default function Hero() {
       // between the orange TopBar and the hero renders white.
       style={{ marginTop: 'calc(var(--site-header-height, 68px) * -1)' }}
     >
-      {/* Full-viewport video backdrop with text overlay. On mobile we use
+      {/* Full-viewport image backdrop with text overlay. On mobile we use
           svh (small viewport height) so mobile browser chrome collapsing
           doesn't leave a white gap under the hero. */}
       <div className="relative w-full min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] overflow-hidden bg-dark-section">
-        {/* Rotating video stack */}
-        {heroSources.map((src, i) => (
-          <div
-            key={i}
-            className={`absolute inset-0 transition-opacity duration-1000 ${i === activeSlide ? 'opacity-100 z-0' : 'opacity-0 z-0'}`}
-            aria-hidden={i !== activeSlide}
-          >
-            {src.kind === 'cloudflare' ? (
-              <CloudflareSlide videoId={src.id} active={i === activeSlide} />
-            ) : (
-              <Mp4Slide url={src.url} active={i === activeSlide} />
-            )}
-          </div>
-        ))}
+        {/* Horizontal scroll-snap band. Each slide fills the viewport,
+            snap-center keeps the active slide aligned, scrollbar is
+            hidden via Tailwind's 'hide-scrollbar' utility (or inline
+            scrollbarWidth:none for browsers that support it). Auto-
+            advance is driven by setActiveSlide → scrollTo() in the
+            effect above; manual swipe updates activeSlide via scroll
+            listener so everything stays in sync. */}
+        <div
+          ref={scrollRef}
+          className="absolute inset-0 z-0 flex overflow-x-auto snap-x snap-mandatory scroll-smooth"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          onPointerDown={stopAutoPlay}
+          onTouchStart={stopAutoPlay}
+        >
+          {heroSources.map((src, i) => (
+            <div key={i} className="relative w-full h-full flex-shrink-0 snap-center" aria-hidden={i !== activeSlide}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src.src}
+                alt={src.alt}
+                className="absolute inset-0 w-full h-full object-cover"
+                loading={i === 0 ? 'eager' : 'lazy'}
+                fetchPriority={i === 0 ? 'high' : 'auto'}
+              />
+            </div>
+          ))}
+        </div>
 
         {/* Uniform color wash — recovery.com uses a deep navy tint
             across the whole image so the hero reads as a single mood
