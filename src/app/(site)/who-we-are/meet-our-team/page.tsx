@@ -10,7 +10,6 @@ import PageHero from '@/components/PageHero';
 import Link from 'next/link';
 import TeamGrid from '@/components/TeamGrid';
 import MissionVision from '@/components/MissionVision';
-import TeamCompositionChart from '@/components/team/TeamCompositionChart';
 import TeamStatBand from '@/components/team/TeamStatBand';
 import TeamQuoteCarousel from '@/components/team/TeamQuoteCarousel';
 import HowWeHire from '@/components/team/HowWeHire';
@@ -58,8 +57,6 @@ export default async function MeetOurTeamPage() {
       />
 
       <MissionVision directorImage={directorImage} />
-
-      <TeamCompositionChart team={team} />
 
       <TeamStatBand team={team} />
 
