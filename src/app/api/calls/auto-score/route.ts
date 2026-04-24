@@ -12,6 +12,18 @@ import { getAdminSupabase, getUserFromRequest } from '@/lib/supabase-server';
 const BATCH = 10;
 const MAX_ATTEMPTS = 5;
 
+// CTM recordings can take several minutes to be transcoded after a
+// long call ends. We retry with exponential-ish backoff and only
+// fall through to a metadata-only score after AUDIO_MAX_RETRIES.
+// 5min, 15min, 30min, 60min, 120min, 240min ≈ ~7 hours total before
+// we accept the call will never get audio.
+const AUDIO_RETRY_BACKOFF_MIN = [5, 15, 30, 60, 120, 240];
+const AUDIO_MAX_RETRIES = AUDIO_RETRY_BACKOFF_MIN.length;
+function nextRetryAt(retryCount: number): string {
+  const idx = Math.min(retryCount, AUDIO_RETRY_BACKOFF_MIN.length - 1);
+  return new Date(Date.now() + AUDIO_RETRY_BACKOFF_MIN[idx] * 60_000).toISOString();
+}
+
 // Pull a usable error message out of the scoring response. Prefer
 // the JSON `error` / `detail` field; fall back to raw text.
 async function extractErrorText(res: Response): Promise<string> {
@@ -42,12 +54,15 @@ async function handle(req: NextRequest) {
   // Only pick calls whose audio URL is present — otherwise Gemini
   // can't score them properly. Calls without audio fall back to
   // Claude metadata scoring eventually once a user opens the page.
+  const nowIso = new Date().toISOString();
   const { data: queue, error } = await supabase
     .from('calls')
-    .select('ctm_id, caller_number_formatted, caller_number, receiving_number_formatted, tracking_number_formatted, direction, source, source_name, city, state, duration, talk_time, ring_time, called_at, tracking_label, audio_url, tag_list, status, voicemail, first_call, score_attempts')
+    .select('ctm_id, caller_number_formatted, caller_number, receiving_number_formatted, tracking_number_formatted, direction, source, source_name, city, state, duration, talk_time, ring_time, called_at, tracking_label, audio_url, tag_list, status, voicemail, first_call, score_attempts, audio_retry_count, audio_retry_after')
     .eq('needs_score', true)
     .lt('score_attempts', MAX_ATTEMPTS)
     .not('audio_url', 'is', null)
+    // Skip rows whose audio retry backoff hasn't elapsed yet.
+    .or(`audio_retry_after.is.null,audio_retry_after.lte.${nowIso}`)
     .order('called_at', { ascending: false })
     .limit(BATCH);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -86,6 +101,8 @@ async function handle(req: NextRequest) {
       first_call: c.first_call,
     };
 
+    const audioRetryCount = (c as { audio_retry_count?: number }).audio_retry_count ?? 0;
+    const exhaustedAudioRetries = audioRetryCount >= AUDIO_MAX_RETRIES;
     try {
       const res = await fetch(scoreUrl, {
         method: 'POST',
@@ -93,8 +110,31 @@ async function handle(req: NextRequest) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${expectedSecret ?? ''}`,
         },
-        body: JSON.stringify({ callId: c.ctm_id, call: callPayload }),
+        body: JSON.stringify({
+          callId: c.ctm_id,
+          call: callPayload,
+          // Permit metadata-only fallback once we've waited the
+          // full backoff window for the recording to appear.
+          allowMetadataFallback: exhaustedAudioRetries,
+        }),
       });
+      // Score endpoint returned 202: audio wasn't ready, recording
+      // is still transcoding on CTM's side. Bump the retry counter,
+      // schedule the next attempt, leave needs_score=true so we
+      // pick this row up again later.
+      if (res.status === 202) {
+        const nextCount = audioRetryCount + 1;
+        await supabase
+          .from('calls')
+          .update({
+            audio_retry_count: nextCount,
+            audio_retry_after: nextRetryAt(nextCount),
+            audio_last_error: 'audio not ready (202 from scorer)',
+            score_attempted_at: new Date().toISOString(),
+          })
+          .eq('ctm_id', c.ctm_id);
+        continue;
+      }
       if (!res.ok) {
         failed++;
         const errText = await extractErrorText(res);
@@ -109,7 +149,9 @@ async function handle(req: NextRequest) {
           .eq('ctm_id', c.ctm_id);
         continue;
       }
-      // Clear any prior error on a successful score.
+      // Clear any prior error on a successful score, plus the audio
+      // retry book-keeping (next time the row is re-scored we want
+      // a fresh retry budget).
       await supabase
         .from('calls')
         .update({
@@ -118,6 +160,9 @@ async function handle(req: NextRequest) {
           score_attempted_at: new Date().toISOString(),
           score_error: null,
           score_errored_at: null,
+          audio_retry_count: 0,
+          audio_retry_after: null,
+          audio_last_error: null,
         })
         .eq('ctm_id', c.ctm_id);
       processed++;
