@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
+import { discoverSitemap } from '@/lib/seo/sitemap';
 
 // POST /api/seo/audit/run
 // Admin-only. Runs a full crawl + audit of the live marketing site and
@@ -52,19 +53,61 @@ export async function POST(req: Request) {
 
   const startedAt = Date.now();
 
-  // Phase 2 stub. Phases 3+ replace these placeholder fields with real
-  // crawl + audit data.
+  let sitemap: {
+    url: string;
+    type: string;
+    urls: string[];
+    count: number;
+    childSitemaps: string[];
+    warnings: string[];
+  } | null = null;
+  const issues: { title: string; detail: string; severity: 'low' | 'medium' | 'high' }[] = [];
+  const strengths: { title: string; detail: string }[] = [];
+
+  try {
+    const sm = await discoverSitemap(origin);
+    sitemap = {
+      url: sm.url,
+      type: sm.type,
+      urls: sm.urls,
+      count: sm.urls.length,
+      childSitemaps: sm.childSitemaps,
+      warnings: sm.warnings,
+    };
+    if (sm.urls.length > 0) {
+      strengths.push({
+        title: 'Sitemap reachable',
+        detail: `${sm.urls.length} URLs discovered via ${sm.url}.`,
+      });
+    } else {
+      issues.push({
+        title: 'Sitemap returned no URLs',
+        detail: `Resolved to ${sm.url} but parsed 0 entries. Search engines cannot rely on the sitemap to discover content.`,
+        severity: 'high',
+      });
+    }
+  } catch (err) {
+    issues.push({
+      title: 'Sitemap missing',
+      detail: err instanceof Error ? err.message : String(err),
+      severity: 'high',
+    });
+  }
+
   const result = {
     origin,
     score: null as number | null,
     ranAt: new Date(startedAt).toISOString(),
     durationMs: Date.now() - startedAt,
-    sitemap: null as { url: string; urls: string[]; count: number } | null,
+    sitemap,
     pages: [] as unknown[],
     categories: {} as Record<string, unknown>,
-    strengths: [] as { title: string; detail: string }[],
-    issues: [] as { title: string; detail: string; severity: 'low' | 'medium' | 'high' }[],
-    notice: 'Audit runner scaffolded. Crawler + scoring land in phases 3–17.',
+    strengths,
+    issues,
+    notice:
+      sitemap && sitemap.count > 0
+        ? `Sitemap parsed (${sitemap.count} URLs). Per-page crawler + scoring land in phases 4–17.`
+        : 'Sitemap fetch incomplete. Per-page crawler + scoring land in phases 4–17.',
   };
 
   return NextResponse.json(result);
