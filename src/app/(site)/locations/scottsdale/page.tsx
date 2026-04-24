@@ -49,7 +49,6 @@ const insuranceProviders = [
   'UnitedHealthcare',
   'Tricare',
   'Beacon Health',
-  'Magellan Health',
   'First Health Network',
 ];
 
