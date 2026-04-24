@@ -50,6 +50,7 @@ const defaultPages: PageConfig[] = [
   { path: '/app/video', label: 'Video', adminOnly: false, section: 'nav', sort_order: 19, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
   { path: '/app/website-requests/vobs', label: 'VObs', adminOnly: true, section: 'nav', sort_order: 24, allowedDepartments: [], departmentId: null, navGroup: 'Website Requests' },
   { path: '/app/website-requests/forms', label: 'Forms', adminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null, navGroup: 'Website Requests' },
+  { path: '/app/website-requests/careers', label: 'Careers', adminOnly: true, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null, navGroup: 'Website Requests' },
   { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/reviews', label: 'Reviews', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },

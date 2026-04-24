@@ -8,7 +8,7 @@ const facts = [
   { term: 'The caseload', value: '6:1 client-to-staff ratio; primary clinicians carry small caseloads so the work stays deep' },
   { term: 'The team', value: 'Multi-disciplinary: LCSWs, LPCs, LMFTs, LISACs, RNs, psychiatric providers, BHTs, holistic practitioners, ceremony carriers' },
   { term: 'The compensation', value: 'Competitive salary, health/dental/vision, 401(k), PTO, CEU stipend, and continuing training built into the week' },
-  { term: 'How to apply', value: 'Email careers@sevenarrowsrecovery.com with a cover note — we respond to every applicant' },
+  { term: 'How to apply', value: 'Email info@sevenarrowsrecovery.com with a cover note — we respond to every applicant' },
 ];
 
 export default function CareersAtAGlance() {
