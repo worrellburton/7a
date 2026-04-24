@@ -176,7 +176,7 @@ export function HeroGallery({ onCaptionChange }: { onCaptionChange?: (c: HeroSli
  */
 function AnimatedLogo() {
   return (
-    <div className="relative mx-auto mb-6 h-28 w-28 flex items-center justify-center">
+    <div className="relative mx-auto mb-4 sm:mb-6 h-24 w-24 sm:h-28 sm:w-28 flex items-center justify-center">
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
         {Array.from({ length: 7 }).map((_, i) => (
           <span
@@ -198,7 +198,7 @@ function AnimatedLogo() {
         <img
           src="/images/logo.png"
           alt="Seven Arrows Recovery"
-          className="relative z-10 h-24 w-auto drop-shadow-2xl"
+          className="relative z-10 h-20 sm:h-24 w-auto drop-shadow-2xl"
         />
         <span
           className="pointer-events-none absolute inset-0 animate-logo-shimmer"
@@ -304,24 +304,24 @@ function StatPulseCard({ stat, index }: { stat: StatPulse; index: number }) {
   const n = useCountUp(stat.value, 1500, 400 + index * 200);
   return (
     <div
-      className="stat-pulse-card flex flex-col items-center px-3 sm:px-5"
+      className="stat-pulse-card flex flex-col items-center px-2.5 sm:px-5 min-w-[4.5rem]"
       style={{ animationDelay: `${300 + index * 150}ms` }}
     >
       <div className="flex items-baseline gap-0.5">
-        {stat.prefix && <span className="text-white/70 text-sm">{stat.prefix}</span>}
+        {stat.prefix && <span className="text-white/70 text-xs sm:text-sm">{stat.prefix}</span>}
         <span
-          className="text-white text-2xl sm:text-3xl font-semibold tabular-nums drop-shadow"
+          className="text-white text-xl sm:text-3xl font-semibold tabular-nums drop-shadow"
           style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
         >
           {n.toLocaleString()}
         </span>
-        {stat.suffix && <span className="text-white/80 text-sm sm:text-base">{stat.suffix}</span>}
+        {stat.suffix && <span className="text-white/80 text-xs sm:text-base">{stat.suffix}</span>}
       </div>
-      <div className="text-[10px] sm:text-[11px] uppercase tracking-[0.22em] text-white/70 mt-1">
+      <div className="text-[9px] sm:text-[11px] uppercase tracking-[0.2em] text-white/70 mt-1 leading-tight">
         {stat.label}
       </div>
       {stat.hint && (
-        <div className="text-[9px] text-white/40 mt-0.5">{stat.hint}</div>
+        <div className="hidden sm:block text-[9px] text-white/40 mt-0.5">{stat.hint}</div>
       )}
     </div>
   );
@@ -470,7 +470,7 @@ function QuoteRibbon() {
       aria-live="polite"
     >
       <p
-        className="text-white/90 text-base sm:text-lg leading-snug font-light drop-shadow max-w-[28rem] mx-auto"
+        className="text-white/90 text-sm sm:text-lg leading-snug font-light drop-shadow max-w-[28rem] mx-auto px-2"
         style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
       >
         &ldquo;{current.text}&rdquo;
@@ -594,19 +594,18 @@ function FaceMarquee() {
 
   return (
     <div
-      className="pointer-events-none absolute inset-x-0 bottom-6 z-[5] flex justify-center overflow-hidden"
+      className="pointer-events-none absolute inset-x-0 z-[5] flex justify-center overflow-hidden"
+      style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}
       aria-hidden="true"
     >
-      <div className="relative w-full max-w-5xl mx-auto px-4 animate-faces-fade-in">
-        {/* Edge fades so avatars dissolve into the hero instead of hard-
-            cropping at the viewport edge. */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-24 z-10"
-             style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.75), transparent)' }} />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-24 z-10"
-             style={{ background: 'linear-gradient(to left, rgba(0,0,0,0.75), transparent)' }} />
+      <div className="relative w-full max-w-5xl mx-auto px-2 sm:px-4 animate-faces-fade-in">
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-12 sm:w-24 z-10"
+             style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.8), transparent)' }} />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-12 sm:w-24 z-10"
+             style={{ background: 'linear-gradient(to left, rgba(0,0,0,0.8), transparent)' }} />
 
         <div
-          className="flex items-center gap-4 w-max face-marquee-track"
+          className="flex items-center gap-3 sm:gap-4 w-max face-marquee-track"
           style={{ animationDuration: `${seconds}s` }}
         >
           {loop.map((tile, i) => (
@@ -615,7 +614,7 @@ function FaceMarquee() {
               className="relative flex flex-col items-center shrink-0 group pointer-events-auto"
             >
               <div
-                className="relative h-14 w-14 sm:h-16 sm:w-16 rounded-full overflow-hidden ring-2 ring-white/40 shadow-lg transition-transform duration-300 group-hover:scale-110 face-tile-float"
+                className="relative h-11 w-11 sm:h-16 sm:w-16 rounded-full overflow-hidden ring-2 ring-white/40 shadow-lg transition-transform duration-300 group-hover:scale-110 face-tile-float"
                 style={{ animationDelay: `${(i % 11) * 0.35}s` }}
               >
                 <img
@@ -833,11 +832,27 @@ export default function LoginScreen({
   onSignIn: () => void;
 }) {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-black">
+    <div
+      className="w-full flex items-center justify-center relative overflow-hidden bg-black"
+      style={{
+        // `100svh` keeps the screen steady while iOS Safari's URL chrome
+        // slides — `min-h-screen` (=100vh) overshoots and leaves a black
+        // strip under the marquee.
+        minHeight: '100svh',
+      }}
+    >
       <HeroGallery />
       <FaceMarquee />
 
-      <div className="relative z-10 w-full max-w-md mx-4 text-center pb-32 sm:pb-28">
+      <div
+        className="relative z-10 w-full max-w-md mx-4 text-center"
+        style={{
+          // Reserve room for the marquee strip and respect the home
+          // indicator on notched devices.
+          paddingBottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))',
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+        }}
+      >
         <AnimatedLogo />
         <QuoteRibbon />
         <HeartbeatStats />
