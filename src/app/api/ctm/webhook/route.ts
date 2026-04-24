@@ -41,7 +41,25 @@ interface CtmWebhookPayload {
   country?: string;
   zip?: string;
   audio?: string;
+  audio_url?: string;
+  recording_url?: string;
+  recording?: { url?: string } | string | null;
   transcript_url?: string;
+}
+
+// CTM has shipped recordings under several field names over the
+// years; treat them all as equivalent. Same helper as in /ctm/sync.
+function pickRecordingUrl(c: CtmWebhookPayload): string | null {
+  const candidates: unknown[] = [
+    c.audio,
+    c.recording_url,
+    c.audio_url,
+    (c as { recording?: { url?: unknown } }).recording?.url,
+  ];
+  for (const v of candidates) {
+    if (typeof v === 'string' && v.trim().length > 0) return v;
+  }
+  return null;
 }
 
 function mapCall(c: CtmWebhookPayload, accountId: string | null) {
@@ -71,7 +89,7 @@ function mapCall(c: CtmWebhookPayload, accountId: string | null) {
     state: c.state ?? null,
     country: c.country ?? null,
     zip: c.zip ?? null,
-    audio_url: c.audio ?? null,
+    audio_url: pickRecordingUrl(c),
     transcript_url: c.transcript_url ?? null,
     raw: c as unknown as Record<string, unknown>,
     synced_at: new Date().toISOString(),

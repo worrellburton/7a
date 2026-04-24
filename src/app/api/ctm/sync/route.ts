@@ -18,6 +18,26 @@ const CTM_BASE = 'https://api.calltrackingmetrics.com/api/v1';
 const CALLS_PER_PAGE = 100;
 const DEFAULT_PAGE_CAP = 100; // 10k calls per invocation, then retry later
 
+// Normalise CTM's many possible recording-URL fields into one
+// canonical string. Different CTM API versions / plans have
+// returned the URL under any of: `audio`, `recording_url`,
+// `audio_url`, or a nested `recording.url`. The CRM UI shows the
+// recording (visible in the admin's screenshot of "audio 38:47"),
+// but our sync was only reading `audio`. Fall through every known
+// path so we capture it regardless of which shape CTM returns.
+function pickRecordingUrl(c: CtmCall): string | null {
+  const candidates: unknown[] = [
+    c.audio,
+    c.recording_url,
+    c.audio_url,
+    (c as { recording?: { url?: unknown } }).recording?.url,
+  ];
+  for (const v of candidates) {
+    if (typeof v === 'string' && v.trim().length > 0) return v;
+  }
+  return null;
+}
+
 interface CtmCall {
   id: number | string;
   called_at?: string;
@@ -44,6 +64,9 @@ interface CtmCall {
   country?: string;
   zip?: string;
   audio?: string;
+  audio_url?: string;
+  recording_url?: string;
+  recording?: { url?: string } | string | null;
   transcript_url?: string;
 }
 
@@ -122,7 +145,7 @@ function mapCall(c: CtmCall, accountId: string) {
     state: c.state ?? null,
     country: c.country ?? null,
     zip: c.zip ?? null,
-    audio_url: c.audio ?? null,
+    audio_url: pickRecordingUrl(c),
     transcript_url: c.transcript_url ?? null,
     raw: c as unknown as Record<string, unknown>,
     synced_at: new Date().toISOString(),
