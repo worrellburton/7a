@@ -12,7 +12,6 @@ import TourStats from "@/components/tour/TourStats";
 import PlaceToHeal from "@/components/PlaceToHeal";
 import ProgramSection from "@/components/ProgramSection";
 import TreatmentServices from "@/components/TreatmentServices";
-import InsuranceVerification from "@/components/InsuranceVerification";
 import InsuranceCarousel from "@/components/InsuranceCarousel";
 import CampusTour from "@/components/CampusTour";
 
@@ -202,7 +201,6 @@ export default function Home() {
       <InsuranceCarousel />
       <GoogleReviewsCinema />
       <DailyLifeSection />
-      <InsuranceVerification />
       <BlogPreview />
       <FAQSection />
     </>

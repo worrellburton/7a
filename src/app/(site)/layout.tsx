@@ -2,6 +2,7 @@ import TopBar from '@/components/TopBar';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import BeforeFooterCTA from '@/components/BeforeFooterCTA';
+import InsuranceVerification from '@/components/InsuranceVerification';
 import BottomTicker from '@/components/BottomTickerServer';
 import GoogleReviewsBadge from '@/components/GoogleReviewsBadge';
 import FloatingContactCTA from '@/components/FloatingContactCTA';
@@ -14,6 +15,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <Header />
       <main className="flex-1">{children}</main>
       <BeforeFooterCTA />
+      <InsuranceVerification />
       <Footer />
       <BottomTicker />
       <GoogleReviewsBadge />
