@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 
@@ -213,9 +213,98 @@ function CategoryCard({
   );
 }
 
-// ------------- VObs --------------------------------------------------------
+// ------------- Shared: responded state ------------------------------------
 
-interface VobRow {
+interface RespondedFields {
+  responded_at: string | null;
+  responded_by: string | null;
+  responder_name: string | null;
+}
+
+function formatRespondedAt(iso: string) {
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+  });
+}
+
+function useRespond(kind: 'vob' | 'contact') {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const respond = useCallback(async (id: string, clear = false): Promise<RespondedFields | null> => {
+    setBusyId(id);
+    try {
+      const res = await fetch('/api/website-requests/respond', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind, id, clear }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      return {
+        responded_at: json.responded_at ?? null,
+        responded_by: json.responded_by ?? null,
+        responder_name: json.responder_name ?? null,
+      };
+    } catch (e) {
+      console.error('respond failed', e);
+      return null;
+    } finally {
+      setBusyId(null);
+    }
+  }, [kind]);
+  return { respond, busyId };
+}
+
+function RespondedBadge({ respondedAt, responderName }: { respondedAt: string; responderName: string | null }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800"
+      title={`Responded ${formatRespondedAt(respondedAt)}${responderName ? ` by ${responderName}` : ''}`}
+    >
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+      </svg>
+      {responderName ?? 'Responded'} · {new Date(respondedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+    </span>
+  );
+}
+
+function RespondButton({
+  responded_at, responder_name, onClick, busy, compact = false,
+}: {
+  responded_at: string | null; responder_name: string | null;
+  onClick: () => void; busy: boolean; compact?: boolean;
+}) {
+  if (responded_at) {
+    return (
+      <div className={`flex ${compact ? 'flex-col items-end gap-0.5' : 'items-center gap-2'}`}>
+        <RespondedBadge respondedAt={responded_at} responderName={responder_name} />
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={busy}
+          className="text-[10px] text-foreground/50 underline decoration-dotted hover:text-foreground disabled:opacity-40"
+        >
+          {busy ? '…' : 'undo'}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-white px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary hover:text-white disabled:opacity-50 transition-colors"
+    >
+      {busy ? 'Saving…' : 'I responded'}
+    </button>
+  );
+}
+
+// ------------- VObs (spreadsheet view) ------------------------------------
+
+interface VobRow extends RespondedFields {
   id: string;
   full_name: string;
   phone: string | null;
@@ -232,6 +321,7 @@ function VobsPanel() {
   const [rows, setRows] = useState<VobRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { respond, busyId } = useRespond('vob');
 
   useEffect(() => {
     let cancelled = false;
@@ -252,45 +342,87 @@ function VobsPanel() {
     return () => { cancelled = true; };
   }, []);
 
+  async function handleRespond(id: string, alreadyResponded: boolean) {
+    const result = await respond(id, alreadyResponded);
+    if (!result) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
+  }
+
   return (
     <Section count={rows.length} loading={loading} error={error} emptyText="No VOB requests yet.">
-      <ul className="divide-y divide-black/5 border border-black/10 rounded-xl bg-white overflow-hidden">
-        {rows.map((r) => (
-          <li key={r.id} className="px-4 py-3">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="font-semibold text-foreground">{r.full_name}</p>
-                <p className="text-xs text-foreground/60 mt-0.5">
-                  {r.phone}{r.phone && r.email && ' · '}{r.email}
-                </p>
-                {r.insurance_provider && (
-                  <p className="text-sm text-foreground/80 mt-1">
-                    Insurance: <span className="font-medium">{r.insurance_provider}</span>
-                  </p>
-                )}
-                {r.notes && <p className="text-sm text-foreground/70 mt-1">{r.notes}</p>}
-                {(r.card_front_url || r.card_back_url) && (
-                  <div className="mt-3 flex items-center gap-2 flex-wrap">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/45">
-                      Insurance Card
-                    </p>
-                    {r.card_front_url && <CardThumb url={r.card_front_url} label="Front" />}
-                    {r.card_back_url && <CardThumb url={r.card_back_url} label="Back" />}
+      <div className="overflow-x-auto border border-black/10 rounded-xl bg-white">
+        <table className="w-full text-sm border-collapse">
+          <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
+            <tr>
+              <Th>Name</Th>
+              <Th>Contact</Th>
+              <Th>Insurance</Th>
+              <Th>Cards</Th>
+              <Th>Notes</Th>
+              <Th>Status</Th>
+              <Th>Received</Th>
+              <Th className="text-right">Responded</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-black/5">
+            {rows.map((r) => (
+              <tr key={r.id} className="align-top">
+                <Td>
+                  <p className="font-semibold text-foreground">{r.full_name}</p>
+                </Td>
+                <Td>
+                  <div className="text-xs text-foreground/70 space-y-0.5">
+                    {r.phone && <p>{r.phone}</p>}
+                    {r.email && <p className="truncate max-w-[220px]">{r.email}</p>}
                   </div>
-                )}
-              </div>
-              <RowMeta status={r.status} ts={r.received_at} />
-            </div>
-          </li>
-        ))}
-      </ul>
+                </Td>
+                <Td>{r.insurance_provider ?? <span className="text-foreground/40">—</span>}</Td>
+                <Td>
+                  {(r.card_front_url || r.card_back_url) ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {r.card_front_url && <CardThumb url={r.card_front_url} label="Front" />}
+                      {r.card_back_url && <CardThumb url={r.card_back_url} label="Back" />}
+                    </div>
+                  ) : (
+                    <span className="text-foreground/40">—</span>
+                  )}
+                </Td>
+                <Td>
+                  {r.notes ? (
+                    <span className="text-xs text-foreground/70 line-clamp-3 whitespace-pre-wrap">{r.notes}</span>
+                  ) : (
+                    <span className="text-foreground/40">—</span>
+                  )}
+                </Td>
+                <Td><StatusChip status={r.status} /></Td>
+                <Td>
+                  <span className="text-xs text-foreground/60 whitespace-nowrap">
+                    {new Date(r.received_at).toLocaleString('en-US', {
+                      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                    })}
+                  </span>
+                </Td>
+                <Td className="text-right">
+                  <RespondButton
+                    responded_at={r.responded_at}
+                    responder_name={r.responder_name}
+                    onClick={() => handleRespond(r.id, !!r.responded_at)}
+                    busy={busyId === r.id}
+                    compact
+                  />
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Section>
   );
 }
 
 // ------------- Forms (non-careers contact submissions) --------------------
 
-interface FormRow {
+interface FormRow extends RespondedFields {
   id: string;
   source: 'contact_page' | 'footer' | 'exit_intent' | 'careers' | 'other' | null;
   first_name: string | null;
@@ -320,6 +452,7 @@ function FormsPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FormSourceFilter>('all');
+  const { respond, busyId } = useRespond('contact');
 
   useEffect(() => {
     let cancelled = false;
@@ -344,6 +477,12 @@ function FormsPanel() {
     () => (filter === 'all' ? rows : rows.filter((r) => r.source === filter)),
     [rows, filter],
   );
+
+  async function handleRespond(id: string, alreadyResponded: boolean) {
+    const result = await respond(id, alreadyResponded);
+    if (!result) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
+  }
 
   return (
     <Section count={rows.length} loading={loading} error={error} emptyText="No submissions yet.">
@@ -407,7 +546,16 @@ function FormsPanel() {
                       </p>
                     )}
                   </div>
-                  <RowMeta status={r.status} ts={r.created_at} />
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <RowMeta status={r.status} ts={r.created_at} />
+                    <RespondButton
+                      responded_at={r.responded_at}
+                      responder_name={r.responder_name}
+                      onClick={() => handleRespond(r.id, !!r.responded_at)}
+                      busy={busyId === r.id}
+                      compact
+                    />
+                  </div>
                 </div>
               </li>
             );
@@ -431,6 +579,7 @@ function CareersPanel() {
   const [rows, setRows] = useState<FormRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { respond, busyId } = useRespond('contact');
 
   useEffect(() => {
     let cancelled = false;
@@ -450,6 +599,12 @@ function CareersPanel() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  async function handleRespond(id: string, alreadyResponded: boolean) {
+    const result = await respond(id, alreadyResponded);
+    if (!result) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
+  }
 
   return (
     <Section count={rows.length} loading={loading} error={error} emptyText="No careers submissions yet.">
@@ -476,7 +631,16 @@ function CareersPanel() {
                     <p className="text-sm text-foreground/80 mt-2 whitespace-pre-wrap">{rest}</p>
                   )}
                 </div>
-                <RowMeta status={r.status} ts={r.created_at} />
+                <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                  <RowMeta status={r.status} ts={r.created_at} />
+                  <RespondButton
+                    responded_at={r.responded_at}
+                    responder_name={r.responder_name}
+                    onClick={() => handleRespond(r.id, !!r.responded_at)}
+                    busy={busyId === r.id}
+                    compact
+                  />
+                </div>
               </div>
             </li>
           );
@@ -498,6 +662,27 @@ function Section({
   if (error) return <p className="text-sm text-red-600">Error: {error}</p>;
   if (count === 0) return <p className="text-sm text-foreground/50">{emptyText}</p>;
   return <>{children}</>;
+}
+
+function Th({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <th className={`px-3 py-2 font-semibold border-b border-black/10 ${className}`}>{children}</th>;
+}
+
+function Td({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <td className={`px-3 py-2.5 ${className}`}>{children}</td>;
+}
+
+function StatusChip({ status }: { status: string }) {
+  const tone = status === 'new'
+    ? 'bg-blue-50 text-blue-700 border-blue-200'
+    : status === 'contacted' || status === 'verified'
+    ? 'bg-amber-50 text-amber-800 border-amber-200'
+    : 'bg-gray-50 text-gray-600 border-gray-200';
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border ${tone}`}>
+      {status}
+    </span>
+  );
 }
 
 function CardThumb({ url, label }: { url: string; label: string }) {
@@ -532,16 +717,9 @@ function CardThumb({ url, label }: { url: string; label: string }) {
 }
 
 function RowMeta({ status, ts }: { status: string; ts: string }) {
-  const tone = status === 'new'
-    ? 'bg-blue-50 text-blue-700 border-blue-200'
-    : status === 'contacted' || status === 'verified'
-    ? 'bg-amber-50 text-amber-800 border-amber-200'
-    : 'bg-gray-50 text-gray-600 border-gray-200';
   return (
     <div className="text-right flex-shrink-0">
-      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border ${tone}`}>
-        {status}
-      </span>
+      <StatusChip status={status} />
       <p className="text-[11px] text-foreground/50 mt-1">
         {new Date(ts).toLocaleString('en-US', {
           month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',

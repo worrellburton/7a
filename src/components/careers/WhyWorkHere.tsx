@@ -20,7 +20,7 @@ const pillars: Pillar[] = [
   {
     title: 'Small caseloads, real depth',
     body:
-      '6:1 client-to-staff ratio. Primary clinicians carry 4–6 clients at a time instead of 15–20. You do the work you were trained to do, not triage.',
+      'Primary clinicians carry 4–6 clients at a time instead of the 15–20 typical of larger programs. You do the work you were trained to do, not triage.',
     glyph: (<svg viewBox="0 0 32 32" className="w-9 h-9" aria-hidden="true" {...s}><circle cx="16" cy="11" r="4" /><path d="M6 26c1.5-5 5-8 10-8s8.5 3 10 8" /></svg>),
   },
   {
@@ -38,7 +38,7 @@ const pillars: Pillar[] = [
   {
     title: 'Training built into the week',
     body:
-      'CEU stipend, on-site trainings, and access to consultants in the modalities we practice (EMDR, ART, IFS, SE). Professional development is scheduled, not squeezed.',
+      'On-site trainings in the modalities we practice (EMDR, ART, IFS, SE). Professional development is scheduled, not squeezed.',
     glyph: (<svg viewBox="0 0 32 32" className="w-9 h-9" aria-hidden="true" {...s}><path d="M4 12l12-6 12 6-12 6z" /><path d="M8 14v6c0 2 4 4 8 4s8-2 8-4v-6" /></svg>),
   },
   {
