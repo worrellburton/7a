@@ -11,9 +11,10 @@
 //   - Live preview of the team-page card so the member sees exactly
 //     how their profile will appear on the public site.
 
-import { useAuth } from '@/lib/AuthProvider';
+import { useAuth, notifyAvatarChanged } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
+import { supabase } from '@/lib/supabase';
 import { useEffect, useRef, useState } from 'react';
 
 const CURSOR_COLORS: { label: string; value: string }[] = [
@@ -255,7 +256,7 @@ export default function ProfileContent() {
   }
 
   async function uploadAvatar(file: File) {
-    if (!session?.access_token) return;
+    if (!session?.access_token || !user) return;
     setUploading(true);
     try {
       const fd = new FormData();
@@ -269,10 +270,35 @@ export default function ProfileContent() {
       const json = await res.json();
       if (!res.ok || !json.url) {
         showToast(json.error || 'Upload failed');
-      } else {
-        setAvatarUrl(json.url);
-        showToast('Photo uploaded — remember to Save Changes');
+        return;
       }
+
+      // Persist immediately to all three places that drive the avatar
+      // visible in the app, so a refresh — or signing out and back in
+      // via Google, which used to overwrite the metadata avatar — can't
+      // wipe the new photo:
+      //   1. users.avatar_url        (canonical, read by AuthProvider)
+      //   2. supabase auth metadata  (legacy callers + session display)
+      //   3. local component state   (immediate visual update)
+      // Then notify AuthProvider so the sidebar/drawer refresh too.
+      const updateRes = await db({
+        action: 'update',
+        table: 'users',
+        data: { avatar_url: json.url },
+        match: { id: user.id },
+      });
+      if (updateRes?.error) {
+        showToast(`Saved upload but database update failed: ${updateRes.error}`);
+      }
+      try {
+        await supabase.auth.updateUser({ data: { avatar_url: json.url } });
+      } catch (err) {
+        // Non-fatal — the canonical store is users.avatar_url.
+        console.warn('[profile] failed to sync avatar to auth metadata', err);
+      }
+      setAvatarUrl(json.url);
+      notifyAvatarChanged();
+      showToast('Photo updated');
     } catch (err) {
       showToast(`Upload failed: ${String(err)}`);
     } finally {

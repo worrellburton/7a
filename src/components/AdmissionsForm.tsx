@@ -1,8 +1,33 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { compressImage } from '@/lib/upload';
 
 type CardSide = 'front' | 'back';
+
+// Upload a single card photo to the private `vob-cards` bucket using
+// the anon key. Storage RLS allows anon INSERT on this bucket only.
+// Returns the storage path on success — the admin VOBs page resolves
+// it to a short-lived signed URL when rendering thumbnails.
+async function uploadCard(file: File, side: CardSide): Promise<string | null> {
+  // Compress images aggressively so phone-sized JPEGs stay under the
+  // bucket's 10 MB cap. PDFs pass through unchanged.
+  const prepared = file.type.startsWith('image/') ? await compressImage(file, { maxEdge: 1800, targetBytes: 2 * 1024 * 1024 }) : file;
+  const ext = (prepared.name.split('.').pop() || 'jpg').toLowerCase();
+  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  const path = `${token}/${side}.${ext}`;
+  const { error } = await supabase.storage.from('vob-cards').upload(path, prepared, {
+    contentType: prepared.type || 'application/octet-stream',
+    cacheControl: '3600',
+    upsert: false,
+  });
+  if (error) {
+    console.error(`[AdmissionsForm] upload (${side}) failed:`, error.message);
+    return null;
+  }
+  return path;
+}
 
 interface FormState {
   name: string;
@@ -59,6 +84,14 @@ export default function AdmissionsForm() {
     setUploadError(null);
     setSubmitting(true);
     try {
+      // Upload card photos to the `vob-cards` storage bucket first.
+      // Failures here are non-fatal — we still file the lead so the
+      // admissions team can call back and request the cards manually.
+      const [cardFrontPath, cardBackPath] = await Promise.all([
+        formData.cardFront ? uploadCard(formData.cardFront, 'front') : Promise.resolve(null),
+        formData.cardBack ? uploadCard(formData.cardBack, 'back') : Promise.resolve(null),
+      ]);
+
       const res = await fetch('/api/public/vob', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,6 +100,8 @@ export default function AdmissionsForm() {
           phone: formData.phone,
           email: formData.email,
           insuranceProvider: formData.insuranceProvider,
+          cardFrontPath,
+          cardBackPath,
         }),
       });
       if (!res.ok) {
@@ -75,9 +110,6 @@ export default function AdmissionsForm() {
         setSubmitting(false);
         return;
       }
-      // Card photos stay client-side for now — phase 2 will add the
-      // storage bucket + signed-upload flow. The row in vob_requests
-      // is enough to ensure the admissions team sees this lead.
       setSubmitted(true);
     } catch (err) {
       console.error('[AdmissionsForm] submit threw', err);
