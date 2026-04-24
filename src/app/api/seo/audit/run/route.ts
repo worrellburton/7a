@@ -14,6 +14,8 @@ import { auditLinks } from '@/lib/seo/audits/links';
 import { fetchRobots, type RobotsTxt } from '@/lib/seo/robots';
 import { auditCrawlability } from '@/lib/seo/audits/crawlability';
 import { auditHttp } from '@/lib/seo/audits/http';
+import { runPsi, hasPsiKey, type PsiSnapshot } from '@/lib/seo/psi';
+import { auditPerformance } from '@/lib/seo/audits/performance';
 import type { CategoryAudit } from '@/lib/seo/audits/types';
 
 // POST /api/seo/audit/run
@@ -38,7 +40,10 @@ import type { CategoryAudit } from '@/lib/seo/audits/types';
 //   }
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// 90s gives the homepage crawl + 100-page sitemap walk + parallel PSI
+// (mobile + desktop) headroom on Vercel. Without PSI the audit usually
+// finishes in 15-25s.
+export const maxDuration = 90;
 
 const DEFAULT_ORIGIN = 'https://sevenarrowsrecoveryarizona.com';
 
@@ -217,6 +222,36 @@ export async function POST(req: Request) {
       severity: 'medium',
     });
   }
+  // Performance via PSI. Each call takes 10-25s, so we ONLY hit the
+  // homepage and only when PAGESPEED_API_KEY is set (otherwise the
+  // shared quota will throttle and burn audit time). Mobile + desktop
+  // run in parallel.
+  let psiMobile: PsiSnapshot | null = null;
+  let psiDesktop: PsiSnapshot | null = null;
+  const psiSkipped = !hasPsiKey();
+  if (!psiSkipped) {
+    try {
+      [psiMobile, psiDesktop] = await Promise.all([
+        runPsi(origin, 'mobile'),
+        runPsi(origin, 'desktop'),
+      ]);
+    } catch (err) {
+      issues.push({
+        title: 'PageSpeed Insights threw',
+        detail: err instanceof Error ? err.message : String(err),
+        severity: 'low',
+      });
+    }
+  }
+  categories.push(
+    auditPerformance({
+      url: origin,
+      mobile: psiMobile,
+      desktop: psiDesktop,
+      skipped: psiSkipped,
+    }),
+  );
+
   if (robots) {
     categories.push(
       auditCrawlability({
