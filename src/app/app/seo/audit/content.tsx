@@ -5,7 +5,10 @@ import { useEffect, useRef, useState } from 'react';
 
 const STORAGE_KEY = 'sa-seo-audit:last-result';
 const DURATION_KEY = 'sa-seo-audit:last-duration-ms';
-const DEFAULT_DURATION_MS = 45_000;
+// First-run estimate — the cap is now the full sitemap (up to 1000 URLs),
+// so initial runs take longer. Learned from the last actual run after
+// the first one completes.
+const DEFAULT_DURATION_MS = 90_000;
 
 /**
  * Phases the audit runner actually walks through, in order. The bar
@@ -426,7 +429,7 @@ export default function AuditContent() {
           </div>
           {result.crawl.trimmed > 0 ? (
             <p className="mt-3 text-[11px] text-foreground/50">
-              {result.crawl.trimmed} URLs not crawled this run (over 100-page cap).
+              {result.crawl.trimmed} URLs not crawled this run (over 1000-page cap).
             </p>
           ) : null}
         </Panel>
