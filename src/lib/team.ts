@@ -1,5 +1,10 @@
 import { getPublicSupabase } from '@/lib/supabase-server';
 
+export interface InterestingFact {
+  prompt: string;
+  answer: string;
+}
+
 export interface PublicTeamMember {
   id: string;
   full_name: string;
@@ -8,6 +13,8 @@ export interface PublicTeamMember {
   bio: string | null;
   favorite_quote: string | null;
   favorite_seven_arrows: string | null;
+  hometown: string | null;
+  interesting_facts: InterestingFact[];
   slug: string;
 }
 
@@ -78,7 +85,7 @@ function jobRank(jobTitle: string | null): number {
 }
 
 const FULL_SELECT =
-  'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, public_slug, status, public_team, team_page_order';
+  'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, hometown, interesting_facts, public_slug, status, public_team, team_page_order';
 const MINIMAL_SELECT = 'id, full_name, job_title, avatar_url, bio, public_slug, status, public_team';
 
 type TeamRow = {
@@ -89,6 +96,8 @@ type TeamRow = {
   bio: string | null;
   favorite_quote?: string | null;
   favorite_seven_arrows?: string | null;
+  hometown?: string | null;
+  interesting_facts?: InterestingFact[] | null;
   public_slug: string | null;
   status?: string | null;
   public_team?: boolean | null;
@@ -156,6 +165,16 @@ export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {  try {
       bio: row.bio,
       favorite_quote: row.favorite_quote ?? null,
       favorite_seven_arrows: row.favorite_seven_arrows ?? null,
+      hometown: row.hometown ?? null,
+      interesting_facts: Array.isArray(row.interesting_facts)
+        ? row.interesting_facts.filter(
+            (f): f is InterestingFact =>
+              !!f &&
+              typeof f.prompt === 'string' &&
+              typeof f.answer === 'string' &&
+              f.answer.trim().length > 0,
+          )
+        : [],
       slug: row.slug,
     }));
   } catch (err) {
