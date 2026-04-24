@@ -88,11 +88,11 @@ export default function CareersCTA() {
           }}
         >
           <a
-            href="mailto:careers@sevenarrowsrecovery.com"
+            href="mailto:info@sevenarrowsrecovery.com"
             className="inline-flex items-center gap-2 bg-white text-primary-dark hover:bg-warm-bg rounded-full px-8 py-4 text-sm font-semibold shadow-[0_24px_50px_-20px_rgba(0,0,0,0.7)] transition-all"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            careers@sevenarrowsrecovery.com
+            info@sevenarrowsrecovery.com
           </a>
           <a
             href="tel:+18669964308"

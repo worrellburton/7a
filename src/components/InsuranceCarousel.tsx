@@ -16,7 +16,6 @@ const insuranceProviders = [
   { name: 'UnitedHealthcare', domain: 'uhc.com', href: '/insurance/united-healthcare' },
   { name: 'Humana', domain: 'humana.com', href: '/insurance/humana' },
   { name: 'TRICARE', domain: 'tricare.mil', href: '/insurance/tricare' },
-  { name: 'Magellan Health', domain: 'magellanhealth.com', href: '/admissions' },
   { name: 'Carelon Behavioral Health', domain: 'carelon.com', href: '/admissions' },
   { name: 'ComPsych', domain: 'compsych.com', href: '/admissions' },
 ];
