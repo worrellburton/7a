@@ -165,6 +165,105 @@ export function HeroGallery({ onCaptionChange }: { onCaptionChange?: (c: HeroSli
   );
 }
 
+/* ── Phase 2: Animated logo entrance + drifting embers ─────────── */
+
+/**
+ * The logo enters with a scale-in from 0.88 → 1, a diagonal sheen sweeps
+ * across the mark, and seven soft embers lift past it toward the top of
+ * the frame (one per arrow). Pure CSS so we don't pay a framer-motion tax
+ * on the pre-auth route. Reduced-motion freezes to a steady, lit state.
+ */
+function AnimatedLogo() {
+  return (
+    <div className="relative mx-auto mb-6 h-28 w-28 flex items-center justify-center">
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <span
+            key={i}
+            className="absolute left-1/2 top-1/2 block h-1.5 w-1.5 rounded-full ember-mote"
+            style={{
+              background:
+                'radial-gradient(circle, rgba(255,210,160,0.95) 0%, rgba(188,107,74,0.4) 55%, transparent 80%)',
+              animationDelay: `${i * 0.45}s`,
+              animationDuration: `${6 + (i % 3)}s`,
+              ['--tx' as string]: `${(i - 3) * 9}px`,
+              filter: 'blur(0.5px)',
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="relative animate-logo-in">
+        <img
+          src="/images/logo.png"
+          alt="Seven Arrows Recovery"
+          className="relative z-10 h-24 w-auto drop-shadow-2xl"
+        />
+        <span
+          className="pointer-events-none absolute inset-0 animate-logo-shimmer"
+          style={{
+            background:
+              'linear-gradient(115deg, transparent 35%, rgba(255,230,200,0.35) 50%, transparent 65%)',
+            mixBlendMode: 'screen',
+          }}
+          aria-hidden="true"
+        />
+        <span
+          className="pointer-events-none absolute inset-[-20%] -z-0 rounded-full animate-logo-halo"
+          style={{
+            background:
+              'radial-gradient(closest-side, rgba(216,137,102,0.45) 0%, rgba(188,107,74,0.15) 55%, transparent 80%)',
+          }}
+          aria-hidden="true"
+        />
+      </div>
+
+      <style jsx global>{`
+        @keyframes logo-in {
+          0%   { opacity: 0; transform: scale(0.88) translateY(8px); filter: blur(4px); }
+          60%  { opacity: 1; filter: blur(0); }
+          100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+        }
+        .animate-logo-in { animation: logo-in 1.6s cubic-bezier(.2,.7,.2,1) both; }
+
+        @keyframes logo-shimmer {
+          0%   { transform: translateX(-120%); opacity: 0; }
+          20%  { opacity: 1; }
+          80%  { opacity: 1; }
+          100% { transform: translateX(120%); opacity: 0; }
+        }
+        .animate-logo-shimmer { animation: logo-shimmer 6s ease-in-out 1.2s infinite; }
+
+        @keyframes logo-halo {
+          0%,100% { opacity: 0.55; transform: scale(1); }
+          50%     { opacity: 0.9;  transform: scale(1.08); }
+        }
+        .animate-logo-halo { animation: logo-halo 7s ease-in-out infinite; }
+
+        @keyframes ember-rise {
+          0%   { transform: translate(var(--tx, 0px), 0) scale(0.7); opacity: 0; }
+          15%  { opacity: 0.95; }
+          100% { transform: translate(var(--tx, 0px), -120px) scale(1.1); opacity: 0; }
+        }
+        .ember-mote {
+          animation-name: ember-rise;
+          animation-timing-function: ease-in-out;
+          animation-iteration-count: infinite;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .animate-logo-in,
+          .animate-logo-shimmer,
+          .animate-logo-halo,
+          .ember-mote { animation: none !important; }
+          .animate-logo-in { opacity: 1; transform: none; filter: none; }
+          .ember-mote { opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 /* ── Motion preference hook ─────────────────────────────────────── */
 
 function usePrefersReducedMotion(): boolean {
@@ -197,11 +296,7 @@ export default function LoginScreen({
       <HeroGallery />
 
       <div className="relative z-10 w-full max-w-sm mx-4 text-center">
-        <img
-          src="/images/logo.png"
-          alt="Seven Arrows Recovery"
-          className="h-24 w-auto mx-auto mb-6 drop-shadow-2xl"
-        />
+        <AnimatedLogo />
         {caption?.title && (
           <p
             className="text-white/90 text-lg font-light mb-10 drop-shadow-md"
