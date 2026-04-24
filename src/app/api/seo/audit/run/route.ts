@@ -17,6 +17,7 @@ import { auditHttp } from '@/lib/seo/audits/http';
 import { runPsi, hasPsiKey, type PsiSnapshot } from '@/lib/seo/psi';
 import { auditPerformance } from '@/lib/seo/audits/performance';
 import { aggregate } from '@/lib/seo/score';
+import { buildInsights } from '@/lib/seo/insights';
 import type { CategoryAudit } from '@/lib/seo/audits/types';
 
 // POST /api/seo/audit/run
@@ -47,10 +48,6 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 90;
 
 const DEFAULT_ORIGIN = 'https://sevenarrowsrecoveryarizona.com';
-
-function severityRank(s: 'low' | 'medium' | 'high'): number {
-  return s === 'high' ? 3 : s === 'medium' ? 2 : 1;
-}
 
 export async function POST(req: Request) {
   const supabase = await getServerSupabase();
@@ -270,27 +267,12 @@ export async function POST(req: Request) {
     );
   }
 
-  for (const cat of categories) {
-    if (cat.score >= 90 && cat.total > 0) {
-      strengths.push({
-        title: `${cat.label}: ${cat.score}/100`,
-        detail: cat.summary,
-      });
-    } else if (cat.total > 0) {
-      // Take the top issue (or pick one of a category's worst) as a teaser
-      // for the "What's not" panel. Phase 18 will rank these properly.
-      const worst = cat.issues
-        .slice()
-        .sort((a, b) => severityRank(b.severity) - severityRank(a.severity))[0];
-      issues.push({
-        title: `${cat.label}: ${cat.score}/100`,
-        detail: worst
-          ? `${cat.summary} Worst: ${worst.message}`
-          : cat.summary,
-        severity: cat.score < 60 ? 'high' : cat.score < 80 ? 'medium' : 'low',
-      });
-    }
-  }
+  // Phase 18: collapse + rank category audits into Strengths /
+  // Weaknesses panels. Sitemap / homepage / runtime issues raised
+  // earlier in the route stay in the legacy `strengths` / `issues`
+  // arrays for backwards compatibility, while the new fields drive
+  // the panels.
+  const insights = buildInsights(categories);
 
   const crawlSummary = crawl
     ? {
@@ -324,6 +306,7 @@ export async function POST(req: Request) {
     crawl: crawlSummary,
     pages: [] as unknown[],
     categories,
+    insights,
     strengths,
     issues,
     notice:
