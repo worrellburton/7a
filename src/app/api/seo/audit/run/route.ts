@@ -6,6 +6,7 @@ import { crawlAll } from '@/lib/seo/runner';
 import { auditTitles } from '@/lib/seo/audits/title';
 import { auditMetaDescriptions } from '@/lib/seo/audits/meta';
 import { auditHeadings } from '@/lib/seo/audits/headings';
+import { auditCanonicals } from '@/lib/seo/audits/canonical';
 import type { CategoryAudit } from '@/lib/seo/audits/types';
 
 // POST /api/seo/audit/run
@@ -190,6 +191,7 @@ export async function POST(req: Request) {
     categories.push(auditTitles(crawl.pages));
     categories.push(auditMetaDescriptions(crawl.pages));
     categories.push(auditHeadings(crawl.pages));
+    categories.push(auditCanonicals(crawl.pages));
   }
 
   for (const cat of categories) {
