@@ -251,7 +251,7 @@ export default function SeoContent() {
           </p>
           <h1 className="text-2xl font-bold text-foreground">SEO</h1>
           <p className="text-sm text-foreground/60 mt-2 max-w-2xl">
-            Live Search Console performance for {data?.site ?? 'sevenarrowsrecovery.com'}.
+            Live Search Console performance for {data?.site ?? 'sevenarrowsrecoveryarizona.com'}.
             Top queries, top pages, and how the site is performing in Google results.
           </p>
         </div>

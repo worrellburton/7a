@@ -25,11 +25,11 @@ import BlogPreview from "@/components/BlogPreview";
 const structuredData = {
   "@context": "https://schema.org",
   "@type": "MedicalBusiness",
-  "@id": "https://sevenarrowsrecovery.com/#organization",
+  "@id": "https://sevenarrowsrecoveryarizona.com/#organization",
   name: "Seven Arrows Recovery",
   description:
     "A boutique drug and alcohol rehab center in Arizona offering clinical and residential treatment with a TraumAddiction\u2122 specialty approach.",
-  url: "https://sevenarrowsrecovery.com",
+  url: "https://sevenarrowsrecoveryarizona.com",
   telephone: "+1-866-996-4308",
   address: {
     "@type": "PostalAddress",
@@ -172,7 +172,7 @@ const breadcrumbData = {
       "@type": "ListItem",
       position: 1,
       name: "Home",
-      item: "https://sevenarrowsrecovery.com",
+      item: "https://sevenarrowsrecoveryarizona.com",
     },
   ],
 };

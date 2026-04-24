@@ -18,11 +18,11 @@ export const metadata: Metadata = {
   keywords:
     'equine assisted psychotherapy Arizona, equine therapy for addiction, horse therapy PTSD, EAP Cochise County, horse assisted therapy veterans, equine therapy Tucson, equine assisted learning rehab, trauma-informed equine therapy, residential equine therapy Arizona, Seven Arrows Recovery equine',
   alternates: {
-    canonical: 'https://sevenarrowsrecovery.com/our-program/equine-assisted',
+    canonical: 'https://sevenarrowsrecoveryarizona.com/our-program/equine-assisted',
   },
   openGraph: {
     type: 'article',
-    url: 'https://sevenarrowsrecovery.com/our-program/equine-assisted',
+    url: 'https://sevenarrowsrecoveryarizona.com/our-program/equine-assisted',
     title: 'Equine-Assisted Psychotherapy | Seven Arrows Recovery',
     description:
       'Licensed trauma-informed equine-assisted psychotherapy on a 160-acre Arizona ranch. Built for PTSD, addiction, attachment injury, and clients who need more than talk-therapy alone.',
@@ -47,13 +47,13 @@ const breadcrumbSchema = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
   itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecovery.com' },
-    { '@type': 'ListItem', position: 2, name: 'Our Program', item: 'https://sevenarrowsrecovery.com/our-program' },
+    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecoveryarizona.com' },
+    { '@type': 'ListItem', position: 2, name: 'Our Program', item: 'https://sevenarrowsrecoveryarizona.com/our-program' },
     {
       '@type': 'ListItem',
       position: 3,
       name: 'Equine-Assisted Psychotherapy',
-      item: 'https://sevenarrowsrecovery.com/our-program/equine-assisted',
+      item: 'https://sevenarrowsrecoveryarizona.com/our-program/equine-assisted',
     },
   ],
 };
@@ -65,7 +65,7 @@ const medicalTherapySchema = {
   alternateName: ['Equine-Facilitated Psychotherapy', 'EAP', 'EFP', 'Horse therapy'],
   description:
     'A licensed mental-health intervention co-led by a behavioral-health clinician and an equine specialist. Integrates attachment theory, somatic experiencing, and Internal Family Systems (IFS) to address trauma, addiction, attachment injury, and nervous-system dysregulation. Delivered on a private 160-acre ranch in Cochise County, Arizona, as part of an accredited residential addiction program.',
-  url: 'https://sevenarrowsrecovery.com/our-program/equine-assisted',
+  url: 'https://sevenarrowsrecoveryarizona.com/our-program/equine-assisted',
   medicineSystem: 'https://schema.org/WesternConventional',
   usedToDiagnose: [
     { '@type': 'MedicalCondition', name: 'Post-Traumatic Stress Disorder (PTSD)' },
@@ -79,8 +79,8 @@ const medicalTherapySchema = {
     { '@type': 'MedicalSpecialty', name: 'Addiction Medicine' },
     { '@type': 'MedicalSpecialty', name: 'Psychiatry' },
   ],
-  provider: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
-  isPartOf: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
+  provider: { '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
+  isPartOf: { '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
 };
 
 const faqPageSchema = {
@@ -100,13 +100,13 @@ const medicalWebPageSchema = {
   '@context': 'https://schema.org',
   '@type': 'MedicalWebPage',
   name: 'Equine-Assisted Psychotherapy — Seven Arrows Recovery',
-  url: 'https://sevenarrowsrecovery.com/our-program/equine-assisted',
+  url: 'https://sevenarrowsrecoveryarizona.com/our-program/equine-assisted',
   description:
     'Overview of the Equine-Assisted Psychotherapy program at Seven Arrows Recovery, a JCAHO-accredited residential addiction treatment ranch in Cochise County, Arizona.',
   inLanguage: 'en-US',
-  isPartOf: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
+  isPartOf: { '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
   about: [
-    { '@type': 'MedicalBusiness', '@id': 'https://sevenarrowsrecovery.com/#organization' },
+    { '@type': 'MedicalBusiness', '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
     { '@type': 'MedicalTherapy', name: 'Equine-Assisted Psychotherapy' },
     { '@type': 'MedicalCondition', name: 'Substance Use Disorder' },
     { '@type': 'MedicalCondition', name: 'Post-Traumatic Stress Disorder' },
@@ -115,7 +115,7 @@ const medicalWebPageSchema = {
   lastReviewed: '2026-04-23',
   reviewedBy: {
     '@type': 'Organization',
-    '@id': 'https://sevenarrowsrecovery.com/#organization',
+    '@id': 'https://sevenarrowsrecoveryarizona.com/#organization',
     name: 'Seven Arrows Recovery clinical team',
   },
 };
