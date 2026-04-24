@@ -94,7 +94,7 @@ const faqs: Record<Tab, { label: string; hint: string; items: QA[] }> = {
     items: [
       {
         q: 'What\'s your intake bandwidth right now?',
-        a: 'We maintain small-census residential on purpose (6:1 client-to-staff). Availability varies by week. Call admissions directly — we\'ll give you an accurate intake window rather than a sales answer.',
+        a: 'We maintain small-census residential on purpose (low client-to-staff ratio, 1:1 primary-clinician care). Availability varies by week. Call admissions directly — we\'ll give you an accurate intake window rather than a sales answer.',
       },
       {
         q: 'Do you accept medical-hold or commitment referrals?',

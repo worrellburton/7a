@@ -63,7 +63,7 @@ const heroSources: HeroSource[] = [
 const tickerItems = [
   { type: 'stat', text: '★ 4.9/5 Google Rating' },
   { type: 'divider' },
-  { type: 'stat', text: '6:1 Client to Staff Ratio' },
+  { type: 'stat', text: '1:1 Primary Clinician' },
   { type: 'divider' },
   { type: 'link', text: 'Read: When Drinking Stops Working →', href: '/who-we-are/blog/when-drinking-stops-working' },
   { type: 'divider' },

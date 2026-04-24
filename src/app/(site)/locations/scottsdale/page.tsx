@@ -18,7 +18,7 @@ const services = [
   {
     title: 'Residential Inpatient Treatment',
     description:
-      'A fully immersive 30-to-90-day residential experience with a 6:1 client-to-staff ratio, private and semi-private rooms, and chef-prepared meals.',
+      'A fully immersive 30-to-90-day residential experience with a low client-to-staff ratio, private and semi-private rooms, and chef-prepared meals.',
   },
   {
     title: 'Dual Diagnosis Treatment',

@@ -54,9 +54,9 @@ function makeDims(persona: 'self' | 'loved_one' | null): Dim[] {
       right: {
         label: 'Seven Arrows',
         pct: 92,
-        note: '6:1 by design. You are not a case load — you are a specific person in a small room.',
+        note: 'Small by design. You are not a case load — you are a specific person in a small room, with a dedicated primary clinician.',
       },
-      note: 'A 6:1 ratio is not a marketing number. It is the reason individual attention is possible.',
+      note: 'A deliberately low client-to-staff ratio is not a marketing number. It is the reason individual attention is possible.',
     },
     {
       label: 'Length-of-stay flexibility',

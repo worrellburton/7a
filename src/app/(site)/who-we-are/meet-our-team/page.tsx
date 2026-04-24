@@ -76,8 +76,8 @@ export default async function MeetOurTeamPage() {
               className="text-foreground/70 leading-relaxed text-lg"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Seven Arrows runs on a 6:1 client-to-staff ratio for a reason — it is
-              how individual attention becomes structural instead of aspirational.
+              Seven Arrows runs on a deliberately small census and a 1:1 primary-clinician
+              model for a reason — it is how individual attention becomes structural instead of aspirational.
               Our clinicians, admissions team, medical staff, and holistic
               facilitators are the people you will actually talk to on the phone,
               meet on your first day, and keep in touch with after discharge.

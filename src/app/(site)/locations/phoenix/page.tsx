@@ -18,7 +18,7 @@ const services = [
   {
     title: 'Residential Inpatient Treatment',
     description:
-      'Immersive 30-to-90-day programs with a 6:1 client-to-staff ratio in our intimate Cochise County campus, far removed from Phoenix\'s urban triggers.',
+      'Immersive 30-to-90-day programs with a low client-to-staff ratio in our intimate Cochise County campus, far removed from Phoenix\'s urban triggers.',
   },
   {
     title: 'Dual Diagnosis Treatment',

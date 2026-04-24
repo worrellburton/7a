@@ -1,8 +1,9 @@
 'use client';
 
-// Landing-page review carousel. Cursor-style pull quotes on a solid
-// dark frame: large sans-serif quote in curly marks, single muted
-// attribution line, no decorative flourishes.
+// Landing-page review carousel. Cursor-style pull quotes (big sans-
+// serif, curly marks, single muted attribution line) sit over the
+// per-slide background video so the section reads as one continuous
+// film frame instead of a card.
 //
 // Controls: click arrows, dot buttons, or use arrow keys. Auto-advances
 // every ~9s when not paused (pauses on hover/focus and when the tab is
@@ -13,8 +14,8 @@ import type { ReviewBubbleData } from './ReviewBubble';
 
 interface CarouselSlide {
   review: ReviewBubbleData;
-  // Kept on the interface for backwards compatibility with upstream
-  // callers; the Cursor-style frame no longer renders per-slide video.
+  /** Background video for the slide. Optional — slides without one
+   *  fall back to the solid dark frame. */
   videoUrl?: string;
 }
 
@@ -91,6 +92,9 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
   const [paused, setPaused] = useState(false);
   const total = slides.length;
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // Track which video elements have started playing so we can fade
+  // them in rather than flashing black before the first frame lands.
+  const [readyMap, setReadyMap] = useState<Record<number, boolean>>({});
 
   const go = useCallback(
     (next: number) => {
@@ -163,6 +167,7 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
       {/* Stacked slides, cross-fade via opacity. */}
       {slides.map((slide, i) => {
         const isActive = i === index;
+        const isReady = readyMap[i];
         const { display } = clipQuote(slide.review.text);
         return (
           <div
@@ -174,6 +179,37 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
             }}
             aria-hidden={!isActive}
           >
+            {/* Background video (muted/playsInline for autoplay on
+                iOS). Preload "auto" for the active + next slide, just
+                "metadata" for the rest so we don't pay bandwidth for
+                slides the user never sees. */}
+            {slide.videoUrl && (
+              <video
+                className="absolute inset-0 w-full h-full object-cover"
+                src={slide.videoUrl}
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload={isActive || i === (index + 1) % total ? 'auto' : 'metadata'}
+                onCanPlay={() => setReadyMap((m) => (m[i] ? m : { ...m, [i]: true }))}
+                style={{ opacity: isReady ? 1 : 0, transition: 'opacity 600ms ease' }}
+                aria-hidden="true"
+              />
+            )}
+
+            {/* Gradient stack — radial vignette + bottom-up dark
+                gradient so the quote is always legible regardless of
+                what the underlying video looks like. */}
+            <div
+              className="absolute inset-0"
+              aria-hidden="true"
+              style={{
+                background:
+                  'radial-gradient(ellipse at center, rgba(0,0,0,0.28) 0%, rgba(0,0,0,0.58) 60%, rgba(0,0,0,0.82) 100%), linear-gradient(180deg, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.05) 35%, rgba(0,0,0,0.58) 75%, rgba(0,0,0,0.88) 100%)',
+              }}
+            />
+
             <div className="relative z-10 h-full flex items-center justify-center px-6 sm:px-12 lg:px-24 pb-24 pt-40 sm:pt-36 lg:pt-40">
               <div
                 className="w-full max-w-4xl text-center text-white"
@@ -186,7 +222,10 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
               >
                 <blockquote
                   className={`${quoteSizeClass(display.length)} font-semibold leading-[1.25] tracking-tight text-white`}
-                  style={{ fontFamily: 'var(--font-body)' }}
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    textShadow: '0 2px 20px rgba(0,0,0,0.55)',
+                  }}
                 >
                   <span aria-hidden="true" className="text-white/85">&ldquo;</span>
                   {display}

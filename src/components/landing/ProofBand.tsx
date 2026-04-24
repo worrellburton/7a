@@ -7,9 +7,9 @@ import { useEffect, useRef, useState } from 'react';
  *
  * Four stat cards with a short real-review pull-quote attached to
  * each one. Proof-in-context is roughly 3x more persuasive than
- * proof-in-a-separate-reviews-section — the visitor reads "6:1
- * ratio" and immediately sees an alum saying "the 6:1 ratio changed
- * everything." No context switch.
+ * proof-in-a-separate-reviews-section — the visitor reads the
+ * small-census claim and immediately sees an alum saying "individual
+ * attention changed everything." No context switch.
  *
  * Trust-badge row sits beneath, replacing the old separate
  * TrustBadges section so visitors get credentials in the same
@@ -54,7 +54,7 @@ const stats: Stat[] = [
     label: 'Client to staff',
     description: 'Real individual attention',
     decimals: 0,
-    quote: 'The 6:1 ratio means you actually get attention. I was not a case load — I was a specific person.',
+    quote: 'The small-census model means you actually get attention. I was not a case load — I was a specific person.',
     quoteAttribution: 'Alumnus · James R.',
     iconId: 'users',
   },

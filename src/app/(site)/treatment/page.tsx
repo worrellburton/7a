@@ -15,7 +15,7 @@ const services = [
     title: "Residential Inpatient",
     href: "/treatment/residential-inpatient",
     description:
-      "Immersive 30-to-90-day residential programs with a 6:1 client-to-staff ratio, providing around-the-clock support in our boutique facility.",
+      "Immersive 30-to-90-day residential programs with a low client-to-staff ratio, providing around-the-clock support in our boutique facility.",
   },
   {
     title: "Interventions",
