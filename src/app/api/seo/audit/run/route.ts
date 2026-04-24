@@ -16,6 +16,7 @@ import { auditCrawlability } from '@/lib/seo/audits/crawlability';
 import { auditHttp } from '@/lib/seo/audits/http';
 import { runPsi, hasPsiKey, type PsiSnapshot } from '@/lib/seo/psi';
 import { auditPerformance } from '@/lib/seo/audits/performance';
+import { aggregate } from '@/lib/seo/score';
 import type { CategoryAudit } from '@/lib/seo/audits/types';
 
 // POST /api/seo/audit/run
@@ -308,9 +309,14 @@ export async function POST(req: Request) {
       }
     : null;
 
+  const agg = aggregate(categories);
+
   const result = {
     origin,
-    score: null as number | null,
+    score: agg.score,
+    grade: agg.band,
+    headline: agg.headline,
+    effectiveWeight: agg.effectiveWeight,
     ranAt: new Date(startedAt).toISOString(),
     durationMs: Date.now() - startedAt,
     sitemap,
