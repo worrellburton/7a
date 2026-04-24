@@ -10,6 +10,18 @@ interface Integration {
   status: 'connected' | 'disconnected' | 'coming-soon';
   details?: string;
   manageUrl?: string;
+  /** When set, the "Connect" button becomes a "Reconnect" link to this URL instead of calling router.push. */
+  reconnectUrl?: string;
+  /** Short hint shown in red under the row when status is disconnected (e.g. the upstream probe error). */
+  errorHint?: string;
+}
+
+interface ProbedIntegration {
+  id: string;
+  connected: boolean;
+  configured: boolean;
+  detail?: string;
+  error?: string | null;
 }
 
 export default function APIsContent() {
@@ -18,6 +30,8 @@ export default function APIsContent() {
   const [qbCompanies, setQbCompanies] = useState<number>(0);
   const [ctmOk, setCtmOk] = useState(false);
   const [stediOk, setStediOk] = useState(false);
+  const [ga4, setGa4] = useState<ProbedIntegration | null>(null);
+  const [gsc, setGsc] = useState<ProbedIntegration | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,16 +45,20 @@ export default function APIsContent() {
         });
         if (res.ok) {
           const body = await res.json();
-          const list: { id: string; connected: boolean; detail?: string }[] = body.integrations || [];
+          const list: ProbedIntegration[] = body.integrations || [];
           const qb = list.find(i => i.id === 'quickbooks');
           const ctm = list.find(i => i.id === 'ctm');
           const stedi = list.find(i => i.id === 'stedi');
+          const ga4Row = list.find(i => i.id === 'ga4');
+          const gscRow = list.find(i => i.id === 'gsc');
           if (qb?.connected) {
             const match = (qb.detail || '').match(/(\d+)/);
             setQbCompanies(match ? parseInt(match[1], 10) : 1);
           }
           if (ctm?.connected) setCtmOk(true);
           if (stedi?.connected) setStediOk(true);
+          if (ga4Row) setGa4(ga4Row);
+          if (gscRow) setGsc(gscRow);
         }
       } catch { /* ignore */ }
       setLoading(false);
@@ -48,6 +66,20 @@ export default function APIsContent() {
   }, [session, isAdmin, router]);
 
   if (!user || !isAdmin) return null;
+
+  const googleApiRow = (row: ProbedIntegration | null, name: string, description: string, manageUrl: string): Integration => {
+    const connected = !!row?.connected;
+    const error = row?.error ?? null;
+    return {
+      name,
+      description,
+      status: connected ? 'connected' : 'disconnected',
+      details: connected ? row?.detail ?? undefined : undefined,
+      manageUrl,
+      reconnectUrl: connected ? undefined : '/app/google-reconnect',
+      errorHint: connected ? undefined : error ?? undefined,
+    };
+  };
 
   const integrations: Integration[] = [
     {
@@ -62,6 +94,18 @@ export default function APIsContent() {
       status: 'connected',
       details: 'Via Supabase Auth',
     },
+    googleApiRow(
+      ga4,
+      'Google Analytics 4',
+      'Site traffic, sessions, landing pages (powers /app/analytics)',
+      '/app/analytics'
+    ),
+    googleApiRow(
+      gsc,
+      'Google Search Console',
+      'Organic impressions, clicks, and query rankings (powers /app/seo)',
+      '/app/seo'
+    ),
     {
       name: 'QuickBooks Online',
       description: 'Financial reporting, P&L, balance sheet, budgets',
@@ -143,6 +187,15 @@ export default function APIsContent() {
                     {api.details}
                   </p>
                 )}
+                {api.errorHint && (
+                  <p
+                    className="text-[11px] text-red-600/80 mt-0.5 truncate max-w-[380px]"
+                    title={api.errorHint}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {api.errorHint}
+                  </p>
+                )}
               </div>
 
               {/* Action */}
@@ -155,7 +208,16 @@ export default function APIsContent() {
                   Manage
                 </button>
               )}
-              {api.status === 'disconnected' && api.manageUrl && (
+              {api.status === 'disconnected' && api.reconnectUrl && (
+                <button
+                  onClick={() => router.push(api.reconnectUrl!)}
+                  className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold bg-primary text-white hover:bg-primary-dark transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Reconnect
+                </button>
+              )}
+              {api.status === 'disconnected' && !api.reconnectUrl && api.manageUrl && (
                 <button
                   onClick={() => router.push(api.manageUrl!)}
                   className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold bg-primary text-white hover:bg-primary-dark transition-colors"

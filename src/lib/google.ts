@@ -2,9 +2,10 @@
 //
 // One OAuth client, one long-lived refresh token, used for every Google API
 // the app reads from (GA4 Data API, Search Console, Business Profile). The
-// refresh token is minted once via OAuth Playground as the Workspace admin
-// and stored in Vercel env; each request trades it for a short-lived access
-// token, with an in-memory cache so hot paths don't hammer the token endpoint.
+// refresh token can be minted either via OAuth Playground or via the in-app
+// admin reconnect flow at /app/google-reconnect; either way it's stored in
+// Vercel env. Each request trades it for a short-lived access token, with
+// an in-memory cache so hot paths don't hammer the token endpoint.
 //
 // Env:
 //   GOOGLE_OAUTH_CLIENT_ID       (required)
@@ -14,6 +15,15 @@
 //   GSC_SITE_URL                 (required for gscSearchAnalytics)
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+
+// The scopes the single refresh token needs to cover every Google API this
+// app reads. Keep in sync with the services listed above.
+export const GOOGLE_OAUTH_SCOPES = [
+  'https://www.googleapis.com/auth/analytics.readonly',
+  'https://www.googleapis.com/auth/webmasters.readonly',
+  'https://www.googleapis.com/auth/business.manage',
+];
 
 interface CachedToken {
   accessToken: string;
@@ -57,7 +67,7 @@ export async function getGoogleAccessToken(): Promise<string> {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Google token refresh failed: ${res.status} ${text}`);
+    throw new GoogleTokenRefreshError(res.status, text);
   }
 
   const json = (await res.json()) as { access_token: string; expires_in: number };
@@ -66,6 +76,134 @@ export async function getGoogleAccessToken(): Promise<string> {
     expiresAt: Date.now() + json.expires_in * 1000,
   };
   return json.access_token;
+}
+
+/**
+ * Thrown from {@link getGoogleAccessToken} when Google refuses to mint a
+ * new access token from our stored refresh token. The common case is
+ * `invalid_grant` — the refresh token has been revoked or expired, and
+ * the admin needs to mint a new one via /app/google-reconnect.
+ *
+ * Callers (or their framework integration points) can use
+ * {@link isGoogleTokenRefreshError} to detect this and surface a friendly
+ * "Reconnect Google" CTA instead of a raw 502.
+ */
+export class GoogleTokenRefreshError extends Error {
+  readonly status: number;
+  readonly body: string;
+  readonly oauthError: string | null;
+
+  constructor(status: number, body: string) {
+    const parsed = parseOauthError(body);
+    const summary = parsed
+      ? `Google token refresh failed (${parsed}). The refresh token has likely been revoked — an admin can mint a new one at /app/google-reconnect.`
+      : `Google token refresh failed: ${status} ${body}`;
+    super(summary);
+    this.name = 'GoogleTokenRefreshError';
+    this.status = status;
+    this.body = body;
+    this.oauthError = parsed;
+  }
+}
+
+function parseOauthError(body: string): string | null {
+  try {
+    const json = JSON.parse(body) as { error?: string };
+    return typeof json.error === 'string' ? json.error : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isGoogleTokenRefreshError(err: unknown): err is GoogleTokenRefreshError {
+  return err instanceof GoogleTokenRefreshError;
+}
+
+/**
+ * Build the Google OAuth authorization URL that kicks off the in-app
+ * admin reconnect flow. `access_type=offline` + `prompt=consent` is
+ * required to force Google to re-issue a refresh token; without both,
+ * Google returns only an access token on repeat consents and the
+ * resulting "connection" would silently expire in an hour.
+ */
+export function buildGoogleReconnectUrl(redirectUri: string, state: string): string {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  if (!clientId) throw new Error('GOOGLE_OAUTH_CLIENT_ID is not set');
+  const url = new URL(GOOGLE_AUTH_URL);
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('redirect_uri', redirectUri);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', GOOGLE_OAUTH_SCOPES.join(' '));
+  url.searchParams.set('access_type', 'offline');
+  url.searchParams.set('prompt', 'consent');
+  url.searchParams.set('include_granted_scopes', 'true');
+  url.searchParams.set('state', state);
+  return url.toString();
+}
+
+export interface GoogleReconnectTokens {
+  refreshToken: string;
+  accessToken: string;
+  expiresIn: number;
+  scope: string;
+}
+
+/**
+ * Exchange an authorization code from the reconnect callback for a fresh
+ * refresh token. The `redirectUri` MUST match the one used in
+ * {@link buildGoogleReconnectUrl} byte-for-byte or Google returns
+ * `redirect_uri_mismatch`.
+ */
+export async function exchangeReconnectCode(
+  code: string,
+  redirectUri: string
+): Promise<GoogleReconnectTokens> {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error('Google OAuth client env missing (CLIENT_ID / CLIENT_SECRET)');
+  }
+
+  const body = new URLSearchParams({
+    code,
+    client_id: clientId,
+    client_secret: clientSecret,
+    redirect_uri: redirectUri,
+    grant_type: 'authorization_code',
+  });
+
+  const res = await fetch(GOOGLE_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Google code exchange failed: ${res.status} ${text}`);
+  }
+  const json = (await res.json()) as {
+    access_token: string;
+    refresh_token?: string;
+    expires_in: number;
+    scope: string;
+  };
+  if (!json.refresh_token) {
+    throw new Error(
+      'Google did not return a refresh_token. Re-run the reconnect flow — the OAuth client must use prompt=consent + access_type=offline, and the Google account must revoke prior access first.'
+    );
+  }
+  return {
+    refreshToken: json.refresh_token,
+    accessToken: json.access_token,
+    expiresIn: json.expires_in,
+    scope: json.scope,
+  };
+}
+
+/** Invalidate the cached access token. Call after the env refresh token is rotated. */
+export function clearGoogleAccessTokenCache(): void {
+  cachedToken = null;
 }
 
 async function googleFetch<T>(url: string, init: RequestInit = {}): Promise<T> {

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { DeltaPill } from './DeltaPill';
 import { Sparkline } from './Sparkline';
@@ -104,7 +105,19 @@ export function OverviewSection({ range }: { range: DateRange }) {
     <>
       {error ? (
         <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <strong>Couldn&apos;t load GA4:</strong> {error}
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <strong>Couldn&apos;t load GA4:</strong> {error}
+            </div>
+            {looksLikeGoogleTokenError(error) ? (
+              <Link
+                href="/app/google-reconnect"
+                className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-red-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-800 transition"
+              >
+                Reconnect Google →
+              </Link>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -203,6 +216,10 @@ export function OverviewSection({ range }: { range: DateRange }) {
       ) : null}
     </>
   );
+}
+
+function looksLikeGoogleTokenError(msg: string): boolean {
+  return /invalid_grant|token refresh failed|token has been expired|token has been revoked/i.test(msg);
 }
 
 function KpiCard({
