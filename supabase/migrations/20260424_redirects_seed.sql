@@ -22,16 +22,18 @@ insert into public.redirects (from_path, to_path, status_code, notes) values
   ('/thank-you/', '/contact', 301, 'No dedicated thank-you page on new site'),
   ('/privacy-policy-2/', '/', 301, 'No privacy page on new site yet'),
 
-  -- Team members — slug preserved from old URL; new site slugifies
-  -- from full_name so these should mostly resolve 1:1. If any
-  -- member has left, flip the to_path to /who-we-are/meet-our-team.
-  ('/about-us/laura-harder-lac-ma/', '/who-we-are/meet-our-team/laura-harder-lac-ma', 301, 'Review slug on new site'),
-  ('/about-us/winter-groeschl/', '/who-we-are/meet-our-team/winter-groeschl', 301, 'Review slug on new site'),
-  ('/about-us/lindsay-rothschild/', '/who-we-are/meet-our-team/lindsay-rothschild', 301, 'Review slug on new site'),
-  ('/about-us/brian-two-moons/', '/who-we-are/meet-our-team/brian-two-moons', 301, 'Review slug on new site'),
-  ('/about-us/melissa-simard/', '/who-we-are/meet-our-team/melissa-simard', 301, 'Review slug on new site'),
-  ('/about-us/dr-tracey-oppenheim-md/', '/who-we-are/meet-our-team/dr-tracey-oppenheim-md', 301, 'Review slug on new site'),
-  ('/about-us/placida-valdez/', '/who-we-are/meet-our-team/placida-valdez', 301, 'Review slug on new site'),
+  -- Team members. New-site slugs come from the `users` table's
+  -- public_slug override (or slugify(full_name)), which doesn't
+  -- always match the old WordPress slug — each to_path below has
+  -- been verified against the live team grid. Members who've left
+  -- fall back to the team index.
+  ('/about-us/laura-harder-lac-ma/', '/who-we-are/meet-our-team', 301, 'Laura no longer on team'),
+  ('/about-us/winter-groeschl/', '/who-we-are/meet-our-team/winter-groeschl', 301, null),
+  ('/about-us/lindsay-rothschild/', '/who-we-are/meet-our-team/lindsay-rothschild', 301, null),
+  ('/about-us/brian-two-moons/', '/who-we-are/meet-our-team/brian-twomoons', 301, 'New-site slug collapses "twomoons"'),
+  ('/about-us/melissa-simard/', '/who-we-are/meet-our-team/melissa-simard', 301, null),
+  ('/about-us/dr-tracey-oppenheim-md/', '/who-we-are/meet-our-team/tracey-oppenheim', 301, 'New-site slug drops dr/md title'),
+  ('/about-us/placida-valdez/', '/who-we-are/meet-our-team/placida-valdez', 301, null),
 
   -- Treatment services (modalities / levels of care)
   ('/treatment-services/', '/treatment', 301, null),
