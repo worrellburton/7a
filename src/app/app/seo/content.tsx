@@ -9,6 +9,11 @@ import {
   type KeywordCategory,
   type KeywordDifficulty,
 } from '@/lib/seo/keywords';
+import {
+  suggestionsForFit,
+  type FitBreakdown,
+  type FitSuggestion,
+} from '@/lib/seo/keywordFit';
 
 const KEYWORD_STORAGE_KEY = 'sa-seo:keyword-ranks';
 
@@ -410,6 +415,7 @@ function KeywordResearchCard({
     brand: false,
     decision: false,
   });
+  const [openFitKeywordId, setOpenFitKeywordId] = useState<string | null>(null);
 
   const rankMap = new Map<string, RankRow>();
   for (const r of ranks?.results ?? []) rankMap.set(r.id, r);
@@ -606,7 +612,11 @@ function KeywordResearchCard({
                               <PriorityPill p={k.priority} />
                             </td>
                             <td className="py-2 px-2 text-center">
-                              <FitCell row={fit} loading={fitsLoading} />
+                              <FitCell
+                                row={fit}
+                                loading={fitsLoading}
+                                onOpen={() => setOpenFitKeywordId(k.id)}
+                              />
                             </td>
                             <td className="py-2 pl-2 text-right">
                               <RankCell row={r} loading={loading} />
@@ -622,6 +632,19 @@ function KeywordResearchCard({
           );
         })}
       </div>
+
+      {openFitKeywordId ? (() => {
+        const kw = KEYWORDS.find((k) => k.id === openFitKeywordId);
+        const fit = fits[openFitKeywordId];
+        if (!kw) return null;
+        return (
+          <FitDetailsModal
+            keyword={kw}
+            fit={fit}
+            onClose={() => setOpenFitKeywordId(null)}
+          />
+        );
+      })() : null}
     </div>
   );
 }
@@ -714,7 +737,13 @@ function RankCell({
   );
 }
 
-function FitCell({ row, loading }: { row: FitRow | undefined; loading: boolean }) {
+function FitCell({
+  row, loading, onOpen,
+}: {
+  row: FitRow | undefined;
+  loading: boolean;
+  onOpen: () => void;
+}) {
   if (!row) {
     return <span className="text-foreground/40">{loading ? '…' : '—'}</span>;
   }
@@ -728,33 +757,242 @@ function FitCell({ row, loading }: { row: FitRow | undefined; loading: boolean }
           : row.bucket === 'weak'
             ? 'bg-orange-50 text-orange-800 border-orange-200'
             : 'bg-red-50 text-red-700 border-red-200';
-  const tooltipParts: string[] = [`Score: ${row.score}/100`];
-  if (row.best_h1) tooltipParts.push(`Best H1: "${row.best_h1}"`);
-  if (row.best_title) tooltipParts.push(`Best title: "${row.best_title}"`);
-  if (row.best_url) tooltipParts.push(`Best page: ${row.best_url}`);
-  const title = tooltipParts.join('\n');
-  const inner = (
-    <span
-      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${tone}`}
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title={`Click for suggestions to get ${row.score}/100 → 100`}
+      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition ${tone}`}
     >
       <span className="tabular-nums">{row.score}</span>
       <span>{row.bucket}</span>
-    </span>
+    </button>
   );
-  if (row.best_url) {
-    return (
-      <a
-        href={row.best_url}
-        target="_blank"
-        rel="noreferrer"
-        title={title}
-        className="hover:opacity-80 transition"
+}
+
+function FitDetailsModal({
+  keyword, fit, onClose,
+}: {
+  keyword: Keyword;
+  fit: FitRow | undefined;
+  onClose: () => void;
+}) {
+  // ESC-to-close + scroll-lock while open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  const breakdown = (fit?.breakdown ?? null) as FitBreakdown | null;
+  const score = fit?.score ?? 0;
+  const gap = Math.max(0, 100 - score);
+  const suggestions: FitSuggestion[] = suggestionsForFit({
+    keyword_text: keyword.text,
+    breakdown,
+    best_url: fit?.best_url ?? null,
+    best_h1: fit?.best_h1 ?? null,
+    best_title: fit?.best_title ?? null,
+  });
+
+  const potentialGain = suggestions.reduce((s, x) => (x.done ? s : s + x.points), 0);
+
+  const toneHeader =
+    fit?.bucket === 'strong'
+      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      : fit?.bucket === 'good'
+        ? 'bg-lime-50 text-lime-800 border-lime-200'
+        : fit?.bucket === 'partial'
+          ? 'bg-amber-50 text-amber-800 border-amber-200'
+          : fit?.bucket === 'weak'
+            ? 'bg-orange-50 text-orange-800 border-orange-200'
+            : 'bg-red-50 text-red-700 border-red-200';
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="fit-details-heading"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
+      onClick={onClose}
+    >
+      <div aria-hidden="true" className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+      <div
+        className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
       >
-        {inner}
-      </a>
-    );
-  }
-  return <span title={title}>{inner}</span>;
+        <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-black/5 px-6 pt-5 pb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-foreground/50">
+              Current fit · {CATEGORY_LABELS[keyword.category]}
+            </p>
+            <h2
+              id="fit-details-heading"
+              className="mt-1 text-lg font-bold text-foreground truncate"
+              title={keyword.text}
+            >
+              {keyword.text}
+            </h2>
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider ${toneHeader}`}>
+                <span className="tabular-nums">{score}</span>
+                <span>{fit?.bucket ?? 'none'}</span>
+              </span>
+              {gap > 0 && (
+                <span className="text-[11px] text-foreground/60">
+                  {gap} pts to 100
+                  {potentialGain > 0 && potentialGain < gap && ` · ${potentialGain} available from signals below`}
+                </span>
+              )}
+              {gap === 0 && <span className="text-[11px] text-emerald-700 font-semibold">Topped out.</span>}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full text-foreground/50 hover:text-foreground hover:bg-black/5"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-5">
+          {/* Breakdown bars */}
+          <section>
+            <h3 className="text-[11px] font-semibold tracking-[0.22em] uppercase text-foreground/55 mb-2">
+              Signal breakdown
+            </h3>
+            <ul className="space-y-1.5">
+              <BreakdownRow label="H1 heading" earned={breakdown?.h1_points ?? 0} max={40} />
+              <BreakdownRow label="Title tag" earned={breakdown?.title_points ?? 0} max={20} />
+              <BreakdownRow label="URL slug" earned={breakdown?.url_points ?? 0} max={12} />
+              <BreakdownRow label="H2 heading" earned={breakdown?.h2_points ?? 0} max={10} />
+              <BreakdownRow label="Meta description" earned={breakdown?.meta_points ?? 0} max={8} />
+              <BreakdownRow label="Body mentions" earned={breakdown?.body_points ?? 0} max={5} />
+            </ul>
+          </section>
+
+          {/* Best page */}
+          {(fit?.best_url || fit?.best_h1 || fit?.best_title) && (
+            <section className="rounded-lg border border-black/5 bg-warm-bg/40 px-4 py-3">
+              <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-foreground/55 mb-2">
+                Best-fitting page
+              </p>
+              {fit.best_h1 && (
+                <p className="text-sm text-foreground">
+                  <span className="text-[10px] tracking-wider uppercase text-foreground/50 mr-1.5">H1</span>
+                  <span className="font-medium">{fit.best_h1}</span>
+                </p>
+              )}
+              {fit.best_title && (
+                <p className="mt-1 text-xs text-foreground/70">
+                  <span className="text-[10px] tracking-wider uppercase text-foreground/50 mr-1.5">Title</span>
+                  {fit.best_title}
+                </p>
+              )}
+              {fit.best_url && (
+                <p className="mt-2">
+                  <a
+                    href={fit.best_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary font-semibold hover:underline"
+                  >
+                    Open page
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                </p>
+              )}
+            </section>
+          )}
+
+          {/* Suggestions list */}
+          <section>
+            <h3 className="text-[11px] font-semibold tracking-[0.22em] uppercase text-foreground/55 mb-2">
+              Ways to raise the score
+            </h3>
+            <ol className="space-y-2.5">
+              {suggestions.map((s, i) => (
+                <SuggestionRow key={`${s.signal}-${i}`} suggestion={s} />
+              ))}
+            </ol>
+          </section>
+
+          <p className="text-[11px] text-foreground/40">
+            Re-run the fit scan after publishing changes to see the score update. The
+            score caps at 100 — some signals share weight so the best-fitting page
+            won't always need all of them to sit in the "strong" band.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BreakdownRow({ label, earned, max }: { label: string; earned: number; max: number }) {
+  const pct = Math.min(100, Math.round((earned / max) * 100));
+  const tone = earned >= max
+    ? 'bg-emerald-500'
+    : earned > 0
+      ? 'bg-amber-400'
+      : 'bg-black/15';
+  return (
+    <li className="grid grid-cols-[120px_1fr_60px] items-center gap-3 text-xs">
+      <span className="text-foreground/70">{label}</span>
+      <span className="relative h-2 rounded-full bg-black/5 overflow-hidden">
+        <span
+          className={`absolute inset-y-0 left-0 ${tone} rounded-full transition-all`}
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <span className="text-right tabular-nums text-foreground/70">
+        {earned}/{max}
+      </span>
+    </li>
+  );
+}
+
+function SuggestionRow({ suggestion }: { suggestion: FitSuggestion }) {
+  const icon = suggestion.done ? (
+    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  ) : (
+    <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+    </svg>
+  );
+  return (
+    <li className="flex gap-3 items-start">
+      <div className="shrink-0 mt-0.5">{icon}</div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <p className={`text-sm font-semibold ${suggestion.done ? 'text-foreground/70' : 'text-foreground'}`}>
+            {suggestion.title}
+          </p>
+          <span
+            className={`text-[10px] font-bold uppercase tracking-wider tabular-nums ${
+              suggestion.done ? 'text-emerald-700' : 'text-primary'
+            }`}
+          >
+            {suggestion.done ? `+${suggestion.points} earned` : `+${suggestion.points} pts`}
+          </span>
+        </div>
+        <p className="text-xs text-foreground/60 mt-0.5 leading-snug">{suggestion.detail}</p>
+      </div>
+    </li>
+  );
 }
 
 function prettyPath(url: string): string {
