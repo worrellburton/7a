@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import AlumniHero from '@/components/alumni/AlumniHero';
+import PageHero from '@/components/PageHero';
 import AlumniAtAGlance from '@/components/alumni/AlumniAtAGlance';
 import TheTransition from '@/components/alumni/TheTransition';
 import AftercarePlan from '@/components/alumni/AftercarePlan';
@@ -88,7 +88,20 @@ export default function AlumniAftercarePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
       />
-      <AlumniHero />
+      <PageHero
+        label="Alumni & aftercare"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Treatment', href: '/treatment' },
+          { label: 'Alumni & aftercare' },
+        ]}
+        title={[
+          "Recovery doesn't end at ",
+          { text: 'the gate', accent: true },
+          '.',
+        ]}
+        description="Seven Arrows' continuing-care program is built around the hardest months — the first 90 days after discharge. Individual aftercare plans, IOP and PHP step-down, sober-living placement, alumni groups, and 24/7 crisis support so you never do the next stretch alone."
+      />
       <AlumniAtAGlance />
       <TheTransition />
       <AftercarePlan />

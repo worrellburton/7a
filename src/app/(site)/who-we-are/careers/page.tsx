@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import CareersHero from '@/components/careers/CareersHero';
+import PageHero from '@/components/PageHero';
 import CareersAtAGlance from '@/components/careers/CareersAtAGlance';
 import WhyWorkHere from '@/components/careers/WhyWorkHere';
 import Benefits from '@/components/careers/Benefits';
@@ -60,7 +60,20 @@ export default function CareersPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      <CareersHero />
+      <PageHero
+        label="Careers at Seven Arrows"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who we are', href: '/who-we-are' },
+          { label: 'Careers' },
+        ]}
+        title={[
+          'Do the work you ',
+          { text: 'came to do', accent: true },
+          '.',
+        ]}
+        description="Seven Arrows Recovery is hiring clinicians, counselors, nurses, behavioral-health techs, and holistic practitioners for our 160-acre residential ranch in Cochise County, Arizona. Small caseloads, trauma-informed care, and a team that takes the work seriously."
+      />
       <CareersAtAGlance />
       <WhyWorkHere />
       <Benefits />

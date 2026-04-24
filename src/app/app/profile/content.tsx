@@ -183,8 +183,19 @@ export default function ProfileContent() {
     setTimeout(() => setToast(null), 2500);
   };
 
+  // Remember which user id we've already loaded profile data for. The
+  // auth state flips `user` to a new object reference every time
+  // supabase.auth.updateUser runs (e.g. right after an avatar upload
+  // syncs to user_metadata) — without this guard the profile data
+  // reload races with the DB write and sometimes overwrites the fresh
+  // avatar URL with the stale one read from the DB before replication
+  // catches up.
+  const loadedForUserId = useRef<string | null>(null);
+
   useEffect(() => {
     if (!session?.access_token || !user) return;
+    if (loadedForUserId.current === user.id) return;
+    loadedForUserId.current = user.id;
     async function load() {
       // Prefer the full select with the newer columns; if the migration
       // hasn't been applied yet (hometown / interesting_facts missing),

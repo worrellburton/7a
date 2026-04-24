@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import FAQHero from '@/components/faqs/FAQHero';
+import PageHero from '@/components/PageHero';
 import FAQPersonaView from '@/components/faqs/FAQPersonaView';
 import FAQIntake from '@/components/faqs/FAQIntake';
 import FAQCTA from '@/components/faqs/FAQCTA';
@@ -103,7 +103,20 @@ export default function FAQsPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
       />
-      <FAQHero />
+      <PageHero
+        label="Frequently asked questions"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Who we are', href: '/who-we-are' },
+          { label: 'FAQs' },
+        ]}
+        title={[
+          'Your questions about ',
+          { text: 'rehab at Seven Arrows', accent: true },
+          '.',
+        ]}
+        description="Answers to the questions our admissions team fields most often — insurance and cost, length of stay, detox, the clinical approach, family involvement, aftercare, and privacy. Updated regularly and organized by topic."
+      />
       <FAQPersonaView />
       <FAQIntake />
       <FAQCTA />

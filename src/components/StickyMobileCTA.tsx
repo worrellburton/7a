@@ -6,46 +6,21 @@
 // tiny "AVAILABLE 24/7" kicker above the bold phone number. iOS
 // safe-area inset respected so it never sits under the home-bar.
 //
-// Inner pages: hidden until the visitor has scrolled past the hero,
-// because every inner page already has an inline "(866) 996-4308"
-// button in the hero block and doubling it up looks cluttered. The
-// landing page always shows the pill.
-
-'use client';
-
-import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
-
-const SHOW_AFTER_SCROLL_PX = 420;
+// The pill is always visible on mobile — inner pages no longer carry
+// a duplicate phone CTA inside the hero (PageHero filters out phone
+// CTAs), so this is the single source of truth for the call action.
 
 export default function StickyMobileCTA() {
-  const pathname = usePathname() ?? '/';
-  const isLanding = pathname === '/';
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    if (isLanding) return;
-    const onScroll = () => setScrolled(window.scrollY > SHOW_AFTER_SCROLL_PX);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, [isLanding]);
-
-  const visible = isLanding || scrolled;
-
   return (
     <div
       // The `sticky-mobile-cta` class is used by globals.css to hide
       // this pill while the mobile nav drawer is open (otherwise the
       // call button floats over the open menu and looks like part of
       // it). The attribute is set on <html> by MobileMenu.
-      className={`sticky-mobile-cta fixed left-1/2 -translate-x-1/2 z-50 lg:hidden transition-all duration-300 ${
-        visible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-3 pointer-events-none'
-      }`}
+      className="sticky-mobile-cta fixed left-1/2 -translate-x-1/2 z-50 lg:hidden"
       // Lift above the GoogleReviewsBadge bar (~52px tall) plus the
       // device safe-area inset and a small breathing-room gap.
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 60px)' }}
-      aria-hidden={!visible}
     >
       <a
         href="tel:+18669964308"

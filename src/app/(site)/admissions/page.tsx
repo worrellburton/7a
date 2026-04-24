@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import AdmissionsHero from '@/components/admissions/AdmissionsHero';
+import PageHero from '@/components/PageHero';
 import AdmissionsAtAGlance from '@/components/admissions/AdmissionsAtAGlance';
 import ThreeStepIntake from '@/components/admissions/ThreeStepIntake';
 import InsuranceVerify from '@/components/admissions/InsuranceVerify';
@@ -95,7 +95,16 @@ export default function AdmissionsPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
-      <AdmissionsHero />
+      <PageHero
+        label="Admissions"
+        breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Admissions' }]}
+        title={[
+          'Start with a call. ',
+          { text: "We'll take it from here", accent: true },
+          '.',
+        ]}
+        description="Seven Arrows Recovery is 160 acres of quiet at the base of the Swisshelm Mountains. Start with a phone call. We'll verify your insurance, walk you through the assessment, and coordinate travel — most clients arrive within 24 to 48 hours."
+      />
       <AdmissionsAtAGlance />
       <ThreeStepIntake />
       <InsuranceVerify />
