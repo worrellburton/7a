@@ -15,6 +15,7 @@ import { hasSerpApiKey, runGoogleAio } from '@/lib/geo/engines/google_aio';
 import type { EngineAnswer, EngineId } from '@/lib/geo/engines/types';
 import { detectMentions, type MentionResult } from '@/lib/geo/detector';
 import { aggregate, type GeoScore } from '@/lib/geo/score';
+import { buildGeoPrompt } from '@/lib/geo/prompt';
 
 // POST /api/geo/audit/run
 //
@@ -195,6 +196,10 @@ export async function POST(req: Request) {
   };
 
   const score: GeoScore = aggregate({ results, prompts, engines });
+  const claudePrompt = buildGeoPrompt({
+    site: 'https://sevenarrowsrecoveryarizona.com',
+    score,
+  });
 
   return NextResponse.json({
     ranAt: new Date(startedAt).toISOString(),
@@ -210,6 +215,7 @@ export async function POST(req: Request) {
     results,
     summary,
     score,
+    prompt: claudePrompt,
     notice:
       skippedEngines.length > 0
         ? `Ran ${engines.length} of ${requestedEngines.length} engines (${skippedEngines.map((s) => s.engine).join(', ')} skipped — see skippedEngines).`
