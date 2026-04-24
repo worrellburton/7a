@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 /* ── Hero slide deck ────────────────────────────────────────────── */
 
@@ -264,6 +265,189 @@ function AnimatedLogo() {
   );
 }
 
+/* ── Phase 3: Staff & horse face mosaic ─────────────────────────── */
+
+interface FaceTile {
+  key: string;
+  name: string;
+  role: string | null;
+  src: string;
+  kind: 'staff' | 'horse';
+}
+
+// Google avatar URLs take a =s96-c suffix that renders blurry at 56px on
+// retina; bump to s256 so the mosaic reads crisp.
+function upgradeGoogleAvatar(url: string | null): string | null {
+  if (!url) return null;
+  if (!/googleusercontent\.com/i.test(url)) return url;
+  if (/=s\d+(-c)?$/i.test(url)) return url.replace(/=s\d+(-c)?$/i, '=s256-c');
+  return `${url}=s256-c`;
+}
+
+// Two horse photos ship in /public/images and stand in for the equine
+// table (which is auth-gated and can't be read pre-login).
+const HORSE_TILES: FaceTile[] = [
+  { key: 'horse-portrait', name: 'The herd', role: 'Equine therapy', src: '/images/equine-therapy-portrait.jpg', kind: 'horse' },
+  { key: 'horse-grazing',  name: 'Grazing',  role: 'Morning pasture', src: '/images/horses-grazing.jpg', kind: 'horse' },
+];
+
+/**
+ * Fetches the public team (status = active, public_team = true) from the
+ * browser supabase client — same RLS policy `fetchPublicTeam()` uses on
+ * the marketing site, so anon reads are permitted. Falls back silently
+ * to just the horse tiles if the query fails (e.g. env misconfig).
+ */
+function useFaceTiles(): FaceTile[] {
+  const [staff, setStaff] = useState<FaceTile[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('id, full_name, avatar_url, job_title')
+          .eq('status', 'active')
+          .eq('public_team', true);
+        if (error) throw error;
+        if (cancelled || !data) return;
+        const tiles = (data as { id: string; full_name: string | null; avatar_url: string | null; job_title: string | null }[])
+          .filter((u) => u.avatar_url && u.full_name)
+          .map<FaceTile>((u) => ({
+            key: u.id,
+            name: u.full_name || 'Team',
+            role: u.job_title,
+            src: upgradeGoogleAvatar(u.avatar_url) || u.avatar_url || '',
+            kind: 'staff',
+          }));
+        setStaff(tiles);
+      } catch {
+        // Silent fallback — the mosaic still shows horses.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Interleave horses into the staff list so the marquee mixes species.
+  return useMemo(() => {
+    if (staff.length === 0) return HORSE_TILES;
+    const mixed: FaceTile[] = [];
+    staff.forEach((s, i) => {
+      mixed.push(s);
+      if (i === Math.floor(staff.length / 3)) mixed.push(HORSE_TILES[0]);
+      if (i === Math.floor((2 * staff.length) / 3)) mixed.push(HORSE_TILES[1]);
+    });
+    return mixed;
+  }, [staff]);
+}
+
+/**
+ * A slow horizontal marquee of team + horse faces at the bottom of the
+ * screen. Each tile is a round avatar with an orange ring; hover pauses
+ * the scroll and fades in the name + role. The strip duplicates itself
+ * once so the scroll loops seamlessly. Fully hidden on prefers-reduced-
+ * motion (it still renders but stops scrolling — keeps the visual).
+ */
+function FaceMarquee() {
+  const tiles = useFaceTiles();
+
+  // We render the list twice back-to-back so translate(-50%) produces a
+  // seamless loop. A longer list = slower per-tile sweep, which feels
+  // intentional (there are many people here, take your time).
+  const loop = useMemo(() => [...tiles, ...tiles], [tiles]);
+
+  if (tiles.length === 0) return null;
+
+  // Duration scales with tile count so velocity stays roughly constant
+  // regardless of team size.
+  const seconds = Math.max(40, tiles.length * 3.5);
+
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 bottom-6 z-[5] flex justify-center overflow-hidden"
+      aria-hidden="true"
+    >
+      <div className="relative w-full max-w-5xl mx-auto px-4 animate-faces-fade-in">
+        {/* Edge fades so avatars dissolve into the hero instead of hard-
+            cropping at the viewport edge. */}
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-24 z-10"
+             style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.75), transparent)' }} />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-24 z-10"
+             style={{ background: 'linear-gradient(to left, rgba(0,0,0,0.75), transparent)' }} />
+
+        <div
+          className="flex items-center gap-4 w-max face-marquee-track"
+          style={{ animationDuration: `${seconds}s` }}
+        >
+          {loop.map((tile, i) => (
+            <div
+              key={`${tile.key}-${i}`}
+              className="relative flex flex-col items-center shrink-0 group pointer-events-auto"
+            >
+              <div
+                className="relative h-14 w-14 sm:h-16 sm:w-16 rounded-full overflow-hidden ring-2 ring-white/40 shadow-lg transition-transform duration-300 group-hover:scale-110 face-tile-float"
+                style={{ animationDelay: `${(i % 11) * 0.35}s` }}
+              >
+                <img
+                  src={tile.src}
+                  alt=""
+                  loading="lazy"
+                  className="h-full w-full object-cover"
+                />
+                {tile.kind === 'horse' && (
+                  <span className="absolute bottom-0 inset-x-0 h-4 bg-gradient-to-t from-black/60 to-transparent flex items-end justify-center pb-0.5">
+                    <span className="text-[8px] tracking-widest text-white/90 uppercase">Herd</span>
+                  </span>
+                )}
+              </div>
+              <div className="absolute top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap text-center">
+                <div className="text-[11px] font-semibold text-white drop-shadow">{tile.name}</div>
+                {tile.role && (
+                  <div className="text-[10px] text-white/75 drop-shadow">{tile.role}</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <style jsx global>{`
+        @keyframes face-marquee {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-50%); }
+        }
+        .face-marquee-track {
+          animation-name: face-marquee;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+          will-change: transform;
+        }
+        .face-marquee-track:hover { animation-play-state: paused; }
+
+        @keyframes face-tile-float {
+          0%,100% { transform: translateY(0); }
+          50%     { transform: translateY(-3px); }
+        }
+        .face-tile-float {
+          animation: face-tile-float 4.5s ease-in-out infinite;
+        }
+
+        @keyframes faces-fade-in {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .animate-faces-fade-in { animation: faces-fade-in 1.4s ease-out 0.8s both; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .face-marquee-track,
+          .face-tile-float,
+          .animate-faces-fade-in { animation: none !important; }
+          .animate-faces-fade-in { opacity: 1; transform: none; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 /* ── Motion preference hook ─────────────────────────────────────── */
 
 function usePrefersReducedMotion(): boolean {
@@ -294,8 +478,9 @@ export default function LoginScreen({
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-black">
       <HeroGallery />
+      <FaceMarquee />
 
-      <div className="relative z-10 w-full max-w-sm mx-4 text-center">
+      <div className="relative z-10 w-full max-w-sm mx-4 text-center pb-32 sm:pb-28">
         <AnimatedLogo />
         {caption?.title && (
           <p
