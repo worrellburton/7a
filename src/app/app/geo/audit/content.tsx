@@ -129,16 +129,39 @@ export default function AuditContent() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setResult(JSON.parse(raw) as AuditResponse);
-    } catch {
-      // stale / corrupt — ignore
-    }
+
     const stored = Number(window.localStorage.getItem(DURATION_KEY));
     if (Number.isFinite(stored) && stored > 5_000 && stored < 600_000) {
       setEstimatedMs(stored);
     }
+
+    // Prefer the server-persisted latest audit (shared across teammates),
+    // fall back to localStorage if the server has nothing or errors.
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/geo/audit/latest', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as { audit: AuditResponse | null };
+        if (cancelled) return;
+        if (json.audit) {
+          setResult(json.audit);
+          return;
+        }
+      } catch {
+        // fall through to localStorage
+      }
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (raw && !cancelled) setResult(JSON.parse(raw) as AuditResponse);
+      } catch {
+        // stale / corrupt — ignore
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(

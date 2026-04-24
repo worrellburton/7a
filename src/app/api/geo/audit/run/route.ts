@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 import {
   DEFAULT_PROMPTS,
   COMPETITOR_BRANDS,
@@ -196,12 +196,10 @@ export async function POST(req: Request) {
   };
 
   const score: GeoScore = aggregate({ results, prompts, engines });
-  const claudePrompt = buildGeoPrompt({
-    site: 'https://sevenarrowsrecoveryarizona.com',
-    score,
-  });
+  const site = 'https://sevenarrowsrecoveryarizona.com';
+  const claudePrompt = buildGeoPrompt({ site, score });
 
-  return NextResponse.json({
+  const payload = {
     ranAt: new Date(startedAt).toISOString(),
     durationMs,
     prompts: prompts.map((p) => ({
@@ -220,5 +218,31 @@ export async function POST(req: Request) {
       skippedEngines.length > 0
         ? `Ran ${engines.length} of ${requestedEngines.length} engines (${skippedEngines.map((s) => s.engine).join(', ')} skipped — see skippedEngines).`
         : `Ran ${results.length} (engine × prompt) calls in ${Math.round(durationMs / 1000)}s.`,
-  });
+  };
+
+  // Persist. Non-fatal: if the write fails the user still gets their
+  // result; we just log and carry on. Admin client bypasses RLS.
+  try {
+    const admin = getAdminSupabase();
+    const { error: insertErr } = await admin.from('geo_audits').insert({
+      site,
+      score: score.score,
+      grade: score.grade,
+      engines,
+      skipped_engines: skippedEngines.map((s) => s.engine),
+      payload,
+      duration_ms: durationMs,
+      ran_by: user.id,
+    });
+    if (insertErr) {
+      console.warn('[geo-audit] persist failed, returning anyway', insertErr.message);
+    }
+  } catch (err) {
+    console.warn(
+      '[geo-audit] persist threw, returning anyway',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  return NextResponse.json(payload);
 }
