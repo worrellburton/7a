@@ -38,7 +38,7 @@ export default function TourStats() {
           {stats.map((s, i) => (
             <div
               key={s.label}
-              className="relative lg:border-r lg:border-black/10 lg:last:border-r-0 lg:pr-6"
+              className="relative text-center lg:text-left lg:border-r lg:border-black/10 lg:last:border-r-0 lg:pr-6"
               style={{
                 opacity: visible ? 1 : 0,
                 transform: visible ? 'translateY(0)' : 'translateY(14px)',
@@ -58,7 +58,10 @@ export default function TourStats() {
               >
                 {s.unit}
               </p>
-              <p className="text-foreground/70 text-sm leading-snug max-w-[240px]" style={{ fontFamily: 'var(--font-body)' }}>
+              <p
+                className="text-foreground/70 text-sm leading-snug max-w-[240px] mx-auto lg:mx-0"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
                 {s.label}
               </p>
             </div>

@@ -113,13 +113,18 @@ export default function MobileMenu({
   // Body scroll lock — prevents the underlying page from scrolling
   // while the drawer is visible. Restores the prior overflow value
   // on close (rather than assuming the site default was 'visible').
+  // Also set a `data-mobile-nav-open` flag on <html> so other
+  // floating UI (the StickyMobileCTA call pill) can hide via CSS
+  // while the drawer is up — otherwise it overlaps the menu.
   useEffect(() => {
     if (!mounted) return;
     const { body } = document;
     const prev = body.style.overflow;
     body.style.overflow = 'hidden';
+    document.documentElement.dataset.mobileNavOpen = 'true';
     return () => {
       body.style.overflow = prev;
+      delete document.documentElement.dataset.mobileNavOpen;
     };
   }, [mounted]);
 
@@ -229,14 +234,18 @@ export default function MobileMenu({
                     aria-expanded={expanded === item.label}
                     aria-current={activeLabel === item.label ? 'page' : undefined}
                   >
-                    {/* Active-page indicator — a tiny copper dot
-                        to the left of the current section's label.
-                        Scales in when the drawer opens on an active
-                        page, providing a clear "you are here" cue
-                        without clashing with the expand-accent
-                        rail that appears inside the open section. */}
-                    <ActiveDot active={activeLabel === item.label} show={showing} />
-                    {item.label}
+                    {/* Group the active-page dot and label into one
+                        flex child so the row always reads as
+                        [label][chevron] regardless of whether the
+                        dot is rendered — otherwise three flex
+                        children + justify-between would push the
+                        label to the center on active sections only,
+                        making the active item visually misalign with
+                        its siblings. */}
+                    <span className="inline-flex items-center">
+                      <ActiveDot active={activeLabel === item.label} show={showing} />
+                      {item.label}
+                    </span>
                     <svg
                       className="w-3.5 h-3.5"
                       fill="none"

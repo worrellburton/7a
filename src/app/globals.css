@@ -367,3 +367,8 @@ html.dark .bg-dark-section {
 /* Utility used by horizontal scroll rows (range preset bar, etc.) */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Hide the floating mobile call pill while the mobile nav drawer is
+   open — MobileMenu sets data-mobile-nav-open on <html> while it is
+   visible, otherwise the pill overlaps the open menu. */
+html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
