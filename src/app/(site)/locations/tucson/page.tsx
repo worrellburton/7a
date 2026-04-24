@@ -18,7 +18,7 @@ const services = [
   {
     title: 'Residential Inpatient Treatment',
     description:
-      'Structured 30-to-90-day residential programs with an exceptionally low 6:1 client-to-staff ratio, allowing deeply personalized clinical attention.',
+      'Structured 30-to-90-day residential programs with an exceptionally low client-to-staff ratio, allowing deeply personalized clinical attention.',
   },
   {
     title: 'Dual Diagnosis Treatment',

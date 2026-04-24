@@ -9,7 +9,7 @@ import { usePersona } from './PersonaContext';
  * Phase 1 — Hero + instant-trust stack.
  *
  * Cinematic video backdrop, single clear headline, live trust strip
- * (4.9★ · reviews · accreditation · 6:1 ratio · answered now), and a
+ * (4.9★ · reviews · accreditation · 1:1 primary clinician · answered now), and a
  * three-CTA ladder — call (highest intent), verify insurance
  * (medium), text/message (lowest). Headline + first-paragraph copy
  * adapts to the chosen persona; the trust strip and CTAs do not.
@@ -27,7 +27,7 @@ const personaCopy = {
         A place to come <em className="not-italic text-accent">back to yourself.</em>
       </>
     ),
-    body: "Residential addiction treatment in Arizona, built around a 6:1 client-to-staff ratio, trauma-informed clinical care, and a 160-acre ranch that gives your nervous system the room it has been asking for. Admissions answered 24/7.",
+    body: "Residential addiction treatment in Arizona, built around 1:1 primary-clinician care, a low client-to-staff ratio, trauma-informed clinical work, and a 160-acre ranch that gives your nervous system the room it has been asking for. Admissions answered 24/7.",
   },
   loved_one: {
     eyebrow: 'You called us because no one else would be this honest',
@@ -45,7 +45,7 @@ const personaCopy = {
         A place to <em className="not-italic text-accent">heal.</em>
       </>
     ),
-    body: "Small-census residential care at the base of the Swisshelm Mountains. Trauma-informed clinical program, 6:1 ratio, holistic practice, and an admissions line answered 24/7 by someone who will take the time to actually listen.",
+    body: "Small-census residential care at the base of the Swisshelm Mountains. Trauma-informed clinical program, 1:1 primary-clinician attention, holistic practice, and an admissions line answered 24/7 by someone who will take the time to actually listen.",
   },
 };
 
@@ -205,7 +205,7 @@ export default function LandingHero() {
                 <StarIcon /> 4.9 · 28 Google reviews
               </TrustChip>
               <TrustChip>JCAHO accredited</TrustChip>
-              <TrustChip>6:1 client-to-staff</TrustChip>
+              <TrustChip>1:1 primary clinician</TrustChip>
               <TrustChip>
                 <span className="inline-flex items-center gap-1.5">
                   <span className="relative w-1.5 h-1.5 rounded-full bg-emerald-400">

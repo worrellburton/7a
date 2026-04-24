@@ -146,7 +146,7 @@ export default function CampusTour() {
         {/* ---------- Mobile: equal-sized horizontal scroll ---------- */}
         <div className="lg:hidden relative">
           <div
-            className="flex gap-3 overflow-x-auto snap-x snap-mandatory px-4 sm:px-6 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex gap-3 overflow-x-auto snap-x snap-mandatory pl-5 pr-6 sm:pl-6 sm:pr-8 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             style={{
               WebkitMaskImage:
                 'linear-gradient(to right, #000 0, #000 calc(100% - 28px), rgba(0,0,0,0) 100%)',

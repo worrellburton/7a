@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 /** Phase 3 — program overview with prose + highlight card + feature photo. */
 const highlights = [
   '30-to-90-day individualized treatment plans',
-  'Small group setting — maximum 6:1 client-to-staff ratio',
+  'Small group setting — deliberately low client-to-staff ratio, 1:1 primary clinician',
   '24/7 on-site clinical and residential support',
   'Evidence-based individual and group therapy',
   'Proprietary TraumAddiction® approach',
@@ -65,8 +65,8 @@ export default function ProgramOverview() {
               </p>
               <p>
                 Unlike large-scale treatment centers, Seven Arrows maintains a
-                deliberately small census. Our 6:1 client-to-staff ratio ensures
-                genuinely personalized care. Every therapist, counselor, and support
+                deliberately small census and a 1:1 primary-clinician model, which
+                keeps care genuinely personalized. Every therapist, counselor, and support
                 staff member knows your name, your story, and your goals.
               </p>
             </div>

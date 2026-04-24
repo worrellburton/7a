@@ -200,8 +200,8 @@ export default function Home() {
       <TreatmentServices />
       <CampusTour />
       <InsuranceCarousel />
-      <DailyLifeSection />
       <GoogleReviewsCinema />
+      <DailyLifeSection />
       <InsuranceVerification />
       <BlogPreview />
       <FAQSection />

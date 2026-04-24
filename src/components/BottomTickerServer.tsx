@@ -8,7 +8,7 @@ import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import BottomTicker, { type TickerItem } from './BottomTicker';
 
 const STATIC_ITEMS: TickerItem[] = [
-  { type: 'stat', text: '6:1 Client to Staff Ratio' },
+  { type: 'stat', text: '1:1 Primary Clinician' },
   {
     type: 'link',
     text: 'NEW: When Drinking Stops Working →',
