@@ -23,9 +23,9 @@ export const metadata: Metadata = {
       'A boutique drug and alcohol rehab center in Arizona. Clinical and residential treatment in a small group setting.',
     images: [
       {
-        url: '/images/og-image.jpg',
-        width: 1200,
-        height: 630,
+        url: '/images/facility-exterior-mountains.jpg',
+        width: 2000,
+        height: 1235,
         alt: 'Seven Arrows Recovery - A Place to Heal',
       },
     ],
@@ -35,6 +35,7 @@ export const metadata: Metadata = {
     title: 'Seven Arrows Recovery | Drug Rehab in Arizona',
     description:
       'A boutique drug and alcohol rehab center in Arizona. Clinical and residential treatment in a small group setting.',
+    images: ['/images/facility-exterior-mountains.jpg'],
   },
   robots: 'index, follow',
   other: {
