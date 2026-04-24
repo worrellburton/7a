@@ -40,6 +40,15 @@ interface AuditResult {
     warnings?: string[];
   } | null;
   homepage?: HomepageSummary | null;
+  crawl?: {
+    crawled: number;
+    ok: number;
+    errors: number;
+    skipped: number;
+    trimmed: number;
+    totalMs: number;
+    avgFetchMs: number;
+  } | null;
   pages: unknown[];
   categories: Record<string, unknown>;
   strengths: { title: string; detail: string }[];
@@ -146,6 +155,25 @@ export default function AuditContent() {
           )}
         </Panel>
       </div>
+
+      {result?.crawl ? (
+        <Panel title="Crawl summary" className="mt-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <Stat label="Pages crawled" value={result.crawl.crawled.toLocaleString()} />
+            <Stat
+              label="200 OK"
+              value={`${result.crawl.ok} / ${result.crawl.crawled}`}
+            />
+            <Stat label="Errors" value={result.crawl.errors.toLocaleString()} />
+            <Stat label="Avg latency" value={`${result.crawl.avgFetchMs} ms`} />
+          </div>
+          {result.crawl.trimmed > 0 ? (
+            <p className="mt-3 text-[11px] text-foreground/50">
+              {result.crawl.trimmed} URLs not crawled this run (over 100-page cap).
+            </p>
+          ) : null}
+        </Panel>
+      ) : null}
 
       {result?.homepage ? (
         <Panel title="Homepage extract" className="mt-6">
@@ -300,6 +328,17 @@ function ScoreCard({
           </p>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-black/5 bg-warm-bg/30 px-3 py-2">
+      <p className="text-[10px] font-semibold tracking-[0.16em] uppercase text-foreground/50">
+        {label}
+      </p>
+      <p className="text-lg font-bold text-foreground">{value}</p>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { discoverSitemap } from '@/lib/seo/sitemap';
 import { crawlPage, type CrawledPage } from '@/lib/seo/crawl';
+import { crawlAll } from '@/lib/seo/runner';
 
 // POST /api/seo/audit/run
 // Admin-only. Runs a full crawl + audit of the live marketing site and
@@ -95,33 +96,55 @@ export async function POST(req: Request) {
     });
   }
 
-  // Phase 4 smoke test: crawl just the homepage so we can verify the
-  // extractor end-to-end. Phase 5 expands this to the whole sitemap with
-  // a concurrency cap.
+  // Phase 5: crawl the full sitemap with bounded concurrency. The
+  // homepage is always crawled too — even when sitemap discovery
+  // failed — so we can still produce a partial audit.
+  const sitemapUrls = sitemap?.urls ?? [];
+  const urlsToCrawl: string[] = [];
+  if (!sitemapUrls.includes(origin) && !sitemapUrls.includes(origin + '/')) {
+    urlsToCrawl.push(origin);
+  }
+  for (const u of sitemapUrls) urlsToCrawl.push(u);
+
+  let crawl: { pages: CrawledPage[]; skipped: { url: string; reason: string }[]; trimmed: number; totalMs: number } | null = null;
   let homepage: CrawledPage | null = null;
   try {
-    homepage = await crawlPage(origin);
-    if (homepage.error) {
-      issues.push({
-        title: 'Homepage crawl failed',
-        detail: homepage.error,
-        severity: 'high',
-      });
-    } else if (!homepage.ok) {
-      issues.push({
-        title: `Homepage returned HTTP ${homepage.status}`,
-        detail: `Final URL ${homepage.finalUrl}`,
-        severity: 'high',
-      });
-    } else {
+    crawl = await crawlAll(urlsToCrawl, { maxPages: 100, concurrency: 6 });
+    homepage =
+      crawl.pages.find(
+        (p) => p.url === origin || p.finalUrl === origin || p.url === origin + '/',
+      ) ?? crawl.pages[0] ?? null;
+
+    const okCount = crawl.pages.filter((p) => p.ok).length;
+    const errCount = crawl.pages.length - okCount;
+    if (okCount > 0) {
       strengths.push({
-        title: 'Homepage reachable',
-        detail: `HTTP ${homepage.status} in ${homepage.fetchMs}ms · ${homepage.bytes.toLocaleString()} bytes · ${homepage.h1.length} H1 · ${homepage.imageCount} images · ${homepage.internalLinkCount} internal links · ${homepage.jsonLd.length} JSON-LD blocks`,
+        title: 'Site reachable',
+        detail: `Crawled ${crawl.pages.length} pages (${okCount} OK, ${errCount} non-200) in ${crawl.totalMs}ms.`,
+      });
+    }
+    if (errCount > 0) {
+      const sample = crawl.pages
+        .filter((p) => !p.ok)
+        .slice(0, 5)
+        .map((p) => `${p.status || 'ERR'} ${p.url}`)
+        .join('; ');
+      issues.push({
+        title: `${errCount} page${errCount === 1 ? '' : 's'} failed to load`,
+        detail: `Examples: ${sample}`,
+        severity: errCount >= 5 ? 'high' : 'medium',
+      });
+    }
+    if (crawl.trimmed > 0) {
+      issues.push({
+        title: `${crawl.trimmed} URLs over crawl cap`,
+        detail: `Audit currently caps at 100 pages; ${crawl.trimmed} URLs were not crawled this run.`,
+        severity: 'low',
       });
     }
   } catch (err) {
     issues.push({
-      title: 'Homepage crawl threw',
+      title: 'Site crawl threw',
       detail: err instanceof Error ? err.message : String(err),
       severity: 'high',
     });
@@ -152,6 +175,23 @@ export async function POST(req: Request) {
       }
     : null;
 
+  const crawlSummary = crawl
+    ? {
+        crawled: crawl.pages.length,
+        ok: crawl.pages.filter((p) => p.ok).length,
+        errors: crawl.pages.filter((p) => !p.ok).length,
+        skipped: crawl.skipped.length,
+        trimmed: crawl.trimmed,
+        totalMs: crawl.totalMs,
+        avgFetchMs:
+          crawl.pages.length > 0
+            ? Math.round(
+                crawl.pages.reduce((s, p) => s + p.fetchMs, 0) / crawl.pages.length,
+              )
+            : 0,
+      }
+    : null;
+
   const result = {
     origin,
     score: null as number | null,
@@ -159,14 +199,15 @@ export async function POST(req: Request) {
     durationMs: Date.now() - startedAt,
     sitemap,
     homepage: homepageSummary,
+    crawl: crawlSummary,
     pages: [] as unknown[],
     categories: {} as Record<string, unknown>,
     strengths,
     issues,
     notice:
-      sitemap && sitemap.count > 0
-        ? `Sitemap parsed (${sitemap.count} URLs) and homepage crawled. Full-sitemap crawl + scoring land in phases 5–17.`
-        : 'Sitemap fetch incomplete. Per-page crawler + scoring land in phases 5–17.',
+      crawlSummary && crawlSummary.crawled > 0
+        ? `Crawled ${crawlSummary.crawled} pages (${crawlSummary.ok} OK). Per-category audits + scoring land in phases 6–17.`
+        : 'Crawl incomplete. Per-category audits + scoring land in phases 6–17.',
   };
 
   return NextResponse.json(result);
