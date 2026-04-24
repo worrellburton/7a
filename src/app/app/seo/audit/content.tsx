@@ -1,9 +1,26 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const STORAGE_KEY = 'sa-seo-audit:last-result';
+const DURATION_KEY = 'sa-seo-audit:last-duration-ms';
+const DEFAULT_DURATION_MS = 45_000;
+
+/**
+ * Phases the audit runner actually walks through, in order. The bar
+ * hits each label at roughly its share of `estimatedMs`. These are
+ * honest: they match the phases the API route executes
+ * (discoverSitemap → crawlAll → PSI → category audits + scoring).
+ */
+const STAGES: { label: string; atFraction: number }[] = [
+  { label: 'Discovering sitemap…', atFraction: 0.02 },
+  { label: 'Crawling pages…', atFraction: 0.1 },
+  { label: 'Fetching robots.txt…', atFraction: 0.6 },
+  { label: 'Running PageSpeed Insights…', atFraction: 0.7 },
+  { label: 'Scoring categories…', atFraction: 0.92 },
+  { label: 'Finalizing…', atFraction: 0.98 },
+];
 
 interface CategoryAudit {
   id: string;
@@ -90,26 +107,93 @@ export default function AuditContent() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AuditResult | null>(null);
+  const [progress, setProgress] = useState(0); // 0..1
+  const [stage, setStage] = useState<string>('');
+  const [estimatedMs, setEstimatedMs] = useState<number>(DEFAULT_DURATION_MS);
+  const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Restore the most recent audit from localStorage on mount so a
-  // page refresh doesn't lose it. Server-side persistence ships once
-  // the supabase/migrations/20260424_seo_audits.sql migration is
-  // applied; until then this is the durability story.
+  // Hydrate the most recent audit on mount. Try the server first
+  // (shared across teammates), fall back to localStorage if the
+  // request fails or there's nothing stored. Timing estimate for the
+  // progress bar comes from localStorage either way since it's
+  // per-browser.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as AuditResult;
-      setResult(parsed);
-    } catch {
-      // Stale / corrupt — ignore silently.
+
+    const storedDur = Number(window.localStorage.getItem(DURATION_KEY));
+    if (Number.isFinite(storedDur) && storedDur > 2_000 && storedDur < 300_000) {
+      setEstimatedMs(storedDur);
     }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/seo/audit/latest', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as { audit: AuditResult | null };
+        if (cancelled) return;
+        if (json.audit) {
+          setResult(json.audit);
+          return;
+        }
+      } catch {
+        // Fall through to localStorage.
+      }
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (raw && !cancelled) setResult(JSON.parse(raw) as AuditResult);
+      } catch {
+        // Stale / corrupt — ignore.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // Clear any ticker on unmount.
+  useEffect(
+    () => () => {
+      if (tickerRef.current) clearInterval(tickerRef.current);
+    },
+    [],
+  );
+
+  function startTicker(totalMs: number) {
+    if (tickerRef.current) clearInterval(tickerRef.current);
+    const startedAt = Date.now();
+    setProgress(0);
+    setStage(STAGES[0]?.label ?? 'Starting…');
+    tickerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      // Cap at 95% so it can't hit 100 until the response lands.
+      const raw = Math.min(0.95, elapsed / totalMs);
+      // Ease-out so early progress feels brisk and late progress feels
+      // patient (matches how the audit actually runs — crawl is fast,
+      // PSI + scoring are the tail).
+      const eased = 1 - Math.pow(1 - raw, 1.5);
+      setProgress(Number(eased.toFixed(3)));
+      // Pick the latest stage whose atFraction <= eased.
+      let label = STAGES[0]?.label ?? '';
+      for (const s of STAGES) {
+        if (eased >= s.atFraction) label = s.label;
+      }
+      setStage(label);
+    }, 250);
+  }
+
+  function stopTicker(finalProgress = 1) {
+    if (tickerRef.current) clearInterval(tickerRef.current);
+    tickerRef.current = null;
+    setProgress(finalProgress);
+  }
 
   async function runAudit() {
     setRunning(true);
     setError(null);
+    startTicker(estimatedMs);
+    const startedAt = Date.now();
     try {
       const res = await fetch('/api/seo/audit/run', {
         method: 'POST',
@@ -123,11 +207,18 @@ export default function AuditContent() {
       setResult(audit);
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(audit));
+        const actual = Date.now() - startedAt;
+        window.localStorage.setItem(DURATION_KEY, String(actual));
+        setEstimatedMs(actual);
       } catch {
         // Quota exceeded — non-fatal.
       }
+      setStage('Done');
+      stopTicker(1);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      stopTicker(0);
+      setStage('');
     } finally {
       setRunning(false);
     }
@@ -163,6 +254,9 @@ export default function AuditContent() {
         onRun={runAudit}
         ranAt={result?.ranAt ?? null}
         durationMs={result?.durationMs ?? null}
+        progress={progress}
+        stage={stage}
+        estimatedMs={estimatedMs}
       />
 
       {error ? (
@@ -511,6 +605,9 @@ function ScoreCard({
   onRun,
   ranAt,
   durationMs,
+  progress,
+  stage,
+  estimatedMs,
 }: {
   score: number | null;
   grade: 'F' | 'D' | 'C' | 'B' | 'A' | 'A+' | null;
@@ -519,6 +616,9 @@ function ScoreCard({
   onRun: () => void;
   ranAt: string | null;
   durationMs: number | null;
+  progress: number;
+  stage: string;
+  estimatedMs: number;
 }) {
   const color =
     score == null
@@ -528,6 +628,11 @@ function ScoreCard({
         : score >= 75
           ? 'text-amber-600'
           : 'text-red-600';
+
+  const pct = Math.round(progress * 100);
+  // Rough ETA, only shown while running. Floors at 1s so it never
+  // reads "0s remaining" while we're still waiting on the response.
+  const remainingMs = Math.max(1_000, Math.round(estimatedMs * (1 - progress)));
 
   return (
     <div className="rounded-2xl border border-black/5 bg-white p-8 flex items-center gap-8">
@@ -540,7 +645,7 @@ function ScoreCard({
           {grade ? <span className="ml-1 text-foreground/70">· {grade}</span> : null}
         </div>
       </div>
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         <h2 className="text-base font-bold text-foreground mb-1">SEO score</h2>
         <p className="text-sm text-foreground/60">
           {headline ??
@@ -554,7 +659,22 @@ function ScoreCard({
         >
           {running ? 'Running audit…' : score == null ? 'Run audit' : 'Re-run audit'}
         </button>
-        {ranAt ? (
+        {running ? (
+          <div className="mt-4">
+            <div className="flex items-baseline justify-between gap-3 text-[11px] mb-1.5">
+              <span className="font-semibold text-foreground/70 truncate">{stage || 'Starting…'}</span>
+              <span className="tabular-nums text-foreground/50 flex-none">
+                {pct}% · ~{Math.ceil(remainingMs / 1000)}s left
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-black/5 overflow-hidden">
+              <div
+                className="h-full bg-primary transition-[width] duration-[250ms] ease-linear"
+                style={{ width: `${Math.max(2, pct)}%` }}
+              />
+            </div>
+          </div>
+        ) : ranAt ? (
           <p className="mt-2 text-[11px] text-foreground/40">
             Last run {new Date(ranAt).toLocaleString()}
             {typeof durationMs === 'number' ? ` · ${(durationMs / 1000).toFixed(1)}s` : ''}
