@@ -286,6 +286,13 @@ const pageIcons: Record<string, React.ReactNode> = {
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
   ),
+  '/app/website-requests': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16v12H5.17L4 17.17V4z" />
+      <path d="M8 9h8" />
+      <path d="M8 13h5" />
+    </svg>
+  ),
   '/app/team': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />

@@ -1,57 +1,45 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 
-interface RecentVob {
-  id: string;
-  full_name: string;
-  insurance_provider: string | null;
-  status: string;
-  received_at: string;
+// Single tabbed page combining the four formerly-separate Website
+// Requests views (Overview · VObs · Forms · Careers). Tab state is
+// reflected in ?tab=… so admins can deep-link / refresh and stay on
+// the same view.
+//
+// Each tab does its own data fetch on activation; the lists are
+// small enough that there's no value in pre-fetching all four.
+
+type Tab = 'overview' | 'vobs' | 'forms' | 'careers';
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'vobs', label: 'VObs' },
+  { id: 'forms', label: 'Forms' },
+  { id: 'careers', label: 'Careers' },
+];
+
+function isTab(v: string | null): v is Tab {
+  return v === 'overview' || v === 'vobs' || v === 'forms' || v === 'careers';
 }
 
-interface RecentForm {
-  id: string;
-  source: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  status: string;
-  created_at: string;
-}
-
-interface OverviewData {
-  vobs: { total: number; new: number; recent: RecentVob[] };
-  forms: { total: number; new: number; recent: RecentForm[] };
-}
-
-export default function OverviewContent() {
+export default function WebsiteRequestsContent() {
   const { user, isAdmin } = useAuth();
-  const [data, setData] = useState<OverviewData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const params = useSearchParams();
+  const requested = params?.get('tab') ?? null;
+  const initial: Tab = isTab(requested) ? requested : 'overview';
+  const [tab, setTab] = useState<Tab>(initial);
 
-  useEffect(() => {
-    if (!user || !isAdmin) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/website-requests/overview', { credentials: 'include' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as OverviewData;
-        if (cancelled) return;
-        setData(json);
-        setError(null);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [user, isAdmin]);
+  function selectTab(next: Tab) {
+    setTab(next);
+    const url = new URL(window.location.href);
+    if (next === 'overview') url.searchParams.delete('tab');
+    else url.searchParams.set('tab', next);
+    router.replace(url.pathname + url.search, { scroll: false });
+  }
 
   if (!user || !isAdmin) return null;
 
@@ -63,81 +51,130 @@ export default function OverviewContent() {
           Website Requests
         </h1>
         <p className="mt-1 text-sm text-foreground/60">
-          Submissions from every form on the public site. Drill into a category to triage.
+          Submissions from every form on the public site.
         </p>
       </header>
 
-      {loading && <p className="text-sm text-foreground/50">Loading…</p>}
-      {error && <p className="text-sm text-red-600">Error: {error}</p>}
+      <div className="mb-5 flex gap-1 border-b border-black/10">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => selectTab(t.id)}
+            className={`px-4 py-2.5 text-sm font-semibold transition-colors border-b-2 -mb-px ${
+              tab === t.id
+                ? 'text-primary border-primary'
+                : 'text-foreground/60 border-transparent hover:text-foreground hover:border-foreground/20'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      {data && (
-        <div className="grid sm:grid-cols-2 gap-4">
-          <CategoryCard
-            title="VObs"
-            href="/app/website-requests/vobs"
-            description="Insurance verification requests from the admissions form."
-            total={data.vobs.total}
-            newCount={data.vobs.new}
-            tone="amber"
-            recent={data.vobs.recent.map((r) => ({
-              id: r.id,
-              line1: r.full_name,
-              line2: r.insurance_provider ?? '(no insurance listed)',
-              status: r.status,
-              ts: r.received_at,
-            }))}
-          />
-          <CategoryCard
-            title="Forms"
-            href="/app/website-requests/forms"
-            description="Contact, footer, and exit-intent submissions from the public site."
-            total={data.forms.total}
-            newCount={data.forms.new}
-            tone="blue"
-            recent={data.forms.recent.map((r) => ({
-              id: r.id,
-              line1: [r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '(no name)',
-              line2: `${r.source ?? 'unknown source'}${r.email && (r.first_name || r.last_name) ? ` · ${r.email}` : ''}`,
-              status: r.status,
-              ts: r.created_at,
-            }))}
-          />
-        </div>
-      )}
+      {tab === 'overview' && <OverviewPanel onJump={selectTab} />}
+      {tab === 'vobs' && <VobsPanel />}
+      {tab === 'forms' && <FormsPanel />}
+      {tab === 'careers' && <CareersPanel />}
     </div>
   );
 }
 
-interface RecentItem {
+// ------------- Overview ----------------------------------------------------
+
+interface RecentVob {
   id: string;
-  line1: string;
-  line2: string;
+  full_name: string;
+  insurance_provider: string | null;
   status: string;
-  ts: string;
+  received_at: string;
+}
+interface RecentForm {
+  id: string;
+  source: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  status: string;
+  created_at: string;
+}
+interface OverviewData {
+  vobs: { total: number; new: number; recent: RecentVob[] };
+  forms: { total: number; new: number; recent: RecentForm[] };
 }
 
+function OverviewPanel({ onJump }: { onJump: (t: Tab) => void }) {
+  const [data, setData] = useState<OverviewData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/website-requests/overview', { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as OverviewData;
+        if (cancelled) return;
+        setData(json);
+        setError(null);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (error) return <p className="text-sm text-red-600">Error: {error}</p>;
+  if (!data) return <p className="text-sm text-foreground/50">Loading…</p>;
+
+  return (
+    <div className="grid sm:grid-cols-2 gap-4">
+      <CategoryCard
+        title="VObs"
+        onClick={() => onJump('vobs')}
+        description="Insurance verification requests from the admissions form."
+        total={data.vobs.total}
+        newCount={data.vobs.new}
+        tone="amber"
+        recent={data.vobs.recent.map((r) => ({
+          id: r.id,
+          line1: r.full_name,
+          line2: r.insurance_provider ?? '(no insurance listed)',
+          ts: r.received_at,
+        }))}
+      />
+      <CategoryCard
+        title="Forms"
+        onClick={() => onJump('forms')}
+        description="Contact, footer, and exit-intent submissions from the public site."
+        total={data.forms.total}
+        newCount={data.forms.new}
+        tone="blue"
+        recent={data.forms.recent.map((r) => ({
+          id: r.id,
+          line1: [r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '(no name)',
+          line2: `${r.source ?? 'unknown source'}${r.email && (r.first_name || r.last_name) ? ` · ${r.email}` : ''}`,
+          ts: r.created_at,
+        }))}
+      />
+    </div>
+  );
+}
+
+interface RecentItem { id: string; line1: string; line2: string; ts: string; }
+
 function CategoryCard({
-  title,
-  href,
-  description,
-  total,
-  newCount,
-  recent,
-  tone,
+  title, onClick, description, total, newCount, recent, tone,
 }: {
-  title: string;
-  href: string;
-  description: string;
-  total: number;
-  newCount: number;
-  recent: RecentItem[];
-  tone: 'amber' | 'blue';
+  title: string; onClick: () => void; description: string;
+  total: number; newCount: number; recent: RecentItem[]; tone: 'amber' | 'blue';
 }) {
   const accent = tone === 'amber' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200';
   return (
-    <Link
-      href={href}
-      className="rounded-xl border border-black/10 bg-white p-5 hover:border-primary/40 transition-colors flex flex-col"
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-left rounded-xl border border-black/10 bg-white p-5 hover:border-primary/40 transition-colors flex flex-col"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
@@ -150,12 +187,10 @@ function CategoryCard({
           </span>
         )}
       </div>
-
       <div className="flex items-baseline gap-2 mb-4">
         <span className="text-3xl font-bold text-foreground tabular-nums" style={{ fontFamily: 'var(--font-display)' }}>{total}</span>
         <span className="text-xs text-foreground/50">total</span>
       </div>
-
       {recent.length > 0 ? (
         <ul className="space-y-2 flex-1">
           {recent.map((r) => (
@@ -173,8 +208,303 @@ function CategoryCard({
       ) : (
         <p className="text-xs text-foreground/50 italic">No submissions yet.</p>
       )}
-
       <p className="text-xs text-primary font-semibold mt-4">Open {title} →</p>
-    </Link>
+    </button>
+  );
+}
+
+// ------------- VObs --------------------------------------------------------
+
+interface VobRow {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  insurance_provider: string | null;
+  status: string;
+  notes: string | null;
+  received_at: string;
+}
+
+function VobsPanel() {
+  const [rows, setRows] = useState<VobRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/website-requests/vobs', { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setRows(data.rows ?? []);
+        setError(null);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <Section count={rows.length} loading={loading} error={error} emptyText="No VOB requests yet.">
+      <ul className="divide-y divide-black/5 border border-black/10 rounded-xl bg-white overflow-hidden">
+        {rows.map((r) => (
+          <li key={r.id} className="px-4 py-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-semibold text-foreground">{r.full_name}</p>
+                <p className="text-xs text-foreground/60 mt-0.5">
+                  {r.phone}{r.phone && r.email && ' · '}{r.email}
+                </p>
+                {r.insurance_provider && (
+                  <p className="text-sm text-foreground/80 mt-1">
+                    Insurance: <span className="font-medium">{r.insurance_provider}</span>
+                  </p>
+                )}
+                {r.notes && <p className="text-sm text-foreground/70 mt-1">{r.notes}</p>}
+              </div>
+              <RowMeta status={r.status} ts={r.received_at} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
+// ------------- Forms (non-careers contact submissions) --------------------
+
+interface FormRow {
+  id: string;
+  source: 'contact_page' | 'footer' | 'exit_intent' | 'careers' | 'other' | null;
+  first_name: string | null;
+  last_name: string | null;
+  telephone: string | null;
+  email: string | null;
+  message: string | null;
+  payment_method: string | null;
+  consent: boolean;
+  page_url: string | null;
+  referrer: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+}
+
+type FormSourceFilter = 'all' | 'contact_page' | 'footer' | 'exit_intent' | 'other';
+const FORM_SOURCE_LABELS: Record<Exclude<FormSourceFilter, 'all'>, string> = {
+  contact_page: 'Contact Page',
+  footer: 'Footer',
+  exit_intent: 'Exit Intent',
+  other: 'Other',
+};
+
+function FormsPanel() {
+  const [rows, setRows] = useState<FormRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FormSourceFilter>('all');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/website-requests/forms', { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setRows(data.rows ?? []);
+        setError(null);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const visible = useMemo(
+    () => (filter === 'all' ? rows : rows.filter((r) => r.source === filter)),
+    [rows, filter],
+  );
+
+  return (
+    <Section count={rows.length} loading={loading} error={error} emptyText="No submissions yet.">
+      <div className="mb-3 flex flex-wrap gap-1.5 items-center">
+        <span className="text-xs text-foreground/50 mr-1">Source:</span>
+        {(['all', 'contact_page', 'footer', 'exit_intent', 'other'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setFilter(v)}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+              filter === v
+                ? 'bg-primary text-white border-primary'
+                : 'bg-white text-foreground/70 border-black/10 hover:border-primary/40 hover:text-primary'
+            }`}
+          >
+            {v === 'all' ? 'All' : FORM_SOURCE_LABELS[v]}
+          </button>
+        ))}
+      </div>
+
+      {visible.length === 0 && filter !== 'all' && (
+        <p className="text-sm text-foreground/50">No submissions match the current filter.</p>
+      )}
+
+      {visible.length > 0 && (
+        <ul className="divide-y divide-black/5 border border-black/10 rounded-xl bg-white overflow-hidden">
+          {visible.map((r) => {
+            const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ') || '(no name)';
+            return (
+              <li key={r.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-foreground">{fullName}</p>
+                      {r.source && r.source !== 'careers' && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-amber-50 text-amber-800 border-amber-200">
+                          {FORM_SOURCE_LABELS[r.source as Exclude<FormSourceFilter, 'all'>] ?? r.source}
+                        </span>
+                      )}
+                      {r.payment_method && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-blue-50 text-blue-700 border-blue-200">
+                          {r.payment_method}
+                        </span>
+                      )}
+                      {r.source === 'footer' && !r.consent && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-red-50 text-red-700 border-red-200">
+                          No consent
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-foreground/60 mt-0.5">
+                      {r.telephone}{r.telephone && r.email && ' · '}{r.email}
+                    </p>
+                    {r.message && (
+                      <p className="text-sm text-foreground/80 mt-2 whitespace-pre-wrap">{r.message}</p>
+                    )}
+                    {(r.page_url || r.referrer) && (
+                      <p className="text-[11px] text-foreground/40 mt-1 truncate">
+                        {r.page_url ? `From: ${r.page_url}` : `Referrer: ${r.referrer}`}
+                      </p>
+                    )}
+                  </div>
+                  <RowMeta status={r.status} ts={r.created_at} />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+// ------------- Careers ----------------------------------------------------
+
+function trackFromMessage(message: string | null): { track: string | null; rest: string } {
+  if (!message) return { track: null, rest: '' };
+  const m = message.match(/^\[([^\]]+)\]\s*\n*([\s\S]*)$/);
+  if (!m) return { track: null, rest: message };
+  return { track: m[1], rest: m[2].trim() };
+}
+
+function CareersPanel() {
+  const [rows, setRows] = useState<FormRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/website-requests/careers', { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setRows(data.rows ?? []);
+        setError(null);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <Section count={rows.length} loading={loading} error={error} emptyText="No careers submissions yet.">
+      <ul className="divide-y divide-black/5 border border-black/10 rounded-xl bg-white overflow-hidden">
+        {rows.map((r) => {
+          const { track, rest } = trackFromMessage(r.message);
+          const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ') || '(no name)';
+          return (
+            <li key={r.id} className="px-4 py-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-foreground">{fullName}</p>
+                    {track && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-amber-50 text-amber-800 border-amber-200">
+                        {track}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-foreground/60 mt-0.5">
+                    {r.email && <Link className="underline decoration-dotted" href={`mailto:${r.email}`}>{r.email}</Link>}
+                  </p>
+                  {rest && (
+                    <p className="text-sm text-foreground/80 mt-2 whitespace-pre-wrap">{rest}</p>
+                  )}
+                </div>
+                <RowMeta status={r.status} ts={r.created_at} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </Section>
+  );
+}
+
+// ------------- Shared bits -------------------------------------------------
+
+function Section({
+  count, loading, error, emptyText, children,
+}: {
+  count: number; loading: boolean; error: string | null;
+  emptyText: string; children: React.ReactNode;
+}) {
+  if (loading) return <p className="text-sm text-foreground/50">Loading…</p>;
+  if (error) return <p className="text-sm text-red-600">Error: {error}</p>;
+  if (count === 0) return <p className="text-sm text-foreground/50">{emptyText}</p>;
+  return <>{children}</>;
+}
+
+function RowMeta({ status, ts }: { status: string; ts: string }) {
+  const tone = status === 'new'
+    ? 'bg-blue-50 text-blue-700 border-blue-200'
+    : status === 'contacted' || status === 'verified'
+    ? 'bg-amber-50 text-amber-800 border-amber-200'
+    : 'bg-gray-50 text-gray-600 border-gray-200';
+  return (
+    <div className="text-right flex-shrink-0">
+      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border ${tone}`}>
+        {status}
+      </span>
+      <p className="text-[11px] text-foreground/50 mt-1">
+        {new Date(ts).toLocaleString('en-US', {
+          month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+        })}
+      </p>
+    </div>
   );
 }
