@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import EquineHero from './EquineHero';
+import PageHero from '@/components/PageHero';
 import EquineWhy from './EquineWhy';
 import EquineHerd from './EquineHerd';
 import EquineSessions from './EquineSessions';
@@ -139,7 +139,20 @@ export default function EquineAssistedPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
       />
-      <EquineHero />
+      <PageHero
+        label="Equine-assisted therapy"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our program', href: '/our-program' },
+          { label: 'Equine-assisted' },
+        ]}
+        title={[
+          "The horses don't care about your ",
+          { text: 'story', accent: true },
+          '.',
+        ]}
+        description="Seven Arrows Recovery runs equine-assisted psychotherapy on a private 160-acre ranch at the base of the Swisshelm Mountains. The horses respond to what's true right now — and that is what makes the modality work."
+      />
       <EquineWhy />
       <EquineSessions />
       <EquineHerd />

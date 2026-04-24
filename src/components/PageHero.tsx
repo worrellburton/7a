@@ -328,7 +328,13 @@ export default function PageHero({
             </ul>
           )}
 
-          {ctas && ctas.length > 0 && <HeroCtaRow ctas={ctas} />}
+          {/* Phone CTAs in the hero were duplicating the fixed bottom
+              sticky-phone pill. Strip them here so only non-phone CTAs
+              (BEGIN ADMISSIONS, verify insurance, etc.) render in the
+              hero row. */}
+          {ctas && ctas.filter((c) => c.kind !== 'phone').length > 0 && (
+            <HeroCtaRow ctas={ctas.filter((c) => c.kind !== 'phone')} />
+          )}
         </div>
       </div>
     </section>

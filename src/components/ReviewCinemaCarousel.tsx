@@ -124,6 +124,36 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
+  // Touch-swipe navigation. Track the starting X on pointerdown, and
+  // if the visitor lifts after a >40px horizontal drag (and a modest
+  // vertical budget so scrolling the page doesn't trigger a slide
+  // change), advance or go back. Auto-advance is suppressed while a
+  // swipe is in progress.
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    if (total <= 1) return;
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+    setPaused(true);
+  }, [total]);
+  const onTouchMove = useCallback((_e: React.TouchEvent) => {
+    // No-op — we commit on touchEnd so the user can still scroll the
+    // page vertically through the carousel area. Kept as a placeholder
+    // in case we later want to add drag-follow animation.
+  }, []);
+  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    setPaused(false);
+    if (!start || total <= 1) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 40 || Math.abs(dy) > 80) return;
+    if (dx < 0) next();
+    else prev();
+  }, [next, prev, total]);
+
   useEffect(() => {
     if (autoplayMs <= 0 || paused || total <= 1) return;
     const id = window.setTimeout(next, autoplayMs);
@@ -143,7 +173,10 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
-      className="relative w-full overflow-hidden bg-black focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      className="relative w-full overflow-hidden bg-black focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 touch-pan-y select-none"
       style={{ minHeight: header ? '620px' : '480px' }}
     >
       {/* Subtle radial lift so the quote sits on something softer than
@@ -232,25 +265,37 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
                   <span aria-hidden="true" className="text-white/85">&rdquo;</span>
                 </blockquote>
 
-                <p
-                  className="mt-8 text-sm sm:text-base text-white/55"
+                <div
+                  className="mt-8 inline-flex items-center gap-3 text-sm sm:text-base text-white/55"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  <span aria-hidden="true" className="mr-2">&mdash;</span>
-                  <span className="text-white/75">{slide.review.name}</span>
-                  {slide.review.source !== 'curated' && (
-                    <>
-                      <span className="mx-2 text-white/30">·</span>
-                      <span>Verified Google review{slide.review.date ? ` · ${slide.review.date}` : ''}</span>
-                    </>
+                  {/* Reviewer profile photo (Google Places profile
+                      photo when available, initials disc otherwise).
+                      Framed in a white ring so it reads against both
+                      dark and busy video backgrounds. */}
+                  {slide.review.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={slide.review.photoUrl}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      className="w-10 h-10 rounded-full object-cover ring-2 ring-white/80 shadow-md shrink-0"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="w-10 h-10 rounded-full bg-primary/90 flex items-center justify-center text-white text-base font-bold ring-2 ring-white/80 shadow-md shrink-0">
+                      {(slide.review.name || '?').trim().charAt(0).toUpperCase()}
+                    </span>
                   )}
-                  {slide.review.source === 'curated' && slide.review.date && (
-                    <>
-                      <span className="mx-2 text-white/30">·</span>
-                      <span>{slide.review.date}</span>
-                    </>
-                  )}
-                </p>
+                  <span className="inline-flex flex-col items-start leading-tight text-left">
+                    <span className="text-white/80 font-semibold">{slide.review.name}</span>
+                    <span className="text-[11px] sm:text-xs text-white/55">
+                      {slide.review.source === 'curated'
+                        ? slide.review.date || 'Verified alum review'
+                        : `Verified Google review${slide.review.date ? ` · ${slide.review.date}` : ''}`}
+                    </span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>

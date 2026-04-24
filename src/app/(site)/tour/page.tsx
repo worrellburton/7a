@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     'A cinematic tour of Seven Arrows Recovery — 160 private acres at the base of the Swisshelm Mountains in Cochise County, Arizona. Explore the residences, equine arena, ceremonial spaces, and the Arizona night sky.',
 };
 
-import TourHero from '@/components/tour/TourHero';
+import PageHero from '@/components/PageHero';
 import TourStats from '@/components/tour/TourStats';
 import RanchIntro from '@/components/tour/RanchIntro';
 import RanchZones from '@/components/tour/RanchZones';
@@ -21,7 +21,16 @@ export default function TourPage() {
   return (
     <>
       {/* Phase 1 — cinematic video hero */}
-      <TourHero />
+      <PageHero
+        label="Campus Tour"
+        breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Campus Tour' }]}
+        title={[
+          'Step onto ',
+          { text: 'the ranch', accent: true },
+          '.',
+        ]}
+        description="A visual walk through Seven Arrows — our residences, therapy spaces, the herd, and the Arizona sky that made us choose this land."
+      />
 
       {/* Phase 2 — stats strip */}
       <TourStats />

@@ -12,7 +12,6 @@ import TeamGrid from '@/components/TeamGrid';
 import MissionVision from '@/components/MissionVision';
 import TeamCompositionChart from '@/components/team/TeamCompositionChart';
 import TeamStatBand from '@/components/team/TeamStatBand';
-import InRecoverySection from '@/components/team/InRecoverySection';
 import TeamQuoteCarousel from '@/components/team/TeamQuoteCarousel';
 import HowWeHire from '@/components/team/HowWeHire';
 import { fetchPublicTeam } from '@/lib/team';
@@ -87,8 +86,6 @@ export default async function MeetOurTeamPage() {
           <TeamGrid team={team} />
         </div>
       </section>
-
-      <InRecoverySection />
 
       <TeamQuoteCarousel team={team} />
 
