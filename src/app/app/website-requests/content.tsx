@@ -16,7 +16,7 @@ import { useAuth } from '@/lib/AuthProvider';
 type Tab = 'overview' | 'vobs' | 'forms' | 'careers';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'vobs', label: 'VObs' },
+  { id: 'vobs', label: 'VOBs' },
   { id: 'forms', label: 'Forms' },
   { id: 'careers', label: 'Careers' },
 ];
@@ -130,7 +130,7 @@ function OverviewPanel({ onJump }: { onJump: (t: Tab) => void }) {
   return (
     <div className="grid sm:grid-cols-2 gap-4">
       <CategoryCard
-        title="VObs"
+        title="VOBs"
         onClick={() => onJump('vobs')}
         description="Insurance verification requests from the admissions form."
         total={data.vobs.total}
@@ -219,6 +219,7 @@ interface RespondedFields {
   responded_at: string | null;
   responded_by: string | null;
   responder_name: string | null;
+  responder_avatar_url: string | null;
 }
 
 function formatRespondedAt(iso: string) {
@@ -244,6 +245,7 @@ function useRespond(kind: 'vob' | 'contact') {
         responded_at: json.responded_at ?? null,
         responded_by: json.responded_by ?? null,
         responder_name: json.responder_name ?? null,
+        responder_avatar_url: json.responder_avatar_url ?? null,
       };
     } catch (e) {
       console.error('respond failed', e);
@@ -255,30 +257,146 @@ function useRespond(kind: 'vob' | 'contact') {
   return { respond, busyId };
 }
 
-function RespondedBadge({ respondedAt, responderName }: { respondedAt: string; responderName: string | null }) {
+function useDelete(kind: 'vob' | 'contact') {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const remove = useCallback(async (id: string): Promise<boolean> => {
+    setBusyId(id);
+    try {
+      const res = await fetch('/api/website-requests/delete', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind, id }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return true;
+    } catch (e) {
+      console.error('delete failed', e);
+      return false;
+    } finally {
+      setBusyId(null);
+    }
+  }, [kind]);
+  return { remove, busyId };
+}
+
+function DeleteButton({
+  onConfirm, busy,
+}: {
+  onConfirm: () => void; busy: boolean;
+}) {
+  // Two-step delete: first click arms the action, second click confirms.
+  // Cancelling reverts the button. 4s auto-reset so the red button
+  // doesn't linger if the admin wanders off.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const id = window.setTimeout(() => setArmed(false), 4000);
+    return () => window.clearTimeout(id);
+  }, [armed]);
+
+  if (armed) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => { setArmed(false); onConfirm(); }}
+          disabled={busy}
+          className="inline-flex items-center rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+        >
+          {busy ? 'Deleting…' : 'Confirm'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setArmed(false)}
+          disabled={busy}
+          className="text-[10px] text-foreground/50 underline decoration-dotted hover:text-foreground disabled:opacity-40"
+        >
+          cancel
+        </button>
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setArmed(true)}
+      disabled={busy}
+      title="Delete submission"
+      aria-label="Delete submission"
+      className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-black/10 bg-white text-foreground/55 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors disabled:opacity-40"
+    >
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+      </svg>
+    </button>
+  );
+}
+
+function ResponderAvatar({
+  url, name, size = 18,
+}: { url: string | null; name: string | null; size?: number }) {
+  const initial = (name || '?').trim().charAt(0).toUpperCase();
+  if (url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={url}
+        alt={name ? `${name}'s avatar` : 'Responder avatar'}
+        referrerPolicy="no-referrer"
+        className="rounded-full object-cover ring-1 ring-emerald-200 bg-emerald-100"
+        style={{ width: size, height: size }}
+        loading="lazy"
+      />
+    );
+  }
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800"
+      className="inline-flex items-center justify-center rounded-full bg-emerald-200 text-emerald-900 font-bold"
+      style={{ width: size, height: size, fontSize: Math.max(9, Math.floor(size * 0.55)) }}
+      aria-hidden="true"
+    >
+      {initial}
+    </span>
+  );
+}
+
+function RespondedBadge({
+  respondedAt, responderName, responderAvatarUrl,
+}: {
+  respondedAt: string; responderName: string | null; responderAvatarUrl: string | null;
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 pl-1 pr-2 py-0.5 text-[11px] font-medium text-emerald-800"
       title={`Responded ${formatRespondedAt(respondedAt)}${responderName ? ` by ${responderName}` : ''}`}
     >
-      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-      </svg>
-      {responderName ?? 'Responded'} · {new Date(respondedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+      <ResponderAvatar url={responderAvatarUrl} name={responderName} />
+      <span>
+        {responderName ?? 'Responded'} · {new Date(respondedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+      </span>
     </span>
   );
 }
 
 function RespondButton({
-  responded_at, responder_name, onClick, busy, compact = false,
+  responded_at, responder_name, responder_avatar_url, onClick, busy, compact = false,
 }: {
-  responded_at: string | null; responder_name: string | null;
-  onClick: () => void; busy: boolean; compact?: boolean;
+  responded_at: string | null;
+  responder_name: string | null;
+  responder_avatar_url: string | null;
+  onClick: () => void;
+  busy: boolean;
+  compact?: boolean;
 }) {
   if (responded_at) {
     return (
       <div className={`flex ${compact ? 'flex-col items-end gap-0.5' : 'items-center gap-2'}`}>
-        <RespondedBadge respondedAt={responded_at} responderName={responder_name} />
+        <RespondedBadge
+          respondedAt={responded_at}
+          responderName={responder_name}
+          responderAvatarUrl={responder_avatar_url}
+        />
         <button
           type="button"
           onClick={onClick}
@@ -322,6 +440,7 @@ function VobsPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { respond, busyId } = useRespond('vob');
+  const { remove, busyId: deletingId } = useDelete('vob');
 
   useEffect(() => {
     let cancelled = false;
@@ -348,6 +467,11 @@ function VobsPanel() {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
   }
 
+  async function handleDelete(id: string) {
+    const ok = await remove(id);
+    if (ok) setRows((prev) => prev.filter((r) => r.id !== id));
+  }
+
   return (
     <Section count={rows.length} loading={loading} error={error} emptyText="No VOB requests yet.">
       <div className="overflow-x-auto border border-black/10 rounded-xl bg-white">
@@ -362,6 +486,7 @@ function VobsPanel() {
               <Th>Status</Th>
               <Th>Received</Th>
               <Th className="text-right">Responded</Th>
+              <Th className="text-right"><span className="sr-only">Actions</span></Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-black/5">
@@ -406,10 +531,14 @@ function VobsPanel() {
                   <RespondButton
                     responded_at={r.responded_at}
                     responder_name={r.responder_name}
+                    responder_avatar_url={r.responder_avatar_url}
                     onClick={() => handleRespond(r.id, !!r.responded_at)}
                     busy={busyId === r.id}
                     compact
                   />
+                </Td>
+                <Td className="text-right">
+                  <DeleteButton onConfirm={() => handleDelete(r.id)} busy={deletingId === r.id} />
                 </Td>
               </tr>
             ))}
@@ -453,6 +582,7 @@ function FormsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FormSourceFilter>('all');
   const { respond, busyId } = useRespond('contact');
+  const { remove, busyId: deletingId } = useDelete('contact');
 
   useEffect(() => {
     let cancelled = false;
@@ -484,6 +614,11 @@ function FormsPanel() {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
   }
 
+  async function handleDelete(id: string) {
+    const ok = await remove(id);
+    if (ok) setRows((prev) => prev.filter((r) => r.id !== id));
+  }
+
   return (
     <Section count={rows.length} loading={loading} error={error} emptyText="No submissions yet.">
       <div className="mb-3 flex flex-wrap gap-1.5 items-center">
@@ -509,58 +644,92 @@ function FormsPanel() {
       )}
 
       {visible.length > 0 && (
-        <ul className="divide-y divide-black/5 border border-black/10 rounded-xl bg-white overflow-hidden">
-          {visible.map((r) => {
-            const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ') || '(no name)';
-            return (
-              <li key={r.id} className="px-4 py-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
+        <div className="overflow-x-auto border border-black/10 rounded-xl bg-white">
+          <table className="w-full text-sm border-collapse">
+            <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
+              <tr>
+                <Th>Name</Th>
+                <Th>Source</Th>
+                <Th>Contact</Th>
+                <Th>Message</Th>
+                <Th>Status</Th>
+                <Th>Received</Th>
+                <Th className="text-right">Responded</Th>
+                <Th className="text-right"><span className="sr-only">Actions</span></Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {visible.map((r) => {
+                const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ') || '(no name)';
+                return (
+                  <tr key={r.id} className="align-top">
+                    <Td>
                       <p className="font-semibold text-foreground">{fullName}</p>
-                      {r.source && r.source !== 'careers' && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-amber-50 text-amber-800 border-amber-200">
-                          {FORM_SOURCE_LABELS[r.source as Exclude<FormSourceFilter, 'all'>] ?? r.source}
-                        </span>
+                    </Td>
+                    <Td>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {r.source && r.source !== 'careers' && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-amber-50 text-amber-800 border-amber-200">
+                            {FORM_SOURCE_LABELS[r.source as Exclude<FormSourceFilter, 'all'>] ?? r.source}
+                          </span>
+                        )}
+                        {r.payment_method && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-blue-50 text-blue-700 border-blue-200">
+                            {r.payment_method}
+                          </span>
+                        )}
+                        {r.source === 'footer' && !r.consent && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-red-50 text-red-700 border-red-200">
+                            No consent
+                          </span>
+                        )}
+                      </div>
+                    </Td>
+                    <Td>
+                      <div className="text-xs text-foreground/70 space-y-0.5">
+                        {r.telephone && <p>{r.telephone}</p>}
+                        {r.email && <p className="truncate max-w-[220px]">{r.email}</p>}
+                      </div>
+                    </Td>
+                    <Td>
+                      {r.message ? (
+                        <p className="text-xs text-foreground/80 line-clamp-3 whitespace-pre-wrap max-w-[340px]">{r.message}</p>
+                      ) : (
+                        <span className="text-foreground/40">—</span>
                       )}
-                      {r.payment_method && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-blue-50 text-blue-700 border-blue-200">
-                          {r.payment_method}
-                        </span>
+                      {(r.page_url || r.referrer) && (
+                        <p className="text-[11px] text-foreground/40 mt-1 truncate max-w-[340px]">
+                          {r.page_url ? `From: ${r.page_url}` : `Referrer: ${r.referrer}`}
+                        </p>
                       )}
-                      {r.source === 'footer' && !r.consent && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-red-50 text-red-700 border-red-200">
-                          No consent
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-foreground/60 mt-0.5">
-                      {r.telephone}{r.telephone && r.email && ' · '}{r.email}
-                    </p>
-                    {r.message && (
-                      <p className="text-sm text-foreground/80 mt-2 whitespace-pre-wrap">{r.message}</p>
-                    )}
-                    {(r.page_url || r.referrer) && (
-                      <p className="text-[11px] text-foreground/40 mt-1 truncate">
-                        {r.page_url ? `From: ${r.page_url}` : `Referrer: ${r.referrer}`}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <RowMeta status={r.status} ts={r.created_at} />
-                    <RespondButton
-                      responded_at={r.responded_at}
-                      responder_name={r.responder_name}
-                      onClick={() => handleRespond(r.id, !!r.responded_at)}
-                      busy={busyId === r.id}
-                      compact
-                    />
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                    </Td>
+                    <Td><StatusChip status={r.status} /></Td>
+                    <Td>
+                      <span className="text-xs text-foreground/60 whitespace-nowrap">
+                        {new Date(r.created_at).toLocaleString('en-US', {
+                          month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                        })}
+                      </span>
+                    </Td>
+                    <Td className="text-right">
+                      <RespondButton
+                        responded_at={r.responded_at}
+                        responder_name={r.responder_name}
+                        responder_avatar_url={r.responder_avatar_url}
+                        onClick={() => handleRespond(r.id, !!r.responded_at)}
+                        busy={busyId === r.id}
+                        compact
+                      />
+                    </Td>
+                    <Td className="text-right">
+                      <DeleteButton onConfirm={() => handleDelete(r.id)} busy={deletingId === r.id} />
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </Section>
   );
@@ -580,6 +749,7 @@ function CareersPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { respond, busyId } = useRespond('contact');
+  const { remove, busyId: deletingId } = useDelete('contact');
 
   useEffect(() => {
     let cancelled = false;
@@ -606,46 +776,88 @@ function CareersPanel() {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
   }
 
+  async function handleDelete(id: string) {
+    const ok = await remove(id);
+    if (ok) setRows((prev) => prev.filter((r) => r.id !== id));
+  }
+
   return (
     <Section count={rows.length} loading={loading} error={error} emptyText="No careers submissions yet.">
-      <ul className="divide-y divide-black/5 border border-black/10 rounded-xl bg-white overflow-hidden">
-        {rows.map((r) => {
-          const { track, rest } = trackFromMessage(r.message);
-          const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ') || '(no name)';
-          return (
-            <li key={r.id} className="px-4 py-3">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
+      <div className="overflow-x-auto border border-black/10 rounded-xl bg-white">
+        <table className="w-full text-sm border-collapse">
+          <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
+            <tr>
+              <Th>Name</Th>
+              <Th>Track</Th>
+              <Th>Email</Th>
+              <Th>Message</Th>
+              <Th>Status</Th>
+              <Th>Received</Th>
+              <Th className="text-right">Responded</Th>
+              <Th className="text-right"><span className="sr-only">Actions</span></Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-black/5">
+            {rows.map((r) => {
+              const { track, rest } = trackFromMessage(r.message);
+              const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ') || '(no name)';
+              return (
+                <tr key={r.id} className="align-top">
+                  <Td>
                     <p className="font-semibold text-foreground">{fullName}</p>
-                    {track && (
+                  </Td>
+                  <Td>
+                    {track ? (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-amber-50 text-amber-800 border-amber-200">
                         {track}
                       </span>
+                    ) : (
+                      <span className="text-foreground/40">—</span>
                     )}
-                  </div>
-                  <p className="text-xs text-foreground/60 mt-0.5">
-                    {r.email && <Link className="underline decoration-dotted" href={`mailto:${r.email}`}>{r.email}</Link>}
-                  </p>
-                  {rest && (
-                    <p className="text-sm text-foreground/80 mt-2 whitespace-pre-wrap">{rest}</p>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                  <RowMeta status={r.status} ts={r.created_at} />
-                  <RespondButton
-                    responded_at={r.responded_at}
-                    responder_name={r.responder_name}
-                    onClick={() => handleRespond(r.id, !!r.responded_at)}
-                    busy={busyId === r.id}
-                    compact
-                  />
-                </div>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+                  </Td>
+                  <Td>
+                    {r.email ? (
+                      <Link className="text-xs text-foreground/70 underline decoration-dotted hover:text-primary" href={`mailto:${r.email}`}>
+                        {r.email}
+                      </Link>
+                    ) : (
+                      <span className="text-foreground/40">—</span>
+                    )}
+                  </Td>
+                  <Td>
+                    {rest ? (
+                      <p className="text-xs text-foreground/80 line-clamp-3 whitespace-pre-wrap max-w-[380px]">{rest}</p>
+                    ) : (
+                      <span className="text-foreground/40">—</span>
+                    )}
+                  </Td>
+                  <Td><StatusChip status={r.status} /></Td>
+                  <Td>
+                    <span className="text-xs text-foreground/60 whitespace-nowrap">
+                      {new Date(r.created_at).toLocaleString('en-US', {
+                        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                      })}
+                    </span>
+                  </Td>
+                  <Td className="text-right">
+                    <RespondButton
+                      responded_at={r.responded_at}
+                      responder_name={r.responder_name}
+                      responder_avatar_url={r.responder_avatar_url}
+                      onClick={() => handleRespond(r.id, !!r.responded_at)}
+                      busy={busyId === r.id}
+                      compact
+                    />
+                  </Td>
+                  <Td className="text-right">
+                    <DeleteButton onConfirm={() => handleDelete(r.id)} busy={deletingId === r.id} />
+                  </Td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </Section>
   );
 }
@@ -716,15 +928,3 @@ function CardThumb({ url, label }: { url: string; label: string }) {
   );
 }
 
-function RowMeta({ status, ts }: { status: string; ts: string }) {
-  return (
-    <div className="text-right flex-shrink-0">
-      <StatusChip status={status} />
-      <p className="text-[11px] text-foreground/50 mt-1">
-        {new Date(ts).toLocaleString('en-US', {
-          month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-        })}
-      </p>
-    </div>
-  );
-}

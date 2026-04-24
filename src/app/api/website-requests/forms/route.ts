@@ -36,15 +36,20 @@ export async function GET() {
   const rows = (data ?? []) as Array<Record<string, unknown> & { responded_by?: string | null }>;
   const responderIds = Array.from(new Set(rows.map((r) => r.responded_by).filter((v): v is string => !!v)));
   const responderNames = new Map<string, string>();
+  const responderAvatars = new Map<string, string>();
   if (responderIds.length > 0) {
-    const { data: usrs } = await admin.from('users').select('id, full_name').in('id', responderIds);
-    for (const u of usrs ?? []) if (u.full_name) responderNames.set(u.id, u.full_name);
+    const { data: usrs } = await admin.from('users').select('id, full_name, avatar_url').in('id', responderIds);
+    for (const u of usrs ?? []) {
+      if (u.full_name) responderNames.set(u.id, u.full_name);
+      if (u.avatar_url) responderAvatars.set(u.id, u.avatar_url);
+    }
   }
   const shaped = rows.map((r) => ({
     ...r,
     responded_at: (r.responded_at as string | null | undefined) ?? null,
     responded_by: r.responded_by ?? null,
     responder_name: r.responded_by ? responderNames.get(r.responded_by) ?? null : null,
+    responder_avatar_url: r.responded_by ? responderAvatars.get(r.responded_by) ?? null : null,
   }));
 
   return NextResponse.json({ rows: shaped, total: shaped.length });

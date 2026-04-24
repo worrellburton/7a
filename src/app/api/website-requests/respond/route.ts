@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { data: me } = await supabase
     .from('users')
-    .select('is_admin, full_name')
+    .select('is_admin, full_name, avatar_url')
     .eq('id', user.id)
     .maybeSingle();
   if (!me?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -60,5 +60,6 @@ export async function POST(req: Request) {
     responded_at: data.responded_at,
     responded_by: data.responded_by,
     responder_name: clear ? null : (me.full_name ?? null),
+    responder_avatar_url: clear ? null : (me.avatar_url ?? null),
   });
 }
