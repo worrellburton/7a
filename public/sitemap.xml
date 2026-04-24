@@ -16,7 +16,6 @@
   <!-- Treatment -->
   <url><loc>https://sevenarrowsrecoveryarizona.com/treatment</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
   <url><loc>https://sevenarrowsrecoveryarizona.com/treatment/residential-inpatient</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://sevenarrowsrecoveryarizona.com/treatment/detoxification</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://sevenarrowsrecoveryarizona.com/treatment/interventions</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://sevenarrowsrecoveryarizona.com/treatment/alumni-aftercare</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 
@@ -38,7 +37,6 @@
   <url><loc>https://sevenarrowsrecoveryarizona.com/what-we-treat/marijuana-addiction</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://sevenarrowsrecoveryarizona.com/what-we-treat/opioid-addiction</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://sevenarrowsrecoveryarizona.com/what-we-treat/prescription-drug-addiction</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://sevenarrowsrecoveryarizona.com/what-we-treat/xanax-addiction</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 
   <!-- Location Pages -->
   <url><loc>https://sevenarrowsrecoveryarizona.com/locations/phoenix</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
