@@ -15,6 +15,8 @@ interface NavDepartment {
   id: string;
   name: string;
   color: string | null;
+  display_order: number | null;
+  hidden: boolean;
 }
 
 /* ── Login WebGL Background ─────────────────────────────────────── */
@@ -443,13 +445,29 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   const [navMounted, setNavMounted] = useState(false);
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
 
-  // Load departments for sidebar grouping
+  // Load departments for sidebar grouping. Hidden departments are
+  // filtered out client-side so the admin toggle in /app/pages flips
+  // visibility instantly. Ordering prefers admin-set display_order
+  // (from the same page) and falls back to alphabetical name.
   useEffect(() => {
     if (!session?.access_token) return;
     async function loadDepts() {
       try {
-        const data = await db({ action: 'select', table: 'departments', select: 'id, name, color', order: { column: 'name', ascending: true } });
-        if (Array.isArray(data)) setNavDepartments(data as NavDepartment[]);
+        const data = await db({ action: 'select', table: 'departments', select: 'id, name, color, display_order, hidden' });
+        if (Array.isArray(data)) {
+          const rows = (data as NavDepartment[])
+            .filter((d) => !d.hidden)
+            .sort((a, b) => {
+              const ao = a.display_order;
+              const bo = b.display_order;
+              const hasA = typeof ao === 'number';
+              const hasB = typeof bo === 'number';
+              if (hasA && hasB && ao !== bo) return (ao as number) - (bo as number);
+              if (hasA !== hasB) return hasA ? -1 : 1;
+              return (a.name || '').localeCompare(b.name || '');
+            });
+          setNavDepartments(rows);
+        }
       } catch { /* ignore */ }
     }
     loadDepts();

@@ -11,6 +11,20 @@ interface Department {
   id: string;
   name: string;
   color: string | null;
+  display_order: number | null;
+  hidden: boolean;
+}
+
+function sortDepartments(list: Department[]): Department[] {
+  return [...list].sort((a, b) => {
+    const ao = a.display_order;
+    const bo = b.display_order;
+    const hasA = typeof ao === 'number';
+    const hasB = typeof bo === 'number';
+    if (hasA && hasB && ao !== bo) return (ao as number) - (bo as number);
+    if (hasA !== hasB) return hasA ? -1 : 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
 }
 
 interface AppUser {
@@ -27,6 +41,7 @@ export default function PagesContent() {
   const router = useRouter();
   const [toast, setToast] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [deptBusy, setDeptBusy] = useState<string | null>(null);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [permissionsFor, setPermissionsFor] = useState<string | null>(null); // path being edited
   const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
@@ -38,10 +53,10 @@ export default function PagesContent() {
     if (!session?.access_token) return;
     async function loadData() {
       const [deptData, userData] = await Promise.all([
-        db({ action: 'select', table: 'departments', select: 'id, name, color', order: { column: 'name', ascending: true } }),
+        db({ action: 'select', table: 'departments', select: 'id, name, color, display_order, hidden' }),
         db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, email, department_id' }),
       ]);
-      if (Array.isArray(deptData)) setDepartments(deptData as Department[]);
+      if (Array.isArray(deptData)) setDepartments(sortDepartments(deptData as Department[]));
       if (Array.isArray(userData)) setAllUsers(userData as AppUser[]);
     }
     loadData();
@@ -180,6 +195,57 @@ export default function PagesContent() {
     }
     dragItem.current = null;
     dragOverItem.current = null;
+  }
+
+  async function moveDepartment(deptId: string, direction: 'up' | 'down') {
+    const idx = departments.findIndex((d) => d.id === deptId);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= departments.length) return;
+    const me = departments[idx];
+    const partner = departments[swapIdx];
+    // Resolve effective orders. If null, fall back to the current
+    // sorted index so the first move on an unordered dept produces
+    // a deterministic swap rather than a no-op.
+    const meOrder = me.display_order ?? (idx + 1) * 10;
+    const partnerOrder = partner.display_order ?? (swapIdx + 1) * 10;
+    setDeptBusy(deptId);
+    try {
+      await Promise.all([
+        db({ action: 'update', table: 'departments', data: { display_order: partnerOrder }, match: { id: me.id } }),
+        db({ action: 'update', table: 'departments', data: { display_order: meOrder }, match: { id: partner.id } }),
+      ]);
+      const next = departments.map((d) => {
+        if (d.id === me.id) return { ...d, display_order: partnerOrder };
+        if (d.id === partner.id) return { ...d, display_order: meOrder };
+        return d;
+      });
+      setDepartments(sortDepartments(next));
+      setToast(`Moved ${me.name} ${direction === 'up' ? 'up' : 'down'}`);
+    } catch {
+      setToast('Could not save department order');
+    } finally {
+      setDeptBusy(null);
+    }
+  }
+
+  async function toggleDeptHidden(deptId: string) {
+    const dept = departments.find((d) => d.id === deptId);
+    if (!dept) return;
+    const nextHidden = !dept.hidden;
+    setDeptBusy(deptId);
+    // Optimistic update — flip locally first, then persist.
+    setDepartments(prev => prev.map((d) => d.id === deptId ? { ...d, hidden: nextHidden } : d));
+    try {
+      await db({ action: 'update', table: 'departments', data: { hidden: nextHidden }, match: { id: deptId } });
+      setToast(nextHidden ? `${dept.name} hidden from sidebar` : `${dept.name} visible`);
+    } catch {
+      // Roll back local change on failure.
+      setDepartments(prev => prev.map((d) => d.id === deptId ? { ...d, hidden: dept.hidden } : d));
+      setToast('Could not save department visibility');
+    } finally {
+      setDeptBusy(null);
+    }
   }
 
   function toggleCollapseDept(deptId: string) {
@@ -362,12 +428,16 @@ export default function PagesContent() {
                     {ungrouped.map(p => renderRow(p))}
 
                     {/* All department groups (including empty ones for drop targets) */}
-                    {departments.map(dept => {
+                    {departments.map((dept, deptIdx) => {
                       const deptPages = navPages.filter(p => p.departmentId === dept.id);
                       const isCollapsed = collapsedDepts.has(dept.id);
                       const isDragOver = dragOverDeptId === dept.id;
+                      const busy = deptBusy === dept.id;
+                      const isFirst = deptIdx === 0;
+                      const isLast = deptIdx === departments.length - 1;
+                      const stop = (e: React.MouseEvent) => e.stopPropagation();
                       return (
-                        <div key={dept.id}>
+                        <div key={dept.id} className={dept.hidden ? 'opacity-55' : ''}>
                           {/* Department header row — drop target */}
                           <div
                             onClick={() => toggleCollapseDept(dept.id)}
@@ -388,6 +458,28 @@ export default function PagesContent() {
                                 : 'bg-warm-bg/40 hover:bg-warm-bg/60'
                             }`}
                           >
+                            <div className="flex items-center gap-0.5 shrink-0" onClick={stop}>
+                              <button
+                                type="button"
+                                onClick={() => moveDepartment(dept.id, 'up')}
+                                disabled={busy || isFirst}
+                                title="Move department up"
+                                aria-label="Move department up"
+                                className="w-6 h-6 inline-flex items-center justify-center rounded border border-black/10 bg-white text-foreground/40 hover:text-foreground hover:border-foreground/30 disabled:opacity-30 disabled:cursor-not-allowed text-xs"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveDepartment(dept.id, 'down')}
+                                disabled={busy || isLast}
+                                title="Move department down"
+                                aria-label="Move department down"
+                                className="w-6 h-6 inline-flex items-center justify-center rounded border border-black/10 bg-white text-foreground/40 hover:text-foreground hover:border-foreground/30 disabled:opacity-30 disabled:cursor-not-allowed text-xs"
+                              >
+                                ↓
+                              </button>
+                            </div>
                             <svg
                               className={`w-3.5 h-3.5 text-foreground/30 transition-transform shrink-0 ${isCollapsed ? '-rotate-90' : ''}`}
                               fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"
@@ -401,9 +493,28 @@ export default function PagesContent() {
                             <span className="text-xs font-semibold uppercase tracking-wider text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
                               {dept.name}
                             </span>
+                            {dept.hidden && (
+                              <span className="text-[9px] font-semibold uppercase tracking-wider text-red-700 bg-red-50 border border-red-200 rounded px-1.5 py-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                                Hidden
+                              </span>
+                            )}
                             <span className="text-[10px] text-foreground/30 ml-auto" style={{ fontFamily: 'var(--font-body)' }}>
                               {deptPages.length} page{deptPages.length !== 1 ? 's' : ''}
                             </span>
+                            <button
+                              type="button"
+                              onClick={(e) => { stop(e); toggleDeptHidden(dept.id); }}
+                              disabled={busy}
+                              title={dept.hidden ? 'Show in sidebar' : 'Hide from sidebar'}
+                              aria-label={dept.hidden ? 'Show department' : 'Hide department'}
+                              className={`w-7 h-7 inline-flex items-center justify-center rounded border text-sm transition-colors disabled:opacity-50 ${
+                                dept.hidden
+                                  ? 'bg-gray-200 text-gray-700 border-gray-300'
+                                  : 'bg-white text-foreground/40 border-black/10 hover:border-foreground/30 hover:text-foreground/70'
+                              }`}
+                            >
+                              {dept.hidden ? '⊘' : '👁'}
+                            </button>
                           </div>
                           {/* Pages in this group */}
                           {!isCollapsed && deptPages.map(p => renderRow(p, true))}
