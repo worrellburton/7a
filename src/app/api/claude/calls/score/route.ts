@@ -386,7 +386,18 @@ export async function POST(req: NextRequest) {
 
   const supabase = getAdminSupabase();
 
-  const body = (await req.json().catch(() => ({}))) as { callId?: string; call?: CallInput; force?: boolean };
+  const body = (await req.json().catch(() => ({}))) as {
+    callId?: string;
+    call?: CallInput;
+    force?: boolean;
+    /**
+     * When true, the route is allowed to write a metadata-only score
+     * if audio download fails. Manual "Re-analyze" clicks set this
+     * (the user knows they're getting a low-confidence answer);
+     * auto-score sets it only after the retry budget is exhausted.
+     */
+    allowMetadataFallback?: boolean;
+  };
   const callId = body.callId;
   const call = body.call;
   if (!callId || !call) {
@@ -404,11 +415,22 @@ export async function POST(req: NextRequest) {
 
   // Try audio-first analysis with Gemini.
   let scored: { result: ScoreResult; model: string } | null = null;
+  let audioFetchFailed = false;
 
   if (call.audio) {
     const dl = await downloadAudio(call.audio);
     if ('error' in dl) {
       debug.audio_status = dl.error;
+      // CTM hosted recordings can take several minutes to be
+      // transcoded after a long call ends. A 4xx from the CTM API
+      // is almost always "not ready yet" rather than a permanent
+      // failure — the caller (auto-score) decides whether to retry
+      // or give up to metadata-only based on retry budget.
+      const isCtm = /calltrackingmetrics\.com/i.test(call.audio);
+      const looks4xx = /audio fetch (4\d\d)/i.test(dl.error);
+      if (isCtm && (looks4xx || /audio empty/i.test(dl.error))) {
+        audioFetchFailed = true;
+      }
     } else {
       debug.audio_status = `downloaded ${dl.bytes} bytes (${dl.mediaType})`;
       const geminiResult = await scoreWithGeminiAudio(call, dl);
@@ -422,6 +444,18 @@ export async function POST(req: NextRequest) {
     }
   } else {
     debug.audio_status = 'no audio url on call';
+  }
+
+  // Audio wasn't ready — short-circuit so the caller can put us in
+  // a retry queue instead of writing a low-confidence metadata-only
+  // score that would mask the real call once the recording arrives.
+  // body.allowMetadataFallback is set by manual "Re-analyze" clicks
+  // and by auto-score after the retry budget is exhausted.
+  if (!scored && audioFetchFailed && !body.allowMetadataFallback) {
+    return NextResponse.json(
+      { audio_pending: true, debug },
+      { status: 202 },
+    );
   }
 
   // Fall back to Claude metadata-only.

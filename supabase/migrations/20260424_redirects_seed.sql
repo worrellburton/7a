@@ -99,6 +99,8 @@ insert into public.redirects (from_path, to_path, status_code, notes) values
   ('/who-we-help/lgbtqia/', '/our-program/who-we-help', 301, null),
 
   -- SEO landing pages
+  ('/get-help', '/', 301, 'Paid / referral landing slug — sends visitors to the homepage so the full marketing funnel does the work'),
+  ('/get-help/', '/', 301, 'Trailing-slash variant of /get-help'),
   ('/arizona-rehab-centers/', '/', 301, null),
   ('/private-rehabs-in-arizona/', '/', 301, null),
   ('/luxury-rehab-center/', '/treatment/residential-inpatient', 301, null),
