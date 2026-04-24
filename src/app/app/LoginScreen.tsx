@@ -265,6 +265,130 @@ function AnimatedLogo() {
   );
 }
 
+/* ── Phase 5: Heartbeat stat trio ───────────────────────────────── */
+
+interface StatPulse {
+  label: string;
+  value: number;
+  suffix?: string;
+  prefix?: string;
+  hint?: string;
+}
+
+/**
+ * Tween a number from 0 → target over `durationMs`. Uses an easeOut
+ * curve so the counter flares in and softly lands — feels like a
+ * heartbeat rather than a linear odometer.
+ */
+function useCountUp(target: number, durationMs = 1600, startDelayMs = 0): number {
+  const [n, setN] = useState(0);
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    const start = performance.now() + startDelayMs;
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.max(0, Math.min(1, (now - start) / durationMs));
+      const eased = 1 - Math.pow(1 - t, 3);
+      setN(Math.round(eased * target));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs, startDelayMs]);
+  return n;
+}
+
+function StatPulseCard({ stat, index }: { stat: StatPulse; index: number }) {
+  const n = useCountUp(stat.value, 1500, 400 + index * 200);
+  return (
+    <div
+      className="stat-pulse-card flex flex-col items-center px-3 sm:px-5"
+      style={{ animationDelay: `${300 + index * 150}ms` }}
+    >
+      <div className="flex items-baseline gap-0.5">
+        {stat.prefix && <span className="text-white/70 text-sm">{stat.prefix}</span>}
+        <span
+          className="text-white text-2xl sm:text-3xl font-semibold tabular-nums drop-shadow"
+          style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
+        >
+          {n.toLocaleString()}
+        </span>
+        {stat.suffix && <span className="text-white/80 text-sm sm:text-base">{stat.suffix}</span>}
+      </div>
+      <div className="text-[10px] sm:text-[11px] uppercase tracking-[0.22em] text-white/70 mt-1">
+        {stat.label}
+      </div>
+      {stat.hint && (
+        <div className="text-[9px] text-white/40 mt-0.5">{stat.hint}</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Tries to pull a live team headcount from supabase. Everything else
+ * (horses, arrows, acres) is evergreen brand data. If the headcount
+ * query fails we fall back to a sensible static "40+" so the row still
+ * renders. The card emits a subtle pulse ring on load.
+ */
+function HeartbeatStats() {
+  const [teamCount, setTeamCount] = useState<number>(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { count, error } = await supabase
+          .from('users')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'active')
+          .eq('public_team', true);
+        if (error) throw error;
+        if (!cancelled && typeof count === 'number') setTeamCount(count);
+      } catch {
+        if (!cancelled) setTeamCount(40);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const stats: StatPulse[] = [
+    { label: 'Team members',   value: teamCount || 40, suffix: teamCount ? '' : '+', hint: 'and growing' },
+    { label: 'Arrows to follow', value: 7,             hint: 'one for each virtue' },
+    { label: 'Horses on site', value: 8,             hint: 'the herd' },
+  ];
+
+  return (
+    <div className="relative mb-7 flex items-start justify-center divide-x divide-white/15 animate-stats-in">
+      {stats.map((s, i) => (
+        <StatPulseCard key={s.label} stat={s} index={i} />
+      ))}
+
+      <style jsx global>{`
+        @keyframes stats-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .animate-stats-in { animation: stats-in 900ms ease-out 300ms both; }
+
+        @keyframes stat-pulse {
+          0%,100% { opacity: 1; }
+          50%     { opacity: 0.75; }
+        }
+        .stat-pulse-card { animation: stat-pulse 6s ease-in-out infinite; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .animate-stats-in,
+          .stat-pulse-card { animation: none !important; }
+          .animate-stats-in { opacity: 1; transform: none; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 /* ── Phase 4: Rotating quote / testimonial ribbon ───────────────── */
 
 interface QuoteBeat {
@@ -586,6 +710,7 @@ export default function LoginScreen({
       <div className="relative z-10 w-full max-w-md mx-4 text-center pb-32 sm:pb-28">
         <AnimatedLogo />
         <QuoteRibbon />
+        <HeartbeatStats />
         <button
           onClick={onSignIn}
           className="w-full flex items-center justify-center gap-3 bg-white hover:bg-white text-gray-900 rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-[0.99]"
