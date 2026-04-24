@@ -161,6 +161,12 @@ export default function SeoContent() {
             SEO Images
           </Link>
           <Link
+            href="/app/seo/redirects"
+            className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground hover:bg-warm-bg/40 transition"
+          >
+            Redirects →
+          </Link>
+          <Link
             href="/app/seo/audit"
             className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground hover:bg-warm-bg/40 transition"
           >
