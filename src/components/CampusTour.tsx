@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { siteVideos } from '@/lib/siteVideos';
 import { useEffect, useRef, useState } from 'react';
 
 /**
@@ -63,8 +64,19 @@ const tiles: Tile[] = [
 ];
 
 export default function CampusTour() {
+  const videoRef = useRef<HTMLVideoElement>(null);
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.muted = true;
+    const reduce =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (!reduce) el.play().catch(() => {});
+  }, []);
 
   useEffect(() => {
     const el = ref.current;
@@ -132,24 +144,28 @@ export default function CampusTour() {
               section on desktop. On mobile it becomes a full-width
               hero tile above the bento. */}
           <div
-            className="lg:col-span-5 relative rounded-2xl overflow-hidden bg-dark-section aspect-[3/4] lg:aspect-auto group"
+            className="lg:col-span-5 relative rounded-2xl overflow-hidden bg-dark-section aspect-[4/5] sm:aspect-[3/4] lg:aspect-auto group"
             style={{
               opacity: visible ? 1 : 0,
               transform: visible ? 'translateY(0)' : 'translateY(24px)',
               transition: 'all 1.05s cubic-bezier(0.16,1,0.3,1) 0.2s',
+              // Cap the tile height on desktop so the left column
+              // doesn't balloon when the bento grid row stretches to
+              // min-h-[calc(100vh-12rem)] on tall viewports.
+              maxHeight: '780px',
             }}
           >
-            {/* Static establishing shot — the video that used to live
-                here (siteVideos.ranchLife) opened on a tight dog
-                close-up frame on the landing, which read as a
-                visual glitch. Keep the same framing using the
-                former poster image so the campus hero reads clean. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/facility-exterior-mountains.jpg"
-              alt="Main residence at the base of the Swisshelm Mountains"
+            <video
+              ref={videoRef}
+              src={siteVideos.ranchLife}
+              poster="/images/facility-exterior-mountains.jpg"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              aria-hidden="true"
               className="absolute inset-0 w-full h-full object-cover"
-              loading="lazy"
             />
             <div
               aria-hidden="true"
