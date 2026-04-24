@@ -506,12 +506,21 @@ export default function AuditContent() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
         <Panel title="What's working">
-          <Empty>Run an audit to see which engines cite us today.</Empty>
+          {result?.score ? (
+            <StrengthList score={result.score} />
+          ) : (
+            <Empty>Run an audit to see which engines cite us today.</Empty>
+          )}
         </Panel>
         <Panel title="What's not">
-          <Empty>
-            Run an audit to see where competitors win or we're invisible.
-          </Empty>
+          {result?.score ? (
+            <WeaknessList score={result.score} />
+          ) : (
+            <Empty>
+              Run an audit to see where competitors win or we&apos;re
+              invisible.
+            </Empty>
+          )}
         </Panel>
       </div>
 
@@ -691,6 +700,166 @@ function ScoreCard({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function StrengthList({ score }: { score: GeoScore }) {
+  const strongEngines = score.engines.filter((e) => e.score >= 70);
+  const strongCategories = score.categories.filter((c) => c.score >= 70);
+  const topWins = score.wins.slice(0, 8);
+
+  if (
+    strongEngines.length === 0 &&
+    strongCategories.length === 0 &&
+    topWins.length === 0
+  ) {
+    return (
+      <Empty>
+        No category or engine is scoring &gt;=70 yet. Once you fix issues in
+        &quot;What&apos;s not&quot;, this panel will fill with the wins to
+        protect.
+      </Empty>
+    );
+  }
+
+  return (
+    <ul className="space-y-3 text-sm">
+      {strongEngines.map((e) => (
+        <li key={`eng-${e.engine}`}>
+          <span className="inline-block min-w-[44px] mr-2 rounded bg-emerald-100 text-emerald-700 px-1.5 py-0.5 text-[11px] font-bold text-center">
+            {e.score}
+          </span>
+          <strong>{ENGINE_LABELS[e.engine]}.</strong>{' '}
+          <span className="text-foreground/70">
+            Cited on {e.cited} of {e.total} tracked queries.
+          </span>
+        </li>
+      ))}
+      {strongCategories.map((c) => (
+        <li key={`cat-${c.category}`}>
+          <span className="inline-block min-w-[44px] mr-2 rounded bg-emerald-100 text-emerald-700 px-1.5 py-0.5 text-[11px] font-bold text-center">
+            {c.score}
+          </span>
+          <strong>{CATEGORY_LABELS[c.category]}.</strong>{' '}
+          <span className="text-foreground/70">
+            {c.cited} cited + {c.mentioned} mentioned across {c.total} answers.
+          </span>
+        </li>
+      ))}
+      {topWins.length > 0 ? (
+        <li className="pt-2 mt-1 border-t border-black/5">
+          <p className="text-[10px] font-semibold tracking-wider uppercase text-foreground/50 mb-2">
+            Queries we&apos;re winning
+          </p>
+          <ul className="space-y-1.5 text-xs">
+            {topWins.map((w) => (
+              <li key={w.promptId}>
+                <span className="inline-block min-w-[34px] mr-2 rounded bg-emerald-100 text-emerald-700 px-1 py-0.5 text-[10px] font-bold text-center">
+                  {w.visibility}
+                </span>
+                <span className="text-foreground/80">{w.text}</span>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ) : null}
+    </ul>
+  );
+}
+
+function WeaknessList({ score }: { score: GeoScore }) {
+  const top = score.opportunityPrompts.slice(0, 12);
+  const weakEngines = score.engines
+    .filter((e) => e.score < 40)
+    .sort((a, b) => a.score - b.score);
+  const weakCategories = score.categories
+    .filter((c) => c.score < 40)
+    .sort((a, b) => a.score - b.score);
+
+  if (top.length === 0 && weakEngines.length === 0 && weakCategories.length === 0) {
+    return (
+      <Empty>
+        Nothing is below the opportunity threshold. If you ran a full audit
+        and still see this, the score is genuinely good — congrats.
+      </Empty>
+    );
+  }
+
+  return (
+    <ul className="space-y-3 text-sm">
+      {weakCategories.map((c) => (
+        <li key={`cat-${c.category}`}>
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700">
+              category
+            </span>
+            <span className="text-[10px] font-semibold tracking-wider uppercase text-foreground/50">
+              {CATEGORY_LABELS[c.category]}
+            </span>
+            <span className="text-[10px] text-foreground/50">
+              ({c.score}/100)
+            </span>
+          </div>
+          <p className="text-foreground/80">
+            Only {c.cited} of {c.total} answers in this funnel stage cite us.
+            Prioritize content and schema for these queries.
+          </p>
+        </li>
+      ))}
+      {weakEngines.map((e) => (
+        <li key={`eng-${e.engine}`}>
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700">
+              engine
+            </span>
+            <span className="text-[10px] font-semibold tracking-wider uppercase text-foreground/50">
+              {ENGINE_LABELS[e.engine]}
+            </span>
+            <span className="text-[10px] text-foreground/50">
+              ({e.score}/100)
+            </span>
+          </div>
+          <p className="text-foreground/80">
+            Lost to competitor on {e.lostToCompetitor} of {e.total} queries.
+            Publish grounding content that this engine reliably surfaces.
+          </p>
+        </li>
+      ))}
+      {top.length > 0 ? (
+        <li className="pt-2 mt-1 border-t border-black/5">
+          <p className="text-[10px] font-semibold tracking-wider uppercase text-foreground/50 mb-2">
+            Highest-impact prompts to fix
+          </p>
+          <ul className="space-y-2 text-xs">
+            {top.map((p) => (
+              <li key={p.promptId}>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span
+                    className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                      p.priority === 1
+                        ? 'bg-red-100 text-red-700'
+                        : p.priority === 2
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-black/5 text-foreground/60'
+                    }`}
+                    title={`priority ${p.priority}`}
+                  >
+                    P{p.priority}
+                  </span>
+                  <span className="text-[10px] font-semibold tracking-wider uppercase text-foreground/50">
+                    {CATEGORY_LABELS[p.category]}
+                  </span>
+                  <span className="text-[10px] text-foreground/50">
+                    visibility {p.visibility} · impact {p.impact}
+                  </span>
+                </div>
+                <p className="text-foreground/80">{p.text}</p>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ) : null}
+    </ul>
   );
 }
 
