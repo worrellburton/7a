@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { discoverSitemap } from '@/lib/seo/sitemap';
+import { crawlPage, type CrawledPage } from '@/lib/seo/crawl';
 
 // POST /api/seo/audit/run
 // Admin-only. Runs a full crawl + audit of the live marketing site and
@@ -94,20 +95,78 @@ export async function POST(req: Request) {
     });
   }
 
+  // Phase 4 smoke test: crawl just the homepage so we can verify the
+  // extractor end-to-end. Phase 5 expands this to the whole sitemap with
+  // a concurrency cap.
+  let homepage: CrawledPage | null = null;
+  try {
+    homepage = await crawlPage(origin);
+    if (homepage.error) {
+      issues.push({
+        title: 'Homepage crawl failed',
+        detail: homepage.error,
+        severity: 'high',
+      });
+    } else if (!homepage.ok) {
+      issues.push({
+        title: `Homepage returned HTTP ${homepage.status}`,
+        detail: `Final URL ${homepage.finalUrl}`,
+        severity: 'high',
+      });
+    } else {
+      strengths.push({
+        title: 'Homepage reachable',
+        detail: `HTTP ${homepage.status} in ${homepage.fetchMs}ms · ${homepage.bytes.toLocaleString()} bytes · ${homepage.h1.length} H1 · ${homepage.imageCount} images · ${homepage.internalLinkCount} internal links · ${homepage.jsonLd.length} JSON-LD blocks`,
+      });
+    }
+  } catch (err) {
+    issues.push({
+      title: 'Homepage crawl threw',
+      detail: err instanceof Error ? err.message : String(err),
+      severity: 'high',
+    });
+  }
+
+  const homepageSummary = homepage
+    ? {
+        url: homepage.url,
+        finalUrl: homepage.finalUrl,
+        status: homepage.status,
+        fetchMs: homepage.fetchMs,
+        bytes: homepage.bytes,
+        title: homepage.title,
+        metaDescription: homepage.metaDescription,
+        canonical: homepage.canonical,
+        lang: homepage.lang,
+        h1Count: homepage.h1.length,
+        h1: homepage.h1.slice(0, 3),
+        h2Count: homepage.h2.length,
+        ogTags: Object.keys(homepage.openGraph).length,
+        twitterTags: Object.keys(homepage.twitter).length,
+        jsonLdBlocks: homepage.jsonLd.length,
+        imageCount: homepage.imageCount,
+        imagesMissingAlt: homepage.imagesMissingAlt,
+        internalLinkCount: homepage.internalLinkCount,
+        externalLinkCount: homepage.externalLinkCount,
+        warnings: homepage.warnings,
+      }
+    : null;
+
   const result = {
     origin,
     score: null as number | null,
     ranAt: new Date(startedAt).toISOString(),
     durationMs: Date.now() - startedAt,
     sitemap,
+    homepage: homepageSummary,
     pages: [] as unknown[],
     categories: {} as Record<string, unknown>,
     strengths,
     issues,
     notice:
       sitemap && sitemap.count > 0
-        ? `Sitemap parsed (${sitemap.count} URLs). Per-page crawler + scoring land in phases 4–17.`
-        : 'Sitemap fetch incomplete. Per-page crawler + scoring land in phases 4–17.',
+        ? `Sitemap parsed (${sitemap.count} URLs) and homepage crawled. Full-sitemap crawl + scoring land in phases 5–17.`
+        : 'Sitemap fetch incomplete. Per-page crawler + scoring land in phases 5–17.',
   };
 
   return NextResponse.json(result);
