@@ -474,7 +474,7 @@ export default function PageContent() {
               className="text-primary text-sm font-semibold hover:underline"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Episode 3: Coming Soon &rarr;
+              Back to the Recovery Roadmap &rarr;
             </Link>
           </div>
 

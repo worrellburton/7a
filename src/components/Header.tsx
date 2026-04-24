@@ -3,6 +3,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import MobileMenu from './header/MobileMenu';
+import MenuToggleIcon from './header/MenuToggleIcon';
 
 /* ── Animated SVG Icons ─────────────────────────────────────────────── */
 
@@ -912,17 +914,12 @@ function MegaMenuDropdown({
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
   // Track how many mega-menu panels are currently open — if any are, the
   // Header drops its transparent treatment so the panel has a solid nav
   // above it instead of floating over the dark hero video.
   const [openDropdowns, setOpenDropdowns] = useState(0);
   const headerRef = useRef<HTMLElement>(null);
-
-  const toggleMobileDropdown = (label: string) => {
-    setMobileExpanded(mobileExpanded === label ? null : label);
-  };
 
   // Two things to track on scroll:
   //   1. Whether the nav has left the hero — flips the color scheme from
@@ -1061,91 +1058,20 @@ export default function Header() {
             aria-expanded={mobileMenuOpen}
             aria-label="Toggle navigation menu"
           >
-            {mobileMenuOpen ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            )}
+            <MenuToggleIcon open={mobileMenuOpen} />
           </button>
         </div>
 
-        {/* Mobile Navigation */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden pb-4 border-t border-gray-100" role="menu">
-            <div className="pt-3 space-y-0.5">
-              {navLinks.map((item) => (
-                <div key={item.href}>
-                  {item.dropdown ? (
-                    <>
-                      <button
-                        type="button"
-                        className="flex items-center justify-between w-full px-3 py-2.5 text-xs font-semibold tracking-wider uppercase text-foreground hover:text-primary"
-                        style={{ fontFamily: 'var(--font-body)' }}
-                        onClick={() => toggleMobileDropdown(item.label)}
-                        aria-expanded={mobileExpanded === item.label}
-                      >
-                        {item.label}
-                        <svg
-                          className={`w-3.5 h-3.5 transition-transform ${mobileExpanded === item.label ? 'rotate-180' : ''}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      {mobileExpanded === item.label && (
-                        <div className="bg-warm-bg">
-                          {item.dropdown.map((sub) => {
-                            const Icon = iconMap[sub.label];
-                            return (
-                              <Link
-                                key={sub.href}
-                                href={sub.href}
-                                className="flex items-center gap-2.5 px-5 py-2.5 text-sm text-foreground hover:text-primary border-b border-foreground/5 last:border-b-0"
-                                role="menuitem"
-                                onClick={() => setMobileMenuOpen(false)}
-                              >
-                                {Icon && (
-                                  <div className="shrink-0 w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
-                                    <Icon className="w-3 h-3 text-primary" />
-                                  </div>
-                                )}
-                                <div>
-                                  <div className="text-sm font-medium" style={{ fontFamily: 'var(--font-body)' }}>{sub.label}</div>
-                                </div>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <Link
-                      href={item.href}
-                      className="block px-3 py-2.5 text-xs font-semibold tracking-wider uppercase text-foreground hover:text-primary"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                      role="menuitem"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      {item.label}
-                    </Link>
-                  )}
-                </div>
-              ))}
-              <div className="px-3 pt-3">
-                <a href="tel:+18669964308" className="btn-primary w-full text-center flex items-center justify-center gap-2 text-xs py-3">
-                  <PhoneIcon className="w-3.5 h-3.5" />
-                  (866) 996-4308
-                </a>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Mobile Navigation — owned by the MobileMenu client
+            component so all of its behavior (scroll lock, escape-
+            to-close, click-outside, animations, focus handling)
+            lives in one place instead of inline in the header. */}
+        <MobileMenu
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+          navLinks={navLinks}
+          iconMap={iconMap}
+        />
       </nav>
     </header>
   );

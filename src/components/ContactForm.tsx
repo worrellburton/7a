@@ -141,6 +141,8 @@ export default function ContactForm() {
     consent: false,
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -323,6 +325,15 @@ export default function ContactForm() {
               >
                 {submitting ? 'Sending…' : 'Send'}
               </button>
+              {submitError && (
+                <p
+                  role="alert"
+                  className="mt-4 text-sm text-[#ffb59a]"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {submitError}
+                </p>
+              )}
             </div>
           </form>
         )}

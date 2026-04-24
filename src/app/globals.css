@@ -262,6 +262,38 @@ body {
   to { opacity: 1; }
 }
 
+/* Team-member view transitions — when a named tile (avatar) morphs
+   from the grid into the hero, the browser generates two pseudo
+   images: the old and the new. We let the browser crossfade them
+   and slow the curve to match the team-member page eased-out
+   aesthetic. Non-named content (hero copy, surrounding sections)
+   uses the default root crossfade, shortened a hair. */
+@supports (view-transition-name: none) {
+  ::view-transition-group(*) {
+    animation-duration: 520ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 380ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+/* Reduced-motion belt-and-suspenders: TS-side code already gates
+   the big animations (SevenArrowsMark sway, hero spin) on
+   useReducedMotion, but if any animation slips through via a CSS
+   class or third-party fragment, force a short no-op here. Avoids
+   blanket rules that would also kill essential transitions like
+   drawer open/close, which still need enough motion to read as
+   state changes (200ms is the accessible minimum we target). */
+@media (prefers-reduced-motion: reduce) {
+  .sa-mark-chain,
+  [class*='sa-mark-'][class*='-chain'] {
+    animation: none !important;
+  }
+}
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
