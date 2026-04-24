@@ -1,8 +1,28 @@
 'use client';
 
 import Link from 'next/link';
+import {
+  CATEGORY_LABELS,
+  DEFAULT_PROMPTS,
+  type PromptCategory,
+} from '@/lib/geo/prompts';
 
 export default function AuditContent() {
+  const grouped = DEFAULT_PROMPTS.reduce<Record<PromptCategory, typeof DEFAULT_PROMPTS>>(
+    (acc, p) => {
+      acc[p.category] ??= [];
+      acc[p.category].push(p);
+      return acc;
+    },
+    {
+      location_intent: [],
+      modality: [],
+      insurance: [],
+      substance: [],
+      brand: [],
+      decision: [],
+    },
+  );
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-8">
@@ -38,7 +58,43 @@ export default function AuditContent() {
       </div>
 
       <Panel title="Tracked prompts" className="mt-6">
-        <Empty>The default prompt set ships in phase 2.</Empty>
+        <p className="text-xs text-foreground/60 mb-4">
+          {DEFAULT_PROMPTS.length} prompts across {Object.keys(grouped).length} categories
+          — the queries our admissions funnel actually depends on. Priority{' '}
+          <span className="font-semibold">1</span> prompts are the high-value
+          queries we must win; priority 3 are supporting coverage.
+        </p>
+        <div className="space-y-4">
+          {(Object.keys(grouped) as PromptCategory[]).map((cat) => (
+            <div key={cat}>
+              <p className="text-[10px] font-semibold tracking-[0.16em] uppercase text-foreground/50 mb-2">
+                {CATEGORY_LABELS[cat]} · {grouped[cat].length}
+              </p>
+              <ul className="space-y-1">
+                {grouped[cat].map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex items-start gap-2 text-xs text-foreground/80 border-b border-black/5 pb-1 last:border-b-0"
+                  >
+                    <span
+                      className={`inline-block w-5 text-center font-bold rounded ${
+                        p.priority === 1
+                          ? 'bg-red-50 text-red-700'
+                          : p.priority === 2
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-black/5 text-foreground/50'
+                      }`}
+                      title={`priority ${p.priority}`}
+                    >
+                      {p.priority}
+                    </span>
+                    <span>{p.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       </Panel>
 
       <Panel title="Engine coverage" className="mt-6">
