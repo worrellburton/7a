@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   const message = str(payload.message, 2000);
   const pageUrl = str(payload.pageUrl ?? payload.page_url, 1000);
   const rawSource = str(payload.source, 40);
-  const source = ['contact_page', 'footer', 'exit_intent', 'other'].includes(rawSource)
+  const source = ['contact_page', 'footer', 'exit_intent', 'careers', 'other'].includes(rawSource)
     ? rawSource
     : 'contact_page';
   const consent = payload.consent === true;

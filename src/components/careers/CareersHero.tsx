@@ -153,11 +153,11 @@ export default function CareersHero() {
               </svg>
             </a>
             <a
-              href="mailto:careers@sevenarrowsrecovery.com"
+              href="mailto:info@sevenarrowsrecovery.com"
               className="inline-flex items-center gap-2 text-white/85 font-semibold border-b border-white/40 pb-1 tracking-[0.1em] uppercase text-[12px] hover:text-white hover:border-white transition-colors"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              careers@sevenarrowsrecovery.com
+              info@sevenarrowsrecovery.com
             </a>
           </div>
         </div>

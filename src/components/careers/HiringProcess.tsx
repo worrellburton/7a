@@ -13,7 +13,7 @@ const steps: Step[] = [
     title: 'Send a note',
     duration: 'Day 0',
     body:
-      'Email careers@sevenarrowsrecovery.com with a short cover note and a resume. We read every message; you&rsquo;ll hear back in 3 to 5 business days whether we&rsquo;re a likely match.',
+      'Email info@sevenarrowsrecovery.com with a short cover note and a resume. We read every message; you&rsquo;ll hear back in 3 to 5 business days whether we&rsquo;re a likely match.',
   },
   {
     title: 'Screening call',
