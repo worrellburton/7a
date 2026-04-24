@@ -4,17 +4,20 @@ import { getPublicSupabase } from '@/lib/supabase-server';
 export const runtime = 'nodejs';
 
 /**
- * Public contact form endpoint. Accepts a JSON POST from the
- * ContactForm component and inserts a row into
- * `public.contact_submissions`. Responds with `{ ok: true }` on
- * success so the client can clear the form; on any server-side
- * failure we still return `{ ok: true }` to the visitor (the form
- * shouldn't "break" from their perspective) but log the error so
- * it shows up in Vercel / Supabase logs for follow-up.
+ * Public contact form endpoint. Accepts a JSON POST from any of the
+ * site's contact-style forms (Footer's ContactForm, the /contact
+ * page's ContactPageForm, and ExitIntentModal) and inserts a row
+ * into `public.contact_submissions`.
  *
- * The row is intentionally minimal — we capture the fields the
- * form actually collects plus a couple of headers (user-agent,
- * referrer) that help triage submissions later.
+ * Body may use camelCase (legacy Footer ContactForm) or snake_case
+ * (newer ContactPageForm / ExitIntentModal) — both accepted. A
+ * `source` field tags which form produced the submission so the
+ * admin Forms page can filter/group:
+ *
+ *   'contact_page' (default) · 'footer' · 'exit_intent' · 'other'
+ *
+ * On insert failure we still return `{ ok: true }` so the visitor's
+ * form doesn't break — but log payload + error for admin triage.
  */
 export async function POST(req: NextRequest) {
   let payload: Record<string, unknown> = {};
@@ -24,16 +27,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
-  const firstName = str(payload.firstName, 80);
-  const lastName = str(payload.lastName, 80);
+  const firstName = str(payload.firstName ?? payload.first_name, 80);
+  const lastName = str(payload.lastName ?? payload.last_name, 80);
   const email = str(payload.email, 160);
-  const telephone = str(payload.telephone, 40);
-  const paymentMethod = str(payload.paymentMethod, 40);
+  const telephone = str(payload.telephone ?? payload.phone, 40);
+  const paymentMethod = str(payload.paymentMethod ?? payload.payment_method, 40);
   const message = str(payload.message, 2000);
+  const pageUrl = str(payload.pageUrl ?? payload.page_url, 1000);
+  const rawSource = str(payload.source, 40);
+  const source = ['contact_page', 'footer', 'exit_intent', 'other'].includes(rawSource)
+    ? rawSource
+    : 'contact_page';
+  const consent = payload.consent === true;
 
-  if (!firstName || !email) {
+  // Only require enough signal to reach back — email or phone.
+  if (!email && !telephone) {
     return NextResponse.json(
-      { ok: false, error: 'first_name_and_email_required' },
+      { ok: false, error: 'email_or_phone_required' },
       { status: 400 },
     );
   }
@@ -41,39 +51,32 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = getPublicSupabase();
     const { error } = await supabase.from('contact_submissions').insert({
-      first_name: firstName,
+      first_name: firstName || null,
       last_name: lastName || null,
-      email,
+      email: email || null,
       telephone: telephone || null,
       payment_method: paymentMethod || null,
       message: message || null,
+      source,
+      consent,
+      page_url: pageUrl || null,
       user_agent: req.headers.get('user-agent'),
       referrer: req.headers.get('referer'),
     });
     if (error) {
-      // Degrade gracefully — log but don't break the visitor's
-      // experience. The code path we most care about here is "the
-      // migration hasn't been applied yet", where the insert will
-      // fail with a schema error. The user still sees a success
-      // toast and we surface the error in logs for repair.
+      // Per master's pattern — log but don't break the visitor's
+      // experience. Most likely failure is "migration hasn't been
+      // applied yet"; user still sees success, admin sees log.
       console.error('[contact] insert failed, falling back to log:', error.message);
       console.info('[contact] submission payload:', {
-        firstName,
-        lastName,
-        email,
-        telephone,
-        paymentMethod,
+        source, firstName, lastName, email, telephone, paymentMethod,
         message: message?.slice(0, 200),
       });
     }
   } catch (err) {
     console.error('[contact] supabase threw, falling back to log:', err);
     console.info('[contact] submission payload:', {
-      firstName,
-      lastName,
-      email,
-      telephone,
-      paymentMethod,
+      source, firstName, lastName, email, telephone, paymentMethod,
     });
   }
 

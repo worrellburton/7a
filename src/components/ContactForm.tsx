@@ -146,23 +146,32 @@ export default function ContactForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (submitting) return;
-    setSubmitting(true);
     setSubmitError(null);
+    setSubmitting(true);
     try {
       const res = await fetch('/api/public/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          source: 'footer',
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          phone: formData.telephone,
+          email: formData.email,
+          payment_method: formData.paymentMethod,
+          consent: formData.consent,
+          page_url: typeof window !== 'undefined' ? window.location.href : null,
+        }),
       });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || !json.ok) {
-        setSubmitError('Something went wrong. Please call (866) 996-4308 and we’ll help directly.');
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        setSubmitError(payload.error || `Could not send (HTTP ${res.status}). Please call (866) 996-4308.`);
         return;
       }
       setSubmitted(true);
-    } catch {
-      setSubmitError('Something went wrong. Please call (866) 996-4308 and we’ll help directly.');
+    } catch (err) {
+      console.error('[ContactForm] submit threw', err);
+      setSubmitError('Could not send. Please call (866) 996-4308.');
     } finally {
       setSubmitting(false);
     }
@@ -303,10 +312,13 @@ export default function ContactForm() {
             </div>
 
             <div className="text-center pt-4">
+              {submitError && (
+                <p className="mb-3 text-red-400 text-sm">{submitError}</p>
+              )}
               <button
                 type="submit"
-                className="btn-primary px-12 disabled:opacity-60 disabled:cursor-not-allowed"
                 disabled={submitting}
+                className="btn-primary px-12 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Sending…' : 'Send'}
               </button>

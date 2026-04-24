@@ -13,6 +13,8 @@ export default function ContactPageForm() {
     message: '',
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -20,9 +22,36 @@ export default function ContactPageForm() {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitted(true);
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/public/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: 'contact_page',
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          phone: formData.phone,
+          email: formData.email,
+          message: formData.message,
+          page_url: typeof window !== 'undefined' ? window.location.href : null,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        setSubmitError(payload.error || `Could not send (HTTP ${res.status}). Please call (866) 996-4308.`);
+        return;
+      }
+      setSubmitted(true);
+    } catch (err) {
+      console.error('[ContactPageForm] submit threw', err);
+      setSubmitError('Could not send. Please call (866) 996-4308.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (submitted) {
@@ -163,8 +192,16 @@ export default function ContactPageForm() {
         />
       </div>
 
-      <button type="submit" className="btn-primary w-full">
-        Send Message
+      {submitError && (
+        <p className="text-red-600 text-sm">{submitError}</p>
+      )}
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {submitting ? 'Sending…' : 'Send Message'}
       </button>
     </form>
   );
