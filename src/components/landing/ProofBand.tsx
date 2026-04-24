@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * Phase 3 — proof band with inline testimonials.
+ * Phase 3 — proof band.
  *
- * Four stat cards with a short real-review pull-quote attached to
- * each one. Proof-in-context is roughly 3x more persuasive than
- * proof-in-a-separate-reviews-section — the visitor reads the
- * small-census claim and immediately sees an alum saying "individual
- * attention changed everything." No context switch.
+ * Four stat cards over a credentials row. We previously attached a
+ * pull-quote to each stat card, but those quotes were curated /
+ * fabricated — they no longer ship. Real Google reviews live on
+ * their own elsewhere on the page (GoogleReviewsCinema) so the
+ * visitor still sees verified social proof without any made-up
+ * alumni text here.
  *
  * Trust-badge row sits beneath, replacing the old separate
  * TrustBadges section so visitors get credentials in the same
@@ -22,8 +23,6 @@ interface Stat {
   label: string;
   description: string;
   decimals: number;
-  quote: string;
-  quoteAttribution: string;
   iconId: 'star' | 'calendar' | 'users' | 'phone';
 }
 
@@ -32,10 +31,8 @@ const stats: Stat[] = [
     value: 4.9,
     suffix: '/5',
     label: 'Google Rating',
-    description: 'Based on 28 verified reviews',
+    description: 'Based on verified Google reviews',
     decimals: 1,
-    quote: 'This place is truly special. They focus on healing from within rather than only treating symptoms of addiction.',
-    quoteAttribution: 'Roger M. · verified Google review',
     iconId: 'star',
   },
   {
@@ -44,28 +41,22 @@ const stats: Stat[] = [
     label: 'Day programs',
     description: 'Extended care for lasting recovery',
     decimals: 0,
-    quote: 'They did not discharge me when the insurance clock ran out. They kept me long enough to actually be ready.',
-    quoteAttribution: 'Alumnus · 14 months sober',
     iconId: 'calendar',
   },
   {
-    value: 6,
+    value: 1,
     suffix: ':1',
-    label: 'Client to staff',
-    description: 'Real individual attention',
+    label: 'Primary clinician',
+    description: 'Named, not numbered — small census by design',
     decimals: 0,
-    quote: 'The small-census model means you actually get attention. I was not a case load — I was a specific person.',
-    quoteAttribution: 'Alumnus · James R.',
     iconId: 'users',
   },
   {
     value: 24,
     suffix: '/7',
     label: 'Admissions',
-    description: 'Answered in under 60 seconds',
+    description: 'Answered by a real person, any hour',
     decimals: 0,
-    quote: "I called at 2 a.m. on a Tuesday. A real person picked up. I did not know that was possible.",
-    quoteAttribution: 'Family member · parent of alum',
     iconId: 'phone',
   },
 ];
@@ -225,24 +216,9 @@ function StatCard({ stat, started, delay }: { stat: Stat; started: boolean; dela
         </span>
         {stat.suffix && <span className="text-xl font-bold text-foreground/40">{stat.suffix}</span>}
       </div>
-      <p className="text-[13px] text-foreground/55 leading-snug mb-5" style={{ fontFamily: 'var(--font-body)' }}>
+      <p className="text-[13px] text-foreground/55 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
         {stat.description}
       </p>
-
-      <div className="pt-4 border-t border-black/5">
-        <p
-          className="text-[13px] text-foreground/80 italic leading-snug mb-2"
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
-          &ldquo;{stat.quote}&rdquo;
-        </p>
-        <p
-          className="text-[10.5px] tracking-[0.18em] uppercase font-semibold text-primary"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          {stat.quoteAttribution}
-        </p>
-      </div>
     </article>
   );
 }
