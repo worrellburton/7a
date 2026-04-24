@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import type { PublicTeamMember } from '@/lib/team';
-import SevenArrowsMark from './SevenArrowsMark';
 import { EASE_OUT_QUART, useInView, useReducedMotion } from './motion';
 
 /**
@@ -37,20 +36,6 @@ export default function TeamMemberClosingCTA({ member }: { member: PublicTeamMem
       />
 
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-24 lg:py-32 text-center">
-        {/* SevenArrowsMark flourish — swinging arrow chain draws
-            attention upward to the headline. */}
-        <div
-          aria-hidden="true"
-          className="flex justify-center mb-10"
-          style={{
-            opacity: show ? 1 : 0,
-            transform: show ? 'scale(1)' : 'scale(0.92)',
-            transition: `opacity 1.1s ${EASE_OUT_QUART} 0.05s, transform 1.1s ${EASE_OUT_QUART} 0.05s`,
-          }}
-        >
-          <SevenArrowsMark size={110} animated={show && !reduced} tone="white" />
-        </div>
-
         <p
           className="text-[11px] font-semibold tracking-[0.28em] uppercase text-accent mb-6"
           style={{
