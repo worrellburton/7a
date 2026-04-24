@@ -260,7 +260,7 @@ export default function PageContent() {
               <h3 className="text-lg font-bold text-foreground mb-5">
                 Accepted Providers Include:
               </h3>
-              <div className="grid grid-cols-3 gap-3 mb-8">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
                 {insuranceProviders.map((provider) => (
                   <div
                     key={provider.name}
