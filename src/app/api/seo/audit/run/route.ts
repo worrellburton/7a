@@ -13,6 +13,7 @@ import { auditImages } from '@/lib/seo/audits/images';
 import { auditLinks } from '@/lib/seo/audits/links';
 import { fetchRobots, type RobotsTxt } from '@/lib/seo/robots';
 import { auditCrawlability } from '@/lib/seo/audits/crawlability';
+import { auditHttp } from '@/lib/seo/audits/http';
 import type { CategoryAudit } from '@/lib/seo/audits/types';
 
 // POST /api/seo/audit/run
@@ -202,6 +203,7 @@ export async function POST(req: Request) {
     categories.push(auditSchema(crawl.pages));
     categories.push(auditImages(crawl.pages));
     categories.push(auditLinks(crawl.pages));
+    categories.push(auditHttp(crawl.pages));
   }
 
   // Crawlability: robots.txt + sitemap.xml health check.
