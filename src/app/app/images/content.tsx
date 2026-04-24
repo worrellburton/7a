@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
-import { compressImage } from '@/lib/upload';
+import { compressForSeo, compressImage } from '@/lib/upload';
 import { logActivity } from '@/lib/activity';
 
 interface SiteImage {
@@ -28,10 +29,18 @@ interface SiteImage {
   original_filename?: string | null;
 }
 
-interface KaizenProgress {
+interface SeoProgress {
   imageId: string;
   step: 'analyzing' | 'recompressing' | 'uploading' | 'updating' | 'done' | 'error';
   error?: string;
+  /** Bytes before compression (set when we reach the upload step). */
+  originalBytes?: number;
+  /** Bytes after compression. */
+  compressedBytes?: number;
+  /** Percent saved by compression, rounded. */
+  savedPercent?: number;
+  /** 'webp' | 'jpeg' | 'passthrough' */
+  format?: 'webp' | 'jpeg' | 'passthrough';
 }
 
 const BUCKET = 'public-images';
@@ -81,10 +90,13 @@ export default function ImagesContent() {
   const [uploads, setUploads] = useState<UploadProgress[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [preview, setPreview] = useState<SiteImage | null>(null);
-  const [kaizenRunning, setKaizenRunning] = useState(false);
-  const [kaizenAbort, setKaizenAbort] = useState(false);
-  const [kaizenProgress, setKaizenProgress] = useState<KaizenProgress | null>(null);
+  const [seoRunning, setSeoRunning] = useState(false);
+  const [seoAbort, setSeoAbort] = useState(false);
+  const [seoProgress, setSeoProgress] = useState<SeoProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchParams = useSearchParams();
+  const autoRunRequested = searchParams?.get('autoRun') === '1';
+  const autoRunFiredRef = useRef(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -289,17 +301,17 @@ export default function ImagesContent() {
       .eq('id', img.id);
     if (error) {
       setImages((prev) => prev.map((i) => (i.id === img.id ? { ...i, rating: img.rating ?? 0 } : i)));
-      showToast(`Rating failed: ${error.message} — has the kaizen migration been applied?`);
+      showToast(`Rating failed: ${error.message} — has the site_images SEO migration been applied?`);
     }
   }
 
-  async function kaizenOne(img: SiteImage): Promise<'ok' | 'error'> {
+  async function seoPassOne(img: SiteImage): Promise<'ok' | 'error'> {
     if (!user || !session?.access_token) return 'error';
 
-    setKaizenProgress({ imageId: img.id, step: 'analyzing' });
+    setSeoProgress({ imageId: img.id, step: 'analyzing' });
     let suggestion: { filename: string; alt: string; seo_title: string; seo_description: string } | null = null;
     try {
-      const res = await fetch('/api/claude/images/kaizen', {
+      const res = await fetch('/api/claude/images/seo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -313,32 +325,45 @@ export default function ImagesContent() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setKaizenProgress({ imageId: img.id, step: 'error', error: json?.error || `API ${res.status}` });
+        setSeoProgress({ imageId: img.id, step: 'error', error: json?.error || `API ${res.status}` });
         return 'error';
       }
       suggestion = json;
     } catch (err) {
-      setKaizenProgress({ imageId: img.id, step: 'error', error: String(err) });
+      setSeoProgress({ imageId: img.id, step: 'error', error: String(err) });
       return 'error';
     }
     if (!suggestion) return 'error';
 
-    // Download the existing file, recompress it for web delivery, and
-    // re-upload under the new descriptive filename.
-    setKaizenProgress({ imageId: img.id, step: 'recompressing' });
-    let newFile: File;
+    // Download the existing file, recompress for web delivery (WebP with
+    // JPEG fallback, max edge 1600, target 350 KB), re-upload under the
+    // descriptive filename Claude suggested.
+    setSeoProgress({ imageId: img.id, step: 'recompressing' });
+    let stats: Awaited<ReturnType<typeof compressForSeo>>;
     try {
       const blobRes = await fetch(img.public_url);
       if (!blobRes.ok) throw new Error(`source fetch ${blobRes.status}`);
       const blob = await blobRes.blob();
-      const srcFile = new File([blob], `${suggestion.filename}.jpg`, { type: blob.type || 'image/jpeg' });
-      newFile = await compressImage(srcFile, { maxEdge: 1920, targetBytes: 600 * 1024 });
+      const srcFile = new File([blob], `${suggestion.filename}.bin`, {
+        type: blob.type || 'image/jpeg',
+      });
+      stats = await compressForSeo(srcFile, {
+        baseName: suggestion.filename,
+      });
     } catch (err) {
-      setKaizenProgress({ imageId: img.id, step: 'error', error: `Recompress: ${String(err)}` });
+      setSeoProgress({ imageId: img.id, step: 'error', error: `Recompress: ${String(err)}` });
       return 'error';
     }
 
-    setKaizenProgress({ imageId: img.id, step: 'uploading' });
+    setSeoProgress({
+      imageId: img.id,
+      step: 'uploading',
+      originalBytes: stats.originalBytes,
+      compressedBytes: stats.compressedBytes,
+      savedPercent: stats.savedPercent,
+      format: stats.format,
+    });
+    const newFile = stats.file;
     const ext = (newFile.name.split('.').pop() || 'jpg').toLowerCase();
     const newPath = `${FOLDER}/${Date.now()}-${Math.random().toString(36).slice(2)}-${suggestion.filename}.${ext}`;
     const { error: upErr } = await supabase.storage.from(BUCKET).upload(newPath, newFile, {
@@ -347,32 +372,40 @@ export default function ImagesContent() {
       upsert: false,
     });
     if (upErr) {
-      setKaizenProgress({ imageId: img.id, step: 'error', error: `Upload: ${upErr.message}` });
+      setSeoProgress({ imageId: img.id, step: 'error', error: `Upload: ${upErr.message}` });
       return 'error';
     }
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(newPath);
     const newUrl = urlData?.publicUrl;
     if (!newUrl) {
-      setKaizenProgress({ imageId: img.id, step: 'error', error: 'No URL from storage' });
+      setSeoProgress({ imageId: img.id, step: 'error', error: 'No URL from storage' });
       return 'error';
     }
 
-    // Detect natural dimensions of the recompressed file so the grid
-    // shows the new size after Kaizen instead of the stale pre-resize
-    // numbers.
-    let width: number | null = img.width;
-    let height: number | null = img.height;
-    try {
-      const dims = await dimensionsOf(newFile);
-      if (dims.width && dims.height) {
-        width = dims.width;
-        height = dims.height;
+    // Use dimensions returned by the compressor when we have them
+    // (downscaled canvas size), otherwise fall back to re-reading.
+    let width: number | null = stats.width || img.width;
+    let height: number | null = stats.height || img.height;
+    if (!stats.width || !stats.height) {
+      try {
+        const dims = await dimensionsOf(newFile);
+        if (dims.width && dims.height) {
+          width = dims.width;
+          height = dims.height;
+        }
+      } catch {
+        // non-fatal
       }
-    } catch {
-      // non-fatal
     }
 
-    setKaizenProgress({ imageId: img.id, step: 'updating' });
+    setSeoProgress({
+      imageId: img.id,
+      step: 'updating',
+      originalBytes: stats.originalBytes,
+      compressedBytes: stats.compressedBytes,
+      savedPercent: stats.savedPercent,
+      format: stats.format,
+    });
     const nextFilename = `${suggestion.filename}.${ext}`;
     const { data: updated, error: dbErr } = await supabase
       .from('site_images')
@@ -397,7 +430,7 @@ export default function ImagesContent() {
       // Metadata write failed — delete the new orphan file so storage
       // doesn't accumulate phantom uploads.
       await supabase.storage.from(BUCKET).remove([newPath]).catch(() => null);
-      setKaizenProgress({ imageId: img.id, step: 'error', error: `DB: ${dbErr?.message || 'unknown'}` });
+      setSeoProgress({ imageId: img.id, step: 'error', error: `DB: ${dbErr?.message || 'unknown'}` });
       return 'error';
     }
 
@@ -405,37 +438,68 @@ export default function ImagesContent() {
     await supabase.storage.from(BUCKET).remove([img.path]).catch(() => null);
 
     setImages((prev) => prev.map((i) => (i.id === img.id ? (updated as SiteImage) : i)));
-    setKaizenProgress({ imageId: img.id, step: 'done' });
+    setSeoProgress({
+      imageId: img.id,
+      step: 'done',
+      originalBytes: stats.originalBytes,
+      compressedBytes: stats.compressedBytes,
+      savedPercent: stats.savedPercent,
+      format: stats.format,
+    });
     return 'ok';
   }
 
-  async function runKaizenBatch(targetIds?: string[]) {
-    if (kaizenRunning) return;
-    const targets = images.filter((i) =>
-      targetIds ? targetIds.includes(i.id) : !i.kaizen_processed_at,
-    );
-    if (targets.length === 0) {
-      showToast('All images already optimized. Select one to re-run.');
-      return;
-    }
-    setKaizenRunning(true);
-    setKaizenAbort(false);
-    let ok = 0;
-    let failed = 0;
-    for (const img of targets) {
-      if (kaizenAbort) break;
-      const result = await kaizenOne(img);
-      if (result === 'ok') ok += 1;
-      else failed += 1;
-    }
-    setKaizenRunning(false);
-    setKaizenProgress(null);
-    showToast(
-      failed === 0
-        ? `Kaizen complete — optimized ${ok} image${ok === 1 ? '' : 's'}.`
-        : `Kaizen finished with ${ok} ok, ${failed} failed. See console for details.`,
-    );
-  }
+  const runSeoBatch = useCallback(
+    async (targetIds?: string[]) => {
+      if (seoRunning) return;
+      const targets = images.filter((i) =>
+        targetIds ? targetIds.includes(i.id) : !i.kaizen_processed_at,
+      );
+      if (targets.length === 0) {
+        showToast('All images already optimized. Select one to re-run.');
+        return;
+      }
+      setSeoRunning(true);
+      setSeoAbort(false);
+      let ok = 0;
+      let failed = 0;
+      let totalSaved = 0;
+      for (const img of targets) {
+        if (seoAbort) break;
+        const result = await seoPassOne(img);
+        if (result === 'ok') ok += 1;
+        else failed += 1;
+        // Accumulate total bytes saved across the batch for the summary
+        // toast. Read directly from state via a ref-free shortcut —
+        // setSeoProgress has already committed, so the latest snapshot
+        // is on the `setSeoProgress` closure. Simpler to capture inside
+        // seoPassOne, but we don't need byte-level precision in the
+        // toast so we skip it.
+        void totalSaved;
+      }
+      setSeoRunning(false);
+      setSeoProgress(null);
+      showToast(
+        failed === 0
+          ? `SEO pass complete — optimized ${ok} image${ok === 1 ? '' : 's'}.`
+          : `SEO pass finished with ${ok} ok, ${failed} failed. See console for details.`,
+      );
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [images, seoRunning, seoAbort, user, session?.access_token],
+  );
+
+  // ?autoRun=1 (e.g. the "SEO Images" button on /app/seo) kicks off a
+  // full-gallery pass automatically once the images list has loaded.
+  useEffect(() => {
+    if (!autoRunRequested || autoRunFiredRef.current) return;
+    if (loading) return;
+    if (!user || !session?.access_token) return;
+    autoRunFiredRef.current = true;
+    // Don't await — let the UI render the running state rather than
+    // block this effect.
+    void runSeoBatch();
+  }, [autoRunRequested, loading, user, session?.access_token, runSeoBatch]);
 
   if (!user) return null;
 
@@ -450,24 +514,25 @@ export default function ImagesContent() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => (kaizenRunning ? setKaizenAbort(true) : runKaizenBatch())}
+            onClick={() => (seoRunning ? setSeoAbort(true) : runSeoBatch())}
             disabled={images.length === 0}
             className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-foreground text-white hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md transition-all"
             style={{ fontFamily: 'var(--font-body)' }}
-            title="Rename to SEO-friendly filenames, resize for web, and regenerate alt + meta using Claude vision."
+            title="Rename to SEO-friendly filenames, recompress to WebP (≤350 KB), and regenerate alt + meta using Claude vision."
           >
-            {kaizenRunning ? (
+            {seoRunning ? (
               <>
                 <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                {kaizenAbort ? 'Stopping…' : 'Stop Kaizen'}
+                {seoAbort ? 'Stopping…' : 'Stop SEO'}
               </>
             ) : (
               <>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                  <circle cx="12" cy="12" r="3" />
+                  <circle cx="11" cy="11" r="7" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  <path d="M8 11h6M11 8v6" />
                 </svg>
-                Kaizen Images
+                SEO Images
               </>
             )}
           </button>
@@ -649,12 +714,12 @@ export default function ImagesContent() {
                     <span
                       className="ml-1 inline-flex items-center gap-0.5 text-[9px] text-emerald-600 font-semibold uppercase tracking-wider"
                       style={{ fontFamily: 'var(--font-body)' }}
-                      title={`Optimized ${new Date(img.kaizen_processed_at).toLocaleString()}`}
+                      title={`SEO-optimized ${new Date(img.kaizen_processed_at).toLocaleString()}`}
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
-                      Kaizen
+                      SEO
                     </span>
                   )}
                 </div>
@@ -665,15 +730,17 @@ export default function ImagesContent() {
                 >
                   {img.filename}
                 </p>
-                {kaizenProgress?.imageId === img.id && kaizenProgress.step !== 'done' && (
+                {seoProgress?.imageId === img.id && seoProgress.step !== 'done' && (
                   <p
-                    className={`text-[10px] mt-0.5 truncate ${kaizenProgress.step === 'error' ? 'text-red-500' : 'text-primary'}`}
+                    className={`text-[10px] mt-0.5 truncate ${seoProgress.step === 'error' ? 'text-red-500' : 'text-primary'}`}
                     style={{ fontFamily: 'var(--font-body)' }}
-                    title={kaizenProgress.error}
+                    title={seoProgress.error}
                   >
-                    {kaizenProgress.step === 'error'
-                      ? `Error: ${kaizenProgress.error}`
-                      : `Kaizen: ${kaizenProgress.step}…`}
+                    {seoProgress.step === 'error'
+                      ? `Error: ${seoProgress.error}`
+                      : seoProgress.savedPercent != null && seoProgress.compressedBytes != null
+                        ? `${seoProgress.step === 'uploading' ? 'Uploading' : seoProgress.step === 'updating' ? 'Saving' : seoProgress.step}… ${seoProgress.format === 'webp' ? 'WebP' : seoProgress.format === 'jpeg' ? 'JPEG' : ''} ${formatBytes(seoProgress.compressedBytes)}${seoProgress.savedPercent > 0 ? ` · −${seoProgress.savedPercent}%` : ''}`
+                        : `SEO: ${seoProgress.step}…`}
                   </p>
                 )}
                 <div className="flex items-center justify-between mt-1">
@@ -685,15 +752,16 @@ export default function ImagesContent() {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => runKaizenBatch([img.id])}
-                      disabled={kaizenRunning}
+                      onClick={() => runSeoBatch([img.id])}
+                      disabled={seoRunning}
                       className="p-1.5 rounded-md text-foreground/40 hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-40"
-                      title="Kaizen this image"
-                      aria-label="Kaizen this image"
+                      title="Run SEO pass on this image"
+                      aria-label="Run SEO pass on this image"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                        <circle cx="12" cy="12" r="3" />
+                        <circle cx="11" cy="11" r="7" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        <path d="M8 11h6M11 8v6" />
                       </svg>
                     </button>
                     <button

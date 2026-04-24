@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/supabase-server';
 
-// Single-image "Kaizen" pass: ask Claude Opus 4.7 (via vision) to look at
+// Single-image SEO pass: ask Claude Opus 4.7 (via vision) to look at
 // the image and return SEO-friendly metadata that we can write back to
-// site_images. The client handles the actual rename + recompress so the
-// server stays stateless and quick.
+// site_images. The client handles the actual rename + recompress (WebP
+// at 1600px max edge, ≤350 KB target) so the server stays stateless
+// and quick.
 //
 // Request:  { imageUrl, currentFilename?, currentAlt? }
 // Response: { filename, alt, seo_title, seo_description }
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'ANTHROPIC_API_KEY not configured on the server — set it in the Vercel project env so Kaizen can analyze images.' },
+      { error: 'ANTHROPIC_API_KEY not configured on the server — set it in the Vercel project env so the SEO pass can analyze images.' },
       { status: 500 },
     );
   }
