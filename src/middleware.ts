@@ -107,6 +107,6 @@ export const config = {
   // Run on every request except obvious non-HTML assets. The function
   // itself also exits early on /api, /app, /_next.
   matcher: [
-    '/((?!api|app|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
+    '/((?!api|app|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|redirects-sitemap.xml).*)',
   ],
 };
