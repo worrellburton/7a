@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import ContactModal from './ContactModal';
 
 // ThemeToggleButton was removed — site is locked to its single
 // design palette. Any leftover `dark:` Tailwind classes throughout
@@ -15,6 +16,7 @@ import { useState } from 'react';
 
 export default function FloatingContactCTA() {
   const [expanded, setExpanded] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
 
   return (
     <div className="fixed bottom-6 right-6 z-50 hidden lg:flex flex-col items-end gap-2">
@@ -41,9 +43,10 @@ export default function FloatingContactCTA() {
               <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>(866) 996-4308</p>
             </div>
           </a>
-          <a
-            href="/contact"
-            className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-warm-bg transition-colors group mt-0.5"
+          <button
+            type="button"
+            onClick={() => { setContactOpen(true); setExpanded(false); }}
+            className="w-full flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-warm-bg transition-colors group mt-0.5 text-left"
           >
             <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center shrink-0">
               <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -54,7 +57,7 @@ export default function FloatingContactCTA() {
               <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)' }}>Contact Us</p>
               <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>Send a message</p>
             </div>
-          </a>
+          </button>
           <a
             href="/admissions#verify"
             className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-warm-bg transition-colors group mt-0.5"
@@ -93,6 +96,8 @@ export default function FloatingContactCTA() {
           )}
         </button>
       </div>
+
+      <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
     </div>
   );
 }
