@@ -198,12 +198,13 @@ export default function Hero() {
           svh (small viewport height) so mobile browser chrome collapsing
           doesn't leave a white gap under the hero. */}
       {/* Height tiers match what landscape images can render without
-          absurd object-cover cropping. On mobile portrait a full-svh
-          slot cropped a 16:9 photo to ~30% of its width (hence the
-          blurry-fur close-ups). aspect-[3/4] on mobile keeps the
-          hero tall enough for the overlay copy while showing ~65%
-          of the image width. sm+ returns to the full viewport hero. */}
-      <div className="relative w-full aspect-[3/4] sm:aspect-auto sm:min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] overflow-hidden bg-dark-section">
+          absurd object-cover cropping. A full-svh portrait slot cropped
+          a 16:9 photo down to ~30% of its width and produced the
+          blurry-fur close-ups, so on mobile we honor an aspect ratio
+          (slightly taller than square) instead — that shows roughly
+          half of each landscape image and leaves enough room for the
+          overlay copy. sm+ returns to the full viewport hero. */}
+      <div className="relative w-full aspect-[5/6] sm:aspect-auto sm:min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] overflow-hidden bg-dark-section">
         {/* Horizontal scroll-snap band. Each slide fills the viewport,
             snap-center keeps the active slide aligned, scrollbar is
             hidden via Tailwind's 'hide-scrollbar' utility (or inline
@@ -254,12 +255,12 @@ export default function Hero() {
         />
 
         <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full h-full">
-          <div className="min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] flex items-center justify-center">
+          <div className="h-full sm:min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] flex items-center justify-center">
             {/* Pad down by the header so the headline clears the nav
                 even though the hero now extends up behind it. */}
             <div
-              className="max-w-3xl w-full text-center text-white py-16 lg:py-20"
-              style={{ paddingTop: 'calc(var(--site-header-height, 68px) + 2rem)' }}
+              className="max-w-3xl w-full text-center text-white py-10 sm:py-16 lg:py-20"
+              style={{ paddingTop: 'calc(var(--site-header-height, 68px) + 1.5rem)' }}
             >
               <h1
                 id="hero-heading"

@@ -282,14 +282,14 @@ export default function HomeContent() {
                 <Wrapper
                   key={u.id}
                   onClick={navTarget ? () => router.push(navTarget) : undefined}
-                  className={`relative group ${navTarget ? 'cursor-pointer' : ''}`}
+                  className={`relative group shrink-0 ${navTarget ? 'cursor-pointer' : ''}`}
                   title={navTarget ? `Go to ${viewing}` : undefined}
                 >
                   {u.avatar_url ? (
                     <img
                       src={u.avatar_url}
                       alt={u.full_name || ''}
-                      className={`w-9 h-9 rounded-full border-2 transition-transform hover:scale-110 hover:z-10 ${
+                      className={`w-9 h-9 rounded-full border-2 object-cover transition-transform hover:scale-110 hover:z-10 ${
                         online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'border-white'
                       }`}
                     />

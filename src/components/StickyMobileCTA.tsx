@@ -7,7 +7,11 @@
 export default function StickyMobileCTA() {
   return (
     <div
-      className="fixed left-1/2 -translate-x-1/2 z-50 lg:hidden"
+      // The `sticky-mobile-cta` class is used by globals.css to hide
+      // this pill while the mobile nav drawer is open (otherwise the
+      // call button floats over the open menu and looks like part of
+      // it). The attribute is set on <html> by MobileMenu.
+      className="sticky-mobile-cta fixed left-1/2 -translate-x-1/2 z-50 lg:hidden"
       // Lift above the GoogleReviewsBadge bar (~52px tall) plus the
       // device safe-area inset and a small breathing-room gap.
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 60px)' }}
