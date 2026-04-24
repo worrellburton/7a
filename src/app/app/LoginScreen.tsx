@@ -184,19 +184,26 @@ export function HeroGallery({ onCaptionChange, theme }: {
 /* ── Phase 2: Animated logo entrance + drifting embers ─────────── */
 
 /**
- * The logo enters with a scale-in from 0.88 → 1, a diagonal sheen sweeps
- * across the mark, and seven soft embers lift past it toward the top of
- * the frame (one per arrow). Pure CSS so we don't pay a framer-motion tax
- * on the pre-auth route. Reduced-motion freezes to a steady, lit state.
+ * The mark is a wide 3176×865 PNG, so the container has to match its
+ * aspect ratio or the `w-auto` width escapes the column and the logo
+ * ghosts over the background.
+ *
+ * The old build layered a `mix-blend-mode: screen` shimmer on top of
+ * the mark — beautiful on dark slides, but it bleached the logo out
+ * completely when a light-skinned face crossfaded behind it. We now
+ * render the shimmer behind the mark and drop a warm radial under it,
+ * so the logo always sits on a clean pedestal regardless of slide.
+ * Seven embers still rise (one per arrow). Reduced-motion freezes to
+ * a steady, lit state.
  */
 function AnimatedLogo() {
   return (
-    <div className="relative mx-auto mb-4 sm:mb-6 h-24 w-24 sm:h-28 sm:w-28 flex items-center justify-center">
-      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+    <div className="relative mx-auto mb-4 sm:mb-6 w-[12.5rem] sm:w-[15rem] flex items-center justify-center">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">
         {Array.from({ length: 7 }).map((_, i) => (
           <span
             key={i}
-            className="absolute left-1/2 top-1/2 block h-1.5 w-1.5 rounded-full ember-mote"
+            className="absolute block h-1.5 w-1.5 rounded-full ember-mote"
             style={{
               background:
                 'radial-gradient(circle, rgba(255,210,160,0.95) 0%, rgba(188,107,74,0.4) 55%, transparent 80%)',
@@ -209,34 +216,53 @@ function AnimatedLogo() {
         ))}
       </div>
 
-      <div className="relative animate-logo-in">
+      {/* Warm vignette pedestal — always-on, no blend mode tricks. This
+          is what keeps the mark legible when the hero crossfades through
+          a light-skinned face. */}
+      <span
+        className="pointer-events-none absolute inset-[-35%] rounded-[50%] animate-logo-halo"
+        style={{
+          background:
+            'radial-gradient(closest-side, rgba(10,6,4,0.55) 0%, rgba(10,6,4,0.35) 45%, rgba(10,6,4,0) 75%)',
+          filter: 'blur(2px)',
+        }}
+        aria-hidden="true"
+      />
+      <span
+        className="pointer-events-none absolute inset-[-25%] rounded-[50%]"
+        style={{
+          background:
+            'radial-gradient(closest-side, rgba(216,137,102,0.35) 0%, rgba(188,107,74,0.12) 55%, transparent 80%)',
+        }}
+        aria-hidden="true"
+      />
+
+      <div className="relative animate-logo-in w-full">
+        {/* Shimmer sits UNDER the mark so it can't wash the logo out. */}
+        <span
+          className="pointer-events-none absolute inset-0 animate-logo-shimmer rounded-full"
+          style={{
+            background:
+              'linear-gradient(115deg, transparent 40%, rgba(255,230,200,0.45) 50%, transparent 60%)',
+            filter: 'blur(6px)',
+          }}
+          aria-hidden="true"
+        />
         <img
           src="/images/logo.png"
           alt="Seven Arrows Recovery"
-          className="relative z-10 h-20 sm:h-24 w-auto drop-shadow-2xl"
-        />
-        <span
-          className="pointer-events-none absolute inset-0 animate-logo-shimmer"
+          className="relative z-10 w-full h-auto"
           style={{
-            background:
-              'linear-gradient(115deg, transparent 35%, rgba(255,230,200,0.35) 50%, transparent 65%)',
-            mixBlendMode: 'screen',
+            // A strong dual drop-shadow lifts the mark off any slide.
+            filter:
+              'drop-shadow(0 2px 4px rgba(0,0,0,0.55)) drop-shadow(0 6px 18px rgba(0,0,0,0.5))',
           }}
-          aria-hidden="true"
-        />
-        <span
-          className="pointer-events-none absolute inset-[-20%] -z-0 rounded-full animate-logo-halo"
-          style={{
-            background:
-              'radial-gradient(closest-side, rgba(216,137,102,0.45) 0%, rgba(188,107,74,0.15) 55%, transparent 80%)',
-          }}
-          aria-hidden="true"
         />
       </div>
 
       <style jsx global>{`
         @keyframes logo-in {
-          0%   { opacity: 0; transform: scale(0.88) translateY(8px); filter: blur(4px); }
+          0%   { opacity: 0; transform: scale(0.92) translateY(8px); filter: blur(4px); }
           60%  { opacity: 1; filter: blur(0); }
           100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
         }
@@ -251,8 +277,8 @@ function AnimatedLogo() {
         .animate-logo-shimmer { animation: logo-shimmer 6s ease-in-out 1.2s infinite; }
 
         @keyframes logo-halo {
-          0%,100% { opacity: 0.55; transform: scale(1); }
-          50%     { opacity: 0.9;  transform: scale(1.08); }
+          0%,100% { opacity: 0.8; transform: scale(1); }
+          50%     { opacity: 1;   transform: scale(1.04); }
         }
         .animate-logo-halo { animation: logo-halo 7s ease-in-out infinite; }
 
@@ -497,219 +523,135 @@ function AmbientParticles() {
   );
 }
 
-/* ── Phase 5: Heartbeat stat trio ───────────────────────────────── */
-
-interface StatPulse {
-  label: string;
-  value: number;
-  suffix?: string;
-  prefix?: string;
-  hint?: string;
-}
-
-/**
- * Tween a number from 0 → target over `durationMs`. Uses an easeOut
- * curve so the counter flares in and softly lands — feels like a
- * heartbeat rather than a linear odometer.
- */
-function useCountUp(target: number, durationMs = 1600, startDelayMs = 0): number {
-  const [n, setN] = useState(0);
-  const startedRef = useRef(false);
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    const start = performance.now() + startDelayMs;
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.max(0, Math.min(1, (now - start) / durationMs));
-      const eased = 1 - Math.pow(1 - t, 3);
-      setN(Math.round(eased * target));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, durationMs, startDelayMs]);
-  return n;
-}
-
-function StatPulseCard({ stat, index }: { stat: StatPulse; index: number }) {
-  const n = useCountUp(stat.value, 1500, 400 + index * 200);
-  return (
-    <div
-      className="stat-pulse-card flex flex-col items-center px-2.5 sm:px-5 min-w-[4.5rem]"
-      style={{ animationDelay: `${300 + index * 150}ms` }}
-    >
-      <div className="flex items-baseline gap-0.5">
-        {stat.prefix && <span className="text-white/70 text-xs sm:text-sm">{stat.prefix}</span>}
-        <span
-          className="text-white text-xl sm:text-3xl font-semibold tabular-nums drop-shadow"
-          style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
-        >
-          {n.toLocaleString()}
-        </span>
-        {stat.suffix && <span className="text-white/80 text-xs sm:text-base">{stat.suffix}</span>}
-      </div>
-      <div className="text-[9px] sm:text-[11px] uppercase tracking-[0.2em] text-white/70 mt-1 leading-tight">
-        {stat.label}
-      </div>
-      {stat.hint && (
-        <div className="hidden sm:block text-[9px] text-white/40 mt-0.5">{stat.hint}</div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Tries to pull a live team headcount from supabase. Everything else
- * (horses, arrows, acres) is evergreen brand data. If the headcount
- * query fails we fall back to a sensible static "40+" so the row still
- * renders. The card emits a subtle pulse ring on load.
- */
-function HeartbeatStats() {
-  const [teamCount, setTeamCount] = useState<number>(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { count, error } = await supabase
-          .from('users')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'active')
-          .eq('public_team', true);
-        if (error) throw error;
-        if (!cancelled && typeof count === 'number') setTeamCount(count);
-      } catch {
-        if (!cancelled) setTeamCount(40);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  const stats: StatPulse[] = [
-    { label: 'Team members',   value: teamCount || 40, suffix: teamCount ? '' : '+', hint: 'and growing' },
-    { label: 'Arrows to follow', value: 7,             hint: 'one for each virtue' },
-    { label: 'Horses on site', value: 8,             hint: 'the herd' },
-  ];
-
-  return (
-    <div className="relative mb-7 flex items-start justify-center divide-x divide-white/15 animate-stats-in">
-      {stats.map((s, i) => (
-        <StatPulseCard key={s.label} stat={s} index={i} />
-      ))}
-
-      <style jsx global>{`
-        @keyframes stats-in {
-          from { opacity: 0; transform: translateY(10px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .animate-stats-in { animation: stats-in 900ms ease-out 300ms both; }
-
-        @keyframes stat-pulse {
-          0%,100% { opacity: 1; }
-          50%     { opacity: 0.75; }
-        }
-        .stat-pulse-card { animation: stat-pulse 6s ease-in-out infinite; }
-
-        @media (prefers-reduced-motion: reduce) {
-          .animate-stats-in,
-          .stat-pulse-card { animation: none !important; }
-          .animate-stats-in { opacity: 1; transform: none; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
 /* ── Phase 4: Rotating quote / testimonial ribbon ───────────────── */
 
-interface QuoteBeat {
+// A beat is a single rotation slot. Three sources, one shape, one label
+// above each quote so visitors know whether they're reading a verified
+// review, a staff-chosen quote, or a staff pick of what they love here.
+type BeatKind = 'review' | 'quote' | 'pick';
+
+interface Beat {
+  id: string;
+  kind: BeatKind;
   text: string;
-  attribution?: string;
+  author: string | null;
+  byline: string | null;
 }
 
-// Evergreen lines — if supabase is unreachable (or no team member has
-// filled out `favorite_seven_arrows` yet), these keep the ribbon alive.
-const BASE_QUOTES: QuoteBeat[] = [
-  { text: 'Seven arrows. Seven virtues. One path home.', attribution: 'Seven Arrows Recovery' },
-  { text: 'Courage, Prudence, Fortitude, Justice, Faith, Hope, Love.', attribution: 'The seven virtues' },
-  { text: 'The horse will meet you exactly where you are.', attribution: 'Equine program' },
-  { text: 'You do not have to do this alone.', attribution: 'Welcome home' },
-];
+interface LoginContent {
+  reviews: { id: string; text: string; author: string; byline: string; rating: number; source: 'google' | 'curated' }[];
+  staffQuotes: { id: string; text: string; author: string | null; role: string | null }[];
+  staffPicks:  { id: string; text: string; author: string | null; role: string | null }[];
+}
+
+const KIND_LABEL: Record<BeatKind, string> = {
+  review: 'What alumni say',
+  quote:  'Staff favorite quote',
+  pick:   'What our team loves about 7A',
+};
+
+// Interleave three lists so we never stack two items from the same
+// source back-to-back. Order = review → quote → pick → review… and any
+// source that empties first just gets skipped.
+function interleave(content: LoginContent): Beat[] {
+  const reviews: Beat[] = content.reviews.map((r) => ({
+    id: r.id,
+    kind: 'review',
+    text: r.text,
+    author: r.author,
+    byline: r.byline,
+  }));
+  const quotes: Beat[] = content.staffQuotes.map((q) => ({
+    id: q.id,
+    kind: 'quote',
+    text: q.text,
+    author: q.author,
+    byline: q.role,
+  }));
+  const picks: Beat[] = content.staffPicks.map((p) => ({
+    id: p.id,
+    kind: 'pick',
+    text: p.text,
+    author: p.author,
+    byline: p.role,
+  }));
+
+  const out: Beat[] = [];
+  const maxLen = Math.max(reviews.length, quotes.length, picks.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (reviews[i]) out.push(reviews[i]);
+    if (quotes[i])  out.push(quotes[i]);
+    if (picks[i])   out.push(picks[i]);
+  }
+  return out;
+}
 
 /**
- * Pulls `favorite_seven_arrows` or `favorite_quote` from every public
- * team member and rotates them alongside the evergreen lines. Each
- * quote crossfades in/out on a 7s loop.
+ * Fetches real reviews + staff-chosen quotes + staff "what I love about
+ * 7A" picks from /api/public/login-content and rotates one every 7s.
+ * No evergreen/boilerplate fallback — if the DB has nothing to say, the
+ * ribbon stays empty rather than inventing marketing copy.
  */
 function QuoteRibbon() {
-  const [quotes, setQuotes] = useState<QuoteBeat[]>(BASE_QUOTES);
+  const [beats, setBeats] = useState<Beat[]>([]);
   const [idx, setIdx] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('full_name, favorite_quote, favorite_seven_arrows')
-          .eq('status', 'active')
-          .eq('public_team', true);
-        if (error) throw error;
-        if (cancelled || !data) return;
-        const teamQuotes = (data as { full_name: string | null; favorite_quote: string | null; favorite_seven_arrows: string | null }[])
-          .flatMap<QuoteBeat>((u) => {
-            const out: QuoteBeat[] = [];
-            if (u.favorite_seven_arrows && u.favorite_seven_arrows.trim()) {
-              out.push({ text: u.favorite_seven_arrows.trim(), attribution: u.full_name || undefined });
-            }
-            if (u.favorite_quote && u.favorite_quote.trim()) {
-              out.push({ text: u.favorite_quote.trim(), attribution: u.full_name || undefined });
-            }
-            return out;
-          });
-        // Interleave team quotes with base lines so visitors always see
-        // at least one brand voice before the next team voice arrives.
-        if (teamQuotes.length > 0) {
-          const mixed: QuoteBeat[] = [];
-          const maxLen = Math.max(teamQuotes.length, BASE_QUOTES.length);
-          for (let i = 0; i < maxLen; i++) {
-            if (teamQuotes[i]) mixed.push(teamQuotes[i]);
-            if (BASE_QUOTES[i]) mixed.push(BASE_QUOTES[i]);
-          }
-          setQuotes(mixed);
-        }
-      } catch {
-        // Silent — keep BASE_QUOTES.
+        const res = await fetch('/api/public/login-content', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`${res.status}`);
+        const data = (await res.json()) as LoginContent;
+        if (cancelled) return;
+        setBeats(interleave(data));
+      } catch (err) {
+        // Log once so we can see degraded loads in the console, but keep
+        // the ribbon silent rather than falling back to invented copy.
+        console.warn('[LoginScreen] review/quote fetch failed', err);
       }
     })();
     return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
+    if (beats.length <= 1) return;
     const t = window.setInterval(() => {
-      setIdx((i) => (i + 1) % quotes.length);
+      setIdx((i) => (i + 1) % beats.length);
     }, 7000);
     return () => window.clearInterval(t);
-  }, [quotes.length]);
+  }, [beats.length]);
 
-  const current = quotes[idx % quotes.length] || quotes[0];
+  if (beats.length === 0) {
+    // Reserve the vertical space so the layout doesn't jump when the
+    // fetch resolves — but render nothing until we have real content.
+    return <div className="mt-1 mb-8 min-h-[5.5rem]" aria-hidden="true" />;
+  }
+
+  const current = beats[idx % beats.length];
+  const attribution =
+    current.author && current.byline
+      ? `${current.author} · ${current.byline}`
+      : current.author || current.byline || null;
 
   return (
     <div
-      key={idx}
-      className="mt-1 mb-8 min-h-[4.5rem] animate-quote-in"
+      key={current.id}
+      className="mt-1 mb-8 min-h-[5.5rem] animate-quote-in"
       aria-live="polite"
     >
+      <p className="text-[10px] uppercase tracking-[0.28em] text-white/55 mb-2">
+        {KIND_LABEL[current.kind]}
+      </p>
       <p
-        className="text-white/90 text-sm sm:text-lg leading-snug font-light drop-shadow max-w-[28rem] mx-auto px-2"
+        className="text-white/95 text-sm sm:text-lg leading-snug font-light drop-shadow max-w-[30rem] mx-auto px-2"
         style={{ fontFamily: 'var(--font-display, Georgia, serif)' }}
       >
         &ldquo;{current.text}&rdquo;
       </p>
-      {current.attribution && (
-        <p className="mt-2 text-[11px] uppercase tracking-[0.25em] text-white/60">
-          — {current.attribution}
+      {attribution && (
+        <p className="mt-2 text-[11px] uppercase tracking-[0.25em] text-white/65">
+          — {attribution}
         </p>
       )}
       <style jsx global>{`
@@ -821,23 +763,26 @@ function FaceMarquee() {
   if (tiles.length === 0) return null;
 
   // Duration scales with tile count so velocity stays roughly constant
-  // regardless of team size.
-  const seconds = Math.max(40, tiles.length * 3.5);
+  // regardless of team size (~4.5s per tile, floored so tiny teams
+  // don't zip past the viewer).
+  const seconds = Math.max(55, tiles.length * 4.5);
 
   return (
     <div
       className="pointer-events-none absolute inset-x-0 z-[5] flex justify-center overflow-hidden"
-      style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}
+      style={{ bottom: 'calc(1.75rem + env(safe-area-inset-bottom, 0px))' }}
       aria-hidden="true"
     >
-      <div className="relative w-full max-w-5xl mx-auto px-2 sm:px-4 animate-faces-fade-in">
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-12 sm:w-24 z-10"
-             style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.8), transparent)' }} />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-12 sm:w-24 z-10"
-             style={{ background: 'linear-gradient(to left, rgba(0,0,0,0.8), transparent)' }} />
+      {/* Reserve enough vertical room for the circle + hover caption so the
+          floating tiles don't clip against the bottom edge of the screen. */}
+      <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 animate-faces-fade-in py-3">
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-28 z-10"
+             style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.9), transparent)' }} />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-28 z-10"
+             style={{ background: 'linear-gradient(to left, rgba(0,0,0,0.9), transparent)' }} />
 
         <div
-          className="flex items-center gap-3 sm:gap-4 w-max face-marquee-track"
+          className="flex items-center gap-4 sm:gap-6 w-max face-marquee-track py-2"
           style={{ animationDuration: `${seconds}s` }}
         >
           {loop.map((tile, i) => (
@@ -846,7 +791,7 @@ function FaceMarquee() {
               className="relative flex flex-col items-center shrink-0 group pointer-events-auto"
             >
               <div
-                className="relative h-11 w-11 sm:h-16 sm:w-16 rounded-full overflow-hidden ring-2 ring-white/40 shadow-lg transition-transform duration-300 group-hover:scale-110 face-tile-float"
+                className="relative h-14 w-14 sm:h-[4.5rem] sm:w-[4.5rem] rounded-full overflow-hidden ring-2 ring-white/70 ring-offset-2 ring-offset-black/30 shadow-[0_6px_18px_rgba(0,0,0,0.55)] transition-transform duration-300 group-hover:scale-110 face-tile-float"
                 style={{ animationDelay: `${(i % 11) * 0.35}s` }}
               >
                 <img
@@ -856,15 +801,15 @@ function FaceMarquee() {
                   className="h-full w-full object-cover"
                 />
                 {tile.kind === 'horse' && (
-                  <span className="absolute bottom-0 inset-x-0 h-4 bg-gradient-to-t from-black/60 to-transparent flex items-end justify-center pb-0.5">
-                    <span className="text-[8px] tracking-widest text-white/90 uppercase">Herd</span>
+                  <span className="absolute bottom-0 inset-x-0 h-4 bg-gradient-to-t from-black/70 to-transparent flex items-end justify-center pb-0.5">
+                    <span className="text-[8px] tracking-widest text-white/95 uppercase">Herd</span>
                   </span>
                 )}
               </div>
               <div className="absolute top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap text-center">
                 <div className="text-[11px] font-semibold text-white drop-shadow">{tile.name}</div>
                 {tile.role && (
-                  <div className="text-[10px] text-white/75 drop-shadow">{tile.role}</div>
+                  <div className="text-[10px] text-white/80 drop-shadow">{tile.role}</div>
                 )}
               </div>
             </div>
@@ -1088,9 +1033,10 @@ export default function LoginScreen({
         aria-label="Sign in"
         className="relative z-10 w-full max-w-md mx-4 text-center"
         style={{
-          // Reserve room for the marquee strip and respect the home
+          // Reserve room for the taller marquee strip (4.5rem circles +
+          // hover caption + 1.75rem bottom offset) and respect the home
           // indicator on notched devices.
-          paddingBottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'calc(10rem + env(safe-area-inset-bottom, 0px))',
           paddingTop: 'env(safe-area-inset-top, 0px)',
         }}
       >
@@ -1102,7 +1048,6 @@ export default function LoginScreen({
         </p>
         <AnimatedLogo />
         <QuoteRibbon />
-        <HeartbeatStats />
         <SignInButton onSignIn={onSignIn} />
         <style jsx global>{`
           @keyframes greeting-in {
