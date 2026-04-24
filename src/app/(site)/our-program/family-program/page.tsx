@@ -19,11 +19,11 @@ export const metadata: Metadata = {
   keywords:
     'family program rehab, family support sessions addiction, rehab for loved ones, codependency support, boundaries addiction family, family visitation rehab Arizona, rehab family weekend, adult child of addict support',
   alternates: {
-    canonical: 'https://sevenarrowsrecovery.com/our-program/family-program',
+    canonical: 'https://sevenarrowsrecoveryarizona.com/our-program/family-program',
   },
   openGraph: {
     type: 'article',
-    url: 'https://sevenarrowsrecovery.com/our-program/family-program',
+    url: 'https://sevenarrowsrecoveryarizona.com/our-program/family-program',
     title: 'Family Program | Seven Arrows Recovery',
     description:
       'The whole system heals, or nothing does. Weekly family support sessions, education groups, and boundary coaching.',
@@ -48,13 +48,13 @@ const breadcrumbSchema = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
   itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecovery.com' },
-    { '@type': 'ListItem', position: 2, name: 'Our Program', item: 'https://sevenarrowsrecovery.com/our-program' },
+    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecoveryarizona.com' },
+    { '@type': 'ListItem', position: 2, name: 'Our Program', item: 'https://sevenarrowsrecoveryarizona.com/our-program' },
     {
       '@type': 'ListItem',
       position: 3,
       name: 'Family Program',
-      item: 'https://sevenarrowsrecovery.com/our-program/family-program',
+      item: 'https://sevenarrowsrecoveryarizona.com/our-program/family-program',
     },
   ],
 };
@@ -73,11 +73,11 @@ const medicalWebPageSchema = {
   '@context': 'https://schema.org',
   '@type': 'MedicalWebPage',
   name: 'Family Program — Seven Arrows Recovery',
-  url: 'https://sevenarrowsrecovery.com/our-program/family-program',
+  url: 'https://sevenarrowsrecoveryarizona.com/our-program/family-program',
   description:
     'Family support sessions, education, and coordination for the loved ones of Seven Arrows Recovery clients. The whole system heals, or nothing does.',
   inLanguage: 'en-US',
-  isPartOf: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
+  isPartOf: { '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
   about: [
     { '@type': 'MedicalTherapy', name: 'Family Support Sessions' },
     { '@type': 'MedicalTherapy', name: 'Psychoeducation' },

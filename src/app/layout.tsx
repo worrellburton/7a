@@ -6,7 +6,7 @@ import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 import './globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://sevenarrowsrecovery.com'),
+  metadataBase: new URL('https://sevenarrowsrecoveryarizona.com'),
   title: {
     default: 'Seven Arrows Recovery | Drug Rehab in Arizona',
     template: '%s | Seven Arrows Recovery',
@@ -55,10 +55,10 @@ export const viewport = {
 const organizationSchema = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
-  '@id': 'https://sevenarrowsrecovery.com/#organization',
+  '@id': 'https://sevenarrowsrecoveryarizona.com/#organization',
   name: 'Seven Arrows Recovery',
-  url: 'https://sevenarrowsrecovery.com',
-  logo: 'https://sevenarrowsrecovery.com/images/logo.png',
+  url: 'https://sevenarrowsrecoveryarizona.com',
+  logo: 'https://sevenarrowsrecoveryarizona.com/images/logo.png',
   contactPoint: {
     '@type': 'ContactPoint',
     telephone: '+1-866-996-4308',
@@ -99,8 +99,8 @@ const websiteSchema = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
   name: 'Seven Arrows Recovery',
-  url: 'https://sevenarrowsrecovery.com',
-  publisher: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
+  url: 'https://sevenarrowsrecoveryarizona.com',
+  publisher: { '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -113,7 +113,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&display=swap"
         />
-        <link rel="canonical" href="https://sevenarrowsrecovery.com" />
+        <link rel="canonical" href="https://sevenarrowsrecoveryarizona.com" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}

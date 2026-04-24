@@ -27,7 +27,7 @@ export default function AnalyticsContent() {
         </p>
         <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
         <p className="text-sm text-foreground/60 mt-2 max-w-2xl">
-          Site-wide GA4 performance for sevenarrowsrecovery.com. Live from the
+          Site-wide GA4 performance for sevenarrowsrecoveryarizona.com. Live from the
           Google Analytics Data API + Search Console.
         </p>
       </div>
