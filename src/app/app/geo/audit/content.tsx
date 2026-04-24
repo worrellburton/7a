@@ -118,14 +118,36 @@ interface AuditResponse {
   notice?: string;
 }
 
+interface HistoryPoint {
+  id: string;
+  site: string;
+  score: number;
+  grade: string;
+  engines: string[];
+  durationMs: number;
+  createdAt: string;
+}
+
 export default function AuditContent() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AuditResponse | null>(null);
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<string>('');
   const [estimatedMs, setEstimatedMs] = useState<number>(DEFAULT_DURATION_MS);
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  async function loadHistory() {
+    try {
+      const res = await fetch('/api/geo/audit/history?limit=30', { cache: 'no-store' });
+      if (!res.ok) return;
+      const json = (await res.json()) as { history: HistoryPoint[] };
+      setHistory(json.history ?? []);
+    } catch {
+      // non-fatal
+    }
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -158,6 +180,9 @@ export default function AuditContent() {
         // stale / corrupt — ignore
       }
     })();
+
+    // Kick off history fetch in parallel — it doesn't depend on latest.
+    loadHistory();
 
     return () => {
       cancelled = true;
@@ -219,6 +244,8 @@ export default function AuditContent() {
       } catch {
         // quota — non-fatal
       }
+      // Refresh the history sparkline so the new run appears immediately.
+      loadHistory();
       setStage('Done');
       stopTicker(1);
     } catch (e) {
@@ -309,6 +336,12 @@ export default function AuditContent() {
         <div className="mt-6 rounded-xl border border-black/10 bg-warm-bg/40 p-4 text-xs text-foreground/60">
           {result.notice}
         </div>
+      ) : null}
+
+      {history.length >= 2 ? (
+        <Panel title="Score over time" className="mt-6">
+          <TrendSparkline points={history} />
+        </Panel>
       ) : null}
 
       {result?.score && result.score.engines.length > 0 ? (
@@ -780,6 +813,101 @@ function ScoreCard({
           </p>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function TrendSparkline({ points }: { points: HistoryPoint[] }) {
+  // Clamp domain to 0-100 so the curve is always comparable run over
+  // run (without this, a series of all-low scores looks "healthy"
+  // because the y-axis auto-scales).
+  const width = 720;
+  const height = 140;
+  const padX = 24;
+  const padY = 10;
+  const innerW = width - padX * 2;
+  const innerH = height - padY * 2;
+
+  const xs = points.map((_, i) =>
+    points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW,
+  );
+  const ys = points.map((p) => innerH - (Math.max(0, Math.min(100, p.score)) / 100) * innerH);
+  const path = xs
+    .map((x, i) => `${i === 0 ? 'M' : 'L'} ${(padX + x).toFixed(1)} ${(padY + ys[i]).toFixed(1)}`)
+    .join(' ');
+
+  const latest = points[points.length - 1];
+  const first = points[0];
+  const delta = latest.score - first.score;
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3 mb-2">
+        <p className="text-xs text-foreground/60">
+          <strong>{points.length}</strong> runs · latest{' '}
+          <strong>{latest.score}</strong> · {delta === 0 ? 'no change' : delta > 0 ? `+${delta} since first` : `${delta} since first`}
+        </p>
+        <p className="text-[10px] text-foreground/40">
+          {new Date(first.createdAt).toLocaleDateString()} →{' '}
+          {new Date(latest.createdAt).toLocaleDateString()}
+        </p>
+      </div>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        className="w-full h-40"
+      >
+        {/* 0 / 50 / 100 reference lines */}
+        {[0, 50, 100].map((v) => {
+          const y = padY + innerH - (v / 100) * innerH;
+          return (
+            <g key={v}>
+              <line
+                x1={padX}
+                x2={width - padX}
+                y1={y}
+                y2={y}
+                stroke="currentColor"
+                strokeOpacity={v === 50 ? 0.1 : 0.05}
+                strokeDasharray={v === 50 ? '4 4' : '0'}
+              />
+              <text
+                x={padX - 4}
+                y={y + 3}
+                fontSize="9"
+                textAnchor="end"
+                className="fill-current text-foreground/40"
+              >
+                {v}
+              </text>
+            </g>
+          );
+        })}
+        {/* Line */}
+        <path d={path} fill="none" className="stroke-primary" strokeWidth="2" />
+        {/* Dots */}
+        {points.map((p, i) => {
+          const color =
+            p.score >= 70
+              ? 'fill-emerald-500'
+              : p.score >= 40
+                ? 'fill-amber-500'
+                : 'fill-red-500';
+          return (
+            <circle
+              key={p.id}
+              cx={padX + xs[i]}
+              cy={padY + ys[i]}
+              r={i === points.length - 1 ? 4 : 2.5}
+              className={color}
+            >
+              <title>
+                {new Date(p.createdAt).toLocaleString()} · {p.score}/100 ({p.grade})
+              </title>
+            </circle>
+          );
+        })}
+      </svg>
     </div>
   );
 }
