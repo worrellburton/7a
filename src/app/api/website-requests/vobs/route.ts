@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 
-// GET /api/website-requests/vobs  — admin-only. Lists insurance-
+// GET /api/website-requests/vobs — accessible to admins and to
+// Marketing & Admissions department members. Lists insurance-
 // verification submissions from public.vob_requests, newest first.
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const auth = await requireWebsiteRequestsAccess(supabase);
+  if (auth.response) return auth.response;
 
   const admin = getAdminSupabase();
   // Try the full select first. If the responded_at/responded_by

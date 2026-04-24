@@ -276,9 +276,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   const [navBadges, setNavBadges] = useState<Record<string, number>>({});
 
   // Refresh the website-requests count on mount, on tab focus, and on
-  // a slow interval. Admin-gated endpoint; ignore failures.
+  // a slow interval. Endpoint allows admins + Marketing & Admissions
+  // members; mirror that gate here so we don't 403-spam in the console
+  // for users who can't see the page anyway.
+  const canSeeWebsiteRequests =
+    isAdmin || isPageAllowedForDepartment('/app/website-requests', departmentId);
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canSeeWebsiteRequests) return;
     let cancelled = false;
     const load = () => {
       fetch('/api/website-requests/unread-count', { cache: 'no-store', credentials: 'include' })
@@ -298,7 +302,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       document.removeEventListener('visibilitychange', onVis);
       window.clearInterval(iv);
     };
-  }, [isAdmin]);
+  }, [canSeeWebsiteRequests]);
 
   // Sidebar/popup links are gated on both admin-only flag and the
   // per-page department allow-list. Admins bypass the department check.

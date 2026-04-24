@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 
 // POST /api/website-requests/respond
 //   body: { kind: 'vob' | 'contact', id: string, clear?: boolean }
 //
-// Admin-only marker that "I responded to this submission." Writes
-// responded_at = now() and responded_by = admin user id onto the
+// Accessible to admins and Marketing & Admissions department
+// members. Marker that "I responded to this submission." Writes
+// responded_at = now() and responded_by = current user id onto the
 // appropriate row. Passing `clear: true` nulls both (in case someone
 // clicks by accident).
 //
@@ -21,14 +23,15 @@ type Body = {
 
 export async function POST(req: Request) {
   const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireWebsiteRequestsAccess(supabase);
+  if (auth.response) return auth.response;
+  const { user } = auth;
+
   const { data: me } = await supabase
     .from('users')
-    .select('is_admin, full_name, avatar_url')
+    .select('full_name, avatar_url')
     .eq('id', user.id)
     .maybeSingle();
-  if (!me?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   let body: Body;
   try { body = (await req.json()) as Body; } catch { body = {}; }
@@ -59,7 +62,7 @@ export async function POST(req: Request) {
     id: data.id,
     responded_at: data.responded_at,
     responded_by: data.responded_by,
-    responder_name: clear ? null : (me.full_name ?? null),
-    responder_avatar_url: clear ? null : (me.avatar_url ?? null),
+    responder_name: clear ? null : (me?.full_name ?? null),
+    responder_avatar_url: clear ? null : (me?.avatar_url ?? null),
   });
 }

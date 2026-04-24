@@ -26,7 +26,7 @@ function isTab(v: string | null): v is Tab {
 }
 
 export default function WebsiteRequestsContent() {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
   const requested = params?.get('tab') ?? null;
@@ -41,12 +41,16 @@ export default function WebsiteRequestsContent() {
     router.replace(url.pathname + url.search, { scroll: false });
   }
 
-  if (!user || !isAdmin) return null;
+  // PageGuard already enforces access based on department + admin —
+  // no need to re-check isAdmin here. (Restricting to admins would
+  // hide the page from Marketing & Admissions teammates who own
+  // these submissions in their day-to-day work.)
+  if (!user) return null;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-6">
-        <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">Admin</p>
+        <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">Marketing &amp; Admissions</p>
         <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
           Website Requests
         </h1>

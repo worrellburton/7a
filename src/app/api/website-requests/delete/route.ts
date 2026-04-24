@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 
 // POST /api/website-requests/delete
 //   body: { kind: 'vob' | 'contact', id: string }
 //
-// Admin-only hard delete of a single submission row. For VOB rows we
+// Accessible to admins and Marketing & Admissions department
+// members. Hard delete of a single submission row. For VOB rows we
 // also remove the associated insurance-card files from the private
 // `vob-cards` bucket so orphan blobs don't pile up.
 
@@ -14,10 +16,8 @@ type Body = { kind?: 'vob' | 'contact'; id?: string };
 
 export async function POST(req: Request) {
   const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: me } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!me?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const auth = await requireWebsiteRequestsAccess(supabase);
+  if (auth.response) return auth.response;
 
   let body: Body;
   try { body = (await req.json()) as Body; } catch { body = {}; }
