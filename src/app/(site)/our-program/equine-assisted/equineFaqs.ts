@@ -16,6 +16,16 @@ export interface EquineFaq {
 
 export const equineFaqs: EquineFaq[] = [
   {
+    id: 'rehabs-with-equine-therapy',
+    q: 'Are there rehabs with equine therapy in Arizona?',
+    a: 'Yes. Seven Arrows Recovery is a JCAHO-accredited residential addiction treatment program in Cochise County, Arizona that includes equine-assisted psychotherapy (EAP) as a core modality — not an add-on. Sessions are co-led by an Arizona-licensed therapist and a dedicated equine specialist on a private 160-acre ranch with a full working herd.',
+  },
+  {
+    id: 'drug-rehabs-with-horses',
+    q: 'Which drug rehabs use horses in treatment?',
+    a: 'Residential drug and alcohol rehabs that use horses deliver the work as equine-assisted psychotherapy, an evidence-informed intervention for trauma, addiction, attachment, and nervous-system regulation. Seven Arrows Recovery operates a dedicated equine program on a 160-acre Arizona ranch, with a herd managed specifically for therapeutic partnership and sessions integrated into each client&rsquo;s weekly clinical schedule.',
+  },
+  {
     id: 'what-is-eap',
     q: 'What is equine-assisted psychotherapy (EAP)?',
     a: 'Equine-assisted psychotherapy is a licensed mental-health intervention delivered by a clinician in partnership with trained horses. At Seven Arrows, sessions are co-led by an Arizona-licensed therapist and a dedicated equine specialist and draw on attachment theory, somatic experiencing, and Internal Family Systems (IFS).',

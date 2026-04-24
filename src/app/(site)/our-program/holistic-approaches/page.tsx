@@ -7,6 +7,7 @@ export const metadata: Metadata = {
 };
 
 import PageHero from '@/components/PageHero';
+import GeoAnswer from '@/components/seo/GeoAnswer';
 import WhyHolistic from '@/components/holistic/WhyHolistic';
 import FourDimensions from '@/components/holistic/FourDimensions';
 import ModalitiesBento from '@/components/holistic/ModalitiesBento';
@@ -33,6 +34,26 @@ export default function HolisticApproachesPage() {
           '.',
         ]}
         description="Yoga, breathwork, sound, movement, sweat lodge, talking circle. Body-based and land-based practices held alongside our clinical program — because the nervous system heals in the places words cannot reach."
+      />
+      <GeoAnswer
+        id="rehabs-with-outdoor-therapy-in-the-southwest"
+        question="Rehabs with outdoor therapy in the Southwest"
+        answer={
+          <p>
+            Seven Arrows Recovery is a Southwest residential drug and alcohol rehab that
+            integrates outdoor, land-based therapy directly into the clinical program. On a
+            private 160-acre ranch at the base of the Swisshelm Mountains in Cochise County,
+            Arizona, clients spend time on desert trails, in equine-assisted sessions, and
+            in land-based ceremony — held alongside somatic experiencing, breathwork, and
+            evidence-based individual and group therapy.
+          </p>
+        }
+        bullets={[
+          { label: 'Land-based practice', body: 'Desert walking, sky and silence, fire circles, seasonal ceremony — the environment is part of the treatment.' },
+          { label: 'Equine-assisted', body: 'Weekly equine-assisted psychotherapy sessions on our working herd, ground-based work.' },
+          { label: 'Nervous-system focus', body: 'Outdoor time pairs with somatic and polyvagal-informed modalities — regulation first, then deeper processing.' },
+          { label: 'Held by credentialed practitioners', body: 'Licensed clinicians and trained facilitators lead every outdoor and ceremonial session.' },
+        ]}
       />
       <WhyHolistic />
       <FourDimensions />

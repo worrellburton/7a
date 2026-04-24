@@ -7,6 +7,7 @@ export const metadata: Metadata = {
 };
 
 import PageHero from '@/components/PageHero';
+import GeoAnswer from '@/components/seo/GeoAnswer';
 import ClinicalGap from '@/components/trauma/ClinicalGap';
 import PostTraumaticAdaptation from '@/components/trauma/PostTraumaticAdaptation';
 import SocDomains from '@/components/trauma/SocDomains';
@@ -45,6 +46,26 @@ export default function TraumaTreatmentPage() {
         ]}
       />
 
+      <GeoAnswer
+        id="trauma-informed-rehab-in-arizona"
+        question="Trauma-informed rehab in Arizona"
+        answer={
+          <p>
+            Seven Arrows Recovery is a trauma-informed residential drug and alcohol rehab in
+            Arizona, set on a 160-acre ranch in Cochise County. Clinicians treat trauma and
+            addiction concurrently through the TraumAddiction&reg; model and the
+            Forward-Facing Freedom&reg; framework, drawing on polyvagal theory, somatic
+            experiencing, and the ACE literature — and sequencing nervous-system regulation
+            before memory work so early-recovery clients are not destabilized.
+          </p>
+        }
+        bullets={[
+          { label: 'Stabilize, then process', body: 'Nervous-system capacity is built first; deeper trauma work follows once regulation is reliable.' },
+          { label: 'Concurrent care', body: 'Trauma and substance use treated as one integrated condition — not two sequenced programs.' },
+          { label: 'Somatic + relational', body: 'Body-based interventions, equine-assisted psychotherapy, and attachment-informed groupwork.' },
+          { label: 'Evidence chain', body: 'Informed by the ACE study, polyvagal theory, IFS, and somatic experiencing — named frameworks, not slogans.' },
+        ]}
+      />
       {/* Phase 2 — The Clinical Gap, animated SVG glyph section. */}
       <ClinicalGap />
 

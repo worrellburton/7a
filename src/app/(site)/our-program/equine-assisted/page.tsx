@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import PageHero from '@/components/PageHero';
+import GeoAnswer from '@/components/seo/GeoAnswer';
 import EquineWhy from './EquineWhy';
 import EquineHerd from './EquineHerd';
 import EquineSessions from './EquineSessions';
@@ -152,6 +153,25 @@ export default function EquineAssistedPage() {
           '.',
         ]}
         description="Seven Arrows Recovery runs equine-assisted psychotherapy on a private 160-acre ranch at the base of the Swisshelm Mountains. The horses respond to what's true right now — and that is what makes the modality work."
+      />
+      <GeoAnswer
+        id="rehabs-with-equine-therapy"
+        question="Rehabs with equine therapy in Arizona"
+        answer={
+          <p>
+            Seven Arrows Recovery is a JCAHO-accredited residential drug and alcohol rehab in
+            Arizona that runs equine-assisted psychotherapy (EAP) as a core weekly modality —
+            not an add-on. Sessions are co-led by an Arizona-licensed therapist and a dedicated
+            equine specialist on a private 160-acre ranch in Cochise County, with a full herd
+            managed specifically for therapeutic partnership.
+          </p>
+        }
+        bullets={[
+          { label: 'Ground-based work', body: 'Most of the clinical work happens on the ground — attunement, leading, groundwork, grooming. No riding required.' },
+          { label: 'Integrated, not elective', body: 'EAP sessions are scheduled into the core weekly plan alongside individual therapy, group, and somatic work.' },
+          { label: 'Evidence-informed', body: 'Draws on attachment theory, somatic experiencing, and Internal Family Systems (IFS); used as an adjunct to CBT, DBT, EMDR, ART.' },
+          { label: 'Who it helps most', body: 'Complex trauma, PTSD, attachment injury, moral injury, and clients who haven’t responded to talk therapy alone.' },
+        ]}
       />
       <EquineWhy />
       <EquineSessions />

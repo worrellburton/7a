@@ -9,6 +9,42 @@ export const metadata: Metadata = {
 import Link from 'next/link';
 
 import PageHero from '@/components/PageHero';
+import GeoAnswer from '@/components/seo/GeoAnswer';
+import { faqPageSchema, medicalWebPageSchema, jsonLdScript } from '@/lib/seo/pageSchema';
+
+const faqJsonLd = faqPageSchema([
+  {
+    q: 'Is Seven Arrows Recovery a rehab in Arizona that accepts Blue Cross Blue Shield?',
+    a: 'Yes. Seven Arrows Recovery is a JCAHO-accredited residential drug and alcohol rehab in Cochise County, Arizona that works with most Blue Cross Blue Shield plans. Because the Blue Card program lets BCBS members use providers nationwide, out-of-state Blue plans typically cover Seven Arrows the same as an in-state member.',
+  },
+  {
+    q: 'Does BCBS cover drug and alcohol rehab?',
+    a: 'Yes. Under the Mental Health Parity and Addiction Equity Act, BCBS plans cover substance use treatment at parity with medical/surgical benefits — including residential inpatient, outpatient therapy, medication-assisted treatment, and dual-diagnosis care.',
+  },
+  {
+    q: 'What does BCBS rehab coverage cost out-of-pocket?',
+    a: 'Your cost depends on your specific BCBS plan — deductible, coinsurance, and out-of-pocket maximum. Many BCBS PPO members pay a fraction of the billed rate. Call (866) 996-4308 for a free, confidential benefits check.',
+  },
+  {
+    q: 'Does BCBS cover dual-diagnosis treatment?',
+    a: 'Yes. BCBS plans cover integrated treatment for co-occurring mental health conditions (depression, anxiety, PTSD, bipolar) alongside substance use disorder — exactly the model Seven Arrows delivers through its TraumAddiction® program.',
+  },
+  {
+    q: 'Does BCBS require pre-authorization for residential rehab?',
+    a: 'Most BCBS plans require pre-authorization for residential addiction treatment. Seven Arrows handles the entire pre-auth process on your behalf.',
+  },
+]);
+
+const webPageJsonLd = medicalWebPageSchema({
+  url: 'https://sevenarrowsrecovery.com/insurance/blue-cross-blue-shield',
+  name: 'Rehabs in Arizona that accept Blue Cross Blue Shield — Seven Arrows Recovery',
+  description:
+    'Blue Cross Blue Shield coverage for drug and alcohol rehab at Seven Arrows Recovery, a JCAHO-accredited residential addiction treatment program in Cochise County, Arizona.',
+  about: [
+    { type: 'MedicalCondition', name: 'Substance Use Disorder' },
+    { type: 'MedicalTherapy', name: 'Residential Addiction Treatment' },
+  ],
+});
 
 const coverageItems = [
   {
@@ -73,6 +109,8 @@ const steps = [
 export default function InsuranceBCBSPage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(faqJsonLd)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(webPageJsonLd)} />
       <PageHero
         label="Insurance Coverage"
         title={[
@@ -95,6 +133,30 @@ export default function InsuranceBCBSPage() {
         ]}
         description="Seven Arrows Recovery accepts most Blue Cross Blue Shield plans for drug and alcohol addiction treatment. As one of the nation's largest insurers, BCBS provides coverage for millions of Americans seeking recovery."
         image="/images/embrace-connection.jpg"
+      />
+
+      <GeoAnswer
+        id="rehabs-in-arizona-that-accept-blue-cross-blue-shield"
+        question="Rehabs in Arizona that accept Blue Cross Blue Shield"
+        answer={
+          <p>
+            Seven Arrows Recovery is a JCAHO-accredited residential drug and alcohol rehab in
+            Arizona that works with most Blue Cross Blue Shield plans. Through the Blue Card
+            program, BCBS members from any state can typically use out-of-state providers at
+            their home-plan benefit level — so an Arizona stay at Seven Arrows is usually
+            covered like an in-state member. Free benefits verification: (866) 996-4308.
+          </p>
+        }
+        bullets={[
+          { label: 'Blue Card portability', body: 'Out-of-state BCBS plans (Texas, California, Michigan, Illinois, etc.) typically process as if in-state.' },
+          { label: 'Typical coverage', body: 'Residential inpatient, individual + group therapy, medication-assisted treatment, dual-diagnosis care, aftercare.' },
+          { label: 'Out-of-pocket', body: 'Depends on plan (deductible, coinsurance, OOP max). Many PPO members pay a fraction of billed rates.' },
+          { label: 'Pre-authorization handled', body: 'Seven Arrows manages BCBS pre-cert paperwork end-to-end.' },
+        ]}
+        sources={[
+          { label: 'Mental Health Parity and Addiction Equity Act (CMS)', href: 'https://www.cms.gov/marketplace/private-health-insurance/mental-health-parity-addiction-equity' },
+          { label: 'BlueCard program — BCBSA', href: 'https://www.bcbs.com/about-us/the-blue-cross-blue-shield-system/national-programs/bluecard' },
+        ]}
       />
 
       {/* BCBS Coverage Overview */}
