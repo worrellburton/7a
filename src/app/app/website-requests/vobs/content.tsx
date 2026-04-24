@@ -13,6 +13,8 @@ interface Row {
   notes: string | null;
   received_at: string;
   updated_at: string;
+  card_front_url: string | null;
+  card_back_url: string | null;
 }
 
 export default function VobsContent() {
@@ -80,6 +82,19 @@ export default function VobsContent() {
                     </p>
                   )}
                   {r.notes && <p className="text-sm text-foreground/70 mt-1">{r.notes}</p>}
+                  {(r.card_front_url || r.card_back_url) && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/45">
+                        Insurance Card
+                      </p>
+                      {r.card_front_url && (
+                        <CardThumb url={r.card_front_url} label="Front" />
+                      )}
+                      {r.card_back_url && (
+                        <CardThumb url={r.card_back_url} label="Back" />
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right flex-shrink-0">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border ${
@@ -105,5 +120,36 @@ export default function VobsContent() {
         </ul>
       )}
     </div>
+  );
+}
+
+function CardThumb({ url, label }: { url: string; label: string }) {
+  // Render a small clickable thumbnail. Storage signed URLs include a
+  // `?token=...` query string; PDFs (no image preview) get a generic
+  // file glyph instead of a broken image.
+  const isPdf = /\.pdf(\?|$)/i.test(url);
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`Open ${label.toLowerCase()} of card`}
+      className="group inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-1.5 py-1 text-[11px] font-medium text-foreground/70 hover:border-primary/40 hover:text-primary transition-colors"
+    >
+      {isPdf ? (
+        <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14 3v4a1 1 0 001 1h4M5 21V5a2 2 0 012-2h8l5 5v13a2 2 0 01-2 2H7a2 2 0 01-2-2z" />
+        </svg>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt={`${label} of insurance card`}
+          className="w-8 h-6 rounded-sm object-cover bg-warm-bg"
+          loading="lazy"
+        />
+      )}
+      {label}
+    </a>
   );
 }

@@ -418,7 +418,7 @@ function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
 export { pageIcons };
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session } = useAuth();
+  const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session, avatarUrl } = useAuth();
   const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
@@ -805,8 +805,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               className="shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               title="My Profile"
             >
-              {user.user_metadata?.avatar_url ? (
-                <img src={user.user_metadata.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
                   {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
@@ -842,7 +842,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       {/* Main content area */}
       <div className="flex-1 bg-warm-bg overflow-auto relative">
         {/* Mobile top bar */}
-        <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 dark:bg-[#1a1410]/90 backdrop-blur border-b border-gray-100 dark:border-white/5">
+        <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 backdrop-blur border-b border-gray-100">
           <button
             onClick={() => setMobileMenuOpen(true)}
             aria-label="Open menu"
@@ -870,9 +870,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               aria-hidden="true"
             />
             {/* Panel */}
-            <aside className="absolute inset-y-0 left-0 w-[82%] max-w-[320px] bg-white dark:bg-[#1a1410] border-r border-gray-100 dark:border-white/5 shadow-2xl flex flex-col animate-drawer-slide">
+            <aside className="absolute inset-y-0 left-0 w-[82%] max-w-[320px] bg-white border-r border-gray-100 shadow-2xl flex flex-col animate-drawer-slide">
               {/* Header: brand + close */}
-              <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-white/5">
+              <div className="flex items-center justify-between p-5 border-b border-gray-100">
                 <Link href="/app" className="flex items-center gap-2.5">
                   <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
                 </Link>
@@ -976,7 +976,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
                 {popupPages.filter(canSeePage).length > 0 && (
                   <>
-                    <div className="h-px my-3 bg-gray-100 dark:bg-white/5" />
+                    <div className="h-px my-3 bg-gray-100" />
                     {popupPages.filter(canSeePage).map((item) => {
                       const isActive = pathname === item.path;
                       return (
@@ -1021,10 +1021,10 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               </nav>
 
               {/* User card + sign out */}
-              <div className="p-3 border-t border-gray-100 dark:border-white/5 space-y-1">
+              <div className="p-3 border-t border-gray-100 space-y-1">
                 <div className="flex items-center gap-3 px-3 py-2.5">
-                  {user.user_metadata?.avatar_url ? (
-                    <img src={user.user_metadata.avatar_url} alt="" className="w-9 h-9 rounded-full" />
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold">
                       {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
@@ -1045,7 +1045,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </div>
                 <button
                   onClick={() => { setMobileMenuOpen(false); signOut(); }}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
