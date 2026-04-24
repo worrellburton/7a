@@ -19,11 +19,11 @@ export const metadata: Metadata = {
   keywords:
     'residential addiction treatment Arizona, drug rehab adults Arizona, alcohol rehab Arizona, opioid addiction treatment, fentanyl rehab Arizona, stimulant rehab, meth addiction treatment, benzodiazepine detox, dual diagnosis treatment Arizona, first responder rehab, veteran rehab Arizona, healthcare professional rehab, Phoenix rehab, Tucson rehab, Scottsdale rehab, Mesa rehab',
   alternates: {
-    canonical: 'https://sevenarrowsrecovery.com/our-program/who-we-help',
+    canonical: 'https://sevenarrowsrecoveryarizona.com/our-program/who-we-help',
   },
   openGraph: {
     type: 'article',
-    url: 'https://sevenarrowsrecovery.com/our-program/who-we-help',
+    url: 'https://sevenarrowsrecoveryarizona.com/our-program/who-we-help',
     title: 'Who We Help | Arizona Drug & Alcohol Rehab for Adults 18+',
     description:
       'Residential addiction treatment in Arizona for adults 18+ struggling with alcohol, opioids, stimulants, benzodiazepines, and co-occurring mental health conditions. Serving Phoenix, Tucson, Scottsdale, Mesa, and clients nationwide.',
@@ -48,13 +48,13 @@ const breadcrumbSchema = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
   itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecovery.com' },
-    { '@type': 'ListItem', position: 2, name: 'Our Program', item: 'https://sevenarrowsrecovery.com/our-program' },
+    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecoveryarizona.com' },
+    { '@type': 'ListItem', position: 2, name: 'Our Program', item: 'https://sevenarrowsrecoveryarizona.com/our-program' },
     {
       '@type': 'ListItem',
       position: 3,
       name: 'Who We Help',
-      item: 'https://sevenarrowsrecovery.com/our-program/who-we-help',
+      item: 'https://sevenarrowsrecoveryarizona.com/our-program/who-we-help',
     },
   ],
 };
@@ -73,11 +73,11 @@ const medicalWebPageSchema = {
   '@context': 'https://schema.org',
   '@type': 'MedicalWebPage',
   name: 'Who We Help — Seven Arrows Recovery',
-  url: 'https://sevenarrowsrecovery.com/our-program/who-we-help',
+  url: 'https://sevenarrowsrecoveryarizona.com/our-program/who-we-help',
   description:
     'Seven Arrows Recovery provides residential addiction treatment for adults 18 and older with alcohol, opioid, stimulant, benzodiazepine, and dual-diagnosis conditions. Serving clients from Phoenix, Tucson, Scottsdale, Mesa, and nationwide.',
   inLanguage: 'en-US',
-  isPartOf: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
+  isPartOf: { '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
   about: [
     { '@type': 'MedicalCondition', name: 'Alcohol Use Disorder' },
     { '@type': 'MedicalCondition', name: 'Opioid Use Disorder' },

@@ -12,11 +12,11 @@ export const metadata: Metadata = {
   keywords:
     'contact Seven Arrows Recovery, rehab admissions phone 866-996-4308, rehab contact Arizona, confidential rehab contact, 24/7 rehab admissions',
   alternates: {
-    canonical: 'https://sevenarrowsrecovery.com/contact',
+    canonical: 'https://sevenarrowsrecoveryarizona.com/contact',
   },
   openGraph: {
     type: 'article',
-    url: 'https://sevenarrowsrecovery.com/contact',
+    url: 'https://sevenarrowsrecoveryarizona.com/contact',
     title: 'Contact Us | Seven Arrows Recovery',
     description:
       'Call, email, or send a note. Admissions answers 24/7 — a real person, confidential, zero pressure.',
@@ -41,8 +41,8 @@ const breadcrumbSchema = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
   itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecovery.com' },
-    { '@type': 'ListItem', position: 2, name: 'Contact', item: 'https://sevenarrowsrecovery.com/contact' },
+    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecoveryarizona.com' },
+    { '@type': 'ListItem', position: 2, name: 'Contact', item: 'https://sevenarrowsrecoveryarizona.com/contact' },
   ],
 };
 
@@ -50,11 +50,11 @@ const contactPageSchema = {
   '@context': 'https://schema.org',
   '@type': 'ContactPage',
   name: 'Contact Seven Arrows Recovery',
-  url: 'https://sevenarrowsrecovery.com/contact',
+  url: 'https://sevenarrowsrecoveryarizona.com/contact',
   description:
     'Contact information and form for Seven Arrows Recovery — residential addiction treatment in Cochise County, Arizona. Admissions answers 24/7.',
   inLanguage: 'en-US',
-  isPartOf: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
+  isPartOf: { '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
   lastReviewed: '2026-04-22',
 };
 

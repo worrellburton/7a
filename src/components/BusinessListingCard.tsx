@@ -11,7 +11,7 @@ const FALLBACK: PlaceListing = {
   formattedAddress: 'Cochise County, Arizona, USA',
   phone: '(866) 996-4308',
   internationalPhone: '+1 866-996-4308',
-  website: 'https://sevenarrowsrecovery.com',
+  website: 'https://sevenarrowsrecoveryarizona.com',
   mapsUrl: `https://www.google.com/maps/place/?q=place_id:${SEVEN_ARROWS_PLACE_ID}`,
   hours: null,
   location: { lat: 31.9, lng: -109.9 },

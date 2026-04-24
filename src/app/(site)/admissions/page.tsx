@@ -19,11 +19,11 @@ export const metadata: Metadata = {
   keywords:
     'rehab admissions Arizona, drug rehab insurance verification, fast rehab admission, 24-hour rehab admissions, residential treatment Arizona, TRICARE rehab admission, what to bring to rehab, airport pickup rehab Arizona, sober transport, intervention support',
   alternates: {
-    canonical: 'https://sevenarrowsrecovery.com/admissions',
+    canonical: 'https://sevenarrowsrecoveryarizona.com/admissions',
   },
   openGraph: {
     type: 'article',
-    url: 'https://sevenarrowsrecovery.com/admissions',
+    url: 'https://sevenarrowsrecoveryarizona.com/admissions',
     title: 'Admissions | Seven Arrows Recovery',
     description:
       'Start with a phone call. Free insurance verification, phone assessment, and travel coordination — most clients arrive within 24 to 48 hours.',
@@ -48,8 +48,8 @@ const breadcrumbSchema = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
   itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecovery.com' },
-    { '@type': 'ListItem', position: 2, name: 'Admissions', item: 'https://sevenarrowsrecovery.com/admissions' },
+    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecoveryarizona.com' },
+    { '@type': 'ListItem', position: 2, name: 'Admissions', item: 'https://sevenarrowsrecoveryarizona.com/admissions' },
   ],
 };
 
@@ -67,13 +67,13 @@ const medicalWebPageSchema = {
   '@context': 'https://schema.org',
   '@type': 'MedicalWebPage',
   name: 'Admissions — Seven Arrows Recovery',
-  url: 'https://sevenarrowsrecovery.com/admissions',
+  url: 'https://sevenarrowsrecoveryarizona.com/admissions',
   description:
     'How to begin residential addiction treatment at Seven Arrows Recovery: insurance verification, phone assessment, travel coordination, and what to bring.',
   inLanguage: 'en-US',
-  isPartOf: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
+  isPartOf: { '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
   about: [
-    { '@type': 'MedicalBusiness', '@id': 'https://sevenarrowsrecovery.com/#organization' },
+    { '@type': 'MedicalBusiness', '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
     { '@type': 'MedicalTherapy', name: 'Residential Addiction Treatment' },
   ],
   mainContentOfPage: { '@type': 'WebPageElement', cssSelector: 'main' },

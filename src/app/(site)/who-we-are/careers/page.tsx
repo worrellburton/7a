@@ -18,11 +18,11 @@ export const metadata: Metadata = {
   keywords:
     'Arizona rehab jobs, addiction counselor jobs Arizona, LCSW Arizona rehab, LMFT rehab, LISAC jobs, behavioral health tech jobs, RN rehab jobs Arizona, admissions counselor rehab, trauma therapist jobs, equine therapy jobs',
   alternates: {
-    canonical: 'https://sevenarrowsrecovery.com/who-we-are/careers',
+    canonical: 'https://sevenarrowsrecoveryarizona.com/who-we-are/careers',
   },
   openGraph: {
     type: 'article',
-    url: 'https://sevenarrowsrecovery.com/who-we-are/careers',
+    url: 'https://sevenarrowsrecoveryarizona.com/who-we-are/careers',
     title: 'Careers | Seven Arrows Recovery',
     description:
       'Hiring clinicians, counselors, nurses, BHTs, and holistic practitioners at our 160-acre residential ranch in Cochise County, Arizona.',
@@ -47,9 +47,9 @@ const breadcrumbSchema = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
   itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecovery.com' },
-    { '@type': 'ListItem', position: 2, name: 'Who We Are', item: 'https://sevenarrowsrecovery.com/who-we-are' },
-    { '@type': 'ListItem', position: 3, name: 'Careers', item: 'https://sevenarrowsrecovery.com/who-we-are/careers' },
+    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecoveryarizona.com' },
+    { '@type': 'ListItem', position: 2, name: 'Who We Are', item: 'https://sevenarrowsrecoveryarizona.com/who-we-are' },
+    { '@type': 'ListItem', position: 3, name: 'Careers', item: 'https://sevenarrowsrecoveryarizona.com/who-we-are/careers' },
   ],
 };
 

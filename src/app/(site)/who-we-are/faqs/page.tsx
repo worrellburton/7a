@@ -13,11 +13,11 @@ export const metadata: Metadata = {
   keywords:
     'rehab FAQ Arizona, drug rehab questions, alcohol rehab insurance, TRICARE rehab, dual diagnosis FAQ, residential treatment FAQ, medical detox FAQ, MAT rehab, family visitation rehab, HIPAA 42 CFR Part 2, JCAHO rehab, LegitScript rehab, Arizona rehab admissions',
   alternates: {
-    canonical: 'https://sevenarrowsrecovery.com/who-we-are/faqs',
+    canonical: 'https://sevenarrowsrecoveryarizona.com/who-we-are/faqs',
   },
   openGraph: {
     type: 'article',
-    url: 'https://sevenarrowsrecovery.com/who-we-are/faqs',
+    url: 'https://sevenarrowsrecoveryarizona.com/who-we-are/faqs',
     title: 'FAQs | Seven Arrows Recovery',
     description:
       'Direct answers to common rehab questions — admissions, insurance, detox, treatment length, family, dual diagnosis, aftercare, and privacy.',
@@ -42,13 +42,13 @@ const breadcrumbSchema = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
   itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecovery.com' },
-    { '@type': 'ListItem', position: 2, name: 'Who We Are', item: 'https://sevenarrowsrecovery.com/who-we-are' },
+    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecoveryarizona.com' },
+    { '@type': 'ListItem', position: 2, name: 'Who We Are', item: 'https://sevenarrowsrecoveryarizona.com/who-we-are' },
     {
       '@type': 'ListItem',
       position: 3,
       name: 'FAQs',
-      item: 'https://sevenarrowsrecovery.com/who-we-are/faqs',
+      item: 'https://sevenarrowsrecoveryarizona.com/who-we-are/faqs',
     },
   ],
 };
@@ -67,13 +67,13 @@ const medicalWebPageSchema = {
   '@context': 'https://schema.org',
   '@type': 'MedicalWebPage',
   name: 'FAQs — Seven Arrows Recovery',
-  url: 'https://sevenarrowsrecovery.com/who-we-are/faqs',
+  url: 'https://sevenarrowsrecoveryarizona.com/who-we-are/faqs',
   description:
     'Frequently asked questions about admissions, insurance, detox, clinical care, family involvement, aftercare, and privacy at Seven Arrows Recovery, a residential drug and alcohol rehab in Arizona.',
   inLanguage: 'en-US',
-  isPartOf: { '@id': 'https://sevenarrowsrecovery.com/#organization' },
+  isPartOf: { '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
   about: [
-    { '@type': 'MedicalBusiness', '@id': 'https://sevenarrowsrecovery.com/#organization' },
+    { '@type': 'MedicalBusiness', '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
     { '@type': 'MedicalCondition', name: 'Substance Use Disorder' },
     { '@type': 'MedicalCondition', name: 'Dual Diagnosis' },
     { '@type': 'MedicalProcedure', name: 'Medication-Assisted Treatment' },
@@ -83,7 +83,7 @@ const medicalWebPageSchema = {
   lastReviewed: '2026-04-22',
   reviewedBy: {
     '@type': 'Organization',
-    '@id': 'https://sevenarrowsrecovery.com/#organization',
+    '@id': 'https://sevenarrowsrecoveryarizona.com/#organization',
     name: 'Seven Arrows Recovery clinical team',
   },
 };
