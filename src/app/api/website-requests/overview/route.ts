@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 
-// GET /api/website-requests/overview — admin-only summary across both
+// GET /api/website-requests/overview — accessible to admins and to
+// Marketing & Admissions department members. Summary across both
 // vob_requests and contact_submissions. Returns counts (total + new)
 // and the 5 most recent rows from each table for the landing page at
 // /app/website-requests.
@@ -28,10 +30,8 @@ interface RecentForm {
 
 export async function GET() {
   const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const auth = await requireWebsiteRequestsAccess(supabase);
+  if (auth.response) return auth.response;
 
   const admin = getAdminSupabase();
 
