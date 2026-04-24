@@ -18,8 +18,8 @@ const rows: { trait: string; us: string; them: string }[] = [
     them: 'Urban facilities with 100+ beds',
   },
   {
-    trait: 'Client-to-staff ratio',
-    us: '6:1 — everyone known by name',
+    trait: 'Primary clinician model',
+    us: '1:1 — named primary clinician, small census, everyone known by name',
     them: '15:1 or higher, rotating case managers',
   },
   {

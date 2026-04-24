@@ -11,7 +11,7 @@ const voices = [
     tag: '60-day stay · Residential',
   },
   {
-    quote: 'The 6:1 ratio is real. I never felt like a number. My therapist knew my story by day four.',
+    quote: 'The small census is real. I never felt like a number. My therapist knew my story by day four.',
     author: 'Alumna',
     tag: '90-day stay · Residential',
   },

@@ -18,7 +18,7 @@ const services = [
   {
     title: 'Residential Inpatient Treatment',
     description:
-      'Intensive 30-to-90-day residential care with a 6:1 client-to-staff ratio, daily individual therapy, group sessions, and structured programming from morning to evening.',
+      'Intensive 30-to-90-day residential care with a low client-to-staff ratio, daily individual therapy, group sessions, and structured programming from morning to evening.',
   },
   {
     title: 'Dual Diagnosis Treatment',
