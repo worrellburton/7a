@@ -197,7 +197,13 @@ export default function Hero() {
       {/* Full-viewport image backdrop with text overlay. On mobile we use
           svh (small viewport height) so mobile browser chrome collapsing
           doesn't leave a white gap under the hero. */}
-      <div className="relative w-full min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] overflow-hidden bg-dark-section">
+      {/* Height tiers match what landscape images can render without
+          absurd object-cover cropping. On mobile portrait a full-svh
+          slot cropped a 16:9 photo to ~30% of its width (hence the
+          blurry-fur close-ups). aspect-[3/4] on mobile keeps the
+          hero tall enough for the overlay copy while showing ~65%
+          of the image width. sm+ returns to the full viewport hero. */}
+      <div className="relative w-full aspect-[3/4] sm:aspect-auto sm:min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] overflow-hidden bg-dark-section">
         {/* Horizontal scroll-snap band. Each slide fills the viewport,
             snap-center keeps the active slide aligned, scrollbar is
             hidden via Tailwind's 'hide-scrollbar' utility (or inline
@@ -219,6 +225,12 @@ export default function Hero() {
                 src={src.src}
                 alt={src.alt}
                 className="absolute inset-0 w-full h-full object-cover"
+                // object-position biased up-center keeps sky /
+                // mountain horizon visible on portrait crops of
+                // landscape photos (prevents the blurry-fur close-up
+                // that landed when a 16:9 image was cropped to a
+                // tight portrait slot).
+                style={{ objectPosition: 'center 30%' }}
                 loading={i === 0 ? 'eager' : 'lazy'}
                 fetchPriority={i === 0 ? 'high' : 'auto'}
               />
