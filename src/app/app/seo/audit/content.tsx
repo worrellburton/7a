@@ -78,6 +78,7 @@ interface AuditResult {
       impact: number;
     }[];
   };
+  prompt?: string;
   strengths: { title: string; detail: string }[];
   issues: { title: string; detail: string; severity: 'low' | 'medium' | 'high' }[];
   notice?: string;
@@ -412,13 +413,69 @@ export default function AuditContent() {
         )}
       </Panel>
 
-      <Panel title="Generate Claude prompt" className="mt-6">
-        <Empty>
-          After an audit completes, this section will produce a copy-pasteable
-          prompt you can drop into Claude to bring the score to 100.
-        </Empty>
-      </Panel>
+      <ClaudePromptPanel prompt={result?.prompt ?? null} running={running} />
     </div>
+  );
+}
+
+function ClaudePromptPanel({
+  prompt,
+  running,
+}: {
+  prompt: string | null;
+  running: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select the textarea contents.
+      const ta = document.getElementById('audit-claude-prompt') as HTMLTextAreaElement | null;
+      if (ta) {
+        ta.select();
+        document.execCommand('copy');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    }
+  }
+
+  return (
+    <Panel title="Generate Claude prompt" className="mt-6">
+      {prompt ? (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-foreground/60">
+              Paste this into Claude (or Claude Code) to push the score to 100.
+            </p>
+            <button
+              type="button"
+              onClick={copy}
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+            >
+              {copied ? 'Copied!' : 'Copy prompt'}
+            </button>
+          </div>
+          <textarea
+            id="audit-claude-prompt"
+            readOnly
+            value={prompt}
+            className="w-full h-72 rounded-lg border border-black/10 bg-warm-bg/30 p-3 font-mono text-[11px] text-foreground/80 leading-relaxed resize-y"
+          />
+        </div>
+      ) : (
+        <Empty>
+          {running
+            ? 'Building prompt…'
+            : 'After an audit completes, this section will produce a copy-pasteable prompt you can drop into Claude to bring the score to 100.'}
+        </Empty>
+      )}
+    </Panel>
   );
 }
 

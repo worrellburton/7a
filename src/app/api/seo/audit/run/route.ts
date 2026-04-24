@@ -18,6 +18,7 @@ import { runPsi, hasPsiKey, type PsiSnapshot } from '@/lib/seo/psi';
 import { auditPerformance } from '@/lib/seo/audits/performance';
 import { aggregate } from '@/lib/seo/score';
 import { buildInsights } from '@/lib/seo/insights';
+import { buildPrompt } from '@/lib/seo/prompt';
 import type { CategoryAudit } from '@/lib/seo/audits/types';
 
 // POST /api/seo/audit/run
@@ -307,6 +308,14 @@ export async function POST(req: Request) {
     pages: [] as unknown[],
     categories,
     insights,
+    prompt: buildPrompt({
+      origin,
+      score: agg.score,
+      grade: agg.band,
+      headline: agg.headline,
+      categories,
+      insights,
+    }),
     strengths,
     issues,
     notice:
