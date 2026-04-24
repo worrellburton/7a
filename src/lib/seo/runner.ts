@@ -13,10 +13,23 @@ const SKIP_EXTENSIONS = [
 ];
 
 export interface CrawlAllOptions {
-  /** Hard cap on URLs crawled (defaults to 100). */
+  /**
+   * Hard cap on URLs crawled (defaults to 1000 — enough to cover every
+   * reasonable marketing site; raise explicitly for larger corpora).
+   * The runner further clamps this to CRAWL_MAX_PAGES_CEILING so a
+   * misconfigured giant sitemap can't trigger an unbounded crawl.
+   */
   maxPages?: number;
-  /** Parallel in-flight requests (defaults to 6). */
+  /** Parallel in-flight requests (defaults to 10). */
   concurrency?: number;
+  /**
+   * When true, the extractor keeps CrawledPage.html alive so the caller
+   * can run additional parsing passes. Defaults to false: HTML is
+   * nulled after the structured fields are extracted, which keeps
+   * memory flat for 500+ page crawls (average page HTML is ~200KB,
+   * so keeping 500 in memory is ~100MB).
+   */
+  keepHtml?: boolean;
   /** Optional per-page hook for streaming progress (not used yet). */
   onPage?: (page: CrawledPage, index: number, total: number) => void;
 }
@@ -47,12 +60,18 @@ function shouldSkip(url: string): string | null {
  * Crawl `urls` with bounded concurrency. Order of results matches order
  * of input URLs (after skip-filtering and capping).
  */
+export const CRAWL_MAX_PAGES_CEILING = 2000;
+
 export async function crawlAll(
   urls: string[],
   opts: CrawlAllOptions = {},
 ): Promise<CrawlAllResult> {
-  const maxPages = Math.max(1, Math.min(500, opts.maxPages ?? 100));
-  const concurrency = Math.max(1, Math.min(20, opts.concurrency ?? 6));
+  const maxPages = Math.max(
+    1,
+    Math.min(CRAWL_MAX_PAGES_CEILING, opts.maxPages ?? 1000),
+  );
+  const concurrency = Math.max(1, Math.min(20, opts.concurrency ?? 10));
+  const keepHtml = opts.keepHtml === true;
   const startedAt = Date.now();
 
   const skipped: { url: string; reason: string }[] = [];
@@ -77,6 +96,10 @@ export async function crawlAll(
       if (idx >= work.length) return;
       const url = work[idx];
       const page = await crawlPage(url);
+      // Drop the raw HTML buffer once structured fields have been
+      // extracted — without this, a 500-page crawl keeps 100MB+ of
+      // HTML in memory for the full audit duration.
+      if (!keepHtml) page.html = null;
       results[idx] = page;
       if (opts.onPage) {
         try {
