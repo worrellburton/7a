@@ -11,6 +11,8 @@ import { auditSocial } from '@/lib/seo/audits/social';
 import { auditSchema } from '@/lib/seo/audits/schema';
 import { auditImages } from '@/lib/seo/audits/images';
 import { auditLinks } from '@/lib/seo/audits/links';
+import { fetchRobots, type RobotsTxt } from '@/lib/seo/robots';
+import { auditCrawlability } from '@/lib/seo/audits/crawlability';
 import type { CategoryAudit } from '@/lib/seo/audits/types';
 
 // POST /api/seo/audit/run
@@ -200,6 +202,34 @@ export async function POST(req: Request) {
     categories.push(auditSchema(crawl.pages));
     categories.push(auditImages(crawl.pages));
     categories.push(auditLinks(crawl.pages));
+  }
+
+  // Crawlability: robots.txt + sitemap.xml health check.
+  let robots: RobotsTxt | null = null;
+  try {
+    robots = await fetchRobots(origin);
+  } catch (err) {
+    issues.push({
+      title: 'robots.txt fetch threw',
+      detail: err instanceof Error ? err.message : String(err),
+      severity: 'medium',
+    });
+  }
+  if (robots) {
+    categories.push(
+      auditCrawlability({
+        origin,
+        robots,
+        sitemap: sitemap
+          ? {
+              url: sitemap.url,
+              type: sitemap.type,
+              count: sitemap.count,
+              warnings: sitemap.warnings,
+            }
+          : null,
+      }),
+    );
   }
 
   for (const cat of categories) {
