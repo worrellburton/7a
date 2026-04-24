@@ -42,11 +42,12 @@ function lookup(map: RedirectMap, pathname: string): RedirectEntry | null {
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
-  // Never redirect the admin surface, API, Next internals, or
-  // obvious static asset extensions.
+  // Never redirect the admin surface, API, auth callback, Next
+  // internals, or obvious static asset extensions.
   if (
     pathname.startsWith('/api') ||
     pathname.startsWith('/app') ||
+    pathname.startsWith('/auth') ||
     pathname.startsWith('/_next') ||
     /\.[a-z0-9]{2,5}(?:\?|$)/i.test(pathname)
   ) {
@@ -107,6 +108,6 @@ export const config = {
   // Run on every request except obvious non-HTML assets. The function
   // itself also exits early on /api, /app, /_next.
   matcher: [
-    '/((?!api|app|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|redirects-sitemap.xml).*)',
+    '/((?!api|app|auth|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|redirects-sitemap.xml).*)',
   ],
 };
