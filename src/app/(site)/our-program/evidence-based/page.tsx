@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     'Seven Arrows Recovery’s clinical approach is relational first — grounded in the empowerment and resilience-based frameworks of Dr. Robert Rhoton and Dr. J. Eric Gentry, delivered through a polyvagal-informed lens.',
 };
 
-import EvidenceHero from '@/components/evidence-based/EvidenceHero';
+import PageHero from '@/components/PageHero';
 import FrameworkIntro from '@/components/evidence-based/FrameworkIntro';
 import RelationalInsight from '@/components/evidence-based/RelationalInsight';
 import RegulatedPresence from '@/components/evidence-based/RegulatedPresence';
@@ -21,7 +21,20 @@ export default function EvidenceBasedPage() {
   return (
     <main>
       {/* Phase 1 — cinematic hero */}
-      <EvidenceHero />
+      <PageHero
+        label="Our clinical approach"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our program', href: '/our-program' },
+          { label: 'Evidence-based' },
+        ]}
+        title={[
+          'Our clinical approach is ',
+          { text: 'relational', accent: true },
+          ' first.',
+        ]}
+        description="Grounded in the empowerment and resilience-based frameworks of Dr. Robert Rhoton and Dr. J. Eric Gentry, delivered through a polyvagal-informed lens. Healing occurs through relationship and regulated presence, not through force or pathology."
+      />
 
       {/* Phase 2 — Rhoton/Gentry framework intro + shift glyph */}
       <FrameworkIntro />

@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PublicTeamMember } from '@/lib/team';
 
-// Auto-rotating quote carousel pulled from team members' favorite_quote
-// field on the users table. Skips members without a quote so we don't
-// render empty slides; renders nothing at all if no one has a quote yet.
+// Auto-rotating "In their words" carousel pulled from team members'
+// favorite_seven_arrows field on the users table — each member's
+// favorite part of working at Seven Arrows, in their own voice. Skips
+// members who haven't filled this in so we don't render empty slides;
+// renders nothing at all if no one has filled it in yet.
 
 interface Props {
   team: PublicTeamMember[];
@@ -26,7 +28,7 @@ function stripOuterQuotes(raw: string): string {
 }
 
 export default function TeamQuoteCarousel({ team, intervalMs = 7000 }: Props) {
-  const slides = team.filter((m) => (m.favorite_quote || '').trim().length > 0);
+  const slides = team.filter((m) => (m.favorite_seven_arrows || '').trim().length > 0);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -131,7 +133,7 @@ export default function TeamQuoteCarousel({ team, intervalMs = 7000 }: Props) {
                     lineHeight: 1.3,
                   }}
                 >
-                  &ldquo;{stripOuterQuotes(m.favorite_quote || '')}&rdquo;
+                  &ldquo;{stripOuterQuotes(m.favorite_seven_arrows || '')}&rdquo;
                 </blockquote>
                 <figcaption className="mt-7 flex items-center gap-3">
                   {m.avatar_url ? (
@@ -238,7 +240,7 @@ export default function TeamQuoteCarousel({ team, intervalMs = 7000 }: Props) {
 
         {current && (
           <span className="sr-only" aria-live="polite">
-            Quote from {current.full_name}: {current.favorite_quote}
+            Quote from {current.full_name}: {current.favorite_seven_arrows}
           </span>
         )}
       </div>

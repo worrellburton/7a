@@ -109,19 +109,6 @@ export default function MissionVision({
       className="relative py-20 lg:py-28 bg-warm-bg overflow-hidden"
       aria-labelledby="mission-heading"
     >
-      {/* Faint dreamcatcher watermark like the reference — cheap pseudo
-          element, decorative only. */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 pointer-events-none opacity-[0.06]"
-        style={{
-          backgroundImage: 'url(/images/logo.png)',
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center 40%',
-          backgroundSize: 'min(620px, 65vw) auto',
-        }}
-      />
-
       <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <p className="section-label justify-center mb-5">Transformation is Our Keystone</p>
@@ -179,33 +166,49 @@ export default function MissionVision({
             >
               {visionBody}
             </p>
-            <div className="mt-auto">
-              {/* Hand-lettered signature approximation */}
-              <p
-                className="text-2xl lg:text-3xl text-foreground/75 mb-3"
-                style={{
-                  fontFamily: '"Homemade Apple", "Caveat", "Snell Roundhand", cursive',
-                  letterSpacing: '0.01em',
-                }}
-              >
-                {directorName}
-              </p>
-              <p
-                className="text-sm font-semibold text-foreground"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                {directorName} {directorCredentials}
-              </p>
-              <p
-                className="text-sm text-foreground/55 mt-0.5"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                {directorTitle}
-              </p>
+            <div className="mt-auto flex items-start gap-4">
+              {/* Mobile-only portrait — tucked next to the signature so
+                  Lindsay's image lives inside her own message card
+                  instead of sitting as a big separate image below it.
+                  Desktop hides this inline portrait and uses the
+                  full-height image column on the right instead. */}
+              <img
+                src={directorImage}
+                alt={`${directorName}, ${directorTitle}`}
+                loading="lazy"
+                className="lg:hidden w-20 h-20 rounded-full object-cover ring-2 ring-white shadow-sm shrink-0"
+              />
+              <div className="flex-1">
+                {/* Hand-lettered signature approximation */}
+                <p
+                  className="text-2xl lg:text-3xl text-foreground/75 mb-3"
+                  style={{
+                    fontFamily: '"Homemade Apple", "Caveat", "Snell Roundhand", cursive',
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  {directorName}
+                </p>
+                <p
+                  className="text-sm font-semibold text-foreground"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {directorName} {directorCredentials}
+                </p>
+                <p
+                  className="text-sm text-foreground/55 mt-0.5"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {directorTitle}
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="rounded-2xl overflow-hidden bg-warm-card min-h-[360px] lg:min-h-0">
+          {/* Desktop image column. Hidden on mobile because the portrait
+              already appears inline inside the message card on small
+              screens. */}
+          <div className="hidden lg:block rounded-2xl overflow-hidden bg-warm-card min-h-[360px] lg:min-h-0">
             <img
               src={directorImage}
               alt={`${directorName}, ${directorTitle}`}

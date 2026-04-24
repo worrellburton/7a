@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import ContactHero from '@/components/contact/ContactHero';
+import PageHero from '@/components/PageHero';
 import ContactAtAGlance from '@/components/contact/ContactAtAGlance';
 import WaysToReach from '@/components/contact/WaysToReach';
 import ContactForm from '@/components/contact/ContactForm';
@@ -69,7 +69,16 @@ export default function ContactPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(contactPageSchema) }}
       />
-      <ContactHero />
+      <PageHero
+        label="Contact"
+        breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Contact' }]}
+        title={[
+          'A real person. ',
+          { text: 'Any hour', accent: true },
+          '.',
+        ]}
+        description="Call, email, or send a note from the form below. Our admissions team answers 24/7, every day of the year — no gatekeeping, no commitment, no sales script. Whether you're calling for yourself or someone you love."
+      />
       <ContactAtAGlance />
       <WaysToReach />
       <ContactForm />

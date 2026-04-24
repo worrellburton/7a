@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import FamilyHero from '@/components/family/FamilyHero';
+import PageHero from '@/components/PageHero';
 import FamilyAtAGlance from '@/components/family/FamilyAtAGlance';
 import WhyFamilyMatters from '@/components/family/WhyFamilyMatters';
 import FamilyComponents from '@/components/family/FamilyComponents';
@@ -101,7 +101,20 @@ export default function FamilyProgramPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
-      <FamilyHero />
+      <PageHero
+        label="Family program"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our program', href: '/our-program' },
+          { label: 'Family program' },
+        ]}
+        title={[
+          'The whole ',
+          { text: 'system', accent: true },
+          ' heals, or nothing does.',
+        ]}
+        description="Addiction is a family disease. Our family program gives parents, partners, and adult children the therapy, education, and coordination they need — while the client is in treatment and long after discharge."
+      />
       <FamilyAtAGlance />
       <WhyFamilyMatters />
       <FamilyComponents />

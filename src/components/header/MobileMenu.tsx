@@ -349,8 +349,100 @@ export default function MobileMenu({
               <PhoneCTA reduced={reduced} />
             </div>
           </StaggeredItem>
+          <StaggeredItem show={showing} index={navLinks.length + 1}>
+            <DrawerReview open={open} />
+          </StaggeredItem>
         </div>
     </div>
+  );
+}
+
+interface RandomReview {
+  authorName: string | null;
+  profilePhotoUrl: string | null;
+  rating: number;
+  relativeTime: string | null;
+  text: string;
+}
+
+/**
+ * Small verified-review card shown in the empty space below the phone
+ * CTA in the mobile drawer. Fetches a pool of random real Google
+ * reviews once, then picks a fresh one every time the drawer opens so
+ * the visitor sees different social proof on repeat visits.
+ */
+function DrawerReview({ open }: { open: boolean }) {
+  const [pool, setPool] = useState<RandomReview[]>([]);
+  const [current, setCurrent] = useState<RandomReview | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/reviews/random', { cache: 'no-store' })
+      .then(async (r) => (r.ok ? ((await r.json()) as { rows: RandomReview[] }) : null))
+      .then((json) => {
+        if (cancelled || !json) return;
+        setPool(json.rows || []);
+      })
+      .catch(() => { /* non-fatal — section just stays empty */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!open || pool.length === 0) return;
+    setCurrent(pool[Math.floor(Math.random() * pool.length)]);
+  }, [open, pool]);
+
+  if (!current) return null;
+  const text = current.text.length > 180 ? current.text.slice(0, 180).replace(/\s+\S*$/, '') + '…' : current.text;
+
+  return (
+    <div className="px-3 pt-6">
+      <div className="rounded-2xl border border-black/10 bg-warm-bg/60 p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <GoogleG />
+          <div className="flex items-center gap-0.5 text-[#f5a623]">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <svg key={i} className={`w-3 h-3 ${i < Math.round(current.rating) ? '' : 'opacity-30'}`} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+              </svg>
+            ))}
+          </div>
+          <span className="ml-auto text-[10px] tracking-[0.18em] uppercase font-semibold text-foreground/50">
+            Verified Google review
+          </span>
+        </div>
+        <p className="text-[13px] text-foreground/80 leading-snug">&ldquo;{text}&rdquo;</p>
+        <p className="mt-3 flex items-center gap-2 text-[11px] text-foreground/60">
+          {current.profilePhotoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={current.profilePhotoUrl}
+              alt=""
+              referrerPolicy="no-referrer"
+              className="w-5 h-5 rounded-full object-cover ring-1 ring-black/10"
+              loading="lazy"
+            />
+          ) : (
+            <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">
+              {(current.authorName || '?').trim().charAt(0).toUpperCase()}
+            </span>
+          )}
+          <span className="font-semibold text-foreground/75">{current.authorName || 'Verified Google review'}</span>
+          {current.relativeTime && <span className="text-foreground/40">· {current.relativeTime}</span>}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function GoogleG() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+    </svg>
   );
 }
 

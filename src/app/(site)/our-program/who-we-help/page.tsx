@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import WhoHero from '@/components/who-we-help/WhoHero';
+import PageHero from '@/components/PageHero';
 import AtAGlance from '@/components/who-we-help/AtAGlance';
 import Populations from '@/components/who-we-help/Populations';
 import SubstancesAndConditions from '@/components/who-we-help/SubstancesAndConditions';
@@ -117,7 +117,20 @@ export default function WhoWeHelpPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
-      <WhoHero />
+      <PageHero
+        label="Who we help"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Our program', href: '/our-program' },
+          { label: 'Who we help' },
+        ]}
+        title={[
+          'Whoever walks ',
+          { text: 'through the door', accent: true },
+          '.',
+        ]}
+        description="Seven Arrows Recovery is a residential drug and alcohol rehab in Arizona for adults 18 and older — treating alcohol use disorder, opioid and heroin addiction, stimulant use, benzodiazepine dependence, and co-occurring mental health conditions."
+      />
       <AtAGlance />
       <Populations />
       <SubstancesAndConditions />
