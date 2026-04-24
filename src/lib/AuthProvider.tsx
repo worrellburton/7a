@@ -227,10 +227,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, session, pathname]);
 
   const signInWithGoogle = async () => {
+    // Always send OAuth completions to the canonical production app,
+    // not whichever Vercel preview / custom domain the visitor
+    // happens to be on. `NEXT_PUBLIC_SITE_URL` is set to the marketing
+    // domain in production (https://www.sevenarrowsrecoveryarizona.com);
+    // falls back to the current origin in dev / previews if the env
+    // var is missing. The path lands at a server-side callback route
+    // that exchanges the code for a session and forwards to /app.
+    const canonical =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      (typeof window !== 'undefined' ? window.location.origin : '');
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: typeof window !== 'undefined' ? window.location.origin + '/app' : undefined,
+        redirectTo: `${canonical}/auth/callback?next=/app`,
       },
     });
     if (error) {
