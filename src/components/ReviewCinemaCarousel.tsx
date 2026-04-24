@@ -72,11 +72,11 @@ function GoogleIcon({ className = 'w-5 h-5' }: { className?: string }) {
 
 function Stars({ rating }: { rating: number }) {
   return (
-    <div className="flex gap-1" aria-label={`${rating} out of 5 stars`}>
+    <div className="flex gap-0.5 sm:gap-1" aria-label={`${rating} out of 5 stars`}>
       {[1, 2, 3, 4, 5].map((star) => (
         <svg
           key={star}
-          className={`w-5 h-5 ${star <= rating ? 'text-yellow-400 drop-shadow' : 'text-white/20'}`}
+          className={`w-4 h-4 sm:w-5 sm:h-5 ${star <= rating ? 'text-yellow-400 drop-shadow' : 'text-white/20'}`}
           fill="currentColor"
           viewBox="0 0 20 20"
           aria-hidden="true"
@@ -272,7 +272,7 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
                 frame rather than printed on it). A thin accent hairline
                 separates the quote from the author block so the
                 composition reads like a pull-quote on a poster. */}
-            <div className="relative z-10 h-full flex items-center justify-center px-6 sm:px-12 lg:px-24 py-10">
+            <div className="relative z-10 h-full flex items-center justify-center px-6 sm:px-12 lg:px-24 pb-14 pt-52 sm:pt-44 lg:pt-32">
               <div
                 className="relative w-full max-w-3xl text-center text-white"
                 style={{
