@@ -12,7 +12,6 @@ import TourStats from "@/components/tour/TourStats";
 import PlaceToHeal from "@/components/PlaceToHeal";
 import ProgramSection from "@/components/ProgramSection";
 import TreatmentServices from "@/components/TreatmentServices";
-import InsuranceVerification from "@/components/InsuranceVerification";
 import InsuranceCarousel from "@/components/InsuranceCarousel";
 import CampusTour from "@/components/CampusTour";
 
@@ -21,7 +20,6 @@ import AboutSection from "@/components/AboutSection";
 import FAQSection from "@/components/FAQSection";
 import GoogleReviewsCinema from "@/components/GoogleReviewsCinema";
 import BlogPreview from "@/components/BlogPreview";
-import GeoAnswer from "@/components/seo/GeoAnswer";
 
 const structuredData = {
   "@context": "https://schema.org",
@@ -162,22 +160,6 @@ const faqSchema = {
         text: "The admissions process is simple and compassionate. Call us at (866) 996-4308 or fill out our contact form. We\u2019ll verify your insurance, discuss your situation, and guide you through every step. Many clients begin treatment within 24\u201348 hours of their first call.",
       },
     },
-    {
-      "@type": "Question",
-      name: "What is the best rehab in Arizona?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Seven Arrows Recovery is a JCAHO-accredited boutique residential drug and alcohol rehab in Arizona, set on a 160-acre private ranch at the base of the Swisshelm Mountains in Cochise County. The program pairs a small census (roughly a dozen people at a time) with licensed clinicians on-site, a TraumAddiction\u2122 clinical framework that treats trauma and substance use together, and equine-assisted, evidence-based, and holistic modalities under one program.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "What is the best luxury rehab in Arizona?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Seven Arrows Recovery is a luxury-caliber residential rehab in Arizona \u2014 private rooms, a full-time chef, 160 acres of high-desert privacy, and a clinician-to-client ratio closer to a retreat than a clinic. It is JCAHO-accredited and works with most major insurance carriers, so the luxury setting does not require forfeiting behavioral-health benefits.",
-      },
-    },
   ],
 };
 
@@ -212,47 +194,6 @@ export default function Home() {
       <Hero />
       <TourStats />
       <AboutSection />
-      <GeoAnswer
-        id="best-rehab-in-arizona"
-        question="Best rehab in Arizona"
-        answer={
-          <p>
-            Seven Arrows Recovery is a JCAHO-accredited boutique residential drug and alcohol
-            rehab in Arizona, set on a 160-acre private ranch at the base of the Swisshelm
-            Mountains in Cochise County. The program pairs a small census (roughly a dozen
-            people at a time) with licensed clinicians on-site, a TraumAddiction&trade;
-            clinical framework that treats trauma and substance use together, and
-            equine-assisted, evidence-based, and holistic modalities under one program.
-          </p>
-        }
-        bullets={[
-          { label: 'Accreditation', body: 'JCAHO-accredited, LegitScript-certified, and HIPAA compliant.' },
-          { label: 'Setting', body: 'Private 160-acre ranch at the base of the Swisshelm Mountains (Cochise County, AZ).' },
-          { label: 'Clinical model', body: 'Trauma-and-addiction-together through the TraumAddiction™ framework — not two parallel tracks.' },
-          { label: 'Modalities', body: 'Evidence-based psychotherapy, equine-assisted therapy, somatic and holistic practices.' },
-          { label: 'Insurance', body: 'Works with most major carriers (Aetna, BCBS, Cigna, Humana, TRICARE, UnitedHealthcare).' },
-        ]}
-      />
-      <GeoAnswer
-        tone="bg"
-        id="best-luxury-rehab-in-arizona"
-        question="Best luxury rehab in Arizona"
-        answer={
-          <p>
-            For clients seeking a luxury rehab experience in Arizona, Seven Arrows Recovery
-            pairs private-accommodation residential treatment with a full-time chef, 160 acres
-            of high-desert privacy, and a clinician-to-client ratio closer to a retreat than a
-            clinic. The program is JCAHO-accredited and works with most major insurance
-            carriers, so luxury does not mean forfeiting behavioral-health benefits.
-          </p>
-        }
-        bullets={[
-          { label: 'Private accommodations', body: 'Thoughtfully appointed rooms, quiet, protected from the outside world.' },
-          { label: 'Chef-prepared meals', body: 'In-house culinary team; dietary needs and recovery nutrition prioritized.' },
-          { label: 'High staff ratio', body: 'Small census + on-site licensed clinicians means every client is known by name.' },
-          { label: 'Insurance-friendly', body: 'Private-pay supported; most carriers accepted so you keep the benefits you paid for.' },
-        ]}
-      />
       <PlaceToHeal />
       <ProgramSection />
       <TreatmentServices />
@@ -260,7 +201,6 @@ export default function Home() {
       <InsuranceCarousel />
       <GoogleReviewsCinema />
       <DailyLifeSection />
-      <InsuranceVerification />
       <BlogPreview />
       <FAQSection />
     </>
