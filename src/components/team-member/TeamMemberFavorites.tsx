@@ -19,13 +19,11 @@ export default function TeamMemberFavorites({ member }: { member: PublicTeamMemb
   const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.18 });
   const show = inView || reduced;
 
+  // Interesting facts render in TeamMemberFacts (a dedicated master
+  // component mounted alongside this one); don't duplicate them here.
   const hasQuote = Boolean(member.favorite_quote?.trim());
   const hasLove = Boolean(member.favorite_seven_arrows?.trim());
-  const facts = (member.interesting_facts ?? []).filter(
-    (f) => f.answer.trim().length > 0,
-  );
-  const hasFacts = facts.length > 0;
-  if (!hasQuote && !hasLove && !hasFacts) return null;
+  if (!hasQuote && !hasLove) return null;
 
   return (
     <section ref={ref} className="py-20 lg:py-28 bg-warm-bg" aria-labelledby="favorites-heading">
@@ -42,7 +40,6 @@ export default function TeamMemberFavorites({ member }: { member: PublicTeamMemb
           In {member.full_name.split(' ')[0]}&rsquo;s Own Words
         </p>
 
-        {(hasQuote || hasLove) && (
         <div className="grid md:grid-cols-2 gap-5 lg:gap-7 items-stretch">
           {hasQuote && (
             <FavoriteQuoteCard show={show} delay={0.15}>
@@ -56,38 +53,6 @@ export default function TeamMemberFavorites({ member }: { member: PublicTeamMemb
             </FavoriteLoveCard>
           )}
         </div>
-        )}
-
-        {hasFacts && (
-          <div
-            className={`${hasQuote || hasLove ? 'mt-8 lg:mt-10' : ''} grid sm:grid-cols-2 gap-4 lg:gap-5`}
-            style={{
-              opacity: visible ? 1 : 0,
-              transform: visible ? 'translateY(0)' : 'translateY(22px)',
-              transition: 'all 0.95s cubic-bezier(0.16,1,0.3,1) 0.35s',
-            }}
-          >
-            {facts.map((fact, i) => (
-              <article
-                key={`${fact.prompt}-${i}`}
-                className="rounded-2xl p-5 lg:p-6 bg-white border border-black/5"
-              >
-                <p
-                  className="text-[10px] font-semibold tracking-[0.28em] uppercase text-primary/70 mb-2"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  {fact.prompt}
-                </p>
-                <p
-                  className="text-foreground leading-relaxed"
-                  style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(0.95rem, 1.1vw, 1.05rem)' }}
-                >
-                  {fact.answer}
-                </p>
-              </article>
-            ))}
-          </div>
-        )}
       </div>
     </section>
   );

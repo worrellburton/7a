@@ -52,14 +52,39 @@ export default function AdmissionsForm() {
     }));
   }, []);
 
-  function handleSubmit(e: React.FormEvent) {
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // In production, POST to an admissions endpoint that uploads the
-    // card photos to a HIPAA-compliant bucket. For now we treat the
-    // submission as a lead capture — the admissions team will call
-    // back and the photos live in component memory so the "Thank You"
-    // summary can acknowledge receipt.
-    setSubmitted(true);
+    setUploadError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/public/vob', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          phone: formData.phone,
+          email: formData.email,
+          insuranceProvider: formData.insuranceProvider,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        setUploadError(payload.error || `Could not send (HTTP ${res.status}). Please call (866) 996-4308.`);
+        setSubmitting(false);
+        return;
+      }
+      // Card photos stay client-side for now — phase 2 will add the
+      // storage bucket + signed-upload flow. The row in vob_requests
+      // is enough to ensure the admissions team sees this lead.
+      setSubmitted(true);
+    } catch (err) {
+      console.error('[AdmissionsForm] submit threw', err);
+      setUploadError('Could not send. Please call (866) 996-4308.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (submitted) {

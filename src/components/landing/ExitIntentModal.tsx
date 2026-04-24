@@ -180,19 +180,33 @@ export default function ExitIntentModal() {
               no follow-up marketing unless you ask for one.
             </p>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                if (!email.trim()) return;
-                // Integration hook: swap for the real admissions
-                // endpoint when one exists. Until then we pretend-send
-                // and fire an analytics-ready custom event.
+                const trimmed = email.trim();
+                if (!trimmed) return;
+                // Still fire the analytics event for any listeners.
                 try {
                   window.dispatchEvent(
                     new CustomEvent('exit_intent_email_captured', {
-                      detail: { email: email.trim() },
+                      detail: { email: trimmed },
                     }),
                   );
                 } catch {}
+                // Persist to public.form_submissions so exit-intent
+                // captures show up under /app/website-requests/forms.
+                try {
+                  await fetch('/api/public/contact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      source: 'exit_intent',
+                      email: trimmed,
+                      page_url: typeof window !== 'undefined' ? window.location.href : null,
+                    }),
+                  });
+                } catch (err) {
+                  console.error('[ExitIntentModal] submit threw', err);
+                }
                 setSubmitted(true);
               }}
               className="flex flex-col sm:flex-row gap-2"
