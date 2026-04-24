@@ -52,6 +52,48 @@ interface MentionResult {
   error: string | null;
 }
 
+interface EngineScore {
+  engine: EngineId;
+  score: number;
+  total: number;
+  cited: number;
+  mentioned: number;
+  lostToCompetitor: number;
+  errors: number;
+}
+
+interface CategoryScore {
+  category: PromptCategory;
+  score: number;
+  total: number;
+  cited: number;
+  mentioned: number;
+}
+
+interface GeoScore {
+  score: number;
+  grade: 'F' | 'D' | 'C' | 'B' | 'A' | 'A+';
+  headline: string;
+  engines: EngineScore[];
+  categories: CategoryScore[];
+  competitorCitations: { name: string; count: number }[];
+  opportunityPrompts: {
+    promptId: string;
+    text: string;
+    category: PromptCategory;
+    priority: 1 | 2 | 3;
+    visibility: number;
+    impact: number;
+  }[];
+  wins: {
+    promptId: string;
+    text: string;
+    category: PromptCategory;
+    priority: 1 | 2 | 3;
+    visibility: number;
+  }[];
+}
+
 interface AuditResponse {
   ranAt: string;
   durationMs: number;
@@ -71,30 +113,80 @@ interface AuditResponse {
     brandMentioned: number;
     brandCited: number;
   };
+  score?: GeoScore;
+  prompt?: string;
   notice?: string;
+}
+
+interface HistoryPoint {
+  id: string;
+  site: string;
+  score: number;
+  grade: string;
+  engines: string[];
+  durationMs: number;
+  createdAt: string;
 }
 
 export default function AuditContent() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AuditResponse | null>(null);
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<string>('');
   const [estimatedMs, setEstimatedMs] = useState<number>(DEFAULT_DURATION_MS);
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  async function loadHistory() {
+    try {
+      const res = await fetch('/api/geo/audit/history?limit=30', { cache: 'no-store' });
+      if (!res.ok) return;
+      const json = (await res.json()) as { history: HistoryPoint[] };
+      setHistory(json.history ?? []);
+    } catch {
+      // non-fatal
+    }
+  }
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setResult(JSON.parse(raw) as AuditResponse);
-    } catch {
-      // stale / corrupt — ignore
-    }
+
     const stored = Number(window.localStorage.getItem(DURATION_KEY));
     if (Number.isFinite(stored) && stored > 5_000 && stored < 600_000) {
       setEstimatedMs(stored);
     }
+
+    // Prefer the server-persisted latest audit (shared across teammates),
+    // fall back to localStorage if the server has nothing or errors.
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/geo/audit/latest', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as { audit: AuditResponse | null };
+        if (cancelled) return;
+        if (json.audit) {
+          setResult(json.audit);
+          return;
+        }
+      } catch {
+        // fall through to localStorage
+      }
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (raw && !cancelled) setResult(JSON.parse(raw) as AuditResponse);
+      } catch {
+        // stale / corrupt — ignore
+      }
+    })();
+
+    // Kick off history fetch in parallel — it doesn't depend on latest.
+    loadHistory();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(
@@ -152,6 +244,8 @@ export default function AuditContent() {
       } catch {
         // quota — non-fatal
       }
+      // Refresh the history sparkline so the new run appears immediately.
+      loadHistory();
       setStage('Done');
       stopTicker(1);
     } catch (e) {
@@ -206,12 +300,15 @@ export default function AuditContent() {
         <p className="text-sm text-foreground/60 mt-2 max-w-2xl">
           Runs a curated set of admissions-funnel prompts against ChatGPT,
           Perplexity, Claude, and Google AI Overviews, then scores how often
-          Seven Arrows is mentioned and cited.
+          Seven Arrows is mentioned and cited. Each full run takes ~2–4
+          minutes and costs roughly <strong>$2–5</strong> in API credits
+          (mostly from Claude web search and OpenAI).
         </p>
       </div>
 
       <ScoreCard
         summary={result?.summary ?? null}
+        score={result?.score ?? null}
         running={running}
         onRun={runAudit}
         ranAt={result?.ranAt ?? null}
@@ -229,11 +326,21 @@ export default function AuditContent() {
 
       {result?.skippedEngines && result.skippedEngines.length > 0 ? (
         <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <strong>Engines skipped:</strong>{' '}
-          {result.skippedEngines
-            .map((s) => `${ENGINE_LABELS[s.engine]} (${s.reason})`)
-            .join(', ')}
-          . Set the missing keys in Vercel env to include them next run.
+          <p className="font-semibold mb-1">
+            {result.skippedEngines.length} engine
+            {result.skippedEngines.length === 1 ? '' : 's'} skipped
+          </p>
+          <ul className="space-y-0.5 text-xs">
+            {result.skippedEngines.map((s) => (
+              <li key={s.engine}>
+                <strong>{ENGINE_LABELS[s.engine]}</strong> — {s.reason}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-amber-800">
+            Add the missing keys to Vercel env (see <code>.env.example</code>)
+            and re-run to get full 4-engine coverage.
+          </p>
         </div>
       ) : null}
 
@@ -241,6 +348,126 @@ export default function AuditContent() {
         <div className="mt-6 rounded-xl border border-black/10 bg-warm-bg/40 p-4 text-xs text-foreground/60">
           {result.notice}
         </div>
+      ) : null}
+
+      {history.length >= 2 ? (
+        <Panel title="Score over time" className="mt-6">
+          <TrendSparkline points={history} />
+        </Panel>
+      ) : null}
+
+      {result?.score && result.score.engines.length > 0 ? (
+        <Panel title="Visibility by engine" className="mt-6">
+          <div className="space-y-3">
+            {result.score.engines.map((e) => {
+              const color =
+                e.score >= 70
+                  ? 'bg-emerald-500'
+                  : e.score >= 40
+                    ? 'bg-amber-500'
+                    : 'bg-red-500';
+              const txt =
+                e.score >= 70
+                  ? 'text-emerald-600'
+                  : e.score >= 40
+                    ? 'text-amber-600'
+                    : 'text-red-600';
+              return (
+                <div
+                  key={e.engine}
+                  className="border-b border-black/5 pb-3 last:border-b-0 last:pb-0"
+                >
+                  <div className="flex items-baseline gap-3">
+                    <span className="min-w-[150px] text-sm font-semibold text-foreground">
+                      {ENGINE_LABELS[e.engine]}
+                    </span>
+                    <span className={`min-w-[60px] text-sm font-bold ${txt}`}>
+                      {e.score}/100
+                    </span>
+                    <span className="text-xs text-foreground/60 flex-1">
+                      {e.cited} cited · {e.mentioned} mentioned ·{' '}
+                      {e.lostToCompetitor} lost to competitor
+                      {e.errors > 0 ? ` · ${e.errors} errors` : ''}
+                    </span>
+                  </div>
+                  <div className="mt-2 ml-[150px] h-1.5 rounded-full bg-black/5 overflow-hidden">
+                    <div
+                      className={`h-full ${color}`}
+                      style={{ width: `${Math.max(2, e.score)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      ) : null}
+
+      {result?.score && result.score.categories.length > 0 ? (
+        <Panel title="Visibility by funnel category" className="mt-6">
+          <div className="space-y-3">
+            {result.score.categories
+              .slice()
+              .sort((a, b) => b.score - a.score)
+              .map((c) => {
+                const color =
+                  c.score >= 70
+                    ? 'bg-emerald-500'
+                    : c.score >= 40
+                      ? 'bg-amber-500'
+                      : 'bg-red-500';
+                const txt =
+                  c.score >= 70
+                    ? 'text-emerald-600'
+                    : c.score >= 40
+                      ? 'text-amber-600'
+                      : 'text-red-600';
+                return (
+                  <div
+                    key={c.category}
+                    className="border-b border-black/5 pb-3 last:border-b-0 last:pb-0"
+                  >
+                    <div className="flex items-baseline gap-3">
+                      <span className="min-w-[200px] text-sm font-semibold text-foreground">
+                        {CATEGORY_LABELS[c.category]}
+                      </span>
+                      <span className={`min-w-[60px] text-sm font-bold ${txt}`}>
+                        {c.score}/100
+                      </span>
+                      <span className="text-xs text-foreground/60 flex-1">
+                        {c.cited} / {c.total} cited · {c.mentioned} /{' '}
+                        {c.total} mentioned
+                      </span>
+                    </div>
+                    <div className="mt-2 ml-[200px] h-1.5 rounded-full bg-black/5 overflow-hidden">
+                      <div
+                        className={`h-full ${color}`}
+                        style={{ width: `${Math.max(2, c.score)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </Panel>
+      ) : null}
+
+      {result?.score && result.score.competitorCitations.length > 0 ? (
+        <Panel title="Who's winning our queries" className="mt-6">
+          <ul className="space-y-1 text-sm">
+            {result.score.competitorCitations.slice(0, 10).map((c) => (
+              <li
+                key={c.name}
+                className="flex items-baseline gap-3 border-b border-black/5 pb-1 last:border-b-0"
+              >
+                <span className="font-semibold text-foreground">{c.name}</span>
+                <span className="text-foreground/60 text-xs">
+                  cited in {c.count} answer{c.count === 1 ? '' : 's'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
       ) : null}
 
       {result?.engines && result.engines.length > 0 ? (
@@ -348,23 +575,89 @@ export default function AuditContent() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
         <Panel title="What's working">
-          <Empty>Run an audit to see which engines cite us today.</Empty>
+          {result?.score ? (
+            <StrengthList score={result.score} />
+          ) : (
+            <Empty>Run an audit to see which engines cite us today.</Empty>
+          )}
         </Panel>
         <Panel title="What's not">
-          <Empty>
-            Run an audit to see where competitors win or we're invisible.
-          </Empty>
+          {result?.score ? (
+            <WeaknessList score={result.score} />
+          ) : (
+            <Empty>
+              Run an audit to see where competitors win or we&apos;re
+              invisible.
+            </Empty>
+          )}
         </Panel>
       </div>
 
-      <Panel title="Generate Claude prompt" className="mt-6">
-        <Empty>
-          After an audit completes, this section will produce a copy-pasteable
-          prompt you can drop into Claude to improve AI-answer visibility.
-          (Ships in phase 12.)
-        </Empty>
-      </Panel>
+      <ClaudePromptPanel prompt={result?.prompt ?? null} running={running} />
     </div>
+  );
+}
+
+function ClaudePromptPanel({
+  prompt,
+  running,
+}: {
+  prompt: string | null;
+  running: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      const ta = document.getElementById('geo-claude-prompt') as
+        | HTMLTextAreaElement
+        | null;
+      if (ta) {
+        ta.select();
+        document.execCommand('copy');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    }
+  }
+
+  return (
+    <Panel title="Generate Claude prompt" className="mt-6">
+      {prompt ? (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-foreground/60">
+              Paste this into Claude to turn the audit into a content + schema
+              sprint.
+            </p>
+            <button
+              type="button"
+              onClick={copy}
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+            >
+              {copied ? 'Copied!' : 'Copy prompt'}
+            </button>
+          </div>
+          <textarea
+            id="geo-claude-prompt"
+            readOnly
+            value={prompt}
+            className="w-full h-72 rounded-lg border border-black/10 bg-warm-bg/30 p-3 font-mono text-[11px] text-foreground/80 leading-relaxed resize-y"
+          />
+        </div>
+      ) : (
+        <Empty>
+          {running
+            ? 'Building prompt…'
+            : 'After an audit completes, this section will produce a copy-pasteable prompt you can drop into Claude to improve AI-answer visibility.'}
+        </Empty>
+      )}
+    </Panel>
   );
 }
 
@@ -434,6 +727,7 @@ function EngineChip({
 
 function ScoreCard({
   summary,
+  score,
   running,
   onRun,
   ranAt,
@@ -443,6 +737,7 @@ function ScoreCard({
   estimatedMs,
 }: {
   summary: AuditResponse['summary'] | null;
+  score: GeoScore | null;
   running: boolean;
   onRun: () => void;
   ranAt: string | null;
@@ -452,18 +747,23 @@ function ScoreCard({
   estimatedMs: number;
 }) {
   const hasResult = summary != null && summary.total > 0;
-  const citeRate = hasResult ? summary!.brandCited / summary!.total : 0;
-  const mentionRate = hasResult ? summary!.brandMentioned / summary!.total : 0;
-  // Headline rate: mostly citation-driven, small bump from bare mentions.
-  const headlinePct = hasResult
-    ? Math.round((citeRate * 0.8 + mentionRate * 0.2) * 100)
-    : null;
+  // Prefer the weighted score from the aggregator. Fall back to a
+  // quick rate-based headline if we only have a legacy localStorage
+  // result with no `score` field yet.
+  const headlinePct = score?.score ?? (
+    hasResult
+      ? Math.round(
+          (summary!.brandCited / summary!.total) * 80 +
+          (summary!.brandMentioned / summary!.total) * 20,
+        )
+      : null
+  );
   const color =
     headlinePct == null
       ? 'text-foreground/30'
-      : headlinePct >= 60
+      : headlinePct >= 70
         ? 'text-emerald-600'
-        : headlinePct >= 30
+        : headlinePct >= 40
           ? 'text-amber-600'
           : 'text-red-600';
 
@@ -478,14 +778,18 @@ function ScoreCard({
         </div>
         <div className="text-[10px] font-semibold tracking-[0.22em] uppercase text-foreground/50 mt-2">
           visibility
+          {score?.grade ? (
+            <span className="ml-1 text-foreground/70">· {score.grade}</span>
+          ) : null}
         </div>
       </div>
       <div className="flex-1 min-w-0">
         <h2 className="text-base font-bold text-foreground mb-1">GEO visibility</h2>
         <p className="text-sm text-foreground/60">
-          {hasResult
-            ? `Cited on ${summary!.brandCited} / ${summary!.total} calls · mentioned on ${summary!.brandMentioned} / ${summary!.total}. Weighted 0-100 score lands in phase 10.`
-            : 'Weighted score across four AI answer engines. Rewards citations over bare mentions.'}
+          {score?.headline ??
+            (hasResult
+              ? `Cited on ${summary!.brandCited} / ${summary!.total} calls · mentioned on ${summary!.brandMentioned} / ${summary!.total}.`
+              : 'Weighted score across four AI answer engines. Citation position drives the score — first citation is worth 100, position 6+ is 60.')}
         </p>
         <button
           type="button"
@@ -522,6 +826,261 @@ function ScoreCard({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function TrendSparkline({ points }: { points: HistoryPoint[] }) {
+  // Clamp domain to 0-100 so the curve is always comparable run over
+  // run (without this, a series of all-low scores looks "healthy"
+  // because the y-axis auto-scales).
+  const width = 720;
+  const height = 140;
+  const padX = 24;
+  const padY = 10;
+  const innerW = width - padX * 2;
+  const innerH = height - padY * 2;
+
+  const xs = points.map((_, i) =>
+    points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW,
+  );
+  const ys = points.map((p) => innerH - (Math.max(0, Math.min(100, p.score)) / 100) * innerH);
+  const path = xs
+    .map((x, i) => `${i === 0 ? 'M' : 'L'} ${(padX + x).toFixed(1)} ${(padY + ys[i]).toFixed(1)}`)
+    .join(' ');
+
+  const latest = points[points.length - 1];
+  const first = points[0];
+  const delta = latest.score - first.score;
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3 mb-2">
+        <p className="text-xs text-foreground/60">
+          <strong>{points.length}</strong> runs · latest{' '}
+          <strong>{latest.score}</strong> · {delta === 0 ? 'no change' : delta > 0 ? `+${delta} since first` : `${delta} since first`}
+        </p>
+        <p className="text-[10px] text-foreground/40">
+          {new Date(first.createdAt).toLocaleDateString()} →{' '}
+          {new Date(latest.createdAt).toLocaleDateString()}
+        </p>
+      </div>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        className="w-full h-40"
+      >
+        {/* 0 / 50 / 100 reference lines */}
+        {[0, 50, 100].map((v) => {
+          const y = padY + innerH - (v / 100) * innerH;
+          return (
+            <g key={v}>
+              <line
+                x1={padX}
+                x2={width - padX}
+                y1={y}
+                y2={y}
+                stroke="currentColor"
+                strokeOpacity={v === 50 ? 0.1 : 0.05}
+                strokeDasharray={v === 50 ? '4 4' : '0'}
+              />
+              <text
+                x={padX - 4}
+                y={y + 3}
+                fontSize="9"
+                textAnchor="end"
+                className="fill-current text-foreground/40"
+              >
+                {v}
+              </text>
+            </g>
+          );
+        })}
+        {/* Line */}
+        <path d={path} fill="none" className="stroke-primary" strokeWidth="2" />
+        {/* Dots */}
+        {points.map((p, i) => {
+          const color =
+            p.score >= 70
+              ? 'fill-emerald-500'
+              : p.score >= 40
+                ? 'fill-amber-500'
+                : 'fill-red-500';
+          return (
+            <circle
+              key={p.id}
+              cx={padX + xs[i]}
+              cy={padY + ys[i]}
+              r={i === points.length - 1 ? 4 : 2.5}
+              className={color}
+            >
+              <title>
+                {new Date(p.createdAt).toLocaleString()} · {p.score}/100 ({p.grade})
+              </title>
+            </circle>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function StrengthList({ score }: { score: GeoScore }) {
+  const strongEngines = score.engines.filter((e) => e.score >= 70);
+  const strongCategories = score.categories.filter((c) => c.score >= 70);
+  const topWins = score.wins.slice(0, 8);
+
+  if (
+    strongEngines.length === 0 &&
+    strongCategories.length === 0 &&
+    topWins.length === 0
+  ) {
+    return (
+      <Empty>
+        No category or engine is scoring &gt;=70 yet. Once you fix issues in
+        &quot;What&apos;s not&quot;, this panel will fill with the wins to
+        protect.
+      </Empty>
+    );
+  }
+
+  return (
+    <ul className="space-y-3 text-sm">
+      {strongEngines.map((e) => (
+        <li key={`eng-${e.engine}`}>
+          <span className="inline-block min-w-[44px] mr-2 rounded bg-emerald-100 text-emerald-700 px-1.5 py-0.5 text-[11px] font-bold text-center">
+            {e.score}
+          </span>
+          <strong>{ENGINE_LABELS[e.engine]}.</strong>{' '}
+          <span className="text-foreground/70">
+            Cited on {e.cited} of {e.total} tracked queries.
+          </span>
+        </li>
+      ))}
+      {strongCategories.map((c) => (
+        <li key={`cat-${c.category}`}>
+          <span className="inline-block min-w-[44px] mr-2 rounded bg-emerald-100 text-emerald-700 px-1.5 py-0.5 text-[11px] font-bold text-center">
+            {c.score}
+          </span>
+          <strong>{CATEGORY_LABELS[c.category]}.</strong>{' '}
+          <span className="text-foreground/70">
+            {c.cited} cited + {c.mentioned} mentioned across {c.total} answers.
+          </span>
+        </li>
+      ))}
+      {topWins.length > 0 ? (
+        <li className="pt-2 mt-1 border-t border-black/5">
+          <p className="text-[10px] font-semibold tracking-wider uppercase text-foreground/50 mb-2">
+            Queries we&apos;re winning
+          </p>
+          <ul className="space-y-1.5 text-xs">
+            {topWins.map((w) => (
+              <li key={w.promptId}>
+                <span className="inline-block min-w-[34px] mr-2 rounded bg-emerald-100 text-emerald-700 px-1 py-0.5 text-[10px] font-bold text-center">
+                  {w.visibility}
+                </span>
+                <span className="text-foreground/80">{w.text}</span>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ) : null}
+    </ul>
+  );
+}
+
+function WeaknessList({ score }: { score: GeoScore }) {
+  const top = score.opportunityPrompts.slice(0, 12);
+  const weakEngines = score.engines
+    .filter((e) => e.score < 40)
+    .sort((a, b) => a.score - b.score);
+  const weakCategories = score.categories
+    .filter((c) => c.score < 40)
+    .sort((a, b) => a.score - b.score);
+
+  if (top.length === 0 && weakEngines.length === 0 && weakCategories.length === 0) {
+    return (
+      <Empty>
+        Nothing is below the opportunity threshold. If you ran a full audit
+        and still see this, the score is genuinely good — congrats.
+      </Empty>
+    );
+  }
+
+  return (
+    <ul className="space-y-3 text-sm">
+      {weakCategories.map((c) => (
+        <li key={`cat-${c.category}`}>
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700">
+              category
+            </span>
+            <span className="text-[10px] font-semibold tracking-wider uppercase text-foreground/50">
+              {CATEGORY_LABELS[c.category]}
+            </span>
+            <span className="text-[10px] text-foreground/50">
+              ({c.score}/100)
+            </span>
+          </div>
+          <p className="text-foreground/80">
+            Only {c.cited} of {c.total} answers in this funnel stage cite us.
+            Prioritize content and schema for these queries.
+          </p>
+        </li>
+      ))}
+      {weakEngines.map((e) => (
+        <li key={`eng-${e.engine}`}>
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700">
+              engine
+            </span>
+            <span className="text-[10px] font-semibold tracking-wider uppercase text-foreground/50">
+              {ENGINE_LABELS[e.engine]}
+            </span>
+            <span className="text-[10px] text-foreground/50">
+              ({e.score}/100)
+            </span>
+          </div>
+          <p className="text-foreground/80">
+            Lost to competitor on {e.lostToCompetitor} of {e.total} queries.
+            Publish grounding content that this engine reliably surfaces.
+          </p>
+        </li>
+      ))}
+      {top.length > 0 ? (
+        <li className="pt-2 mt-1 border-t border-black/5">
+          <p className="text-[10px] font-semibold tracking-wider uppercase text-foreground/50 mb-2">
+            Highest-impact prompts to fix
+          </p>
+          <ul className="space-y-2 text-xs">
+            {top.map((p) => (
+              <li key={p.promptId}>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span
+                    className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                      p.priority === 1
+                        ? 'bg-red-100 text-red-700'
+                        : p.priority === 2
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-black/5 text-foreground/60'
+                    }`}
+                    title={`priority ${p.priority}`}
+                  >
+                    P{p.priority}
+                  </span>
+                  <span className="text-[10px] font-semibold tracking-wider uppercase text-foreground/50">
+                    {CATEGORY_LABELS[p.category]}
+                  </span>
+                  <span className="text-[10px] text-foreground/50">
+                    visibility {p.visibility} · impact {p.impact}
+                  </span>
+                </div>
+                <p className="text-foreground/80">{p.text}</p>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ) : null}
+    </ul>
   );
 }
 
