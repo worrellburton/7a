@@ -257,9 +257,17 @@ export default function PagesContent() {
     });
   }
 
+  function ungroupPage(path: string) {
+    const page = pages.find((p) => p.path === path);
+    if (!page) return;
+    setPageDepartmentGroup(path, null);
+    showToast(`${page.label} moved back to top of sidebar`);
+  }
+
   function renderRow(page: PageConfig, indented = false) {
     const locked = page.path === '/app/team' || page.path === '/app/pages';
     const restricted = page.allowedDepartments.length > 0;
+    const grouped = Boolean(page.departmentId);
     return (
       <div
         key={page.path}
@@ -277,6 +285,24 @@ export default function PagesContent() {
           <p className="text-sm font-medium text-foreground">{page.label}</p>
           <p className="text-xs text-foreground/30 font-mono">{page.path}</p>
         </div>
+
+        {/* Move-back-to-top affordance — visible only on pages that
+            currently sit inside a department group, so admins don't
+            need to drag-and-drop to undo a grouping. */}
+        {grouped && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); ungroupPage(page.path); }}
+            title="Move out of this group (back to top of sidebar)"
+            aria-label={`Move ${page.label} out of group`}
+            className="shrink-0 w-7 h-7 inline-flex items-center justify-center rounded border border-black/10 bg-white text-foreground/45 hover:text-primary hover:border-primary/40 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="11 17 6 12 11 7" />
+              <line x1="6" y1="12" x2="20" y2="12" />
+            </svg>
+          </button>
+        )}
 
         {/* Super Admin Only toggle */}
         <div className="shrink-0 w-20 flex justify-center">
