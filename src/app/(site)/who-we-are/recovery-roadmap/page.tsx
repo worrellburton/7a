@@ -122,6 +122,47 @@ export default function RecoveryRoadmapPage() {
             </div>
           </Link>
 
+          {/* Episode 3 — Published */}
+          <Link
+            href="/who-we-are/blog/what-actually-happens-in-equine-therapy"
+            className="flex flex-col md:flex-row bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group no-underline mb-8"
+          >
+            <div className="relative md:w-80 shrink-0">
+              <img src="/images/equine-therapy-portrait.jpg" alt="What Actually Happens in Equine Therapy" className="h-56 md:h-full w-full object-cover" loading="lazy" />
+              <div className="absolute top-4 left-4 bg-primary text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md" style={{ fontFamily: 'var(--font-body)' }}>
+                Episode 3
+              </div>
+            </div>
+            <div className="p-6 lg:p-8 flex flex-col justify-center">
+              <div className="flex items-center gap-3 mb-3">
+                <span
+                  className="text-primary text-xs font-semibold uppercase tracking-wider"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Recovery Roadmap
+                </span>
+                <span className="text-foreground/40 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
+                  April 24, 2026
+                </span>
+              </div>
+              <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 group-hover:text-primary transition-colors">
+                What Actually Happens in Equine Therapy
+              </h3>
+              <p
+                className="text-foreground/70 leading-relaxed text-sm mb-4"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                The honest, minute-by-minute version of equine therapy &mdash; no marketing gloss, no horse-whispering mystique. Just what really happens in the arena and why it reaches places talk therapy sometimes cannot.
+              </p>
+              <span
+                className="inline-block text-primary font-semibold text-sm tracking-wide uppercase"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Read Episode 3 &rarr;
+              </span>
+            </div>
+          </Link>
+
         </div>
       </section>
 

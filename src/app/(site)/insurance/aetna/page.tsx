@@ -9,6 +9,42 @@ export const metadata: Metadata = {
 import Link from 'next/link';
 
 import PageHero from '@/components/PageHero';
+import GeoAnswer from '@/components/seo/GeoAnswer';
+import { faqPageSchema, medicalWebPageSchema, jsonLdScript } from '@/lib/seo/pageSchema';
+
+const faqJsonLd = faqPageSchema([
+  {
+    q: 'Is Seven Arrows Recovery a rehab in Arizona that accepts Aetna?',
+    a: 'Yes. Seven Arrows Recovery is a JCAHO-accredited residential drug and alcohol rehab in Cochise County, Arizona that works with most Aetna plans as an out-of-network provider. Our admissions team verifies benefits for free and manages pre-authorization.',
+  },
+  {
+    q: 'Does Aetna cover drug and alcohol rehab?',
+    a: 'Yes. Under the Mental Health Parity and Addiction Equity Act, Aetna is required to cover substance use treatment at parity with medical/surgical benefits. Typical coverage includes residential inpatient, outpatient therapy, and medication-assisted treatment.',
+  },
+  {
+    q: 'How much does rehab cost with Aetna insurance?',
+    a: 'Out-of-pocket depends on your specific Aetna plan (deductible, copay, coinsurance). Many Aetna members pay little to nothing for addiction treatment. Call (866) 996-4308 for a free, confidential benefits verification.',
+  },
+  {
+    q: 'How long will Aetna cover residential rehab?',
+    a: 'Aetna typically covers 30 to 90 days of residential addiction treatment based on medical necessity. Concurrent reviews happen during treatment. Our clinical team works directly with Aetna to document medical necessity for each stay.',
+  },
+  {
+    q: 'Does Aetna require pre-authorization for rehab?',
+    a: 'Most Aetna plans require pre-authorization for residential addiction treatment. Seven Arrows handles pre-authorization paperwork on your behalf so admission is not delayed.',
+  },
+]);
+
+const webPageJsonLd = medicalWebPageSchema({
+  url: 'https://sevenarrowsrecovery.com/insurance/aetna',
+  name: 'Rehabs in Arizona that accept Aetna — Seven Arrows Recovery',
+  description:
+    'Aetna insurance coverage for drug and alcohol rehab at Seven Arrows Recovery, a JCAHO-accredited residential addiction treatment program in Cochise County, Arizona.',
+  about: [
+    { type: 'MedicalCondition', name: 'Substance Use Disorder' },
+    { type: 'MedicalTherapy', name: 'Residential Addiction Treatment' },
+  ],
+});
 
 const coverageItems = [
   {
@@ -73,6 +109,8 @@ const steps = [
 export default function InsuranceAetnaPage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(faqJsonLd)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(webPageJsonLd)} />
       <PageHero
         label="Insurance Coverage"
         title={[
@@ -95,6 +133,30 @@ export default function InsuranceAetnaPage() {
           { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
         ]}
         image="/images/embrace-connection.jpg"
+      />
+
+      <GeoAnswer
+        id="rehabs-in-arizona-that-accept-aetna"
+        question="Rehabs in Arizona that accept Aetna"
+        answer={
+          <p>
+            Seven Arrows Recovery is a JCAHO-accredited residential drug and alcohol rehab in
+            Arizona that works with most Aetna plans as an out-of-network provider. Under the
+            Mental Health Parity and Addiction Equity Act, Aetna is required to cover
+            substance-use treatment at the same level as medical and surgical care. Our
+            admissions team verifies benefits for free and handles pre-authorization directly.
+          </p>
+        }
+        bullets={[
+          { label: 'What Aetna typically covers', body: 'Residential inpatient treatment, individual &amp; group therapy, medication-assisted treatment, family sessions, aftercare.' },
+          { label: 'Out-of-pocket', body: 'Depends on your specific Aetna plan &mdash; deductible, copay, and coinsurance. Many members pay little to nothing. Free benefits check: (866) 996-4308.' },
+          { label: 'Pre-authorization', body: 'Most Aetna plans require pre-auth for residential; our admissions team manages the entire process on your behalf.' },
+          { label: 'Length of stay', body: 'Aetna typically approves 30&ndash;90 days of residential based on medical necessity, with concurrent reviews.' },
+        ]}
+        sources={[
+          { label: 'Mental Health Parity and Addiction Equity Act (CMS)', href: 'https://www.cms.gov/marketplace/private-health-insurance/mental-health-parity-addiction-equity' },
+          { label: 'SAMHSA — paying for treatment', href: 'https://www.samhsa.gov/find-help/paying-for-treatment' },
+        ]}
       />
 
       {/* Aetna Coverage Overview */}
