@@ -401,11 +401,6 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M7 15l4-6 4 4 5-9" />
     </svg>
   ),
-  '/app/research': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3h4.875c.621 0 1.125-.504 1.125-1.125V11.25c0-1.243-1.007-2.25-2.25-2.25H8.25c-1.243 0-2.25 1.007-2.25 2.25v9a1.125 1.125 0 001.125 1.125z" />
-    </svg>
-  ),
   '/app/video': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="6" width="14" height="12" rx="2" />
