@@ -303,8 +303,12 @@ body {
   }
 }
 
-/* Smooth scrolling */
-html {
+/* In-page anchor links get a smooth scroll when one is clicked on
+   the current page. Route changes should land at the top of the new
+   page instantly (not animate the old page's scrollTop to 0), so we
+   scope this to :target instead of applying scroll-behavior globally
+   on <html>. */
+html:has(:target) {
   scroll-behavior: smooth;
 }
 

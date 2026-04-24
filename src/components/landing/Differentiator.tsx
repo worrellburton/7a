@@ -45,18 +45,18 @@ function makeDims(persona: 'self' | 'loved_one' | null): Dim[] {
       note: 'This is the single biggest difference in how we sequence care.',
     },
     {
-      label: 'Client-to-staff ratio',
+      label: 'Census and caseload',
       left: {
         label: 'Typical residential',
         pct: 20,
-        note: '15:1 or 20:1 is common at higher-volume programs. Care drifts toward the loudest case.',
+        note: 'Large-census programs with high caseloads. Care drifts toward the loudest case, and your primary clinician rotates.',
       },
       right: {
         label: 'Seven Arrows',
         pct: 92,
-        note: 'Small by design. You are not a case load — you are a specific person in a small room, with a dedicated primary clinician.',
+        note: 'Small by design. You are not a case load — you are a specific person in a small room, with a dedicated primary clinician from day one.',
       },
-      note: 'A deliberately low client-to-staff ratio is not a marketing number. It is the reason individual attention is possible.',
+      note: 'A deliberately small census is not a marketing number. It is the reason individual attention is possible.',
     },
     {
       label: 'Length-of-stay flexibility',
