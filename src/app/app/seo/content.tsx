@@ -30,6 +30,39 @@ interface RankResponse {
   notice?: string;
 }
 
+export interface FitRow {
+  keyword_id: string;
+  score: number;
+  bucket: 'strong' | 'good' | 'partial' | 'weak' | 'none';
+  best_url: string | null;
+  best_h1: string | null;
+  best_title: string | null;
+  breakdown: Record<string, unknown> | null;
+  scanned_at?: string | null;
+}
+
+interface FitListResponse {
+  rows: FitRow[];
+  lastScannedAt: string | null;
+}
+
+interface FitScanResponse {
+  origin: string;
+  pagesCrawled: number;
+  keywords: number;
+  durationMs: number;
+  fits: Array<{
+    keyword_id: string;
+    keyword_text: string;
+    score: number;
+    bucket: FitRow['bucket'];
+    best_url: string | null;
+    best_h1: string | null;
+    best_title: string | null;
+    breakdown: Record<string, unknown> | null;
+  }>;
+}
+
 interface GscResponse {
   range: { startDate: string; endDate: string; days: number };
   site: string;
@@ -67,6 +100,13 @@ export default function SeoContent() {
   const [ranksLoading, setRanksLoading] = useState(false);
   const [ranksError, setRanksError] = useState<string | null>(null);
 
+  // Current-fit card state — one row per keyword with a score from
+  // the live-site scanner (H1/title/URL/meta/body match).
+  const [fits, setFits] = useState<Record<string, FitRow>>({});
+  const [fitsLastScannedAt, setFitsLastScannedAt] = useState<string | null>(null);
+  const [fitsLoading, setFitsLoading] = useState(false);
+  const [fitsError, setFitsError] = useState<string | null>(null);
+
   // Hydrate cached rank data so the card shows immediately on reload.
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -77,6 +117,64 @@ export default function SeoContent() {
       // stale / corrupt — ignore
     }
   }, []);
+
+  // Hydrate current-fit data from Supabase on mount. This is admin-
+  // gated so we can't cache in localStorage (staff collaborate) —
+  // single-select is cheap enough to refetch every visit.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/seo/keywords/fit', { cache: 'no-store', credentials: 'include' })
+      .then(async (r) => {
+        if (!r.ok) return null;
+        return (await r.json()) as FitListResponse;
+      })
+      .then((json) => {
+        if (cancelled || !json) return;
+        const map: Record<string, FitRow> = {};
+        for (const row of json.rows) map[row.keyword_id] = row;
+        setFits(map);
+        setFitsLastScannedAt(json.lastScannedAt);
+      })
+      .catch(() => { /* non-fatal — scan button still works */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function runFitScan() {
+    setFitsLoading(true);
+    setFitsError(null);
+    try {
+      const res = await fetch('/api/seo/keywords/fit/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+        cache: 'no-store',
+        credentials: 'include',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
+      const payload = json as FitScanResponse;
+      const map: Record<string, FitRow> = {};
+      const now = new Date().toISOString();
+      for (const f of payload.fits) {
+        map[f.keyword_id] = {
+          keyword_id: f.keyword_id,
+          score: f.score,
+          bucket: f.bucket,
+          best_url: f.best_url,
+          best_h1: f.best_h1,
+          best_title: f.best_title,
+          breakdown: f.breakdown,
+          scanned_at: now,
+        };
+      }
+      setFits(map);
+      setFitsLastScannedAt(now);
+    } catch (e) {
+      setFitsError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFitsLoading(false);
+    }
+  }
 
   async function checkRankings() {
     setRanksLoading(true);
@@ -267,6 +365,11 @@ export default function SeoContent() {
         loading={ranksLoading}
         error={ranksError}
         onCheck={checkRankings}
+        fits={fits}
+        fitsLoading={fitsLoading}
+        fitsError={fitsError}
+        fitsLastScannedAt={fitsLastScannedAt}
+        onRunFitScan={runFitScan}
       />
 
       {data?.fetched_at ? (
@@ -283,11 +386,21 @@ function KeywordResearchCard({
   loading,
   error,
   onCheck,
+  fits,
+  fitsLoading,
+  fitsError,
+  fitsLastScannedAt,
+  onRunFitScan,
 }: {
   ranks: RankResponse | null;
   loading: boolean;
   error: string | null;
   onCheck: () => void;
+  fits: Record<string, FitRow>;
+  fitsLoading: boolean;
+  fitsError: string | null;
+  fitsLastScannedAt: string | null;
+  onRunFitScan: () => void;
 }) {
   const [collapsed, setCollapsed] = useState<Record<KeywordCategory, boolean>>({
     location: false,
@@ -334,18 +447,33 @@ function KeywordResearchCard({
             lands in the top 100 for each.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onCheck}
-          disabled={loading}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading
-            ? 'Checking…'
-            : ranks
-              ? 'Re-check rankings'
-              : 'Check rankings'}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={onRunFitScan}
+            disabled={fitsLoading}
+            title="Crawl the public site and score every keyword against H1 / title / URL / meta / body content"
+            className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-white px-3 py-2 text-xs font-semibold text-primary hover:bg-primary hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {fitsLoading
+              ? 'Scanning site…'
+              : fitsLastScannedAt
+                ? 'Re-scan site fit'
+                : 'Scan site fit'}
+          </button>
+          <button
+            type="button"
+            onClick={onCheck}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading
+              ? 'Checking…'
+              : ranks
+                ? 'Re-check rankings'
+                : 'Check rankings'}
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -373,16 +501,30 @@ function KeywordResearchCard({
         </div>
       ) : null}
 
+      {fitsError ? (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+          <strong>Fit scan failed:</strong> {fitsError}
+        </div>
+      ) : null}
+
       {ranks?.notice ? (
         <p className="mt-4 text-[11px] text-foreground/50">
           Last check {new Date(ranks.ranAt).toLocaleString()} · {ranks.notice}
         </p>
       ) : null}
 
+      {fitsLastScannedAt ? (
+        <p className="mt-2 text-[11px] text-foreground/50">
+          Fit last scanned {new Date(fitsLastScannedAt).toLocaleString()}
+        </p>
+      ) : null}
+
       <p className="mt-3 text-[11px] text-foreground/40">
         Volume + difficulty are curated estimates (Google Keyword Planner
         ranges + industry benchmarks). Rank is live from Google via SerpAPI
-        when the key is set.
+        when the key is set. <strong>Current fit</strong> crawls the live
+        site and scores each keyword against H1 / title / URL / meta / body
+        content (0 = nothing on-page targets it, 100 = exact H1 match).
       </p>
 
       <div className="mt-5 space-y-5">
@@ -433,12 +575,14 @@ function KeywordResearchCard({
                         <th className="py-2 px-2 text-right w-24">Volume</th>
                         <th className="py-2 px-2 text-center w-24">Difficulty</th>
                         <th className="py-2 px-2 text-center w-16">Pri.</th>
+                        <th className="py-2 px-2 text-center w-28">Current fit</th>
                         <th className="py-2 pl-2 text-right w-28">Rank</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-black/5">
                       {list.map((k) => {
                         const r = rankMap.get(k.id);
+                        const fit = fits[k.id];
                         return (
                           <tr key={k.id}>
                             <td
@@ -460,6 +604,9 @@ function KeywordResearchCard({
                             </td>
                             <td className="py-2 px-2 text-center">
                               <PriorityPill p={k.priority} />
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <FitCell row={fit} loading={fitsLoading} />
                             </td>
                             <td className="py-2 pl-2 text-right">
                               <RankCell row={r} loading={loading} />
@@ -565,6 +712,49 @@ function RankCell({
       #{row.rank}
     </a>
   );
+}
+
+function FitCell({ row, loading }: { row: FitRow | undefined; loading: boolean }) {
+  if (!row) {
+    return <span className="text-foreground/40">{loading ? '…' : '—'}</span>;
+  }
+  const tone =
+    row.bucket === 'strong'
+      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      : row.bucket === 'good'
+        ? 'bg-lime-50 text-lime-800 border-lime-200'
+        : row.bucket === 'partial'
+          ? 'bg-amber-50 text-amber-800 border-amber-200'
+          : row.bucket === 'weak'
+            ? 'bg-orange-50 text-orange-800 border-orange-200'
+            : 'bg-red-50 text-red-700 border-red-200';
+  const tooltipParts: string[] = [`Score: ${row.score}/100`];
+  if (row.best_h1) tooltipParts.push(`Best H1: "${row.best_h1}"`);
+  if (row.best_title) tooltipParts.push(`Best title: "${row.best_title}"`);
+  if (row.best_url) tooltipParts.push(`Best page: ${row.best_url}`);
+  const title = tooltipParts.join('\n');
+  const inner = (
+    <span
+      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${tone}`}
+    >
+      <span className="tabular-nums">{row.score}</span>
+      <span>{row.bucket}</span>
+    </span>
+  );
+  if (row.best_url) {
+    return (
+      <a
+        href={row.best_url}
+        target="_blank"
+        rel="noreferrer"
+        title={title}
+        className="hover:opacity-80 transition"
+      >
+        {inner}
+      </a>
+    );
+  }
+  return <span title={title}>{inner}</span>;
 }
 
 function prettyPath(url: string): string {
