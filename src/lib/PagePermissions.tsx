@@ -45,7 +45,6 @@ const defaultPages: PageConfig[] = [
   { path: '/app/seo', label: 'SEO', adminOnly: false, section: 'nav', sort_order: 20, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/geo', label: 'GEO', adminOnly: false, section: 'nav', sort_order: 21, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/analytics', label: 'Analytics', adminOnly: false, section: 'nav', sort_order: 22, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/research', label: 'Research', adminOnly: false, section: 'nav', sort_order: 23, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/images', label: 'Images', adminOnly: false, section: 'nav', sort_order: 18, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
   { path: '/app/video', label: 'Video', adminOnly: false, section: 'nav', sort_order: 19, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
   { path: '/app/website-requests', label: 'Website Requests', adminOnly: true, section: 'nav', sort_order: 23, allowedDepartments: [], departmentId: null },
