@@ -60,13 +60,35 @@ export async function middleware(req: NextRequest) {
   // Build the destination. Relative `to` stays on the current host;
   // absolute URLs (http://…) pass through untouched.
   let destination: string;
+  let destinationPath: string | null = null;
   if (/^https?:\/\//i.test(hit.to)) {
     destination = hit.to;
+    try {
+      const u = new URL(hit.to);
+      // Only guard same-host loops; cross-origin redirects are always
+      // safe because the origin changes.
+      if (u.host === req.nextUrl.host) destinationPath = u.pathname;
+    } catch {
+      // Malformed absolute URL — treat as external and let the browser
+      // report the error rather than silently dropping the redirect.
+    }
   } else {
     const url = req.nextUrl.clone();
     url.pathname = hit.to;
     url.search = search; // preserve ?utm= etc.
     destination = url.toString();
+    destinationPath = hit.to;
+  }
+
+  // Self-loop guard: if the destination resolves to the same path on
+  // the same host (with/without trailing slash), pass through instead
+  // of redirecting. Catches misconfigured `/ -> /` or
+  // `/foo -> /foo/` rows without waiting for a cache bust.
+  if (destinationPath) {
+    const norm = (p: string) => (p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p);
+    if (norm(destinationPath) === norm(pathname)) {
+      return NextResponse.next();
+    }
   }
 
   // Fire-and-forget hit counter — non-blocking so the redirect is

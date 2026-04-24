@@ -58,6 +58,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 
+  // Self-loop guard. When the admin edits only one side we have to
+  // read the other side off the existing row to compare.
+  if (patch.from_path || patch.to_path) {
+    const admin = getAdminSupabase();
+    const { data: existing } = await admin
+      .from('redirects')
+      .select('from_path, to_path')
+      .eq('id', id)
+      .maybeSingle();
+    const nextFrom = (patch.from_path as string | undefined) ?? existing?.from_path;
+    const nextTo = (patch.to_path as string | undefined) ?? existing?.to_path;
+    if (nextFrom && nextTo) {
+      const norm = (p: string) => (p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p);
+      if (norm(nextFrom) === norm(nextTo) && !/^https?:\/\//i.test(nextTo)) {
+        return NextResponse.json({ error: 'from_path and to_path would be identical — this would create a redirect loop' }, { status: 400 });
+      }
+    }
+  }
+
   const admin = getAdminSupabase();
   const { data, error } = await admin
     .from('redirects')

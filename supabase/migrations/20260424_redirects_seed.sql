@@ -7,8 +7,9 @@
 -- clobber admin edits that happen after first apply.
 
 insert into public.redirects (from_path, to_path, status_code, notes) values
-  -- Core pages
-  ('/', '/', 301, 'Home'),
+  -- Core pages. No '/' -> '/' row — that's a self-loop and the
+  -- middleware would redirect forever. The homepage stays as the
+  -- natural Next.js route.
   ('/admissions/', '/admissions', 301, null),
   ('/contact/', '/contact', 301, null),
   ('/tour/', '/tour', 301, null),
