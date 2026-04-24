@@ -96,7 +96,7 @@ function jobRank(jobTitle: string | null): number {
 const EXTENDED_SELECT =
   'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, hometown, interesting_facts, public_slug, status, public_team, team_page_order';
 const FULL_SELECT =
-  'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, public_slug, status, public_team, team_page_order';
+  'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, hometown, interesting_facts, public_slug, status, public_team, team_page_order';
 const MINIMAL_SELECT = 'id, full_name, job_title, avatar_url, bio, public_slug, status, public_team';
 
 type TeamRow = {
