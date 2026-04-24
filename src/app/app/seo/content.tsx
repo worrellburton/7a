@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 interface GscResponse {
@@ -77,15 +78,23 @@ export default function SeoContent() {
             Top queries, top pages, and how the site is performing in Google results.
           </p>
         </div>
-        <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="text-sm rounded-lg border border-black/10 bg-white px-3 py-2"
-        >
-          <option value={7}>Last 7 days</option>
-          <option value={28}>Last 28 days</option>
-          <option value={90}>Last 90 days</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/app/seo/audit"
+            className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground hover:bg-warm-bg/40 transition"
+          >
+            Site audit →
+          </Link>
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="text-sm rounded-lg border border-black/10 bg-white px-3 py-2"
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={28}>Last 28 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
+        </div>
       </div>
 
       {error ? (
