@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
-// GET /api/website-requests/forms  — admin-only. Lists every contact
-// submission from public.contact_submissions (the table master
-// authored in migration 20260423_contact_submissions.sql, extended
-// by 20260424_website_requests.sql with source/consent/page_url).
+// GET /api/website-requests/careers — admin-only. Lists submissions
+// from the OpenPositions careers form (rows in
+// public.contact_submissions where source='careers'). Sibling of
+// /api/website-requests/forms which lists everything else.
 
 export const dynamic = 'force-dynamic';
 
@@ -16,13 +16,10 @@ export async function GET() {
   if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const admin = getAdminSupabase();
-  // Careers submissions live in the same table but get their own
-  // /app/website-requests/careers page; exclude them here so they
-  // don't double-up.
   const { data, error } = await admin
     .from('contact_submissions')
-    .select('id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at')
-    .neq('source', 'careers')
+    .select('id, source, first_name, last_name, email, telephone, message, page_url, referrer, status, notes, created_at')
+    .eq('source', 'careers')
     .order('created_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

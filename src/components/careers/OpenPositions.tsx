@@ -132,19 +132,41 @@ function BucketCard({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !email.trim() || !message.trim()) return;
-    // No careers API yet — build a mailto with the structured body.
-    // Keeps the form as useful as possible without pretending we have
-    // a backend that will process applications silently.
-    const body = `Name: ${name}\nEmail: ${email}\n\n${message}`;
-    const href = `mailto:careers@sevenarrowsrecovery.com?subject=${encodeURIComponent(
-      bucket.emailSubject,
-    )}&body=${encodeURIComponent(body)}`;
-    window.location.href = href;
-    setSent(true);
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      // The role/track distinction (BHT vs Everything Else) lives in
+      // bucket.emailSubject; prefix the message body so the admin
+      // Careers list shows which track at a glance.
+      const messageWithTrack = `[${bucket.emailSubject}]\n\n${message}`;
+      const res = await fetch('/api/public/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: 'careers',
+          firstName: name,
+          email,
+          message: messageWithTrack,
+          page_url: typeof window !== 'undefined' ? window.location.href : null,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        setSubmitError('Could not send. Please email info@sevenarrowsrecovery.com directly.');
+        return;
+      }
+      setSent(true);
+    } catch {
+      setSubmitError('Could not send. Please email info@sevenarrowsrecovery.com directly.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -205,12 +227,16 @@ function BucketCard({
           className="w-full px-4 py-3 rounded-xl border border-black/15 text-sm bg-white focus:border-primary focus:outline-none resize-y"
           style={{ fontFamily: 'var(--font-body)' }}
         />
+        {submitError && (
+          <p className="text-red-600 text-xs">{submitError}</p>
+        )}
         <button
           type="submit"
-          className="w-full bg-primary hover:bg-primary-dark text-white rounded-xl px-5 py-3 text-sm font-bold transition-colors"
+          disabled={submitting || sent}
+          className="w-full bg-primary hover:bg-primary-dark text-white rounded-xl px-5 py-3 text-sm font-bold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           style={{ fontFamily: 'var(--font-body)' }}
         >
-          {sent ? 'Opening your email…' : 'Send it to careers'}
+          {sent ? 'Sent — we’ll be in touch' : submitting ? 'Sending…' : 'Send it to careers'}
         </button>
       </form>
 
@@ -222,11 +248,11 @@ function BucketCard({
           Or email us directly with a resume attached
         </p>
         <a
-          href={`mailto:careers@sevenarrowsrecovery.com?subject=${encodeURIComponent(bucket.emailSubject)}`}
+          href={`mailto:info@sevenarrowsrecovery.com?subject=${encodeURIComponent(bucket.emailSubject)}`}
           className="inline-flex items-center gap-1.5 text-primary font-semibold border-b border-primary/40 pb-0.5 tracking-[0.1em] uppercase text-[11px] hover:text-primary-dark hover:border-primary transition-colors"
           style={{ fontFamily: 'var(--font-body)' }}
         >
-          careers@sevenarrowsrecovery.com
+          info@sevenarrowsrecovery.com
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
             <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
             <polyline points="12 5 19 12 12 19" strokeLinecap="round" strokeLinejoin="round" />
