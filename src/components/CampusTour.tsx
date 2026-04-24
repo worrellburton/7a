@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { siteVideos } from '@/lib/siteVideos';
 
 /**
  * Homepage — "Our campus, from every angle."
@@ -64,19 +63,8 @@ const tiles: Tile[] = [
 ];
 
 export default function CampusTour() {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    el.muted = true;
-    const reduce =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (!reduce) el.play().catch(() => {});
-  }, []);
 
   useEffect(() => {
     const el = ref.current;
@@ -151,17 +139,17 @@ export default function CampusTour() {
               transition: 'all 1.05s cubic-bezier(0.16,1,0.3,1) 0.2s',
             }}
           >
-            <video
-              ref={videoRef}
-              src={siteVideos.ranchLife}
-              poster="/images/facility-exterior-mountains.jpg"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              aria-hidden="true"
+            {/* Static establishing shot — the video that used to live
+                here (siteVideos.ranchLife) opened on a tight dog
+                close-up frame on the landing, which read as a
+                visual glitch. Keep the same framing using the
+                former poster image so the campus hero reads clean. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/images/facility-exterior-mountains.jpg"
+              alt="Main residence at the base of the Swisshelm Mountains"
               className="absolute inset-0 w-full h-full object-cover"
+              loading="lazy"
             />
             <div
               aria-hidden="true"
