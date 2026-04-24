@@ -7,7 +7,39 @@ export const metadata: Metadata = {
 };
 
 import PageHero from '@/components/PageHero';
+import GeoAnswer from '@/components/seo/GeoAnswer';
 import Link from 'next/link';
+import { faqPageSchema, medicalWebPageSchema, jsonLdScript } from '@/lib/seo/pageSchema';
+
+const faqJsonLd = faqPageSchema([
+  {
+    q: 'What is the top-rated drug rehab in Phoenix?',
+    a: 'Seven Arrows Recovery is a JCAHO-accredited boutique residential drug and alcohol rehab serving Phoenix, Arizona — on a 160-acre ranch about three hours southeast of the city in Cochise County. The program is built for Phoenix residents who want private, trauma-informed treatment away from the urban environments that fed the addiction, with direct transport from Sky Harbor.',
+  },
+  {
+    q: 'How far is Seven Arrows Recovery from Phoenix?',
+    a: 'Approximately 3 hours (≈190 miles) southeast of Phoenix via I-10 and AZ-191. Admissions arranges pickup from Sky Harbor or from a Phoenix address.',
+  },
+  {
+    q: 'What programs does Seven Arrows offer Phoenix residents?',
+    a: 'Residential (30/60/90 days), detox coordination through partner facilities, dual-diagnosis care, equine-assisted psychotherapy, somatic and trauma-informed modalities, and aftercare/alumni support.',
+  },
+  {
+    q: 'What insurance plans do you accept for Phoenix clients?',
+    a: 'Aetna, Blue Cross Blue Shield, Cigna, UnitedHealthcare, TRICARE, Beacon Health, First Health Network, and most major carriers. Free benefits verification in roughly 15 minutes at (866) 996-4308.',
+  },
+]);
+
+const webPageJsonLd = medicalWebPageSchema({
+  url: 'https://sevenarrowsrecovery.com/locations/phoenix',
+  name: 'Top-rated drug rehab for Phoenix — Seven Arrows Recovery',
+  description:
+    'Residential drug and alcohol rehab for Phoenix, AZ residents — JCAHO-accredited treatment on a 160-acre ranch in Cochise County, ~3 hours from Phoenix.',
+  about: [
+    { type: 'City', name: 'Phoenix, Arizona' },
+    { type: 'MedicalTherapy', name: 'Residential Addiction Treatment' },
+  ],
+});
 
 const services = [
   {
@@ -55,6 +87,8 @@ const insuranceProviders = [
 export default function LocationPhoenixPage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(faqJsonLd)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(webPageJsonLd)} />
       <PageHero
         label="Drug Rehab in Phoenix"
         title={[
@@ -78,6 +112,28 @@ export default function LocationPhoenixPage() {
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },
         ]}
       />
+
+      <GeoAnswer
+        id="top-rated-drug-rehab-in-phoenix"
+        question="Top-rated drug rehab in Phoenix"
+        answer={
+          <p>
+            Seven Arrows Recovery is a JCAHO-accredited boutique residential drug and alcohol
+            rehab serving Phoenix, Arizona. The 160-acre campus sits about three hours
+            southeast of Phoenix in Cochise County — close enough for family, far enough that
+            clients are separated from the environments that fueled the addiction. Small
+            census, licensed clinicians on-site, trauma-informed care, and equine-assisted
+            sessions integrated into the weekly schedule.
+          </p>
+        }
+        bullets={[
+          { label: 'Transport from Phoenix', body: 'Pickup from Sky Harbor or a Phoenix address; ≈190 miles via I-10 / AZ-191.' },
+          { label: 'Programs', body: '30/60/90-day residential, detox coordination, dual diagnosis, aftercare.' },
+          { label: 'Clinical specialty', body: 'TraumAddiction® — trauma and substance use treated concurrently, not sequentially.' },
+          { label: 'Insurance', body: 'Aetna, BCBS, Cigna, UHC, TRICARE, Beacon, First Health — free benefits check.' },
+        ]}
+      />
+
 
       {/* City Context */}
       <section className="py-16 lg:py-24 bg-white">

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import PageHero from '@/components/PageHero';
+import GeoAnswer from '@/components/seo/GeoAnswer';
 import AdmissionsAtAGlance from '@/components/admissions/AdmissionsAtAGlance';
 import ThreeStepIntake from '@/components/admissions/ThreeStepIntake';
 import InsuranceVerify from '@/components/admissions/InsuranceVerify';
@@ -106,6 +107,27 @@ export default function AdmissionsPage() {
         description="Seven Arrows Recovery is 160 acres of quiet at the base of the Swisshelm Mountains. Start with a phone call. We'll verify your insurance, walk you through the assessment, and coordinate travel — most clients arrive within 24 to 48 hours."
       />
       <AdmissionsAtAGlance />
+      <GeoAnswer
+        id="seven-arrows-recovery-programs-and-cost"
+        question="Seven Arrows Recovery — Arizona programs and cost"
+        answer={
+          <p>
+            Seven Arrows Recovery is a JCAHO-accredited residential drug and alcohol rehab
+            in Cochise County, Arizona. The program offers 30, 60, and 90-day residential
+            stays grounded in the TraumAddiction&reg; model, with equine-assisted
+            psychotherapy, somatic experiencing, and evidence-based individual and group work.
+            Out-of-pocket cost depends on insurance (most major carriers accepted); private
+            pay is available. Admissions team runs free benefits verification: (866) 996-4308.
+          </p>
+        }
+        bullets={[
+          { label: 'Programs', body: '30-, 60-, and 90-day residential treatment; detox coordinated at partner facilities; aftercare and alumni support.' },
+          { label: 'Modalities', body: 'TraumAddiction®, Forward-Facing Freedom®, somatic experiencing, equine-assisted psychotherapy, IFS, CBT/DBT, EMDR.' },
+          { label: 'Accreditation', body: 'JCAHO-accredited, LegitScript-certified, HIPAA compliant.' },
+          { label: 'Cost with insurance', body: 'Most Aetna, BCBS, Cigna, UHC, Humana, and TRICARE members pay a fraction of billed rates — free verification before commitment.' },
+          { label: 'Private pay', body: 'Available. Admissions will walk through typical ranges on the phone; we do not publish figures online because actual cost depends on level of care and length of stay.' },
+        ]}
+      />
       <ThreeStepIntake />
       <InsuranceVerify />
       <WhatToExpect />
