@@ -10,6 +10,7 @@ import { auditCanonicals } from '@/lib/seo/audits/canonical';
 import { auditSocial } from '@/lib/seo/audits/social';
 import { auditSchema } from '@/lib/seo/audits/schema';
 import { auditImages } from '@/lib/seo/audits/images';
+import { auditLinks } from '@/lib/seo/audits/links';
 import type { CategoryAudit } from '@/lib/seo/audits/types';
 
 // POST /api/seo/audit/run
@@ -198,6 +199,7 @@ export async function POST(req: Request) {
     categories.push(auditSocial(crawl.pages));
     categories.push(auditSchema(crawl.pages));
     categories.push(auditImages(crawl.pages));
+    categories.push(auditLinks(crawl.pages));
   }
 
   for (const cat of categories) {
