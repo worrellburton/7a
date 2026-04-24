@@ -4,6 +4,7 @@ import { discoverSitemap } from '@/lib/seo/sitemap';
 import { crawlPage, type CrawledPage } from '@/lib/seo/crawl';
 import { crawlAll } from '@/lib/seo/runner';
 import { auditTitles } from '@/lib/seo/audits/title';
+import { auditMetaDescriptions } from '@/lib/seo/audits/meta';
 import type { CategoryAudit } from '@/lib/seo/audits/types';
 
 // POST /api/seo/audit/run
@@ -186,6 +187,7 @@ export async function POST(req: Request) {
   const categories: CategoryAudit[] = [];
   if (crawl && crawl.pages.length > 0) {
     categories.push(auditTitles(crawl.pages));
+    categories.push(auditMetaDescriptions(crawl.pages));
   }
 
   for (const cat of categories) {
