@@ -300,7 +300,9 @@ export default function AuditContent() {
         <p className="text-sm text-foreground/60 mt-2 max-w-2xl">
           Runs a curated set of admissions-funnel prompts against ChatGPT,
           Perplexity, Claude, and Google AI Overviews, then scores how often
-          Seven Arrows is mentioned and cited.
+          Seven Arrows is mentioned and cited. Each full run takes ~2–4
+          minutes and costs roughly <strong>$2–5</strong> in API credits
+          (mostly from Claude web search and OpenAI).
         </p>
       </div>
 
@@ -324,11 +326,21 @@ export default function AuditContent() {
 
       {result?.skippedEngines && result.skippedEngines.length > 0 ? (
         <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <strong>Engines skipped:</strong>{' '}
-          {result.skippedEngines
-            .map((s) => `${ENGINE_LABELS[s.engine]} (${s.reason})`)
-            .join(', ')}
-          . Set the missing keys in Vercel env to include them next run.
+          <p className="font-semibold mb-1">
+            {result.skippedEngines.length} engine
+            {result.skippedEngines.length === 1 ? '' : 's'} skipped
+          </p>
+          <ul className="space-y-0.5 text-xs">
+            {result.skippedEngines.map((s) => (
+              <li key={s.engine}>
+                <strong>{ENGINE_LABELS[s.engine]}</strong> — {s.reason}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-amber-800">
+            Add the missing keys to Vercel env (see <code>.env.example</code>)
+            and re-run to get full 4-engine coverage.
+          </p>
         </div>
       ) : null}
 
