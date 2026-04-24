@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/lib/AuthProvider';
+import { useAuth, notifyAvatarChanged } from '@/lib/AuthProvider';
 import { usePagePermissions } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
@@ -91,6 +91,9 @@ export default function HomeContent() {
       await db({ action: 'update', table: 'users', data: { avatar_url: url }, match: { id: user.id } });
       await supabase.auth.updateUser({ data: { avatar_url: url } });
       setAvatarUrl(url);
+      // Tell every avatar surface (sidebar, mobile drawer) that the
+      // canonical users.avatar_url just changed.
+      notifyAvatarChanged();
     } finally {
       setUploadingAvatar(false);
     }

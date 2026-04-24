@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* The dark-mode toggle was removed upstream, so any leftover `dark:`
+   utility classes should be inert. By default Tailwind v4 fires `dark:`
+   on `prefers-color-scheme: dark`, which was lighting up partial dark
+   styles on phones in dark mode (drawer turned dark while text colors
+   stayed light-mode and became unreadable). Pinning the variant to a
+   `.dark` class on <html> — which nothing sets — keeps the app
+   consistently in light mode regardless of the OS preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: #ffffff;
   --color-foreground: #1a1a1a;
@@ -297,64 +306,6 @@ body {
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
-}
-
-/* Dark mode overrides */
-html.dark body {
-  background: #1a1410;
-  color: #e8e0d8;
-}
-
-html.dark .bg-white {
-  background-color: #1a1410 !important;
-}
-
-html.dark .bg-warm-bg {
-  background-color: #231c15 !important;
-}
-
-html.dark .bg-warm-card {
-  background-color: #2a2118 !important;
-}
-
-html.dark .text-foreground {
-  color: #e8e0d8 !important;
-}
-
-html.dark .text-foreground\/70 {
-  color: rgba(232, 224, 216, 0.7) !important;
-}
-
-html.dark .text-foreground\/80 {
-  color: rgba(232, 224, 216, 0.8) !important;
-}
-
-html.dark .text-foreground\/60 {
-  color: rgba(232, 224, 216, 0.6) !important;
-}
-
-html.dark .text-foreground\/50 {
-  color: rgba(232, 224, 216, 0.5) !important;
-}
-
-html.dark .text-foreground\/40 {
-  color: rgba(232, 224, 216, 0.4) !important;
-}
-
-html.dark .border-gray-100 {
-  border-color: rgba(255, 255, 255, 0.08) !important;
-}
-
-html.dark .shadow-sm {
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
-}
-
-html.dark header.bg-white {
-  background-color: #1a1410 !important;
-}
-
-html.dark .bg-dark-section {
-  background-color: #0f0a06 !important;
 }
 
 /* Focus styles for accessibility */

@@ -7,9 +7,10 @@ import { getAdminSupabase } from '@/lib/supabase-server';
 // /insurance/* landing page). No auth — lives behind the same CSRF
 // posture as the rest of the public site.
 //
-// Card photos are not persisted yet (phase 2 needs a private Supabase
-// storage bucket + signed URL plumbing). The form still attempts to
-// submit them; we just don't store them.
+// Card photos are uploaded by the form directly to the private
+// `vob-cards` storage bucket via the anon key (RLS allows insert
+// only). The resulting storage paths arrive here as
+// cardFrontPath / cardBackPath and we persist them on the row.
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,8 @@ interface Body {
   email?: string;
   insuranceProvider?: string;
   insurance_provider?: string;
+  cardFrontPath?: string | null;
+  cardBackPath?: string | null;
 }
 
 function trim(value: unknown, max = 500): string | null {
@@ -40,6 +43,16 @@ export async function POST(req: NextRequest) {
   const phone = trim(body.phone, 60);
   const email = trim(body.email, 200);
   const insurance_provider = trim(body.insuranceProvider ?? body.insurance_provider, 200);
+  // Storage paths are short and safe to trust at face value — they
+  // come from a successful upload to a bucket that only allows the
+  // anon role to INSERT, never to read or list. Still constrain to a
+  // reasonable length and require they sit inside the random-token
+  // folder structure the form generates.
+  const card_front_path = trim(body.cardFrontPath, 300);
+  const card_back_path = trim(body.cardBackPath, 300);
+  const looksLikeCardPath = (p: string | null) => p === null || /^[A-Za-z0-9_-]+\/(front|back)\.[A-Za-z0-9]+$/.test(p);
+  const safeFront = looksLikeCardPath(card_front_path) ? card_front_path : null;
+  const safeBack = looksLikeCardPath(card_back_path) ? card_back_path : null;
 
   if (!full_name) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
@@ -51,7 +64,14 @@ export async function POST(req: NextRequest) {
   const admin = getAdminSupabase();
   const { data, error } = await admin
     .from('vob_requests')
-    .insert({ full_name, phone, email, insurance_provider })
+    .insert({
+      full_name,
+      phone,
+      email,
+      insurance_provider,
+      card_front_path: safeFront,
+      card_back_path: safeBack,
+    })
     .select('id')
     .maybeSingle();
 

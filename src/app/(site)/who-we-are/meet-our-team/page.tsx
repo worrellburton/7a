@@ -9,7 +9,6 @@ export const metadata: Metadata = {
 import PageHero from '@/components/PageHero';
 import Link from 'next/link';
 import TeamGrid from '@/components/TeamGrid';
-import FilterableTeamGrid from '@/components/team/FilterableTeamGrid';
 import MissionVision from '@/components/MissionVision';
 import TeamCompositionChart from '@/components/team/TeamCompositionChart';
 import TeamStatBand from '@/components/team/TeamStatBand';
@@ -85,7 +84,7 @@ export default async function MeetOurTeamPage() {
             </p>
           </div>
 
-          <FilterableTeamGrid team={team} />
+          <TeamGrid team={team} />
         </div>
       </section>
 

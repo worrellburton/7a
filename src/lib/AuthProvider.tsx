@@ -16,6 +16,17 @@ interface AuthContextType {
   isAdmin: boolean;
   departmentId: string | null;
   status: UserStatus;
+  /**
+   * Canonical avatar URL for the signed-in user. Reads from the
+   * `users.avatar_url` column (which the profile editor writes to) so
+   * a member's custom upload sticks even when Google OAuth keeps
+   * overwriting `user_metadata.avatar_url` back to their Google photo
+   * on each sign-in. Falls back to the OAuth metadata avatar when no
+   * custom one has been saved.
+   */
+  avatarUrl: string | null;
+  /** Re-fetch the avatar from `users` (call after a save). */
+  refreshAvatar: () => void;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -27,9 +38,24 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   departmentId: null,
   status: 'active',
+  avatarUrl: null,
+  refreshAvatar: () => {},
   signInWithGoogle: async () => {},
   signOut: async () => {},
 });
+
+/**
+ * Components anywhere in the tree can dispatch this event after they
+ * write a new avatar to `users.avatar_url`; AuthProvider re-fetches
+ * the canonical value so every avatar surface (sidebar, drawer, etc.)
+ * updates without a reload.
+ */
+const AVATAR_REFRESH_EVENT = 'auth:refresh-avatar';
+export function notifyAvatarChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AVATAR_REFRESH_EVENT));
+  }
+}
 
 let signInLoggedThisSession = false;
 
@@ -41,6 +67,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [status, setStatus] = useState<UserStatus>('active');
+  // Custom avatar from the users table — separate from
+  // user_metadata.avatar_url so Google's OAuth re-sync can't clobber
+  // a member's uploaded photo. `null` means use the OAuth fallback.
+  const [customAvatarUrl, setCustomAvatarUrl] = useState<string | null>(null);
+
+  async function loadAvatar(userId: string) {
+    const rows = await db({
+      action: 'select',
+      table: 'users',
+      match: { id: userId },
+      select: 'avatar_url',
+    });
+    if (Array.isArray(rows) && rows[0]) {
+      const url = (rows[0] as { avatar_url: string | null }).avatar_url;
+      setCustomAvatarUrl(typeof url === 'string' && url.length > 0 ? url : null);
+    }
+  }
 
   async function loadProfile(userId: string, email: string | null) {
     // Try the full select first. If it fails (e.g. because the status
@@ -92,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthToken(session?.access_token ?? null);
       if (session?.user) {
         loadProfile(session.user.id, session.user.email ?? null);
+        loadAvatar(session.user.id);
       }
       setLoading(false);
     });
@@ -103,6 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthToken(session?.access_token ?? null);
         if (session?.user) {
           loadProfile(session.user.id, session.user.email ?? null);
+          loadAvatar(session.user.id);
           // Supabase fires SIGNED_IN on every session restore (tab open,
           // reload, cross-tab sync) — not just real logins. Dedupe via
           // localStorage: only log once per user per hour.
@@ -131,12 +176,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsAdmin(false);
           setDepartmentId(null);
           setStatus('active');
+          setCustomAvatarUrl(null);
         }
         setLoading(false);
       }
     );
 
-    return () => subscription.unsubscribe();
+    // Listen for in-app avatar updates so every avatar surface
+    // re-fetches as soon as the profile editor (or anywhere else) writes
+    // a new URL into users.avatar_url.
+    const onAvatarRefresh = () => {
+      // Read current user via a closure on the latest session.
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user?.id) loadAvatar(user.id);
+      });
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener(AVATAR_REFRESH_EVENT, onAvatarRefresh);
+    }
+
+    return () => {
+      subscription.unsubscribe();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(AVATAR_REFRESH_EVENT, onAvatarRefresh);
+      }
+    };
   }, []);
 
   // Presence heartbeat: update last_sign_in + current page + last_seen_at.
@@ -178,8 +242,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  // The visible avatar prefers the user's own upload (custom column)
+  // and falls back to whatever Google/OAuth provided. `null` means
+  // render the initial-letter placeholder.
+  const avatarUrl =
+    customAvatarUrl || ((user?.user_metadata?.avatar_url as string | undefined) ?? null);
+
+  const refreshAvatar = () => {
+    if (user?.id) loadAvatar(user.id);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, isAdmin, departmentId, status, signInWithGoogle, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading,
+        isAdmin,
+        departmentId,
+        status,
+        avatarUrl,
+        refreshAvatar,
+        signInWithGoogle,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
