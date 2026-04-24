@@ -1,7 +1,8 @@
 // Server wrapper that interleaves live Google review snippets with the
-// static stat / link items in the bottom ticker. Falls back to a minimal
-// hand-curated set when the Places API is unreachable so the ticker
-// always renders.
+// static stat / link items in the bottom ticker. Real reviews only —
+// when the Places / cache pools are empty the ticker renders its
+// static stats and links without any review snippets rather than
+// fabricate alumni copy.
 
 import { fetchPlaceDetails } from '@/lib/places';
 import { fetchCachedReviews } from '@/lib/googleReviewsDb';
