@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PublicTeamMember } from '@/lib/team';
 
 // Auto-rotating quote carousel pulled from team members' favorite_quote
@@ -13,12 +13,33 @@ interface Props {
   intervalMs?: number;
 }
 
+// Some team members submit their favorite quote with surrounding
+// quotation marks already in the string ("To me, recovery..."). We
+// render our own &ldquo;/&rdquo; pair, so strip any leading/trailing
+// quote characters to avoid showing doubled quotes.
+function stripOuterQuotes(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^["'“”‘’«»]+/, '')
+    .replace(/["'“”‘’«»]+$/, '')
+    .trim();
+}
+
 export default function TeamQuoteCarousel({ team, intervalMs = 7000 }: Props) {
   const slides = team.filter((m) => (m.favorite_quote || '').trim().length > 0);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
+  const total = slides.length;
+
+  const go = useCallback((next: number) => {
+    if (total === 0) return;
+    setIndex(((next % total) + total) % total);
+  }, [total]);
+
+  const next = useCallback(() => go(index + 1), [go, index]);
+  const prev = useCallback(() => go(index - 1), [go, index]);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -31,6 +52,19 @@ export default function TeamQuoteCarousel({ team, intervalMs = 7000 }: Props) {
     io.observe(ref.current);
     return () => io.disconnect();
   }, []);
+
+  // Arrow-key navigation while the carousel is focused / in view.
+  useEffect(() => {
+    if (total < 2) return;
+    const node = ref.current;
+    if (!node) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+    };
+    node.addEventListener('keydown', onKey);
+    return () => node.removeEventListener('keydown', onKey);
+  }, [next, prev, total]);
 
   // Auto-advance only while in view + not paused + reduced-motion off.
   useEffect(() => {
@@ -52,16 +86,21 @@ export default function TeamQuoteCarousel({ team, intervalMs = 7000 }: Props) {
   return (
     <section
       ref={ref}
-      className="bg-white py-20 lg:py-28"
+      tabIndex={0}
+      className="bg-white py-20 lg:py-28 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       aria-label="What our team says"
+      aria-roledescription="carousel"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
     >
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <p className="section-label justify-center mb-5">In their words</p>
 
         {/* Stage — fixed min-height so the auto-advance doesn't reflow
-            the page beneath it. */}
+            the page beneath it. Flanked by prev/next arrows on sm+
+            screens; mobile puts them below the dots. */}
         <div className="relative min-h-[260px] sm:min-h-[220px] flex flex-col items-center justify-center">
           {slides.map((m, i) => {
             const active = i === index;
@@ -92,7 +131,7 @@ export default function TeamQuoteCarousel({ team, intervalMs = 7000 }: Props) {
                     lineHeight: 1.3,
                   }}
                 >
-                  &ldquo;{m.favorite_quote}&rdquo;
+                  &ldquo;{stripOuterQuotes(m.favorite_quote || '')}&rdquo;
                 </blockquote>
                 <figcaption className="mt-7 flex items-center gap-3">
                   {m.avatar_url ? (
@@ -126,25 +165,74 @@ export default function TeamQuoteCarousel({ team, intervalMs = 7000 }: Props) {
               </figure>
             );
           })}
+
+          {/* Prev / next arrow buttons — sm+ flanking the stage. */}
+          {total > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={prev}
+                aria-label="Previous quote"
+                className="hidden sm:inline-flex absolute left-0 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white border border-black/10 text-foreground/70 shadow-sm hover:text-primary hover:border-primary/40 hover:shadow transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={next}
+                aria-label="Next quote"
+                className="hidden sm:inline-flex absolute right-0 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white border border-black/10 text-foreground/70 shadow-sm hover:text-primary hover:border-primary/40 hover:shadow transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </>
+          )}
         </div>
 
-        {/* Dots — only shown when there's more than one slide. */}
-        {slides.length > 1 && (
-          <div className="mt-10 flex items-center justify-center gap-2">
-            {slides.map((_, i) => {
-              const active = i === index;
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setIndex(i)}
-                  aria-label={`Show quote ${i + 1} of ${slides.length}`}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    active ? 'w-8 bg-primary' : 'w-1.5 bg-foreground/20 hover:bg-foreground/40'
-                  }`}
-                />
-              );
-            })}
+        {/* Controls row — dots + mobile prev/next. */}
+        {total > 1 && (
+          <div className="mt-10 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={prev}
+              aria-label="Previous quote"
+              className="sm:hidden inline-flex items-center justify-center w-9 h-9 rounded-full bg-white border border-black/10 text-foreground/70 shadow-sm hover:text-primary hover:border-primary/40 transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-2">
+              {slides.map((_, i) => {
+                const active = i === index;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => go(i)}
+                    aria-label={`Show quote ${i + 1} of ${slides.length}`}
+                    aria-current={active ? 'true' : 'false'}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                      active ? 'w-8 bg-primary' : 'w-1.5 bg-foreground/20 hover:bg-foreground/40'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={next}
+              aria-label="Next quote"
+              className="sm:hidden inline-flex items-center justify-center w-9 h-9 rounded-full bg-white border border-black/10 text-foreground/70 shadow-sm hover:text-primary hover:border-primary/40 transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
           </div>
         )}
 
