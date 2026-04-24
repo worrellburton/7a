@@ -65,6 +65,19 @@ interface AuditResult {
   } | null;
   pages: unknown[];
   categories: CategoryAudit[];
+  insights?: {
+    strengths: { title: string; detail: string; categoryId: string; score: number }[];
+    weaknesses: {
+      key: string;
+      categoryId: string;
+      category: string;
+      severity: 'low' | 'medium' | 'high';
+      message: string;
+      count: number;
+      examples: string[];
+      impact: number;
+    }[];
+  };
   strengths: { title: string; detail: string }[];
   issues: { title: string; detail: string; severity: 'low' | 'medium' | 'high' }[];
   notice?: string;
@@ -141,10 +154,19 @@ export default function AuditContent() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
         <Panel title="What's working">
-          {result?.strengths?.length ? (
-            <ul className="space-y-2 text-sm">
-              {result.strengths.map((s) => (
-                <li key={s.title}>
+          {result?.insights?.strengths.length || result?.strengths?.length ? (
+            <ul className="space-y-3 text-sm">
+              {(result?.insights?.strengths ?? []).map((s) => (
+                <li key={s.categoryId}>
+                  <span className="inline-block min-w-[44px] mr-2 rounded bg-emerald-100 text-emerald-700 px-1.5 py-0.5 text-[11px] font-bold text-center">
+                    {s.score}
+                  </span>
+                  <strong>{s.title}.</strong>{' '}
+                  <span className="text-foreground/70">{s.detail}</span>
+                </li>
+              ))}
+              {(result?.strengths ?? []).map((s) => (
+                <li key={`legacy-${s.title}`}>
                   <strong>{s.title}.</strong>{' '}
                   <span className="text-foreground/70">{s.detail}</span>
                 </li>
@@ -155,10 +177,57 @@ export default function AuditContent() {
           )}
         </Panel>
         <Panel title="What's not">
-          {result?.issues?.length ? (
-            <ul className="space-y-2 text-sm">
-              {result.issues.map((i) => (
-                <li key={i.title}>
+          {result?.insights?.weaknesses.length || result?.issues?.length ? (
+            <ul className="space-y-3 text-sm">
+              {(result?.insights?.weaknesses ?? []).slice(0, 12).map((w) => (
+                <li key={w.key}>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span
+                      className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                        w.severity === 'high'
+                          ? 'bg-red-100 text-red-700'
+                          : w.severity === 'medium'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-black/5 text-foreground/60'
+                      }`}
+                    >
+                      {w.severity}
+                    </span>
+                    <span className="text-[10px] font-semibold tracking-wider uppercase text-foreground/50">
+                      {w.category}
+                    </span>
+                    {w.count > 1 ? (
+                      <span className="text-[10px] text-foreground/50">
+                        ({w.count} pages)
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-foreground/80">{w.message}</p>
+                  {w.examples.length > 0 && w.count > 1 ? (
+                    <details className="mt-1">
+                      <summary className="text-[11px] text-foreground/50 cursor-pointer hover:text-foreground/80">
+                        Examples
+                      </summary>
+                      <ul className="mt-1 ml-4 text-[11px] text-foreground/60 space-y-0.5">
+                        {w.examples.map((u) => (
+                          <li key={u} className="truncate">
+                            <a
+                              href={u}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="hover:text-primary"
+                            >
+                              {prettyPath(u)}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
+                </li>
+              ))}
+              {(result?.issues ?? []).map((i) => (
+                <li key={`legacy-${i.title}`}>
                   <strong>{i.title}.</strong>{' '}
                   <span className="text-foreground/70">{i.detail}</span>
                 </li>
