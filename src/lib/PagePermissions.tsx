@@ -48,6 +48,7 @@ const defaultPages: PageConfig[] = [
   { path: '/app/research', label: 'Research', adminOnly: false, section: 'nav', sort_order: 23, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/images', label: 'Images', adminOnly: false, section: 'nav', sort_order: 18, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
   { path: '/app/video', label: 'Video', adminOnly: false, section: 'nav', sort_order: 19, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
+  { path: '/app/website-requests', label: 'Overview', adminOnly: true, section: 'nav', sort_order: 23, allowedDepartments: [], departmentId: null, navGroup: 'Website Requests' },
   { path: '/app/website-requests/vobs', label: 'VObs', adminOnly: true, section: 'nav', sort_order: 24, allowedDepartments: [], departmentId: null, navGroup: 'Website Requests' },
   { path: '/app/website-requests/forms', label: 'Forms', adminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null, navGroup: 'Website Requests' },
   { path: '/app/website-requests/careers', label: 'Careers', adminOnly: true, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null, navGroup: 'Website Requests' },
