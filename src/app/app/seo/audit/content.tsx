@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+
+const STORAGE_KEY = 'sa-seo-audit:last-result';
 
 interface CategoryAudit {
   id: string;
@@ -89,6 +91,22 @@ export default function AuditContent() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AuditResult | null>(null);
 
+  // Restore the most recent audit from localStorage on mount so a
+  // page refresh doesn't lose it. Server-side persistence ships once
+  // the supabase/migrations/20260424_seo_audits.sql migration is
+  // applied; until then this is the durability story.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as AuditResult;
+      setResult(parsed);
+    } catch {
+      // Stale / corrupt — ignore silently.
+    }
+  }, []);
+
   async function runAudit() {
     setRunning(true);
     setError(null);
@@ -101,7 +119,13 @@ export default function AuditContent() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
-      setResult(json as AuditResult);
+      const audit = json as AuditResult;
+      setResult(audit);
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(audit));
+      } catch {
+        // Quota exceeded — non-fatal.
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
