@@ -1,97 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
-function ThemeToggleButton() {
-  const [dark, setDark] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const stored = localStorage.getItem('theme');
-    if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      setDark(true);
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
-
-  const toggle = () => {
-    const next = !dark;
-    setDark(next);
-    if (next) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  };
-
-  if (!mounted) return null;
-
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-      className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500"
-      style={{
-        background: dark
-          ? 'radial-gradient(circle at 40% 40%, #1e3a5f 0%, #0f1b2d 100%)'
-          : 'radial-gradient(circle at 60% 40%, #f59e0b 0%, #ea580c 60%, #9a3412 100%)',
-        boxShadow: dark
-          ? '0 0 12px rgba(147, 197, 253, 0.25), 0 0 24px rgba(147, 197, 253, 0.08)'
-          : '0 0 12px rgba(245, 158, 11, 0.3), 0 0 24px rgba(234, 88, 12, 0.15)',
-      }}
-    >
-      {/* Sun (light mode) */}
-      <svg
-        className="absolute w-5 h-5 transition-all duration-500"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="white"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{
-          opacity: dark ? 0 : 1,
-          transform: dark ? 'rotate(-90deg) scale(0.5)' : 'rotate(0) scale(1)',
-        }}
-      >
-        <circle cx="12" cy="10" r="4" fill="rgba(255,255,255,0.2)" />
-        <path d="M12 2v2" />
-        <path d="M12 16v2" />
-        <path d="M4.93 4.93l1.41 1.41" />
-        <path d="M17.66 6.34l1.41-1.41" />
-        <path d="M2 12h2" />
-        <path d="M20 12h2" />
-        <path d="M3 18h18" strokeWidth="1" opacity="0.4" />
-      </svg>
-      {/* Moon (dark mode) */}
-      <svg
-        className="absolute w-5 h-5 transition-all duration-500"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="white"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{
-          opacity: dark ? 1 : 0,
-          transform: dark ? 'rotate(0) scale(1)' : 'rotate(90deg) scale(0.5)',
-        }}
-      >
-        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" fill="rgba(255,255,255,0.1)" />
-        <circle cx="6" cy="4" r="0.5" fill="white" opacity="0.6">
-          <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite" />
-        </circle>
-        <circle cx="19" cy="8" r="0.4" fill="white" opacity="0.5">
-          <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
-        </circle>
-      </svg>
-    </button>
-  );
-}
+// ThemeToggleButton was removed — site is locked to its single
+// design palette. Any leftover `dark:` Tailwind classes throughout
+// the codebase are dead and only fire if some external script sets
+// `<html class="dark">`, which nothing on the site does anymore.
 
 // Note: the mobile sticky call pill that used to live here was
 // removed because StickyMobileCTA on the home page (and the inline
@@ -158,10 +72,8 @@ export default function FloatingContactCTA() {
         </div>
       )}
 
-      {/* Theme toggle + phone button row */}
+      {/* Phone button row (theme toggle removed — single palette) */}
       <div className="flex items-center gap-2">
-        <ThemeToggleButton />
-
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
