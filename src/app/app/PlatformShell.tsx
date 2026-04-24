@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
@@ -10,7 +10,7 @@ import PageGuard from '@/lib/PageGuard';
 import PageViewers from './PageViewers';
 import { PresenceCursors } from '@/components/PresenceCursors';
 import FlowBackground from './FlowBackground';
-import LoginScreen from './LoginScreen';
+import LoginScreen, { HeroGallery } from './LoginScreen';
 
 interface NavDepartment {
   id: string;
@@ -18,164 +18,6 @@ interface NavDepartment {
   color: string | null;
   display_order: number | null;
   hidden: boolean;
-}
-
-/* ── Login WebGL Background ─────────────────────────────────────── */
-
-function LoginBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const gl = canvas.getContext('webgl', { alpha: false, antialias: true });
-    if (!gl) return;
-
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const resize = () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      canvas.style.width = w + 'px';
-      canvas.style.height = h + 'px';
-      gl.viewport(0, 0, canvas.width, canvas.height);
-    };
-    resize();
-    window.addEventListener('resize', resize);
-
-    const vs = `
-      attribute vec2 aPos;
-      varying vec2 vUv;
-      void main() {
-        vUv = aPos * 0.5 + 0.5;
-        gl_Position = vec4(aPos, 0.0, 1.0);
-      }
-    `;
-
-    const fs = `
-      precision highp float;
-      varying vec2 vUv;
-      uniform float uTime;
-      uniform vec2 uRes;
-
-      float hash(vec2 p) {
-        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-      }
-      float noise(vec2 p) {
-        vec2 i = floor(p), f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        return mix(mix(hash(i), hash(i + vec2(1,0)), f.x),
-                   mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
-      }
-      float fbm(vec2 p) {
-        float v = 0.0, a = 0.5;
-        for (int i = 0; i < 6; i++) { v += a * noise(p); p *= 2.0; a *= 0.5; }
-        return v;
-      }
-
-      void main() {
-        vec2 uv = vUv;
-        float asp = uRes.x / uRes.y;
-        float t = uTime * 0.04;
-
-        // Warm tan base
-        vec3 bg = vec3(0.96, 0.94, 0.92);
-
-        // Warm palette for waves
-        vec3 sand  = vec3(0.92, 0.88, 0.82);
-        vec3 terra = vec3(0.78, 0.58, 0.42);
-        vec3 rose  = vec3(0.82, 0.65, 0.55);
-
-        float n1 = fbm(uv * 2.0 + t * 0.3);
-        float n2 = fbm(uv * 2.5 + t * 0.2 + 5.0);
-
-        // Subtle flowing wave bands
-        for (int i = 0; i < 4; i++) {
-          float fi = float(i);
-          float freq = 1.5 + fi * 0.6;
-          float speed = 0.3 + fi * 0.08;
-          float yOff = 0.3 + fi * 0.12;
-          float n = fbm(vec2(uv.x * asp * 1.2 + fi * 2.5, t * 0.15 + fi));
-          float wave = sin(uv.x * asp * freq + t * speed + n * 2.5) * (0.06 + fi * 0.01);
-          float line = smoothstep(0.004, 0.0, abs(uv.y - yOff + wave));
-          float glow = smoothstep(0.08, 0.0, abs(uv.y - yOff + wave));
-          vec3 lineCol = mix(terra, rose, fi / 3.0);
-          col = bg;
-          col = bg + lineCol * line * 0.12 + lineCol * glow * 0.03;
-        }
-
-        // Very subtle drifting warmth
-        col = bg;
-        for (int i = 0; i < 4; i++) {
-          float fi = float(i);
-          float freq = 1.5 + fi * 0.6;
-          float speed = 0.3 + fi * 0.08;
-          float yOff = 0.3 + fi * 0.12;
-          float n = fbm(vec2(uv.x * asp * 1.2 + fi * 2.5, t * 0.15 + fi));
-          float wave = sin(uv.x * asp * freq + t * speed + n * 2.5) * (0.06 + fi * 0.01);
-          float line = smoothstep(0.003, 0.0, abs(uv.y - yOff + wave));
-          float glow = smoothstep(0.06, 0.0, abs(uv.y - yOff + wave));
-          vec3 lineCol = mix(terra, rose, fi / 3.0);
-          col += lineCol * line * 0.08 + lineCol * glow * 0.015;
-        }
-
-        // Barely-there noise texture
-        col += (sand - bg) * n1 * 0.03;
-
-        // Film grain
-        col += (hash(uv * uRes + fract(uTime * 0.5)) - 0.5) * 0.006;
-
-        gl_FragColor = vec4(col, 1.0);
-      }
-    `;
-
-    const compile = (type: number, src: string) => {
-      const s = gl.createShader(type)!;
-      gl.shaderSource(s, src);
-      gl.compileShader(s);
-      return s;
-    };
-
-    const prog = gl.createProgram()!;
-    gl.attachShader(prog, compile(gl.VERTEX_SHADER, vs));
-    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fs));
-    gl.linkProgram(prog);
-    gl.useProgram(prog);
-
-    const aPos = gl.getAttribLocation(prog, 'aPos');
-    const uTime = gl.getUniformLocation(prog, 'uTime');
-    const uRes = gl.getUniformLocation(prog, 'uRes');
-
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-    let raf: number;
-    const t0 = performance.now();
-    const draw = () => {
-      gl.uniform1f(uTime, (performance.now() - t0) / 1000);
-      gl.uniform2f(uRes, canvas.width, canvas.height);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      raf = requestAnimationFrame(draw);
-    };
-    raf = requestAnimationFrame(draw);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
-    };
-  }, []);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full"
-      aria-hidden="true"
-    />
-  );
 }
 
 /* ── Nav Items ──────────────────────────────────────────────────── */
@@ -624,9 +466,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   if (status === 'on_hold' || status === 'denied') {
     const denied = status === 'denied';
     return (
-      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-        <LoginBackground />
-        <div className="relative z-10 max-w-md w-full mx-4 text-center bg-white/90 backdrop-blur rounded-2xl border border-gray-100 shadow-xl p-8">
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-black">
+        <HeroGallery />
+        <div className="relative z-10 max-w-md w-full mx-4 text-center bg-white/95 backdrop-blur rounded-2xl border border-gray-100 shadow-2xl p-8">
           <img
             src="/images/logo.png"
             alt="Seven Arrows Recovery"

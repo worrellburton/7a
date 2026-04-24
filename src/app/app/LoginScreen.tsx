@@ -1065,7 +1065,9 @@ export default function LoginScreen({
 }) {
   const theme = useTimeTheme();
   return (
-    <div
+    <main
+      role="main"
+      aria-label="Seven Arrows Recovery sign-in"
       className="w-full flex items-center justify-center relative overflow-hidden bg-black"
       style={{
         // `100svh` keeps the screen steady while iOS Safari's URL chrome
@@ -1074,11 +1076,16 @@ export default function LoginScreen({
         minHeight: '100svh',
       }}
     >
+      {/* Preload the first hero image so the screen paints with a
+          finished photo instead of a black frame on cold loads. */}
+      <link rel="preload" as="image" href={HERO_SLIDES[0].src} />
+
       <HeroGallery theme={theme} />
       <AmbientParticles />
       <FaceMarquee />
 
-      <div
+      <section
+        aria-label="Sign in"
         className="relative z-10 w-full max-w-md mx-4 text-center"
         style={{
           // Reserve room for the marquee strip and respect the home
@@ -1107,7 +1114,7 @@ export default function LoginScreen({
             .animate-greeting-in { animation: none !important; opacity: 1; }
           }
         `}</style>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
