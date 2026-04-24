@@ -137,111 +137,202 @@ export default function CampusTour() {
         </div>
       </div>
 
-      {/* Split: left column sticky-feel video, right column bento */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20 lg:pb-28">
-        <div className="grid lg:grid-cols-12 gap-4 lg:gap-5 min-h-[calc(100vh-12rem)]">
-          {/* Video column — tall, takes the full vertical height of the
-              section on desktop. On mobile it becomes a full-width
-              hero tile above the bento. */}
+      {/* Mobile: every card (video + 5 bento tiles) renders as one
+          horizontal swipe row with identical width / aspect ratio so
+          the section reads as a uniform scroller instead of a tall
+          stacked column. Desktop keeps the original split — sticky-
+          feel video column + 6-col × 4-row bento grid. */}
+      <div className="pb-20 lg:pb-28">
+        {/* ---------- Mobile: equal-sized horizontal scroll ---------- */}
+        <div className="lg:hidden relative">
           <div
-            className="lg:col-span-5 relative rounded-2xl overflow-hidden bg-dark-section aspect-[4/5] sm:aspect-[3/4] lg:aspect-auto group"
+            className="flex gap-3 overflow-x-auto snap-x snap-mandatory px-4 sm:px-6 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             style={{
-              opacity: visible ? 1 : 0,
-              transform: visible ? 'translateY(0)' : 'translateY(24px)',
-              transition: 'all 1.05s cubic-bezier(0.16,1,0.3,1) 0.2s',
-              // Cap the tile height on desktop so the left column
-              // doesn't balloon when the bento grid row stretches to
-              // min-h-[calc(100vh-12rem)] on tall viewports.
-              maxHeight: '780px',
+              WebkitMaskImage:
+                'linear-gradient(to right, #000 0, #000 calc(100% - 28px), rgba(0,0,0,0) 100%)',
+              maskImage:
+                'linear-gradient(to right, #000 0, #000 calc(100% - 28px), rgba(0,0,0,0) 100%)',
             }}
           >
-            <video
-              ref={videoRef}
-              src={siteVideos.ranchLife}
-              poster="/images/facility-exterior-mountains.jpg"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              aria-hidden="true"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            <div
-              aria-hidden="true"
-              className="absolute inset-0"
-              style={{
-                background:
-                  'linear-gradient(180deg, rgba(12,6,4,0.15) 0%, rgba(12,6,4,0) 30%, rgba(12,6,4,0.35) 70%, rgba(12,6,4,0.85) 100%)',
-              }}
-            />
+            {/* Video card first — same shape as the rest. */}
             <Link
               href="/tour"
-              className="absolute inset-0 flex flex-col justify-end p-6 lg:p-8 text-white"
-              aria-label="Take the full campus tour"
-            >
-              <p
-                className="text-[10px] font-semibold tracking-[0.28em] uppercase text-accent mb-3"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Full tour · 10 phases
-              </p>
-              <h3
-                className="font-bold mb-4"
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 'clamp(1.75rem, 2.6vw, 2.3rem)',
-                  lineHeight: 1.08,
-                }}
-              >
-                Step inside the ranch.
-              </h3>
-              <span
-                className="inline-flex items-center gap-2 text-[11px] tracking-[0.18em] uppercase font-semibold text-white group-hover:gap-3 transition-all"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Take the tour
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                  <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
-                  <polyline points="12 5 19 12 12 19" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </span>
-            </Link>
-          </div>
-
-          {/* Bento column.
-              - Mobile: a horizontal snap-scroll row of portrait tiles.
-                The row escapes the section's px-4/6 padding so tiles
-                reach the edges (cleaner scroll-away), and a right-edge
-                fade mask hints at the off-screen tiles until the user
-                scrolls.
-              - lg and up: reverts to the 6-col × 4-row bento grid
-                with the original varied spans. */}
-          <div
-            className="relative lg:col-span-7"
-            style={{
-              // Right-edge fade mask that only applies on mobile —
-              // soft visual nudge that there's more off-screen.
-              // Removed at lg via the explicit WebkitMask reset on
-              // the inner container rather than CSS @media to stay
-              // Tailwind-free for the mask property.
-            }}
-          >
-            <div
-              className="flex gap-4 overflow-x-auto snap-x snap-mandatory px-4 -mx-4 pb-2 -mt-1 scroll-px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-none lg:grid lg:grid-cols-6 lg:grid-rows-4 lg:gap-5 lg:overflow-visible lg:px-0 lg:-mx-0 lg:pb-0 lg:min-h-[720px] lg:[-webkit-mask-image:none] lg:[mask-image:none]"
+              aria-label="Step inside the ranch — full campus tour"
+              className="relative group overflow-hidden rounded-2xl bg-dark-section shrink-0 w-[78vw] max-w-[320px] aspect-[4/5] snap-start"
               style={{
-                WebkitMaskImage:
-                  'linear-gradient(to right, #000 0, #000 calc(100% - 36px), rgba(0,0,0,0) 100%)',
-                maskImage:
-                  'linear-gradient(to right, #000 0, #000 calc(100% - 36px), rgba(0,0,0,0) 100%)',
+                opacity: visible ? 1 : 0,
+                transform: visible ? 'translateY(0)' : 'translateY(20px)',
+                transition: 'all 1s cubic-bezier(0.16,1,0.3,1) 0.2s',
               }}
             >
+              <video
+                ref={videoRef}
+                src={siteVideos.ranchLife}
+                poster="/images/facility-exterior-mountains.jpg"
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(180deg, rgba(10,5,3,0) 40%, rgba(10,5,3,0.55) 75%, rgba(10,5,3,0.9) 100%)',
+                }}
+              />
+              <div className="absolute inset-x-4 bottom-4 text-white">
+                <p
+                  className="text-[10px] font-semibold tracking-[0.24em] uppercase text-accent mb-1.5"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Full tour · 10 phases
+                </p>
+                <p
+                  className="font-bold leading-tight"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'clamp(1.2rem, 5vw, 1.6rem)',
+                  }}
+                >
+                  Step inside the ranch.
+                </p>
+              </div>
+            </Link>
+
+            {tiles.map((t, i) => (
+              <Link
+                key={t.src}
+                href="/tour"
+                aria-label={`Tour campus · ${t.caption}`}
+                className="relative group overflow-hidden rounded-2xl bg-dark-section shrink-0 w-[78vw] max-w-[320px] aspect-[4/5] snap-start"
+                style={{
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
+                  transition: `all 1s cubic-bezier(0.16,1,0.3,1) ${0.3 + i * 0.08}s`,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={t.src}
+                  alt={t.alt}
+                  loading="lazy"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      'linear-gradient(180deg, rgba(10,5,3,0) 45%, rgba(10,5,3,0.55) 75%, rgba(10,5,3,0.9) 100%)',
+                  }}
+                />
+                <figcaption
+                  className="absolute inset-x-4 bottom-4 text-white text-[11px] tracking-[0.16em] uppercase font-semibold opacity-90 group-hover:opacity-100 transition-opacity"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {t.caption}
+                </figcaption>
+              </Link>
+            ))}
+            {/* Trailing spacer so the last card can snap past the fade. */}
+            <div aria-hidden="true" className="shrink-0 w-1" />
+          </div>
+
+          {/* Swipe hint */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none mt-3 px-4 sm:px-6 flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.22em] uppercase text-foreground/55"
+            style={{
+              fontFamily: 'var(--font-body)',
+              opacity: visible ? 1 : 0,
+              transition: 'opacity 0.9s ease 1s',
+            }}
+          >
+            <span>Swipe</span>
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
+              <polyline points="12 5 19 12 12 19" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
+
+        {/* ---------- Desktop: split column + bento grid ------------- */}
+        <div className="hidden lg:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-12 gap-4 lg:gap-5 min-h-[calc(100vh-12rem)]">
+            <div
+              className="lg:col-span-5 relative rounded-2xl overflow-hidden bg-dark-section lg:aspect-auto group"
+              style={{
+                opacity: visible ? 1 : 0,
+                transform: visible ? 'translateY(0)' : 'translateY(24px)',
+                transition: 'all 1.05s cubic-bezier(0.16,1,0.3,1) 0.2s',
+                maxHeight: '780px',
+              }}
+            >
+              <video
+                src={siteVideos.ranchLife}
+                poster="/images/facility-exterior-mountains.jpg"
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(180deg, rgba(12,6,4,0.15) 0%, rgba(12,6,4,0) 30%, rgba(12,6,4,0.35) 70%, rgba(12,6,4,0.85) 100%)',
+                }}
+              />
+              <Link
+                href="/tour"
+                className="absolute inset-0 flex flex-col justify-end p-6 lg:p-8 text-white"
+                aria-label="Take the full campus tour"
+              >
+                <p
+                  className="text-[10px] font-semibold tracking-[0.28em] uppercase text-accent mb-3"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Full tour · 10 phases
+                </p>
+                <h3
+                  className="font-bold mb-4"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'clamp(1.75rem, 2.6vw, 2.3rem)',
+                    lineHeight: 1.08,
+                  }}
+                >
+                  Step inside the ranch.
+                </h3>
+                <span
+                  className="inline-flex items-center gap-2 text-[11px] tracking-[0.18em] uppercase font-semibold text-white group-hover:gap-3 transition-all"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Take the tour
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
+                    <polyline points="12 5 19 12 12 19" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+              </Link>
+            </div>
+
+            <div className="lg:col-span-7 grid grid-cols-6 grid-rows-4 gap-5 min-h-[720px]">
               {tiles.map((t, i) => (
                 <Link
                   key={t.src}
                   href="/tour"
                   aria-label={`Tour campus · ${t.caption}`}
-                  className={`relative group overflow-hidden rounded-2xl bg-dark-section shrink-0 w-[78vw] max-w-[320px] aspect-[4/5] snap-start lg:shrink lg:w-auto lg:max-w-none lg:aspect-auto ${t.lgSpan}`}
+                  className={`relative group overflow-hidden rounded-2xl bg-dark-section ${t.lgSpan}`}
                   style={{
                     opacity: visible ? 1 : 0,
                     transform: visible ? 'translateY(0)' : 'translateY(20px)',
@@ -271,29 +362,6 @@ export default function CampusTour() {
                   </figcaption>
                 </Link>
               ))}
-              {/* Trailing spacer so the last tile can snap-center
-                  past the fade gutter on mobile. Invisible + no-op
-                  at lg since the grid has a fixed count of cells. */}
-              <div aria-hidden="true" className="shrink-0 w-1 lg:hidden" />
-            </div>
-
-            {/* "swipe" hint pill — tucks bottom-right on mobile only
-                and fades after the user begins scrolling. Keeps the
-                "there's more" affordance from being purely a mask. */}
-            <div
-              aria-hidden="true"
-              className="lg:hidden pointer-events-none absolute right-4 -bottom-1 flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.22em] uppercase text-foreground/55"
-              style={{
-                fontFamily: 'var(--font-body)',
-                opacity: visible ? 1 : 0,
-                transition: 'opacity 0.9s ease 1s',
-              }}
-            >
-              <span>Swipe</span>
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
-                <polyline points="12 5 19 12 12 19" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
             </div>
           </div>
         </div>

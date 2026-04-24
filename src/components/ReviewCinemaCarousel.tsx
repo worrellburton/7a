@@ -272,7 +272,7 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
                 frame rather than printed on it). A thin accent hairline
                 separates the quote from the author block so the
                 composition reads like a pull-quote on a poster. */}
-            <div className="relative z-10 h-full flex items-center justify-center px-6 sm:px-12 lg:px-24 pb-14 pt-52 sm:pt-44 lg:pt-32">
+            <div className="relative z-10 h-full flex items-center justify-center px-6 sm:px-12 lg:px-24 pb-24 sm:pb-14 pt-52 sm:pt-44 lg:pt-32">
               <div
                 className="relative w-full max-w-3xl text-center text-white"
                 style={{
@@ -407,24 +407,29 @@ export default function ReviewCinemaCarousel({ slides, autoplayMs = 9000, header
         );
       })}
 
-      {/* Prev / next arrows */}
+      {/* Prev / next arrows.
+          Mobile: pinned to the bottom corners of the carousel,
+          flanking the dots — `top-1/2` would land them right on the
+          quote text on phones where there's no horizontal margin
+          left for an off-quote position. sm+ restores the vertical-
+          center sides where there's room. */}
       {total > 1 && (
         <>
           <button
             type="button"
             onClick={prev}
             aria-label="Previous review"
-            className="absolute top-1/2 left-4 sm:left-8 -translate-y-1/2 z-20 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white flex items-center justify-center transition-all hover:scale-105"
+            className="absolute bottom-4 left-4 sm:bottom-auto sm:top-1/2 sm:left-8 sm:-translate-y-1/2 z-20 w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white flex items-center justify-center transition-all hover:scale-105"
           >
-            <Chevron direction="left" className="w-6 h-6 sm:w-7 sm:h-7" />
+            <Chevron direction="left" className="w-5 h-5 sm:w-7 sm:h-7" />
           </button>
           <button
             type="button"
             onClick={next}
             aria-label="Next review"
-            className="absolute top-1/2 right-4 sm:right-8 -translate-y-1/2 z-20 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white flex items-center justify-center transition-all hover:scale-105"
+            className="absolute bottom-4 right-4 sm:bottom-auto sm:top-1/2 sm:right-8 sm:-translate-y-1/2 z-20 w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white flex items-center justify-center transition-all hover:scale-105"
           >
-            <Chevron direction="right" className="w-6 h-6 sm:w-7 sm:h-7" />
+            <Chevron direction="right" className="w-5 h-5 sm:w-7 sm:h-7" />
           </button>
         </>
       )}
