@@ -13,7 +13,7 @@ values (
   false,
   'nav',
   23,
-  array['dfde0b96-c605-40dd-84e5-281af2f6d8e9']::text[],
+  array['dfde0b96-c605-40dd-84e5-281af2f6d8e9']::uuid[],
   'dfde0b96-c605-40dd-84e5-281af2f6d8e9'
 )
 on conflict (path) do update set
