@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 /**
  * GEO workspace — "Generative Engine Optimization" scaffold. Tracks
  * how the brand surfaces inside AI answer engines (ChatGPT, Perplexity,
@@ -9,17 +11,25 @@
 export default function GeoContent() {
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <p className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-2">
-          Marketing &amp; Admissions
-        </p>
-        <h1 className="text-2xl font-bold text-foreground">GEO</h1>
-        <p className="text-sm text-foreground/60 mt-2 max-w-2xl">
-          Generative-engine optimization. Track how Seven Arrows surfaces
-          in AI answer engines — ChatGPT, Perplexity, Google AI Overviews,
-          and Claude Search — across the queries our admissions funnel
-          depends on.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-2">
+            Marketing &amp; Admissions
+          </p>
+          <h1 className="text-2xl font-bold text-foreground">GEO</h1>
+          <p className="text-sm text-foreground/60 mt-2 max-w-2xl">
+            Generative-engine optimization. Track how Seven Arrows surfaces
+            in AI answer engines — ChatGPT, Perplexity, Google AI Overviews,
+            and Claude Search — across the queries our admissions funnel
+            depends on.
+          </p>
+        </div>
+        <Link
+          href="/app/geo/audit"
+          className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground hover:bg-warm-bg/40 transition"
+        >
+          GEO audit →
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
