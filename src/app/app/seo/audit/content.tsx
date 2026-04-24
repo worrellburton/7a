@@ -8,7 +8,14 @@ interface AuditResult {
   score: number | null;
   ranAt: string;
   durationMs: number;
-  sitemap: { url: string; urls: string[]; count: number } | null;
+  sitemap: {
+    url: string;
+    type?: string;
+    urls: string[];
+    count: number;
+    childSitemaps?: string[];
+    warnings?: string[];
+  } | null;
   pages: unknown[];
   categories: Record<string, unknown>;
   strengths: { title: string; detail: string }[];
@@ -119,10 +126,68 @@ export default function AuditContent() {
       <Panel title="Sitemap" className="mt-6">
         {result?.sitemap ? (
           <div className="text-sm">
-            <p className="text-foreground/70 mb-2">
+            <p className="text-foreground/70 mb-3">
               <strong>{result.sitemap.count}</strong> URLs from{' '}
-              <code className="text-xs">{result.sitemap.url}</code>
+              <a
+                href={result.sitemap.url}
+                target="_blank"
+                rel="noreferrer"
+                className="underline decoration-dotted text-foreground hover:text-primary"
+              >
+                {result.sitemap.url}
+              </a>
+              {result.sitemap.type ? (
+                <span className="ml-2 text-[11px] uppercase tracking-wider text-foreground/40">
+                  {result.sitemap.type}
+                </span>
+              ) : null}
             </p>
+            {result.sitemap.childSitemaps && result.sitemap.childSitemaps.length > 0 ? (
+              <div className="mb-3">
+                <p className="text-[10px] font-semibold tracking-[0.16em] uppercase text-foreground/50 mb-1">
+                  Child sitemaps
+                </p>
+                <ul className="text-xs text-foreground/70 space-y-1">
+                  {result.sitemap.childSitemaps.map((c) => (
+                    <li key={c} className="truncate">{c}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <div>
+              <p className="text-[10px] font-semibold tracking-[0.16em] uppercase text-foreground/50 mb-1">
+                Pages ({result.sitemap.count})
+              </p>
+              <div className="max-h-64 overflow-y-auto rounded-lg border border-black/5 bg-warm-bg/30 divide-y divide-black/5">
+                {result.sitemap.urls.slice(0, 200).map((u) => (
+                  <a
+                    key={u}
+                    href={u}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block px-3 py-1.5 text-xs text-foreground/80 hover:bg-white truncate"
+                    title={u}
+                  >
+                    {prettyPath(u)}
+                  </a>
+                ))}
+                {result.sitemap.urls.length > 200 ? (
+                  <p className="px-3 py-1.5 text-[11px] text-foreground/50">
+                    + {result.sitemap.urls.length - 200} more
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            {result.sitemap.warnings && result.sitemap.warnings.length > 0 ? (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-900">
+                <p className="font-semibold mb-1">Warnings</p>
+                <ul className="space-y-0.5">
+                  {result.sitemap.warnings.map((w, i) => (
+                    <li key={i}>· {w}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
         ) : (
           <Empty>{running ? 'Loading…' : 'Run an audit to load the live sitemap.'}</Empty>
@@ -185,6 +250,15 @@ function ScoreCard({
       </div>
     </div>
   );
+}
+
+function prettyPath(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.pathname + u.search;
+  } catch {
+    return url;
+  }
 }
 
 function Panel({
