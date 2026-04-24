@@ -40,6 +40,9 @@ interface HomepageSummary {
 interface AuditResult {
   origin: string;
   score: number | null;
+  grade?: 'F' | 'D' | 'C' | 'B' | 'A' | 'A+';
+  headline?: string;
+  effectiveWeight?: number;
   ranAt: string;
   durationMs: number;
   sitemap: {
@@ -116,6 +119,8 @@ export default function AuditContent() {
 
       <ScoreCard
         score={result?.score ?? null}
+        grade={result?.grade ?? null}
+        headline={result?.headline ?? null}
         running={running}
         onRun={runAudit}
         ranAt={result?.ranAt ?? null}
@@ -169,29 +174,53 @@ export default function AuditContent() {
 
       {result?.categories && result.categories.length > 0 ? (
         <Panel title="Audit categories" className="mt-6">
-          <div className="space-y-2">
-            {result.categories.map((c) => (
-              <div
-                key={c.id}
-                className="flex items-baseline gap-3 border-b border-black/5 pb-2 last:border-b-0 last:pb-0"
-              >
-                <span className="min-w-[160px] text-sm font-semibold text-foreground">
-                  {c.label}
-                </span>
-                <span
-                  className={`min-w-[60px] text-sm font-bold ${
-                    c.score >= 90
-                      ? 'text-emerald-600'
-                      : c.score >= 70
-                        ? 'text-amber-600'
-                        : 'text-red-600'
-                  }`}
+          <div className="space-y-3">
+            {result.categories.map((c) => {
+              const counted = c.weight > 0 && c.total > 0;
+              const color = !counted
+                ? 'bg-black/10'
+                : c.score >= 90
+                  ? 'bg-emerald-500'
+                  : c.score >= 70
+                    ? 'bg-amber-500'
+                    : 'bg-red-500';
+              const txt = !counted
+                ? 'text-foreground/40'
+                : c.score >= 90
+                  ? 'text-emerald-600'
+                  : c.score >= 70
+                    ? 'text-amber-600'
+                    : 'text-red-600';
+              return (
+                <div
+                  key={c.id}
+                  className="border-b border-black/5 pb-3 last:border-b-0 last:pb-0"
                 >
-                  {c.score}/100
-                </span>
-                <span className="text-xs text-foreground/60 flex-1">{c.summary}</span>
-              </div>
-            ))}
+                  <div className="flex items-baseline gap-3">
+                    <span className="min-w-[180px] text-sm font-semibold text-foreground">
+                      {c.label}
+                    </span>
+                    <span className={`min-w-[60px] text-sm font-bold ${txt}`}>
+                      {counted ? `${c.score}/100` : 'skipped'}
+                    </span>
+                    <span className="text-[11px] text-foreground/50 min-w-[80px]">
+                      {counted ? `weight ${c.weight}` : ''}
+                    </span>
+                    <span className="text-xs text-foreground/60 flex-1">
+                      {c.summary}
+                    </span>
+                  </div>
+                  {counted ? (
+                    <div className="mt-2 ml-[180px] h-1.5 rounded-full bg-black/5 overflow-hidden">
+                      <div
+                        className={`h-full ${color}`}
+                        style={{ width: `${Math.max(2, c.score)}%` }}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </Panel>
       ) : null}
@@ -326,32 +355,46 @@ export default function AuditContent() {
 
 function ScoreCard({
   score,
+  grade,
+  headline,
   running,
   onRun,
   ranAt,
   durationMs,
 }: {
   score: number | null;
+  grade: 'F' | 'D' | 'C' | 'B' | 'A' | 'A+' | null;
+  headline: string | null;
   running: boolean;
   onRun: () => void;
   ranAt: string | null;
   durationMs: number | null;
 }) {
+  const color =
+    score == null
+      ? 'text-foreground/30'
+      : score >= 90
+        ? 'text-emerald-600'
+        : score >= 75
+          ? 'text-amber-600'
+          : 'text-red-600';
+
   return (
     <div className="rounded-2xl border border-black/5 bg-white p-8 flex items-center gap-8">
       <div className="flex flex-col items-center">
-        <div className="text-7xl font-bold text-foreground/30 leading-none">
+        <div className={`text-7xl font-bold leading-none ${color}`}>
           {score ?? '—'}
         </div>
         <div className="text-[10px] font-semibold tracking-[0.22em] uppercase text-foreground/50 mt-2">
           out of 100
+          {grade ? <span className="ml-1 text-foreground/70">· {grade}</span> : null}
         </div>
       </div>
       <div className="flex-1">
         <h2 className="text-base font-bold text-foreground mb-1">SEO score</h2>
         <p className="text-sm text-foreground/60">
-          A weighted score across titles, meta, headings, schema, links, images,
-          performance, and crawlability.
+          {headline ??
+            'A weighted score across titles, meta, headings, schema, links, images, performance, and crawlability.'}
         </p>
         <button
           type="button"
