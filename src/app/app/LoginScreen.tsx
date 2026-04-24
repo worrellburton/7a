@@ -81,33 +81,48 @@ const FADE_MS  = 1_800;    // crossfade duration
 
 /* ── Hero gallery component ─────────────────────────────────────── */
 
-export function HeroGallery({ onCaptionChange }: { onCaptionChange?: (c: HeroSlide['caption']) => void }) {
+export function HeroGallery({ onCaptionChange, theme }: {
+  onCaptionChange?: (c: HeroSlide['caption']) => void;
+  theme?: TimeTheme;
+}) {
   const [idx, setIdx] = useState(0);
   const reduceMotion = usePrefersReducedMotion();
 
+  // Reorder slides so the preferred ones for the current time-band come
+  // first. Any slide not explicitly preferred falls to the end in its
+  // original order.
+  const slides = useMemo(() => {
+    if (!theme) return HERO_SLIDES;
+    const weight = (s: HeroSlide) => {
+      const hit = theme.prefer.findIndex((p) => s.src.includes(p));
+      return hit === -1 ? 99 + HERO_SLIDES.indexOf(s) : hit;
+    };
+    return [...HERO_SLIDES].sort((a, b) => weight(a) - weight(b));
+  }, [theme]);
+
   // Preload the next image to avoid a flash.
   useEffect(() => {
-    const next = HERO_SLIDES[(idx + 1) % HERO_SLIDES.length];
+    const next = slides[(idx + 1) % slides.length];
     const img = new Image();
     img.src = next.src;
-  }, [idx]);
+  }, [idx, slides]);
 
   // Advance the slide on a timer.
   useEffect(() => {
     const t = window.setTimeout(() => {
-      setIdx((i) => (i + 1) % HERO_SLIDES.length);
+      setIdx((i) => (i + 1) % slides.length);
     }, SLIDE_MS);
     return () => window.clearTimeout(t);
-  }, [idx]);
+  }, [idx, slides.length]);
 
   // Publish the active caption up to the parent.
   useEffect(() => {
-    onCaptionChange?.(HERO_SLIDES[idx].caption);
-  }, [idx, onCaptionChange]);
+    onCaptionChange?.(slides[idx].caption);
+  }, [idx, slides, onCaptionChange]);
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black" aria-hidden="true">
-      {HERO_SLIDES.map((slide, i) => {
+      {slides.map((slide, i) => {
         const active = i === idx;
         return (
           <div
@@ -145,10 +160,10 @@ export function HeroGallery({ onCaptionChange }: { onCaptionChange?: (c: HeroSli
                'radial-gradient(ellipse at center, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 70%, rgba(0,0,0,0.85) 100%)',
            }}
       />
-      <div className="absolute inset-0 pointer-events-none mix-blend-soft-light"
+      <div className="absolute inset-0 pointer-events-none mix-blend-soft-light transition-[background] duration-[3000ms]"
            style={{
-             background:
-               'linear-gradient(180deg, rgba(188,107,74,0.18) 0%, rgba(0,0,0,0) 40%, rgba(107,42,20,0.22) 100%)',
+             background: theme?.tint
+               ?? 'linear-gradient(180deg, rgba(188,107,74,0.18) 0%, rgba(0,0,0,0) 40%, rgba(107,42,20,0.22) 100%)',
            }}
       />
 
@@ -263,6 +278,72 @@ function AnimatedLogo() {
       `}</style>
     </div>
   );
+}
+
+/* ── Phase 9: Time-of-day aware theme ───────────────────────────── */
+
+type TimeBand = 'dawn' | 'day' | 'dusk' | 'night';
+
+interface TimeTheme {
+  band: TimeBand;
+  greeting: string;
+  // Colour tint stacked over the hero (soft-light blend).
+  tint: string;
+  // Which hero slides to prioritize first (match by substring of src).
+  prefer: string[];
+}
+
+function timeBand(hour: number): TimeBand {
+  if (hour >= 5 && hour < 8)  return 'dawn';
+  if (hour >= 8 && hour < 17) return 'day';
+  if (hour >= 17 && hour < 20) return 'dusk';
+  return 'night';
+}
+
+const TIME_THEMES: Record<TimeBand, TimeTheme> = {
+  dawn: {
+    band: 'dawn',
+    greeting: 'Good morning.',
+    tint: 'linear-gradient(180deg, rgba(255,180,120,0.28) 0%, rgba(255,220,180,0.08) 45%, rgba(40,20,30,0.25) 100%)',
+    prefer: ['covered-porch', 'facility-exterior', 'horses-grazing'],
+  },
+  day: {
+    band: 'day',
+    greeting: 'Welcome back.',
+    tint: 'linear-gradient(180deg, rgba(255,220,170,0.10) 0%, rgba(0,0,0,0) 35%, rgba(80,40,30,0.18) 100%)',
+    prefer: ['facility-exterior', 'horses-grazing', 'embrace', 'equine-therapy'],
+  },
+  dusk: {
+    band: 'dusk',
+    greeting: 'Good evening.',
+    tint: 'linear-gradient(180deg, rgba(255,140,80,0.32) 0%, rgba(255,110,90,0.10) 45%, rgba(40,10,30,0.35) 100%)',
+    prefer: ['group-sunset', 'campfire', 'covered-porch'],
+  },
+  night: {
+    band: 'night',
+    greeting: 'Welcome home.',
+    tint: 'linear-gradient(180deg, rgba(30,20,60,0.40) 0%, rgba(10,10,30,0.25) 45%, rgba(60,30,20,0.40) 100%)',
+    prefer: ['sign-night-sky', 'campfire', 'group-sunset'],
+  },
+};
+
+function useTimeTheme(): TimeTheme {
+  const [band, setBand] = useState<TimeBand>(() => {
+    // During SSR we default to "day" to avoid hydration mismatches; the
+    // effect below corrects it on the client.
+    if (typeof window === 'undefined') return 'day';
+    return timeBand(new Date().getHours());
+  });
+  useEffect(() => {
+    setBand(timeBand(new Date().getHours()));
+    // Re-check every 5 minutes in case someone leaves the screen open
+    // across the boundary between dusk and night.
+    const t = window.setInterval(() => {
+      setBand(timeBand(new Date().getHours()));
+    }, 5 * 60 * 1000);
+    return () => window.clearInterval(t);
+  }, []);
+  return TIME_THEMES[band];
 }
 
 /* ── Phase 8: Ambient ember + dust canvas ───────────────────────── */
@@ -982,6 +1063,7 @@ export default function LoginScreen({
 }: {
   onSignIn: () => void;
 }) {
+  const theme = useTimeTheme();
   return (
     <div
       className="w-full flex items-center justify-center relative overflow-hidden bg-black"
@@ -992,7 +1074,7 @@ export default function LoginScreen({
         minHeight: '100svh',
       }}
     >
-      <HeroGallery />
+      <HeroGallery theme={theme} />
       <AmbientParticles />
       <FaceMarquee />
 
@@ -1005,10 +1087,26 @@ export default function LoginScreen({
           paddingTop: 'env(safe-area-inset-top, 0px)',
         }}
       >
+        <p
+          className="text-white/70 text-[11px] uppercase tracking-[0.32em] mb-3 animate-greeting-in"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {theme.greeting}
+        </p>
         <AnimatedLogo />
         <QuoteRibbon />
         <HeartbeatStats />
         <SignInButton onSignIn={onSignIn} />
+        <style jsx global>{`
+          @keyframes greeting-in {
+            from { opacity: 0; letter-spacing: 0.5em; }
+            to   { opacity: 1; letter-spacing: 0.32em; }
+          }
+          .animate-greeting-in { animation: greeting-in 1.4s cubic-bezier(.2,.7,.2,1) 0.2s both; }
+          @media (prefers-reduced-motion: reduce) {
+            .animate-greeting-in { animation: none !important; opacity: 1; }
+          }
+        `}</style>
       </div>
     </div>
   );
