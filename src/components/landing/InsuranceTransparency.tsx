@@ -26,7 +26,6 @@ const carriers = [
   { name: 'Humana', abbr: 'HUMANA' },
   { name: 'TRICARE', abbr: 'TRICARE' },
   { name: 'Anthem', abbr: 'ANTHEM' },
-  { name: 'Magellan', abbr: 'MAGELLAN' },
 ];
 
 export default function InsuranceTransparency() {
