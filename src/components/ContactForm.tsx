@@ -142,10 +142,40 @@ export default function ContactForm() {
   });
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    // TODO: Integrate with backend/API
-    setSubmitted(true);
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/public/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: 'footer',
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          phone: formData.telephone,
+          email: formData.email,
+          payment_method: formData.paymentMethod,
+          consent: formData.consent,
+          page_url: typeof window !== 'undefined' ? window.location.href : null,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        setSubmitError(payload.error || `Could not send (HTTP ${res.status}). Please call (866) 996-4308.`);
+        return;
+      }
+      setSubmitted(true);
+    } catch (err) {
+      console.error('[ContactForm] submit threw', err);
+      setSubmitError('Could not send. Please call (866) 996-4308.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -283,8 +313,15 @@ export default function ContactForm() {
             </div>
 
             <div className="text-center pt-4">
-              <button type="submit" className="btn-primary px-12">
-                Send
+              {submitError && (
+                <p className="mb-3 text-red-400 text-sm">{submitError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="btn-primary px-12 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {submitting ? 'Sending…' : 'Send'}
               </button>
             </div>
           </form>
