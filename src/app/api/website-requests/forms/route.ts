@@ -19,12 +19,33 @@ export async function GET() {
   // Careers submissions live in the same table but get their own
   // /app/website-requests/careers page; exclude them here so they
   // don't double-up.
-  const { data, error } = await admin
-    .from('contact_submissions')
-    .select('id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at')
-    .neq('source', 'careers')
-    .order('created_at', { ascending: false });
+  //
+  // Try the full select with responded_*; fall back if the columns
+  // aren't in the deployed schema yet.
+  const FULL = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by';
+  const MIN  = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at';
+  let resp = await admin.from('contact_submissions').select(FULL).neq('source', 'careers').order('created_at', { ascending: false });
+  if (resp.error && /responded_/i.test(resp.error.message)) {
+    console.warn('[forms] responded_* columns missing, degrading read:', resp.error.message);
+    const fb = await admin.from('contact_submissions').select(MIN).neq('source', 'careers').order('created_at', { ascending: false });
+    resp = fb as typeof resp;
+  }
+  const { data, error } = resp;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ rows: data ?? [], total: data?.length ?? 0 });
+  const rows = (data ?? []) as Array<Record<string, unknown> & { responded_by?: string | null }>;
+  const responderIds = Array.from(new Set(rows.map((r) => r.responded_by).filter((v): v is string => !!v)));
+  const responderNames = new Map<string, string>();
+  if (responderIds.length > 0) {
+    const { data: usrs } = await admin.from('users').select('id, full_name').in('id', responderIds);
+    for (const u of usrs ?? []) if (u.full_name) responderNames.set(u.id, u.full_name);
+  }
+  const shaped = rows.map((r) => ({
+    ...r,
+    responded_at: (r.responded_at as string | null | undefined) ?? null,
+    responded_by: r.responded_by ?? null,
+    responder_name: r.responded_by ? responderNames.get(r.responded_by) ?? null : null,
+  }));
+
+  return NextResponse.json({ rows: shaped, total: shaped.length });
 }

@@ -5,9 +5,9 @@ import { useEffect, useRef, useState } from 'react';
 const facts = [
   { term: 'The setting', value: 'A 160-acre private ranch in Cochise County, Arizona, at the base of the Swisshelm Mountains' },
   { term: 'The work', value: 'Trauma-informed residential addiction treatment for adults, grounded in our TraumAddiction™ framework' },
-  { term: 'The caseload', value: '6:1 client-to-staff ratio; primary clinicians carry small caseloads so the work stays deep' },
+  { term: 'The caseload', value: 'Primary clinicians carry small caseloads — typically 4–6 active clients — so the work stays deep' },
   { term: 'The team', value: 'Multi-disciplinary: LCSWs, LPCs, LMFTs, LISACs, RNs, psychiatric providers, BHTs, holistic practitioners, ceremony carriers' },
-  { term: 'The compensation', value: 'Competitive salary, health/dental/vision, 401(k), PTO, CEU stipend, and continuing training built into the week' },
+  { term: 'The compensation', value: 'Competitive salary, health/dental/vision, PTO, and on-site training built into the week' },
   { term: 'How to apply', value: 'Email info@sevenarrowsrecovery.com with a cover note — we respond to every applicant' },
 ];
 

@@ -11,9 +11,9 @@ interface Benefit {
 const benefits: Benefit[] = [
   { tag: 'Signature', title: 'Paid FFTA training', body: 'Every staff member is paid to train in the Forward-Facing TraumAddiction Model (FFTA) — we are the only residential program in the world offering it right now.' },
   { tag: 'Health', title: 'Medical, dental, vision', body: 'Comprehensive coverage begins two months after hire. Low-premium options available.' },
-  { tag: 'Time off', title: 'PTO + sick time', body: 'Generous PTO that accrues from day one, plus a separate sick-time bank.' },
+  { tag: 'Time off', title: 'PTO + sick time', body: 'PTO that accrues from day one, plus a separate sick-time bank.' },
   { tag: 'Licensure', title: 'Licensure supervision', body: 'Clinical supervision toward independent licensure available on-site for associate-level clinicians on staff.' },
-  { tag: 'Development', title: 'CEU stipend', body: 'Annual CEU budget for license renewal plus on-site trainings built into the week.' },
+  { tag: 'Development', title: 'On-site training', body: 'Paid in-house trainings in the modalities we practice, built into the work week.' },
   { tag: 'Meals', title: 'Meals on campus', body: 'Whole-food meals prepared on-site, included during shift. Kitchen accommodates dietary restrictions.' },
   { tag: 'Setting', title: 'The ranch', body: '160 acres of open Arizona sky, working horses, and quiet porches — the kind of worksite that changes how a week feels.' },
   { tag: 'Interns', title: 'Internship pathways', body: 'We are actively building out internship roles — masters-level clinical, holistic, and admissions tracks. Reach out if you are mid-program.' },
@@ -72,9 +72,8 @@ export default function Benefits() {
             <em className="not-italic" style={{ color: 'var(--color-accent)' }}>Actual</em> support, not perks theater.
           </h2>
           <p className="text-white/75 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-            The benefits that matter: health coverage, retirement, time off,
-            training, licensure support, and wellness you can actually use during
-            the workday.
+            The benefits that matter: health coverage, time off, training, and
+            wellness you can actually use during the workday.
           </p>
         </div>
 
