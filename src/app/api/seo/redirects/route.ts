@@ -55,6 +55,12 @@ export async function POST(req: Request) {
   if (![301, 302, 307, 308].includes(status_code)) {
     return NextResponse.json({ error: 'status_code must be 301, 302, 307, or 308' }, { status: 400 });
   }
+  // Self-loop guard — compare with trailing slash stripped so
+  // /foo/ -> /foo isn't a loop but /foo -> /foo is.
+  const norm = (p: string) => (p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p);
+  if (norm(from_path) === norm(to_path) && !/^https?:\/\//i.test(to_path)) {
+    return NextResponse.json({ error: 'from_path and to_path are identical — this would create a redirect loop' }, { status: 400 });
+  }
 
   const admin = getAdminSupabase();
   const { data, error } = await admin
