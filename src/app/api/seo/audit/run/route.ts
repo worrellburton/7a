@@ -43,10 +43,11 @@ import type { CategoryAudit } from '@/lib/seo/audits/types';
 //   }
 
 export const dynamic = 'force-dynamic';
-// 90s gives the homepage crawl + 100-page sitemap walk + parallel PSI
-// (mobile + desktop) headroom on Vercel. Without PSI the audit usually
-// finishes in 15-25s.
-export const maxDuration = 90;
+// 300s (Vercel Pro cap) covers the homepage crawl + full-sitemap walk
+// + parallel PSI (mobile + desktop) even on a site with 500+ URLs. At
+// concurrency 10 and ~500ms avg fetch, 500 pages ≈ 25s; PSI adds ~30s.
+// Under PSI-off it usually finishes in 15-40s.
+export const maxDuration = 300;
 
 const DEFAULT_ORIGIN = 'https://sevenarrowsrecoveryarizona.com';
 
@@ -129,7 +130,7 @@ export async function POST(req: Request) {
   let crawl: { pages: CrawledPage[]; skipped: { url: string; reason: string }[]; trimmed: number; totalMs: number } | null = null;
   let homepage: CrawledPage | null = null;
   try {
-    crawl = await crawlAll(urlsToCrawl, { maxPages: 100, concurrency: 6 });
+    crawl = await crawlAll(urlsToCrawl, { maxPages: 1000, concurrency: 10 });
     homepage =
       crawl.pages.find(
         (p) => p.url === origin || p.finalUrl === origin || p.url === origin + '/',
@@ -158,7 +159,7 @@ export async function POST(req: Request) {
     if (crawl.trimmed > 0) {
       issues.push({
         title: `${crawl.trimmed} URLs over crawl cap`,
-        detail: `Audit currently caps at 100 pages; ${crawl.trimmed} URLs were not crawled this run.`,
+        detail: `Audit currently caps at 1000 pages; ${crawl.trimmed} URLs were not crawled this run. Raise the cap in src/lib/seo/runner.ts if the site has grown beyond that.`,
         severity: 'low',
       });
     }
