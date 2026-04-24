@@ -14,6 +14,7 @@ import { hasClaudeKey, runClaude } from '@/lib/geo/engines/claude';
 import { hasSerpApiKey, runGoogleAio } from '@/lib/geo/engines/google_aio';
 import type { EngineAnswer, EngineId } from '@/lib/geo/engines/types';
 import { detectMentions, type MentionResult } from '@/lib/geo/detector';
+import { aggregate, type GeoScore } from '@/lib/geo/score';
 
 // POST /api/geo/audit/run
 //
@@ -193,6 +194,8 @@ export async function POST(req: Request) {
     brandCited: results.filter((r) => r.brandCited).length,
   };
 
+  const score: GeoScore = aggregate({ results, prompts, engines });
+
   return NextResponse.json({
     ranAt: new Date(startedAt).toISOString(),
     durationMs,
@@ -206,9 +209,10 @@ export async function POST(req: Request) {
     skippedEngines,
     results,
     summary,
+    score,
     notice:
       skippedEngines.length > 0
-        ? `Ran ${engines.length} of ${requestedEngines.length} engines (${skippedEngines.map((s) => s.engine).join(', ')} skipped — see skippedEngines). Scoring lands in phase 10.`
-        : `Ran ${results.length} (engine × prompt) calls in ${Math.round(durationMs / 1000)}s. Scoring lands in phase 10.`,
+        ? `Ran ${engines.length} of ${requestedEngines.length} engines (${skippedEngines.map((s) => s.engine).join(', ')} skipped — see skippedEngines).`
+        : `Ran ${results.length} (engine × prompt) calls in ${Math.round(durationMs / 1000)}s.`,
   });
 }
