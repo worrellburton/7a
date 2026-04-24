@@ -3,6 +3,29 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
+interface HomepageSummary {
+  url: string;
+  finalUrl: string;
+  status: number;
+  fetchMs: number;
+  bytes: number;
+  title: string | null;
+  metaDescription: string | null;
+  canonical: string | null;
+  lang: string | null;
+  h1Count: number;
+  h1: string[];
+  h2Count: number;
+  ogTags: number;
+  twitterTags: number;
+  jsonLdBlocks: number;
+  imageCount: number;
+  imagesMissingAlt: number;
+  internalLinkCount: number;
+  externalLinkCount: number;
+  warnings: string[];
+}
+
 interface AuditResult {
   origin: string;
   score: number | null;
@@ -16,6 +39,7 @@ interface AuditResult {
     childSitemaps?: string[];
     warnings?: string[];
   } | null;
+  homepage?: HomepageSummary | null;
   pages: unknown[];
   categories: Record<string, unknown>;
   strengths: { title: string; detail: string }[];
@@ -122,6 +146,34 @@ export default function AuditContent() {
           )}
         </Panel>
       </div>
+
+      {result?.homepage ? (
+        <Panel title="Homepage extract" className="mt-6">
+          <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <Row label="Title">{result.homepage.title || <Missing />}</Row>
+            <Row label="Meta description">{result.homepage.metaDescription || <Missing />}</Row>
+            <Row label="Canonical">{result.homepage.canonical || <Missing />}</Row>
+            <Row label="Lang">{result.homepage.lang || <Missing />}</Row>
+            <Row label="H1 / H2">
+              {result.homepage.h1Count} / {result.homepage.h2Count}
+            </Row>
+            <Row label="Images (missing alt)">
+              {result.homepage.imageCount} ({result.homepage.imagesMissingAlt})
+            </Row>
+            <Row label="Internal / external links">
+              {result.homepage.internalLinkCount} / {result.homepage.externalLinkCount}
+            </Row>
+            <Row label="OG / Twitter / JSON-LD">
+              {result.homepage.ogTags} / {result.homepage.twitterTags} /{' '}
+              {result.homepage.jsonLdBlocks}
+            </Row>
+            <Row label="Status / latency / bytes">
+              HTTP {result.homepage.status} · {result.homepage.fetchMs}ms ·{' '}
+              {result.homepage.bytes.toLocaleString()} B
+            </Row>
+          </dl>
+        </Panel>
+      ) : null}
 
       <Panel title="Sitemap" className="mt-6">
         {result?.sitemap ? (
@@ -250,6 +302,21 @@ function ScoreCard({
       </div>
     </div>
   );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-2 border-b border-black/5 pb-2">
+      <dt className="text-[10px] font-semibold tracking-[0.16em] uppercase text-foreground/50 min-w-[140px]">
+        {label}
+      </dt>
+      <dd className="text-foreground/80 truncate">{children}</dd>
+    </div>
+  );
+}
+
+function Missing() {
+  return <span className="text-red-600">missing</span>;
 }
 
 function prettyPath(url: string): string {
