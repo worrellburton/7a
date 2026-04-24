@@ -11,8 +11,13 @@ import {
 } from '@/lib/seo/keywords';
 import {
   suggestionsForFit,
+  buildClaudeCodePrompt,
+  ideasForKeyword,
+  buildBlogCreationPrompt,
   type FitBreakdown,
   type FitSuggestion,
+  type BlogIdea,
+  type KeywordCategoryForIdeas,
 } from '@/lib/seo/keywordFit';
 
 const KEYWORD_STORAGE_KEY = 'sa-seo:keyword-ranks';
@@ -927,7 +932,38 @@ function FitDetailsModal({
                 <SuggestionRow key={`${s.signal}-${i}`} suggestion={s} />
               ))}
             </ol>
+            {gap > 0 && (
+              <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-foreground">
+                    Hand it to Claude Code
+                  </p>
+                  <p className="text-[11px] text-foreground/60">
+                    Copies a prompt with the exact changes, the page path, and the project conventions.
+                  </p>
+                </div>
+                <CopyPromptButton
+                  getPrompt={() => buildClaudeCodePrompt({
+                    keyword_text: keyword.text,
+                    score,
+                    bucket: fit?.bucket ?? 'none',
+                    breakdown,
+                    best_url: fit?.best_url ?? null,
+                    best_h1: fit?.best_h1 ?? null,
+                    best_title: fit?.best_title ?? null,
+                    suggestions,
+                  })}
+                  label="Copy Claude Code prompt"
+                />
+              </div>
+            )}
           </section>
+
+          {/* Blog idea pack — Recovery Roadmap style */}
+          <BlogIdeasSection
+            keywordText={keyword.text}
+            category={keyword.category as KeywordCategoryForIdeas}
+          />
 
           <p className="text-[11px] text-foreground/40">
             Re-run the fit scan after publishing changes to see the score update. The
@@ -992,6 +1028,123 @@ function SuggestionRow({ suggestion }: { suggestion: FitSuggestion }) {
         <p className="text-xs text-foreground/60 mt-0.5 leading-snug">{suggestion.detail}</p>
       </div>
     </li>
+  );
+}
+
+function CopyPromptButton({
+  getPrompt, label = 'Copy prompt', size = 'md',
+}: {
+  getPrompt: () => string;
+  label?: string;
+  size?: 'sm' | 'md';
+}) {
+  const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function handleCopy() {
+    const text = getPrompt();
+    setFailed(false);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for very old browsers / non-secure contexts.
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setFailed(true);
+      window.setTimeout(() => setFailed(false), 2400);
+    }
+  }
+
+  const sizing = size === 'sm' ? 'px-2 py-1 text-[11px]' : 'px-3 py-1.5 text-xs';
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className={`shrink-0 inline-flex items-center gap-1.5 rounded-md font-semibold transition-colors ${sizing} ${
+        copied
+          ? 'bg-emerald-600 text-white'
+          : failed
+            ? 'bg-red-600 text-white'
+            : 'bg-primary text-white hover:bg-primary/90'
+      }`}
+    >
+      {copied ? (
+        <>
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Copied
+        </>
+      ) : failed ? (
+        'Copy failed'
+      ) : (
+        <>
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="9" width="11" height="11" rx="2" />
+            <path d="M5 15V6a2 2 0 012-2h9" />
+          </svg>
+          {label}
+        </>
+      )}
+    </button>
+  );
+}
+
+function BlogIdeasSection({
+  keywordText, category,
+}: {
+  keywordText: string;
+  category: KeywordCategoryForIdeas;
+}) {
+  const ideas: BlogIdea[] = ideasForKeyword(keywordText, category);
+  return (
+    <section>
+      <h3 className="text-[11px] font-semibold tracking-[0.22em] uppercase text-foreground/55 mb-2">
+        Road to Recovery blog ideas
+      </h3>
+      <p className="text-[11px] text-foreground/50 mb-3">
+        Recovery Roadmap-style episode pitches that target <em className="not-italic font-semibold">&ldquo;{keywordText}&rdquo;</em> in the H1, URL, title, meta, and body. Each card copies a Claude Code prompt that builds the full episode in the Recovery Roadmap voice and registers it on the hub.
+      </p>
+      <ul className="space-y-2">
+        {ideas.map((idea) => (
+          <li
+            key={idea.slug}
+            className="rounded-lg border border-black/5 bg-warm-bg/30 px-3 py-2.5 flex gap-3 items-start"
+          >
+            <div className="shrink-0 mt-0.5 text-primary">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4h16v16H4z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 8h8M8 12h8M8 16h5" />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground leading-snug">{idea.title}</p>
+              <p className="text-[11px] text-foreground/60 mt-0.5 leading-snug">{idea.subtitle}</p>
+              <p className="text-[10px] text-foreground/40 mt-1 font-mono">
+                /who-we-are/blog/{idea.slug}
+              </p>
+            </div>
+            <CopyPromptButton
+              getPrompt={() => buildBlogCreationPrompt({ keyword_text: keywordText, idea })}
+              label="Copy prompt"
+              size="sm"
+            />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

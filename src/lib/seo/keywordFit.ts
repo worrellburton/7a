@@ -225,6 +225,281 @@ export interface SuggestionInput {
  * it. The list is sorted by potential-gain desc so the biggest wins
  * sit at the top of the modal.
  */
+export interface PromptInput {
+  keyword_text: string;
+  score: number;
+  bucket: FitBucket;
+  breakdown: FitBreakdown | null;
+  best_url: string | null;
+  best_h1: string | null;
+  best_title: string | null;
+  suggestions: FitSuggestion[];
+}
+
+/**
+ * Given a marketing URL on the public site, guess the Next.js file
+ * path the admin will need to edit. The convention here is the
+ * (site) route group under src/app — all public pages live under
+ * src/app/(site)/<pathname>/page.tsx. This is a hint, not a
+ * guarantee: dynamic routes and redirects can still put the real
+ * page elsewhere, so the generated prompt asks Claude to confirm.
+ */
+function filePathHint(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/^\//, '').replace(/\/$/, '');
+    if (!path) return 'src/app/(site)/page.tsx';
+    return `src/app/(site)/${path}/page.tsx`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Produce a Claude Code prompt that, pasted into a `claude code`
+ * session in this repo, walks the assistant through the exact
+ * changes needed to move the keyword's fit score to 100. Includes
+ * the current signal breakdown, the un-done actions with their
+ * point values, a file-path hint, project conventions, and
+ * acceptance criteria.
+ */
+export function buildClaudeCodePrompt(input: PromptInput): string {
+  const { keyword_text, score, bucket, breakdown, best_url, best_h1, best_title, suggestions } = input;
+  const gap = Math.max(0, 100 - score);
+  const undone = suggestions.filter((s) => !s.done);
+  const done = suggestions.filter((s) => s.done);
+  const guess = filePathHint(best_url);
+
+  const lines: string[] = [];
+  lines.push(`Raise the SEO "Current fit" score to 100 for the keyword "${keyword_text}".`);
+  lines.push('');
+  lines.push(`Current score: ${score}/100 (${bucket}). Gap to 100: ${gap} pts.`);
+  lines.push('');
+  lines.push('## Target page');
+  if (best_url) {
+    lines.push(`- URL: ${best_url}`);
+  } else {
+    lines.push(`- URL: (none — no page on the site currently scores for this keyword; pick the most topically relevant page or create a new one)`);
+  }
+  if (guess) lines.push(`- Likely file: \`${guess}\` (confirm — dynamic routes and route groups can move it)`);
+  if (best_h1) lines.push(`- Current H1: "${best_h1}"`);
+  if (best_title) lines.push(`- Current <title>: "${best_title}"`);
+  lines.push('');
+
+  lines.push('## Signal scoreboard (earned / max)');
+  if (breakdown) {
+    lines.push(`- H1 heading:      ${breakdown.h1_points}/40`);
+    lines.push(`- Title tag:       ${breakdown.title_points}/20`);
+    lines.push(`- URL slug:        ${breakdown.url_points}/12`);
+    lines.push(`- H2 heading:      ${breakdown.h2_points}/10`);
+    lines.push(`- Meta description:${breakdown.meta_points}/8`);
+    lines.push(`- Body mentions:   ${breakdown.body_points}/5`);
+  } else {
+    lines.push('- No scan data yet; run `Scan site fit` from /app/seo first if you can.');
+  }
+  lines.push('');
+
+  if (undone.length > 0) {
+    lines.push('## Changes to make (biggest wins first)');
+    undone.forEach((s, i) => {
+      lines.push(`${i + 1}. ${s.title} (+${s.points} pts) — ${s.detail}`);
+    });
+    lines.push('');
+  } else {
+    lines.push('## Changes to make');
+    lines.push('- Every signal is already at max. The score should already be 100; if it is not, re-run the fit scan.');
+    lines.push('');
+  }
+
+  if (done.length > 0) {
+    lines.push('## Already passing (do not break)');
+    done.forEach((s) => {
+      lines.push(`- ${s.title} (+${s.points} earned)`);
+    });
+    lines.push('');
+  }
+
+  lines.push('## Project conventions');
+  lines.push('- This is a Next.js 16 App Router codebase. Public pages live under `src/app/(site)/**/page.tsx`.');
+  lines.push('- The `<title>` and meta description are set via `export const metadata = { title, description }` at the top of each page.tsx (or its layout).');
+  lines.push('- The H1 is the first `<h1>` in the page JSX. There should be exactly one.');
+  lines.push('- Route paths map to folder names; to change the URL slug, rename the folder and let middleware/301 redirects catch the old URL (see `/app/seo/redirects`).');
+  lines.push('- Run `npx tsc --noEmit` after edits to catch regressions.');
+  lines.push('- Deploy workflow: commit on the current feature branch, merge into `main`, then into `master` (the live deploy branch). Never force-push.');
+  lines.push('');
+
+  lines.push('## Acceptance criteria');
+  lines.push(`- Every signal in the breakdown scores at its maximum for keyword "${keyword_text}".`);
+  lines.push('- Copy reads naturally — no keyword stuffing. Humans should not notice the phrase was added on purpose.');
+  lines.push('- Existing page structure and design are preserved; only headings, meta, slug, and body text change.');
+  lines.push('- After pushing, re-run `Scan site fit` at /app/seo to confirm the pill flips to STRONG (score ≥ 80, ideally 95+).');
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Blog idea generator (Road to Recovery / Recovery Roadmap style)
+// ---------------------------------------------------------------------------
+
+export type BlogAngle =
+  | 'what_happens'
+  | 'decision_guide'
+  | 'myths_vs_reality'
+  | 'first_time'
+  | 'who_its_for'
+  | 'why_it_works';
+
+export interface BlogIdea {
+  angle: BlogAngle;
+  title: string;
+  subtitle: string;
+  slug: string;
+}
+
+export type KeywordCategoryForIdeas =
+  | 'location' | 'modality' | 'insurance' | 'substance' | 'brand' | 'decision';
+
+function toSlug(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 80);
+}
+
+function titleCase(s: string): string {
+  const small = new Set(['a', 'an', 'the', 'of', 'in', 'on', 'at', 'to', 'for', 'and', 'or', 'with', 'by', 'from', 'as']);
+  return s
+    .split(/\s+/)
+    .map((w, i) => (i > 0 && small.has(w.toLowerCase()) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ');
+}
+
+/**
+ * Four-idea Road to Recovery pack for a keyword. Angles are chosen
+ * to match whichever category the keyword belongs to: decision
+ * queries lean on step-by-step guides, modality queries lean on
+ * "what actually happens", location queries lean on "why here",
+ * substance queries lean on "first time" and "myths vs reality".
+ *
+ * All titles embed the keyword verbatim so the generated article
+ * will naturally score the H1 / title / URL / body signals.
+ */
+export function ideasForKeyword(keyword_text: string, category?: KeywordCategoryForIdeas): BlogIdea[] {
+  const kw = keyword_text.trim();
+  const kwTitle = titleCase(kw);
+  const cat = category ?? 'modality';
+
+  const pool: Record<BlogAngle, BlogIdea> = {
+    what_happens: {
+      angle: 'what_happens',
+      title: `What Actually Happens in ${kwTitle}`,
+      subtitle: `The honest, minute-by-minute version of ${kw} — no marketing gloss.`,
+      slug: toSlug(`what-actually-happens-in-${kw}`),
+    },
+    decision_guide: {
+      angle: 'decision_guide',
+      title: `Choosing ${kwTitle}: A Step-by-Step Honest Guide`,
+      subtitle: `How to evaluate ${kw} without getting lost in brochures — a checklist you can actually use.`,
+      slug: toSlug(`choosing-${kw}-guide`),
+    },
+    myths_vs_reality: {
+      angle: 'myths_vs_reality',
+      title: `${kwTitle}: Myths vs. Reality`,
+      subtitle: `Five things people expect from ${kw}, and what really happens on day three, day seven, and month three.`,
+      slug: toSlug(`${kw}-myths-vs-reality`),
+    },
+    first_time: {
+      angle: 'first_time',
+      title: `The First 72 Hours of ${kwTitle}`,
+      subtitle: `What the first three days of ${kw} feel like — the fear, the body, the first breath that lands.`,
+      slug: toSlug(`first-72-hours-${kw}`),
+    },
+    who_its_for: {
+      angle: 'who_its_for',
+      title: `Who ${kwTitle} Is Actually For`,
+      subtitle: `Not everyone benefits the same way from ${kw}. Here is who does, who doesn't, and how to tell.`,
+      slug: toSlug(`who-${kw}-is-for`),
+    },
+    why_it_works: {
+      angle: 'why_it_works',
+      title: `Why ${kwTitle} Works When Other Things Haven't`,
+      subtitle: `The mechanisms behind ${kw} — the trauma science, the body response, the community piece.`,
+      slug: toSlug(`why-${kw}-works`),
+    },
+  };
+
+  // Per-category selection of four angles that fit best.
+  const byCategory: Record<KeywordCategoryForIdeas, BlogAngle[]> = {
+    location:  ['why_it_works', 'what_happens', 'decision_guide', 'who_its_for'],
+    modality:  ['what_happens', 'why_it_works', 'who_its_for', 'myths_vs_reality'],
+    insurance: ['decision_guide', 'what_happens', 'myths_vs_reality', 'who_its_for'],
+    substance: ['first_time', 'myths_vs_reality', 'what_happens', 'who_its_for'],
+    brand:     ['why_it_works', 'what_happens', 'first_time', 'decision_guide'],
+    decision:  ['decision_guide', 'myths_vs_reality', 'what_happens', 'first_time'],
+  };
+
+  return byCategory[cat].map((a) => pool[a]);
+}
+
+export interface BlogPromptInput {
+  keyword_text: string;
+  idea: BlogIdea;
+}
+
+/**
+ * A Claude Code prompt that, pasted into a `claude code` session in
+ * this repo, produces a full Recovery Roadmap episode at
+ * src/app/(site)/who-we-are/blog/<slug>/. The prompt embeds the
+ * Road to Recovery voice (second person, trauma-informed, warm,
+ * ~1,800 words, H2-driven) plus the Next.js conventions the
+ * episode needs to land in the route tree.
+ */
+export function buildBlogCreationPrompt({ keyword_text, idea }: BlogPromptInput): string {
+  const lines: string[] = [];
+  lines.push(`Write a new Recovery Roadmap blog episode targeting the SEO keyword "${keyword_text}".`);
+  lines.push('');
+  lines.push('## Article');
+  lines.push(`- Title: ${idea.title}`);
+  lines.push(`- Subtitle / hook: ${idea.subtitle}`);
+  lines.push(`- Slug: ${idea.slug}`);
+  lines.push(`- Target keyword (must appear in H1, <title>, URL slug, meta description, and 3+ times in body): "${keyword_text}"`);
+  lines.push('');
+  lines.push('## Where it lives');
+  lines.push(`- Create the route folder: \`src/app/(site)/who-we-are/blog/${idea.slug}/\``);
+  lines.push('- Add two files in that folder:');
+  lines.push('  - `page.tsx`: server component, exports \`metadata\` with title + description (both containing the keyword), renders a `<Content />` client component.');
+  lines.push('  - `content.tsx`: \'use client\' component with the actual article JSX.');
+  lines.push('- Add the new episode to the hub at `/home/user/7a/src/app/(site)/who-we-are/recovery-roadmap/page.tsx` as an episode card (copy the existing card pattern: kicker "Episode N — The Recovery Roadmap", title, 1-sentence description, "Read Episode" link pointing to the new slug).');
+  lines.push('');
+  lines.push('## Voice and format (Road to Recovery house style)');
+  lines.push('- Second person, conversational, trauma-informed, evidence-based, warm. Not clinical, not marketing, no clickbait.');
+  lines.push('- Open with a vulnerable human scenario that the reader recognises ("If you\'re reading this, there\'s a good chance …").');
+  lines.push('- Build the narrative: personal hook → context / data → honest specifics → empowerment.');
+  lines.push('- H2-driven sections (no numbered list of sections). ~6–9 H2 blocks total.');
+  lines.push('- Signature framing phrases are fine: "the real, human version", "not your fault, but what you do next is within your power", "the truth, told with compassion".');
+  lines.push('- Target ~1,800 words of body copy. Short paragraphs. No filler.');
+  lines.push('- Where it helps, include one or two simple animated / interactive elements from the existing pattern library (intersection-observer reveals, a small SVG diagram, a checklist). Match the style of the two existing episodes.');
+  lines.push('- Close with a direct call to action to `/admissions` or `/contact` — warm, not sales-y.');
+  lines.push('');
+  lines.push('## Reference episodes to match style');
+  lines.push('- `src/app/(site)/who-we-are/blog/when-drinking-stops-working/` (page.tsx + content.tsx)');
+  lines.push('- `src/app/(site)/who-we-are/blog/what-happens-first-week/` (page.tsx + content.tsx)');
+  lines.push('Skim both before drafting; copy their hero + metadata patterns verbatim, then replace the content.');
+  lines.push('');
+  lines.push('## Acceptance criteria');
+  lines.push(`- The finished episode's "Current fit" score for "${keyword_text}" reaches 100 on a re-scan at /app/seo.`);
+  lines.push('- The episode card appears on `/who-we-are/recovery-roadmap` with the correct kicker number, title, and link.');
+  lines.push('- `npx tsc --noEmit` is clean.');
+  lines.push('- Copy reads naturally to a human. The target keyword is present but not stuffed.');
+  lines.push('- Deploy workflow: commit on the current feature branch, merge to `main`, then merge `main` into `master` (the live deploy branch). Push each.');
+  return lines.join('\n');
+}
+
 export function suggestionsForFit(input: SuggestionInput): FitSuggestion[] {
   const { keyword_text, breakdown } = input;
   const q = `"${keyword_text}"`;
