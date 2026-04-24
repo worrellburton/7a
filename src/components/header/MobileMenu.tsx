@@ -396,40 +396,65 @@ function DrawerReview({ open }: { open: boolean }) {
   const text = current.text.length > 180 ? current.text.slice(0, 180).replace(/\s+\S*$/, '') + '…' : current.text;
 
   return (
-    <div className="px-3 pt-6">
-      <div className="rounded-2xl border border-black/10 bg-warm-bg/60 p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <GoogleG />
-          <div className="flex items-center gap-0.5 text-[#f5a623]">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <svg key={i} className={`w-3 h-3 ${i < Math.round(current.rating) ? '' : 'opacity-30'}`} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-              </svg>
-            ))}
-          </div>
-          <span className="ml-auto text-[10px] tracking-[0.18em] uppercase font-semibold text-foreground/50">
-            Verified Google review
-          </span>
+    <div className="px-4 pt-8">
+      {/* Kicker + stars row. Mirrors the "WHAT OUR CLIENTS SAY / 4.9"
+          treatment on the landing review carousel so the drawer review
+          reads as the same voice, just scaled down. */}
+      <div className="flex items-center gap-2 mb-4">
+        <GoogleG />
+        <div className="flex items-center gap-0.5 text-[#f5a623]">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <svg
+              key={i}
+              className={`w-3.5 h-3.5 ${i < Math.round(current.rating) ? '' : 'opacity-25'}`}
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+            </svg>
+          ))}
         </div>
-        <p className="text-[13px] text-foreground/80 leading-snug">&ldquo;{text}&rdquo;</p>
-        <p className="mt-3 flex items-center gap-2 text-[11px] text-foreground/60">
-          {current.profilePhotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={current.profilePhotoUrl}
-              alt=""
-              referrerPolicy="no-referrer"
-              className="w-5 h-5 rounded-full object-cover ring-1 ring-black/10"
-              loading="lazy"
-            />
-          ) : (
-            <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">
-              {(current.authorName || '?').trim().charAt(0).toUpperCase()}
-            </span>
+        <span className="ml-auto text-[10px] tracking-[0.22em] uppercase font-semibold text-foreground/45">
+          Verified Google review
+        </span>
+      </div>
+
+      {/* Quote — Cursor-style curly marks, sans-serif, tight leading. */}
+      <blockquote
+        className="text-foreground/85 font-semibold leading-[1.35] text-[15px]"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <span aria-hidden="true" className="text-foreground/35">&ldquo;</span>
+        {text}
+        <span aria-hidden="true" className="text-foreground/35">&rdquo;</span>
+      </blockquote>
+
+      {/* Attribution — reviewer photo on left, name + relative time
+          stacked tight on the right. */}
+      <div className="mt-4 flex items-center gap-2.5">
+        {current.profilePhotoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={current.profilePhotoUrl}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="w-7 h-7 rounded-full object-cover ring-1 ring-black/10"
+            loading="lazy"
+          />
+        ) : (
+          <span className="w-7 h-7 rounded-full bg-primary/15 text-primary text-[12px] font-bold flex items-center justify-center">
+            {(current.authorName || '?').trim().charAt(0).toUpperCase()}
+          </span>
+        )}
+        <div className="flex flex-col leading-tight">
+          <span className="text-[12px] font-semibold text-foreground/75">
+            {current.authorName || 'Verified Google review'}
+          </span>
+          {current.relativeTime && (
+            <span className="text-[10px] text-foreground/45">{current.relativeTime}</span>
           )}
-          <span className="font-semibold text-foreground/75">{current.authorName || 'Verified Google review'}</span>
-          {current.relativeTime && <span className="text-foreground/40">· {current.relativeTime}</span>}
-        </p>
+        </div>
       </div>
     </div>
   );

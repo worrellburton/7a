@@ -89,9 +89,9 @@ export default function TeamStatBand({ team }: Props) {
         eyebrow: 'A small, on-purpose roster',
       },
       {
-        value: 6,
+        value: 1,
         suffix: ':1',
-        label: 'Client-to-staff ratio',
+        label: 'Primary clinician',
         eyebrow: 'Individual attention, structurally',
       },
       {

@@ -53,11 +53,14 @@ function clipQuote(text: string): { display: string; clipped: boolean } {
 
 // Length-scaled sizing — short punchlines get the big poster treatment;
 // longer quotes step down to keep the slide composed on one screen.
+// Desktop sizes intentionally restrained: past ~180 chars the slide
+// starts to dominate the viewport, so lg caps at text-2xl rather than
+// the larger sizes used at shorter lengths.
 function quoteSizeClass(len: number): string {
-  if (len <= 110) return 'text-3xl sm:text-4xl lg:text-5xl';
-  if (len <= 200) return 'text-2xl sm:text-3xl lg:text-[2.5rem]';
-  if (len <= 280) return 'text-xl sm:text-2xl lg:text-3xl';
-  return 'text-lg sm:text-xl lg:text-2xl';
+  if (len <= 110) return 'text-2xl sm:text-3xl lg:text-[2.5rem]';
+  if (len <= 200) return 'text-xl sm:text-2xl lg:text-[2rem]';
+  if (len <= 280) return 'text-lg sm:text-xl lg:text-[1.6rem]';
+  return 'text-base sm:text-lg lg:text-[1.35rem]';
 }
 
 function Chevron({
