@@ -80,6 +80,18 @@ export default function SeoContent() {
         </div>
         <div className="flex items-center gap-2">
           <Link
+            href="/app/images?autoRun=1"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-foreground text-white px-3 py-2 text-sm font-semibold hover:bg-foreground/90 transition"
+            title="Open the Images gallery and immediately run an SEO pass on every image that hasn't been optimized yet (WebP recompression, alt text, SEO title + meta description)."
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <path d="M8 11h6M11 8v6" />
+            </svg>
+            SEO Images
+          </Link>
+          <Link
             href="/app/seo/audit"
             className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground hover:bg-warm-bg/40 transition"
           >
