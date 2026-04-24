@@ -7,7 +7,39 @@ export const metadata: Metadata = {
 };
 
 import PageHero from '@/components/PageHero';
+import GeoAnswer from '@/components/seo/GeoAnswer';
 import Link from 'next/link';
+import { faqPageSchema, medicalWebPageSchema, jsonLdScript } from '@/lib/seo/pageSchema';
+
+const faqJsonLd = faqPageSchema([
+  {
+    q: 'Where is the best residential addiction treatment near Scottsdale?',
+    a: 'Seven Arrows Recovery is a JCAHO-accredited residential drug and alcohol rehab approximately 210 miles southeast of Scottsdale, at the base of the Swisshelm Mountains in Cochise County. The drive is about 3.5 hours through Arizona high-desert landscape — close enough for family visits, far enough that clients aren’t surrounded by the environments that fed the addiction.',
+  },
+  {
+    q: 'Is there a rehab near Scottsdale that offers private, discreet treatment?',
+    a: 'Yes. Seven Arrows Recovery runs a small-census boutique campus with private and semi-private rooms, chef-prepared meals, and one-on-one time with licensed clinicians — designed for Scottsdale professionals and families who require discretion.',
+  },
+  {
+    q: 'How long is the drive from Scottsdale to Seven Arrows Recovery?',
+    a: 'Approximately 3.5 hours (≈210 miles) southeast of Scottsdale, via I-10 and AZ-191. Admissions can arrange transportation from Sky Harbor or Scottsdale directly.',
+  },
+  {
+    q: 'Do you work with Scottsdale-based insurance plans?',
+    a: 'Yes. Seven Arrows Recovery works with most major carriers including Aetna, Blue Cross Blue Shield, Cigna, UnitedHealthcare, TRICARE, Beacon Health, and First Health Network. Benefits verification is free and takes ~15 minutes.',
+  },
+]);
+
+const webPageJsonLd = medicalWebPageSchema({
+  url: 'https://sevenarrowsrecovery.com/locations/scottsdale',
+  name: 'Residential addiction treatment near Scottsdale — Seven Arrows Recovery',
+  description:
+    'Residential drug and alcohol rehab for Scottsdale, AZ residents — JCAHO-accredited treatment on a 160-acre ranch in Cochise County, ~3.5 hours from Scottsdale.',
+  about: [
+    { type: 'City', name: 'Scottsdale, Arizona' },
+    { type: 'MedicalTherapy', name: 'Residential Addiction Treatment' },
+  ],
+});
 
 const services = [
   {
@@ -55,6 +87,8 @@ const insuranceProviders = [
 export default function LocationScottsdalePage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(faqJsonLd)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(webPageJsonLd)} />
       <PageHero
         label="Drug Rehab in Scottsdale"
         title={[
@@ -76,6 +110,27 @@ export default function LocationScottsdalePage() {
             eyebrow: 'Scottsdale admissions · 24/7',
           },
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },
+        ]}
+      />
+
+      <GeoAnswer
+        id="residential-addiction-treatment-near-scottsdale"
+        question="Residential addiction treatment near Scottsdale"
+        answer={
+          <p>
+            Seven Arrows Recovery is the closest boutique residential drug and alcohol rehab
+            for Scottsdale, Arizona residents — a JCAHO-accredited program on a 160-acre
+            ranch in Cochise County, about 3.5 hours (≈210 miles) southeast of Scottsdale via
+            I-10 and AZ-191. The drive is intentional: far enough to separate clients from
+            their triggers, close enough for family visits and a smooth transport from Sky
+            Harbor.
+          </p>
+        }
+        bullets={[
+          { label: 'Discretion by design', body: 'Small census, private accommodations, chef-prepared meals, no institutional hallways.' },
+          { label: 'Licensed clinicians on-site', body: 'One-on-one individual therapy, trauma-informed groups, equine-assisted sessions weekly.' },
+          { label: 'Major insurance carriers', body: 'Aetna, BCBS, Cigna, UnitedHealthcare, TRICARE, Beacon Health, First Health — free benefits verification.' },
+          { label: 'Transport from Scottsdale', body: 'Admissions can coordinate pickup from Phoenix Sky Harbor or from a Scottsdale address directly.' },
         ]}
       />
 

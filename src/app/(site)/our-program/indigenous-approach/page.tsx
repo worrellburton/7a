@@ -7,7 +7,35 @@ export const metadata: Metadata = {
 };
 
 import PageHero from '@/components/PageHero';
+import GeoAnswer from '@/components/seo/GeoAnswer';
 import Link from 'next/link';
+import { faqPageSchema, medicalWebPageSchema, jsonLdScript } from '@/lib/seo/pageSchema';
+
+const faqJsonLd = faqPageSchema([
+  {
+    q: 'Are there rehabs that use indigenous or holistic practices?',
+    a: 'Yes. Seven Arrows Recovery is a JCAHO-accredited residential addiction treatment program in Cochise County, Arizona that integrates indigenous and holistic practices — sweat lodge ceremony, talking circles, smudging, drumming, storytelling, and land-based work — alongside evidence-based clinical care, held respectfully and facilitated by experienced practitioners.',
+  },
+  {
+    q: 'Is the sweat lodge a required part of treatment?',
+    a: 'No. All ceremonial and indigenous practices are offered as invitations, not requirements. Clients opt in when and if it is clinically and personally appropriate. Clinical care remains the foundation of the program.',
+  },
+  {
+    q: 'How are indigenous practices integrated respectfully?',
+    a: 'Ceremonial elements are held by experienced practitioners and woven through clinical care, not presented as an aesthetic layer. Seven Arrows treats these practices as a living tradition — used only where it honors the cultural lineage and supports the clinical goals.',
+  },
+]);
+
+const webPageJsonLd = medicalWebPageSchema({
+  url: 'https://sevenarrowsrecovery.com/our-program/indigenous-approach',
+  name: 'Rehabs that use indigenous or holistic practices — Seven Arrows Recovery',
+  description:
+    'Residential addiction treatment in Arizona that integrates indigenous and holistic practices — sweat lodge, talking circles, land-based ceremony — with evidence-based clinical care.',
+  about: [
+    { type: 'MedicalTherapy', name: 'Holistic Therapy' },
+    { type: 'MedicalTherapy', name: 'Residential Addiction Treatment' },
+  ],
+});
 
 const practices = [
   {
@@ -35,6 +63,8 @@ const practices = [
 export default function IndigenousApproachPage() {
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(faqJsonLd)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(webPageJsonLd)} />
       <PageHero
         label="Indigenous Approach"
         title={[
@@ -58,6 +88,28 @@ export default function IndigenousApproachPage() {
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },
         ]}
       />
+
+      <GeoAnswer
+        id="rehabs-that-use-indigenous-or-holistic-practices"
+        question="Rehabs that use indigenous or holistic practices"
+        answer={
+          <p>
+            Seven Arrows Recovery is a JCAHO-accredited residential rehab in Arizona that
+            integrates indigenous and holistic practices — sweat lodge ceremony, talking
+            circles, smudging, drumming, storytelling, and land-based ceremony — directly into
+            a clinical program grounded in the TraumAddiction&reg; model. Ceremonial work is
+            held by experienced practitioners and offered as invitation, not requirement,
+            threaded respectfully through evidence-based individual and group therapy.
+          </p>
+        }
+        bullets={[
+          { label: 'Sweat lodge', body: 'Traditional sweat lodge ceremony held by experienced practitioners — offered, not required.' },
+          { label: 'Land-based work', body: 'Desert trails, silence, sky, seasonal rhythm — the Cochise County campus is part of the medicine.' },
+          { label: 'Talking circles + storytelling', body: 'Community-held groups informed by indigenous traditions; woven alongside CBT/DBT, EMDR, somatic work.' },
+          { label: 'Respectful integration', body: 'Ceremonies treated as living traditions — never aestheticized, always held with cultural grounding.' },
+        ]}
+      />
+
 
       {/* Introduction */}
       <section className="py-16 lg:py-24 bg-warm-bg">
