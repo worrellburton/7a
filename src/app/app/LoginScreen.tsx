@@ -697,6 +697,136 @@ export { usePrefersReducedMotion };
 
 /* ── Main login screen ──────────────────────────────────────────── */
 
+/* ── Phase 6: Delightful Google CTA with loading handshake ─────── */
+
+function GoogleGlyph() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+    </svg>
+  );
+}
+
+function SignInButton({ onSignIn }: { onSignIn: () => void }) {
+  // Once the user clicks we can't predict how long Google's OAuth
+  // redirect will take — stay in "loading" until unmount. That keeps
+  // the CTA from bouncing back to its idle state if the redirect
+  // stalls a few hundred ms.
+  const [loading, setLoading] = useState(false);
+
+  const handle = () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      onSignIn();
+    } catch {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative animate-cta-in">
+      {/* Warm glow halo — pulses behind the button so it looks "on". */}
+      <div
+        className="pointer-events-none absolute -inset-2 rounded-full blur-xl cta-glow"
+        style={{
+          background:
+            'radial-gradient(ellipse at center, rgba(255,180,130,0.55), rgba(188,107,74,0.25) 55%, transparent 75%)',
+        }}
+        aria-hidden="true"
+      />
+      {/* Rotating gradient border. Achieved with two stacked rings —
+          outer conic-gradient spins, inner white ring masks the middle
+          so only a 1.5px edge shows through. */}
+      <div className="relative rounded-full p-[1.5px] overflow-hidden">
+        <span
+          className="pointer-events-none absolute inset-[-50%] cta-ring"
+          style={{
+            background:
+              'conic-gradient(from 0deg, #4285F4, #EA4335, #FBBC05, #34A853, #4285F4)',
+          }}
+          aria-hidden="true"
+        />
+        <button
+          onClick={handle}
+          disabled={loading}
+          aria-label={loading ? 'Redirecting to Google' : 'Sign in with Google'}
+          className="group relative w-full flex items-center justify-center gap-3 bg-white rounded-full py-3.5 px-6 text-sm font-semibold text-gray-900 shadow-lg transition-all hover:shadow-2xl hover:scale-[1.02] active:scale-[0.99] disabled:opacity-90 disabled:cursor-wait"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {/* Subtle sheen sweep on hover. */}
+          <span
+            className="pointer-events-none absolute inset-0 overflow-hidden rounded-full"
+            aria-hidden="true"
+          >
+            <span className="absolute inset-y-0 -left-full w-1/2 bg-gradient-to-r from-transparent via-white/60 to-transparent transition-transform duration-700 group-hover:translate-x-[400%]" />
+          </span>
+
+          {loading ? (
+            <>
+              <span className="h-5 w-5 rounded-full border-2 border-gray-300 border-t-gray-900 animate-spin" />
+              <span className="tracking-wide">Signing you in…</span>
+            </>
+          ) : (
+            <>
+              <GoogleGlyph />
+              <span className="tracking-wide">Continue with Google</span>
+              <svg
+                className="w-3.5 h-3.5 -mr-1 transition-transform duration-300 group-hover:translate-x-0.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M5 12h14" />
+                <path d="m13 6 6 6-6 6" />
+              </svg>
+            </>
+          )}
+        </button>
+      </div>
+
+      <p className="mt-3 text-[11px] text-white/60 tracking-wide">
+        Staff & family access only. Protected by Google OAuth.
+      </p>
+
+      <style jsx global>{`
+        @keyframes cta-in {
+          from { opacity: 0; transform: translateY(10px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .animate-cta-in { animation: cta-in 900ms cubic-bezier(.2,.7,.2,1) 600ms both; }
+
+        @keyframes cta-glow {
+          0%,100% { opacity: 0.55; transform: scale(1); }
+          50%     { opacity: 0.9;  transform: scale(1.04); }
+        }
+        .cta-glow { animation: cta-glow 3.6s ease-in-out infinite; }
+
+        @keyframes cta-ring-spin {
+          to { transform: rotate(360deg); }
+        }
+        .cta-ring {
+          animation: cta-ring-spin 6s linear infinite;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .animate-cta-in,
+          .cta-glow,
+          .cta-ring { animation: none !important; }
+          .animate-cta-in { opacity: 1; transform: none; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export default function LoginScreen({
   onSignIn,
 }: {
@@ -711,19 +841,7 @@ export default function LoginScreen({
         <AnimatedLogo />
         <QuoteRibbon />
         <HeartbeatStats />
-        <button
-          onClick={onSignIn}
-          className="w-full flex items-center justify-center gap-3 bg-white hover:bg-white text-gray-900 rounded-full py-3.5 px-6 text-sm font-semibold transition-all shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-[0.99]"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-          </svg>
-          Continue with Google
-        </button>
+        <SignInButton onSignIn={onSignIn} />
       </div>
     </div>
   );
