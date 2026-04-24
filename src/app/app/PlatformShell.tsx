@@ -427,6 +427,35 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const router = useRouter();
   const [navDepartments, setNavDepartments] = useState<NavDepartment[]>([]);
+  // Counts of "new" submissions per nav path. Currently only powers
+  // the badge on /app/website-requests; the structure leaves room for
+  // other inboxes later.
+  const [navBadges, setNavBadges] = useState<Record<string, number>>({});
+
+  // Refresh the website-requests count on mount, on tab focus, and on
+  // a slow interval. Admin-gated endpoint; ignore failures.
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    const load = () => {
+      fetch('/api/website-requests/unread-count', { cache: 'no-store', credentials: 'include' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json: { total?: number } | null) => {
+          if (cancelled || !json) return;
+          setNavBadges((prev) => ({ ...prev, '/app/website-requests': json.total ?? 0 }));
+        })
+        .catch(() => { /* non-fatal */ });
+    };
+    load();
+    const onVis = () => { if (!document.hidden) load(); };
+    document.addEventListener('visibilitychange', onVis);
+    const iv = window.setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVis);
+      window.clearInterval(iv);
+    };
+  }, [isAdmin]);
 
   // Sidebar/popup links are gated on both admin-only flag and the
   // per-page department allow-list. Admins bypass the department check.
@@ -724,7 +753,15 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   style={{ fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` }}
                 >
                   <span className={isActive ? 'text-primary' : 'text-foreground/40'}>{getPageIcon(item.path)}</span>
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {(navBadges[item.path] ?? 0) > 0 && (
+                    <span
+                      aria-label={`${navBadges[item.path]} new`}
+                      className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums"
+                    >
+                      {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
+                    </span>
+                  )}
                 </Link>
               );
             };
@@ -927,7 +964,15 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
                         {getPageIcon(item.path)}
                       </span>
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {(navBadges[item.path] ?? 0) > 0 && (
+                        <span
+                          aria-label={`${navBadges[item.path]} new`}
+                          className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums"
+                        >
+                          {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
