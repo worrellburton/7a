@@ -74,6 +74,8 @@ export default function LandingContent() {
   // so a tab switch doesn't refetch.
   const [heros, setHeros] = useState<Hero[]>([]);
   const [heroId, setHeroId] = useState<string | null>(null);
+  // Phase 4: when non-null, render an inline input on that tab.
+  const [renamingId, setRenamingId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -226,6 +228,41 @@ export default function LandingContent() {
     dirtyRef.current = false;
   }
 
+  async function renameHero(id: string, nextName: string) {
+    if (!session?.access_token) return;
+    const trimmed = nextName.trim();
+    if (!trimmed) {
+      showToast('Hero name cannot be empty.');
+      return;
+    }
+    // Optimistic update so the tab snaps to the new name immediately.
+    const prevHeros = heros;
+    setHeros((prev) => prev.map((h) => (h.id === id ? { ...h, name: trimmed } : h)));
+    const res = await fetch(`/api/landing/heros/${id}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    if (!res.ok) {
+      // Roll back on failure so state matches the server.
+      setHeros(prevHeros);
+      const json = await res.json().catch(() => ({}));
+      showToast(json?.error || `Rename failed (${res.status})`);
+      return;
+    }
+    const json = await res.json().catch(() => ({}));
+    const updated = json?.hero as Hero | undefined;
+    if (updated) {
+      setHeros((prev) => prev.map((h) => (h.id === updated.id ? { ...updated, videos: h.videos } : h)));
+      if (id === heroId) setSavedAt(updated.updated_at);
+    }
+    showToast('Renamed');
+  }
+
   async function createHero() {
     if (!session?.access_token) return;
     if (dirtyRef.current) {
@@ -315,13 +352,34 @@ export default function LandingContent() {
         <div className="mb-5 -mx-1 flex items-center gap-1 overflow-x-auto border-b border-black/10">
           {heros.map((h) => {
             const isActive = h.id === heroId;
+            const isRenaming = h.id === renamingId;
             const count = h.videos.length;
+            if (isRenaming) {
+              return (
+                <RenameInput
+                  key={h.id}
+                  initial={h.name}
+                  onCommit={(next) => {
+                    setRenamingId(null);
+                    if (next !== h.name) void renameHero(h.id, next);
+                  }}
+                  onCancel={() => setRenamingId(null)}
+                />
+              );
+            }
             return (
               <button
                 key={h.id}
                 type="button"
                 onClick={() => selectHero(h.id)}
-                title={`${h.name} · ${count} clip${count === 1 ? '' : 's'}`}
+                onDoubleClick={() => {
+                  // Double-clicking puts the tab into rename mode.
+                  // If it wasn't already active, also select it so
+                  // editing operates on the right hero.
+                  if (h.id !== heroId) selectHero(h.id);
+                  setRenamingId(h.id);
+                }}
+                title={`${h.name} · ${count} clip${count === 1 ? '' : 's'} · double-click to rename`}
                 className={`relative px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px ${
                   isActive
                     ? 'text-primary border-primary'
@@ -613,6 +671,48 @@ function PreviewModal({
         </div>
       </div>
     </div>
+  );
+}
+
+// Inline input that takes the place of a hero tab while it's being
+// renamed. Auto-focuses, commits on blur or Enter, cancels on Esc.
+function RenameInput({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (next: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const ref = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, []);
+  return (
+    <input
+      ref={ref}
+      type="text"
+      value={value}
+      maxLength={80}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          onCommit(value);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          onCancel();
+        }
+      }}
+      onBlur={() => onCommit(value)}
+      className="px-3 py-2 text-sm font-semibold bg-white border-2 border-primary rounded-md outline-none -mb-px"
+      style={{ minWidth: 120, maxWidth: 240 }}
+    />
   );
 }
 
