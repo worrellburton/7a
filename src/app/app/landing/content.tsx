@@ -864,9 +864,14 @@ function TimelineCard({
         const id = e.dataTransfer.getData('text/x-video-id');
         const fromTimeline = e.dataTransfer.getData('text/x-from-timeline') === '1';
         setDragOver(false);
-        if (!id || id === v.id) return;
+        if (!id) return;
+        // Stop bubbling regardless so the parent <section>'s onDrop
+        // never re-fires and produces a duplicate. If this card is
+        // the drag source (no-op same-tile drop), still swallow the
+        // event so the parent doesn't append-at-end either.
         e.preventDefault();
         e.stopPropagation();
+        if (id === v.id) return;
         onDropAt(id, fromTimeline);
       }}
       onKeyDown={(e) => {
@@ -947,7 +952,10 @@ function DropTailHorizontal({ onDropAt }: { onDropAt: (fromId: string, fromTimel
         const fromTimeline = e.dataTransfer.getData('text/x-from-timeline') === '1';
         setActive(false);
         if (!id) return;
+        // Without stopPropagation the parent <section>'s onDrop also
+        // fires and adds the same clip a second time.
         e.preventDefault();
+        e.stopPropagation();
         onDropAt(id, fromTimeline);
       }}
       className={`shrink-0 w-44 aspect-video rounded-xl border-2 border-dashed flex items-center justify-center text-[11px] transition ${
