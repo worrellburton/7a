@@ -15,6 +15,7 @@ import { useAuth, notifyAvatarChanged } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 import { supabase } from '@/lib/supabase';
+import { formatNameWithCredentials } from '@/lib/displayName';
 import { useEffect, useRef, useState } from 'react';
 
 const CURSOR_COLORS: { label: string; value: string }[] = [
@@ -107,13 +108,16 @@ function SparkleIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
 // sees here matches what the public site renders.
 function TeamCardPreview({
   fullName,
+  credentials,
   jobTitle,
   avatarUrl,
 }: {
   fullName: string;
+  credentials: string;
   jobTitle: string;
   avatarUrl: string | null;
 }) {
+  const displayName = formatNameWithCredentials(fullName, credentials);
   return (
     <div className="aspect-[4/5] w-full max-w-xs mx-auto relative overflow-hidden rounded-2xl bg-dark-section shadow-md">
       {avatarUrl ? (
@@ -142,7 +146,7 @@ function TeamCardPreview({
           className="text-white text-xl font-bold leading-tight tracking-tight"
           style={{ fontFamily: 'var(--font-display)' }}
         >
-          {fullName || 'Your Name'}
+          {displayName || 'Your Name'}
         </h3>
         {jobTitle && (
           <p
@@ -160,6 +164,7 @@ function TeamCardPreview({
 export default function ProfileContent() {
   const { user, session } = useAuth();
   const [fullName, setFullName] = useState('');
+  const [credentials, setCredentials] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [hometown, setHometown] = useState('');
   const [bio, setBio] = useState('');
@@ -202,7 +207,7 @@ export default function ProfileContent() {
       // PostgREST returns an error instead of rows — fall back to the
       // stable subset so the editor still loads the rest of the profile.
       const FULL =
-        'full_name, job_title, hometown, cursor_color, bio, favorite_quote, favorite_seven_arrows, interesting_facts, avatar_url, public_team';
+        'full_name, credentials, job_title, hometown, cursor_color, bio, favorite_quote, favorite_seven_arrows, interesting_facts, avatar_url, public_team';
       const SAFE =
         'full_name, job_title, cursor_color, bio, favorite_quote, favorite_seven_arrows, avatar_url, public_team';
 
@@ -227,6 +232,7 @@ export default function ProfileContent() {
       if (Array.isArray(data) && data[0]) {
         const row = data[0];
         setFullName(row.full_name || '');
+        setCredentials(row.credentials || '');
         setJobTitle(row.job_title || '');
         setHometown(row.hometown || '');
         setCursorColor(row.cursor_color || null);
@@ -386,6 +392,7 @@ export default function ProfileContent() {
     };
     const fullPayload = {
       ...basePayload,
+      credentials: credentials.trim() || null,
       hometown: hometown.trim() || null,
       interesting_facts: cleanFacts,
     };
@@ -400,7 +407,7 @@ export default function ProfileContent() {
     // Migration not applied yet? Retry without the new columns so the
     // rest of the profile still saves. We surface a soft warning so the
     // member isn't surprised when their hometown doesn't appear.
-    if (result?.error && /hometown|interesting_facts/i.test(result.error)) {
+    if (result?.error && /hometown|interesting_facts|credentials/i.test(result.error)) {
       // eslint-disable-next-line no-console
       console.warn('[profile] new columns missing — saving stable subset only', result.error);
       result = await db({
@@ -508,8 +515,8 @@ export default function ProfileContent() {
             </div>
           ) : (
             <div className="space-y-5">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Full Name</label>
                   <input
                     value={fullName}
@@ -519,23 +526,42 @@ export default function ProfileContent() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Job Title</label>
+                  <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Credentials</label>
                   <input
-                    value={jobTitle}
-                    disabled
-                    readOnly
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-100 text-sm bg-warm-bg/50 text-foreground/60 cursor-not-allowed"
-                    placeholder="Assigned by your admin"
-                    aria-describedby="job-title-hint"
+                    value={credentials}
+                    onChange={(e) => setCredentials(e.target.value)}
+                    maxLength={60}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none"
+                    placeholder="LMSW, PhD, MD…"
+                    aria-describedby="credentials-hint"
                   />
                   <p
-                    id="job-title-hint"
+                    id="credentials-hint"
                     className="mt-1.5 text-[11px] text-foreground/45"
                     style={{ fontFamily: 'var(--font-body)' }}
                   >
-                    Set by your admin on the Team page. Reach out to them if this needs to change.
+                    Renders after your name across the app, e.g. &ldquo;{fullName || 'Your Name'}{credentials.trim() ? `, ${credentials.trim()}` : ', LMSW'}&rdquo;.
                   </p>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Job Title</label>
+                <input
+                  value={jobTitle}
+                  disabled
+                  readOnly
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-100 text-sm bg-warm-bg/50 text-foreground/60 cursor-not-allowed"
+                  placeholder="Assigned by your admin"
+                  aria-describedby="job-title-hint"
+                />
+                <p
+                  id="job-title-hint"
+                  className="mt-1.5 text-[11px] text-foreground/45"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Set by your admin on the Team page. Reach out to them if this needs to change.
+                </p>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
@@ -810,7 +836,7 @@ export default function ProfileContent() {
           <p className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-3">
             Team page preview
           </p>
-          <TeamCardPreview fullName={fullName} jobTitle={jobTitle} avatarUrl={avatarUrl} />
+          <TeamCardPreview fullName={fullName} credentials={credentials} jobTitle={jobTitle} avatarUrl={avatarUrl} />
           <p className="text-xs text-foreground/40 mt-3 text-center">
             This is exactly how your tile renders at{' '}
             <span className="text-foreground/60">/who-we-are/meet-our-team</span>.

@@ -7,6 +7,7 @@ import {
   fetchPublicTeamMemberBySlug,
   type PublicTeamMember,
 } from '@/lib/team';
+import { formatNameWithCredentials } from '@/lib/displayName';
 
 interface Params {
   params: Promise<{ slug: string }>;
@@ -119,7 +120,7 @@ export default async function TeamMemberPage({ params }: Params) {
                   lineHeight: 1.05,
                 }}
               >
-                {member.full_name}
+                {formatNameWithCredentials(member.full_name, member.credentials)}
               </h1>
 
               {(member.job_title || member.hometown) && (
