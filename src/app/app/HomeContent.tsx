@@ -10,7 +10,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
 import AskPolicies from './AskPolicies';
 import WhatsNewButton from './WhatsNewButton';
-import HomeClientsRow from './HomeClientsRow';
+// Temporarily not rendered — see HomeContent.tsx note. Keeping the
+// import in source so the re-enable diff is one line.
+// import HomeClientsRow from './HomeClientsRow';
 import HomeHorsesRow from './HomeHorsesRow';
 import HomeMeaningfulCallsRow from './HomeMeaningfulCallsRow';
 import HomeWebsiteRequestsRow from './HomeWebsiteRequestsRow';
@@ -316,9 +318,10 @@ export default function HomeContent() {
               );
             })}
           </div>
-          <div className="mt-6 w-full">
-            <HomeClientsRow />
-          </div>
+          {/* HomeClientsRow temporarily hidden — client info isn't
+              meant to live on the home dashboard yet. Keep the
+              import + component around so re-enabling is a
+              one-line change later. */}
           <div className="mt-6 w-full">
             <HomeHorsesRow />
           </div>
@@ -331,10 +334,11 @@ export default function HomeContent() {
         </div>
       )}
 
-      {/* If there's no "Online today" row (empty state), still show clients + horses */}
+      {/* If there's no "Online today" row (empty state), still show
+          horses + calls + website requests. Clients row stays hidden
+          here too for now. */}
       {recentUsers.length === 0 && (
         <div className="px-4 sm:px-6 lg:px-10 pt-6 space-y-6">
-          <HomeClientsRow />
           <HomeHorsesRow />
           <HomeMeaningfulCallsRow />
           <HomeWebsiteRequestsRow />
