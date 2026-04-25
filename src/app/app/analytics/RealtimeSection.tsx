@@ -11,7 +11,7 @@ interface RealtimeResponse {
   topPages: { title: string; activeUsers: number; views: number }[];
   topCountries: { country: string; activeUsers: number }[];
   devices: { device: string; activeUsers: number }[];
-  sources: { source: string; activeUsers: number }[];
+  platforms: { platform: string; activeUsers: number }[];
   events: { name: string; count: number }[];
   fetched_at: string;
 }
@@ -129,8 +129,8 @@ export function RealtimeSection() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <LivePanel title="Source class" rows={
-          (data?.sources ?? []).map((s) => ({ label: s.source, value: s.activeUsers }))
+        <LivePanel title="Platforms" rows={
+          (data?.platforms ?? []).map((p) => ({ label: p.platform, value: p.activeUsers }))
         } />
         <LivePanel title="Recent events" rows={
           (data?.events ?? []).map((e) => ({ label: e.name, value: e.count }))

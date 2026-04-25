@@ -25,7 +25,13 @@ export async function GET() {
   }
 
   try {
-    const [totalRes, minuteRes, pagesRes, countriesRes, devicesRes, sourcesRes, eventsRes] = await Promise.all([
+    // Note: GA4's realtime report API has a smaller dimension set than
+    // the regular Data API. unifiedScreenClass / source / etc. are NOT
+    // valid here (they 400). The Google docs list the supported set:
+    //   https://developers.google.com/analytics/devguides/reporting/data/v1/realtime-api-schema
+    // We use `platform` (Web / iOS / Android) for the breakdown that
+    // used to be `unifiedScreenClass`.
+    const [totalRes, minuteRes, pagesRes, countriesRes, devicesRes, platformsRes, eventsRes] = await Promise.all([
       ga4RunRealtime({ metrics: [{ name: 'activeUsers' }] }),
       ga4RunRealtime({
         dimensions: [{ name: 'minutesAgo' }],
@@ -49,7 +55,7 @@ export async function GET() {
         metrics: [{ name: 'activeUsers' }],
       }),
       ga4RunRealtime({
-        dimensions: [{ name: 'unifiedScreenClass' }],
+        dimensions: [{ name: 'platform' }],
         metrics: [{ name: 'activeUsers' }],
         orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
         limit: 8,
@@ -90,8 +96,8 @@ export async function GET() {
       activeUsers: Number(r.metricValues?.[0]?.value ?? 0),
     }));
 
-    const sources = (sourcesRes.rows ?? []).map((r) => ({
-      source: r.dimensionValues?.[0]?.value ?? '',
+    const platforms = (platformsRes.rows ?? []).map((r) => ({
+      platform: r.dimensionValues?.[0]?.value ?? '',
       activeUsers: Number(r.metricValues?.[0]?.value ?? 0),
     }));
 
@@ -106,7 +112,7 @@ export async function GET() {
       topPages,
       topCountries,
       devices,
-      sources,
+      platforms,
       events,
       fetched_at: new Date().toISOString(),
     });
