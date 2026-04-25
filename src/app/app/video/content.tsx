@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import * as tus from 'tus-js-client';
 import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
 
@@ -399,59 +400,80 @@ export default function VideoContent() {
       }
       const thumbInfo = (signed as { thumb?: { path: string; token: string; signedUrl: string } | null }).thumb ?? null;
 
-      // 2. Upload directly to storage via XHR PUT so we can track
-      //    bytes-sent and render a real progress bar. supabase-js's
-      //    uploadToSignedUrl uses fetch under the hood, which gives
-      //    us no progress events — fine for a 4 MB selfie, terrible
-      //    for a 200 MB drone clip.
+      // 2. Upload directly to storage via TUS resumable. The standard
+      //    PUT path 413's anywhere over ~50–100 MB regardless of the
+      //    bucket's file_size_limit (Supabase has a separate body cap
+      //    on standard uploads). TUS chunks the file at 6 MB, has
+      //    built-in progress events, and supports the same
+      //    createSignedUploadUrl token via the x-signature header
+      //    (no RLS plumbing required).
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       if (!supabaseUrl) {
         reportError('upload-to-storage (config)', 'NEXT_PUBLIC_SUPABASE_URL is not set in the browser env');
         return;
       }
-      const putUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/upload/sign/public-images/${path
-        .split('/')
-        .map(encodeURIComponent)
-        .join('/')}?token=${encodeURIComponent(token)}`;
+      // Direct storage subdomain is the recommended host for big
+      // resumable uploads — it bypasses the API gateway and is
+      // documented as more performant. Falls back to the default URL
+      // host on self-hosted setups where the storage subdomain
+      // doesn't exist.
+      const tusEndpoint = (() => {
+        try {
+          const u = new URL(supabaseUrl);
+          if (u.host.endsWith('.supabase.co')) {
+            const projectId = u.host.split('.')[0];
+            return `https://${projectId}.storage.supabase.co/storage/v1/upload/resumable`;
+          }
+          return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/upload/resumable`;
+        } catch {
+          return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/upload/resumable`;
+        }
+      })();
 
       setUploadProgress({ fileName: file.name, loaded: 0, total: file.size });
-      const xhrErr = await new Promise<{ message: string; statusCode?: number; raw?: string } | null>((resolve) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('PUT', putUrl, true);
-        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
-        // x-upsert mirrors uploadToSignedUrl({ upsert: true }).
-        xhr.setRequestHeader('x-upsert', 'true');
-        xhr.upload.onprogress = (evt) => {
-          if (evt.lengthComputable) {
-            setUploadProgress({
-              fileName: file.name,
-              loaded: evt.loaded,
-              total: evt.total,
-            });
-          }
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            // Pin to 100% so the bar fills cleanly before finalize.
+      const tusErr = await new Promise<{ message: string; statusCode?: number } | null>((resolve) => {
+        const upload = new tus.Upload(file, {
+          endpoint: tusEndpoint,
+          retryDelays: [0, 3000, 5000, 10000, 20000],
+          headers: {
+            // Presigned token authorizes the upload without an RLS
+            // policy. Comes back from /api/fal/video/sign-upload.
+            'x-signature': token,
+            'x-upsert': 'true',
+          },
+          uploadDataDuringCreation: true,
+          removeFingerprintOnSuccess: true,
+          chunkSize: 6 * 1024 * 1024,
+          metadata: {
+            bucketName: 'public-images',
+            objectName: path,
+            contentType: file.type || 'video/mp4',
+            cacheControl: '31536000',
+          },
+          onError: (err) => {
+            const anyErr = err as Error & { originalResponse?: { getStatus: () => number; getBody: () => string } };
+            const status = anyErr.originalResponse?.getStatus();
+            const body = anyErr.originalResponse?.getBody?.();
+            resolve({
+              message: anyErr.message || String(err),
+              statusCode: typeof status === 'number' ? status : undefined,
+              ...(body ? { body: body.slice(0, 400) } : {}),
+            } as { message: string; statusCode?: number });
+          },
+          onProgress: (loaded, total) => {
+            setUploadProgress({ fileName: file.name, loaded, total });
+          },
+          onSuccess: () => {
             setUploadProgress({ fileName: file.name, loaded: file.size, total: file.size });
             resolve(null);
-          } else {
-            resolve({
-              message: `HTTP ${xhr.status} ${xhr.statusText}`.trim(),
-              statusCode: xhr.status,
-              raw: xhr.responseText?.slice(0, 400),
-            });
-          }
-        };
-        xhr.onerror = () => resolve({ message: 'Network error during upload (XHR onerror)' });
-        xhr.onabort = () => resolve({ message: 'Upload aborted' });
-        xhr.send(file);
+          },
+        });
+        upload.start();
       });
-      if (xhrErr) {
-        reportError('upload-to-storage', xhrErr.message, {
+      if (tusErr) {
+        reportError('upload-to-storage (tus)', tusErr.message, {
           path,
-          statusCode: xhrErr.statusCode,
-          body: xhrErr.raw,
+          statusCode: tusErr.statusCode,
         });
         return;
       }
@@ -644,7 +666,7 @@ export default function VideoContent() {
           <button
             type="button"
             onClick={() => (seoRunning ? (seoAbortRef.current = true) : runSeoBatch())}
-            disabled={!seoRunning && videos.filter((v) => v.status === 'completed' && !!v.video_url && !v.seo_processed_at).length === 0}
+            disabled={false}
             title={
               seoRunning
                 ? 'Cancel after the current clip finishes.'
