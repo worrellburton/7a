@@ -59,6 +59,7 @@ export default function LandingContent() {
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const dirtyRef = useRef(false);
 
   const showToast = useCallback((msg: string) => {
@@ -198,6 +199,18 @@ export default function LandingContent() {
           )}
           <button
             type="button"
+            onClick={() => setPreviewOpen(true)}
+            disabled={timeline.length === 0}
+            title={timeline.length === 0 ? 'Add at least one clip to preview' : 'Play the timeline like the public hero will'}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-white text-foreground border border-black/10 hover:border-primary/40 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition"
+          >
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+            Preview
+          </button>
+          <button
+            type="button"
             onClick={save}
             disabled={saving || !loaded}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-primary text-white shadow-sm hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition"
@@ -292,11 +305,184 @@ export default function LandingContent() {
         </section>
       </div>
 
+      {previewOpen && timeline.length > 0 && (
+        <PreviewModal
+          clips={timeline}
+          imagesById={imagesById}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
+
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-full bg-foreground text-white text-sm shadow-lg">
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+function PreviewModal({
+  clips,
+  imagesById,
+  onClose,
+}: {
+  clips: SiteVideo[];
+  imagesById: Map<string, SiteImage>;
+  onClose: () => void;
+}) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [muted, setMuted] = useState(true);
+  const [loop, setLoop] = useState(true);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // ESC to close, like a normal lightbox.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // Re-trigger play() whenever the source URL changes — some browsers
+  // hold the video paused after a src swap until told otherwise.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.load();
+    void el.play().catch(() => { /* autoplay blocked, user can click */ });
+  }, [activeIdx]);
+
+  function next() {
+    if (activeIdx < clips.length - 1) {
+      setActiveIdx(activeIdx + 1);
+    } else if (loop) {
+      setActiveIdx(0);
+    }
+  }
+  function prev() {
+    if (activeIdx > 0) setActiveIdx(activeIdx - 1);
+    else if (loop) setActiveIdx(clips.length - 1);
+  }
+
+  const active = clips[activeIdx];
+  const poster = videoPoster(active, imagesById) || undefined;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Hero timeline preview"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="relative w-full max-w-5xl bg-black rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-black/40 text-white text-xs">
+          <div className="flex items-center gap-2 font-mono tabular-nums">
+            <span className="text-white/60">{(activeIdx + 1).toString().padStart(2, '0')} / {clips.length.toString().padStart(2, '0')}</span>
+            <span className="text-white/40">·</span>
+            <span className="truncate max-w-[40ch]">{videoTitle(active)}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={loop}
+                onChange={(e) => setLoop(e.target.checked)}
+                className="accent-primary"
+              />
+              <span className="text-[11px] text-white/80">Loop</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setMuted((v) => !v)}
+              className="text-[11px] text-white/80 hover:text-white"
+              title={muted ? 'Unmute' : 'Mute'}
+            >
+              {muted ? '🔇 Muted' : '🔊 On'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close preview"
+              className="text-white/70 hover:text-white text-lg leading-none"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {/* Player */}
+        <div className="relative bg-black aspect-video flex items-center justify-center">
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video
+            ref={videoRef}
+            key={active.id}
+            src={active.video_url ?? undefined}
+            poster={poster}
+            autoPlay
+            muted={muted}
+            playsInline
+            controls
+            onEnded={next}
+            className="w-full h-full object-contain bg-black"
+          />
+          {/* Prev / next clip arrows. Only render when multi-clip so a
+              single-clip preview isn't visually noisy. */}
+          {clips.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={prev}
+                aria-label="Previous clip"
+                className="absolute left-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/55 text-white hover:bg-black/75"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={next}
+                aria-label="Next clip"
+                className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/55 text-white hover:bg-black/75"
+              >
+                ›
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Strip — small thumbs of every clip in order, click to jump. */}
+        <div className="bg-black/40 px-3 py-2 overflow-x-auto">
+          <div className="flex items-center gap-2">
+            {clips.map((c, i) => {
+              const tPoster = videoPoster(c, imagesById);
+              const isActive = i === activeIdx;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setActiveIdx(i)}
+                  className={`shrink-0 rounded-md overflow-hidden border-2 transition ${
+                    isActive ? 'border-primary' : 'border-transparent hover:border-white/30'
+                  }`}
+                  title={`${(i + 1).toString().padStart(2, '0')} · ${videoTitle(c)}`}
+                >
+                  <div className="w-20 aspect-video bg-black/60 flex items-center justify-center">
+                    {tPoster ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={tPoster} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <span className="text-[9px] text-white/40 uppercase tracking-wider">No thumb</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
