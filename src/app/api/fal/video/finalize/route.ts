@@ -12,7 +12,7 @@ const ARCHIVE_BUCKET = 'public-images';
 // storage, stamp the public URL onto the site_videos row, and
 // flip status to 'completed' so the gallery picks it up.
 
-interface Body { videoId?: string; path?: string }
+interface Body { videoId?: string; path?: string; thumbPath?: string | null }
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   let body: Body = {};
   try { body = (await req.json()) as Body; } catch { /* default */ }
-  const { videoId, path } = body;
+  const { videoId, path, thumbPath } = body;
   if (!videoId || !path) {
     return NextResponse.json({ error: 'videoId and path are required' }, { status: 400 });
   }
@@ -55,11 +55,29 @@ export async function POST(req: NextRequest) {
   const { data: pub } = supabase.storage.from(ARCHIVE_BUCKET).getPublicUrl(path);
   const publicUrl = pub?.publicUrl || null;
 
+  // Thumbnail is optional — verify it actually landed before stamping
+  // so a row never references a 404 image.
+  let thumbnailUrl: string | null = null;
+  if (thumbPath) {
+    const { data: thumbHead } = await supabase.storage
+      .from(ARCHIVE_BUCKET)
+      .list(thumbPath.split('/').slice(0, -1).join('/'), {
+        search: thumbPath.split('/').pop() ?? '',
+        limit: 1,
+      });
+    const thumbExists = Array.isArray(thumbHead) && thumbHead.some((f) => thumbPath.endsWith(f.name));
+    if (thumbExists) {
+      const { data: thumbPub } = supabase.storage.from(ARCHIVE_BUCKET).getPublicUrl(thumbPath);
+      thumbnailUrl = thumbPub?.publicUrl || null;
+    }
+  }
+
   const { data: updated, error: updErr } = await supabase
     .from('site_videos')
     .update({
       status: 'completed',
       video_url: publicUrl,
+      thumbnail_url: thumbnailUrl,
       completed_at: new Date().toISOString(),
     })
     .eq('id', videoId)
