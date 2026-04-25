@@ -96,10 +96,33 @@ export async function GET(req: NextRequest) {
   }
 
   const appId = queueAppId(row.model_endpoint);
-  const statusRes = await fetch(
-    `${FAL_QUEUE_BASE}/${appId}/requests/${row.request_id}/status`,
-    { headers: { Authorization: `Key ${falKey}` } },
-  );
+  const statusUrl = `${FAL_QUEUE_BASE}/${appId}/requests/${row.request_id}/status`;
+  const queuedForSeconds = Math.round((Date.now() - new Date(row.created_at).getTime()) / 1000);
+  const statusRes = await fetch(statusUrl, {
+    headers: { Authorization: `Key ${falKey}` },
+  });
+
+  // Diagnostic blob written to row.debug_info on every poll so
+  // "stuck in queue" reports have an evidence trail. Updated below
+  // with the parsed status / logs once we've read the response.
+  const debug: {
+    last_polled_at: string;
+    queued_for_seconds: number;
+    app_id: string;
+    request_id: string;
+    status_url: string;
+    fal_status_http: number;
+    fal_status?: string;
+    fal_logs?: string[];
+    fal_error_body?: string;
+  } = {
+    last_polled_at: new Date().toISOString(),
+    queued_for_seconds: queuedForSeconds,
+    app_id: appId,
+    request_id: String(row.request_id),
+    status_url: statusUrl,
+    fal_status_http: statusRes.status,
+  };
 
   // If fal.ai's status endpoint errors (404 for unknown endpoint, 401 for
   // bad key, 5xx when fal is sick), record the upstream error on the row
@@ -110,6 +133,7 @@ export async function GET(req: NextRequest) {
   if (!statusRes.ok) {
     const text = await statusRes.text();
     const upstreamError = `fal.ai status ${statusRes.status}: ${text.slice(0, 500)}`;
+    debug.fal_error_body = text.slice(0, 800);
     const queuedForMs = Date.now() - new Date(row.created_at).getTime();
     const shouldPersist = queuedForMs > 5 * 60 * 1000;
     if (shouldPersist) {
@@ -118,12 +142,17 @@ export async function GET(req: NextRequest) {
         .update({
           status: 'failed',
           error: upstreamError,
+          debug_info: debug,
           completed_at: new Date().toISOString(),
         })
         .eq('id', id);
+    } else {
+      // Even when we don't fail the row yet, persist the diagnostic
+      // so the user can see why it's still pending.
+      await supabase.from('site_videos').update({ debug_info: debug }).eq('id', id);
     }
     return NextResponse.json(
-      { error: upstreamError, video: row },
+      { error: upstreamError, video: row, debug_info: debug },
       { status: 502 },
     );
   }
@@ -133,6 +162,11 @@ export async function GET(req: NextRequest) {
     logs?: Array<{ message?: string }>;
   };
   const falStatus = (statusJson.status || '').toUpperCase();
+  debug.fal_status = falStatus || statusJson.status || '';
+  debug.fal_logs = (statusJson.logs ?? [])
+    .map((l) => (typeof l?.message === 'string' ? l.message : ''))
+    .filter(Boolean)
+    .slice(-10);
 
   let nextStatus: string = row.status;
   if (falStatus === 'IN_QUEUE') nextStatus = 'queued';
@@ -264,25 +298,34 @@ export async function GET(req: NextRequest) {
     errorMsg = lastLog || errorMsg || 'fal.ai reported failure';
   }
 
-  if (nextStatus !== row.status || videoUrl !== row.video_url || thumbnailUrl !== row.thumbnail_url) {
-    const { data: updated, error: upErr } = await supabase
-      .from('site_videos')
-      .update({
-        status: nextStatus,
-        video_url: videoUrl,
-        thumbnail_url: thumbnailUrl,
-        error: errorMsg,
-        completed_at:
-          nextStatus === 'completed' || nextStatus === 'failed' ? new Date().toISOString() : row.completed_at,
-      })
-      .eq('id', id)
-      .select()
-      .single();
-    if (upErr) {
-      return NextResponse.json({ error: upErr.message, video: row }, { status: 500 });
+  // Always write the latest debug snapshot back so /app/video can
+  // surface "what fal said on the last poll". When something else
+  // changed too (status / urls), bundle it into the same UPDATE
+  // so we don't make two roundtrips per poll.
+  const stateChanged =
+    nextStatus !== row.status ||
+    videoUrl !== row.video_url ||
+    thumbnailUrl !== row.thumbnail_url;
+
+  const updatePayload: Record<string, unknown> = { debug_info: debug };
+  if (stateChanged) {
+    updatePayload.status = nextStatus;
+    updatePayload.video_url = videoUrl;
+    updatePayload.thumbnail_url = thumbnailUrl;
+    updatePayload.error = errorMsg;
+    if (nextStatus === 'completed' || nextStatus === 'failed') {
+      updatePayload.completed_at = new Date().toISOString();
     }
-    return NextResponse.json({ video: updated });
   }
 
-  return NextResponse.json({ video: row });
+  const { data: updated, error: upErr } = await supabase
+    .from('site_videos')
+    .update(updatePayload)
+    .eq('id', id)
+    .select()
+    .single();
+  if (upErr) {
+    return NextResponse.json({ error: upErr.message, video: row, debug_info: debug }, { status: 500 });
+  }
+  return NextResponse.json({ video: updated, debug_info: debug });
 }
