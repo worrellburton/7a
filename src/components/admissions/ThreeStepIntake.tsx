@@ -13,7 +13,7 @@ const steps: Step[] = [
     title: 'Start with a call',
     duration: 'Minutes',
     body:
-      'Dial (866) 996-4308 or submit the insurance form. Our admissions counselor listens first, then asks a few questions to understand who you are calling for, what substance or substances, and what the urgency looks like. No script, no sales pitch.',
+      'Dial (866) 996-4308 or submit the insurance form. Our admissions coordinator listens first, then asks a few questions to understand who you are calling for, what substance or substances, and what the urgency looks like. No script, no sales pitch.',
   },
   {
     title: 'Clinical phone assessment',

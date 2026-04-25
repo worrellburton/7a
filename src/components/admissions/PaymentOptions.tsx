@@ -10,12 +10,6 @@ interface Option {
 
 const options: Option[] = [
   {
-    tag: 'Insurance',
-    title: 'In-network insurance',
-    body:
-      'Most clients use insurance to cover the majority of residential treatment cost. We verify your benefits for free and give you a written estimate of out-of-pocket before you decide anything.',
-  },
-  {
     tag: 'OON PPO',
     title: 'Out-of-network PPO',
     body:

@@ -44,7 +44,7 @@ const options: Option[] = [
     title: 'Sober transport nationwide',
     eta: 'Same day or next day',
     body:
-      'For clients in active use or who need a companion on the trip, we coordinate a vetted sober transport service. A trained companion meets you at home and stays with you door-to-door.',
+      'For clients in active use or who need a companion on the trip, we connect you with a separate, vetted sober-transport company we partner with. A trained companion meets you at home and stays with you door-to-door.',
     glyph: (
       <svg viewBox="0 0 32 32" className="w-8 h-8" aria-hidden="true" {...s}>
         <path d="M4 20h24" />

@@ -150,6 +150,15 @@ export default function WhatToBring() {
             what not to. Admissions will send a printable version when you
             confirm your arrival date.
           </p>
+          <p
+            className="text-foreground/70 text-[15px] leading-relaxed mt-4"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <strong className="text-foreground/85">Smokers and vapers:</strong>{' '}
+            bring enough cigarettes, tobacco, or vape supplies for your full
+            stay. The local dollar store carries only a limited selection of
+            cigarette brands and does not stock vapes.
+          </p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">

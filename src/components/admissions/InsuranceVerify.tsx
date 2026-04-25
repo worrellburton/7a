@@ -86,7 +86,7 @@ export default function InsuranceVerify() {
               className="text-[10px] font-semibold tracking-[0.24em] uppercase text-primary mb-5 pb-3 border-b border-primary/25"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              In-network with
+              Out-of-network insurance we work with
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-10">
               {insuranceProviders.map((p) => {
