@@ -74,6 +74,8 @@ export default function LandingContent() {
   // so a tab switch doesn't refetch.
   const [heros, setHeros] = useState<Hero[]>([]);
   const [heroId, setHeroId] = useState<string | null>(null);
+  // Phase 4: when non-null, render an inline input on that tab.
+  const [renamingId, setRenamingId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -226,6 +228,115 @@ export default function LandingContent() {
     dirtyRef.current = false;
   }
 
+  async function deleteHero(id: string) {
+    if (!session?.access_token) return;
+    if (heros.length <= 1) {
+      showToast('You need at least one hero — create another, then delete this one.');
+      return;
+    }
+    const target = heros.find((h) => h.id === id);
+    if (!target) return;
+    const ok = window.confirm(
+      `Delete "${target.name}"? This drops it from the landing page on the next save. Cannot be undone.`,
+    );
+    if (!ok) return;
+    const res = await fetch(`/api/landing/heros/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      showToast(json?.error || `Delete failed (${res.status})`);
+      return;
+    }
+    const remaining = heros.filter((h) => h.id !== id);
+    setHeros(remaining);
+    // If the active hero was the one deleted, fall back to the first
+    // remaining one — we already verified there's at least one left.
+    if (id === heroId) {
+      const next = remaining[0];
+      setHeroId(next?.id ?? null);
+      setTimeline(next?.videos ?? []);
+      setSavedAt(next?.updated_at ?? null);
+      dirtyRef.current = false;
+    }
+    showToast('Hero deleted');
+  }
+
+  async function renameHero(id: string, nextName: string) {
+    if (!session?.access_token) return;
+    const trimmed = nextName.trim();
+    if (!trimmed) {
+      showToast('Hero name cannot be empty.');
+      return;
+    }
+    // Optimistic update so the tab snaps to the new name immediately.
+    const prevHeros = heros;
+    setHeros((prev) => prev.map((h) => (h.id === id ? { ...h, name: trimmed } : h)));
+    const res = await fetch(`/api/landing/heros/${id}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    if (!res.ok) {
+      // Roll back on failure so state matches the server.
+      setHeros(prevHeros);
+      const json = await res.json().catch(() => ({}));
+      showToast(json?.error || `Rename failed (${res.status})`);
+      return;
+    }
+    const json = await res.json().catch(() => ({}));
+    const updated = json?.hero as Hero | undefined;
+    if (updated) {
+      setHeros((prev) => prev.map((h) => (h.id === updated.id ? { ...updated, videos: h.videos } : h)));
+      if (id === heroId) setSavedAt(updated.updated_at);
+    }
+    showToast('Renamed');
+  }
+
+  async function createHero() {
+    if (!session?.access_token) return;
+    if (dirtyRef.current) {
+      const ok = window.confirm('You have unsaved changes on this hero. Create a new hero anyway? Your edits will be lost.');
+      if (!ok) return;
+    }
+    const defaultName = `Hero ${heros.length + 1}`;
+    const name = window.prompt('Name this hero (you can rename later):', defaultName);
+    if (name === null) return; // user hit cancel
+    const trimmed = name.trim();
+    const res = await fetch('/api/landing/heros', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ name: trimmed || defaultName }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(json?.error || `Create failed (${res.status})`);
+      return;
+    }
+    const created = json?.hero as Hero | undefined;
+    if (!created) {
+      showToast('Create returned no hero');
+      return;
+    }
+    // Append to local state and switch to it.
+    setHeros((prev) => [...prev, created]);
+    setHeroId(created.id);
+    setTimeline(created.videos);
+    setSavedAt(created.updated_at);
+    dirtyRef.current = false;
+    showToast(`Created "${created.name}"`);
+  }
+
   if (!user) return null;
 
   return (
@@ -271,32 +382,78 @@ export default function LandingContent() {
         </div>
       </header>
 
-      {/* Hero tab strip. Read-only in phase 2 — click to switch.
-          Phase 3 adds + New, phase 4 inline rename, phase 5 delete. */}
-      {heros.length > 0 && (
+      {/* Hero tab strip. Phase 3 adds the trailing + New button.
+          Phase 4 introduces inline rename, phase 5 inline delete. */}
+      {loaded && (
         <div className="mb-5 -mx-1 flex items-center gap-1 overflow-x-auto border-b border-black/10">
           {heros.map((h) => {
             const isActive = h.id === heroId;
+            const isRenaming = h.id === renamingId;
             const count = h.videos.length;
+            if (isRenaming) {
+              return (
+                <RenameInput
+                  key={h.id}
+                  initial={h.name}
+                  onCommit={(next) => {
+                    setRenamingId(null);
+                    if (next !== h.name) void renameHero(h.id, next);
+                  }}
+                  onCancel={() => setRenamingId(null)}
+                />
+              );
+            }
             return (
-              <button
+              <div
                 key={h.id}
-                type="button"
-                onClick={() => selectHero(h.id)}
-                title={`${h.name} · ${count} clip${count === 1 ? '' : 's'}`}
-                className={`relative px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px ${
-                  isActive
-                    ? 'text-primary border-primary'
-                    : 'text-foreground/60 border-transparent hover:text-foreground hover:border-foreground/20'
+                className={`group relative inline-flex items-center border-b-2 -mb-px transition-colors ${
+                  isActive ? 'border-primary' : 'border-transparent hover:border-foreground/20'
                 }`}
               >
-                {h.name}
-                <span className={`ml-2 text-[10px] tabular-nums ${isActive ? 'text-primary/70' : 'text-foreground/40'}`}>
-                  {count}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => selectHero(h.id)}
+                  onDoubleClick={() => {
+                    if (h.id !== heroId) selectHero(h.id);
+                    setRenamingId(h.id);
+                  }}
+                  title={`${h.name} · ${count} clip${count === 1 ? '' : 's'} · double-click to rename`}
+                  className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors ${
+                    isActive ? 'text-primary' : 'text-foreground/60 group-hover:text-foreground'
+                  }`}
+                >
+                  {h.name}
+                  <span className={`ml-2 text-[10px] tabular-nums ${isActive ? 'text-primary/70' : 'text-foreground/40'}`}>
+                    {count}
+                  </span>
+                </button>
+                {heros.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); void deleteHero(h.id); }}
+                    aria-label={`Delete ${h.name}`}
+                    title={`Delete "${h.name}"`}
+                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 mr-1.5 inline-flex items-center justify-center w-5 h-5 rounded-md text-foreground/40 hover:text-red-600 hover:bg-red-50 transition-opacity"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M6 6l12 12M6 18L18 6" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             );
           })}
+          <button
+            type="button"
+            onClick={createHero}
+            title="Create a new hero timeline"
+            className="ml-1 px-3 py-2.5 text-sm font-semibold text-foreground/55 hover:text-primary whitespace-nowrap inline-flex items-center gap-1 border-b-2 border-transparent hover:border-primary/40 -mb-px transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            New hero
+          </button>
         </div>
       )}
 
@@ -564,6 +721,48 @@ function PreviewModal({
         </div>
       </div>
     </div>
+  );
+}
+
+// Inline input that takes the place of a hero tab while it's being
+// renamed. Auto-focuses, commits on blur or Enter, cancels on Esc.
+function RenameInput({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (next: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const ref = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, []);
+  return (
+    <input
+      ref={ref}
+      type="text"
+      value={value}
+      maxLength={80}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          onCommit(value);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          onCancel();
+        }
+      }}
+      onBlur={() => onCommit(value)}
+      className="px-3 py-2 text-sm font-semibold bg-white border-2 border-primary rounded-md outline-none -mb-px"
+      style={{ minWidth: 120, maxWidth: 240 }}
+    />
   );
 }
 
