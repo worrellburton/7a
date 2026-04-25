@@ -55,6 +55,12 @@ export default function LandingContent() {
   const [available, setAvailable] = useState<SiteVideo[]>([]);
   const [timeline, setTimeline] = useState<SiteVideo[]>([]);
   const [imagesById, setImagesById] = useState<Map<string, SiteImage>>(new Map());
+  // Phase 1: switch to multi-hero. The page still renders one hero
+  // at a time (so the rest of the layout is untouched) but the data
+  // comes from /api/landing/heros — first hero by display_order is
+  // the active one. Subsequent phases will surface tabs / new /
+  // rename / delete on top of this state.
+  const [heroId, setHeroId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -67,13 +73,13 @@ export default function LandingContent() {
     window.setTimeout(() => setToast(null), 2400);
   }, []);
 
-  // Initial load — pull both the available pool and the saved timeline
-  // in parallel.
+  // Initial load — pull the available pool, the source-image gallery
+  // (for thumbnail fallback), and every hero in parallel.
   useEffect(() => {
     if (!user || !session?.access_token) return;
     let cancelled = false;
     (async () => {
-      const [pool, images, hero] = await Promise.all([
+      const [pool, images, herosRes] = await Promise.all([
         supabase
           .from('site_videos')
           .select('id, source_image_id, filename, prompt, alt, seo_title, video_url, thumbnail_url, duration_seconds, resolution, aspect_ratio, created_at')
@@ -86,7 +92,7 @@ export default function LandingContent() {
         supabase
           .from('site_images')
           .select('id, public_url, alt'),
-        fetch('/api/landing/hero', {
+        fetch('/api/landing/heros', {
           credentials: 'include',
           cache: 'no-store',
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -98,9 +104,18 @@ export default function LandingContent() {
       const imgMap = new Map<string, SiteImage>();
       for (const i of (images.data ?? []) as SiteImage[]) imgMap.set(i.id, i);
       setImagesById(imgMap);
-      const tl = (hero?.videos as SiteVideo[] | undefined) ?? [];
-      setTimeline(tl);
-      setSavedAt(hero?.updated_at ?? null);
+      // /api/landing/heros returns heros in display_order. First one
+      // is the active hero for now — phase 2 introduces a tab strip
+      // that lets the user pick a different one.
+      const heros = (herosRes?.heros as Array<{
+        id: string;
+        videos: SiteVideo[];
+        updated_at: string;
+      }> | undefined) ?? [];
+      const active = heros[0] ?? null;
+      setHeroId(active?.id ?? null);
+      setTimeline(active?.videos ?? []);
+      setSavedAt(active?.updated_at ?? null);
       setLoaded(true);
     })();
     return () => { cancelled = true; };
@@ -151,23 +166,27 @@ export default function LandingContent() {
 
   async function save() {
     if (!session?.access_token) return;
+    if (!heroId) {
+      showToast('No hero loaded yet — refresh and try again.');
+      return;
+    }
     setSaving(true);
     try {
-      const res = await fetch('/api/landing/hero', {
-        method: 'POST',
+      const res = await fetch(`/api/landing/heros/${heroId}`, {
+        method: 'PATCH',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ videoIds: timeline.map((v) => v.id) }),
+        body: JSON.stringify({ video_ids: timeline.map((v) => v.id) }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         showToast(json?.error || `Save failed (${res.status})`);
         return;
       }
-      setSavedAt(new Date().toISOString());
+      setSavedAt(json?.hero?.updated_at ?? new Date().toISOString());
       dirtyRef.current = false;
       showToast('Hero timeline saved');
     } finally {
