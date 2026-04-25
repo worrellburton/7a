@@ -38,6 +38,18 @@ function videoTitle(v: SiteVideo): string {
   return v.seo_title || v.prompt || v.filename || 'Untitled clip';
 }
 
+// One hero record as held in client state. The server returns this
+// shape from /api/landing/heros (videos hydrated, ordered).
+interface Hero {
+  id: string;
+  name: string;
+  video_ids: string[];
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+  videos: SiteVideo[];
+}
+
 // Mirror /app/video's thumbnail fallback chain: prefer the explicit
 // thumbnail_url, fall back to the source image's public_url so older
 // fal-generated rows that never got a thumbnail still render visually.
@@ -55,11 +67,12 @@ export default function LandingContent() {
   const [available, setAvailable] = useState<SiteVideo[]>([]);
   const [timeline, setTimeline] = useState<SiteVideo[]>([]);
   const [imagesById, setImagesById] = useState<Map<string, SiteImage>>(new Map());
-  // Phase 1: switch to multi-hero. The page still renders one hero
-  // at a time (so the rest of the layout is untouched) but the data
-  // comes from /api/landing/heros — first hero by display_order is
-  // the active one. Subsequent phases will surface tabs / new /
-  // rename / delete on top of this state.
+  // Multi-hero state. The full list is held in `heros`; the editor
+  // operates on the one keyed by `heroId`. Switching tabs does not
+  // auto-save — phase-2 keeps the same explicit Save button. Each
+  // hero's timeline is hydrated up-front (videos array on the row)
+  // so a tab switch doesn't refetch.
+  const [heros, setHeros] = useState<Hero[]>([]);
   const [heroId, setHeroId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -104,15 +117,12 @@ export default function LandingContent() {
       const imgMap = new Map<string, SiteImage>();
       for (const i of (images.data ?? []) as SiteImage[]) imgMap.set(i.id, i);
       setImagesById(imgMap);
-      // /api/landing/heros returns heros in display_order. First one
-      // is the active hero for now — phase 2 introduces a tab strip
-      // that lets the user pick a different one.
-      const heros = (herosRes?.heros as Array<{
-        id: string;
-        videos: SiteVideo[];
-        updated_at: string;
-      }> | undefined) ?? [];
-      const active = heros[0] ?? null;
+      // /api/landing/heros returns heros in display_order. We seed
+      // local state with the full list and select the first one as
+      // active — the tab strip (phase 2) lets the user switch.
+      const list = (herosRes?.heros as Hero[] | undefined) ?? [];
+      setHeros(list);
+      const active = list[0] ?? null;
       setHeroId(active?.id ?? null);
       setTimeline(active?.videos ?? []);
       setSavedAt(active?.updated_at ?? null);
@@ -186,12 +196,34 @@ export default function LandingContent() {
         showToast(json?.error || `Save failed (${res.status})`);
         return;
       }
-      setSavedAt(json?.hero?.updated_at ?? new Date().toISOString());
+      const updatedHero = json?.hero as Hero | undefined;
+      if (updatedHero) {
+        // Mirror the saved hero into the local list so a tab switch
+        // away and back doesn't show stale data.
+        setHeros((prev) => prev.map((h) => (h.id === updatedHero.id ? { ...updatedHero, videos: timeline } : h)));
+        setSavedAt(updatedHero.updated_at);
+      } else {
+        setSavedAt(new Date().toISOString());
+      }
       dirtyRef.current = false;
       showToast('Hero timeline saved');
     } finally {
       setSaving(false);
     }
+  }
+
+  function selectHero(nextId: string) {
+    if (nextId === heroId) return;
+    if (dirtyRef.current) {
+      const ok = window.confirm('You have unsaved changes on this hero. Switch anyway? Your edits will be lost.');
+      if (!ok) return;
+    }
+    const next = heros.find((h) => h.id === nextId);
+    if (!next) return;
+    setHeroId(next.id);
+    setTimeline(next.videos);
+    setSavedAt(next.updated_at);
+    dirtyRef.current = false;
   }
 
   if (!user) return null;
@@ -238,6 +270,35 @@ export default function LandingContent() {
           </button>
         </div>
       </header>
+
+      {/* Hero tab strip. Read-only in phase 2 — click to switch.
+          Phase 3 adds + New, phase 4 inline rename, phase 5 delete. */}
+      {heros.length > 0 && (
+        <div className="mb-5 -mx-1 flex items-center gap-1 overflow-x-auto border-b border-black/10">
+          {heros.map((h) => {
+            const isActive = h.id === heroId;
+            const count = h.videos.length;
+            return (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => selectHero(h.id)}
+                title={`${h.name} · ${count} clip${count === 1 ? '' : 's'}`}
+                className={`relative px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                  isActive
+                    ? 'text-primary border-primary'
+                    : 'text-foreground/60 border-transparent hover:text-foreground hover:border-foreground/20'
+                }`}
+              >
+                {h.name}
+                <span className={`ml-2 text-[10px] tabular-nums ${isActive ? 'text-primary/70' : 'text-foreground/40'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-[2fr_3fr] gap-6">
         {/* Available pool */}
