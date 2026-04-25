@@ -644,7 +644,7 @@ export default function VideoContent() {
           <button
             type="button"
             onClick={() => (seoRunning ? (seoAbortRef.current = true) : runSeoBatch())}
-            disabled={!seoRunning && videos.filter((v) => v.status === 'completed' && !!v.video_url && !v.seo_processed_at).length === 0}
+            disabled={false}
             title={
               seoRunning
                 ? 'Cancel after the current clip finishes.'
