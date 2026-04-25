@@ -317,9 +317,6 @@ export default function HomeContent() {
             })}
           </div>
           <div className="mt-6 w-full">
-            <HomeWebsiteRequestsRow />
-          </div>
-          <div className="mt-6 w-full">
             <HomeClientsRow />
           </div>
           <div className="mt-6 w-full">
@@ -328,16 +325,19 @@ export default function HomeContent() {
           <div className="mt-6 w-full">
             <HomeMeaningfulCallsRow />
           </div>
+          <div className="mt-6 w-full">
+            <HomeWebsiteRequestsRow />
+          </div>
         </div>
       )}
 
       {/* If there's no "Online today" row (empty state), still show clients + horses */}
       {recentUsers.length === 0 && (
         <div className="px-4 sm:px-6 lg:px-10 pt-6 space-y-6">
-          <HomeWebsiteRequestsRow />
           <HomeClientsRow />
           <HomeHorsesRow />
           <HomeMeaningfulCallsRow />
+          <HomeWebsiteRequestsRow />
         </div>
       )}
 
