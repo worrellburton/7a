@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 
 interface SiteVideo {
   id: string;
+  source_image_id: string | null;
   filename: string | null;
   prompt: string | null;
   alt: string | null;
@@ -27,14 +28,33 @@ interface SiteVideo {
   created_at: string;
 }
 
+interface SiteImage {
+  id: string;
+  public_url: string;
+  alt: string | null;
+}
+
 function videoTitle(v: SiteVideo): string {
   return v.seo_title || v.prompt || v.filename || 'Untitled clip';
+}
+
+// Mirror /app/video's thumbnail fallback chain: prefer the explicit
+// thumbnail_url, fall back to the source image's public_url so older
+// fal-generated rows that never got a thumbnail still render visually.
+function videoPoster(v: SiteVideo, imagesById: Map<string, SiteImage>): string | null {
+  if (v.thumbnail_url) return v.thumbnail_url;
+  if (v.source_image_id) {
+    const src = imagesById.get(v.source_image_id);
+    if (src?.public_url) return src.public_url;
+  }
+  return null;
 }
 
 export default function LandingContent() {
   const { user, session } = useAuth();
   const [available, setAvailable] = useState<SiteVideo[]>([]);
   const [timeline, setTimeline] = useState<SiteVideo[]>([]);
+  const [imagesById, setImagesById] = useState<Map<string, SiteImage>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -52,13 +72,19 @@ export default function LandingContent() {
     if (!user || !session?.access_token) return;
     let cancelled = false;
     (async () => {
-      const [pool, hero] = await Promise.all([
+      const [pool, images, hero] = await Promise.all([
         supabase
           .from('site_videos')
-          .select('id, filename, prompt, alt, seo_title, video_url, thumbnail_url, duration_seconds, resolution, aspect_ratio, created_at')
+          .select('id, source_image_id, filename, prompt, alt, seo_title, video_url, thumbnail_url, duration_seconds, resolution, aspect_ratio, created_at')
           .eq('status', 'completed')
           .not('video_url', 'is', null)
           .order('created_at', { ascending: false }),
+        // Pull the source-image gallery so cards without a thumbnail
+        // can fall back to the still that generated them — same trick
+        // /app/video uses.
+        supabase
+          .from('site_images')
+          .select('id, public_url, alt'),
         fetch('/api/landing/hero', {
           credentials: 'include',
           cache: 'no-store',
@@ -68,6 +94,9 @@ export default function LandingContent() {
       if (cancelled) return;
       const all = ((pool.data ?? []) as SiteVideo[]).filter((v) => !!v.video_url);
       setAvailable(all);
+      const imgMap = new Map<string, SiteImage>();
+      for (const i of (images.data ?? []) as SiteImage[]) imgMap.set(i.id, i);
+      setImagesById(imgMap);
       const tl = (hero?.videos as SiteVideo[] | undefined) ?? [];
       setTimeline(tl);
       setSavedAt(hero?.updated_at ?? null);
@@ -198,6 +227,7 @@ export default function LandingContent() {
                 <PoolCard
                   key={v.id}
                   v={v}
+                  imagesById={imagesById}
                   onAdd={() => addToTimeline(v.id)}
                 />
               ))}
@@ -243,6 +273,7 @@ export default function LandingContent() {
                   key={v.id}
                   index={i}
                   v={v}
+                  imagesById={imagesById}
                   onRemove={() => removeFromTimeline(v.id)}
                   onDropAt={(fromId, fromTimeline) => {
                     if (fromTimeline) reorderTimeline(fromId, i);
@@ -270,8 +301,17 @@ export default function LandingContent() {
   );
 }
 
-function PoolCard({ v, onAdd }: { v: SiteVideo; onAdd: () => void }) {
+function PoolCard({
+  v,
+  imagesById,
+  onAdd,
+}: {
+  v: SiteVideo;
+  imagesById: Map<string, SiteImage>;
+  onAdd: () => void;
+}) {
   const title = videoTitle(v);
+  const poster = videoPoster(v, imagesById);
   return (
     <div
       draggable
@@ -285,10 +325,10 @@ function PoolCard({ v, onAdd }: { v: SiteVideo; onAdd: () => void }) {
       className="group cursor-grab active:cursor-grabbing rounded-xl bg-white border border-black/5 hover:border-primary/40 hover:shadow-md transition overflow-hidden"
     >
       <div className="aspect-video w-full bg-warm-bg flex items-center justify-center overflow-hidden">
-        {v.thumbnail_url ? (
+        {poster ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={v.thumbnail_url}
+            src={poster}
             alt={v.alt || title}
             className="w-full h-full object-cover"
             loading="lazy"
@@ -310,16 +350,19 @@ function PoolCard({ v, onAdd }: { v: SiteVideo; onAdd: () => void }) {
 function TimelineRow({
   index,
   v,
+  imagesById,
   onRemove,
   onDropAt,
 }: {
   index: number;
   v: SiteVideo;
+  imagesById: Map<string, SiteImage>;
   onRemove: () => void;
   onDropAt: (fromId: string, fromTimeline: boolean) => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const title = videoTitle(v);
+  const poster = videoPoster(v, imagesById);
   return (
     <li
       draggable
@@ -354,9 +397,9 @@ function TimelineRow({
         {(index + 1).toString().padStart(2, '0')}
       </span>
       <div className="w-24 aspect-video shrink-0 bg-warm-bg rounded-md overflow-hidden">
-        {v.thumbnail_url ? (
+        {poster ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={v.thumbnail_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+          <img src={poster} alt="" className="w-full h-full object-cover" loading="lazy" />
         ) : null}
       </div>
       <div className="min-w-0 flex-1">
