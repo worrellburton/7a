@@ -43,13 +43,16 @@ function HeroPayerLogo({ name, domain }: { name: string; domain: string }) {
 
 const CLOUDFLARE_CUSTOMER = 'customer-1sijhr9xl3yqixxu';
 
-type HeroSource =
+export type HeroSource =
   | { kind: 'cloudflare'; id: string; label: string }
   | { kind: 'mp4'; url: string; label: string };
 
 // Backdrop rotation — every source fills the viewport and loops muted.
-// Cloudflare Stream sources use HLS; plain mp4s play directly.
-const heroSources: HeroSource[] = [
+// Cloudflare Stream sources use HLS; plain mp4s play directly. This
+// is the *fallback* set used when no landing_heros row is marked
+// live or the live row has no playable clips. The live timeline
+// edited at /app/landing wins when present (passed in via props).
+const fallbackHeroSources: HeroSource[] = [
   { kind: 'cloudflare', id: '23efc2d576759452ccdf1a2b1813580a', label: 'Our Facility' },
   {
     kind: 'mp4',
@@ -220,7 +223,16 @@ function Mp4Slide({ url, active }: { url: string; active: boolean }) {
 
 /* ── Hero Component ────────────────────────────────────────────────── */
 
-export default function Hero() {
+interface HeroProps {
+  /** Override the fallback hero rotation. Wired by /(site)/page.tsx
+   *  from the live landing_heros row so admins can curate the home
+   *  page from /app/landing. Empty/undefined falls back to the
+   *  hardcoded set above. */
+  sources?: HeroSource[];
+}
+
+export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
+  const sources = sourcesProp && sourcesProp.length > 0 ? sourcesProp : fallbackHeroSources;
   const [visible, setVisible] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -233,7 +245,7 @@ export default function Hero() {
   const startAutoPlay = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % heroSources.length);
+      setActiveSlide((prev) => (prev + 1) % sources.length);
     }, 10000);
   }, []);
 
@@ -258,7 +270,7 @@ export default function Hero() {
           doesn't leave a white gap under the hero. */}
       <div className="relative w-full min-h-[calc(100svh-40px-44px)] lg:min-h-[calc(100vh-40px-44px)] overflow-hidden bg-dark-section">
         {/* Rotating video stack */}
-        {heroSources.map((src, i) => (
+        {sources.map((src, i) => (
           <div
             key={i}
             className={`absolute inset-0 transition-opacity duration-1000 ${i === activeSlide ? 'opacity-100 z-0' : 'opacity-0 z-0'}`}
@@ -418,9 +430,9 @@ export default function Hero() {
         </div>
 
         {/* Slide dots */}
-        {heroSources.length > 1 && (
+        {sources.length > 1 && (
           <div className="absolute bottom-6 right-6 z-30 flex gap-2">
-            {heroSources.map((_, i) => (
+            {sources.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setActiveSlide(i)}
