@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { getAdminSupabase, getServerSupabase } from '@/lib/supabase-server';
 import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 
@@ -160,6 +161,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     videos = (updated.video_ids as string[]).map((vid) => byId.get(vid)).filter(Boolean);
   }
 
+  // The homepage is ISR-cached (revalidate=60). When an edit
+  // could affect what the public site renders — flipping live,
+  // editing the live hero's video_ids, or renaming/deleting it —
+  // invalidate the cache immediately so the change shows up on
+  // the next visit instead of waiting up to a minute.
+  const affectsLive =
+    wantSetLive ||
+    wantUnsetLive ||
+    (updated as { is_live?: boolean }).is_live === true ||
+    'video_ids' in update ||
+    'name' in update;
+  if (affectsLive) {
+    try { revalidatePath('/'); } catch { /* best-effort */ }
+  }
+
   return NextResponse.json({ hero: { ...updated, videos } });
 }
 
@@ -189,5 +205,9 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  // Deleting a hero may have removed the live row; force the
+  // homepage to re-render with the next-best fallback.
+  try { revalidatePath('/'); } catch { /* best-effort */ }
+
   return NextResponse.json({ ok: true, id });
 }
