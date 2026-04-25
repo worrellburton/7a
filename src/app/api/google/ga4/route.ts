@@ -43,6 +43,7 @@ function diffDays(startStr: string, endStr: string): number {
 const SUMMARY_METRICS = [
   { name: 'sessions' },
   { name: 'activeUsers' },
+  { name: 'newUsers' },
   { name: 'screenPageViews' },
   { name: 'averageSessionDuration' },
   { name: 'bounceRate' },
@@ -51,6 +52,7 @@ const SUMMARY_METRICS = [
 interface SummaryValues {
   sessions: number;
   activeUsers: number;
+  newUsers: number;
   pageViews: number;
   avgSessionDurationSec: number;
   bounceRate: number;
@@ -61,9 +63,10 @@ function readSummary(rowValues: { value?: string }[] | undefined): SummaryValues
   return {
     sessions: Number(v[0]?.value ?? 0),
     activeUsers: Number(v[1]?.value ?? 0),
-    pageViews: Number(v[2]?.value ?? 0),
-    avgSessionDurationSec: Number(v[3]?.value ?? 0),
-    bounceRate: Number(v[4]?.value ?? 0),
+    newUsers: Number(v[2]?.value ?? 0),
+    pageViews: Number(v[3]?.value ?? 0),
+    avgSessionDurationSec: Number(v[4]?.value ?? 0),
+    bounceRate: Number(v[5]?.value ?? 0),
   };
 }
 
