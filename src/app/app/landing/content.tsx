@@ -228,6 +228,42 @@ export default function LandingContent() {
     dirtyRef.current = false;
   }
 
+  async function deleteHero(id: string) {
+    if (!session?.access_token) return;
+    if (heros.length <= 1) {
+      showToast('You need at least one hero — create another, then delete this one.');
+      return;
+    }
+    const target = heros.find((h) => h.id === id);
+    if (!target) return;
+    const ok = window.confirm(
+      `Delete "${target.name}"? This drops it from the landing page on the next save. Cannot be undone.`,
+    );
+    if (!ok) return;
+    const res = await fetch(`/api/landing/heros/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      showToast(json?.error || `Delete failed (${res.status})`);
+      return;
+    }
+    const remaining = heros.filter((h) => h.id !== id);
+    setHeros(remaining);
+    // If the active hero was the one deleted, fall back to the first
+    // remaining one — we already verified there's at least one left.
+    if (id === heroId) {
+      const next = remaining[0];
+      setHeroId(next?.id ?? null);
+      setTimeline(next?.videos ?? []);
+      setSavedAt(next?.updated_at ?? null);
+      dirtyRef.current = false;
+    }
+    showToast('Hero deleted');
+  }
+
   async function renameHero(id: string, nextName: string) {
     if (!session?.access_token) return;
     const trimmed = nextName.trim();
@@ -368,29 +404,43 @@ export default function LandingContent() {
               );
             }
             return (
-              <button
+              <div
                 key={h.id}
-                type="button"
-                onClick={() => selectHero(h.id)}
-                onDoubleClick={() => {
-                  // Double-clicking puts the tab into rename mode.
-                  // If it wasn't already active, also select it so
-                  // editing operates on the right hero.
-                  if (h.id !== heroId) selectHero(h.id);
-                  setRenamingId(h.id);
-                }}
-                title={`${h.name} · ${count} clip${count === 1 ? '' : 's'} · double-click to rename`}
-                className={`relative px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px ${
-                  isActive
-                    ? 'text-primary border-primary'
-                    : 'text-foreground/60 border-transparent hover:text-foreground hover:border-foreground/20'
+                className={`group relative inline-flex items-center border-b-2 -mb-px transition-colors ${
+                  isActive ? 'border-primary' : 'border-transparent hover:border-foreground/20'
                 }`}
               >
-                {h.name}
-                <span className={`ml-2 text-[10px] tabular-nums ${isActive ? 'text-primary/70' : 'text-foreground/40'}`}>
-                  {count}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => selectHero(h.id)}
+                  onDoubleClick={() => {
+                    if (h.id !== heroId) selectHero(h.id);
+                    setRenamingId(h.id);
+                  }}
+                  title={`${h.name} · ${count} clip${count === 1 ? '' : 's'} · double-click to rename`}
+                  className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors ${
+                    isActive ? 'text-primary' : 'text-foreground/60 group-hover:text-foreground'
+                  }`}
+                >
+                  {h.name}
+                  <span className={`ml-2 text-[10px] tabular-nums ${isActive ? 'text-primary/70' : 'text-foreground/40'}`}>
+                    {count}
+                  </span>
+                </button>
+                {heros.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); void deleteHero(h.id); }}
+                    aria-label={`Delete ${h.name}`}
+                    title={`Delete "${h.name}"`}
+                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 mr-1.5 inline-flex items-center justify-center w-5 h-5 rounded-md text-foreground/40 hover:text-red-600 hover:bg-red-50 transition-opacity"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M6 6l12 12M6 18L18 6" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             );
           })}
           <button
