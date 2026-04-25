@@ -1101,26 +1101,50 @@ export default function VideoContent() {
                   )}
                 </button>
                 <div className="p-3">
-                  <p
-                    className="text-xs font-medium text-foreground truncate"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                    title={v.prompt || v.filename || ''}
-                  >
-                    {v.prompt
-                      ? v.prompt
-                      : v.filename
+                  {(() => {
+                    // Title priority:
+                    //   1. seo_title — written by the SEO Video pass; the
+                    //      richest, most human-readable label we have.
+                    //   2. prompt — the fal generation prompt; obviously
+                    //      meaningful for fal-generated clips.
+                    //   3. filename — original upload name (only present
+                    //      on rows uploaded after the filename column was
+                    //      added on 4/25).
+                    //   4. "Uploaded video" — direct uploads that pre-date
+                    //      the filename column, so we have nothing else.
+                    //   5. "No prompt" — fal-generated rows missing a prompt.
+                    const isUpload = v.model_endpoint === 'upload/direct';
+                    const title =
+                      v.seo_title ||
+                      v.prompt ||
+                      v.filename ||
+                      (isUpload ? 'Uploaded video' : null);
+                    const subtitle = v.seo_title
+                      ? (v.prompt || v.filename || (isUpload ? 'Uploaded video' : null))
+                      : v.prompt
                         ? v.filename
-                        : <span className="italic text-foreground/40">No prompt</span>}
-                  </p>
-                  {v.prompt && v.filename ? (
-                    <p
-                      className="text-[10px] text-foreground/45 mt-0.5 truncate font-mono"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                      title={v.filename}
-                    >
-                      {v.filename}
-                    </p>
-                  ) : null}
+                        : null;
+                    return (
+                      <>
+                        <p
+                          className={`text-xs font-medium truncate ${title ? 'text-foreground' : 'italic text-foreground/40'}`}
+                          style={{ fontFamily: 'var(--font-body)' }}
+                          title={title || ''}
+                        >
+                          {title || 'No prompt'}
+                        </p>
+                        {subtitle ? (
+                          <p
+                            className="text-[10px] text-foreground/45 mt-0.5 truncate"
+                            style={{ fontFamily: 'var(--font-body)' }}
+                            title={subtitle}
+                          >
+                            {subtitle}
+                          </p>
+                        ) : null}
+                      </>
+                    );
+                  })()}
                   {(() => {
                     const usedModel = findVideoModelByEndpoint(v.model_endpoint);
                     return (
