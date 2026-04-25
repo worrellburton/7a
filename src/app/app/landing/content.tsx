@@ -50,6 +50,7 @@ interface Hero {
   name: string;
   video_ids: string[];
   display_order: number;
+  is_live: boolean;
   created_at: string;
   updated_at: string;
   videos: SiteVideo[];
@@ -291,6 +292,36 @@ export default function LandingContent() {
     );
   }
 
+  async function setLiveHero(id: string) {
+    if (!session?.access_token) return;
+    const target = heros.find((h) => h.id === id);
+    if (!target) return;
+    if (target.is_live) {
+      showToast(`"${target.name}" is already live.`);
+      return;
+    }
+    // Optimistic: flip is_live in local state, then PATCH. Roll
+    // back on error so the badge doesn't lie.
+    const prevHeros = heros;
+    setHeros((prev) => prev.map((h) => ({ ...h, is_live: h.id === id })));
+    const res = await fetch(`/api/landing/heros/${id}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ is_live: true }),
+    });
+    if (!res.ok) {
+      setHeros(prevHeros);
+      const json = await res.json().catch(() => ({}));
+      showToast(json?.error || `Set live failed (${res.status})`);
+      return;
+    }
+    showToast(`"${target.name}" is now live on the front page.`);
+  }
+
   async function deleteHero(id: string) {
     if (!session?.access_token) return;
     if (heros.length <= 1) {
@@ -422,6 +453,36 @@ export default function LandingContent() {
               Saved {new Date(savedAt).toLocaleString()}
             </span>
           )}
+          {(() => {
+            const active = heros.find((h) => h.id === heroId);
+            if (!active) return null;
+            if (active.is_live) {
+              return (
+                <span
+                  className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  title="This hero is the one currently rendered on the public landing page."
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live on site
+                </span>
+              );
+            }
+            return (
+              <button
+                type="button"
+                onClick={() => void setLiveHero(active.id)}
+                disabled={!loaded}
+                title={`Make "${active.name}" the hero rendered on the public landing page. Replaces whichever hero is currently live.`}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-white text-foreground border border-black/10 hover:border-emerald-400 hover:text-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M12 1v6m0 10v6M4.22 4.22l4.24 4.24m7.08 7.08l4.24 4.24M1 12h6m10 0h6M4.22 19.78l4.24-4.24m7.08-7.08l4.24-4.24" />
+                </svg>
+                Set live
+              </button>
+            );
+          })()}
           <button
             type="button"
             onClick={save}
@@ -492,6 +553,15 @@ export default function LandingContent() {
                     isActive ? 'text-primary' : 'text-foreground/60 group-hover:text-foreground'
                   }`}
                 >
+                  {h.is_live && (
+                    <span
+                      className="inline-flex items-center gap-1 mr-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 align-middle"
+                      title="This hero is live on the public site."
+                    >
+                      <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                      Live
+                    </span>
+                  )}
                   {h.name}
                   <span className={`ml-2 text-[10px] tabular-nums ${isActive ? 'text-primary/70' : 'text-foreground/40'}`}>
                     {count}
