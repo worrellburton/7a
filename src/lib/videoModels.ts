@@ -123,12 +123,43 @@ const seedance1Lite: VideoModel = {
   typicalSeconds: typicalSecondsOf(15, 4, { '480p': 0.7, '720p': 1, '1080p': 1.6 }),
 };
 
-// Seedance 2.0 entries lived here at one point pointing at
-// `fal-ai/bytedance/seedance-2.0/image-to-video` and a `/fast/`
-// sibling. Both 404'd on the result fetch — fal hadn't actually
-// shipped that slug, so submissions queued and then died ("Path
-// /seedance-2.0/image-to-video not found"). Re-add when fal lists
-// the real 2.0 endpoint.
+// Seedance 2.0 — fal.ai dropped the legacy `fal-ai/` prefix for the
+// new ByteDance models, so the slug is `bytedance/seedance-2.0/...`
+// (verified against fal.ai/models/bytedance/seedance-2.0/image-to-video
+// API page on 2026-04-25). The previous `fal-ai/bytedance/seedance-2.0/
+// image-to-video` slug was never accepted — fal returned "Path
+// /seedance-2.0/image-to-video not found" on the result fetch. The
+// queueAppId helper happily collapses a 2-segment slug to
+// `bytedance/seedance-2.0`, which is what queue.fal.run wants.
+const seedance2: VideoModel = {
+  id: 'seedance-2',
+  label: 'Seedance 2.0',
+  family: 'ByteDance Seedance',
+  endpoint: 'bytedance/seedance-2.0/image-to-video',
+  description:
+    'Latest ByteDance Seedance — best motion coherence and prompt adherence. Optional synchronized audio.',
+  durations: [5, 10],
+  resolutions: ['480p', '720p', '1080p'],
+  aspects: ['auto', '16:9', '9:16', '1:1'],
+  buildPayload: seedance1Pro.buildPayload,
+  estimateCostUSD: perSecondTable({ '480p': 0.08, '720p': 0.16, '1080p': 0.32 }),
+  typicalSeconds: typicalSecondsOf(30, 10, { '480p': 0.7, '720p': 1, '1080p': 1.6 }),
+};
+
+const seedance2Fast: VideoModel = {
+  id: 'seedance-2-fast',
+  label: 'Seedance 2.0 Fast',
+  family: 'ByteDance Seedance',
+  endpoint: 'bytedance/seedance-2.0/fast/image-to-video',
+  description:
+    'Faster, cheaper Seedance 2.0 tier — good for iterating on prompts.',
+  durations: [5, 10],
+  resolutions: ['480p', '720p', '1080p'],
+  aspects: ['auto', '16:9', '9:16', '1:1'],
+  buildPayload: seedance1Pro.buildPayload,
+  estimateCostUSD: perSecondTable({ '480p': 0.024, '720p': 0.048, '1080p': 0.096 }),
+  typicalSeconds: typicalSecondsOf(20, 5, { '480p': 0.7, '720p': 1, '1080p': 1.6 }),
+};
 
 // ─── Kuaishou Kling ────────────────────────────────────────────────────
 
@@ -327,16 +358,11 @@ const veo3: VideoModel = {
 
 // ─── Exported catalog ──────────────────────────────────────────────────
 
-// Exported catalog.
-//
-// Seedance 2.0 (and 2.0 Fast) were removed: the fal.ai endpoint
-// `fal-ai/bytedance/seedance-2.0/image-to-video` 404s on the result
-// fetch ("Path /seedance-2.0/image-to-video not found"). fal hadn't
-// actually shipped that slug; submissions queued but were never
-// produced. Re-add when the real 2.0 endpoint shows up in fal's
-// model directory. Seedance 1.0 Pro is the new default (verified
-// working — see DB rows from 4/21).
+// Exported catalog. Seedance 2.0 sits at the top as the default tier
+// since it's the newest ByteDance generation.
 export const VIDEO_MODELS: VideoModel[] = [
+  seedance2,
+  seedance2Fast,
   seedance1Pro,
   seedance1Lite,
   kling21Master,
@@ -351,7 +377,7 @@ export const VIDEO_MODELS: VideoModel[] = [
   veo3,
 ];
 
-export const DEFAULT_VIDEO_MODEL_ID = seedance1Pro.id;
+export const DEFAULT_VIDEO_MODEL_ID = seedance2.id;
 
 export function findVideoModel(id: string | null | undefined): VideoModel | null {
   if (!id) return null;
