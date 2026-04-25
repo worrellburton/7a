@@ -123,7 +123,17 @@ function TickerContent() {
 
 /* ── Cloudflare HLS slide ──────────────────────────────────────────── */
 
-function CloudflareSlide({ videoId, active }: { videoId: string; active: boolean }) {
+function CloudflareSlide({
+  videoId,
+  active,
+  isOnly,
+  onEnded,
+}: {
+  videoId: string;
+  active: boolean;
+  isOnly: boolean;
+  onEnded: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
   const [loaded, setLoaded] = useState(false);
@@ -176,19 +186,29 @@ function CloudflareSlide({ videoId, active }: { videoId: string; active: boolean
     };
   }, [hlsUrl]);
 
+  // When this slide becomes active, rewind + play. When it goes
+  // inactive, pause. The `ended` listener is what drives the
+  // carousel forward — onEnded() bumps activeSlide on the parent.
+  // `loop` only stays on for single-source rotations (otherwise
+  // ended would never fire).
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (active) video.play().catch(() => {});
-    else video.pause();
+    if (active) {
+      try { video.currentTime = 0; } catch { /* not seekable yet */ }
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
   }, [active, loaded]);
 
   return (
     <video
       ref={videoRef}
       muted
-      loop
+      loop={isOnly}
       playsInline
+      onEnded={() => { if (!isOnly) onEnded(); }}
       className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}
     />
   );
@@ -196,15 +216,31 @@ function CloudflareSlide({ videoId, active }: { videoId: string; active: boolean
 
 /* ── Plain mp4 slide ───────────────────────────────────────────────── */
 
-function Mp4Slide({ url, active }: { url: string; active: boolean }) {
+function Mp4Slide({
+  url,
+  active,
+  isOnly,
+  onEnded,
+}: {
+  url: string;
+  active: boolean;
+  isOnly: boolean;
+  onEnded: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (active) video.play().catch(() => {});
-    else video.pause();
+    if (active) {
+      // Rewind every time a slide becomes active so the second
+      // pass through the carousel doesn't open mid-clip.
+      try { video.currentTime = 0; } catch { /* not seekable yet */ }
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
   }, [active, loaded]);
 
   return (
@@ -212,10 +248,14 @@ function Mp4Slide({ url, active }: { url: string; active: boolean }) {
       ref={videoRef}
       src={url}
       muted
-      loop
+      loop={isOnly}
       playsInline
-      preload="metadata"
+      // preload="auto" so the next slide is buffered before its
+      // turn — the rotation between clips would otherwise show a
+      // poster-less black frame for a beat.
+      preload="auto"
       onLoadedData={() => setLoaded(true)}
+      onEnded={() => { if (!isOnly) onEnded(); }}
       className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}
     />
   );
@@ -233,28 +273,29 @@ interface HeroProps {
 
 export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
   const sources = sourcesProp && sourcesProp.length > 0 ? sourcesProp : fallbackHeroSources;
+  const isOnly = sources.length <= 1;
   const [visible, setVisible] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
     return () => clearTimeout(timer);
   }, []);
 
-  const startAutoPlay = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % sources.length);
-    }, 10000);
-  }, []);
+  // Each slide drives the carousel forward via its `ended` event —
+  // that way every clip plays start-to-finish exactly once before
+  // the next one takes over, and after the last slide we wrap to
+  // the first. No more wall-clock setInterval, so short clips
+  // don't get cut off and long ones don't get held back.
+  const advance = useCallback(() => {
+    setActiveSlide((prev) => (prev + 1) % sources.length);
+  }, [sources.length]);
 
+  // Reset to the first slide whenever the source list itself
+  // changes (e.g. live hero swap on ISR refresh).
   useEffect(() => {
-    startAutoPlay();
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [startAutoPlay]);
+    setActiveSlide(0);
+  }, [sources.length]);
 
   return (
     <section
@@ -277,9 +318,19 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
             aria-hidden={i !== activeSlide}
           >
             {src.kind === 'cloudflare' ? (
-              <CloudflareSlide videoId={src.id} active={i === activeSlide} />
+              <CloudflareSlide
+                videoId={src.id}
+                active={i === activeSlide}
+                isOnly={isOnly}
+                onEnded={advance}
+              />
             ) : (
-              <Mp4Slide url={src.url} active={i === activeSlide} />
+              <Mp4Slide
+                url={src.url}
+                active={i === activeSlide}
+                isOnly={isOnly}
+                onEnded={advance}
+              />
             )}
           </div>
         ))}
