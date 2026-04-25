@@ -138,6 +138,11 @@ export default function VideoContent() {
     loaded: number;
     total: number;
   } | null>(null);
+  // Multi-file batch state. uploadVideoFiles fans out to repeated
+  // single-file uploads sequentially; this lets the UI render
+  // "Uploading 2 of 5" above the per-file bytes bar so the user
+  // can tell the queue isn't stuck.
+  const [uploadQueue, setUploadQueue] = useState<{ total: number; doneCount: number } | null>(null);
   // SEO batch runner — mirrors the SEO Images flow on /app/images.
   // Walks every completed video that hasn't been SEO-processed yet,
   // calls Claude to generate alt + title + description from the
@@ -324,6 +329,34 @@ export default function VideoContent() {
     }
   }
 
+  // Batch entry point. Filters out non-video / oversize files, then
+  // walks the remainder sequentially calling uploadVideoFile. Setting
+  // uploadQueue lets the UI render "Uploading 2 of 5" above the
+  // per-file progress bar.
+  async function uploadVideoFiles(files: File[]) {
+    if (!session?.access_token) return;
+    const videos: File[] = [];
+    const skipped: string[] = [];
+    const oversize: string[] = [];
+    const MAX_BYTES = 300 * 1024 * 1024;
+    for (const f of files) {
+      if (!f.type.startsWith('video/')) skipped.push(f.name);
+      else if (f.size > MAX_BYTES) oversize.push(f.name);
+      else videos.push(f);
+    }
+    if (skipped.length) showToast(`Skipped ${skipped.length} non-video file${skipped.length === 1 ? '' : 's'}`);
+    if (oversize.length) showToast(`Skipped ${oversize.length} file${oversize.length === 1 ? '' : 's'} over 300 MB`);
+    if (videos.length === 0) return;
+
+    setUploadQueue({ total: videos.length, doneCount: 0 });
+    for (let i = 0; i < videos.length; i++) {
+      setUploadQueue({ total: videos.length, doneCount: i });
+      await uploadVideoFile(videos[i]);
+    }
+    setUploadQueue(null);
+    if (videos.length > 1) showToast(`Uploaded ${videos.length} videos`);
+  }
+
   async function uploadVideoFile(file: File) {
     if (!session?.access_token) return;
     if (!file.type.startsWith('video/')) {
@@ -393,9 +426,9 @@ export default function VideoContent() {
         reportError('sign-upload', signed?.error || `HTTP ${signRes.status}`, { status: signRes.status, body: signed });
         return;
       }
-      const { videoId, path, token } = signed as { videoId: string; path: string; token: string };
-      if (!videoId || !path || !token) {
-        reportError('sign-upload (shape)', 'sign-upload response missing videoId/path/token', { body: signed });
+      const { videoId, path } = signed as { videoId: string; path: string };
+      if (!videoId || !path) {
+        reportError('sign-upload (shape)', 'sign-upload response missing videoId/path', { body: signed });
         return;
       }
       const thumbInfo = (signed as { thumb?: { path: string; token: string; signedUrl: string } | null }).thumb ?? null;
@@ -403,10 +436,17 @@ export default function VideoContent() {
       // 2. Upload directly to storage via TUS resumable. The standard
       //    PUT path 413's anywhere over ~50–100 MB regardless of the
       //    bucket's file_size_limit (Supabase has a separate body cap
-      //    on standard uploads). TUS chunks the file at 6 MB, has
-      //    built-in progress events, and supports the same
-      //    createSignedUploadUrl token via the x-signature header
-      //    (no RLS plumbing required).
+      //    on standard uploads). TUS chunks the file at 6 MB and has
+      //    built-in progress events.
+      //
+      //    Auth: we use the user's session JWT directly (Supabase
+      //    docs' canonical pattern) instead of the
+      //    createSignedUploadUrl token in x-signature. The signed-
+      //    URL approach 403'd with "Invalid Compact JWS" — the
+      //    resumable endpoint expects a real Supabase JWT, not the
+      //    signed-upload token shape. The "public-images write" RLS
+      //    policy already allows any authenticated user to INSERT,
+      //    so this works without new policies.
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       if (!supabaseUrl) {
         reportError('upload-to-storage (config)', 'NEXT_PUBLIC_SUPABASE_URL is not set in the browser env');
@@ -436,9 +476,7 @@ export default function VideoContent() {
           endpoint: tusEndpoint,
           retryDelays: [0, 3000, 5000, 10000, 20000],
           headers: {
-            // Presigned token authorizes the upload without an RLS
-            // policy. Comes back from /api/fal/video/sign-upload.
-            'x-signature': token,
+            authorization: `Bearer ${session.access_token}`,
             'x-upsert': 'true',
           },
           uploadDataDuringCreation: true,
@@ -688,10 +726,11 @@ export default function VideoContent() {
             ref={uploadInputRef}
             type="file"
             accept="video/*"
+            multiple
             className="hidden"
             onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) uploadVideoFile(f);
+              const files = Array.from(e.target.files ?? []);
+              if (files.length > 0) void uploadVideoFiles(files);
             }}
           />
           <div
@@ -731,8 +770,8 @@ export default function VideoContent() {
               e.preventDefault();
               setDragOver(false);
               if (uploading) return;
-              const f = e.dataTransfer.files?.[0];
-              if (f) uploadVideoFile(f);
+              const files = Array.from(e.dataTransfer.files ?? []);
+              if (files.length > 0) void uploadVideoFiles(files);
             }}
             className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer select-none border-2 border-dashed shadow-sm ${
               uploading
@@ -770,6 +809,17 @@ export default function VideoContent() {
           </div>
         </div>
       </div>
+
+      {uploadQueue && uploadQueue.total > 1 && (
+        <div className="mb-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2 text-[12px] text-foreground/75 flex items-center gap-3" style={{ fontFamily: 'var(--font-body)' }}>
+          <span className="font-mono tabular-nums text-primary font-semibold">
+            {Math.min(uploadQueue.doneCount + 1, uploadQueue.total)} / {uploadQueue.total}
+          </span>
+          <span>
+            Uploading {uploadQueue.total} videos in queue. The page can stay open in the background.
+          </span>
+        </div>
+      )}
 
       {uploadProgress && (
         <div className="mb-6 rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm" style={{ fontFamily: 'var(--font-body)' }}>
