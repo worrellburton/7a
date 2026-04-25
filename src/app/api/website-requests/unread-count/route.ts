@@ -5,9 +5,14 @@ import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 // GET /api/website-requests/unread-count
 //
 // Accessible to admins and Marketing & Admissions department members.
-// Returns the total of new VOB requests + new contact submissions
-// (status='new'). Used by the sidebar nav to render a notification
-// badge on the Website Requests link.
+// Returns two parallel views of the inbox:
+//   * `total / vobs / forms` — submissions with status='new' (the
+//     sidebar badge has used this shape since launch).
+//   * `unresponded` — submissions where responded_at is NULL,
+//     broken down into VOBs / contact forms / careers. The home-page
+//     widget uses this; "responded" is the action a coordinator
+//     actually takes ("I responded" button), which is a stronger
+//     signal than the legacy status enum.
 
 export const dynamic = 'force-dynamic';
 
@@ -17,16 +22,34 @@ export async function GET() {
   if (auth.response) return auth.response;
 
   const admin = getAdminSupabase();
-  const [vobs, forms] = await Promise.all([
+  const [
+    vobsNew,
+    formsNew,
+    vobsUnresponded,
+    formsUnresponded,
+    careersUnresponded,
+  ] = await Promise.all([
     admin.from('vob_requests').select('id', { count: 'exact', head: true }).eq('status', 'new'),
     admin.from('contact_submissions').select('id', { count: 'exact', head: true }).eq('status', 'new'),
+    admin.from('vob_requests').select('id', { count: 'exact', head: true }).is('responded_at', null),
+    admin.from('contact_submissions').select('id', { count: 'exact', head: true }).is('responded_at', null).neq('source', 'careers'),
+    admin.from('contact_submissions').select('id', { count: 'exact', head: true }).is('responded_at', null).eq('source', 'careers'),
   ]);
 
-  const vobCount = vobs.count ?? 0;
-  const formsCount = forms.count ?? 0;
+  const vobCount = vobsNew.count ?? 0;
+  const formsCount = formsNew.count ?? 0;
+  const vobsUn = vobsUnresponded.count ?? 0;
+  const formsUn = formsUnresponded.count ?? 0;
+  const careersUn = careersUnresponded.count ?? 0;
   return NextResponse.json({
     total: vobCount + formsCount,
     vobs: vobCount,
     forms: formsCount,
+    unresponded: {
+      total: vobsUn + formsUn + careersUn,
+      vobs: vobsUn,
+      forms: formsUn,
+      careers: careersUn,
+    },
   });
 }
