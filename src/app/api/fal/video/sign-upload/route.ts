@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       aspect_ratio: null,
       status: 'queued',
       created_by: user.id,
+      filename,
     })
     .select('id')
     .single();
