@@ -7,9 +7,11 @@ import { fmtNumber } from './shared';
 
 interface RealtimeResponse {
   activeUsers: number;
+  newUsers: number;
   byMinute: number[];
   topPages: { title: string; activeUsers: number; views: number }[];
   topCountries: { country: string; activeUsers: number }[];
+  topCities: { city: string; country: string; activeUsers: number }[];
   devices: { device: string; activeUsers: number }[];
   platforms: { platform: string; activeUsers: number }[];
   events: { name: string; count: number }[];
@@ -88,9 +90,17 @@ export function RealtimeSection() {
             <p className="text-6xl font-bold text-foreground">
               {data ? fmtNumber(data.activeUsers) : '…'}
             </p>
-            <p className="text-xs text-foreground/60 mt-1">
-              last 30 minutes · refreshes every 15 s {paused ? '(paused)' : ''}
-            </p>
+            <div className="flex items-baseline gap-3 mt-1.5 flex-wrap">
+              {data && data.newUsers > 0 ? (
+                <span className="inline-flex items-baseline gap-1.5 text-xs">
+                  <span className="font-bold text-emerald-700 tabular-nums">{fmtNumber(data.newUsers)}</span>
+                  <span className="text-foreground/55">first-time {data.newUsers === 1 ? 'visitor' : 'visitors'}</span>
+                </span>
+              ) : null}
+              <span className="text-xs text-foreground/60">
+                last 30 minutes · refreshes every 15 s {paused ? '(paused)' : ''}
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {data?.byMinute?.length ? (
@@ -108,11 +118,48 @@ export function RealtimeSection() {
             >
               {paused ? 'Resume' : 'Pause'}
             </button>
+            <button
+              onClick={() => {
+                // Pop the realtime tab out as a chrome-less window
+                // sized for a side monitor. window.open returns null
+                // when the popup is blocked — fall back to a normal
+                // navigation in that case.
+                const w = 980;
+                const h = 760;
+                const left = Math.max(0, Math.round((window.screen.availWidth - w) / 2));
+                const top = Math.max(0, Math.round((window.screen.availHeight - h) / 2));
+                const features = [
+                  `width=${w}`,
+                  `height=${h}`,
+                  `left=${left}`,
+                  `top=${top}`,
+                  'popup=yes',
+                  'noopener=yes',
+                  'noreferrer=yes',
+                ].join(',');
+                const url = '/app/analytics?tab=realtime&popout=1';
+                const popup = window.open(url, 'realtime-popout', features);
+                if (!popup) {
+                  // Most likely a popup blocker — open inline so the
+                  // click isn't a dead end.
+                  window.open(url, '_blank');
+                }
+              }}
+              title="Open Realtime in a side window so you can keep it visible while working in another tab."
+              className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-lg bg-white border border-black/10 text-foreground hover:bg-warm-bg"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M14 3h7v7" />
+                <path d="M21 3l-9 9" />
+                <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
+              </svg>
+              Pop out
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <LivePanel title="Active pages" rows={
           (data?.topPages ?? []).map((p) => ({
             label: p.title,
@@ -120,22 +167,31 @@ export function RealtimeSection() {
             secondary: `${fmtNumber(p.views)} views`,
           }))
         } />
+        <LivePanel
+          title="Active cities"
+          rows={(data?.topCities ?? []).map((c) => ({
+            label: c.city,
+            value: c.activeUsers,
+            secondary: c.country || undefined,
+          }))}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <LivePanel title="Active countries" rows={
           (data?.topCountries ?? []).map((c) => ({ label: c.country || '(unknown)', value: c.activeUsers }))
         } />
         <LivePanel title="Active devices" rows={
           (data?.devices ?? []).map((d) => ({ label: d.device, value: d.activeUsers }))
         } />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <LivePanel title="Platforms" rows={
           (data?.platforms ?? []).map((p) => ({ label: p.platform, value: p.activeUsers }))
         } />
-        <LivePanel title="Recent events" rows={
-          (data?.events ?? []).map((e) => ({ label: e.name, value: e.count }))
-        } valueLabel="count" />
       </div>
+
+      <LivePanel title="Recent events" rows={
+        (data?.events ?? []).map((e) => ({ label: e.name, value: e.count }))
+      } valueLabel="count" />
 
       {data?.fetched_at ? (
         <p className="text-xs text-foreground/40">
