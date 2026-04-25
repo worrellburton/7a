@@ -53,15 +53,18 @@ export async function POST(req: NextRequest) {
   }
 
   const path = `${ARCHIVE_PREFIX}/${row.id}.${ext}`;
-  const { data: signed, error: signErr } = await supabase.storage
-    .from(ARCHIVE_BUCKET)
-    .createSignedUploadUrl(path);
+  const thumbPath = `${ARCHIVE_PREFIX}/${row.id}-thumb.jpg`;
 
-  if (signErr || !signed) {
+  const [videoSign, thumbSign] = await Promise.all([
+    supabase.storage.from(ARCHIVE_BUCKET).createSignedUploadUrl(path),
+    supabase.storage.from(ARCHIVE_BUCKET).createSignedUploadUrl(thumbPath),
+  ]);
+
+  if (videoSign.error || !videoSign.data) {
     // Roll back the row so a failed mint doesn't leave a phantom video.
     await supabase.from('site_videos').delete().eq('id', row.id);
     return NextResponse.json(
-      { error: `signed URL mint failed: ${signErr?.message || 'unknown'}` },
+      { error: `signed URL mint failed: ${videoSign.error?.message || 'unknown'}` },
       { status: 500 },
     );
   }
@@ -69,7 +72,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     videoId: row.id,
     path,
-    token: signed.token,
-    signedUrl: signed.signedUrl,
+    token: videoSign.data.token,
+    signedUrl: videoSign.data.signedUrl,
+    // Thumbnail upload is best-effort — if minting failed we still
+    // proceed with the video upload and just won't have a thumbnail.
+    thumb: thumbSign.error || !thumbSign.data
+      ? null
+      : { path: thumbPath, token: thumbSign.data.token, signedUrl: thumbSign.data.signedUrl },
   });
 }
