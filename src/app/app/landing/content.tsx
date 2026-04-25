@@ -85,6 +85,7 @@ export default function LandingContent() {
   // timeline.
   const [previewIdx, setPreviewIdx] = useState(0);
   const [previewMuted, setPreviewMuted] = useState(true);
+  const [poolFilter, setPoolFilter] = useState('');
   const dirtyRef = useRef(false);
 
   const showToast = useCallback((msg: string) => {
@@ -140,10 +141,21 @@ export default function LandingContent() {
   // Available rail hides anything currently in the timeline so a
   // single clip can't be dropped into the hero twice.
   const timelineIds = useMemo(() => new Set(timeline.map((v) => v.id)), [timeline]);
-  const visibleAvailable = useMemo(
-    () => available.filter((v) => !timelineIds.has(v.id)),
-    [available, timelineIds],
-  );
+  const visibleAvailable = useMemo(() => {
+    const q = poolFilter.trim().toLowerCase();
+    return available.filter((v) => {
+      if (timelineIds.has(v.id)) return false;
+      if (!q) return true;
+      // Match against any of the labels we render — title, prompt,
+      // filename, alt — so the user can search by whatever comes to
+      // mind.
+      const haystack = [v.seo_title, v.prompt, v.filename, v.alt]
+        .filter((s): s is string => !!s)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [available, timelineIds, poolFilter]);
 
   function addToTimeline(id: string, beforeIndex?: number) {
     const v = available.find((x) => x.id === id);
@@ -468,30 +480,48 @@ export default function LandingContent() {
           setMuted={setPreviewMuted}
         />
 
-        <section className="rounded-2xl border border-black/5 bg-white p-4 lg:p-5 min-h-[280px] max-h-[460px] overflow-y-auto">
-          <div className="flex items-baseline justify-between mb-3">
+        <section className="rounded-2xl border border-black/5 bg-white p-4 lg:p-5 min-h-[280px] max-h-[460px] flex flex-col">
+          <div className="flex items-baseline justify-between mb-2">
             <h2 className="text-sm font-semibold text-foreground">Available videos</h2>
             <span className="text-[11px] text-foreground/40">{visibleAvailable.length}</span>
           </div>
-          {!loaded ? (
-            <p className="text-sm text-foreground/50 italic">Loading…</p>
-          ) : visibleAvailable.length === 0 ? (
-            <p className="text-sm text-foreground/50 italic">
-              Every playable clip is already in the timeline. Drop one back to add another, or generate / upload more on{' '}
-              <a className="underline hover:text-primary" href="/app/video">/app/video</a>.
-            </p>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {visibleAvailable.map((v) => (
-                <PoolCard
-                  key={v.id}
-                  v={v}
-                  imagesById={imagesById}
-                  onAdd={() => addToTimeline(v.id)}
-                />
-              ))}
-            </div>
-          )}
+          <div className="relative mb-3">
+            <input
+              type="search"
+              value={poolFilter}
+              onChange={(e) => setPoolFilter(e.target.value)}
+              placeholder="Search title, prompt, filename…"
+              className="w-full text-sm pl-8 pr-3 py-2 rounded-lg bg-warm-bg/40 border border-black/5 focus:bg-white focus:border-primary/40 focus:outline-none"
+              style={{ fontFamily: 'var(--font-body)' }}
+            />
+            <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </div>
+          <div className="overflow-y-auto -mx-1 px-1 flex-1 min-h-0">
+            {!loaded ? (
+              <p className="text-sm text-foreground/50 italic">Loading…</p>
+            ) : visibleAvailable.length === 0 ? (
+              <p className="text-sm text-foreground/50 italic">
+                {poolFilter
+                  ? 'No matches. Clear the search to see everything.'
+                  : <>Every playable clip is already in the timeline. Drop one back to add another, or generate / upload more on{' '}
+                    <a className="underline hover:text-primary" href="/app/video">/app/video</a>.</>}
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {visibleAvailable.map((v) => (
+                  <PoolCard
+                    key={v.id}
+                    v={v}
+                    imagesById={imagesById}
+                    onAdd={() => addToTimeline(v.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </section>
       </div>
 
