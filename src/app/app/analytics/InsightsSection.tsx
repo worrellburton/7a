@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import GoogleReconnectBanner from './GoogleReconnectBanner';
 import { type DateRange, toApiDate } from './shared';
 
 interface Finding {
@@ -62,9 +63,7 @@ export function InsightsSection({ range, compact = false }: Props) {
 
   if (error && !compact) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-        <strong>Couldn&apos;t load insights:</strong> {error}
-      </div>
+      <GoogleReconnectBanner label="insights" error={error} />
     );
   }
   if (error) return null;
