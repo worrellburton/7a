@@ -155,37 +155,70 @@ export async function GET(req: NextRequest) {
     );
     if (resultRes.ok) {
       // fal's newer endpoints (Seedance 2, some Kling tags) wrap the
-      // result under `output` and/or return a `videos` array rather
-      // than a single `video`. Accept every shape we've seen so
-      // upgrades don't silently produce poster-only rows.
-      const resultJson = (await resultRes.json()) as {
-        video?: { url?: string };
+      // result under `output`, `data`, or even just return a string
+      // URL. Accept every shape we've seen so upgrades don't silently
+      // produce poster-only rows.
+      type Wrap = {
+        video?: { url?: string } | string;
         video_url?: string;
-        videos?: Array<{ url?: string }>;
-        thumbnail?: { url?: string };
+        videos?: Array<{ url?: string } | string>;
+        url?: string;
+        thumbnail?: { url?: string } | string;
         thumbnail_url?: string;
-        output?: {
-          video?: { url?: string };
-          video_url?: string;
-          videos?: Array<{ url?: string }>;
-          thumbnail?: { url?: string };
-          thumbnail_url?: string;
-        };
       };
+      const resultJson = (await resultRes.json()) as Wrap & {
+        output?: Wrap;
+        data?: Wrap;
+      };
+
+      // Walk a value tree and pull the first plausible video URL out.
+      // Saves us from listing every permutation of fal's response shapes.
+      const looksLikeVideoUrl = (s: string) =>
+        /^https?:\/\//.test(s) && /\.(mp4|mov|webm)(\?|$)/i.test(s);
+      const looksLikeImageUrl = (s: string) =>
+        /^https?:\/\//.test(s) && /\.(jpe?g|png|webp|gif)(\?|$)/i.test(s);
+      function findUrl(
+        node: unknown,
+        match: (s: string) => boolean,
+        depth = 0,
+      ): string | null {
+        if (!node || depth > 6) return null;
+        if (typeof node === 'string') return match(node) ? node : null;
+        if (Array.isArray(node)) {
+          for (const v of node) { const u = findUrl(v, match, depth + 1); if (u) return u; }
+          return null;
+        }
+        if (typeof node === 'object') {
+          for (const v of Object.values(node as Record<string, unknown>)) {
+            const u = findUrl(v, match, depth + 1);
+            if (u) return u;
+          }
+        }
+        return null;
+      }
+
       const out = resultJson.output ?? {};
-      const falVideoUrl =
-        resultJson.video?.url ||
+      const data = resultJson.data ?? {};
+      const directVideo =
+        (typeof resultJson.video === 'object' && resultJson.video?.url) ||
+        (typeof resultJson.video === 'string' ? resultJson.video : null) ||
         resultJson.video_url ||
-        resultJson.videos?.[0]?.url ||
-        out.video?.url ||
+        (typeof out.video === 'object' && out.video?.url) ||
+        (typeof out.video === 'string' ? out.video : null) ||
         out.video_url ||
-        out.videos?.[0]?.url ||
+        (typeof data.video === 'object' && data.video?.url) ||
+        (typeof data.video === 'string' ? data.video : null) ||
+        data.video_url ||
         null;
+      const falVideoUrl = directVideo || findUrl(resultJson, looksLikeVideoUrl);
       const falThumbUrl =
-        resultJson.thumbnail?.url ||
+        (typeof resultJson.thumbnail === 'object' && resultJson.thumbnail?.url) ||
+        (typeof resultJson.thumbnail === 'string' ? resultJson.thumbnail : null) ||
         resultJson.thumbnail_url ||
-        out.thumbnail?.url ||
+        (typeof out.thumbnail === 'object' && out.thumbnail?.url) ||
+        (typeof out.thumbnail === 'string' ? out.thumbnail : null) ||
         out.thumbnail_url ||
+        findUrl(resultJson, looksLikeImageUrl) ||
         null;
 
       if (falVideoUrl) {
@@ -196,6 +229,17 @@ export async function GET(req: NextRequest) {
           'video/mp4',
         );
         videoUrl = archivedVideo || falVideoUrl;
+      } else {
+        // fal.ai signaled COMPLETED but the response didn't contain a
+        // video URL anywhere we could find. Don't silently leave the
+        // row playable-less — flip to failed and stash a snippet of
+        // the raw payload on `error` so we can adapt the parser.
+        // Saw this with Seedance 2.0 where fal returned an empty
+        // result on a 5-second "completion" (likely a soft quota
+        // failure or an endpoint slug that no longer exists).
+        nextStatus = 'failed';
+        const snippet = JSON.stringify(resultJson).slice(0, 800);
+        errorMsg = `fal.ai marked COMPLETED but no video URL in response. Raw: ${snippet}`;
       }
       if (falThumbUrl) {
         const archivedThumb = await archiveAsset(
@@ -206,6 +250,12 @@ export async function GET(req: NextRequest) {
         );
         thumbnailUrl = archivedThumb || falThumbUrl;
       }
+    } else {
+      // Couldn't even fetch the result — surface the upstream status
+      // so users see WHY the row is broken instead of a green "done".
+      const text = await resultRes.text();
+      nextStatus = 'failed';
+      errorMsg = `fal.ai result fetch ${resultRes.status}: ${text.slice(0, 500)}`;
     }
   }
 

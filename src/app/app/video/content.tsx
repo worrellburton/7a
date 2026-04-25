@@ -57,6 +57,12 @@ export default function VideoContent() {
   const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<SiteVideo | null>(null);
+  // Persistent, copyable upload error. Toasts disappear before users
+  // can read them, which made debugging "this didn't work" painful.
+  // Anything thrown by the sign / upload / finalize flow is captured
+  // here as a multi-line block the user can paste back to support.
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   // Re-render every second while any tile is pending so the time-based
   // progress bar animates smoothly between the 5s status polls.
@@ -251,25 +257,65 @@ export default function VideoContent() {
       return;
     }
 
+    // Build a rich error report when any stage fails so the user
+    // can paste the full context back to engineering.
+    const reportError = (stage: string, detail: string, extra?: Record<string, unknown>) => {
+      const lines = [
+        `Stage: ${stage}`,
+        `Detail: ${detail}`,
+        `File: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB, ${file.type || 'unknown type'})`,
+        `User: ${user?.email ?? user?.id ?? 'unknown'}`,
+        `When: ${new Date().toISOString()}`,
+        `URL: ${typeof window !== 'undefined' ? window.location.href : ''}`,
+      ];
+      if (extra) {
+        for (const [k, v] of Object.entries(extra)) {
+          lines.push(`${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`);
+        }
+      }
+      const block = lines.join('\n');
+      // eslint-disable-next-line no-console
+      console.error('[video upload] failed', block);
+      setUploadError(block);
+      showToast(`Upload failed at ${stage} — see banner above for details`);
+    };
+
     setUploading(true);
+    setUploadError(null);
     try {
       // 1. Mint a signed upload URL on the server. The bytes never
       //    pass through Vercel (4.5 MB body cap) — they go straight
       //    from the browser to Supabase Storage.
-      const signRes = await fetch('/api/fal/video/sign-upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ filename: file.name }),
-      });
-      const signed = await signRes.json().catch(() => ({}));
+      let signRes: Response;
+      try {
+        signRes = await fetch('/api/fal/video/sign-upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ filename: file.name }),
+        });
+      } catch (netErr) {
+        reportError('sign-upload (network)', netErr instanceof Error ? netErr.message : String(netErr));
+        return;
+      }
+      let signed: { videoId?: string; path?: string; token?: string; error?: string };
+      try {
+        signed = await signRes.json();
+      } catch (parseErr) {
+        reportError('sign-upload (parse)', `HTTP ${signRes.status} returned non-JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`, { status: signRes.status });
+        return;
+      }
       if (!signRes.ok) {
-        showToast(signed?.error || `Upload failed (${signRes.status})`);
+        reportError('sign-upload', signed?.error || `HTTP ${signRes.status}`, { status: signRes.status, body: signed });
         return;
       }
       const { videoId, path, token } = signed as { videoId: string; path: string; token: string };
+      if (!videoId || !path || !token) {
+        reportError('sign-upload (shape)', 'sign-upload response missing videoId/path/token', { body: signed });
+        return;
+      }
 
       // 2. Upload directly to storage. The browser supabase client
       //    talks straight to /storage/v1 — Vercel is out of the picture.
@@ -280,32 +326,57 @@ export default function VideoContent() {
           upsert: true,
         });
       if (upErr) {
-        showToast(`Upload failed: ${upErr.message}`);
+        // Supabase's StorageError has a `name` and sometimes `statusCode`.
+        // Capture the whole thing — these are the failures most likely
+        // to be 413/CORS/TLS issues that need engineering eyes.
+        const errAny = upErr as { name?: string; statusCode?: string | number; status?: string | number };
+        reportError('upload-to-storage', upErr.message, {
+          path,
+          name: errAny.name,
+          statusCode: errAny.statusCode ?? errAny.status,
+        });
         return;
       }
 
       // 3. Tell the server the bytes landed; it stamps public_url
       //    + status='completed' and returns the row.
-      const finRes = await fetch('/api/fal/video/finalize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ videoId, path }),
-      });
-      const finJson = await finRes.json().catch(() => ({}));
-      if (!finRes.ok) {
-        showToast(finJson?.error || `Finalize failed (${finRes.status})`);
+      let finRes: Response;
+      try {
+        finRes = await fetch('/api/fal/video/finalize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ videoId, path }),
+        });
+      } catch (netErr) {
+        reportError('finalize (network)', netErr instanceof Error ? netErr.message : String(netErr), { videoId, path });
         return;
       }
-      const video = finJson.video as SiteVideo | undefined;
+      let finJson: { video?: SiteVideo; error?: string };
+      try {
+        finJson = await finRes.json();
+      } catch (parseErr) {
+        reportError('finalize (parse)', `HTTP ${finRes.status} returned non-JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`, { status: finRes.status, videoId, path });
+        return;
+      }
+      if (!finRes.ok) {
+        reportError('finalize', finJson?.error || `HTTP ${finRes.status}`, { status: finRes.status, body: finJson, videoId, path });
+        return;
+      }
+      const video = finJson.video;
       if (video) {
         setVideos((prev) => [video, ...prev]);
+        setUploadError(null);
         showToast('Video uploaded');
+      } else {
+        reportError('finalize (shape)', 'finalize response missing `video`', { body: finJson });
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : String(err));
+      reportError('uncaught', err instanceof Error ? `${err.name}: ${err.message}` : String(err), {
+        stack: err instanceof Error ? err.stack : undefined,
+      });
     } finally {
       setUploading(false);
       if (uploadInputRef.current) uploadInputRef.current.value = '';
@@ -352,17 +423,68 @@ export default function VideoContent() {
               if (f) uploadVideoFile(f);
             }}
           />
-          <button
-            type="button"
-            onClick={() => uploadInputRef.current?.click()}
-            disabled={uploading}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-white text-foreground border border-gray-200 hover:border-primary/40 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-all"
+          <div
+            role="button"
+            tabIndex={0}
+            aria-disabled={uploading}
+            aria-label="Upload video — click or drop a video file"
+            onClick={() => { if (!uploading) uploadInputRef.current?.click(); }}
+            onKeyDown={(e) => {
+              if (uploading) return;
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                uploadInputRef.current?.click();
+              }
+            }}
+            onDragEnter={(e) => {
+              if (uploading) return;
+              if (Array.from(e.dataTransfer.types || []).includes('Files')) {
+                e.preventDefault();
+                setDragOver(true);
+              }
+            }}
+            onDragOver={(e) => {
+              if (uploading) return;
+              if (Array.from(e.dataTransfer.types || []).includes('Files')) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+                setDragOver(true);
+              }
+            }}
+            onDragLeave={(e) => {
+              // Don't flicker when moving across child elements.
+              if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+              setDragOver(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              if (uploading) return;
+              const f = e.dataTransfer.files?.[0];
+              if (f) uploadVideoFile(f);
+            }}
+            className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer select-none border-2 border-dashed shadow-sm ${
+              uploading
+                ? 'bg-white text-foreground/50 border-gray-200 cursor-wait'
+                : dragOver
+                  ? 'bg-primary/5 text-primary border-primary'
+                  : 'bg-white text-foreground border-gray-200 hover:border-primary/40 hover:text-primary'
+            }`}
             style={{ fontFamily: 'var(--font-body)' }}
           >
             {uploading ? (
               <>
                 <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 Uploading…
+              </>
+            ) : dragOver ? (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3v12" />
+                  <path d="m7 8 5-5 5 5" />
+                  <rect x="3" y="15" width="18" height="6" rx="2" />
+                </svg>
+                Drop video to upload
               </>
             ) : (
               <>
@@ -371,12 +493,50 @@ export default function VideoContent() {
                   <path d="m7 8 5-5 5 5" />
                   <rect x="3" y="15" width="18" height="6" rx="2" />
                 </svg>
-                Upload video
+                Drop video or click to upload
               </>
             )}
-          </button>
+          </div>
         </div>
       </div>
+
+      {uploadError && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <p className="font-semibold">Video upload failed.</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (uploadError) {
+                    navigator.clipboard?.writeText(uploadError).then(
+                      () => showToast('Error details copied'),
+                      () => showToast('Could not copy — select the text manually'),
+                    );
+                  }
+                }}
+                className="text-[11px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md bg-red-700 text-white hover:bg-red-800"
+              >
+                Copy
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadError(null)}
+                className="text-[11px] font-semibold text-red-700/70 hover:text-red-900"
+                aria-label="Dismiss error"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+          <pre className="whitespace-pre-wrap text-[12px] leading-snug bg-white/60 border border-red-100 rounded-md p-2 max-h-64 overflow-auto select-text">
+{uploadError}
+          </pre>
+          <p className="mt-2 text-[11px] text-red-700/75">
+            Click <strong>Copy</strong> and paste this whole block into chat — that gives me everything I need to diagnose.
+          </p>
+        </div>
+      )}
 
       {/* Create form */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 mb-8">

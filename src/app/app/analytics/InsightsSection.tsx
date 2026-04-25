@@ -4,6 +4,20 @@ import { useEffect, useState } from 'react';
 import GoogleReconnectBanner from './GoogleReconnectBanner';
 import { type DateRange, toApiDate } from './shared';
 
+interface FindingBreakdown {
+  source: string;
+  metric: string;
+  currentValue: number;
+  currentDisplay: string;
+  previousValue?: number;
+  previousDisplay?: string;
+  currentRange?: { startDate: string; endDate: string };
+  previousRange?: { startDate: string; endDate: string };
+  formula?: string;
+  threshold?: string;
+  notes?: string[];
+}
+
 interface Finding {
   kind: 'working' | 'needs';
   category: 'traffic' | 'seo' | 'engagement' | 'conversion' | 'content';
@@ -11,6 +25,7 @@ interface Finding {
   detail: string;
   delta?: number;
   action?: string;
+  breakdown?: FindingBreakdown;
 }
 
 interface InsightsResponse {
@@ -135,27 +150,7 @@ function FindingsPanel({
       {findings.length ? (
         <ul className="space-y-3">
           {findings.slice(0, 8).map((f, i) => (
-            <li key={i} className="rounded-xl bg-white/80 border border-white p-3.5">
-              <div className="flex items-start gap-3">
-                <CategoryBadge category={f.category} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground">{f.headline}</p>
-                  <p className="text-[12px] text-foreground/60 mt-1">{f.detail}</p>
-                  {f.action ? (
-                    <p className="text-[12px] text-foreground/80 mt-2 italic">→ {f.action}</p>
-                  ) : null}
-                </div>
-                {f.delta !== undefined ? (
-                  <span
-                    className={`text-[10px] font-bold whitespace-nowrap ${
-                      (tone === 'working' ? f.delta > 0 : f.delta < 0) ? 'text-emerald-700' : 'text-rose-700'
-                    }`}
-                  >
-                    {f.delta > 0 ? '+' : ''}{(f.delta * 100).toFixed(0)}%
-                  </span>
-                ) : null}
-              </div>
-            </li>
+            <FindingCard key={i} f={f} tone={tone} />
           ))}
         </ul>
       ) : (
@@ -163,6 +158,107 @@ function FindingsPanel({
           {loading ? 'Computing…' : emptyText}
         </p>
       )}
+    </div>
+  );
+}
+
+function FindingCard({ f, tone }: { f: Finding; tone: 'working' | 'needs' }) {
+  const [open, setOpen] = useState(false);
+  const hasBreakdown = !!f.breakdown;
+  return (
+    <li className="rounded-xl bg-white/80 border border-white p-3.5">
+      <div className="flex items-start gap-3">
+        <CategoryBadge category={f.category} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground">{f.headline}</p>
+          <p className="text-[12px] text-foreground/60 mt-1">{f.detail}</p>
+          {f.action ? (
+            <p className="text-[12px] text-foreground/80 mt-2 italic">→ {f.action}</p>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {f.delta !== undefined ? (
+            <span
+              className={`text-[10px] font-bold whitespace-nowrap ${
+                (tone === 'working' ? f.delta > 0 : f.delta < 0) ? 'text-emerald-700' : 'text-rose-700'
+              }`}
+            >
+              {f.delta > 0 ? '+' : ''}{(f.delta * 100).toFixed(0)}%
+            </span>
+          ) : null}
+          {hasBreakdown ? (
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-label={open ? 'Hide computation details' : 'Show computation details'}
+              title="How we got here"
+              onClick={() => setOpen((v) => !v)}
+              className={`inline-flex items-center justify-center w-5 h-5 rounded-full border text-[10px] font-bold transition-colors ${
+                open
+                  ? 'border-foreground/40 bg-foreground/10 text-foreground'
+                  : 'border-foreground/20 text-foreground/50 hover:border-foreground/40 hover:text-foreground'
+              }`}
+            >
+              i
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {open && f.breakdown ? <BreakdownPanel b={f.breakdown} /> : null}
+    </li>
+  );
+}
+
+function BreakdownPanel({ b }: { b: FindingBreakdown }) {
+  const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="flex items-baseline gap-3 py-1">
+      <span className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold w-24 shrink-0">{label}</span>
+      <span className="text-[12px] text-foreground/85 break-words">{value}</span>
+    </div>
+  );
+  const fmtRange = (r?: { startDate: string; endDate: string }) =>
+    r ? `${r.startDate} → ${r.endDate}` : '—';
+  return (
+    <div className="mt-3 rounded-lg border border-foreground/10 bg-warm-bg/40 px-3 py-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55 mb-1">
+        How we got here
+      </p>
+      <Row label="Source" value={b.source} />
+      <Row label="Metric" value={b.metric} />
+      <Row
+        label="This period"
+        value={
+          <>
+            <span className="font-mono">{b.currentDisplay}</span>
+            {b.currentRange ? (
+              <span className="text-foreground/50"> · {fmtRange(b.currentRange)}</span>
+            ) : null}
+          </>
+        }
+      />
+      {b.previousDisplay !== undefined ? (
+        <Row
+          label="Previous"
+          value={
+            <>
+              <span className="font-mono">{b.previousDisplay}</span>
+              {b.previousRange ? (
+                <span className="text-foreground/50"> · {fmtRange(b.previousRange)}</span>
+              ) : null}
+            </>
+          }
+        />
+      ) : null}
+      {b.formula ? <Row label="Formula" value={<span className="font-mono">{b.formula}</span>} /> : null}
+      {b.threshold ? <Row label="Threshold" value={b.threshold} /> : null}
+      {b.notes && b.notes.length ? (
+        <div className="flex items-baseline gap-3 py-1">
+          <span className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold w-24 shrink-0">Notes</span>
+          <ul className="text-[12px] text-foreground/75 space-y-0.5 list-disc pl-4">
+            {b.notes.map((n, i) => <li key={i}>{n}</li>)}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
