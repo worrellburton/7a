@@ -4,14 +4,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 
-// Drag-and-drop editor for the public landing-page hero timeline.
-// Left rail: every completed site_video (sorted newest first).
-// Right rail: ordered timeline (the singleton landing_hero_timeline
-// row's video_ids). Drop a card from the left into the timeline to
-// add it; drag a card within the timeline to reorder; drag it back
-// out (or hit the X) to remove. Save persists the order via
-// /api/landing/hero — anything in the public marketing site that
-// reads landing_hero_timeline picks up the new order on next render.
+// Drag-and-drop editor for the public landing-page hero timelines.
+//
+// Layout:
+//   Header                      title + Save
+//   Hero tabs                   one per landing_heros row · drag to reorder ·
+//                               double-click to rename · × to delete · + New
+//   Preview  |  Available       inline auto-advancing player + searchable pool
+//   Hero timeline               horizontal strip of dragged-in clips
+//
+// Reads + writes go through /api/landing/heros (list + create) and
+// /api/landing/heros/[id] (patch name / video_ids / display_order +
+// delete). The public marketing site reads landing_heros directly
+// (anon RLS allows SELECT) by display_order.
 
 interface SiteVideo {
   id: string;
