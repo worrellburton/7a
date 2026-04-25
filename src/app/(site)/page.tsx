@@ -6,6 +6,12 @@ export const metadata: Metadata = {
     'Seven Arrows Recovery is a premier drug and alcohol rehab center in Arizona. We provide clinical and residential treatment in a small group setting at the base of the Swisshelm Mountains. Call (866) 996-4308.',
 };
 
+// Re-render the homepage at most every 60s so a Set-live / timeline
+// edit on /app/landing propagates without the page going fully
+// dynamic. The set-live + timeline-save API routes also call
+// revalidatePath('/') for instant invalidation when an admin acts.
+export const revalidate = 60;
+
 
 import Hero from "@/components/Hero";
 import { fetchLiveHeroSources } from "@/lib/landing-hero";
