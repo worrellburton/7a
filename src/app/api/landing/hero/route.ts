@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic';
 
 interface VideoRow {
   id: string;
+  source_image_id: string | null;
   filename: string | null;
   prompt: string | null;
   alt: string | null;
@@ -29,7 +30,7 @@ interface VideoRow {
 }
 
 const VIDEO_SELECT =
-  'id, filename, prompt, alt, seo_title, video_url, thumbnail_url, duration_seconds, resolution, aspect_ratio, created_at';
+  'id, source_image_id, filename, prompt, alt, seo_title, video_url, thumbnail_url, duration_seconds, resolution, aspect_ratio, created_at';
 
 export async function GET() {
   const supabase = await getServerSupabase();
