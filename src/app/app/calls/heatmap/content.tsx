@@ -35,6 +35,10 @@ interface DayBucket {
   outbound: number;
   totalDuration: number;
   totalTalk: number;
+  // Meaningful = AI fit_score >= MEANINGFUL_THRESHOLD (60). Populated
+  // from /api/calls/insights so we don't have to re-derive client-
+  // side from per-call AI scores.
+  meaningful: number;
   topSources: { name: string; count: number }[];
   firstAt?: string;
   lastAt?: string;
@@ -177,6 +181,7 @@ export default function CallsHeatmapContent() {
             outbound: 0,
             totalDuration: 0,
             totalTalk: 0,
+            meaningful: 0,
             topSources: [],
             firstAt: undefined,
             lastAt: undefined,
@@ -202,6 +207,37 @@ export default function CallsHeatmapContent() {
           b.topSources = b.topSources.slice(0, 3);
         }
 
+        // Fetch the meaningful-call counts per day from
+        // /api/calls/insights so we can paint a parallel heatmap.
+        // Insights reads from the local public.calls mirror + AI
+        // scores, which is the same source the rest of the app uses
+        // for "meaningful" — keeps the definition consistent.
+        try {
+          const earliest = [...next.keys()].sort()[0];
+          if (earliest && session?.access_token) {
+            // Range: from the earliest bucketed day at 00:00 AZ to
+            // now. Convert AZ midnight to UTC-7 for the API.
+            const fromIso = new Date(`${earliest}T00:00:00-07:00`).toISOString();
+            const toIso = new Date().toISOString();
+            const res = await fetch(
+              `/api/calls/insights?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`,
+              { headers: { Authorization: `Bearer ${session.access_token}` } },
+            );
+            if (res.ok) {
+              const json = (await res.json()) as {
+                dailyCounts?: { date: string; meaningfulCount?: number }[];
+              };
+              for (const row of json.dailyCounts ?? []) {
+                const b = next.get(row.date);
+                if (b) b.meaningful = row.meaningfulCount ?? 0;
+              }
+            }
+          }
+        } catch {
+          // Non-fatal — meaningful counts default to 0 if the
+          // insights call fails for any reason.
+        }
+
         setBuckets(next);
       } catch (e) {
         setError(String(e));
@@ -222,6 +258,18 @@ export default function CallsHeatmapContent() {
   const maxCount = useMemo(() => {
     let m = 0;
     for (const b of buckets.values()) if (b.count > m) m = b.count;
+    return m;
+  }, [buckets]);
+
+  const maxMeaningful = useMemo(() => {
+    let m = 0;
+    for (const b of buckets.values()) if (b.meaningful > m) m = b.meaningful;
+    return m;
+  }, [buckets]);
+
+  const totalMeaningful = useMemo(() => {
+    let m = 0;
+    for (const b of buckets.values()) m += b.meaningful;
     return m;
   }, [buckets]);
 
@@ -250,6 +298,19 @@ export default function CallsHeatmapContent() {
     if (ratio > 0.5) return 'bg-primary';
     if (ratio > 0.25) return 'bg-primary/60';
     return 'bg-primary/30';
+  }
+
+  // Sibling palette for the meaningful-calls heatmap. Emerald keeps
+  // the "good thing" connotation (vs. the primary terracotta of the
+  // overall-volume heatmap) and is colorblind-distinct from primary.
+  function cellClassMeaningful(count: number): string {
+    if (count === 0) return 'bg-warm-bg border border-foreground/5';
+    if (maxMeaningful === 0) return 'bg-warm-bg border border-foreground/5';
+    const ratio = count / maxMeaningful;
+    if (ratio > 0.75) return 'bg-emerald-700';
+    if (ratio > 0.5) return 'bg-emerald-500';
+    if (ratio > 0.25) return 'bg-emerald-400/70';
+    return 'bg-emerald-300/60';
   }
 
   // Build month label positions (column index where month changes)
@@ -283,6 +344,7 @@ export default function CallsHeatmapContent() {
         outbound: 0,
         totalDuration: 0,
         totalTalk: 0,
+        meaningful: 0,
         topSources: [],
       },
     });
@@ -318,10 +380,11 @@ export default function CallsHeatmapContent() {
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
         <StatCard label="Total calls" value={totals.calls.toLocaleString()} />
         <StatCard label="Inbound" value={totals.inbound.toLocaleString()} />
         <StatCard label="Outbound" value={totals.outbound.toLocaleString()} />
+        <StatCard label="Meaningful" value={totalMeaningful.toLocaleString()} />
         <StatCard label="Active days" value={totals.activeDays.toLocaleString()} />
         <StatCard label="Total duration" value={formatDuration(totals.duration)} />
       </div>
@@ -343,64 +406,141 @@ export default function CallsHeatmapContent() {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 overflow-x-auto">
-          <div className="inline-flex flex-col gap-3 min-w-max">
-            {/* Month labels row */}
-            <div className="flex items-end gap-[5px] pl-12 h-5">
-              {Array.from({ length: WEEKS }).map((_, col) => {
-                const lbl = monthLabels.find((m) => m.col === col);
-                return (
-                  <div key={col} className="w-[28px] text-[12px] text-foreground/40 font-medium" style={{ fontFamily: 'var(--font-body)' }}>
-                    {lbl?.label || ''}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Grid with weekday labels on the left */}
-            <div className="flex gap-3">
-              <div className="flex flex-col gap-[5px] pt-0">
-                {weekdayLabels.map((d, i) => (
-                  <div key={i} className="h-[28px] text-[12px] text-foreground/40 font-medium leading-[28px] w-9 text-right pr-1" style={{ fontFamily: 'var(--font-body)' }}>
-                    {d}
-                  </div>
-                ))}
+        <div className="space-y-6">
+          {/* All calls — primary palette. */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 overflow-x-auto">
+            <p className="text-[11px] font-semibold text-foreground/50 uppercase tracking-wider mb-4" style={{ fontFamily: 'var(--font-body)' }}>
+              All calls
+            </p>
+            <div className="inline-flex flex-col gap-3 min-w-max">
+              {/* Month labels row */}
+              <div className="flex items-end gap-[5px] pl-12 h-5">
+                {Array.from({ length: WEEKS }).map((_, col) => {
+                  const lbl = monthLabels.find((m) => m.col === col);
+                  return (
+                    <div key={col} className="w-[28px] text-[12px] text-foreground/40 font-medium" style={{ fontFamily: 'var(--font-body)' }}>
+                      {lbl?.label || ''}
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex gap-[5px]">
-                {Array.from({ length: WEEKS }).map((_, col) => (
-                  <div key={col} className="flex flex-col gap-[5px]">
-                    {Array.from({ length: 7 }).map((_, row) => {
-                      const date = dateGrid[col * 7 + row];
-                      if (!date) return <div key={row} className="w-[28px] h-[28px]" />;
-                      const bucket = buckets.get(date);
-                      const count = bucket?.count || 0;
-                      const isFuture = date > todayAz;
-                      return (
-                        <div
-                          key={row}
-                          onMouseEnter={(e) => !isFuture && handleCellEnter(e, date)}
-                          onMouseLeave={handleCellLeave}
-                          className={`w-[28px] h-[28px] rounded-[5px] transition-transform hover:scale-125 hover:ring-2 hover:ring-primary/30 cursor-pointer ${
-                            isFuture ? 'bg-transparent border border-dashed border-foreground/10' : cellClass(count)
-                          }`}
-                          aria-label={`${date}: ${count} calls`}
-                        />
-                      );
-                    })}
-                  </div>
-                ))}
+
+              {/* Grid with weekday labels on the left */}
+              <div className="flex gap-3">
+                <div className="flex flex-col gap-[5px] pt-0">
+                  {weekdayLabels.map((d, i) => (
+                    <div key={i} className="h-[28px] text-[12px] text-foreground/40 font-medium leading-[28px] w-9 text-right pr-1" style={{ fontFamily: 'var(--font-body)' }}>
+                      {d}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-[5px]">
+                  {Array.from({ length: WEEKS }).map((_, col) => (
+                    <div key={col} className="flex flex-col gap-[5px]">
+                      {Array.from({ length: 7 }).map((_, row) => {
+                        const date = dateGrid[col * 7 + row];
+                        if (!date) return <div key={row} className="w-[28px] h-[28px]" />;
+                        const bucket = buckets.get(date);
+                        const count = bucket?.count || 0;
+                        const isFuture = date > todayAz;
+                        return (
+                          <div
+                            key={row}
+                            onMouseEnter={(e) => !isFuture && handleCellEnter(e, date)}
+                            onMouseLeave={handleCellLeave}
+                            className={`w-[28px] h-[28px] rounded-[5px] transition-transform hover:scale-125 hover:ring-2 hover:ring-primary/30 cursor-pointer ${
+                              isFuture ? 'bg-transparent border border-dashed border-foreground/10' : cellClass(count)
+                            }`}
+                            aria-label={`${date}: ${count} calls`}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center gap-2 mt-5 text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                <span>Less</span>
+                <div className="w-[20px] h-[20px] rounded-[4px] bg-warm-bg border border-foreground/5" />
+                <div className="w-[20px] h-[20px] rounded-[4px] bg-primary/30" />
+                <div className="w-[20px] h-[20px] rounded-[4px] bg-primary/60" />
+                <div className="w-[20px] h-[20px] rounded-[4px] bg-primary" />
+                <div className="w-[20px] h-[20px] rounded-[4px] bg-primary-dark" />
+                <span>More</span>
               </div>
             </div>
+          </div>
 
-            {/* Legend */}
-            <div className="flex items-center gap-2 mt-5 text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-              <span>Less</span>
-              <div className="w-[20px] h-[20px] rounded-[4px] bg-warm-bg border border-foreground/5" />
-              <div className="w-[20px] h-[20px] rounded-[4px] bg-primary/30" />
-              <div className="w-[20px] h-[20px] rounded-[4px] bg-primary/60" />
-              <div className="w-[20px] h-[20px] rounded-[4px] bg-primary" />
-              <div className="w-[20px] h-[20px] rounded-[4px] bg-primary-dark" />
-              <span>More</span>
+          {/* Meaningful calls — emerald palette. Same date grid +
+              tooltip handlers as the volume heatmap, but cells are
+              colored by AI-fit-score buckets. Lets the team see at a
+              glance which days converted volume into qualified
+              leads. */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 overflow-x-auto">
+            <div className="flex items-baseline justify-between mb-4">
+              <p className="text-[11px] font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+                Meaningful calls
+              </p>
+              <p className="text-[11px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+                AI fit score ≥ 60
+              </p>
+            </div>
+            <div className="inline-flex flex-col gap-3 min-w-max">
+              <div className="flex items-end gap-[5px] pl-12 h-5">
+                {Array.from({ length: WEEKS }).map((_, col) => {
+                  const lbl = monthLabels.find((m) => m.col === col);
+                  return (
+                    <div key={col} className="w-[28px] text-[12px] text-foreground/40 font-medium" style={{ fontFamily: 'var(--font-body)' }}>
+                      {lbl?.label || ''}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex gap-3">
+                <div className="flex flex-col gap-[5px] pt-0">
+                  {weekdayLabels.map((d, i) => (
+                    <div key={i} className="h-[28px] text-[12px] text-foreground/40 font-medium leading-[28px] w-9 text-right pr-1" style={{ fontFamily: 'var(--font-body)' }}>
+                      {d}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-[5px]">
+                  {Array.from({ length: WEEKS }).map((_, col) => (
+                    <div key={col} className="flex flex-col gap-[5px]">
+                      {Array.from({ length: 7 }).map((_, row) => {
+                        const date = dateGrid[col * 7 + row];
+                        if (!date) return <div key={row} className="w-[28px] h-[28px]" />;
+                        const bucket = buckets.get(date);
+                        const count = bucket?.meaningful || 0;
+                        const isFuture = date > todayAz;
+                        return (
+                          <div
+                            key={row}
+                            onMouseEnter={(e) => !isFuture && handleCellEnter(e, date)}
+                            onMouseLeave={handleCellLeave}
+                            className={`w-[28px] h-[28px] rounded-[5px] transition-transform hover:scale-125 hover:ring-2 hover:ring-emerald-400/40 cursor-pointer ${
+                              isFuture ? 'bg-transparent border border-dashed border-foreground/10' : cellClassMeaningful(count)
+                            }`}
+                            aria-label={`${date}: ${count} meaningful calls`}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mt-5 text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+                <span>Less</span>
+                <div className="w-[20px] h-[20px] rounded-[4px] bg-warm-bg border border-foreground/5" />
+                <div className="w-[20px] h-[20px] rounded-[4px] bg-emerald-300/60" />
+                <div className="w-[20px] h-[20px] rounded-[4px] bg-emerald-400/70" />
+                <div className="w-[20px] h-[20px] rounded-[4px] bg-emerald-500" />
+                <div className="w-[20px] h-[20px] rounded-[4px] bg-emerald-700" />
+                <span>More</span>
+              </div>
             </div>
           </div>
         </div>
@@ -439,6 +579,10 @@ export default function CallsHeatmapContent() {
                 <div className="flex justify-between gap-4">
                   <span className="text-white/60">Talk time</span>
                   <span className="text-white">{formatDuration(tooltip.bucket.totalTalk)}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-emerald-300/80">Meaningful</span>
+                  <span className="text-emerald-300">{tooltip.bucket.meaningful}</span>
                 </div>
                 {tooltip.bucket.topSources.length > 0 && (
                   <div className="pt-1.5 mt-1.5 border-t border-white/10">
