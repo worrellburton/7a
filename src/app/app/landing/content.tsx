@@ -226,6 +226,44 @@ export default function LandingContent() {
     dirtyRef.current = false;
   }
 
+  async function createHero() {
+    if (!session?.access_token) return;
+    if (dirtyRef.current) {
+      const ok = window.confirm('You have unsaved changes on this hero. Create a new hero anyway? Your edits will be lost.');
+      if (!ok) return;
+    }
+    const defaultName = `Hero ${heros.length + 1}`;
+    const name = window.prompt('Name this hero (you can rename later):', defaultName);
+    if (name === null) return; // user hit cancel
+    const trimmed = name.trim();
+    const res = await fetch('/api/landing/heros', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ name: trimmed || defaultName }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(json?.error || `Create failed (${res.status})`);
+      return;
+    }
+    const created = json?.hero as Hero | undefined;
+    if (!created) {
+      showToast('Create returned no hero');
+      return;
+    }
+    // Append to local state and switch to it.
+    setHeros((prev) => [...prev, created]);
+    setHeroId(created.id);
+    setTimeline(created.videos);
+    setSavedAt(created.updated_at);
+    dirtyRef.current = false;
+    showToast(`Created "${created.name}"`);
+  }
+
   if (!user) return null;
 
   return (
@@ -271,9 +309,9 @@ export default function LandingContent() {
         </div>
       </header>
 
-      {/* Hero tab strip. Read-only in phase 2 — click to switch.
-          Phase 3 adds + New, phase 4 inline rename, phase 5 delete. */}
-      {heros.length > 0 && (
+      {/* Hero tab strip. Phase 3 adds the trailing + New button.
+          Phase 4 introduces inline rename, phase 5 inline delete. */}
+      {loaded && (
         <div className="mb-5 -mx-1 flex items-center gap-1 overflow-x-auto border-b border-black/10">
           {heros.map((h) => {
             const isActive = h.id === heroId;
@@ -297,6 +335,17 @@ export default function LandingContent() {
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={createHero}
+            title="Create a new hero timeline"
+            className="ml-1 px-3 py-2.5 text-sm font-semibold text-foreground/55 hover:text-primary whitespace-nowrap inline-flex items-center gap-1 border-b-2 border-transparent hover:border-primary/40 -mb-px transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            New hero
+          </button>
         </div>
       )}
 
