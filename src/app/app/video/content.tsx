@@ -103,6 +103,18 @@ interface SiteVideo {
   seo_description: string | null;
   seo_processed_at: string | null;
   filename: string | null;
+  debug_info: {
+    last_polled_at?: string;
+    queued_for_seconds?: number;
+    app_id?: string;
+    request_id?: string;
+    status_url?: string;
+    fal_status_http?: number;
+    fal_status?: string;
+    fal_logs?: string[];
+    fal_error_body?: string;
+    audio_status?: string;
+  } | null;
 }
 
 export default function VideoContent() {
@@ -1230,6 +1242,9 @@ export default function VideoContent() {
                       </>
                     );
                   })()}
+                  {(isPending || isFailed) && (
+                    <StuckDiagnostic v={v} />
+                  )}
                   <div className="flex items-center justify-end gap-1 mt-1.5">
                     {v.video_url && (
                       <button
@@ -1373,6 +1388,117 @@ export default function VideoContent() {
             </svg>
             {toast}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Inline diagnostic block for queued / in_progress / failed cards.
+// Reads the debug_info written by /api/fal/video/status on every
+// poll and shows the user exactly what fal.ai is returning. The
+// "Copy" button packages it as plain text so a stuck row can be
+// pasted into chat for support.
+function StuckDiagnostic({ v }: { v: SiteVideo }) {
+  const [open, setOpen] = useState(false);
+  const d = v.debug_info ?? null;
+  const elapsedSec = Math.round((Date.now() - new Date(v.created_at).getTime()) / 1000);
+  const elapsedLabel = elapsedSec < 60
+    ? `${elapsedSec}s`
+    : elapsedSec < 3600
+      ? `${Math.round(elapsedSec / 60)}m`
+      : `${Math.round(elapsedSec / 360) / 10}h`;
+
+  function blockText(): string {
+    const lines = [
+      `Video ID: ${v.id}`,
+      `Status: ${v.status} (${elapsedLabel} since created)`,
+      `Model: ${v.model_endpoint}`,
+      `Request ID: ${v.request_id ?? '(none)'}`,
+      `Error: ${v.error ?? '(none)'}`,
+      d ? '— Last poll —' : '— No poll diagnostic recorded yet —',
+    ];
+    if (d) {
+      if (d.last_polled_at) lines.push(`Polled at: ${d.last_polled_at}`);
+      if (typeof d.fal_status_http === 'number') lines.push(`HTTP: ${d.fal_status_http}`);
+      if (d.fal_status) lines.push(`fal status: ${d.fal_status}`);
+      if (d.app_id) lines.push(`App id: ${d.app_id}`);
+      if (d.status_url) lines.push(`Status URL: ${d.status_url}`);
+      if (d.fal_error_body) lines.push(`fal error body: ${d.fal_error_body}`);
+      if (d.fal_logs && d.fal_logs.length) {
+        lines.push('fal logs:');
+        for (const m of d.fal_logs) lines.push(`  · ${m}`);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((x) => !x)}
+        className="text-[10px] font-semibold uppercase tracking-wider text-foreground/45 hover:text-foreground transition-colors"
+        aria-expanded={open}
+      >
+        {open ? 'Hide details' : 'Details'}
+      </button>
+      {open && (
+        <div className="mt-1.5 rounded-md border border-black/10 bg-warm-bg/40 px-2.5 py-2 text-[11px] leading-snug text-foreground/75 space-y-1">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-mono">{v.status} · {elapsedLabel}</span>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(blockText()).catch(() => {});
+              }}
+              className="text-[10px] font-semibold text-primary hover:underline"
+            >
+              Copy
+            </button>
+          </div>
+          <p className="font-mono text-foreground/55 break-all">
+            id {v.id} · req {v.request_id ?? '—'}
+          </p>
+          {d ? (
+            <>
+              <p>
+                Last polled{' '}
+                <span className="font-mono">
+                  {d.last_polled_at ? new Date(d.last_polled_at).toLocaleTimeString() : '—'}
+                </span>
+                {typeof d.fal_status_http === 'number' && (
+                  <> · HTTP <span className="font-mono">{d.fal_status_http}</span></>
+                )}
+                {d.fal_status && <> · fal <span className="font-mono">{d.fal_status}</span></>}
+              </p>
+              {d.app_id && (
+                <p className="font-mono text-foreground/55 break-all">
+                  app {d.app_id}
+                </p>
+              )}
+              {d.fal_error_body && (
+                <pre className="whitespace-pre-wrap break-words font-mono text-[10px] bg-red-50 border border-red-100 text-red-900 rounded px-2 py-1">
+{d.fal_error_body}
+                </pre>
+              )}
+              {d.fal_logs && d.fal_logs.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/45 mt-1">fal logs</p>
+                  <ul className="font-mono text-[10px] text-foreground/70 list-disc pl-4">
+                    {d.fal_logs.map((m, i) => <li key={i}>{m}</li>)}
+                  </ul>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="italic text-foreground/45">
+              No poll diagnostic recorded yet — the next 5s poll will fill this in.
+            </p>
+          )}
+          {v.error && (
+            <p className="text-red-700">{v.error}</p>
+          )}
         </div>
       )}
     </div>
