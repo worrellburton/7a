@@ -28,6 +28,7 @@ interface Ga4Response {
 interface SummaryValues {
   sessions: number;
   activeUsers: number;
+  newUsers: number;
   pageViews: number;
   avgSessionDurationSec: number;
   bounceRate: number;
@@ -109,7 +110,7 @@ export function OverviewSection({ range }: { range: DateRange }) {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         <KpiCard
           label="Sessions"
           value={ga4 ? fmtNumber(ga4.summary.sessions) : loading ? '…' : '—'}
@@ -127,6 +128,12 @@ export function OverviewSection({ range }: { range: DateRange }) {
           spark={usersSpark}
           sparkStroke="stroke-emerald-500"
           sparkFill="fill-emerald-500/10"
+        />
+        <KpiCard
+          label="New users"
+          value={ga4 ? fmtNumber(ga4.summary.newUsers) : loading ? '…' : '—'}
+          current={ga4?.summary.newUsers ?? 0}
+          previous={ga4?.previous?.newUsers ?? null}
         />
         <KpiCard
           label="Page views"
