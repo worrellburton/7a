@@ -31,8 +31,19 @@ export async function GET() {
     //   https://developers.google.com/analytics/devguides/reporting/data/v1/realtime-api-schema
     // We use `platform` (Web / iOS / Android) for the breakdown that
     // used to be `unifiedScreenClass`.
-    const [totalRes, minuteRes, pagesRes, countriesRes, devicesRes, platformsRes, eventsRes] = await Promise.all([
+    const [
+      totalRes,
+      newUsersRes,
+      minuteRes,
+      pagesRes,
+      countriesRes,
+      citiesRes,
+      devicesRes,
+      platformsRes,
+      eventsRes,
+    ] = await Promise.all([
       ga4RunRealtime({ metrics: [{ name: 'activeUsers' }] }),
+      ga4RunRealtime({ metrics: [{ name: 'newUsers' }] }),
       ga4RunRealtime({
         dimensions: [{ name: 'minutesAgo' }],
         metrics: [{ name: 'activeUsers' }],
@@ -46,6 +57,15 @@ export async function GET() {
       }),
       ga4RunRealtime({
         dimensions: [{ name: 'country' }],
+        metrics: [{ name: 'activeUsers' }],
+        orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
+        limit: 10,
+      }),
+      ga4RunRealtime({
+        // City + country dimensions live in the realtime schema —
+        // pair them so the panel can render "Tucson, US" rather than
+        // a bare "Tucson" that's ambiguous globally.
+        dimensions: [{ name: 'city' }, { name: 'country' }],
         metrics: [{ name: 'activeUsers' }],
         orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
         limit: 10,
@@ -69,6 +89,7 @@ export async function GET() {
     ]);
 
     const activeUsers = Number(totalRes.rows?.[0]?.metricValues?.[0]?.value ?? 0);
+    const newUsers = Number(newUsersRes.rows?.[0]?.metricValues?.[0]?.value ?? 0);
 
     // Minute-ago series: 30 buckets (0..29), invert to chronological order
     // (29 minutes ago → now) for charting.
@@ -91,6 +112,17 @@ export async function GET() {
       activeUsers: Number(r.metricValues?.[0]?.value ?? 0),
     }));
 
+    const topCities = (citiesRes.rows ?? [])
+      .map((r) => ({
+        city: r.dimensionValues?.[0]?.value ?? '',
+        country: r.dimensionValues?.[1]?.value ?? '',
+        activeUsers: Number(r.metricValues?.[0]?.value ?? 0),
+      }))
+      // GA4 reports an empty / "(not set)" city for clients that
+      // can't be geolocated — drop those so the panel doesn't show
+      // a row labeled nothing. Same with low-info "(not set)".
+      .filter((c) => c.city && c.city !== '(not set)');
+
     const devices = (devicesRes.rows ?? []).map((r) => ({
       device: r.dimensionValues?.[0]?.value ?? '',
       activeUsers: Number(r.metricValues?.[0]?.value ?? 0),
@@ -108,9 +140,11 @@ export async function GET() {
 
     return NextResponse.json({
       activeUsers,
+      newUsers,
       byMinute,
       topPages,
       topCountries,
+      topCities,
       devices,
       platforms,
       events,
