@@ -1,12 +1,12 @@
-import { getPublicSupabase } from '@/lib/supabase-server';
+import { getAdminSupabase } from '@/lib/supabase-server';
 import type { HeroSource } from '@/components/Hero';
 
 // Fetch the live landing hero's video URLs and shape them as
 // HeroSource[] so /(site)/page.tsx can pass them straight to
-// <Hero />. Public-anon read against landing_heros (RLS allows
-// SELECT) joined to site_videos (also public). When no row is
-// flagged is_live, falls back to the lowest-display_order hero so
-// the homepage still has something curated to show.
+// <Hero />. Runs in an RSC, so we use the service-role admin
+// client — anon reads against site_videos are restricted to
+// authenticated roles, which would silently return zero rows
+// and make the homepage fall back to its hardcoded set.
 //
 // Returns an empty array on failure — Hero falls back to its
 // hardcoded source list, so the public site never breaks because
@@ -14,7 +14,7 @@ import type { HeroSource } from '@/components/Hero';
 
 export async function fetchLiveHeroSources(): Promise<HeroSource[]> {
   try {
-    const sb = getPublicSupabase();
+    const sb = getAdminSupabase();
 
     let videoIds: string[] | null = null;
     const live = await sb
