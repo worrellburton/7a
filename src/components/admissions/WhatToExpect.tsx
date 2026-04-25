@@ -21,7 +21,7 @@ const arrival: Beat[] = [
   {
     when: 'Hour 0',
     title: 'Arrival + welcome',
-    body: 'You are met at the airport or driveway by a staff member. Quick tour of the grounds, your room, and where things live. Meal and rest.',
+    body: 'You are met at the airport or driveway by a staff member. Admission intake, then a quick tour of the grounds, your room, and where things live. Meal and rest.',
     // Open door / threshold
     glyph: (
       <svg viewBox="0 0 32 32" className="w-[18px] h-[18px]" aria-hidden="true" {...s}>
