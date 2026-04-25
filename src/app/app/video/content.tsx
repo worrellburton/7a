@@ -101,6 +101,7 @@ interface SiteVideo {
   seo_title: string | null;
   seo_description: string | null;
   seo_processed_at: string | null;
+  filename: string | null;
 }
 
 export default function VideoContent() {
@@ -1100,9 +1101,26 @@ export default function VideoContent() {
                   )}
                 </button>
                 <div className="p-3">
-                  <p className="text-xs font-medium text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }} title={v.prompt || ''}>
-                    {v.prompt || <span className="italic text-foreground/40">No prompt</span>}
+                  <p
+                    className="text-xs font-medium text-foreground truncate"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                    title={v.prompt || v.filename || ''}
+                  >
+                    {v.prompt
+                      ? v.prompt
+                      : v.filename
+                        ? v.filename
+                        : <span className="italic text-foreground/40">No prompt</span>}
                   </p>
+                  {v.prompt && v.filename ? (
+                    <p
+                      className="text-[10px] text-foreground/45 mt-0.5 truncate font-mono"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      title={v.filename}
+                    >
+                      {v.filename}
+                    </p>
+                  ) : null}
                   {(() => {
                     const usedModel = findVideoModelByEndpoint(v.model_endpoint);
                     return (

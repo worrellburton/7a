@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
+import { MARKETING_ADMISSIONS_DEPT_ID } from '@/lib/website-requests-auth';
 import { db } from '@/lib/db';
 import PageGuard from '@/lib/PageGuard';
 import PageViewers from './PageViewers';
@@ -606,6 +607,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 })}
                 {deptGroups.map(({ dept, pages }) => {
                   const hdrIdx = animIdx++;
+                  // Marketing & Admissions gets an extra "Website"
+                  // entry that opens the public marketing site in a
+                  // new tab. Hardcoded here because the rest of the
+                  // sidebar is internal-only — adding an
+                  // external_url field to PagePermissions for one
+                  // link would be over-engineering.
+                  const isMarketing = dept.id === MARKETING_ADMISSIONS_DEPT_ID;
+                  const websiteIdx = isMarketing ? animIdx++ : -1;
                   return (
                     <div key={dept.id}>
                       <p
@@ -615,6 +624,29 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                         {dept.name}
                       </p>
                       {pages.map(renderLink)}
+                      {isMarketing && (
+                        <a
+                          href="https://www.sevenarrowsrecoveryarizona.com/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out text-foreground/60 hover:bg-warm-bg hover:text-foreground ${
+                            navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'
+                          }`}
+                          style={{ fontFamily: 'var(--font-body)', transitionDelay: `${websiteIdx * 50}ms` }}
+                        >
+                          <span className="text-foreground/40">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="9" />
+                              <path d="M3 12h18" />
+                              <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
+                            </svg>
+                          </span>
+                          <span className="flex-1">Website</span>
+                          <svg className="w-3.5 h-3.5 text-foreground/35" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-6H18m0 0v4.5m0-4.5L10.5 13.5" />
+                          </svg>
+                        </a>
+                      )}
                     </div>
                   );
                 })}
@@ -650,18 +682,6 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   {item.label}
                 </Link>
               ))}
-              <a
-                href="/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-6H18m0 0v4.5m0-4.5L10.5 13.5" />
-                </svg>
-                In Progress
-              </a>
               <button
                 onClick={() => { signOut(); setUserMenuOpen(false); }}
                 className="flex items-center gap-2.5 w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
@@ -675,7 +695,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             </div>
           )}
           {/* Avatar → My Profile (primary). Name + chevron still toggles
-              the popup menu (admin pages, in-progress link, sign out)
+              the popup menu (admin pages, sign out)
               so the power-user affordance is preserved. */}
           <div className="w-full flex items-stretch gap-3 px-3 py-2.5 rounded-xl hover:bg-warm-bg transition-colors">
             <Link
