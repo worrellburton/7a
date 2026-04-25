@@ -12,6 +12,15 @@ import { ga4RunRealtime, hasGoogleOAuth } from '@/lib/google';
 
 export const dynamic = 'force-dynamic';
 
+// Cache the realtime response for a few seconds so concurrent
+// admin viewers don't multiply our GA4 quota burn. Lives in module
+// scope (per-runtime) so it's per-instance — each Vercel function
+// instance shares with itself but not across instances. That's
+// fine: the goal is dampening, not cross-cluster coordination.
+type CachedRealtime = { data: unknown; expiresAt: number };
+let cached: CachedRealtime | null = null;
+const CACHE_TTL_MS = 25_000;
+
 export async function GET() {
   const supabase = await getServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
@@ -24,16 +33,22 @@ export async function GET() {
     return NextResponse.json({ error: 'GA4 not configured' }, { status: 412 });
   }
 
+  // Return the cached payload if it's still fresh. Saves the entire
+  // ga4RunRealtime fan-out for a few seconds.
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json({ ...(cached.data as object), cached: true });
+  }
+
   try {
     // Note: GA4's realtime report API has a smaller dimension set than
     // the regular Data API. unifiedScreenClass / source / etc. are NOT
     // valid here (they 400). The Google docs list the supported set:
     //   https://developers.google.com/analytics/devguides/reporting/data/v1/realtime-api-schema
     // We use `platform` (Web / iOS / Android) for the breakdown that
-    // used to be `unifiedScreenClass`.
+    // used to be `unifiedScreenClass`. Total active + new users now
+    // share a single call to ease quota usage.
     const [
-      totalRes,
-      newUsersRes,
+      totalsRes,
       minuteRes,
       pagesRes,
       countriesRes,
@@ -42,8 +57,7 @@ export async function GET() {
       platformsRes,
       eventsRes,
     ] = await Promise.all([
-      ga4RunRealtime({ metrics: [{ name: 'activeUsers' }] }),
-      ga4RunRealtime({ metrics: [{ name: 'newUsers' }] }),
+      ga4RunRealtime({ metrics: [{ name: 'activeUsers' }, { name: 'newUsers' }] }),
       ga4RunRealtime({
         dimensions: [{ name: 'minutesAgo' }],
         metrics: [{ name: 'activeUsers' }],
@@ -88,8 +102,8 @@ export async function GET() {
       }),
     ]);
 
-    const activeUsers = Number(totalRes.rows?.[0]?.metricValues?.[0]?.value ?? 0);
-    const newUsers = Number(newUsersRes.rows?.[0]?.metricValues?.[0]?.value ?? 0);
+    const activeUsers = Number(totalsRes.rows?.[0]?.metricValues?.[0]?.value ?? 0);
+    const newUsers = Number(totalsRes.rows?.[0]?.metricValues?.[1]?.value ?? 0);
 
     // Minute-ago series: 30 buckets (0..29), invert to chronological order
     // (29 minutes ago → now) for charting.
@@ -138,7 +152,7 @@ export async function GET() {
       count: Number(r.metricValues?.[0]?.value ?? 0),
     }));
 
-    return NextResponse.json({
+    const payload = {
       activeUsers,
       newUsers,
       byMinute,
@@ -149,9 +163,29 @@ export async function GET() {
       platforms,
       events,
       fetched_at: new Date().toISOString(),
-    });
+    };
+    cached = { data: payload, expiresAt: Date.now() + CACHE_TTL_MS };
+    return NextResponse.json(payload);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    // GA4 hourly token quota: surface a friendlier message + 429
+    // status (instead of bouncing it as a 502 with a giant JSON
+    // blob) so the UI can show a recoverable banner. If we have a
+    // recent cached payload, hand that back too — better to render
+    // slightly-stale data than nothing at all.
+    if (/RESOURCE_EXHAUSTED|429/i.test(message)) {
+      const friendly =
+        'GA4 realtime quota exhausted for this hour. The page will auto-refresh once the budget resets (typically <60 min).';
+      if (cached) {
+        return NextResponse.json(
+          { ...(cached.data as object), cached: true, quota_exhausted: true, quota_message: friendly },
+        );
+      }
+      return NextResponse.json(
+        { error: friendly, quota_exhausted: true },
+        { status: 429 },
+      );
+    }
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
