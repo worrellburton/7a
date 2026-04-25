@@ -116,7 +116,7 @@ export function RealtimeSection() {
           </svg>
           <span>
             {data.quota_message ||
-              'GA4 hourly quota exhausted — showing the last known snapshot. The page will catch up once the quota resets (typically &lt;60 min).'}
+              'Google Analytics rate-limited us for this hour. Showing the last known snapshot until the hourly window resets — no charge or billing impact, just a polling cap.'}
           </span>
         </div>
       ) : null}

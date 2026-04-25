@@ -175,7 +175,7 @@ export async function GET() {
     // slightly-stale data than nothing at all.
     if (/RESOURCE_EXHAUSTED|429/i.test(message)) {
       const friendly =
-        'GA4 realtime quota exhausted for this hour. The page will auto-refresh once the budget resets (typically <60 min).';
+        'Google Analytics rate-limited us for this hour (GA4 caps how many realtime requests a property can make per hour). Realtime will auto-refresh once the hourly window resets — usually within an hour. No charge or billing impact, just a polling cap.';
       if (cached) {
         return NextResponse.json(
           { ...(cached.data as object), cached: true, quota_exhausted: true, quota_message: friendly },
