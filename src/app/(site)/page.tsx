@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 
 
 import Hero from "@/components/Hero";
+import { fetchLiveHeroSources } from "@/lib/landing-hero";
 import TourStats from "@/components/tour/TourStats";
 import PlaceToHeal from "@/components/PlaceToHeal";
 import ProgramSection from "@/components/ProgramSection";
@@ -176,7 +177,12 @@ const breadcrumbData = {
   ],
 };
 
-export default function Home() {
+export default async function Home() {
+  // Read whichever landing_heros row is flagged is_live (curated by
+  // /app/landing) and shape its video_urls as HeroSource[]. Falls
+  // back to Hero's own hardcoded set if nothing is live or the
+  // anon read fails.
+  const heroSources = await fetchLiveHeroSources();
   return (
     <>
       <script
@@ -191,7 +197,7 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbData) }}
       />
-      <Hero />
+      <Hero sources={heroSources} />
       <TourStats />
       <AboutSection />
       <PlaceToHeal />
