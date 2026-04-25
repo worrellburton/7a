@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import GoogleReconnectBanner from './GoogleReconnectBanner';
 import { type DateRange, fmtNumber, fmtPct, toApiDate } from './shared';
 
 interface ConversionsResponse {
@@ -60,9 +61,7 @@ export function ConversionsSection({ range }: { range: DateRange }) {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-        <strong>Couldn&apos;t load conversions:</strong> {error}
-      </div>
+      <GoogleReconnectBanner label="conversions" error={error} />
     );
   }
 

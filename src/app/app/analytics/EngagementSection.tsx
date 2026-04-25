@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import GoogleReconnectBanner from './GoogleReconnectBanner';
 import { type DateRange, fmtDuration, fmtNumber, fmtPct, toApiDate } from './shared';
 
 interface EngagementResponse {
@@ -64,9 +65,7 @@ export function EngagementSection({ range }: { range: DateRange }) {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-        <strong>Couldn&apos;t load engagement:</strong> {error}
-      </div>
+      <GoogleReconnectBanner label="engagement" error={error} />
     );
   }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import GoogleReconnectBanner from './GoogleReconnectBanner';
 import { Sparkline } from './Sparkline';
 import { fmtNumber } from './shared';
 
@@ -70,9 +71,7 @@ export function RealtimeSection() {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-        <strong>Couldn&apos;t load realtime:</strong> {error}
-      </div>
+      <GoogleReconnectBanner label="realtime" error={error} />
     );
   }
 
