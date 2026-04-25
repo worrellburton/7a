@@ -16,9 +16,23 @@ interface RealtimeResponse {
   platforms: { platform: string; activeUsers: number }[];
   events: { name: string; count: number }[];
   fetched_at: string;
+  cached?: boolean;
+  quota_exhausted?: boolean;
+  quota_message?: string;
 }
 
-const REFRESH_MS = 15_000;
+// 60 s between polls. The realtime API charges quota tokens per
+// dimension query, and 8 fan-out calls × 4 polls/min was burning
+// the GA4 hourly budget. 60 s is fresh enough for a "right now"
+// dashboard and stays well inside quota even with several admins
+// watching at once.
+const REFRESH_MS = 60_000;
+// When GA4 reports the hourly quota is exhausted we stop polling
+// for this long before retrying. Quota windows are hourly, so 5
+// minutes between attempts is a reasonable middle ground — fast
+// enough to recover quickly, slow enough not to immediately re-
+// trip the limit.
+const BACKOFF_MS = 5 * 60_000;
 
 export function RealtimeSection() {
   const [data, setData] = useState<RealtimeResponse | null>(null);
@@ -36,6 +50,12 @@ export function RealtimeSection() {
           if (cancelled) return;
           if (!r.ok) {
             setError(json?.error ?? `HTTP ${r.status}`);
+            // Quota errors come back as 429 — pause auto-refresh
+            // for BACKOFF_MS instead of pounding the API.
+            if (r.status === 429 && timerRef.current) {
+              clearInterval(timerRef.current);
+              timerRef.current = setInterval(() => setTick((t) => t + 1), BACKOFF_MS);
+            }
           } else {
             setError(null);
             setData(json as RealtimeResponse);
@@ -61,10 +81,20 @@ export function RealtimeSection() {
     fetch('/api/google/realtime', { cache: 'no-store', signal: controller.signal })
       .then(async (r) => {
         const json = await r.json();
-        if (!r.ok) setError(json?.error ?? `HTTP ${r.status}`);
-        else {
+        if (!r.ok) {
+          setError(json?.error ?? `HTTP ${r.status}`);
+          if (r.status === 429 && timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = setInterval(() => setTick((t) => t + 1), BACKOFF_MS);
+          }
+        } else {
           setError(null);
           setData(json as RealtimeResponse);
+          // Came back ok after a backoff — restore normal cadence.
+          if (timerRef.current && !paused) {
+            clearInterval(timerRef.current);
+            timerRef.current = setInterval(() => setTick((t) => t + 1), REFRESH_MS);
+          }
         }
       })
       .catch(() => {});
@@ -79,6 +109,18 @@ export function RealtimeSection() {
 
   return (
     <div className="space-y-6">
+      {data?.quota_exhausted && data?.cached ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-[12px] text-amber-900 flex items-start gap-2">
+          <svg className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          </svg>
+          <span>
+            {data.quota_message ||
+              'GA4 hourly quota exhausted — showing the last known snapshot. The page will catch up once the quota resets (typically &lt;60 min).'}
+          </span>
+        </div>
+      ) : null}
+
       {/* Live users banner */}
       <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -98,7 +140,7 @@ export function RealtimeSection() {
                 </span>
               ) : null}
               <span className="text-xs text-foreground/60">
-                last 30 minutes · refreshes every 15 s {paused ? '(paused)' : ''}
+                last 30 minutes · refreshes every 60 s {paused ? '(paused)' : ''}
               </span>
             </div>
           </div>
