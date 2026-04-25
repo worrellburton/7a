@@ -252,6 +252,40 @@ export default function LandingContent() {
     else if (previewIdx >= timeline.length) setPreviewIdx(0);
   }, [timeline.length, previewIdx]);
 
+  async function reorderHeroes(fromId: string, beforeId: string | null) {
+    if (!session?.access_token) return;
+    if (fromId === beforeId) return;
+    // Compute the new local order, then write display_order back to
+    // every affected row (1-indexed contiguous integers so future
+    // inserts have somewhere to slot).
+    const fromIdx = heros.findIndex((h) => h.id === fromId);
+    if (fromIdx < 0) return;
+    const without = heros.filter((h) => h.id !== fromId);
+    const targetIdx = beforeId === null ? without.length : without.findIndex((h) => h.id === beforeId);
+    if (targetIdx < 0) return;
+    const next = [...without.slice(0, targetIdx), heros[fromIdx], ...without.slice(targetIdx)];
+    if (next.every((h, i) => h.id === heros[i]?.id)) return; // no-op
+    setHeros(next.map((h, i) => ({ ...h, display_order: i })));
+    // Fire-and-forget per-row PATCHes; concurrent updates are safe
+    // since each row is a separate id and the trigger touches
+    // updated_at independently.
+    await Promise.all(
+      next.map((h, i) =>
+        h.display_order === i
+          ? Promise.resolve()
+          : fetch(`/api/landing/heros/${h.id}`, {
+              method: 'PATCH',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ display_order: i }),
+            }),
+      ),
+    );
+  }
+
   async function deleteHero(id: string) {
     if (!session?.access_token) return;
     if (heros.length <= 1) {
@@ -418,6 +452,25 @@ export default function LandingContent() {
             return (
               <div
                 key={h.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/x-hero-id', h.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(e) => {
+                  const types = Array.from(e.dataTransfer.types || []);
+                  if (types.includes('text/x-hero-id')) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  }
+                }}
+                onDrop={(e) => {
+                  const fromId = e.dataTransfer.getData('text/x-hero-id');
+                  if (!fromId || fromId === h.id) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void reorderHeroes(fromId, h.id);
+                }}
                 className={`group relative inline-flex items-center border-b-2 -mb-px transition-colors ${
                   isActive ? 'border-primary' : 'border-transparent hover:border-foreground/20'
                 }`}
@@ -429,8 +482,8 @@ export default function LandingContent() {
                     if (h.id !== heroId) selectHero(h.id);
                     setRenamingId(h.id);
                   }}
-                  title={`${h.name} · ${count} clip${count === 1 ? '' : 's'} · double-click to rename`}
-                  className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors ${
+                  title={`${h.name} · ${count} clip${count === 1 ? '' : 's'} · drag to reorder · double-click to rename`}
+                  className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors cursor-grab active:cursor-grabbing ${
                     isActive ? 'text-primary' : 'text-foreground/60 group-hover:text-foreground'
                   }`}
                 >
@@ -571,6 +624,15 @@ export default function LandingContent() {
                 onDropAt={(fromId, fromTimeline) => {
                   if (fromTimeline) reorderTimeline(fromId, i);
                   else addToTimeline(fromId, i);
+                }}
+                onNudge={(delta) => {
+                  // ←/→ on a focused tile. Clamp to the row bounds.
+                  const target = Math.max(0, Math.min(timeline.length - 1, i + delta));
+                  if (target === i) return;
+                  // reorderTimeline takes the destination slot before
+                  // it removes the source, so for a right-nudge we
+                  // need target+1 to land past the neighbor.
+                  reorderTimeline(v.id, delta > 0 ? target + 1 : target);
                 }}
               />
             ))}
@@ -763,12 +825,14 @@ function TimelineCard({
   imagesById,
   onRemove,
   onDropAt,
+  onNudge,
 }: {
   index: number;
   v: SiteVideo;
   imagesById: Map<string, SiteImage>;
   onRemove: () => void;
   onDropAt: (fromId: string, fromTimeline: boolean) => void;
+  onNudge: (delta: -1 | 1) => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const title = videoTitle(v);
@@ -776,6 +840,7 @@ function TimelineCard({
   return (
     <li
       draggable
+      tabIndex={0}
       onDragStart={(e) => {
         e.dataTransfer.setData('text/x-video-id', v.id);
         e.dataTransfer.setData('text/x-from-timeline', '1');
@@ -799,10 +864,32 @@ function TimelineCard({
         e.stopPropagation();
         onDropAt(id, fromTimeline);
       }}
-      className={`group relative shrink-0 w-44 rounded-xl bg-white border overflow-hidden cursor-grab active:cursor-grabbing transition ${
-        dragOver ? 'border-primary/70 ring-2 ring-primary/30' : 'border-black/5'
+      onKeyDown={(e) => {
+        // ←/→ on a focused tile nudges it one slot in either
+        // direction. Skips when a modifier key is held so it
+        // doesn't fight a screen reader. Holding shift jumps to
+        // the start/end.
+        if (e.altKey || e.metaKey || e.ctrlKey) return;
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          onNudge(-1);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          onNudge(1);
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault();
+          onRemove();
+        }
+      }}
+      className={`group relative shrink-0 w-44 rounded-xl bg-white border overflow-hidden cursor-grab active:cursor-grabbing transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+        dragOver ? 'border-primary/70' : 'border-black/5'
       }`}
     >
+      {dragOver && (
+        // Drop-indicator bar on the leading edge — clearer than a
+        // full-card ring when several tiles are tightly packed.
+        <span aria-hidden="true" className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-l-xl" />
+      )}
       <div className="relative aspect-video bg-warm-bg overflow-hidden">
         {poster ? (
           // eslint-disable-next-line @next/next/no-img-element
