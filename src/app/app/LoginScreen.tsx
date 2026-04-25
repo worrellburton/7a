@@ -774,16 +774,20 @@ function FaceMarquee() {
       aria-hidden="true"
     >
       {/* Reserve enough vertical room for the circle + hover caption so the
-          floating tiles don't clip against the bottom edge of the screen. */}
+          floating tiles don't clip against the bottom edge of the screen.
+          Edge fade is applied via mask-image on the track itself so tiles
+          fade to transparent — overlaying a dark gradient was painting
+          square shadows over the round avatars at the edges. */}
       <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 animate-faces-fade-in py-3">
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-28 z-10"
-             style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.9), transparent)' }} />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-28 z-10"
-             style={{ background: 'linear-gradient(to left, rgba(0,0,0,0.9), transparent)' }} />
-
         <div
           className="flex items-center gap-4 sm:gap-6 w-max face-marquee-track py-2"
-          style={{ animationDuration: `${seconds}s` }}
+          style={{
+            animationDuration: `${seconds}s`,
+            WebkitMaskImage:
+              'linear-gradient(to right, transparent 0, black 7%, black 93%, transparent 100%)',
+            maskImage:
+              'linear-gradient(to right, transparent 0, black 7%, black 93%, transparent 100%)',
+          }}
         >
           {loop.map((tile, i) => (
             <div
@@ -791,14 +795,14 @@ function FaceMarquee() {
               className="relative flex flex-col items-center shrink-0 group pointer-events-auto"
             >
               <div
-                className="relative h-14 w-14 sm:h-[4.5rem] sm:w-[4.5rem] rounded-full overflow-hidden ring-2 ring-white/60 shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition-transform duration-300 group-hover:scale-110 face-tile-float"
+                className="relative aspect-square h-14 w-14 sm:h-[4.5rem] sm:w-[4.5rem] rounded-full overflow-hidden ring-2 ring-white/60 shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition-transform duration-300 group-hover:scale-110 face-tile-float bg-warm-bg/60"
                 style={{ animationDelay: `${(i % 11) * 0.35}s` }}
               >
                 <img
                   src={tile.src}
                   alt=""
                   loading="lazy"
-                  className="h-full w-full object-cover"
+                  className="absolute inset-0 h-full w-full object-cover rounded-full"
                 />
                 {tile.kind === 'horse' && (
                   <span className="absolute bottom-0 inset-x-0 h-4 bg-gradient-to-t from-black/70 to-transparent flex items-end justify-center pb-0.5">

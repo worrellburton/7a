@@ -269,6 +269,18 @@ export default function SeoContent() {
             SEO Images
           </Link>
           <Link
+            href="/app/video?autoRun=1"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-foreground text-white px-3 py-2 text-sm font-semibold hover:bg-foreground/90 transition"
+            title="Open the Video gallery and immediately run an SEO pass on every clip that hasn't been optimized yet (alt text, SEO title + meta description from the prompt + thumbnail)."
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <path d="M8 11h6M11 8v6" />
+            </svg>
+            SEO Video
+          </Link>
+          <Link
             href="/app/seo/redirects"
             className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground hover:bg-warm-bg/40 transition"
           >

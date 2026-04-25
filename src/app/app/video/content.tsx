@@ -1,8 +1,68 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
+
+// Extract a thumbnail JPEG from a video file in the browser. Loads the
+// file as an object URL into an off-DOM <video>, seeks to ~1s (or 10%
+// in for very short clips), draws the frame onto a canvas, exports a
+// JPEG blob. Returns null if the browser can't decode the format —
+// caller falls back to "no thumbnail" rather than failing the upload.
+async function extractVideoThumbnail(
+  file: File,
+  maxEdge = 720,
+): Promise<Blob | null> {
+  if (typeof document === 'undefined') return null;
+  const url = URL.createObjectURL(file);
+  try {
+    const video = document.createElement('video');
+    video.preload = 'auto';
+    video.muted = true;
+    video.playsInline = true;
+    video.crossOrigin = 'anonymous';
+    video.src = url;
+
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        video.onloadedmetadata = null;
+        video.onerror = null;
+      };
+      video.onloadedmetadata = () => { cleanup(); resolve(); };
+      video.onerror = () => { cleanup(); reject(new Error('video metadata load failed')); };
+    });
+
+    const target = Math.min(1, Math.max(0.1, (video.duration || 1) * 0.1));
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        video.onseeked = null;
+        video.onerror = null;
+      };
+      video.onseeked = () => { cleanup(); resolve(); };
+      video.onerror = () => { cleanup(); reject(new Error('video seek failed')); };
+      video.currentTime = target;
+    });
+
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if (!w || !h) return null;
+    const scale = Math.min(1, maxEdge / Math.max(w, h));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(h * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.85);
+    });
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 import { supabase } from '@/lib/supabase';
 import {
   DEFAULT_VIDEO_MODEL_ID,
@@ -37,6 +97,10 @@ interface SiteVideo {
   created_by: string | null;
   created_at: string;
   completed_at: string | null;
+  alt: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  seo_processed_at: string | null;
 }
 
 export default function VideoContent() {
@@ -63,6 +127,22 @@ export default function VideoContent() {
   // here as a multi-line block the user can paste back to support.
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  // Real-time upload progress so 100+ MB videos don't look frozen.
+  // Driven by XMLHttpRequest's upload.onprogress (fetch can't observe
+  // bytes-sent), then rendered as an inline progress bar with a size
+  // readout next to the upload zone.
+  const [uploadProgress, setUploadProgress] = useState<{
+    fileName: string;
+    loaded: number;
+    total: number;
+  } | null>(null);
+  // SEO batch runner — mirrors the SEO Images flow on /app/images.
+  // Walks every completed video that hasn't been SEO-processed yet,
+  // calls Claude to generate alt + title + description from the
+  // prompt + thumbnail, persists, and updates the row in place.
+  const [seoRunning, setSeoRunning] = useState(false);
+  const [seoProgress, setSeoProgress] = useState<{ done: number; total: number; videoId?: string }>({ done: 0, total: 0 });
+  const seoAbortRef = useRef(false);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   // Re-render every second while any tile is pending so the time-based
   // progress bar animates smoothly between the 5s status polls.
@@ -316,26 +396,94 @@ export default function VideoContent() {
         reportError('sign-upload (shape)', 'sign-upload response missing videoId/path/token', { body: signed });
         return;
       }
+      const thumbInfo = (signed as { thumb?: { path: string; token: string; signedUrl: string } | null }).thumb ?? null;
 
-      // 2. Upload directly to storage. The browser supabase client
-      //    talks straight to /storage/v1 — Vercel is out of the picture.
-      const { error: upErr } = await supabase.storage
-        .from('public-images')
-        .uploadToSignedUrl(path, token, file, {
-          contentType: file.type || 'video/mp4',
-          upsert: true,
-        });
-      if (upErr) {
-        // Supabase's StorageError has a `name` and sometimes `statusCode`.
-        // Capture the whole thing — these are the failures most likely
-        // to be 413/CORS/TLS issues that need engineering eyes.
-        const errAny = upErr as { name?: string; statusCode?: string | number; status?: string | number };
-        reportError('upload-to-storage', upErr.message, {
+      // 2. Upload directly to storage via XHR PUT so we can track
+      //    bytes-sent and render a real progress bar. supabase-js's
+      //    uploadToSignedUrl uses fetch under the hood, which gives
+      //    us no progress events — fine for a 4 MB selfie, terrible
+      //    for a 200 MB drone clip.
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        reportError('upload-to-storage (config)', 'NEXT_PUBLIC_SUPABASE_URL is not set in the browser env');
+        return;
+      }
+      const putUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/upload/sign/public-images/${path
+        .split('/')
+        .map(encodeURIComponent)
+        .join('/')}?token=${encodeURIComponent(token)}`;
+
+      setUploadProgress({ fileName: file.name, loaded: 0, total: file.size });
+      const xhrErr = await new Promise<{ message: string; statusCode?: number; raw?: string } | null>((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', putUrl, true);
+        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+        // x-upsert mirrors uploadToSignedUrl({ upsert: true }).
+        xhr.setRequestHeader('x-upsert', 'true');
+        xhr.upload.onprogress = (evt) => {
+          if (evt.lengthComputable) {
+            setUploadProgress({
+              fileName: file.name,
+              loaded: evt.loaded,
+              total: evt.total,
+            });
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            // Pin to 100% so the bar fills cleanly before finalize.
+            setUploadProgress({ fileName: file.name, loaded: file.size, total: file.size });
+            resolve(null);
+          } else {
+            resolve({
+              message: `HTTP ${xhr.status} ${xhr.statusText}`.trim(),
+              statusCode: xhr.status,
+              raw: xhr.responseText?.slice(0, 400),
+            });
+          }
+        };
+        xhr.onerror = () => resolve({ message: 'Network error during upload (XHR onerror)' });
+        xhr.onabort = () => resolve({ message: 'Upload aborted' });
+        xhr.send(file);
+      });
+      if (xhrErr) {
+        reportError('upload-to-storage', xhrErr.message, {
           path,
-          name: errAny.name,
-          statusCode: errAny.statusCode ?? errAny.status,
+          statusCode: xhrErr.statusCode,
+          body: xhrErr.raw,
         });
         return;
+      }
+
+      // 2b. Best-effort thumbnail extraction. If decoding fails or the
+      //     mint route didn't hand back a thumb URL, we just upload the
+      //     video without one — the gallery tile shows a placeholder
+      //     instead of crashing the upload.
+      let uploadedThumbPath: string | null = null;
+      if (thumbInfo) {
+        try {
+          const thumb = await extractVideoThumbnail(file);
+          if (thumb && thumb.size > 0) {
+            const thumbPutUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/upload/sign/public-images/${thumbInfo.path
+              .split('/')
+              .map(encodeURIComponent)
+              .join('/')}?token=${encodeURIComponent(thumbInfo.token)}`;
+            const thumbRes = await fetch(thumbPutUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'image/jpeg', 'x-upsert': 'true' },
+              body: thumb,
+            });
+            if (thumbRes.ok) {
+              uploadedThumbPath = thumbInfo.path;
+            } else {
+              // eslint-disable-next-line no-console
+              console.warn('[video upload] thumbnail PUT failed', thumbRes.status, await thumbRes.text().catch(() => ''));
+            }
+          }
+        } catch (thumbErr) {
+          // eslint-disable-next-line no-console
+          console.warn('[video upload] thumbnail extraction skipped', thumbErr);
+        }
       }
 
       // 3. Tell the server the bytes landed; it stamps public_url
@@ -348,7 +496,7 @@ export default function VideoContent() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ videoId, path }),
+          body: JSON.stringify({ videoId, path, thumbPath: uploadedThumbPath }),
         });
       } catch (netErr) {
         reportError('finalize (network)', netErr instanceof Error ? netErr.message : String(netErr), { videoId, path });
@@ -379,9 +527,88 @@ export default function VideoContent() {
       });
     } finally {
       setUploading(false);
+      setUploadProgress(null);
       if (uploadInputRef.current) uploadInputRef.current.value = '';
     }
   }
+
+  const runSeoBatch = useCallback(
+    async (onlyIds?: string[]) => {
+      if (!session?.access_token) return;
+      const token = session.access_token;
+
+      // Pick targets: explicit ids if given, otherwise every completed
+      // playable row that hasn't been SEO-processed yet. Failed and
+      // queued rows are ignored — there's no thumbnail to read.
+      const targets = (onlyIds
+        ? videos.filter((v) => onlyIds.includes(v.id))
+        : videos.filter(
+            (v) => v.status === 'completed' && !!v.video_url && !v.seo_processed_at,
+          )
+      ).slice();
+
+      if (targets.length === 0) {
+        showToast('Nothing to do — every video already has SEO metadata.');
+        return;
+      }
+
+      setSeoRunning(true);
+      seoAbortRef.current = false;
+      setSeoProgress({ done: 0, total: targets.length });
+
+      let done = 0;
+      for (const v of targets) {
+        if (seoAbortRef.current) break;
+        setSeoProgress({ done, total: targets.length, videoId: v.id });
+        try {
+          const res = await fetch('/api/claude/videos/seo', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ videoId: v.id }),
+          });
+          const json = (await res.json().catch(() => ({}))) as { video?: SiteVideo; error?: string };
+          if (res.ok && json.video) {
+            const updated = json.video;
+            setVideos((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+          } else {
+            // eslint-disable-next-line no-console
+            console.warn('[seo-video] failed', v.id, json.error || res.status);
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('[seo-video] network error', v.id, err);
+        }
+        done += 1;
+        setSeoProgress({ done, total: targets.length });
+      }
+
+      setSeoRunning(false);
+      seoAbortRef.current = false;
+      showToast(
+        seoAbortRef.current
+          ? `SEO pass canceled after ${done}/${targets.length}.`
+          : `SEO pass done — ${done}/${targets.length} clips updated.`,
+      );
+    },
+    [session, videos],
+  );
+
+  // ?autoRun=1 (e.g. the "SEO Video" button on /app/seo) kicks off a
+  // gallery pass automatically once the videos list has loaded. Mirrors
+  // the same pattern used on /app/images.
+  const searchParams = useSearchParams();
+  const autoRunRequested = searchParams?.get('autoRun') === '1';
+  const autoRunFiredRef = useRef(false);
+  useEffect(() => {
+    if (!autoRunRequested || autoRunFiredRef.current) return;
+    if (loading) return;
+    if (!user || !session?.access_token) return;
+    autoRunFiredRef.current = true;
+    void runSeoBatch();
+  }, [autoRunRequested, loading, user, session?.access_token, runSeoBatch]);
 
   async function deleteVideo(v: SiteVideo) {
     const ok = await confirm('Delete this video?', {
@@ -412,7 +639,28 @@ export default function VideoContent() {
             Animate any image from the Images gallery into a short clip with fal.ai video models, or upload an existing video. Click a generated or uploaded video to copy its URL.
           </p>
         </div>
-        <div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => (seoRunning ? (seoAbortRef.current = true) : runSeoBatch())}
+            disabled={!seoRunning && videos.filter((v) => v.status === 'completed' && !!v.video_url && !v.seo_processed_at).length === 0}
+            title={
+              seoRunning
+                ? 'Cancel after the current clip finishes.'
+                : 'Run an SEO pass on every completed clip that hasn\'t been optimized yet (alt + title + description from prompt + thumbnail).'
+            }
+            className="inline-flex items-center gap-1.5 rounded-xl bg-foreground text-white px-3 py-2.5 text-sm font-semibold hover:bg-foreground/90 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <path d="M8 11h6M11 8v6" />
+            </svg>
+            {seoRunning
+              ? `Cancel · ${seoProgress.done}/${seoProgress.total}`
+              : 'SEO Video'}
+          </button>
           <input
             ref={uploadInputRef}
             type="file"
@@ -499,6 +747,35 @@ export default function VideoContent() {
           </div>
         </div>
       </div>
+
+      {uploadProgress && (
+        <div className="mb-6 rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm" style={{ fontFamily: 'var(--font-body)' }}>
+          {(() => {
+            const { fileName, loaded, total } = uploadProgress;
+            const pct = total > 0 ? Math.min(100, (loaded / total) * 100) : 0;
+            const mb = (n: number) => (n / 1024 / 1024).toFixed(1);
+            return (
+              <>
+                <div className="flex items-center justify-between text-[12px] text-foreground/70 mb-2">
+                  <span className="truncate max-w-[60%]" title={fileName}>
+                    {pct >= 100 ? 'Finalizing… ' : 'Uploading '}
+                    <span className="text-foreground/50">{fileName}</span>
+                  </span>
+                  <span className="font-mono tabular-nums text-[11px]">
+                    {mb(loaded)} / {mb(total)} MB · {pct.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-[width] duration-150 ease-linear"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
 
       {uploadError && (
         <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
