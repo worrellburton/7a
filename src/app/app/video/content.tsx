@@ -242,21 +242,64 @@ export default function VideoContent() {
       showToast(`Expected a video file, got ${file.type || 'unknown type'}`);
       return;
     }
+    // Bucket file_size_limit on Supabase is also 300 MB; checking
+    // client-side gives a friendly toast instead of a 413 from
+    // storage halfway through the upload.
+    const MAX_BYTES = 300 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      showToast(`Video is ${(file.size / 1024 / 1024).toFixed(0)} MB — limit is 300 MB. Compress with HandBrake or upload to YouTube and embed the URL.`);
+      return;
+    }
+
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/fal/video/upload', {
+      // 1. Mint a signed upload URL on the server. The bytes never
+      //    pass through Vercel (4.5 MB body cap) — they go straight
+      //    from the browser to Supabase Storage.
+      const signRes = await fetch('/api/fal/video/sign-upload', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ filename: file.name }),
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        showToast(json?.error || `Upload failed (${res.status})`);
+      const signed = await signRes.json().catch(() => ({}));
+      if (!signRes.ok) {
+        showToast(signed?.error || `Upload failed (${signRes.status})`);
         return;
       }
-      const video = json.video as SiteVideo | undefined;
+      const { videoId, path, token } = signed as { videoId: string; path: string; token: string };
+
+      // 2. Upload directly to storage. The browser supabase client
+      //    talks straight to /storage/v1 — Vercel is out of the picture.
+      const { error: upErr } = await supabase.storage
+        .from('public-images')
+        .uploadToSignedUrl(path, token, file, {
+          contentType: file.type || 'video/mp4',
+          upsert: true,
+        });
+      if (upErr) {
+        showToast(`Upload failed: ${upErr.message}`);
+        return;
+      }
+
+      // 3. Tell the server the bytes landed; it stamps public_url
+      //    + status='completed' and returns the row.
+      const finRes = await fetch('/api/fal/video/finalize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ videoId, path }),
+      });
+      const finJson = await finRes.json().catch(() => ({}));
+      if (!finRes.ok) {
+        showToast(finJson?.error || `Finalize failed (${finRes.status})`);
+        return;
+      }
+      const video = finJson.video as SiteVideo | undefined;
       if (video) {
         setVideos((prev) => [video, ...prev]);
         showToast('Video uploaded');
