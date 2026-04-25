@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import GoogleReconnectBanner from './GoogleReconnectBanner';
 import { type DateRange, fmtDuration, fmtNumber, fmtPct, toApiDate, pctChange } from './shared';
 
 interface ComparePoint {
@@ -69,9 +70,7 @@ export function CompareSection({ range }: { range: DateRange }) {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-        <strong>Couldn&apos;t load compare:</strong> {error}
-      </div>
+      <GoogleReconnectBanner label="compare" error={error} />
     );
   }
 

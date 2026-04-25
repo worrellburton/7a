@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DeltaPill } from './DeltaPill';
 import { Sparkline } from './Sparkline';
 import { type DateRange, fmtNumber, fmtPct, toApiDate } from './shared';
+import GoogleReconnectBanner from './GoogleReconnectBanner';
 
 interface SeoResponse {
   range: { startDate: string; endDate: string };
@@ -75,11 +76,7 @@ export function SeoSection({ range }: { range: DateRange }) {
   }, [data, pageFilter]);
 
   if (error) {
-    return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-        <strong>Couldn&apos;t load Search Console:</strong> {error}
-      </div>
-    );
+    return <GoogleReconnectBanner label="Search Console" error={error} />;
   }
 
   return (

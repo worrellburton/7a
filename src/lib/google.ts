@@ -2,43 +2,99 @@
 //
 // One OAuth client, one long-lived refresh token, used for every Google API
 // the app reads from (GA4 Data API, Search Console, Business Profile). The
-// refresh token is minted once via OAuth Playground as the Workspace admin
-// and stored in Vercel env; each request trades it for a short-lived access
-// token, with an in-memory cache so hot paths don't hammer the token endpoint.
+// refresh token can live in two places, in this order of precedence:
+//   1. public.google_oauth_tokens (id='primary') — written by an admin
+//      using the in-app "Reconnect Google" flow at /api/google/oauth/*.
+//      This is the path of least resistance: a Workspace admin clicks a
+//      button, signs in with Google, and the new token is live without
+//      a Vercel deploy.
+//   2. GOOGLE_OAUTH_REFRESH_TOKEN env var — original/legacy path, minted
+//      via OAuth Playground. Still consulted as a fallback so a fresh
+//      deploy with no DB row keeps working.
+//
+// When the refresh fails with `invalid_grant` (token expired/revoked),
+// callers see a typed `GoogleTokenInvalidGrantError` so the UI can show
+// a Reconnect button instead of a generic 500.
 //
 // Env:
 //   GOOGLE_OAUTH_CLIENT_ID       (required)
 //   GOOGLE_OAUTH_CLIENT_SECRET   (required)
-//   GOOGLE_OAUTH_REFRESH_TOKEN   (required)
+//   GOOGLE_OAUTH_REFRESH_TOKEN   (optional fallback if no DB row)
+//   GOOGLE_OAUTH_REDIRECT_URI    (required for the in-app reconnect flow)
 //   GA4_PROPERTY_ID              (required for ga4Run / ga4TopPages)
 //   GSC_SITE_URL                 (required for gscSearchAnalytics)
+
+import { getAdminSupabase } from '@/lib/supabase-server';
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
 interface CachedToken {
   accessToken: string;
   expiresAt: number;
+  /** Tag the cache entry with the refresh token that produced it so a
+   *  reconnect (which writes a new refresh token to the DB) immediately
+   *  invalidates the in-memory access token. */
+  refreshToken: string;
 }
 let cachedToken: CachedToken | null = null;
+
+export class GoogleTokenInvalidGrantError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GoogleTokenInvalidGrantError';
+  }
+}
 
 export function hasGoogleOAuth(): boolean {
   return (
     !!process.env.GOOGLE_OAUTH_CLIENT_ID &&
-    !!process.env.GOOGLE_OAUTH_CLIENT_SECRET &&
-    !!process.env.GOOGLE_OAUTH_REFRESH_TOKEN
+    !!process.env.GOOGLE_OAUTH_CLIENT_SECRET
   );
 }
 
-export async function getGoogleAccessToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt - Date.now() > 60_000) {
-    return cachedToken.accessToken;
+async function getStoredRefreshToken(): Promise<string | null> {
+  try {
+    const admin = getAdminSupabase();
+    const { data } = await admin
+      .from('google_oauth_tokens')
+      .select('refresh_token')
+      .eq('id', 'primary')
+      .maybeSingle();
+    const tok = data?.refresh_token;
+    return typeof tok === 'string' && tok.length > 0 ? tok : null;
+  } catch {
+    // Table missing or DB unreachable — fall back to env var.
+    return null;
   }
+}
 
+/** Drop the in-memory access token (used by the reconnect flow so a
+ *  fresh refresh token takes effect on the next API call). */
+export function invalidateCachedGoogleToken(): void {
+  cachedToken = null;
+}
+
+export async function getGoogleAccessToken(): Promise<string> {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error('Google OAuth env missing (CLIENT_ID / CLIENT_SECRET / REFRESH_TOKEN)');
+  if (!clientId || !clientSecret) {
+    throw new Error('Google OAuth env missing (CLIENT_ID / CLIENT_SECRET)');
+  }
+
+  const dbToken = await getStoredRefreshToken();
+  const refreshToken = dbToken ?? process.env.GOOGLE_OAUTH_REFRESH_TOKEN ?? null;
+  if (!refreshToken) {
+    throw new GoogleTokenInvalidGrantError(
+      'Google is not connected. An admin needs to run "Reconnect Google" to authorize the integration.',
+    );
+  }
+
+  if (
+    cachedToken &&
+    cachedToken.refreshToken === refreshToken &&
+    cachedToken.expiresAt - Date.now() > 60_000
+  ) {
+    return cachedToken.accessToken;
   }
 
   const body = new URLSearchParams({
@@ -57,6 +113,13 @@ export async function getGoogleAccessToken(): Promise<string> {
 
   if (!res.ok) {
     const text = await res.text();
+    // Distinguish "you need to reconnect" from generic outages so the
+    // UI can render a Reconnect button instead of a scary stack trace.
+    if (res.status === 400 && /invalid_grant/i.test(text)) {
+      throw new GoogleTokenInvalidGrantError(
+        `Google token refresh failed: ${res.status} ${text}`,
+      );
+    }
     throw new Error(`Google token refresh failed: ${res.status} ${text}`);
   }
 
@@ -64,6 +127,7 @@ export async function getGoogleAccessToken(): Promise<string> {
   cachedToken = {
     accessToken: json.access_token,
     expiresAt: Date.now() + json.expires_in * 1000,
+    refreshToken,
   };
   return json.access_token;
 }

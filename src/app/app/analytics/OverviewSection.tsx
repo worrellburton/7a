@@ -5,6 +5,7 @@ import { DeltaPill } from './DeltaPill';
 import { Sparkline } from './Sparkline';
 import { TrendChart } from './TrendChart';
 import { InsightsSection } from './InsightsSection';
+import GoogleReconnectBanner from './GoogleReconnectBanner';
 import {
   type DateRange,
   fmtDuration,
@@ -103,8 +104,8 @@ export function OverviewSection({ range }: { range: DateRange }) {
   return (
     <>
       {error ? (
-        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <strong>Couldn&apos;t load GA4:</strong> {error}
+        <div className="mb-6">
+          <GoogleReconnectBanner label="GA4" error={error} />
         </div>
       ) : null}
 
