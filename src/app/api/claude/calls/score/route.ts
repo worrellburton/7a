@@ -295,7 +295,11 @@ async function scoreWithGeminiAudio(
         generationConfig: {
           temperature: 0.3,
           responseMimeType: 'application/json',
-          maxOutputTokens: 8000,
+          // Long calls (30+ min) produce a long JSON response —
+          // especially the optional "transcript" field. 8000 tokens
+          // truncates these, which Gemini reports as a parse error
+          // and silently falls back to metadata-only. Give it room.
+          maxOutputTokens: 16000,
         },
       }),
     });
@@ -489,9 +493,22 @@ export async function POST(req: NextRequest) {
     sentiment: parsed.sentiment || null,
     scored_at: new Date().toISOString(),
     model: scored.model,
+    debug_info: debug,
   };
 
-  await supabase.from('call_ai_scores').upsert(row, { onConflict: 'call_id' });
+  // debug_info column was added in migration
+  // 20260425_call_ai_scores_debug_info.sql; older deployments without
+  // the column would 400 on upsert, so retry without it on schema
+  // mismatch (per CLAUDE.md "make reads resilient").
+  let upsertErr = (await supabase.from('call_ai_scores').upsert(row, { onConflict: 'call_id' })).error;
+  if (upsertErr && /debug_info/i.test(upsertErr.message)) {
+    const { debug_info: _omit, ...legacyRow } = row;
+    void _omit;
+    upsertErr = (await supabase.from('call_ai_scores').upsert(legacyRow, { onConflict: 'call_id' })).error;
+  }
+  if (upsertErr) {
+    return NextResponse.json({ error: upsertErr.message, debug }, { status: 500 });
+  }
 
   return NextResponse.json({ cached: false, result: row, debug });
 }

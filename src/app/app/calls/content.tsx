@@ -27,6 +27,15 @@ interface ScoreRow {
   // badges the metadata-only case so the user knows why the summary is
   // cautious rather than assuming it was computed from audio.
   model?: string | null;
+  // Diagnostic context written by /api/claude/calls/score — lets the
+  // metadata-only banner explain *why* audio analysis didn't run
+  // (e.g. recording fetched fine but Gemini errored on a 38-min call)
+  // instead of pretending no audio was available.
+  debug_info?: {
+    audio_status?: string | null;
+    analyzer?: string | null;
+    analyzer_error?: string | null;
+  } | null;
 }
 
 interface Call {
@@ -2398,19 +2407,40 @@ function CallDetail({
         <div className="pt-4 space-y-4">
           {/* Badge metadata-only analyses so it's obvious why the
               summary is more cautious — saves the "this looks wrong"
-              moment when Claude can't actually hear the call. */}
-          {typeof score.model === 'string' && score.model.startsWith('claude:') && (
-            <div className="rounded-xl bg-amber-50/70 border border-amber-200 px-3 py-2 flex items-start gap-2">
-              <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
-              <p className="text-[11px] text-amber-900/90 leading-snug">
-                Metadata-only analysis — no audio was available. Summary and
-                coaching are limited to what the call record tells us. Click
-                Re-analyze once the recording is attached.
-              </p>
-            </div>
-          )}
+              moment when Claude can't actually hear the call. When the
+              audio downloaded fine but Gemini errored (long calls
+              were silently falling back to metadata-only), surface the
+              actual error instead of pretending no audio existed. */}
+          {typeof score.model === 'string' && score.model.startsWith('claude:') && (() => {
+            const audioStatus = score.debug_info?.audio_status ?? null;
+            const audioDownloaded = typeof audioStatus === 'string' && audioStatus.startsWith('downloaded');
+            const analyzerError = score.debug_info?.analyzer_error ?? null;
+            return (
+              <div className="rounded-xl bg-amber-50/70 border border-amber-200 px-3 py-2 flex items-start gap-2">
+                <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                {audioDownloaded ? (
+                  <p className="text-[11px] text-amber-900/90 leading-snug">
+                    Metadata-only analysis — the recording downloaded but the
+                    audio analyzer failed, so we fell back to a metadata-only
+                    summary. Click Re-analyze to retry.
+                    {analyzerError && (
+                      <>
+                        {' '}<span className="text-amber-800/70">({analyzerError.length > 220 ? analyzerError.slice(0, 220) + '…' : analyzerError})</span>
+                      </>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-amber-900/90 leading-snug">
+                    Metadata-only analysis — no audio was available. Summary and
+                    coaching are limited to what the call record tells us. Click
+                    Re-analyze once the recording is attached.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           {score.summary && (
             <div>
               <p className="text-[11px] font-bold text-foreground/50 uppercase tracking-wider mb-1">Summary</p>
