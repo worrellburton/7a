@@ -32,6 +32,7 @@ interface HeroRow {
   name: string;
   video_ids: string[];
   display_order: number;
+  is_live: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -44,7 +45,7 @@ export async function GET() {
   const admin = getAdminSupabase();
   const { data: heroRows } = await admin
     .from('landing_heros')
-    .select('id, name, video_ids, display_order, created_at, updated_at')
+    .select('id, name, video_ids, display_order, is_live, created_at, updated_at')
     .order('display_order', { ascending: true })
     .order('created_at', { ascending: true });
 

@@ -18,6 +18,7 @@ interface PatchBody {
   name?: unknown;
   video_ids?: unknown;
   display_order?: unknown;
+  is_live?: unknown;
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -56,7 +57,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     update.display_order = Math.round(body.display_order);
   }
 
-  if (!('name' in update) && !('video_ids' in update) && !('display_order' in update)) {
+  // is_live is handled separately below — it requires an atomic
+  // "set me to true and everyone else to false" pattern to honor
+  // the partial unique index.
+  const wantSetLive = body.is_live === true;
+  const wantUnsetLive = body.is_live === false;
+
+  const hasFieldUpdate =
+    'name' in update || 'video_ids' in update || 'display_order' in update;
+  if (!hasFieldUpdate && !wantSetLive && !wantUnsetLive) {
     return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
   }
 
@@ -81,15 +90,60 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
   }
 
+  // 1. Apply the regular field updates (name / video_ids / order).
+  if (hasFieldUpdate) {
+    const { error: fieldErr } = await admin
+      .from('landing_heros')
+      .update(update)
+      .eq('id', id);
+    if (fieldErr) {
+      return NextResponse.json(
+        { error: `landing_heros update failed: ${fieldErr.message}` },
+        { status: 500 },
+      );
+    }
+  }
+
+  // 2. Live toggle. Two-step: clear everyone else first, then set
+  //    the target. The partial unique index makes the order matter —
+  //    going the other way would briefly leave two rows true and
+  //    error. Concurrent set-live calls are still safe because the
+  //    second one's clear-everyone-else step also clears whatever
+  //    the first one just set.
+  if (wantSetLive) {
+    const { error: clearErr } = await admin
+      .from('landing_heros')
+      .update({ is_live: false })
+      .neq('id', id);
+    if (clearErr) {
+      return NextResponse.json({ error: `set live (clear others) failed: ${clearErr.message}` }, { status: 500 });
+    }
+    const { error: setErr } = await admin
+      .from('landing_heros')
+      .update({ is_live: true, updated_by: user.id })
+      .eq('id', id);
+    if (setErr) {
+      return NextResponse.json({ error: `set live failed: ${setErr.message}` }, { status: 500 });
+    }
+  } else if (wantUnsetLive) {
+    const { error: unsetErr } = await admin
+      .from('landing_heros')
+      .update({ is_live: false, updated_by: user.id })
+      .eq('id', id);
+    if (unsetErr) {
+      return NextResponse.json({ error: `unset live failed: ${unsetErr.message}` }, { status: 500 });
+    }
+  }
+
+  // 3. Read back the canonical row to return.
   const { data: updated, error } = await admin
     .from('landing_heros')
-    .update(update)
+    .select('id, name, video_ids, display_order, is_live, created_at, updated_at')
     .eq('id', id)
-    .select('id, name, video_ids, display_order, created_at, updated_at')
     .single();
   if (error || !updated) {
     return NextResponse.json(
-      { error: `landing_heros update failed: ${error?.message || 'not found'}` },
+      { error: `landing_heros read-back failed: ${error?.message || 'not found'}` },
       { status: 500 },
     );
   }
