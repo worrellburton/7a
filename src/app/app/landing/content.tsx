@@ -80,7 +80,11 @@ export default function LandingContent() {
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  // Phase 7: the preview player is now inline. Tracks which clip
+  // the player is currently on so we can advance through the
+  // timeline.
+  const [previewIdx, setPreviewIdx] = useState(0);
+  const [previewMuted, setPreviewMuted] = useState(true);
   const dirtyRef = useRef(false);
 
   const showToast = useCallback((msg: string) => {
@@ -225,8 +229,16 @@ export default function LandingContent() {
     setHeroId(next.id);
     setTimeline(next.videos);
     setSavedAt(next.updated_at);
+    setPreviewIdx(0); // Restart the preview on the new hero's first clip.
     dirtyRef.current = false;
   }
+
+  // Keep previewIdx in bounds when the timeline shrinks (e.g. user
+  // removes the clip the player was on).
+  useEffect(() => {
+    if (timeline.length === 0 && previewIdx !== 0) setPreviewIdx(0);
+    else if (previewIdx >= timeline.length) setPreviewIdx(0);
+  }, [timeline.length, previewIdx]);
 
   async function deleteHero(id: string) {
     if (!session?.access_token) return;
@@ -361,18 +373,6 @@ export default function LandingContent() {
           )}
           <button
             type="button"
-            onClick={() => setPreviewOpen(true)}
-            disabled={timeline.length === 0}
-            title={timeline.length === 0 ? 'Add at least one clip to preview' : 'Play the timeline like the public hero will'}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-white text-foreground border border-black/10 hover:border-primary/40 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition"
-          >
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-            Preview
-          </button>
-          <button
-            type="button"
             onClick={save}
             disabled={saving || !loaded}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-primary text-white shadow-sm hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition"
@@ -457,33 +457,43 @@ export default function LandingContent() {
         </div>
       )}
 
-      {/* Available pool — full-width grid on top of the editor.
-          Phase 8 trims this to a smaller row above the timeline. */}
-      <section className="rounded-2xl border border-black/5 bg-white p-4 lg:p-5 min-h-[280px] mb-5">
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-sm font-semibold text-foreground">Available videos</h2>
-          <span className="text-[11px] text-foreground/40">{visibleAvailable.length}</span>
-        </div>
-        {!loaded ? (
-          <p className="text-sm text-foreground/50 italic">Loading…</p>
-        ) : visibleAvailable.length === 0 ? (
-          <p className="text-sm text-foreground/50 italic">
-            Every playable clip is already in the timeline. Drop one back to add another, or generate / upload more on{' '}
-            <a className="underline hover:text-primary" href="/app/video">/app/video</a>.
-          </p>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {visibleAvailable.map((v) => (
-              <PoolCard
-                key={v.id}
-                v={v}
-                imagesById={imagesById}
-                onAdd={() => addToTimeline(v.id)}
-              />
-            ))}
+      {/* Top: inline preview + available pool side-by-side. */}
+      <div className="grid lg:grid-cols-[3fr_2fr] gap-5 mb-5 items-start">
+        <TimelinePreview
+          clips={timeline}
+          activeIdx={previewIdx}
+          setActiveIdx={setPreviewIdx}
+          imagesById={imagesById}
+          muted={previewMuted}
+          setMuted={setPreviewMuted}
+        />
+
+        <section className="rounded-2xl border border-black/5 bg-white p-4 lg:p-5 min-h-[280px] max-h-[460px] overflow-y-auto">
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Available videos</h2>
+            <span className="text-[11px] text-foreground/40">{visibleAvailable.length}</span>
           </div>
-        )}
-      </section>
+          {!loaded ? (
+            <p className="text-sm text-foreground/50 italic">Loading…</p>
+          ) : visibleAvailable.length === 0 ? (
+            <p className="text-sm text-foreground/50 italic">
+              Every playable clip is already in the timeline. Drop one back to add another, or generate / upload more on{' '}
+              <a className="underline hover:text-primary" href="/app/video">/app/video</a>.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {visibleAvailable.map((v) => (
+                <PoolCard
+                  key={v.id}
+                  v={v}
+                  imagesById={imagesById}
+                  onAdd={() => addToTimeline(v.id)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       {/* Timeline — horizontal strip at the bottom. Cards flow left
           to right; reordering is left/right; "Drop to append" lives
@@ -544,14 +554,6 @@ export default function LandingContent() {
         )}
       </section>
 
-      {previewOpen && timeline.length > 0 && (
-        <PreviewModal
-          clips={timeline}
-          imagesById={imagesById}
-          onClose={() => setPreviewOpen(false)}
-        />
-      )}
-
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-full bg-foreground text-white text-sm shadow-lg">
           {toast}
@@ -561,168 +563,79 @@ export default function LandingContent() {
   );
 }
 
-function PreviewModal({
+// Inline timeline preview. Lives in the editor (not a modal) so the
+// preview is always visible while the user is dragging clips around.
+// Auto-advances through the clips, loops at the end. The active
+// index is owned by the parent so a tab switch can reset it cleanly.
+function TimelinePreview({
   clips,
+  activeIdx,
+  setActiveIdx,
   imagesById,
-  onClose,
+  muted,
+  setMuted,
 }: {
   clips: SiteVideo[];
+  activeIdx: number;
+  setActiveIdx: (i: number) => void;
   imagesById: Map<string, SiteImage>;
-  onClose: () => void;
+  muted: boolean;
+  setMuted: (m: boolean) => void;
 }) {
-  const [activeIdx, setActiveIdx] = useState(0);
-  const [muted, setMuted] = useState(true);
-  const [loop, setLoop] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // ESC to close, like a normal lightbox.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  // Re-trigger play() whenever the source URL changes — some browsers
-  // hold the video paused after a src swap until told otherwise.
+  // Re-load + play whenever the active source URL changes — some
+  // browsers hold the video paused after a src swap until prodded.
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
     el.load();
-    void el.play().catch(() => { /* autoplay blocked, user can click */ });
+    void el.play().catch(() => { /* autoplay blocked is fine */ });
   }, [activeIdx]);
 
-  function next() {
-    if (activeIdx < clips.length - 1) {
-      setActiveIdx(activeIdx + 1);
-    } else if (loop) {
-      setActiveIdx(0);
-    }
-  }
-  function prev() {
-    if (activeIdx > 0) setActiveIdx(activeIdx - 1);
-    else if (loop) setActiveIdx(clips.length - 1);
+  if (clips.length === 0) {
+    return (
+      <section className="rounded-2xl border border-black/5 bg-black/90 text-white/70 aspect-video flex items-center justify-center text-sm">
+        Drop a clip into the timeline to preview the hero.
+      </section>
+    );
   }
 
-  const active = clips[activeIdx];
+  const safeIdx = Math.min(Math.max(0, activeIdx), clips.length - 1);
+  const active = clips[safeIdx];
   const poster = videoPoster(active, imagesById) || undefined;
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Hero timeline preview"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="relative w-full max-w-5xl bg-black rounded-2xl overflow-hidden shadow-2xl flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 bg-black/40 text-white text-xs">
-          <div className="flex items-center gap-2 font-mono tabular-nums">
-            <span className="text-white/60">{(activeIdx + 1).toString().padStart(2, '0')} / {clips.length.toString().padStart(2, '0')}</span>
-            <span className="text-white/40">·</span>
-            <span className="truncate max-w-[40ch]">{videoTitle(active)}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={loop}
-                onChange={(e) => setLoop(e.target.checked)}
-                className="accent-primary"
-              />
-              <span className="text-[11px] text-white/80">Loop</span>
-            </label>
-            <button
-              type="button"
-              onClick={() => setMuted((v) => !v)}
-              className="text-[11px] text-white/80 hover:text-white"
-              title={muted ? 'Unmute' : 'Mute'}
-            >
-              {muted ? '🔇 Muted' : '🔊 On'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close preview"
-              className="text-white/70 hover:text-white text-lg leading-none"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        {/* Player */}
-        <div className="relative bg-black aspect-video flex items-center justify-center">
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video
-            ref={videoRef}
-            key={active.id}
-            src={active.video_url ?? undefined}
-            poster={poster}
-            autoPlay
-            muted={muted}
-            playsInline
-            controls
-            onEnded={next}
-            className="w-full h-full object-contain bg-black"
-          />
-          {/* Prev / next clip arrows. Only render when multi-clip so a
-              single-clip preview isn't visually noisy. */}
-          {clips.length > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={prev}
-                aria-label="Previous clip"
-                className="absolute left-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/55 text-white hover:bg-black/75"
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                onClick={next}
-                aria-label="Next clip"
-                className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/55 text-white hover:bg-black/75"
-              >
-                ›
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* Strip — small thumbs of every clip in order, click to jump. */}
-        <div className="bg-black/40 px-3 py-2 overflow-x-auto">
-          <div className="flex items-center gap-2">
-            {clips.map((c, i) => {
-              const tPoster = videoPoster(c, imagesById);
-              const isActive = i === activeIdx;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setActiveIdx(i)}
-                  className={`shrink-0 rounded-md overflow-hidden border-2 transition ${
-                    isActive ? 'border-primary' : 'border-transparent hover:border-white/30'
-                  }`}
-                  title={`${(i + 1).toString().padStart(2, '0')} · ${videoTitle(c)}`}
-                >
-                  <div className="w-20 aspect-video bg-black/60 flex items-center justify-center">
-                    {tPoster ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={tPoster} alt="" className="w-full h-full object-cover" loading="lazy" />
-                    ) : (
-                      <span className="text-[9px] text-white/40 uppercase tracking-wider">No thumb</span>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+    <section className="rounded-2xl bg-black overflow-hidden shadow-sm flex flex-col">
+      <div className="relative aspect-video bg-black">
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <video
+          ref={videoRef}
+          key={active.id}
+          src={active.video_url ?? undefined}
+          poster={poster}
+          autoPlay
+          muted={muted}
+          playsInline
+          controls
+          onEnded={() => setActiveIdx((safeIdx + 1) % clips.length)}
+          className="w-full h-full object-contain bg-black"
+        />
+        <div className="pointer-events-none absolute top-2 left-2 right-2 flex items-center justify-between text-white text-[11px] font-mono tabular-nums">
+          <span className="px-2 py-0.5 rounded-full bg-black/55">
+            {(safeIdx + 1).toString().padStart(2, '0')} / {clips.length.toString().padStart(2, '0')} · {videoTitle(active)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setMuted(!muted)}
+            title={muted ? 'Unmute' : 'Mute'}
+            className="pointer-events-auto px-2 py-0.5 rounded-full bg-black/55 hover:bg-black/75 transition"
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
