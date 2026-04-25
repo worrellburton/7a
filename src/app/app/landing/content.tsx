@@ -457,90 +457,92 @@ export default function LandingContent() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-[2fr_3fr] gap-6">
-        {/* Available pool */}
-        <section className="rounded-2xl border border-black/5 bg-white p-4 lg:p-5 min-h-[300px]">
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Available videos</h2>
-            <span className="text-[11px] text-foreground/40">{visibleAvailable.length}</span>
+      {/* Available pool — full-width grid on top of the editor.
+          Phase 8 trims this to a smaller row above the timeline. */}
+      <section className="rounded-2xl border border-black/5 bg-white p-4 lg:p-5 min-h-[280px] mb-5">
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-sm font-semibold text-foreground">Available videos</h2>
+          <span className="text-[11px] text-foreground/40">{visibleAvailable.length}</span>
+        </div>
+        {!loaded ? (
+          <p className="text-sm text-foreground/50 italic">Loading…</p>
+        ) : visibleAvailable.length === 0 ? (
+          <p className="text-sm text-foreground/50 italic">
+            Every playable clip is already in the timeline. Drop one back to add another, or generate / upload more on{' '}
+            <a className="underline hover:text-primary" href="/app/video">/app/video</a>.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {visibleAvailable.map((v) => (
+              <PoolCard
+                key={v.id}
+                v={v}
+                imagesById={imagesById}
+                onAdd={() => addToTimeline(v.id)}
+              />
+            ))}
           </div>
-          {!loaded ? (
-            <p className="text-sm text-foreground/50 italic">Loading…</p>
-          ) : visibleAvailable.length === 0 ? (
-            <p className="text-sm text-foreground/50 italic">
-              Every playable clip is already in the timeline. Drop one back to add another, or generate / upload more on{' '}
-              <a className="underline hover:text-primary" href="/app/video">/app/video</a>.
-            </p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {visibleAvailable.map((v) => (
-                <PoolCard
-                  key={v.id}
-                  v={v}
-                  imagesById={imagesById}
-                  onAdd={() => addToTimeline(v.id)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+        )}
+      </section>
 
-        {/* Timeline */}
-        <section
-          className="rounded-2xl border border-black/5 bg-warm-bg/40 p-4 lg:p-5 min-h-[300px] transition-colors"
-          onDragOver={(e) => {
-            // Allow dropping new items onto the empty area / between cards.
-            const types = Array.from(e.dataTransfer.types || []);
-            if (types.includes('text/x-video-id')) {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-            }
-          }}
-          onDrop={(e) => {
-            const id = e.dataTransfer.getData('text/x-video-id');
-            const fromTimeline = e.dataTransfer.getData('text/x-from-timeline') === '1';
-            if (!id) return;
+      {/* Timeline — horizontal strip at the bottom. Cards flow left
+          to right; reordering is left/right; "Drop to append" lives
+          at the right end. The container stretches to a single row,
+          scrolling horizontally if the timeline outgrows the
+          viewport. */}
+      <section
+        className="rounded-2xl border border-black/5 bg-warm-bg/40 p-4 lg:p-5 min-h-[200px] transition-colors"
+        onDragOver={(e) => {
+          const types = Array.from(e.dataTransfer.types || []);
+          if (types.includes('text/x-video-id')) {
             e.preventDefault();
-            if (fromTimeline) {
-              reorderTimeline(id, timeline.length);
-            } else {
-              addToTimeline(id);
-            }
-          }}
-        >
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Hero timeline</h2>
-            <span className="text-[11px] text-foreground/40">{timeline.length} clip{timeline.length === 1 ? '' : 's'}</span>
-          </div>
-          {timeline.length === 0 ? (
-            <p className="text-sm text-foreground/50 italic">
-              Drop a video card here to start the timeline.
-            </p>
-          ) : (
-            <ol className="space-y-2">
-              {timeline.map((v, i) => (
-                <TimelineRow
-                  key={v.id}
-                  index={i}
-                  v={v}
-                  imagesById={imagesById}
-                  onRemove={() => removeFromTimeline(v.id)}
-                  onDropAt={(fromId, fromTimeline) => {
-                    if (fromTimeline) reorderTimeline(fromId, i);
-                    else addToTimeline(fromId, i);
-                  }}
-                />
-              ))}
-              <DropTail
+            e.dataTransfer.dropEffect = 'move';
+          }
+        }}
+        onDrop={(e) => {
+          const id = e.dataTransfer.getData('text/x-video-id');
+          const fromTimeline = e.dataTransfer.getData('text/x-from-timeline') === '1';
+          if (!id) return;
+          e.preventDefault();
+          if (fromTimeline) {
+            reorderTimeline(id, timeline.length);
+          } else {
+            addToTimeline(id);
+          }
+        }}
+      >
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-sm font-semibold text-foreground">Hero timeline</h2>
+          <span className="text-[11px] text-foreground/40">{timeline.length} clip{timeline.length === 1 ? '' : 's'}</span>
+        </div>
+        {timeline.length === 0 ? (
+          <p className="text-sm text-foreground/50 italic">
+            Drop a video card here to start the timeline.
+          </p>
+        ) : (
+          <ol className="flex items-stretch gap-3 overflow-x-auto pb-1">
+            {timeline.map((v, i) => (
+              <TimelineCard
+                key={v.id}
+                index={i}
+                v={v}
+                imagesById={imagesById}
+                onRemove={() => removeFromTimeline(v.id)}
                 onDropAt={(fromId, fromTimeline) => {
-                  if (fromTimeline) reorderTimeline(fromId, timeline.length);
-                  else addToTimeline(fromId);
+                  if (fromTimeline) reorderTimeline(fromId, i);
+                  else addToTimeline(fromId, i);
                 }}
               />
-            </ol>
-          )}
-        </section>
-      </div>
+            ))}
+            <DropTailHorizontal
+              onDropAt={(fromId, fromTimeline) => {
+                if (fromTimeline) reorderTimeline(fromId, timeline.length);
+                else addToTimeline(fromId);
+              }}
+            />
+          </ol>
+        )}
+      </section>
 
       {previewOpen && timeline.length > 0 && (
         <PreviewModal
@@ -812,7 +814,7 @@ function PoolCard({
   );
 }
 
-function TimelineRow({
+function TimelineCard({
   index,
   v,
   imagesById,
@@ -854,41 +856,45 @@ function TimelineRow({
         e.stopPropagation();
         onDropAt(id, fromTimeline);
       }}
-      className={`flex items-center gap-3 rounded-xl bg-white border px-2.5 py-2 cursor-grab active:cursor-grabbing transition ${
-        dragOver ? 'border-primary/70 ring-1 ring-primary/30' : 'border-black/5'
+      className={`group relative shrink-0 w-44 rounded-xl bg-white border overflow-hidden cursor-grab active:cursor-grabbing transition ${
+        dragOver ? 'border-primary/70 ring-2 ring-primary/30' : 'border-black/5'
       }`}
     >
-      <span className="text-[10px] font-mono text-foreground/40 w-6 text-right tabular-nums">
-        {(index + 1).toString().padStart(2, '0')}
-      </span>
-      <div className="w-24 aspect-video shrink-0 bg-warm-bg rounded-md overflow-hidden">
+      <div className="relative aspect-video bg-warm-bg overflow-hidden">
         {poster ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={poster} alt="" className="w-full h-full object-cover" loading="lazy" />
-        ) : null}
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="text-[9px] text-foreground/40 uppercase tracking-wider">No thumb</span>
+          </div>
+        )}
+        <span className="absolute top-1.5 left-1.5 inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-black/65 text-white text-[10px] font-bold tabular-nums">
+          {(index + 1).toString().padStart(2, '0')}
+        </span>
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Remove from timeline"
+          aria-label="Remove from timeline"
+          className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded-md bg-black/55 text-white opacity-0 group-hover:opacity-100 hover:bg-red-600 transition"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M6 18L18 6" />
+          </svg>
+        </button>
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground truncate" title={title}>{title}</p>
-        <p className="text-[10px] text-foreground/45 mt-0.5">
-          {v.duration_seconds ? `${v.duration_seconds}s` : '—'} · {v.resolution || '—'} · {v.aspect_ratio || '—'}
+      <div className="p-2">
+        <p className="text-[12px] font-medium text-foreground truncate" title={title}>{title}</p>
+        <p className="text-[10px] text-foreground/45 mt-0.5 truncate">
+          {v.duration_seconds ? `${v.duration_seconds}s` : '—'} · {v.resolution || '—'}
         </p>
       </div>
-      <button
-        type="button"
-        onClick={onRemove}
-        title="Remove from timeline"
-        aria-label="Remove from timeline"
-        className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md border border-black/10 text-foreground/55 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M6 18L18 6" />
-        </svg>
-      </button>
     </li>
   );
 }
 
-function DropTail({ onDropAt }: { onDropAt: (fromId: string, fromTimeline: boolean) => void }) {
+function DropTailHorizontal({ onDropAt }: { onDropAt: (fromId: string, fromTimeline: boolean) => void }) {
   const [active, setActive] = useState(false);
   return (
     <li
@@ -909,7 +915,7 @@ function DropTail({ onDropAt }: { onDropAt: (fromId: string, fromTimeline: boole
         e.preventDefault();
         onDropAt(id, fromTimeline);
       }}
-      className={`rounded-xl border-2 border-dashed text-center text-[11px] py-3 transition ${
+      className={`shrink-0 w-44 aspect-video rounded-xl border-2 border-dashed flex items-center justify-center text-[11px] transition ${
         active ? 'border-primary/60 text-primary bg-primary/5' : 'border-black/10 text-foreground/40'
       }`}
     >
