@@ -12,6 +12,10 @@ export interface PublicTeamFact {
 export interface PublicTeamMember {
   id: string;
   full_name: string;
+  /** Optional letters that follow the name on team cards / detail pages
+   *  (e.g. "LMSW", "PhD"). Free-text. May be null for staff that
+   *  haven't filled it in. */
+  credentials: string | null;
   job_title: string | null;
   avatar_url: string | null;
   bio: string | null;
@@ -94,7 +98,7 @@ function jobRank(jobTitle: string | null): number {
 // back to the previous FULL_SELECT, and if *that* fails we fall
 // back further to the minimal columns.
 const EXTENDED_SELECT =
-  'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, hometown, interesting_facts, public_slug, status, public_team, team_page_order';
+  'id, full_name, credentials, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, hometown, interesting_facts, public_slug, status, public_team, team_page_order';
 const FULL_SELECT =
   'id, full_name, job_title, avatar_url, bio, favorite_quote, favorite_seven_arrows, hometown, interesting_facts, public_slug, status, public_team, team_page_order';
 const MINIMAL_SELECT = 'id, full_name, job_title, avatar_url, bio, public_slug, status, public_team';
@@ -102,6 +106,7 @@ const MINIMAL_SELECT = 'id, full_name, job_title, avatar_url, bio, public_slug, 
 type TeamRow = {
   id: string;
   full_name: string | null;
+  credentials?: string | null;
   job_title: string | null;
   avatar_url: string | null;
   bio: string | null;
@@ -208,6 +213,7 @@ export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {  try {
     return withSlugs(rows).map((row) => ({
       id: row.id,
       full_name: row.full_name as string,
+      credentials: row.credentials ?? null,
       job_title: row.job_title,
       avatar_url: upgradeAvatarUrl(row.avatar_url),
       bio: row.bio,

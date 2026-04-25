@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { formatNameWithCredentials } from '@/lib/displayName';
 
 /* ── Hero slide deck ────────────────────────────────────────────── */
 
@@ -708,18 +709,34 @@ function useFaceTiles(): FaceTile[] {
     let cancelled = false;
     (async () => {
       try {
-        const { data, error } = await supabase
+        // Try fetching credentials too; if the column hasn't been
+        // migrated yet on this environment Postgrest will error and
+        // we'll fall back to the no-credentials select. Same
+        // resilient-read shape AuthProvider uses.
+        type Row = { id: string; full_name: string | null; credentials?: string | null; avatar_url: string | null; job_title: string | null };
+        let rows: Row[] | null = null;
+        const primary = await supabase
           .from('users')
-          .select('id, full_name, avatar_url, job_title')
+          .select('id, full_name, credentials, avatar_url, job_title')
           .eq('status', 'active')
           .eq('public_team', true);
-        if (error) throw error;
-        if (cancelled || !data) return;
-        const tiles = (data as { id: string; full_name: string | null; avatar_url: string | null; job_title: string | null }[])
+        if (primary.error) {
+          const fallback = await supabase
+            .from('users')
+            .select('id, full_name, avatar_url, job_title')
+            .eq('status', 'active')
+            .eq('public_team', true);
+          if (fallback.error) throw fallback.error;
+          rows = (fallback.data ?? []) as Row[];
+        } else {
+          rows = (primary.data ?? []) as Row[];
+        }
+        if (cancelled || !rows) return;
+        const tiles = rows
           .filter((u) => u.avatar_url && u.full_name)
           .map<FaceTile>((u) => ({
             key: u.id,
-            name: u.full_name || 'Team',
+            name: formatNameWithCredentials(u.full_name, u.credentials) || 'Team',
             role: u.job_title,
             src: upgradeGoogleAvatar(u.avatar_url) || u.avatar_url || '',
             kind: 'staff',

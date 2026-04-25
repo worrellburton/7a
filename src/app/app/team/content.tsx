@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 import { useModal } from '@/lib/ModalProvider';
+import { formatNameWithCredentials } from '@/lib/displayName';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TeamPageOrderModal from './TeamPageOrderModal';
@@ -12,6 +13,7 @@ interface AppUser {
   id: string;
   email: string;
   full_name: string | null;
+  credentials: string | null;
   avatar_url: string | null;
   provider: string | null;
   last_sign_in: string | null;
@@ -400,7 +402,7 @@ export default function UsersContent() {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{u.full_name || 'Unknown'}</p>
+                      <p className="text-sm font-medium text-foreground truncate">{formatNameWithCredentials(u.full_name, u.credentials) || 'Unknown'}</p>
                       <p className="text-xs text-foreground/50 truncate" style={{ fontFamily: 'var(--font-body)' }}>{u.email}</p>
                     </div>
                   </div>
@@ -481,7 +483,7 @@ export default function UsersContent() {
                           </div>
                         )}
                         <div>
-                          <p className="text-sm font-medium text-foreground">{u.full_name || 'Unknown'}</p>
+                          <p className="text-sm font-medium text-foreground">{formatNameWithCredentials(u.full_name, u.credentials) || 'Unknown'}</p>
                           <p className="text-xs text-foreground/40">{u.email}</p>
                         </div>
                       </div>
