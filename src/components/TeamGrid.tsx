@@ -1,6 +1,7 @@
 'use client';
 
 import type { PublicTeamMember } from '@/lib/team';
+import { formatNameWithCredentials } from '@/lib/displayName';
 import MemberNavLink from './team-member/MemberNavLink';
 
 interface TeamGridProps {
@@ -87,7 +88,7 @@ export default function TeamGrid({ team }: TeamGridProps) {
               className="text-white text-[15px] sm:text-lg lg:text-2xl font-bold leading-tight tracking-tight relative inline-block"
               style={{ fontFamily: 'var(--font-display)' }}
             >
-              {member.full_name}
+              {formatNameWithCredentials(member.full_name, member.credentials)}
               {/* Underline reveal on hover — desktop only so it doesn't
                   flash on mobile tap. */}
               <span
