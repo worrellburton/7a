@@ -230,8 +230,7 @@ export default function AuditContent() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <SeoSubNav />
-      <div className="mb-8 flex items-start justify-between gap-4">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-2">
             Marketing &amp; Admissions
@@ -250,6 +249,8 @@ export default function AuditContent() {
           </p>
         </div>
       </div>
+
+      <SeoSubNav />
 
       <ScoreCard
         score={result?.score ?? null}

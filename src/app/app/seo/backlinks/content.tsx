@@ -137,8 +137,7 @@ export default function BacklinksContent() {
   }, [snapshot, filter]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10" style={{ fontFamily: 'var(--font-body)' }}>
-      <SeoSubNav />
+    <div className="p-8 max-w-7xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -189,6 +188,8 @@ export default function BacklinksContent() {
           </p>
         </div>
       </header>
+
+      <SeoSubNav />
 
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 mb-5">

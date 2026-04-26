@@ -22,7 +22,7 @@ const TABS: { href: string; label: string; hint?: string }[] = [
 export default function SeoSubNav() {
   const pathname = usePathname() ?? '/app/seo';
   return (
-    <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 lg:-mx-10 mb-6 bg-warm-bg/80 px-4 sm:px-6 lg:px-10 py-2 backdrop-blur-md border-b border-black/5">
+    <div className="sticky top-0 z-10 -mx-8 mb-6 bg-warm-bg/80 px-8 py-2 backdrop-blur-md border-b border-black/5">
       <div className="overflow-x-auto no-scrollbar">
         <div className="inline-flex gap-1">
           {TABS.map((t) => {

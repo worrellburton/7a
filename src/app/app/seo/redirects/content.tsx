@@ -88,8 +88,7 @@ export default function RedirectsContent() {
   if (!user || !isAdmin) return null;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ fontFamily: 'var(--font-body)' }}>
-      <SeoSubNav />
+    <div className="p-8 max-w-7xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">SEO · Admin</p>
@@ -108,6 +107,8 @@ export default function RedirectsContent() {
           </p>
         </div>
       </header>
+
+      <SeoSubNav />
 
       <AddRedirectForm onAdded={load} />
 
