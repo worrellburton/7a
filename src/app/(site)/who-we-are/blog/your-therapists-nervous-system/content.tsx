@@ -60,9 +60,99 @@ export default function PageContent() {
             enough for any of the techniques to actually work.
           </p>
 
-          {/* ── Future phases land between this intro and the CTA below ── */}
+          {/* ── Phase 2: Co-regulation explained ───────────────────── */}
 
-          {/* CTA — kept here in Phase 1 so the page never feels stub-y. */}
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The Mechanism
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Your system reads theirs in milliseconds
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Co-regulation is the technical name for something every mammal
+              already does on autopilot: two nervous systems in the same room
+              read each other and, within seconds, start to match. Your
+              breathing rate, your heart rate variability, the tension in your
+              jaw — all of it nudges toward whatever the other person&apos;s
+              body is doing. Polyvagal researchers measure the handoff in
+              tenths of a second. You don&apos;t consent to it. You can&apos;t
+              opt out of it. It is happening before your therapist&apos;s
+              first sentence finishes.
+            </p>
+
+            <p
+              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              That&apos;s the part of treatment we don&apos;t put on the
+              brochure. The intake paperwork lists the modality — CBT, EMDR,
+              somatic experiencing, motivational interviewing — as if the
+              modality is what does the work. The modality matters. But the
+              modality is being delivered through a body. If that body is
+              braced, performing, or quietly running its own crisis in the
+              background, the technique lands in a room that doesn&apos;t feel
+              safe. And a nervous system that doesn&apos;t feel safe can&apos;t
+              integrate anything, no matter how clinically correct the
+              intervention is.
+            </p>
+
+            {/* Three quick cards: what your body is reading, what it does
+                with that read, and why it matters more than the technique. */}
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-5">
+              {[
+                {
+                  title: 'What your body reads',
+                  body:
+                    'Micro-expressions, vocal prosody, breath rhythm, eye-contact pattern, the speed and weight of movement. Most of it never reaches conscious awareness — your vagal system is already deciding "safe" or "not safe" before your prefrontal cortex weighs in.',
+                },
+                {
+                  title: 'What it does with that read',
+                  body:
+                    'If their system reads as regulated, yours starts to settle: heart rate slows, the muscles around your eyes soften, your breath drops into your belly. If theirs reads as braced or performative, yours stays on guard — even if the words being said are perfectly correct.',
+                },
+                {
+                  title: 'Why it outranks the technique',
+                  body:
+                    'A safe nervous system is the precondition for any therapeutic work to land. Until your body believes the room is safe, the brain treats every insight as a threat to defend against, not a tool to use.',
+                },
+              ].map((c) => (
+                <div
+                  key={c.title}
+                  className="bg-warm-bg/50 rounded-xl p-6 border border-black/5"
+                >
+                  <h3 className="font-bold text-foreground mb-2">{c.title}</h3>
+                  <p
+                    className="text-sm text-foreground/70 leading-relaxed"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {c.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The implication is uncomfortable for our profession: a clinician
+              who hasn&apos;t done their own nervous-system work is broadcasting
+              that fact every minute of every session, and the client&apos;s
+              body is receiving the broadcast whether either party realizes
+              it. The next sections are about what we do about that — starting
+              with the unglamorous work between sessions.
+            </p>
+          </section>
+
+          {/* CTA — kept here so the page never feels stub-y. */}
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
