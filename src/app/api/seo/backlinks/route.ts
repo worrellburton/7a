@@ -174,7 +174,7 @@ export async function POST(req: Request) {
       fetchBacklinks({
         target,
         limit: 100,
-        sort: 'page_score_desc',
+        sort: 'page_ascore_desc',
         // Semrush filter syntax: +|column|operator|value
         // We pass it via the extra escape hatch since the typed
         // helper exposes it as `display_filter`.
@@ -186,7 +186,7 @@ export async function POST(req: Request) {
       fetchBacklinks({
         target,
         limit: 100,
-        sort: 'page_score_desc',
+        sort: 'page_ascore_desc',
       }).then((rows) =>
         rows.filter((r) => r.is_nofollow || r.is_ugc || r.is_sponsored),
       ),
