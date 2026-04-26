@@ -63,8 +63,11 @@ const CATEGORY_ORDER: DirectoryCategory[] = [
   'business',
 ];
 
-// Filled across Phases 2-10. Each phase appends ~10 entries with
-// real submission URLs, never placeholders.
+// 100 directories across 10 categories (see CATEGORY_LABELS above).
+// Each entry is a real submission / claim URL — never a placeholder
+// — with a one-sentence rationale and a priority hint to sequence
+// the team's outreach. Status (To do / Submitted / Listed / Skip)
+// is tracked per row in localStorage; see useStatusMap().
 export const DIRECTORIES: Directory[] = [
   // ── Phase 2: National addiction treatment ───────────────────────
   {
@@ -801,6 +804,88 @@ export const DIRECTORIES: Directory[] = [
     url: 'https://www.helpstartshere.org/find-a-social-worker/',
     category: 'professional',
     why: 'National Association of Social Workers. Surfaces our LCSWs inside an authoritative SW directory.',
+    priority: 'low',
+  },
+
+  // ── Phase 10: General business + brand ──────────────────────────
+  {
+    id: 'linkedin-company',
+    name: 'LinkedIn Company Page',
+    url: 'https://www.linkedin.com/company/setup/new/',
+    category: 'business',
+    why: 'Single most-trafficked B2B brand surface. Doubles as a hiring funnel and a press / partner reference.',
+    priority: 'high',
+  },
+  {
+    id: 'crunchbase',
+    name: 'Crunchbase',
+    url: 'https://www.crunchbase.com/',
+    category: 'business',
+    why: 'Default B2B intel directory. Shows up on cold "what is this company" searches by referrers and journalists.',
+    priority: 'medium',
+  },
+  {
+    id: 'glassdoor',
+    name: 'Glassdoor — Employer Profile',
+    url: 'https://www.glassdoor.com/employers/',
+    category: 'business',
+    why: 'Family members read employer reviews looking for treatment-center culture signals before they call.',
+    priority: 'medium',
+  },
+  {
+    id: 'indeed-company',
+    name: 'Indeed — Company Page',
+    url: 'https://employers.indeed.com/',
+    category: 'business',
+    why: 'Hiring funnel for clinical staff plus a public-facing review surface that affects family trust.',
+    priority: 'medium',
+  },
+  {
+    id: 'owler',
+    name: 'Owler',
+    url: 'https://www.owler.com/',
+    category: 'business',
+    why: 'Competitor-tracking B2B directory. Citation-juice; shows up in cold competitive research.',
+    priority: 'low',
+  },
+  {
+    id: 'zoominfo',
+    name: 'ZoomInfo — Company Profile',
+    url: 'https://www.zoominfo.com/business/',
+    category: 'business',
+    why: 'Standard B2B intelligence platform; presence here means partners and EAP buyers can verify us.',
+    priority: 'low',
+  },
+  {
+    id: 'bizapedia',
+    name: 'Bizapedia',
+    url: 'https://www.bizapedia.com/',
+    category: 'business',
+    why: 'State-business-records aggregator. Auto-populated baseline citation worth claiming.',
+    priority: 'low',
+  },
+  {
+    id: 'hotfrog',
+    name: 'Hotfrog',
+    url: 'https://www.hotfrog.com/',
+    category: 'business',
+    why: 'Free national business directory. Cheap NAP citation source for local SEO consistency.',
+    priority: 'low',
+  },
+  {
+    id: 'chamber-of-commerce-com',
+    name: 'ChamberOfCommerce.com',
+    url: 'https://www.chamberofcommerce.com/',
+    category: 'business',
+    why: 'National business directory branded as a chamber index. Decent-DA citation, free claim.',
+    priority: 'low',
+  },
+  {
+    id: 'brownbook',
+    name: 'Brownbook.net',
+    url: 'https://www.brownbook.net/',
+    category: 'business',
+    why: 'Open business directory. Useful for citation breadth; not a meaningful inbound channel on its own.',
     priority: 'low',
   },
 ];
