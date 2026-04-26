@@ -469,6 +469,132 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 6: The ladder — walking up and down between states ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The Ladder
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              You don&apos;t jump states. You walk them, one rung at a time.
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The most useful image for what these three states are doing
+              is a ladder. Ventral is at the top. Sympathetic is in the
+              middle. Dorsal is at the bottom. Your nervous system moves
+              up and down it all day. The crucial detail — the one most
+              clients are surprised by — is that you generally cannot
+              skip rungs. To get from dorsal back up to ventral, you have
+              to come up through sympathetic. There is no helicopter.
+            </p>
+
+            <p
+              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              That detail explains a lot of recoveries that look like
+              backsliding from the outside. Someone who has been numb in
+              dorsal for months will, on the way up, pass through irritability,
+              tears, restlessness, even rage. Those are not relapses. They are
+              rungs. The body is finding its way back to ventral through the
+              middle floor of the ladder, exactly as it&apos;s built to.
+            </p>
+
+            <div className="mt-10 rounded-2xl bg-white border border-black/10 shadow-sm p-6 lg:p-8">
+              <p
+                className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45 mb-5"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                The polyvagal ladder, top to bottom
+              </p>
+
+              <div className="relative">
+                {/* The vertical rail */}
+                <div
+                  className="absolute left-3.5 top-2 bottom-2 w-0.5 bg-gradient-to-b from-emerald-400 via-amber-400 to-sky-400"
+                  aria-hidden
+                />
+
+                <ol className="space-y-5 relative">
+                  {[
+                    {
+                      label: 'VENTRAL',
+                      sub: 'Connected · curious · grounded',
+                      gloss: "You're available. The room feels open. You can choose, not just react.",
+                      ring: 'ring-emerald-300 bg-emerald-500',
+                      tone: 'text-emerald-700',
+                    },
+                    {
+                      label: 'SYMPATHETIC',
+                      sub: 'Urgent · braced · fight-or-flight',
+                      gloss: "Energy is up but the threat doesn't have a clear edge. Move, push, fix, escape.",
+                      ring: 'ring-amber-300 bg-amber-500',
+                      tone: 'text-amber-700',
+                    },
+                    {
+                      label: 'DORSAL',
+                      sub: 'Numb · foggy · checked out',
+                      gloss: 'The breaker has flipped. Energy down, edges soft, life happening one room over.',
+                      ring: 'ring-sky-300 bg-sky-500',
+                      tone: 'text-sky-700',
+                    },
+                  ].map((s) => (
+                    <li key={s.label} className="flex gap-4 relative">
+                      <span
+                        className={`shrink-0 w-7 h-7 rounded-full ring-4 ring-offset-2 ring-offset-white ${s.ring}`}
+                        aria-hidden
+                      />
+                      <div>
+                        <p
+                          className={`text-[11px] font-bold uppercase tracking-[0.22em] ${s.tone}`}
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          {s.label} <span className="text-foreground/35 ml-1.5 tracking-normal normal-case font-normal">— {s.sub}</span>
+                        </p>
+                        <p
+                          className="mt-1 text-sm text-foreground/75 leading-relaxed"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          {s.gloss}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Two practical implications. <span className="font-semibold">First:</span>{' '}
+              when you find yourself in sympathetic and try to force
+              your way to ventral by gritting your teeth, your nervous
+              system reads the gritting itself as more sympathetic and
+              digs in. The way up is to spend the energy on something
+              that lets the body discharge — a walk, a run, a hard
+              clean of the kitchen, a few sets of pushups — and only
+              then try to settle.
+              {' '}
+              <span className="font-semibold">Second:</span> when
+              you&apos;re stuck in dorsal, a friend trying to coach
+              you straight into ventral (&quot;come on, snap out of
+              it&quot;) is well-meaning and almost always wrong. What
+              you need is a small dose of activating energy first —
+              cold water on the face, a ten-minute walk, a phone call
+              with someone whose voice has prosody — so the body has
+              a sympathetic rung to step onto on its way up.
+            </p>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
