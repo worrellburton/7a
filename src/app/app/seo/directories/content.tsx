@@ -35,6 +35,14 @@ export interface Directory {
   why: string;
   /** Rough priority for sequencing the team's outreach. */
   priority: 'high' | 'medium' | 'low';
+  /**
+   * 1-100 score for how well Seven Arrows fits this directory's
+   * audience. Combines audience-overlap, payer-alignment, AZ
+   * relevance, and likelihood of a qualified inquiry. ≥80 means
+   * core target; 60-79 strong; 40-59 useful citation/long-tail;
+   * <40 mostly NAP-citation breadth or future-state coverage.
+   */
+  fit: number;
 }
 
 const CATEGORY_LABELS: Record<DirectoryCategory, string> = {
@@ -77,6 +85,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'Federal directory used by hospitals, EAPs, and 211 referrals. Highest authority listing in the addiction space.',
     priority: 'high',
+    fit: 95,
   },
   {
     id: 'psychology-today-rehab',
@@ -85,6 +94,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'High-traffic, paid listing. Generates qualified inquiries from people specifically searching for residential care.',
     priority: 'high',
+    fit: 95,
   },
   {
     id: 'recovery-org',
@@ -93,6 +103,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'AAC-owned but lets independent centers claim listings. Decent referral volume from organic search.',
     priority: 'high',
+    fit: 85,
   },
   {
     id: 'rehab-com',
@@ -101,6 +112,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'High DA rehab finder with editor-reviewed listings; profile claim is free.',
     priority: 'high',
+    fit: 85,
   },
   {
     id: 'addiction-center',
@@ -109,6 +121,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'Editorial-style directory. Backlinks from category and condition pages help topical authority.',
     priority: 'high',
+    fit: 85,
   },
   {
     id: 'rehabs-com',
@@ -117,6 +130,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'AAC-owned. Free profile, paid premium. Strong organic visibility for state + condition queries.',
     priority: 'medium',
+    fit: 80,
   },
   {
     id: 'detox-com',
@@ -125,6 +139,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'Niche directory targeting detox-stage searchers. Useful since we admit people coming off active use.',
     priority: 'medium',
+    fit: 75,
   },
   {
     id: 'rehabcenter-net',
@@ -133,6 +148,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'Long-running rehab directory with editorial reviews and state landing pages.',
     priority: 'medium',
+    fit: 75,
   },
   {
     id: 'thefix',
@@ -141,6 +157,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'Trusted recovery-journalism brand. Reviews can drive qualified traffic and earn editorial backlinks.',
     priority: 'medium',
+    fit: 78,
   },
   {
     id: 'rehabspot',
@@ -149,6 +166,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'Substance-specific landing pages plus state filters. Free claim available.',
     priority: 'medium',
+    fit: 70,
   },
   {
     id: 'addiction-resource',
@@ -157,6 +175,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'Editorial directory with strong organic rankings on state-level rehab queries.',
     priority: 'medium',
+    fit: 72,
   },
   {
     id: 'ncadd',
@@ -165,6 +184,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'national',
     why: 'National Council on Alcoholism and Drug Dependence. Lower traffic but high credibility for the field.',
     priority: 'low',
+    fit: 60,
   },
 
   // ── Phase 3: Insurance provider networks ────────────────────────
@@ -175,6 +195,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'insurance',
     why: 'Largest commercial network we accept. In-network listing drives most insurance-driven inquiries.',
     priority: 'high',
+    fit: 95,
   },
   {
     id: 'aetna-provider',
@@ -183,6 +204,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'insurance',
     why: 'Required for in-network billing and shows up in member portal searches for "drug rehab near me."',
     priority: 'high',
+    fit: 95,
   },
   {
     id: 'cigna-provider',
@@ -191,6 +213,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'insurance',
     why: 'Cigna behavioral-health network listing is critical for VOB conversions from Cigna members.',
     priority: 'high',
+    fit: 95,
   },
   {
     id: 'uhc-find-care',
@@ -199,6 +222,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'insurance',
     why: 'UHC + Optum behavioral covers a large slice of Arizona employer plans.',
     priority: 'high',
+    fit: 92,
   },
   {
     id: 'optum-behavioral',
@@ -207,6 +231,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'insurance',
     why: 'Behavioral arm of UHC. Manages the SUD network referrals that pre-authorize residential care.',
     priority: 'high',
+    fit: 92,
   },
   {
     id: 'humana-provider',
@@ -215,6 +240,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'insurance',
     why: 'Smaller commercial book in AZ but Medicare Advantage volume is meaningful.',
     priority: 'medium',
+    fit: 75,
   },
   {
     id: 'tricare-provider',
@@ -223,6 +249,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'insurance',
     why: 'Active-duty + dependent network. Required surface for any military-facing outreach.',
     priority: 'medium',
+    fit: 70,
   },
   {
     id: 'magellan-provider',
@@ -231,6 +258,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'insurance',
     why: 'Large behavioral-health managed-care org. Many EAP referrals route through Magellan.',
     priority: 'medium',
+    fit: 78,
   },
   {
     id: 'beacon-provider',
@@ -239,6 +267,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'insurance',
     why: 'Public-sector and EAP behavioral network. Listing drives state-funded SUD referrals.',
     priority: 'medium',
+    fit: 65,
   },
   {
     id: 'compsych',
@@ -247,6 +276,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'insurance',
     why: "World's largest EAP. Listed providers receive direct referrals from member assessments.",
     priority: 'medium',
+    fit: 70,
   },
 
   // ── Phase 4: Mental health directories ──────────────────────────
@@ -257,6 +287,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'High-DA mental-health directory. Trauma + addiction concentration filters bring qualified searchers.',
     priority: 'high',
+    fit: 80,
   },
   {
     id: 'nami-helpline',
@@ -265,6 +296,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'National Alliance on Mental Illness. Family members of clients in crisis call NAMI before they call us.',
     priority: 'high',
+    fit: 78,
   },
   {
     id: 'mental-health-america',
@@ -273,6 +305,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'Trusted nonprofit umbrella. Their referral pages outrank a lot of paid directories.',
     priority: 'high',
+    fit: 75,
   },
   {
     id: 'therapyden',
@@ -281,6 +314,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'Modern Psychology Today alternative; values-driven filters (BIPOC-affirming, LGBTQ-affirming, etc.).',
     priority: 'medium',
+    fit: 65,
   },
   {
     id: 'open-path-collective',
@@ -289,6 +323,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'Sliding-scale therapist directory. Worth claiming for IOP / outpatient referral pipeline.',
     priority: 'medium',
+    fit: 50,
   },
   {
     id: 'inclusive-therapists',
@@ -297,6 +332,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'Identity-conscious provider directory. Aligns with our trauma-informed, culturally-responsive positioning.',
     priority: 'medium',
+    fit: 55,
   },
   {
     id: 'therapytribe',
@@ -305,6 +341,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'Older but well-indexed mental-health directory; backlinks help domain authority.',
     priority: 'medium',
+    fit: 55,
   },
   {
     id: 'zencare',
@@ -313,6 +350,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'Higher-end therapist directory. Vetted listings; aligns with private-pay client profile.',
     priority: 'medium',
+    fit: 70,
   },
   {
     id: 'choosing-therapy',
@@ -321,6 +359,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'Editorial site with strong organic rankings on long-tail mental health queries.',
     priority: 'medium',
+    fit: 60,
   },
   {
     id: 'counseling-directory',
@@ -329,6 +368,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'High-DA UK-rooted but US-friendly counselling directory. Useful crawl signal beyond addiction-only sites.',
     priority: 'low',
+    fit: 45,
   },
   {
     id: 'adaa',
@@ -337,6 +377,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'Anxiety & Depression Association of America. Co-occurring referrals where anxiety is the surface presentation.',
     priority: 'medium',
+    fit: 60,
   },
   {
     id: 'iocdf',
@@ -345,6 +386,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'mental_health',
     why: 'Niche but high-trust: clients with OCD-spectrum dual-dx sometimes find us via this surface.',
     priority: 'low',
+    fit: 45,
   },
 
   // ── Phase 5: Healthcare / clinician directories ─────────────────
@@ -355,6 +397,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'healthcare',
     why: 'Highest-traffic doctor-finder in the US. Listing each clinician individually compounds organic reach.',
     priority: 'high',
+    fit: 88,
   },
   {
     id: 'vitals',
@@ -363,6 +406,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'healthcare',
     why: 'Major review-driven physician directory. Strong organic rankings on individual clinician searches.',
     priority: 'high',
+    fit: 85,
   },
   {
     id: 'webmd-physician',
@@ -371,6 +415,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'healthcare',
     why: 'Trust signal that funnels into the WebMD content ecosystem. Critical for clinician-level pages.',
     priority: 'high',
+    fit: 88,
   },
   {
     id: 'zocdoc',
@@ -379,6 +424,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'healthcare',
     why: 'Booking-first directory. Outpatient + assessment-stage referrals route through here.',
     priority: 'medium',
+    fit: 65,
   },
   {
     id: 'ratemds',
@@ -387,6 +433,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'healthcare',
     why: 'Review-driven directory. Useful for individual clinician reputation surfacing.',
     priority: 'medium',
+    fit: 70,
   },
   {
     id: 'doctor-com',
@@ -395,6 +442,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'healthcare',
     why: 'Aggregator that syndicates listings to dozens of downstream sites in one claim.',
     priority: 'medium',
+    fit: 70,
   },
   {
     id: 'caredash',
@@ -403,6 +451,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'healthcare',
     why: 'Mid-tier doctor directory with editorial content. Backlinks help authority more than direct conversions.',
     priority: 'low',
+    fit: 50,
   },
   {
     id: 'usnews-doctors',
@@ -411,6 +460,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'healthcare',
     why: 'Trusted brand. Inclusion adds credibility on landing pages and press kit.',
     priority: 'medium',
+    fit: 78,
   },
   {
     id: 'sharecare',
@@ -419,6 +469,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'healthcare',
     why: 'Aggregator with growing organic visibility on health-condition queries.',
     priority: 'low',
+    fit: 55,
   },
   {
     id: 'wellness-com',
@@ -427,6 +478,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'healthcare',
     why: 'Older but indexed health directory. Free claim; useful citation signal for local SEO.',
     priority: 'low',
+    fit: 40,
   },
 
   // ── Phase 6: Review platforms + local business ──────────────────
@@ -437,6 +489,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'review',
     why: 'Single highest-leverage local-SEO listing. Reviews here drive Map Pack visibility for "rehab near me."',
     priority: 'high',
+    fit: 100,
   },
   {
     id: 'yelp',
@@ -445,6 +498,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'review',
     why: 'Strong organic rankings for service-based local queries. Active review management is non-negotiable.',
     priority: 'high',
+    fit: 92,
   },
   {
     id: 'bing-places',
@@ -453,6 +507,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'review',
     why: 'Microsoft Maps + Bing search + Cortana. Smaller share but trivially cheap to claim.',
     priority: 'medium',
+    fit: 70,
   },
   {
     id: 'apple-maps-business',
@@ -461,6 +516,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'review',
     why: 'iPhone-default mapping. Critical for the "directions to 7 Arrows" surface from family members.',
     priority: 'high',
+    fit: 88,
   },
   {
     id: 'facebook-business',
@@ -469,6 +525,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'review',
     why: 'Doubles as a review surface and a content-distribution channel. Reviews show on Meta search.',
     priority: 'medium',
+    fit: 75,
   },
   {
     id: 'foursquare',
@@ -477,6 +534,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'review',
     why: 'Powers location data behind Snapchat, Twitter/X places, Uber, and many CMS plugins. Citation-juice.',
     priority: 'medium',
+    fit: 60,
   },
   {
     id: 'bbb',
@@ -485,6 +543,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'review',
     why: 'Trust signal families specifically check before placing a loved one. Accreditation helps conversions.',
     priority: 'high',
+    fit: 90,
   },
   {
     id: 'trustpilot',
@@ -493,6 +552,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'review',
     why: 'Consumer-facing review aggregator. Outranks our domain for "[brand] reviews" on cold searches.',
     priority: 'medium',
+    fit: 75,
   },
   {
     id: 'yellow-pages',
@@ -501,6 +561,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'review',
     why: 'Old-school but still indexed; baseline NAP citation for local SEO consistency.',
     priority: 'low',
+    fit: 50,
   },
   {
     id: 'manta',
@@ -509,6 +570,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'review',
     why: 'Small-business directory. Cheap citation source; not a meaningful inbound channel on its own.',
     priority: 'low',
+    fit: 35,
   },
 
   // ── Phase 7: Arizona-specific ───────────────────────────────────
@@ -519,6 +581,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'arizona',
     why: 'State licensure surface. Listed providers show up in Arizona DHS-driven referrals and crisis lookups.',
     priority: 'high',
+    fit: 90,
   },
   {
     id: 'ahcccs',
@@ -527,6 +590,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'arizona',
     why: 'Arizona Medicaid. Listed providers receive referrals from AHCCCS members and integrated RBHA partners.',
     priority: 'high',
+    fit: 88,
   },
   {
     id: 'mercy-care',
@@ -535,6 +599,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'arizona',
     why: 'Maricopa County RBHA. Drives a meaningful slice of public-sector SUD referrals.',
     priority: 'medium',
+    fit: 78,
   },
   {
     id: 'caz-region',
@@ -543,6 +608,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'arizona',
     why: 'AZ Complete Health is the southern-Arizona RBHA. Worth claiming for state-funded inquiries.',
     priority: 'medium',
+    fit: 75,
   },
   {
     id: 'azbbhe',
@@ -551,6 +617,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'arizona',
     why: 'Public licensure verification. Not a marketing surface but a credibility anchor families check.',
     priority: 'low',
+    fit: 50,
   },
   {
     id: 'phoenix-chamber',
@@ -559,6 +626,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'arizona',
     why: 'Member directory plus B2B referral pathways for EAP-style employer relationships.',
     priority: 'medium',
+    fit: 70,
   },
   {
     id: 'tucson-chamber',
@@ -567,6 +635,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'arizona',
     why: 'Southern-AZ business community. Useful for outreach to family-owned businesses with EAP needs.',
     priority: 'low',
+    fit: 55,
   },
   {
     id: 'maricopa-public-health',
@@ -575,6 +644,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'arizona',
     why: 'County-level SUD resource page links to vetted providers. Useful credibility signal.',
     priority: 'low',
+    fit: 60,
   },
   {
     id: 'arha',
@@ -583,6 +653,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'arizona',
     why: 'AZ certified sober-living network. Discharge-planning relationships start in their member directory.',
     priority: 'medium',
+    fit: 78,
   },
   {
     id: 'phoenix-magazine-top-doctors',
@@ -591,6 +662,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'arizona',
     why: 'Annual editorial list. Inclusion is local trust signal that families share inside families.',
     priority: 'medium',
+    fit: 78,
   },
 
   // ── Phase 8: Recovery community + sober living ──────────────────
@@ -601,6 +673,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'recovery',
     why: '500K+ member online recovery community. Treatment Center listings convert because users are already in the work.',
     priority: 'high',
+    fit: 82,
   },
   {
     id: 'sober-recovery',
@@ -609,6 +682,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'recovery',
     why: 'Long-running peer recovery forum with a treatment directory. Strong organic visibility on long-tail queries.',
     priority: 'medium',
+    fit: 65,
   },
   {
     id: 'recovery-research-institute',
@@ -617,6 +691,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'recovery',
     why: 'Academic-grade resource hub. Listing in their referral pages is a credibility win, not a volume play.',
     priority: 'low',
+    fit: 65,
   },
   {
     id: 'sober-nation',
@@ -625,6 +700,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'recovery',
     why: 'Recovery community + treatment finder. Free claim, helpful for surfacing alumni-side content.',
     priority: 'medium',
+    fit: 55,
   },
   {
     id: 'narr',
@@ -633,6 +709,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'recovery',
     why: 'Standards body for recovery housing. Discharge-planning partnerships start in their affiliate map.',
     priority: 'medium',
+    fit: 75,
   },
   {
     id: 'faces-and-voices',
@@ -641,6 +718,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'recovery',
     why: 'National recovery-advocacy nonprofit. Listing positions us inside the broader recovery ecosystem.',
     priority: 'low',
+    fit: 50,
   },
   {
     id: 'soberlink',
@@ -649,6 +727,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'recovery',
     why: 'Remote alcohol monitoring. Clinical partnership listings drive referrals from alumni continuing care.',
     priority: 'low',
+    fit: 55,
   },
   {
     id: 'workit-health-resources',
@@ -657,6 +736,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'recovery',
     why: 'MAT-focused telehealth with a referral resource hub. Useful for stepped-care collaborations.',
     priority: 'low',
+    fit: 50,
   },
   {
     id: 'all-treatment',
@@ -665,6 +745,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'recovery',
     why: 'Treatment-finder with state and city pages. Free profile, decent organic visibility.',
     priority: 'low',
+    fit: 55,
   },
   {
     id: 'sober-grid',
@@ -673,6 +754,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'recovery',
     why: 'Mobile-first sober community + peer coaching. Treatment partnerships visible inside their app.',
     priority: 'low',
+    fit: 50,
   },
 
   // ── Phase 9a: Specialty (LGBTQ, vets, dual-dx, populations) ─────
@@ -683,6 +765,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'specialty',
     why: 'Gay & Lesbian Medical Association. Inclusion signals affirming care to LGBTQ+ clients and family.',
     priority: 'medium',
+    fit: 65,
   },
   {
     id: 'pride-counseling',
@@ -691,6 +774,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'specialty',
     why: 'Telehealth platform with LGBTQ-affirming positioning. Adjacent referrals when residential is the right step.',
     priority: 'low',
+    fit: 50,
   },
   {
     id: 'va-community-care',
@@ -699,6 +783,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'specialty',
     why: 'Federal VA. Required surface for serving veterans on community-care referrals.',
     priority: 'high',
+    fit: 80,
   },
   {
     id: 'give-an-hour',
@@ -707,6 +792,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'specialty',
     why: 'Pro-bono mental health for military, veterans, and first responders. Trusted referral pathway.',
     priority: 'medium',
+    fit: 70,
   },
   {
     id: 'national-center-ptsd',
@@ -715,6 +801,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'specialty',
     why: 'Authoritative PTSD resource. Funnels co-occurring trauma + SUD clients into qualified care.',
     priority: 'medium',
+    fit: 70,
   },
   {
     id: 'neda-treatment',
@@ -723,6 +810,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'specialty',
     why: 'For dual-dx clients with co-occurring eating disorders; positions us inside the ED-aware referral network.',
     priority: 'low',
+    fit: 50,
   },
   {
     id: 'samhsa-suicide-988',
@@ -731,6 +819,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'specialty',
     why: 'Crisis-line partner ecosystem. Hand-offs into residential SUD care happen here when the call escalates.',
     priority: 'medium',
+    fit: 75,
   },
   {
     id: 'asam-find',
@@ -739,6 +828,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'specialty',
     why: 'American Society of Addiction Medicine. Surfaces our medical staff inside the gold-standard SUD network.',
     priority: 'high',
+    fit: 90,
   },
 
   // ── Phase 9b: Professional + accreditation ──────────────────────
@@ -749,6 +839,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'professional',
     why: 'National Association of Addiction Treatment Providers. Membership is a peer trust signal in the industry.',
     priority: 'high',
+    fit: 95,
   },
   {
     id: 'naadac',
@@ -757,6 +848,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'professional',
     why: 'Association for Addiction Professionals. Clinician-level listings build authority for individual staff.',
     priority: 'medium',
+    fit: 75,
   },
   {
     id: 'joint-commission',
@@ -765,6 +857,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'professional',
     why: 'Behavioral-health accreditation lookup. Listed accreditation is a credibility anchor for families + payers.',
     priority: 'high',
+    fit: 88,
   },
   {
     id: 'carf',
@@ -773,6 +866,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'professional',
     why: 'Behavioral-health accreditation alternative to Joint Commission. Listing matters for state and payer audits.',
     priority: 'high',
+    fit: 88,
   },
   {
     id: 'apa-find',
@@ -781,6 +875,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'professional',
     why: 'American Psychological Association. Surfaces our PhDs / PsyDs inside the most authoritative national lookup.',
     priority: 'medium',
+    fit: 75,
   },
   {
     id: 'aca-find-counselor',
@@ -789,6 +884,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'professional',
     why: 'American Counseling Association. Builds authority for our LPC / LAC / LMHC team members.',
     priority: 'low',
+    fit: 60,
   },
   {
     id: 'aamft',
@@ -797,6 +893,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'professional',
     why: 'Family-systems angle for our LMFTs; relevant for family-program touchpoints.',
     priority: 'low',
+    fit: 55,
   },
   {
     id: 'nasw-find-social-worker',
@@ -805,6 +902,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'professional',
     why: 'National Association of Social Workers. Surfaces our LCSWs inside an authoritative SW directory.',
     priority: 'low',
+    fit: 60,
   },
 
   // ── Phase 10: General business + brand ──────────────────────────
@@ -815,6 +913,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'business',
     why: 'Single most-trafficked B2B brand surface. Doubles as a hiring funnel and a press / partner reference.',
     priority: 'high',
+    fit: 88,
   },
   {
     id: 'crunchbase',
@@ -823,6 +922,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'business',
     why: 'Default B2B intel directory. Shows up on cold "what is this company" searches by referrers and journalists.',
     priority: 'medium',
+    fit: 60,
   },
   {
     id: 'glassdoor',
@@ -831,6 +931,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'business',
     why: 'Family members read employer reviews looking for treatment-center culture signals before they call.',
     priority: 'medium',
+    fit: 70,
   },
   {
     id: 'indeed-company',
@@ -839,6 +940,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'business',
     why: 'Hiring funnel for clinical staff plus a public-facing review surface that affects family trust.',
     priority: 'medium',
+    fit: 70,
   },
   {
     id: 'owler',
@@ -847,6 +949,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'business',
     why: 'Competitor-tracking B2B directory. Citation-juice; shows up in cold competitive research.',
     priority: 'low',
+    fit: 45,
   },
   {
     id: 'zoominfo',
@@ -855,6 +958,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'business',
     why: 'Standard B2B intelligence platform; presence here means partners and EAP buyers can verify us.',
     priority: 'low',
+    fit: 50,
   },
   {
     id: 'bizapedia',
@@ -863,6 +967,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'business',
     why: 'State-business-records aggregator. Auto-populated baseline citation worth claiming.',
     priority: 'low',
+    fit: 35,
   },
   {
     id: 'hotfrog',
@@ -871,6 +976,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'business',
     why: 'Free national business directory. Cheap NAP citation source for local SEO consistency.',
     priority: 'low',
+    fit: 30,
   },
   {
     id: 'chamber-of-commerce-com',
@@ -879,6 +985,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'business',
     why: 'National business directory branded as a chamber index. Decent-DA citation, free claim.',
     priority: 'low',
+    fit: 35,
   },
   {
     id: 'brownbook',
@@ -887,6 +994,7 @@ export const DIRECTORIES: Directory[] = [
     category: 'business',
     why: 'Open business directory. Useful for citation breadth; not a meaningful inbound channel on its own.',
     priority: 'low',
+    fit: 25,
   },
 ];
 
@@ -1087,6 +1195,31 @@ export default function DirectoriesContent() {
 
       <SeoSubNav />
 
+      {/* URL convention warning — surfaces every time someone is
+          about to fill out a directory submission, so we never lose
+          another listing to the wrong domain. */}
+      <div className="mb-5 rounded-xl border-2 border-rose-300 bg-rose-50 p-4 flex items-start gap-3">
+        <svg className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="13" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <div className="text-sm text-rose-900 leading-relaxed">
+          <p className="font-bold mb-1">Use the correct site URL when submitting.</p>
+          <p>
+            Always:{' '}
+            <code className="px-1.5 py-0.5 rounded bg-white border border-rose-200 font-mono text-rose-800 font-semibold">
+              www.sevenarrowsrecoveryarizona.com
+            </code>
+            <br />
+            Never:{' '}
+            <code className="px-1.5 py-0.5 rounded bg-rose-100 border border-rose-200 font-mono text-rose-700 line-through">
+              www.sevenarrowsrecovery.com
+            </code>
+          </p>
+        </div>
+      </div>
+
       {/* Progress strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <ProgressCard label="Total" value={total} />
@@ -1152,6 +1285,7 @@ export default function DirectoriesContent() {
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10">Directory</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10">Why</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-24">Priority</th>
+                    <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-20">Fit</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-64">Live link</th>
                     <th className="text-right px-4 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
                   </tr>
@@ -1190,6 +1324,9 @@ export default function DirectoriesContent() {
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border ${PRIORITY_TONE[d.priority]}`}>
                             {d.priority}
                           </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <FitChip score={d.fit} />
                         </td>
                         <td className="px-4 py-3">
                           <LinkCell
@@ -1300,6 +1437,27 @@ function LinkCell({
       </svg>
       Add link
     </button>
+  );
+}
+
+// 1-100 fit score chip. Tone gradient mirrors the Fit semantics in
+// the Directory interface: emerald for ≥80 (core target), sky for
+// 60-79 (strong fit), amber for 40-59 (useful but secondary),
+// foreground/40 for <40 (citation breadth only).
+function FitChip({ score }: { score: number }) {
+  const clamped = Math.max(0, Math.min(100, Math.round(score)));
+  const tone =
+    clamped >= 80 ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    : clamped >= 60 ? 'bg-sky-100 text-sky-800 border-sky-200'
+    : clamped >= 40 ? 'bg-amber-100 text-amber-800 border-amber-200'
+    : 'bg-foreground/5 text-foreground/55 border-black/10';
+  return (
+    <span
+      className={`inline-flex items-center justify-center min-w-[2.25rem] px-1.5 py-0.5 rounded text-[12px] font-bold tabular-nums border ${tone}`}
+      title={`Fit ${clamped}/100`}
+    >
+      {clamped}
+    </span>
   );
 }
 
