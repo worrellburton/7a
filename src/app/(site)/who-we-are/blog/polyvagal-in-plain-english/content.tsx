@@ -820,6 +820,86 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 9: Audience callout — "what does dysregulated even mean?" ── */}
+
+          <section className="mt-16">
+            <div className="rounded-2xl bg-foreground text-white p-8 lg:p-10 shadow-[0_20px_60px_-20px_rgba(60,48,42,0.5)]">
+              <p
+                className="text-xs font-semibold tracking-[0.22em] uppercase text-primary/80 mb-3"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                If This Sounds Like You
+              </p>
+              <h2 className="text-2xl lg:text-3xl font-bold mb-5">
+                For the &quot;I&apos;ve never understood what &lsquo;dysregulated&rsquo; means&quot; reader
+              </h2>
+
+              <p
+                className="text-white/85 leading-relaxed text-base lg:text-lg"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                The word &quot;dysregulated&quot; gets thrown around in
+                therapy spaces as if everyone was issued a glossary on
+                arrival. Most people weren&apos;t. They nod, leave the
+                session, and quietly Google it later — and the
+                definitions they find sound like they were written for
+                a textbook nobody is going to read.
+              </p>
+
+              <p
+                className="mt-5 text-white/85 leading-relaxed text-base lg:text-lg"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                If that&apos;s you — if you&apos;ve been told
+                you&apos;re dysregulated, or that recovery requires
+                regulating your nervous system, and the words have
+                slid off you because nobody made them concrete — the
+                short version is this. Dysregulated just means your
+                body is stuck in sympathetic or dorsal too much of the
+                time, and can&apos;t find its way back to ventral on
+                its own. That&apos;s it. It is not a character flaw.
+                It is not a diagnosis. It is a description of where
+                on the ladder your nervous system has gotten too
+                comfortable.
+              </p>
+
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  "You&apos;ve been called &quot;reactive&quot; or &quot;intense&quot; and never felt the labels fit, but couldn&apos;t name what did.",
+                  "You&apos;ve been called &quot;avoidant&quot; or &quot;shut down&quot; and the labels stung but didn&apos;t help.",
+                  "You&apos;ve read self-help books and absorbed the vocabulary intellectually without the body actually changing.",
+                  "Your therapist uses words like &quot;ventral&quot; and you&apos;ve been smiling and nodding for six sessions.",
+                ].map((s) => (
+                  <div
+                    key={s}
+                    className="flex gap-3 items-start rounded-xl bg-white/5 border border-white/10 p-4"
+                  >
+                    <span className="text-primary text-lg leading-none mt-0.5">•</span>
+                    <p
+                      className="text-sm text-white/80 leading-relaxed"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      dangerouslySetInnerHTML={{ __html: s }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <p
+                className="mt-8 text-white/70 leading-relaxed text-sm lg:text-base"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                If any of those land — you&apos;re not behind. You
+                were just handed the right idea inside the wrong
+                package. The map in this episode is the version we
+                give residents in their first week. It will not make
+                you fluent. It will give you three labels, a ladder,
+                and two questions — which is enough to start noticing
+                what your body is doing, instead of just being run by
+                it.
+              </p>
+            </div>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
