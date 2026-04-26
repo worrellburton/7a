@@ -252,6 +252,114 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 4: Sympathetic — urgent, jaw-clenched, fight or flight ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-amber-700 mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              State Two · Halfway Down the Ladder
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Sympathetic — the urgent, jaw-clenched, fight-or-flight you
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Sympathetic is the state most people in modern life
+              accidentally live in for half their waking hours and call
+              normal. Heart rate up. Cortisol up. Muscles slightly
+              braced. Mind moving fast and skipping detail. It is the
+              physiology your body uses when something is genuinely
+              dangerous — and it is the physiology your body keeps using
+              long after the danger is gone, because nobody taught it
+              how to put the engine back in neutral.
+            </p>
+
+            <p
+              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The trick of sympathetic is that it can disguise itself as
+              productivity, ambition, or being a high-functioning person
+              with a lot on their plate. From the inside it can feel
+              like you&apos;re &quot;getting things done.&quot; From the
+              outside, the people who live with you can usually tell
+              when you&apos;ve been in it for a while: you&apos;re
+              shorter, faster, and a little sharper than the version of
+              you they prefer.
+            </p>
+
+            <div className="mt-10 rounded-2xl bg-amber-50/40 border border-amber-200/60 p-6 lg:p-8">
+              <div className="flex items-baseline gap-3 mb-5">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" aria-hidden />
+                <p
+                  className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-700"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  How sympathetic feels and looks
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700/80 mb-2">
+                    From the inside
+                  </p>
+                  <ul className="space-y-2 text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                    {[
+                      'Breath is shallow, riding high in the chest. You catch yourself holding it.',
+                      "Time feels too fast — you're behind before the day starts.",
+                      'Jaw, shoulders, or hands are quietly clenched without you choosing it.',
+                      'Thoughts loop. The same problem keeps re-presenting in slightly different words.',
+                      'Anything someone says lands as a thing you have to respond to, not consider.',
+                    ].map((line) => (
+                      <li key={line} className="flex gap-2">
+                        <span className="text-amber-600 shrink-0">●</span>
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700/80 mb-2">
+                    From the outside
+                  </p>
+                  <ul className="space-y-2 text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                    {[
+                      'You speak slightly faster and slightly louder than the room.',
+                      'You interrupt — sometimes apologetically, but you interrupt.',
+                      "You're moving even when you don't need to. Pacing, scrolling, opening tabs you won't read.",
+                      'Your eye contact is harder, more locked, less rhythmic.',
+                      'You make decisions that feel decisive in the moment and slightly regrettable later.',
+                    ].map((line) => (
+                      <li key={line} className="flex gap-2">
+                        <span className="text-amber-600 shrink-0">●</span>
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Sympathetic is not the enemy. The same activation that
+              makes you snap at a partner is also what gets you out of
+              a fire, finishes the deadline, defends a child. The
+              problem is when it becomes home — when your nervous
+              system doesn&apos;t know how to set the energy down and
+              return to ventral, so it just stays braced and calls
+              that life.
+            </p>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
