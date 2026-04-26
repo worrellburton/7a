@@ -43,13 +43,13 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const target = url.searchParams.get('target') || semrushDefaultTarget();
-  if (!target) {
-    return NextResponse.json(
-      { error: 'target query param (or SEMRUSH_TARGET_DOMAIN env var) is required' },
-      { status: 400 },
-    );
-  }
+  // Fall back through ?target= → SEMRUSH_TARGET_DOMAIN env → the
+  // production domain. The hardcoded last-resort means a fresh deploy
+  // works without anyone having to remember to set the env var.
+  const target =
+    url.searchParams.get('target') ||
+    semrushDefaultTarget() ||
+    'sevenarrowsrecoveryarizona.com';
   const filter = (url.searchParams.get('filter') || 'all').toLowerCase();
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? '50')));
   const offset = Math.max(0, Number(url.searchParams.get('offset') ?? '0'));

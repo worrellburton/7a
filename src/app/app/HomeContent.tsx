@@ -484,7 +484,13 @@ export default function HomeContent() {
 function AtAGlance() {
   return (
     <section className="w-full max-w-4xl mx-auto px-4 sm:px-6">
-      <div className="rounded-3xl bg-white border border-gray-100 shadow-sm">
+      {/* Glass treatment: semi-transparent white panel + heavy
+          backdrop-blur picks up the warm-bg behind it, light inner
+          border + soft shadow. Falls back to a solid pane when the
+          browser doesn't support backdrop-filter. */}
+      <div
+        className="rounded-3xl border border-white/60 shadow-[0_8px_24px_-12px_rgba(60,48,42,0.18)] bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl"
+      >
         <div className="px-5 sm:px-6 pt-5 pb-2 flex items-baseline justify-between">
           <p
             className="text-[11px] font-bold tracking-[0.22em] uppercase text-foreground/55"

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import SeoSubNav from './SeoSubNav';
 import {
   CATEGORY_LABELS,
   KEYWORDS,
@@ -244,6 +245,7 @@ export default function SeoContent() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
+      <SeoSubNav />
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-2">
@@ -280,24 +282,9 @@ export default function SeoContent() {
             </svg>
             SEO Video
           </Link>
-          <Link
-            href="/app/seo/backlinks"
-            className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground hover:bg-warm-bg/40 transition"
-          >
-            Backlinks →
-          </Link>
-          <Link
-            href="/app/seo/redirects"
-            className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground hover:bg-warm-bg/40 transition"
-          >
-            Redirects →
-          </Link>
-          <Link
-            href="/app/seo/audit"
-            className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground hover:bg-warm-bg/40 transition"
-          >
-            Site audit →
-          </Link>
+          {/* Backlinks / Redirects / Site audit moved into the
+              SeoSubNav strip at the top of the page so the same
+              tabs follow you across every SEO sub-page. */}
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}

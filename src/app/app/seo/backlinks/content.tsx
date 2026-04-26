@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import SeoSubNav from '../SeoSubNav';
 
 // Live backlinks dashboard powered by Semrush analytics v1. The
 // overview cards mirror what Semrush's own dashboard surfaces,
@@ -94,6 +95,7 @@ export default function BacklinksContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10" style={{ fontFamily: 'var(--font-body)' }}>
+      <SeoSubNav />
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-3 mb-1">
