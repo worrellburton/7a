@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
+import SeoSubNav from '../SeoSubNav';
 
 // Admin console for the site-wide redirect table. Each row is a
 // single 301/302 rule: from_path (what old URL the user hits) →
@@ -88,6 +89,7 @@ export default function RedirectsContent() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ fontFamily: 'var(--font-body)' }}>
+      <SeoSubNav />
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">SEO · Admin</p>

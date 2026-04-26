@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import SeoSubNav from '../SeoSubNav';
 
 const STORAGE_KEY = 'sa-seo-audit:last-result';
 const DURATION_KEY = 'sa-seo-audit:last-duration-ms';
@@ -229,6 +230,7 @@ export default function AuditContent() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
+      <SeoSubNav />
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-2">
