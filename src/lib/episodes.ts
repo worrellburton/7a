@@ -79,6 +79,17 @@ export const EPISODES: Episode[] = [
     image: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200&q=80',
     imageAlt: 'A wide horizon at first light — building toward something, not chasing what is broken',
   },
+  {
+    number: 6,
+    slug: 'polyvagal-in-plain-english',
+    title: "Polyvagal in Plain English: The Three States You Live In Every Day",
+    blurb:
+      "Ventral, sympathetic, dorsal — walked as a ladder, in language you can actually use mid-craving. Why addiction looks different in each state, and the two questions to ask yourself when you can't tell which one you're in.",
+    publishedAt: '2026-04-26',
+    publishedDisplay: 'April 26, 2026',
+    image: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?w=1200&q=80',
+    imageAlt: 'A person at the foot of a long ladder — the polyvagal ladder you climb up and down all day',
+  },
 ];
 
 /** Newest-first — drives the landing page's "latest" surfacing. */
