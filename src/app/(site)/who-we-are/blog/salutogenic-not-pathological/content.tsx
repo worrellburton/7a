@@ -325,6 +325,121 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 5: Self-leadership beats symptom management long-tail ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The Five-Year View
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Why self-leadership beats symptom management — eventually
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Symptom management works. Inside a structured environment, with
+              external supports, with the person&apos;s focus pointed at the
+              symptom, you can keep most things quiet for ninety days. The
+              field publishes those ninety-day numbers because they look
+              good. The honest measurement question is what happens at year
+              one, year three, year five — when the structure has been
+              removed, the supports have thinned, and the original
+              motivation has dimmed.
+            </p>
+
+            <p
+              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Symptom-managed graduates tend to do well right up until
+              they don&apos;t. The trigger is rarely dramatic. A move. A
+              relationship. A boss who&apos;s a problem. A shoulder injury
+              with a prescription. Their recovery was always external
+              scaffolding around a self that hadn&apos;t fully reclaimed
+              the wheel — and when the scaffolding shifts, the self
+              wasn&apos;t practiced enough to compensate. That&apos;s the
+              pattern behind a lot of relapses that look mysterious from
+              the outside but feel inevitable from the inside.
+            </p>
+
+            <div className="mt-10 rounded-2xl bg-warm-bg/50 border border-black/5 p-6 lg:p-8">
+              <h3 className="font-bold text-foreground mb-4">
+                What self-leadership actually means in practice
+              </h3>
+              <ol className="space-y-4">
+                {[
+                  {
+                    n: '1',
+                    title: 'You can name your own state without help',
+                    body:
+                      'Not "I\'m fine." Specifically: regulated, activated, shut down, hungry, lonely, ashamed, hopeful. The capacity to label your inside in real time is the precondition for everything else, and most people leave conventional treatment without it.',
+                  },
+                  {
+                    n: '2',
+                    title: 'You make the call about your own care',
+                    body:
+                      'You know when you need a meeting, when you need a session, when you need to call your sponsor, when you need to go for a long walk and not pick up the phone. The decision lives in you — supports are tools you reach for, not authorities you outsource to.',
+                  },
+                  {
+                    n: '3',
+                    title: "You hold a coherent story about your own life",
+                    body:
+                      "Not a polished one. A coherent one — where the past makes sense as a sequence, where the present is connected to it, and where the future has at least a few real things you're moving toward. Coherence, as Antonovsky meant it, is the central protective factor.",
+                  },
+                  {
+                    n: '4',
+                    title: 'You can sit inside discomfort for longer than you used to',
+                    body:
+                      'The window of tolerance is the technical term. Symptom management borrows somebody else\'s window. Self-leadership widens your own. The difference is that the wider window persists when nobody is watching.',
+                  },
+                  {
+                    n: '5',
+                    title: 'You hold relationships that survive your honesty',
+                    body:
+                      "Not relationships that manage you, and not relationships that you manage. Mutual ones. People who can hear hard things without needing you to soften them. Building this requires risk that the symptom-management frame never asks of you.",
+                  },
+                ].map((s) => (
+                  <li key={s.n} className="flex gap-4">
+                    <span
+                      className="shrink-0 w-8 h-8 rounded-full bg-primary text-white text-sm font-bold inline-flex items-center justify-center"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {s.n}
+                    </span>
+                    <div>
+                      <p className="font-semibold text-foreground">{s.title}</p>
+                      <p
+                        className="text-sm text-foreground/70 leading-relaxed mt-1"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {s.body}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              These five capacities are unsexy. They don&apos;t show up on
+              insurance claim forms and they don&apos;t make for compelling
+              before-and-after photos. They&apos;re also the only things
+              that reliably predict whether a recovery survives the
+              ordinary turbulence of a normal adult life. That is the
+              salutogenic bet — that we&apos;re willing to look modest at
+              30 days in exchange for being unmistakably better at year
+              five.
+            </p>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
