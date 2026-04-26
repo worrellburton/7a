@@ -595,6 +595,124 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 7: Addiction's different shape in each state ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Why &quot;White-Knuckle It&quot; Fails
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Addiction wears a different mask in each state
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The single biggest reason willpower-based recovery
+              advice gives so many people the impression they&apos;ve
+              failed is that it ignores the state the urge is coming
+              out of. A craving in sympathetic is a different animal
+              than a craving in dorsal. Treat them the same and you
+              can be doing exactly the &quot;right&quot; thing for
+              your physiology and still feel like you&apos;re losing.
+            </p>
+
+            <p
+              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Here&apos;s the same urge, the same person, in each
+              state — and what actually helps in each one.
+            </p>
+
+            <div className="mt-10 space-y-4">
+              {[
+                {
+                  state: 'Ventral',
+                  shade: 'border-emerald-200/60 bg-emerald-50/30',
+                  pill: 'text-emerald-700 bg-emerald-100/70',
+                  shape:
+                    "An urge here is rare and feels almost like a memory — a thought passes through, you notice it, and it doesn&apos;t hijack the next 20 minutes. The body is regulated; there's no internal hole to fill.",
+                  helps:
+                    "Almost anything works because nothing is fighting you. Take a breath, name it, keep walking. This is the state most recovery advice was written by people who happened to be in.",
+                },
+                {
+                  state: 'Sympathetic',
+                  shade: 'border-amber-200/60 bg-amber-50/30',
+                  pill: 'text-amber-700 bg-amber-100/70',
+                  shape:
+                    "An urge in sympathetic is hot. Fast. There&apos;s an edge of agitation underneath it — a sense that if you don&apos;t do something right now, the energy is going to come out somewhere worse. The substance is reaching for the volume knob, not the off switch.",
+                  helps:
+                    'Movement. Real movement. Walk hard, run, lift, scrub a counter, swing a hammer. The body needs to discharge the activation before it can hear any other instruction. Trying to talk yourself out of it while the engine is redlining is mostly noise.',
+                },
+                {
+                  state: 'Dorsal',
+                  shade: 'border-sky-200/60 bg-sky-50/30',
+                  pill: 'text-sky-700 bg-sky-100/70',
+                  shape:
+                    "An urge in dorsal is quiet and matter-of-fact. It doesn&apos;t feel urgent; it feels inevitable. You&apos;re not even sure you want to use — you&apos;re just sure you&apos;re going to, in about an hour, and it would be easier to stop pretending. The substance here is reaching for any signal of life.",
+                  helps:
+                    'Connection first, not content. A phone call to a real human, cold water, a five-minute walk in actual daylight. You need a small dose of sympathetic energy before any reasoning will land — the body has to feel its way back up to the middle rung before it can hear an argument from ventral.',
+                },
+              ].map((row) => (
+                <div
+                  key={row.state}
+                  className={`rounded-xl border p-5 lg:p-6 ${row.shade}`}
+                >
+                  <span
+                    className={`inline-flex items-center text-[10px] font-bold uppercase tracking-[0.22em] px-2 py-0.5 rounded ${row.pill}`}
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {row.state}
+                  </span>
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/55 mb-1">
+                        How the craving shows up
+                      </p>
+                      <p
+                        className="text-sm text-foreground/75 leading-relaxed"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                        dangerouslySetInnerHTML={{ __html: row.shape }}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/55 mb-1">
+                        What actually helps
+                      </p>
+                      <p
+                        className="text-sm text-foreground/85 leading-relaxed"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {row.helps}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              &quot;Just white-knuckle it&quot; is, in polyvagal terms,
+              an instruction that only really works for people already
+              in the top half of the ladder. For someone in deep dorsal,
+              white-knuckling means asking a body that&apos;s already
+              turned its energy down to defeat a craving by force —
+              with no force available. They aren&apos;t weak. They&apos;re
+              two rungs lower than the advice was designed for.
+              Recovery that lasts is mostly a matter of giving people
+              the right intervention for the rung they&apos;re actually
+              standing on.
+            </p>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
