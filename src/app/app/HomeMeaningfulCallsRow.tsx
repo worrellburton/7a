@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useAnimatedNumber } from '@/lib/useAnimatedNumber';
 
 // Home row: three stat cards for meaningful calls — today, this week,
 // this month — each with a comparison vs the previous period. Counts
@@ -184,17 +185,18 @@ function MeaningfulCard({
   const up = delta > 0;
   const down = delta < 0;
   const pct = !loading && (previous ?? 0) > 0 ? Math.round((delta / (previous as number)) * 100) : null;
+  const animated = useAnimatedNumber(loading ? null : (value as number));
 
   return (
     <button
       onClick={onClick}
-      className="text-left bg-white rounded-2xl border border-gray-100 px-4 py-3 hover:border-primary/40 hover:shadow-sm transition-all"
+      className="text-center px-4 py-3 rounded-xl hover:bg-warm-bg/50 transition-colors"
       style={{ fontFamily: 'var(--font-body)' }}
     >
       <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider">{label}</p>
-      <div className="mt-1 flex items-baseline gap-2">
-        <span className="text-2xl font-bold text-blue-600">
-          {loading ? '—' : value}
+      <div className="mt-1 flex items-baseline justify-center gap-2">
+        <span className="text-3xl font-bold text-blue-600 tabular-nums">
+          {loading ? '—' : (animated ?? 0).toLocaleString()}
         </span>
         {!loading && (
           <span className={`text-[11px] font-medium ${up ? 'text-emerald-600' : down ? 'text-red-500' : 'text-foreground/40'}`}>
