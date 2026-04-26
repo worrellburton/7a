@@ -144,6 +144,114 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 3: Ventral vagal — connected, curious, grounded ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-emerald-700 mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              State One · Top of the Ladder
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Ventral vagal — the curious, connected, grounded you
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Ventral is the state your nervous system is built to spend
+              most of its time in. It is the felt sense of being safe
+              enough to be curious, connected enough to be honest, and
+              grounded enough to make a slightly inconvenient decision
+              without dissolving. Almost nothing about modern life is
+              designed to keep you here. Spending more of your day here
+              is most of what recovery is actually trying to accomplish.
+            </p>
+
+            <p
+              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              When people describe their best version of themselves, they
+              are almost always describing a ventral version: the parent
+              who can listen without interrupting, the friend who can
+              sit through someone else&apos;s hard story, the worker who
+              can take a piece of feedback and actually use it instead
+              of bracing against it. None of those capacities are
+              character. They are physiology — specifically, the
+              physiology of a vagal system that&apos;s online and
+              broadcasting safety.
+            </p>
+
+            <div className="mt-10 rounded-2xl bg-emerald-50/40 border border-emerald-200/60 p-6 lg:p-8">
+              <div className="flex items-baseline gap-3 mb-5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" aria-hidden />
+                <p
+                  className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-700"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  How ventral feels and looks
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700/70 mb-2">
+                    From the inside
+                  </p>
+                  <ul className="space-y-2 text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                    {[
+                      'Breath is slow and full, sitting low in the belly without anyone telling it to.',
+                      'Time feels normal — not slow, not racing. You are in it.',
+                      'You can hold two things at once: a hard topic and a gentle attitude toward it.',
+                      'Curiosity comes easily. Questions feel interesting, not threatening.',
+                      'You feel like yourself. The phrase doesn’t feel corny when you say it.',
+                    ].map((line) => (
+                      <li key={line} className="flex gap-2">
+                        <span className="text-emerald-600 shrink-0">●</span>
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700/70 mb-2">
+                    From the outside
+                  </p>
+                  <ul className="space-y-2 text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                    {[
+                      'Your face has small, real movements — not frozen, not performing.',
+                      'Your voice has prosody: it goes up and down naturally inside sentences.',
+                      'You make and hold eye contact in rhythm — not avoiding, not staring.',
+                      'You laugh in a way that lands in your body, not just in the room.',
+                      'People sit closer to you and stay longer. That is not magic. That is co-regulation.',
+                    ].map((line) => (
+                      <li key={line} className="flex gap-2">
+                        <span className="text-emerald-600 shrink-0">●</span>
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              For people coming out of long stretches of dysregulation,
+              ventral often feels suspicious at first. Quiet. A little
+              boring. The body has been running on cortisol and
+              constriction for so long that the absence of urgency
+              registers as something being wrong. It isn&apos;t. That
+              flatness is the floor of the new state. Stay with it long
+              enough and the room comes back into colour.
+            </p>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
