@@ -15,6 +15,7 @@ import WhatsNewButton from './WhatsNewButton';
 // import HomeClientsRow from './HomeClientsRow';
 import HomeHorsesRow from './HomeHorsesRow';
 import HomeMeaningfulCallsRow from './HomeMeaningfulCallsRow';
+import HomeWebsiteVisitsRow from './HomeWebsiteVisitsRow';
 import HomeWebsiteRequestsRow from './HomeWebsiteRequestsRow';
 
 interface RecentUser {
@@ -325,23 +326,19 @@ export default function HomeContent() {
           <div className="mt-6 w-full">
             <HomeHorsesRow />
           </div>
-          <div className="mt-6 w-full">
-            <HomeMeaningfulCallsRow />
-          </div>
-          <div className="mt-6 w-full">
-            <HomeWebsiteRequestsRow />
+          <div className="mt-8 w-full">
+            <AtAGlance />
           </div>
         </div>
       )}
 
       {/* If there's no "Online today" row (empty state), still show
-          horses + calls + website requests. Clients row stays hidden
+          horses + the at-a-glance grouping. Clients row stays hidden
           here too for now. */}
       {recentUsers.length === 0 && (
-        <div className="px-4 sm:px-6 lg:px-10 pt-6 space-y-6">
+        <div className="px-4 sm:px-6 lg:px-10 pt-6 space-y-8">
           <HomeHorsesRow />
-          <HomeMeaningfulCallsRow />
-          <HomeWebsiteRequestsRow />
+          <AtAGlance />
         </div>
       )}
 
@@ -473,5 +470,44 @@ export default function HomeContent() {
       <FeatureRequestModal open={featureRequestOpen} onClose={() => setFeatureRequestOpen(false)} />
       <WhatsNewButton />
     </div>
+  );
+}
+
+// "At a glance" — wraps the three numeric stat rows (Meaningful
+// calls, Website visits, Awaiting response) inside a single warm
+// card so they read as one organized panel instead of three
+// disconnected strips. Each child still renders its own small
+// section header, so labels stay legible. Sub-rows that have
+// nothing to show (e.g. Awaiting response when the inbox is
+// empty) self-hide; the wrapper still renders so the section
+// header stays consistent.
+function AtAGlance() {
+  return (
+    <section className="w-full max-w-4xl mx-auto px-4 sm:px-6">
+      <div className="rounded-3xl bg-white border border-gray-100 shadow-sm">
+        <div className="px-5 sm:px-6 pt-5 pb-2 flex items-baseline justify-between">
+          <p
+            className="text-[11px] font-bold tracking-[0.22em] uppercase text-foreground/55"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            At a glance
+          </p>
+          <p className="text-[11px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
+            Today / week / month
+          </p>
+        </div>
+        <div className="divide-y divide-gray-100">
+          <div className="py-4 -mx-4 sm:-mx-6">
+            <HomeMeaningfulCallsRow />
+          </div>
+          <div className="py-4 -mx-4 sm:-mx-6">
+            <HomeWebsiteVisitsRow />
+          </div>
+          <div className="py-4 -mx-4 sm:-mx-6">
+            <HomeWebsiteRequestsRow />
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
