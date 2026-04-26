@@ -440,6 +440,115 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 6: Three Rhoton/Gentry concepts our day actually runs on ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The Active Ingredients
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Three Rhoton &amp; Gentry concepts our day-to-day actually runs on
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The clinical literature behind the salutogenic frame is large
+              and uneven. Most of it is academic in a way that doesn&apos;t
+              survive contact with a treatment day. The exceptions —
+              specifically the &quot;active ingredients&quot; work coming
+              out of Rhoton, Gentry, and the broader resilience-research
+              tradition — translate cleanly into things a clinical team
+              can actually do on a Tuesday afternoon. Three of those
+              concepts run through almost every hour of our program. We
+              try to call them by their plain names rather than the
+              jargon, but the lineage is worth naming.
+            </p>
+
+            <div className="mt-10 space-y-5">
+              {[
+                {
+                  number: '01',
+                  jargon: 'Active ingredients',
+                  plain: 'What is actually doing the work',
+                  body:
+                    'The premise is simple and slightly subversive: a treatment program contains many activities, but only a few of them are doing the heavy lifting. The rest is structure around the few. The discipline is to keep asking — about every group, every modality, every ritual — "is this an active ingredient or is this filler?" Filler isn\'t bad; it can hold the day together. But filler that gets mistaken for an active ingredient is how programs grow expensive without growing more effective.',
+                  show:
+                    'In practice: every six months we audit the schedule and ask the team and the alumni which moments mattered. The answers are surprising. A small handful of recurring formats consistently show up as the things that actually moved people. We protect those, and we let the rest stay light.',
+                },
+                {
+                  number: '02',
+                  jargon: 'Sense of coherence',
+                  plain: 'A life that adds up to something you can hold',
+                  body:
+                    'Antonovsky\'s original three-part construct: comprehensibility (the world makes sense), manageability (you have what you need to navigate it), and meaningfulness (the navigation is worth the effort). Recovery is not the absence of disorder — it\'s the slow assembly of a coherent enough story that ordinary stress stops being annihilating.',
+                  show:
+                    'In practice: most of our individual sessions are quietly aimed at coherence rather than insight. We\'re not chasing the perfect interpretation of the past. We\'re helping you build a version of your story that you can carry into the next room without it knocking you over.',
+                },
+                {
+                  number: '03',
+                  jargon: 'Self-leadership',
+                  plain: "The part of you that runs your life is the part you'd choose",
+                  body:
+                    'Borrowed loosely from the IFS / parts-work tradition that overlaps the resilience literature. There are many parts of you and they all have their reasons. Self-leadership isn\'t about silencing the noisy ones — it\'s about which part is actually steering. The salutogenic claim is that the steering part is, almost always, already in there and intact, and the program\'s job is to give it repetitions until it can take the wheel without prompting.',
+                  show:
+                    "In practice: we end most groups with the same quiet question — \"who in you was leading just now?\" Over weeks, the answer changes. Clients catch themselves. The first time a person reports that an old reactive part showed up but they noticed it without becoming it, the work has crossed a real line. Most of the rest of treatment is about widening the gap between noticing and becoming.",
+                },
+              ].map((c) => (
+                <div
+                  key={c.number}
+                  className="rounded-2xl bg-white border border-black/5 shadow-sm p-6 lg:p-7"
+                >
+                  <div className="flex items-baseline gap-4 mb-3">
+                    <span
+                      className="text-2xl font-bold text-primary tabular-nums"
+                      style={{ fontFamily: 'var(--font-display)' }}
+                    >
+                      {c.number}
+                    </span>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/40">
+                        {c.jargon}
+                      </p>
+                      <h3 className="text-lg lg:text-xl font-bold text-foreground">
+                        {c.plain}
+                      </h3>
+                    </div>
+                  </div>
+                  <p
+                    className="text-sm lg:text-base text-foreground/75 leading-relaxed"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {c.body}
+                  </p>
+                  <p
+                    className="mt-4 text-sm text-foreground/65 leading-relaxed border-l-2 border-primary/40 pl-4"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    <span className="font-semibold text-foreground/80">In our program: </span>
+                    {c.show}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              None of these are exotic. None of them require buying a new
+              modality. They are organising principles — the things we hold
+              the schedule, the staff hiring, and the clinical decisions
+              against. When we drift from them, the program gets busier and
+              less effective. When we hold them, the program gets quieter
+              and the alumni outcomes get longer.
+            </p>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
