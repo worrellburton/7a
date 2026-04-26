@@ -175,7 +175,13 @@ export async function POST(req: Request) {
         limit: 200,
         sort: 'last_seen_desc',
       }),
-      fetchRefDomains({ target, limit: 500, sort: 'ascore_desc' }),
+      // Semrush's backlinks_refdomains endpoint only accepts
+      // last_seen / first_seen / backlinks_num as sort columns —
+      // NOT ascore. We pick backlinks_num_desc so the 500-row
+      // sample skews to the domains that link to us the most,
+      // which still spans the full authority-score range and gives
+      // an honest distribution for the histogram.
+      fetchRefDomains({ target, limit: 500, sort: 'backlinks_num_desc' }),
     ]);
 
     const merged = allRows;
