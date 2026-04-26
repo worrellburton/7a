@@ -22,7 +22,7 @@ export async function GET() {
   //
   // Try the full select with responded_*; fall back if the columns
   // aren't in the deployed schema yet.
-  const FULL = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by';
+  const FULL = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by, responded_note';
   const MIN  = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at';
   let resp = await admin.from('contact_submissions').select(FULL).neq('source', 'careers').order('created_at', { ascending: false });
   if (resp.error && /responded_/i.test(resp.error.message)) {
@@ -48,6 +48,7 @@ export async function GET() {
     ...r,
     responded_at: (r.responded_at as string | null | undefined) ?? null,
     responded_by: r.responded_by ?? null,
+    responded_note: (r.responded_note as string | null | undefined) ?? null,
     responder_name: r.responded_by ? responderNames.get(r.responded_by) ?? null : null,
     responder_avatar_url: r.responded_by ? responderAvatars.get(r.responded_by) ?? null : null,
   }));

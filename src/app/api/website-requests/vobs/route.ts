@@ -17,7 +17,7 @@ export async function GET() {
   // Try the full select first. If the responded_at/responded_by
   // migration hasn't been applied yet, fall back gracefully so the
   // list doesn't blank out (see CLAUDE.md note on resilient reads).
-  const FULL = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by';
+  const FULL = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note';
   const MIN  = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path';
   let resp = await admin.from('vob_requests').select(FULL).order('received_at', { ascending: false });
   if (resp.error && /responded_/i.test(resp.error.message)) {
@@ -46,6 +46,7 @@ export async function GET() {
     card_back_path: string | null;
     responded_at?: string | null;
     responded_by?: string | null;
+    responded_note?: string | null;
   };
 
   const rawRows = (data ?? []) as RawRow[];
@@ -94,6 +95,7 @@ export async function GET() {
     card_back_url: r.card_back_path ? signedMap.get(r.card_back_path) ?? null : null,
     responded_at: r.responded_at ?? null,
     responded_by: r.responded_by ?? null,
+    responded_note: r.responded_note ?? null,
     responder_name: r.responded_by ? responderNames.get(r.responded_by) ?? null : null,
     responder_avatar_url: r.responded_by ? responderAvatars.get(r.responded_by) ?? null : null,
   }));

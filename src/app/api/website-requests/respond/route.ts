@@ -3,15 +3,17 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 
 // POST /api/website-requests/respond
-//   body: { kind: 'vob' | 'contact', id: string, clear?: boolean }
+//   body: { kind: 'vob' | 'contact', id: string, clear?: boolean, note?: string }
 //
 // Accessible to admins and Marketing & Admissions department
 // members. Marker that "I responded to this submission." Writes
-// responded_at = now() and responded_by = current user id onto the
-// appropriate row. Passing `clear: true` nulls both (in case someone
-// clicks by accident).
+// responded_at = now(), responded_by = current user id, and an
+// optional free-form responded_note onto the appropriate row.
+// Passing `clear: true` nulls all three (in case someone clicks
+// by accident).
 //
-// Returns the updated responded_at / responded_by / responder_name.
+// Returns the updated responded_at / responded_by / responder_name /
+// responded_note.
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +21,7 @@ type Body = {
   kind?: 'vob' | 'contact';
   id?: string;
   clear?: boolean;
+  note?: string;
 };
 
 export async function POST(req: Request) {
@@ -35,24 +38,32 @@ export async function POST(req: Request) {
 
   let body: Body;
   try { body = (await req.json()) as Body; } catch { body = {}; }
-  const { kind, id, clear } = body;
+  const { kind, id, clear, note } = body;
 
   if (!id || (kind !== 'vob' && kind !== 'contact')) {
     return NextResponse.json({ error: 'Missing or invalid kind/id' }, { status: 400 });
   }
 
+  // Trim + cap the note. 2000 chars is plenty for a single follow-up
+  // comment and keeps the row JSON payload predictable.
+  const trimmedNote = (note ?? '').trim().slice(0, 2000) || null;
+
   const table = kind === 'vob' ? 'vob_requests' : 'contact_submissions';
   const admin = getAdminSupabase();
 
   const patch = clear
-    ? { responded_at: null, responded_by: null }
-    : { responded_at: new Date().toISOString(), responded_by: user.id };
+    ? { responded_at: null, responded_by: null, responded_note: null }
+    : {
+        responded_at: new Date().toISOString(),
+        responded_by: user.id,
+        responded_note: trimmedNote,
+      };
 
   const { data, error } = await admin
     .from(table)
     .update(patch)
     .eq('id', id)
-    .select('id, responded_at, responded_by')
+    .select('id, responded_at, responded_by, responded_note')
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -62,6 +73,7 @@ export async function POST(req: Request) {
     id: data.id,
     responded_at: data.responded_at,
     responded_by: data.responded_by,
+    responded_note: data.responded_note ?? null,
     responder_name: clear ? null : (me?.full_name ?? null),
     responder_avatar_url: clear ? null : (me?.avatar_url ?? null),
   });
