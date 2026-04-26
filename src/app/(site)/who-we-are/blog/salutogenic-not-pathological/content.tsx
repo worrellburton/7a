@@ -628,6 +628,117 @@ export default function PageContent() {
             </div>
           </section>
 
+          {/* ── Phase 8: How this shows up in our day at Seven Arrows ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              On the Ground
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              What this looks like on a Tuesday at Seven Arrows
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Theory is cheap. The honest test of any clinical philosophy is
+              whether it shows up in the small choices a program makes when
+              nobody is watching — what gets put on the schedule, what
+              language clinicians use unprompted, what gets celebrated and
+              what gets quietly tolerated. Below are five places the
+              salutogenic frame is visible in our day-to-day, not because
+              we&apos;re performing it, but because the frame quietly
+              decides which option we pick when there are two.
+            </p>
+
+            <div className="mt-10 space-y-4">
+              {[
+                {
+                  area: 'The first session',
+                  pathology: 'Symptom inventory, criteria check, treatment-plan draft.',
+                  salutogenic:
+                    'Yes, intake gets the symptoms recorded — but the working session asks "What in your life right now is still standing? Who do you trust? When was the last time you felt like yourself?" The first session is for finding the intact part, not cataloguing the broken parts.',
+                },
+                {
+                  area: 'The schedule',
+                  pathology: 'Stacked therapy hours, psycho-education modules, group after group.',
+                  salutogenic:
+                    'Generous unstructured time, on purpose. Long meals together. Equine sessions. Walks in the desert. Half the program is the things in between the sessions — because that\'s where coherence gets built.',
+                },
+                {
+                  area: 'The language',
+                  pathology: '"Patient," "compliance," "non-adherent," "high-utilizer," "treatment-resistant."',
+                  salutogenic:
+                    '"Resident." "What\'s under that?" "Which part is leading right now?" "What did you notice?" Clinicians who lean reflexively on diagnostic labels in team meetings get warmly redirected. The vocabulary forms the frame.',
+                },
+                {
+                  area: 'How progress is measured',
+                  pathology: 'PHQ-9, GAD-7, days-clean count.',
+                  salutogenic:
+                    'We use the assessments — they\'re the lingua franca with insurance and we don\'t pretend otherwise. We just don\'t make them the centerpiece. We track capacity: can you name your state, can you sit in discomfort, do you have one relationship you didn\'t have on day one. The narrative is what the discharge meeting actually centers on.',
+                },
+                {
+                  area: 'How we describe alumni',
+                  pathology: '"X months sober," "remained abstinent through Y stressor."',
+                  salutogenic:
+                    "Sober, yes — but also: built a business, repaired a relationship with a daughter, started coaching at the gym, stopped white-knuckling and started actually living. The shift in metric is the shift in identity. Clients become alumni become humans whose lives we can describe in present tense.",
+                },
+              ].map((row) => (
+                <div
+                  key={row.area}
+                  className="rounded-xl bg-warm-bg/50 border border-black/5 p-5 lg:p-6"
+                >
+                  <p
+                    className="text-[11px] font-bold uppercase tracking-[0.2em] text-foreground/45 mb-3"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {row.area}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700/80 mb-1">
+                        Pathology default
+                      </p>
+                      <p
+                        className="text-sm text-foreground/70 leading-relaxed"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {row.pathology}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700/80 mb-1">
+                        How we do it
+                      </p>
+                      <p
+                        className="text-sm text-foreground/85 leading-relaxed"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {row.salutogenic}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              None of these choices show up on the website&apos;s service
+              list. They&apos;re not modalities. They&apos;re the hundred
+              small decisions per day that quietly answer the question
+              &quot;is this program organised around what&apos;s wrong with
+              the person, or around what&apos;s underneath that the person
+              is trying to get back to?&quot; The answer is the program.
+            </p>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
