@@ -8,19 +8,16 @@ const CURRENT_SLUG = 'your-therapists-nervous-system';
 
 // Episode 4 — The Miracle Intervention Is Your Therapist's Nervous System.
 //
-// Phased build (this is Phase 1 — scaffolding):
-//   Phase 1  ✓  Page exists, hero, intro, manifest entry surfacing on landing
-//   Phase 2  ·  Co-regulation explained (your system reads theirs in milliseconds)
-//   Phase 3  ·  Why our clinicians practice breathwork between sessions
-//   Phase 4  ·  What "regulated presence" feels like in a session
-//   Phase 5  ·  Regulated presence vs performing calm (comparison)
-//   Phase 6  ·  Warning signs in therapists who aren't doing their own work
-//   Phase 7  ·  Audience callout — for anyone who's felt worse after therapy
-//   Phase 8  ·  Clinical authority block
-//   Phase 9  ·  Internal links + admissions CTA
-//   Phase 10 ·  SEO meta + JSON-LD + final proofread
-//
-// Each later phase adds a section between the intro and the CTA below.
+// Section order (top → bottom):
+//   1. Hero + intro
+//   2. The Mechanism — co-regulation explained
+//   3. Inside the Practice — between-session breathwork protocol
+//   4. From the Client's Side — what regulated presence feels like
+//   5. The Counterfeit — regulated vs performing calm (side-by-side)
+//   6. Warning Signs — patterns of a dysregulated clinician
+//   7. If This Sounds Like You — audience callout (dark panel)
+//   8. How We Hire For It — clinical hiring criteria
+//   9. Continue the Series + admissions CTA
 
 export default function PageContent() {
   return (
