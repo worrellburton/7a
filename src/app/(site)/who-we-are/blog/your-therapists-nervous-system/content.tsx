@@ -257,6 +257,95 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 4: What "regulated presence" feels like in session ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              From the Client&apos;s Side
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              What &quot;regulated presence&quot; feels like in a session
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Most clients can&apos;t name it. They describe a session with a
+              regulated clinician in soft language — &quot;it just felt
+              easier,&quot; &quot;I cried more than I expected,&quot; &quot;I
+              don&apos;t know why but I told her things I&apos;ve never said
+              out loud.&quot; The shared denominator under all of those is
+              that the client&apos;s body decided the room was safe enough
+              to drop its guard. That decision happened beneath language. The
+              specific things the client noticed — even if they couldn&apos;t
+              articulate them — are usually some combination of these.
+            </p>
+
+            <div className="mt-10 space-y-3">
+              {[
+                {
+                  cue: 'The clinician&apos;s breathing is slow and visible',
+                  detail:
+                    "You can see their chest move, low and steady. They are not holding their breath while you speak — a tiny micro-stillness most people read as judgment without knowing they're reading it.",
+                },
+                {
+                  cue: 'There are pauses, and the pauses don&apos;t feel awkward',
+                  detail:
+                    'A regulated clinician can sit in three or four seconds of silence without rushing to fill it. The pause is where your nervous system catches up to what you just said — most therapeutic insight actually surfaces in the pause, not the question.',
+                },
+                {
+                  cue: 'Their face has small, real movements',
+                  detail:
+                    'Brow softens at a hard moment, the corner of the mouth lifts at something tender. Not performed; metabolised. A clinician with a frozen face is usually braced. Your body reads the freeze and braces back.',
+                },
+                {
+                  cue: 'Their voice drops at the end of sentences',
+                  detail:
+                    'A grounded vocal pattern lands downward. A dysregulated one lifts upward — every statement subtly framed as a question, asking for reassurance from you. The downward landing is what tells your system they can hold what you are saying.',
+                },
+                {
+                  cue: 'They notice your body before they notice your words',
+                  detail:
+                    '"You shifted when you said that" — said quietly, without making it a confrontation. That kind of noticing only comes from a clinician who has the bandwidth to track somebody else&apos;s body, which only happens when their own is settled.',
+                },
+              ].map((c) => (
+                <div
+                  key={c.cue}
+                  className="rounded-xl bg-white border border-black/5 shadow-sm p-5 lg:p-6"
+                >
+                  <p
+                    className="font-semibold text-foreground"
+                    dangerouslySetInnerHTML={{ __html: c.cue }}
+                  />
+                  <p
+                    className="text-sm text-foreground/70 leading-relaxed mt-1.5"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {c.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              None of this is on the intake checklist and none of it is in
+              the treatment plan. But if you have ever left a session and
+              thought &quot;something landed today that didn&apos;t land
+              before&quot; — these are usually the variables that changed.
+              They are also why the difference between a regulated clinician
+              and a competent-but-braced clinician shows up in outcomes the
+              insurance companies eventually notice and the modality
+              researchers can&apos;t quite explain.
+            </p>
+          </section>
+
           {/* CTA — kept here so the page never feels stub-y. */}
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
