@@ -68,6 +68,17 @@ export const EPISODES: Episode[] = [
     image: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=1200&q=80',
     imageAlt: "A regulated therapist sitting calmly across from a client",
   },
+  {
+    number: 5,
+    slug: 'salutogenic-not-pathological',
+    title: "Salutogenic, Not Pathological: Rebuilding What's Right Instead of Chasing What's Wrong",
+    blurb:
+      "The DSM mindset says you are what's wrong with you. The salutogenic frame — built on Rhoton & Gentry's work — says you are what's underneath, still intact, waiting to surface. Why self-leadership beats symptom management for 5-year outcomes.",
+    publishedAt: '2026-04-26',
+    publishedDisplay: 'April 26, 2026',
+    image: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200&q=80',
+    imageAlt: 'A wide horizon at first light — building toward something, not chasing what is broken',
+  },
 ];
 
 /** Newest-first — drives the landing page's "latest" surfacing. */
