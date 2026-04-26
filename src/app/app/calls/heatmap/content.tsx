@@ -354,7 +354,7 @@ export default function CallsHeatmapContent() {
     setTooltip((t) => ({ ...t, visible: false }));
   }
 
-  const weekdayLabels = ['Mon', '', 'Wed', '', 'Fri', '', ''];
+  const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
     <div className="p-4 sm:p-6 lg:p-10">
