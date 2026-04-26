@@ -132,6 +132,86 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 3: The salutogenic mindset ────────────────────── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The Older Frame
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              The salutogenic mindset: you are what&apos;s underneath, still intact
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Salutogenesis is a word the medical sociologist Aaron Antonovsky
+              coined in the late 1970s, and it has aged better than most of
+              the addiction theory that surrounds it. The pathological
+              question is &quot;What makes people sick?&quot; The salutogenic
+              question is the inverse — &quot;What keeps people well, and
+              how do we build more of it?&quot; The two frames seem like
+              flip sides of the same coin. They aren&apos;t. They produce
+              entirely different programs.
+            </p>
+
+            <p
+              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Underneath the symptoms a person walks in with — the using,
+              the avoidance, the dysregulation, the survival behaviors that
+              have been coded as a disorder — there is, almost always, a
+              part of the person that is still intact. Curious. Capable.
+              Already tired of the way things are. The salutogenic frame
+              treats that intact part as the actual client. The symptoms
+              are real, and they get attended to. But they are not the
+              center of the work. The center of the work is making the
+              conditions under which the intact part can take the wheel.
+            </p>
+
+            <div className="mt-10 rounded-2xl bg-emerald-50/40 border border-emerald-200/60 p-6 lg:p-8">
+              <p
+                className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-700 mb-3"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                What the salutogenic frame quietly teaches
+              </p>
+              <ul className="space-y-3 text-sm lg:text-base text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                {[
+                  'Your identity is what is underneath the symptom — the steady part that has watched all of this happen and never lost the plot. The symptom is something you have, not something you are.',
+                  'Recovery is the presence of a life you would not trade. Success is measured in capacity gained: trust, agency, relationships, work that means something, the ability to sit inside discomfort without dissolving.',
+                  'Coherence is the strategy, not vigilance. Antonovsky called the lever a "sense of coherence" — the felt sense that your life is comprehensible, manageable, and meaningful. Build that, and the wellness lasts on its own.',
+                  'Authority is repatriated. The clinician is a guide and a holder; the map of your wellness lives in you and is reclaimed in stages over the course of treatment.',
+                  'The story keeps going long after symptoms quiet. The hard, productive years are the ones after acute distress drops — when self-leadership either gets practiced into permanence or quietly atrophies. The program is responsible for that bridge.',
+                ].map((line) => (
+                  <li key={line} className="flex gap-2.5">
+                    <span className="text-emerald-600 shrink-0">●</span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The work in our program is salutogenic in this specific sense:
+              we do not skip the diagnosis, we do not pretend symptoms
+              don&apos;t need clinical attention, and we do not romanticise
+              suffering as something noble to leave alone. We treat what
+              needs treating. We just don&apos;t organise the program around
+              the diagnosis. We organise it around the part of you that
+              isn&apos;t the diagnosis, and we spend the bulk of treatment
+              giving that part repetitions in the open.
+            </p>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
