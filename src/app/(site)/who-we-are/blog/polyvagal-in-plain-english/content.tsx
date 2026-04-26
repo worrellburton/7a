@@ -713,6 +713,113 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 8: Two questions to ask mid-craving ───────────── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The Practical Takeaway
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Two questions to ask in the middle of a craving
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              You don&apos;t need to remember any of the vocabulary in
+              this article in the moment something hard is happening.
+              You need two questions, simple enough that you can ask
+              them while your hands are shaking or while you&apos;re
+              staring at a wall in dorsal. Run them in order. They
+              are designed to give you a usable answer in about ten
+              seconds.
+            </p>
+
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Question 1 */}
+              <div className="rounded-2xl bg-foreground text-white p-6 lg:p-8 shadow-[0_20px_60px_-30px_rgba(60,48,42,0.5)]">
+                <p
+                  className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary/80 mb-3"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Question 1
+                </p>
+                <p className="text-xl lg:text-2xl font-bold leading-snug mb-4">
+                  Is my body up or down right now?
+                </p>
+                <p
+                  className="text-sm text-white/75 leading-relaxed"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Don&apos;t overthink it. Notice the obvious. Heart
+                  pounding, jaw tight, mind racing, can&apos;t sit
+                  still — that&apos;s up. Heavy, slow, foggy, far
+                  away, watching from behind your eyes — that&apos;s
+                  down. If you genuinely can&apos;t tell, the answer
+                  is almost always down. Up is rarely subtle.
+                </p>
+                <p
+                  className="mt-5 text-[11px] uppercase tracking-wider text-white/50"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  → If up: sympathetic. If down: dorsal.
+                </p>
+              </div>
+
+              {/* Question 2 */}
+              <div className="rounded-2xl bg-foreground text-white p-6 lg:p-8 shadow-[0_20px_60px_-30px_rgba(60,48,42,0.5)]">
+                <p
+                  className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary/80 mb-3"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Question 2
+                </p>
+                <p className="text-xl lg:text-2xl font-bold leading-snug mb-4">
+                  What does my body need to spend, or to find?
+                </p>
+                <p
+                  className="text-sm text-white/75 leading-relaxed"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  If you&apos;re up, you need to <span className="text-white font-semibold">spend</span>{' '}
+                  the energy that&apos;s already running — walk fast,
+                  lift, scrub, shake, get the activation out before
+                  you reason. If you&apos;re down, you need to{' '}
+                  <span className="text-white font-semibold">find</span>{' '}
+                  some — cold water on the face, a real human voice,
+                  ten minutes outside in actual light. Then, and only
+                  then, the next decision becomes a thing you can
+                  actually make.
+                </p>
+                <p
+                  className="mt-5 text-[11px] uppercase tracking-wider text-white/50"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  → Match the action to the state, not the urge.
+                </p>
+              </div>
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              That&apos;s it. <span className="font-semibold">Up or down? Spend or find?</span>{' '}
+              Two questions, ten seconds, and you have a working
+              answer about what your physiology is actually asking
+              for. Not a perfect one — your body will sometimes
+              surprise you, and over months of practice the answers
+              become more subtle. But for the situation you&apos;re
+              in right now, with a craving in front of you and an
+              article&apos;s worth of theory you don&apos;t feel
+              like reciting, those two are enough.
+            </p>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
