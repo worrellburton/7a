@@ -7,8 +7,17 @@ import { EPISODES_BY_NUMBER, episodeHref } from '@/lib/episodes';
 const CURRENT_SLUG = 'salutogenic-not-pathological';
 
 // Episode 5 — Salutogenic, Not Pathological.
-// Phase 1: scaffold (hero + intro + admissions CTA placeholder).
-// Phases 2-9 fill in the body sections; Phase 10 polishes SEO.
+//
+// Section order (top → bottom):
+//   1. Hero + intro
+//   2. The Dominant Frame — the DSM mindset
+//   3. The Older Frame — the salutogenic mindset
+//   4. The Shift, Side-by-Side — pathology vs salutogenesis comparison
+//   5. The Five-Year View — why self-leadership beats symptom management
+//   6. The Active Ingredients — three Rhoton/Gentry concepts our day runs on
+//   7. If This Sounds Like You — audience callout (dark panel)
+//   8. On the Ground — how this looks on a Tuesday at Seven Arrows
+//   9. Continue the Series + admissions CTA
 
 export default function PageContent() {
   return (
