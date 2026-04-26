@@ -563,6 +563,84 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 7: Audience callout — for anyone who's felt worse after therapy ── */}
+
+          <section className="mt-16">
+            <div className="rounded-2xl bg-foreground text-white p-8 lg:p-10 shadow-[0_20px_60px_-20px_rgba(60,48,42,0.5)]">
+              <p
+                className="text-xs font-semibold tracking-[0.22em] uppercase text-primary/80 mb-3"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                If This Sounds Like You
+              </p>
+              <h2 className="text-2xl lg:text-3xl font-bold mb-5">
+                For anyone who&apos;s felt worse after therapy and couldn&apos;t articulate why
+              </h2>
+
+              <p
+                className="text-white/85 leading-relaxed text-base lg:text-lg"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                If you&apos;ve sat across from a credentialed clinician,
+                described something honest, and walked out feeling more
+                isolated, more wound up, or quietly ashamed of yourself for
+                &quot;not connecting&quot; — this episode is for you. The
+                instinct most people have is to assume the failure was
+                theirs. They were too closed off. They didn&apos;t do the
+                homework. They picked the wrong modality. The therapeutic
+                relationship gets framed as something the client is supposed
+                to earn.
+              </p>
+
+              <p
+                className="mt-5 text-white/85 leading-relaxed text-base lg:text-lg"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                It&apos;s not. The room is the clinician&apos;s
+                responsibility. Whether your nervous system can drop into
+                the work is the variable they&apos;re paid to manage, and a
+                lot of the &quot;therapy didn&apos;t work for me&quot;
+                stories you&apos;ve heard — your own included — are actually
+                stories about a clinician who wasn&apos;t holding their own
+                regulation. You weren&apos;t too much. You weren&apos;t too
+                guarded. You were reading the room accurately, and the
+                accurate read was that the room was unsafe.
+              </p>
+
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  "You&apos;ve quietly cycled through 3+ therapists in 5 years and don&apos;t know why none of them stuck.",
+                  "You leave sessions managing the therapist&apos;s feelings instead of your own.",
+                  "You&apos;ve been told you&apos;re &quot;treatment resistant&quot; or &quot;not ready to do the work.&quot;",
+                  "You feel calmer talking to a friend than to your licensed clinician — and you&apos;ve stopped questioning that.",
+                ].map((s) => (
+                  <div
+                    key={s}
+                    className="flex gap-3 items-start rounded-xl bg-white/5 border border-white/10 p-4"
+                  >
+                    <span className="text-primary text-lg leading-none mt-0.5">•</span>
+                    <p
+                      className="text-sm text-white/80 leading-relaxed"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      dangerouslySetInnerHTML={{ __html: s }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <p
+                className="mt-8 text-white/70 leading-relaxed text-sm lg:text-base"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                If two or more of those land — that is meaningful information
+                about the rooms you&apos;ve been in, not about you. It also
+                doesn&apos;t mean therapy &quot;doesn&apos;t work.&quot;
+                It means the variable that matters most has been the wrong
+                one in your case. That variable can be different next time.
+              </p>
+            </div>
+          </section>
+
           {/* CTA — kept here so the page never feels stub-y. */}
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
