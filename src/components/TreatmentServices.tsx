@@ -10,51 +10,51 @@ const services = [
   {
     title: 'Residential Inpatient',
     href: '/treatment/residential-inpatient',
-    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776855988197-mah7icy291-twin-beds-southwest-guest-room.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1777067193683-8nc4pns8cot-twin-beds-southwest-guest-room.webp',
     description: '30–90 day residential programs',
   },
   {
     title: 'Alumni & Aftercare',
     href: '/treatment/alumni-aftercare',
-    image: '/images/group-sunset-desert.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776856057813-r76m4abqjxs-clients-watching-desert-sunset-tipi.jpg',
     description: 'Lifelong recovery support',
   },
   // Clinical approach
   {
     title: 'Trauma Treatment',
     href: '/our-program/trauma-treatment',
-    image: '/images/equine-therapy-portrait.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776856127673-47motff4wza-equine-therapy-woman-with-white-horse.jpg',
     description: 'TraumAddiction™ — addressing root causes',
   },
   {
     title: 'Evidence-Based Treatment',
     href: '/our-program/evidence-based',
-    image: '/images/common-area-living-room.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776856134632-iinocd9qgo-southwestern-lounge-with-fireplace-and-bison-mount.jpg',
     description: 'CBT · DBT · EMDR · ART · IFS',
   },
   {
     title: 'Holistic & Indigenous',
     href: '/our-program/holistic-approaches',
-    image: '/images/sound-healing-session.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776784036673-0tf6a2kkl8of-sound-bath-practitioner-with-crystal-bowls-and-frame-drum.jpg',
     description: 'Yoga, sweat lodge, sound, ceremony',
   },
   {
     title: 'Equine-Assisted Psychotherapy',
     href: '/our-program/equine-assisted',
-    image: '/images/horses-grazing.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776784105327-8wdbioul7h8-two-horses-grazing-at-sunrise-with-dog.jpg',
     description: 'EAP for trauma & recovery',
   },
   // Whole person
   {
     title: 'Family Program',
     href: '/our-program/family-program',
-    image: '/images/embrace-connection.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776784097231-vyqs9v4w6v-women-embracing-at-dusk-outdoor-gathering.jpg',
     description: 'Healing the whole family system',
   },
   {
     title: 'Who We Help',
     href: '/our-program/who-we-help',
-    image: '/images/group-gathering-pavilion.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776784112262-mvr2yfsp2f-group-gathering-under-ramada-at-dusk.jpg',
     description: 'Adults 18+ seeking lasting recovery',
   },
 ];
