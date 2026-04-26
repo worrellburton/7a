@@ -139,6 +139,15 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M8 13h5" />
     </svg>
   ),
+  // Landing page editor — "play" triangle inside a browser-frame
+  // outline reads as "video timeline that lives on the public site".
+  '/app/landing': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="14" rx="2" />
+      <path d="M3 8h18" />
+      <path d="M10 11.5l4 2.5-4 2.5z" fill="currentColor" stroke="none" />
+    </svg>
+  ),
   '/app/team': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
