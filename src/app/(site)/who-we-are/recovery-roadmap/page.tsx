@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 
 import PageHero from '@/components/PageHero';
 import Link from 'next/link';
+import { EPISODES_BY_NUMBER, episodeHref } from '@/lib/episodes';
 
 export default function RecoveryRoadmapPage() {
   return (
@@ -36,133 +37,60 @@ export default function RecoveryRoadmapPage() {
         ]}
       />
 
-      {/* Series Grid */}
+      {/* Series Grid — sourced from src/lib/episodes.ts so a new
+          entry there auto-appears here in chronological order. */}
       <section className="py-16 lg:py-24 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-
-          {/* Episode 1 — Published */}
-          <Link
-            href="/who-we-are/blog/when-drinking-stops-working"
-            className="flex flex-col md:flex-row bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group no-underline mb-8"
-          >
-            <div className="relative md:w-80 shrink-0">
-              <img src="/images/resident-reading-window.jpg" alt="When Drinking Stops Working" className="h-56 md:h-full w-full object-cover" loading="lazy" />
-              <div className="absolute top-4 left-4 bg-primary text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md" style={{ fontFamily: 'var(--font-body)' }}>
-                Episode 1
-              </div>
-            </div>
-            <div className="p-6 lg:p-8 flex flex-col justify-center">
-              <div className="flex items-center gap-3 mb-3">
-                <span
-                  className="text-primary text-xs font-semibold uppercase tracking-wider"
+          {EPISODES_BY_NUMBER.map((ep) => (
+            <Link
+              key={ep.slug}
+              href={episodeHref(ep.slug)}
+              className="flex flex-col md:flex-row bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group no-underline mb-8"
+            >
+              <div className="relative md:w-80 shrink-0">
+                <img
+                  src={ep.image}
+                  alt={ep.imageAlt}
+                  className="h-56 md:h-full w-full object-cover"
+                  loading="lazy"
+                />
+                <div
+                  className="absolute top-4 left-4 bg-primary text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  Recovery Roadmap
-                </span>
-                <span className="text-foreground/40 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
-                  March 24, 2026
-                </span>
+                  Episode {ep.number}
+                </div>
               </div>
-              <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 group-hover:text-primary transition-colors">
-                When Drinking Stops Working: Recognizing the Signs of Addiction
-              </h3>
-              <p
-                className="text-foreground/70 leading-relaxed text-sm mb-4"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                A compassionate guide to understanding when substance use has crossed from choice to compulsion — the first step on the Recovery Roadmap. Featuring interactive self-assessment tools, the neuroscience of addiction, and expert insight from the Seven Arrows clinical team.
-              </p>
-              <span
-                className="inline-block text-primary font-semibold text-sm tracking-wide uppercase"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Read Episode 1 &rarr;
-              </span>
-            </div>
-          </Link>
-
-          {/* Episode 2 — Published */}
-          <Link
-            href="/who-we-are/blog/what-happens-first-week"
-            className="flex flex-col md:flex-row bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group no-underline mb-8"
-          >
-            <div className="relative md:w-80 shrink-0">
-              <img src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800&q=80" alt="What Happens When You Walk Through the Door" className="h-56 md:h-full w-full object-cover" loading="lazy" />
-              <div className="absolute top-4 left-4 bg-primary text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md" style={{ fontFamily: 'var(--font-body)' }}>
-                Episode 2
-              </div>
-            </div>
-            <div className="p-6 lg:p-8 flex flex-col justify-center">
-              <div className="flex items-center gap-3 mb-3">
-                <span
-                  className="text-primary text-xs font-semibold uppercase tracking-wider"
+              <div className="p-6 lg:p-8 flex flex-col justify-center">
+                <div className="flex items-center gap-3 mb-3">
+                  <span
+                    className="text-primary text-xs font-semibold uppercase tracking-wider"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Recovery Roadmap
+                  </span>
+                  <span className="text-foreground/40 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
+                    {ep.publishedDisplay}
+                  </span>
+                </div>
+                <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 group-hover:text-primary transition-colors">
+                  {ep.title}
+                </h3>
+                <p
+                  className="text-foreground/70 leading-relaxed text-sm mb-4"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  Recovery Roadmap
-                </span>
-                <span className="text-foreground/40 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
-                  March 24, 2026
-                </span>
-              </div>
-              <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 group-hover:text-primary transition-colors">
-                What Happens When You Walk Through the Door: Your First Week in Treatment
-              </h3>
-              <p
-                className="text-foreground/70 leading-relaxed text-sm mb-4"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Your first week in treatment, demystified. A day-by-day investigative look at what really happens when you arrive — written for anyone who is afraid to make the call.
-              </p>
-              <span
-                className="inline-block text-primary font-semibold text-sm tracking-wide uppercase"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Read Episode 2 &rarr;
-              </span>
-            </div>
-          </Link>
-
-          {/* Episode 3 — Published */}
-          <Link
-            href="/who-we-are/blog/what-actually-happens-in-equine-therapy"
-            className="flex flex-col md:flex-row bg-warm-bg rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group no-underline mb-8"
-          >
-            <div className="relative md:w-80 shrink-0">
-              <img src="/images/equine-therapy-portrait.jpg" alt="What Actually Happens in Equine Therapy" className="h-56 md:h-full w-full object-cover" loading="lazy" />
-              <div className="absolute top-4 left-4 bg-primary text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md" style={{ fontFamily: 'var(--font-body)' }}>
-                Episode 3
-              </div>
-            </div>
-            <div className="p-6 lg:p-8 flex flex-col justify-center">
-              <div className="flex items-center gap-3 mb-3">
+                  {ep.blurb}
+                </p>
                 <span
-                  className="text-primary text-xs font-semibold uppercase tracking-wider"
+                  className="inline-block text-primary font-semibold text-sm tracking-wide uppercase"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  Recovery Roadmap
-                </span>
-                <span className="text-foreground/40 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
-                  April 24, 2026
+                  Read Episode {ep.number} &rarr;
                 </span>
               </div>
-              <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 group-hover:text-primary transition-colors">
-                What Actually Happens in Equine Therapy
-              </h3>
-              <p
-                className="text-foreground/70 leading-relaxed text-sm mb-4"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                The honest, minute-by-minute version of equine therapy &mdash; no marketing gloss, no horse-whispering mystique. Just what really happens in the arena and why it reaches places talk therapy sometimes cannot.
-              </p>
-              <span
-                className="inline-block text-primary font-semibold text-sm tracking-wide uppercase"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Read Episode 3 &rarr;
-              </span>
-            </div>
-          </Link>
-
+            </Link>
+          ))}
         </div>
       </section>
 
