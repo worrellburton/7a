@@ -79,7 +79,10 @@ export default function HomeHorsesRow() {
           {rideableCount !== horses.length ? ` · ${rideableCount} rideable` : ''}
         </span>
       </div>
-      <div className="flex items-center justify-center gap-3 flex-wrap">
+      {/* Horses live on a single horizontal row regardless of count.
+          When the row is wider than the viewport it scrolls instead
+          of wrapping to a second line. */}
+      <div className="flex items-center justify-start gap-3 flex-nowrap overflow-x-auto -mx-4 px-4 sm:-mx-6 sm:px-6 pb-1">
         {horses.map((h) => {
           const lastWeight = lastWeightFor(h.id);
           const lastFeed = lastFeedFor(h.id);
@@ -87,7 +90,7 @@ export default function HomeHorsesRow() {
             <button
               key={h.id}
               onClick={() => router.push(`/app/equine/${h.id}`)}
-              className="relative group"
+              className="relative group shrink-0"
               title={h.name}
             >
               {h.image_url ? (
