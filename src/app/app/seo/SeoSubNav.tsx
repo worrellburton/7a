@@ -14,6 +14,7 @@ import { usePathname } from 'next/navigation';
 const TABS: { href: string; label: string; hint?: string }[] = [
   { href: '/app/seo', label: 'Overview', hint: 'Search Console summary' },
   { href: '/app/seo/backlinks', label: 'Backlinks', hint: 'Semrush link profile' },
+  { href: '/app/seo/refdomains', label: 'Ref. domains', hint: 'Authority Score histogram' },
   { href: '/app/seo/redirects', label: 'Redirects', hint: '301/302 manager' },
   { href: '/app/seo/audit', label: 'Site audit', hint: 'On-page issues' },
 ];
