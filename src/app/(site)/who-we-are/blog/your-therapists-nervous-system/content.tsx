@@ -152,6 +152,111 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 3: Why we make our clinicians practice breathwork ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Inside the Practice
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Why we make our clinicians practice breathwork between sessions
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The two-minute walk between rooms is not a break. It is a
+              transition. A clinician who finishes a difficult trauma session
+              and walks straight into a new intake is carrying the previous
+              client&apos;s nervous-system residue into the next encounter —
+              and the next client&apos;s body will read it as theirs. Most
+              programs treat this as inevitable, an unavoidable cost of a
+              full caseload. We treat it as a clinical hazard with a
+              protocol.
+            </p>
+
+            <p
+              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Every Seven Arrows clinician has a between-session reset they
+              are expected to use. It is not optional and it is not a
+              suggestion. The practice itself is short — usually under three
+              minutes — but the discipline is non-negotiable.
+            </p>
+
+            <div className="mt-10 rounded-2xl bg-warm-bg/50 border border-black/5 p-6 lg:p-8">
+              <h3 className="font-bold text-foreground mb-4">
+                The between-session reset, in order
+              </h3>
+              <ol className="space-y-4">
+                {[
+                  {
+                    step: '1',
+                    title: 'Physically leave the room',
+                    body:
+                      'Step outside, even for thirty seconds. Cold air, sunlight on the face, feet on a different surface. The nervous system uses environment to mark a transition; if every session happens in the same chair without that cue, the previous client is still in the room.',
+                  },
+                  {
+                    step: '2',
+                    title: 'Three rounds of 4-7-8 breathing',
+                    body:
+                      'Inhale through the nose for four counts, hold for seven, exhale through the mouth for eight. The lengthened exhale is the actual mechanism — it engages the vagal brake and pulls heart rate down. Three rounds is the floor; six is better when the previous session was hard.',
+                  },
+                  {
+                    step: '3',
+                    title: 'Body scan, head to toe',
+                    body:
+                      'Where is the residue actually held — jaw, shoulders, gut? Name it silently. The naming itself starts the release; you cannot regulate what you have not noticed.',
+                  },
+                  {
+                    step: '4',
+                    title: 'Set a one-line intention',
+                    body:
+                      'Not a treatment plan. A single sentence about how you want to be in the room with the next person. "Slow." "Curious." "Less interpretation." It anchors the prefrontal cortex without crowding the body out.',
+                  },
+                ].map((s) => (
+                  <li key={s.step} className="flex gap-4">
+                    <span
+                      className="shrink-0 w-8 h-8 rounded-full bg-primary text-white text-sm font-bold inline-flex items-center justify-center"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {s.step}
+                    </span>
+                    <div>
+                      <p className="font-semibold text-foreground">{s.title}</p>
+                      <p
+                        className="text-sm text-foreground/70 leading-relaxed mt-1"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {s.body}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Asked privately, most clinicians will admit this is the part of
+              the day they are most likely to skip when caseloads spike. The
+              honest reason is professional pride: it can feel like an
+              admission of weakness to need three minutes of breathwork to
+              recover from a hard hour. We frame it differently in our team
+              meetings — as the same kind of professional hygiene a surgeon
+              uses when they scrub between cases. You are not being
+              self-indulgent. You are protecting the next person from the
+              residue of the last one.
+            </p>
+          </section>
+
           {/* CTA — kept here so the page never feels stub-y. */}
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
