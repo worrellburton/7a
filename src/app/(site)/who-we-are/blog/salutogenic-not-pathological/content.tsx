@@ -212,6 +212,119 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 4: The shift glyph — pathology vs salutogenesis ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The Shift, Side-by-Side
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              The same person, two frames
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The cleanest way to feel the difference is to take a single
+              person walking into treatment and run them through both
+              frames in parallel. Same intake. Same history. Two
+              fundamentally different programs result.
+            </p>
+
+            <div className="mt-10 grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-4 items-stretch">
+              {/* Pathology side */}
+              <div className="rounded-2xl bg-rose-50/40 border border-rose-200/60 p-6 lg:p-7">
+                <p
+                  className="text-[10px] font-bold uppercase tracking-[0.22em] text-rose-700 mb-4"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Pathology frame
+                </p>
+                <dl className="space-y-4 text-sm text-foreground/80" style={{ fontFamily: 'var(--font-body)' }}>
+                  {[
+                    ['First question', '"What is wrong with you?"'],
+                    ['Center of the work', 'Symptoms, criteria thresholds, diagnoses to suppress.'],
+                    ['Vocabulary', '"Disorder," "deficit," "relapse," "compliance."'],
+                    ['Locus of expertise', "The clinician holds the map. You're the patient inside it."],
+                    ['Definition of progress', 'Fewer symptoms, lower scores, more days clean.'],
+                    ['When it ends', 'When the acute episode is quiet enough to discharge.'],
+                  ].map(([k, v]) => (
+                    <div key={k}>
+                      <dt className="text-[11px] font-bold uppercase tracking-wider text-rose-700/70">{k}</dt>
+                      <dd className="mt-1 leading-relaxed">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+
+              {/* The arrow / shift glyph */}
+              <div className="hidden lg:flex items-center justify-center">
+                <div className="flex flex-col items-center gap-2">
+                  <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12h14" />
+                    <path d="M13 6l6 6-6 6" />
+                  </svg>
+                  <span
+                    className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Shift
+                  </span>
+                </div>
+              </div>
+
+              {/* Mobile-only divider arrow */}
+              <div className="lg:hidden flex items-center justify-center">
+                <svg className="w-8 h-8 text-primary rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14" />
+                  <path d="M13 6l6 6-6 6" />
+                </svg>
+              </div>
+
+              {/* Salutogenic side */}
+              <div className="rounded-2xl bg-emerald-50/40 border border-emerald-200/60 p-6 lg:p-7">
+                <p
+                  className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-700 mb-4"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Salutogenic frame
+                </p>
+                <dl className="space-y-4 text-sm text-foreground/80" style={{ fontFamily: 'var(--font-body)' }}>
+                  {[
+                    ['First question', '"What is still working in you, and how do we build on it?"'],
+                    ['Center of the work', 'The intact part — its capacity, its repetitions, its return to leadership.'],
+                    ['Vocabulary', '"Resource," "coherence," "self-leadership," "resilience."'],
+                    ['Locus of expertise', "You hold the map; the clinician helps you read it more clearly."],
+                    ['Definition of progress', 'Capacity gained: trust, agency, work, relationships, tolerance for discomfort.'],
+                    ['When it ends', "When the part of you that runs your life is the part you'd actually want running it."],
+                  ].map(([k, v]) => (
+                    <div key={k}>
+                      <dt className="text-[11px] font-bold uppercase tracking-wider text-emerald-700/70">{k}</dt>
+                      <dd className="mt-1 leading-relaxed">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              These two columns describe two different people leaving
+              treatment. The pathology-frame graduate is symptom-quiet,
+              externally referenced, and managing. The salutogenic-frame
+              graduate is symptom-quiet, self-led, and building. Both look
+              the same on a 30-day discharge survey. They diverge sharply
+              somewhere around month nine, and they look like entirely
+              different lives by year five.
+            </p>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
