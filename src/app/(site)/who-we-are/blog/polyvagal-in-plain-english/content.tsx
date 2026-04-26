@@ -51,7 +51,98 @@ export default function PageContent() {
             choice and being run by one.
           </p>
 
-          {/* ── Future phases land here, between the intro and the CTA ── */}
+          {/* ── Phase 2: The promise — vocabulary you can use mid-craving ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Why This Matters
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Naming the state changes what you can do about it
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Every craving, every flare of anger, every quiet collapse
+              into the couch is happening inside one of three nervous-
+              system states. They are not moods. They are not personality
+              flaws. They are physiological configurations your body shifts
+              between many times an hour, mostly without telling you. The
+              shift drives the urge. The urge then convinces you it&apos;s a
+              decision.
+            </p>
+
+            <p
+              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The single most useful thing polyvagal theory gives you is a
+              short vocabulary for those configurations. Once you can name
+              them — even badly, even just to yourself — you&apos;ve
+              inserted a half-second of awareness between the body&apos;s
+              shift and the behavior that usually follows. That half-second
+              is where most of recovery actually happens.
+            </p>
+
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[
+                {
+                  label: 'Ventral',
+                  hint: 'Curious. Connected. Grounded.',
+                  tone: 'bg-emerald-50/60 border-emerald-200/70 text-emerald-900',
+                  dot: 'bg-emerald-500',
+                },
+                {
+                  label: 'Sympathetic',
+                  hint: 'Urgent. Jaw-clenched. Fight-or-flight.',
+                  tone: 'bg-amber-50/60 border-amber-200/70 text-amber-900',
+                  dot: 'bg-amber-500',
+                },
+                {
+                  label: 'Dorsal',
+                  hint: 'Numb. Foggy. Checked out.',
+                  tone: 'bg-sky-50/60 border-sky-200/70 text-sky-900',
+                  dot: 'bg-sky-500',
+                },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  className={`rounded-xl border p-5 ${s.tone}`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className={`w-2 h-2 rounded-full ${s.dot}`} aria-hidden />
+                    <p
+                      className="text-[11px] font-bold uppercase tracking-[0.22em]"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {s.label}
+                    </p>
+                  </div>
+                  <p
+                    className="text-sm leading-relaxed font-semibold"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {s.hint}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              That&apos;s the whole map. Three states. The next three
+              sections walk through each one in detail — what it feels
+              like from the inside, what it looks like from the outside,
+              and the small tell-tales that mean you&apos;re in it.
+            </p>
+          </section>
 
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
