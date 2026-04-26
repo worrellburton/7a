@@ -917,7 +917,7 @@ const STATUS_CYCLE: Record<Status, Status> = {
   skip: 'todo',
 };
 
-function useStatusMap(): [Record<string, Status>, (id: string) => void] {
+function useStatusMap(): [Record<string, Status>, (id: string) => void, (id: string, value: Status) => void] {
   const [map, setMap] = useState<Record<string, Status>>({});
 
   useEffect(() => {
@@ -930,6 +930,14 @@ function useStatusMap(): [Record<string, Status>, (id: string) => void] {
     }
   }, []);
 
+  const persist = (updated: Record<string, Status>) => {
+    try {
+      window.localStorage.setItem(STATUS_KEY, JSON.stringify(updated));
+    } catch {
+      /* quota — non-fatal. */
+    }
+  };
+
   const cycle = (id: string) => {
     setMap((prev) => {
       const current = prev[id] ?? 'todo';
@@ -938,8 +946,57 @@ function useStatusMap(): [Record<string, Status>, (id: string) => void] {
       const updated = { ...prev };
       if (next === 'todo') delete updated[id];
       else updated[id] = next;
+      persist(updated);
+      return updated;
+    });
+  };
+
+  const setStatus = (id: string, value: Status) => {
+    setMap((prev) => {
+      const updated = { ...prev };
+      if (value === 'todo') delete updated[id];
+      else updated[id] = value;
+      persist(updated);
+      return updated;
+    });
+  };
+
+  return [map, cycle, setStatus];
+}
+
+// ── Live-link tracking ─────────────────────────────────────────────
+//
+// Once a directory listing is up, the team pastes the public URL
+// here. Stored separately from status so the existing localStorage
+// state stays compatible. The presence of a link is what colors the
+// row green; missing means red.
+
+const LINKS_KEY = 'sa-seo-directories:links';
+
+function useLinkMap(): [
+  Record<string, string>,
+  (id: string, value: string) => void,
+] {
+  const [map, setMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(LINKS_KEY);
+      if (raw) setMap(JSON.parse(raw));
+    } catch {
+      /* corrupt — ignore. */
+    }
+  }, []);
+
+  const setLink = (id: string, value: string) => {
+    setMap((prev) => {
+      const trimmed = value.trim();
+      const updated = { ...prev };
+      if (!trimmed) delete updated[id];
+      else updated[id] = trimmed;
       try {
-        window.localStorage.setItem(STATUS_KEY, JSON.stringify(updated));
+        window.localStorage.setItem(LINKS_KEY, JSON.stringify(updated));
       } catch {
         /* quota — non-fatal. */
       }
@@ -947,7 +1004,7 @@ function useStatusMap(): [Record<string, Status>, (id: string) => void] {
     });
   };
 
-  return [map, cycle];
+  return [map, setLink];
 }
 
 // ── UI ─────────────────────────────────────────────────────────────
@@ -959,10 +1016,21 @@ const PRIORITY_TONE: Record<Directory['priority'], string> = {
 };
 
 export default function DirectoriesContent() {
-  const [statusMap, cycleStatus] = useStatusMap();
+  const [statusMap, cycleStatus, setStatus] = useStatusMap();
+  const [linkMap, setLink] = useLinkMap();
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<DirectoryCategory | 'all'>('all');
   const [hideListed, setHideListed] = useState(false);
+
+  // Saving a live URL implies "we got listed there" — flip the
+  // status to listed automatically. Clearing the URL backs the
+  // status down to "to do" so red/empty rows stay honest.
+  const saveLink = (id: string, value: string) => {
+    const trimmed = value.trim();
+    setLink(id, trimmed);
+    if (trimmed) setStatus(id, 'listed');
+    else if (statusMap[id] === 'listed') setStatus(id, 'todo');
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1084,14 +1152,26 @@ export default function DirectoriesContent() {
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10">Directory</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10">Why</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-24">Priority</th>
+                    <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-64">Live link</th>
                     <th className="text-right px-4 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black/5">
                   {rows.map((d) => {
                     const status = statusMap[d.id] ?? 'todo';
+                    const link = linkMap[d.id] ?? '';
+                    // Row tint is the user's most-requested visual:
+                    // red if no live link recorded, green once one is.
+                    // "skip" overrides — we don't want to nag about
+                    // directories the team explicitly chose to skip.
+                    const tintClass =
+                      status === 'skip'
+                        ? ''
+                        : link
+                          ? 'bg-emerald-50/60 hover:bg-emerald-50'
+                          : 'bg-rose-50/40 hover:bg-rose-50/60';
                     return (
-                      <tr key={d.id} className="align-top">
+                      <tr key={d.id} className={`align-top transition-colors ${tintClass}`}>
                         <td className="px-4 py-3">
                           <a
                             href={d.url}
@@ -1110,6 +1190,12 @@ export default function DirectoriesContent() {
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border ${PRIORITY_TONE[d.priority]}`}>
                             {d.priority}
                           </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <LinkCell
+                            value={link}
+                            onSave={(v) => saveLink(d.id, v)}
+                          />
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button
@@ -1131,6 +1217,89 @@ export default function DirectoriesContent() {
         );
       })}
     </div>
+  );
+}
+
+// Inline editor for the public URL of a finished listing. Click the
+// chip to enter edit mode, paste in the link, Enter or blur to save,
+// Esc to cancel. Empty input on save clears the link.
+function LinkCell({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [value, editing]);
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="url"
+        value={draft}
+        placeholder="https://…"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { setEditing(false); onSave(draft); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            setEditing(false);
+            onSave(draft);
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setEditing(false);
+            setDraft(value);
+          }
+        }}
+        className="w-full rounded-md border border-black/10 bg-white px-2 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+      />
+    );
+  }
+
+  if (value) {
+    return (
+      <div className="flex items-center gap-2 max-w-full">
+        <a
+          href={value}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={value}
+          className="text-[12px] font-medium text-emerald-700 hover:text-emerald-800 truncate max-w-[180px]"
+        >
+          {value.replace(/^https?:\/\//, '')}
+        </a>
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          title="Edit link"
+          aria-label="Edit live link"
+          className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-foreground/45 hover:text-foreground/80 hover:bg-black/5"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5h-7a2 2 0 00-2 2v13a2 2 0 002 2h13a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="inline-flex items-center gap-1 rounded-md border border-rose-300/60 bg-white px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
+    >
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+      </svg>
+      Add link
+    </button>
   );
 }
 
