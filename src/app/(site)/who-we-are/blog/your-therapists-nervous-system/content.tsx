@@ -2,6 +2,9 @@
 
 import Link from 'next/link';
 import PageHero from '@/components/PageHero';
+import { EPISODES_BY_NUMBER, episodeHref } from '@/lib/episodes';
+
+const CURRENT_SLUG = 'your-therapists-nervous-system';
 
 // Episode 4 — The Miracle Intervention Is Your Therapist's Nervous System.
 //
@@ -727,36 +730,104 @@ export default function PageContent() {
             </p>
           </section>
 
-          {/* CTA — kept here so the page never feels stub-y. */}
-          <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
+          {/* ── Phase 9: More from the series + admissions CTA ────── */}
+
+          <section className="mt-16">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Continue the Series
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4">
-              The rest of the Recovery Roadmap
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-6">
+              More from the Recovery Roadmap
             </h2>
-            <p
-              className="text-foreground/65 leading-relaxed max-w-2xl mx-auto mb-6"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              Honest reporting from the inside of a clinical team — the
-              science of addiction, what your first week of treatment really
-              looks like, and what makes the difference between a program
-              that holds and one that doesn&apos;t.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/who-we-are/recovery-roadmap"
-                className="btn-primary"
-              >
-                See all episodes
-              </Link>
-              <a href="tel:8669964308" className="btn-outline">
-                Talk to admissions · (866) 996-4308
-              </a>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {EPISODES_BY_NUMBER.filter((ep) => ep.slug !== CURRENT_SLUG).map((ep) => (
+                <Link
+                  key={ep.slug}
+                  href={episodeHref(ep.slug)}
+                  className="group block rounded-xl overflow-hidden bg-white border border-black/5 shadow-sm hover:shadow-[0_8px_30px_rgba(160,82,45,0.18)] hover:-translate-y-1 transition-all duration-300 no-underline"
+                >
+                  <div className="relative">
+                    <img
+                      src={ep.image}
+                      alt={ep.imageAlt}
+                      className="h-40 w-full object-cover"
+                      loading="lazy"
+                    />
+                    <div
+                      className="absolute top-3 left-3 bg-primary text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Episode {ep.number}
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    <p
+                      className="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1.5"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {ep.publishedDisplay}
+                    </p>
+                    <h3 className="text-base font-bold text-foreground mb-2 group-hover:text-primary transition-colors leading-snug">
+                      {ep.title}
+                    </h3>
+                    <p
+                      className="text-sm text-foreground/65 leading-relaxed line-clamp-3"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {ep.blurb}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          {/* Admissions CTA */}
+          <div className="mt-12 lg:mt-16 rounded-2xl bg-foreground text-white p-8 lg:p-10">
+            <div className="flex flex-col lg:flex-row gap-8 items-start lg:items-center justify-between">
+              <div className="max-w-xl">
+                <p
+                  className="text-xs font-semibold tracking-[0.22em] uppercase text-primary/80 mb-2"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Looking for a regulated room?
+                </p>
+                <h3 className="text-xl lg:text-2xl font-bold mb-3">
+                  Our admissions line is staffed by humans who do this work themselves.
+                </h3>
+                <p
+                  className="text-white/75 leading-relaxed text-sm lg:text-base"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Call any time, day or night. The first conversation is
+                  confidential, free, and there&apos;s no pressure to commit
+                  to anything — including treatment with us. Sometimes the
+                  most useful thing we do on that call is help you figure
+                  out the right next question to ask any program you&apos;re
+                  considering.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+                <a
+                  href="tel:8669964308"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-white hover:bg-primary/90 transition"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                  (866) 996-4308
+                </a>
+                <Link
+                  href="/admissions"
+                  className="inline-flex items-center justify-center rounded-lg border border-white/30 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10 transition"
+                >
+                  Begin admissions
+                </Link>
+              </div>
             </div>
           </div>
         </div>
