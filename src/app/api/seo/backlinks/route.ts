@@ -163,45 +163,22 @@ export async function POST(req: Request) {
   const target = resolveTarget(req);
 
   try {
-    // Two backlinks fetches: one filtered to dofollow (nofollow=0)
-    // and one to nofollow (nofollow=1). Concatenated they cover all
-    // four filter chips (UGC + Sponsored are subsets of the
-    // nofollow batch since Semrush flags them together inside the
-    // `nofollow` column). Sorted by page_score so the highest-
-    // quality links from each side surface first.
-    const [overview, followRows, nofollowRows, refdomains] = await Promise.all([
+    // One generous batch (200 rows, sorted by recency — Semrush's
+    // proven default for the backlinks endpoint). All four filter
+    // chips read from the same array client-side. With 200 rows
+    // there's normally enough representation across dofollow /
+    // nofollow / UGC / sponsored that no chip renders blank.
+    const [overview, allRows, refdomains] = await Promise.all([
       fetchBacklinksOverview({ target }),
       fetchBacklinks({
         target,
-        limit: 100,
-        sort: 'page_ascore_desc',
-        // Semrush filter syntax: +|column|operator|value
-        // We pass it via the extra escape hatch since the typed
-        // helper exposes it as `display_filter`.
-        // (See semrushFetch.)
-      }).then((rows) =>
-        // Server-side filter for dofollow
-        rows.filter((r) => r.is_follow),
-      ),
-      fetchBacklinks({
-        target,
-        limit: 100,
-        sort: 'page_ascore_desc',
-      }).then((rows) =>
-        rows.filter((r) => r.is_nofollow || r.is_ugc || r.is_sponsored),
-      ),
+        limit: 200,
+        sort: 'last_seen_desc',
+      }),
       fetchRefDomains({ target, limit: 500, sort: 'ascore_desc' }),
     ]);
 
-    // Merge + dedupe by source_url so the snapshot doesn't double-
-    // count any rows the two batches both surfaced.
-    const seen = new Set<string>();
-    const merged: BacklinkRow[] = [];
-    for (const r of [...followRows, ...nofollowRows]) {
-      if (seen.has(r.source_url)) continue;
-      seen.add(r.source_url);
-      merged.push(r);
-    }
+    const merged = allRows;
 
     const payload: SnapshotPayload = {
       target,
