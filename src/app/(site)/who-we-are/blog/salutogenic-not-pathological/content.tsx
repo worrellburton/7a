@@ -549,6 +549,85 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 7: Audience callout — for readers put off by clinical framing ── */}
+
+          <section className="mt-16">
+            <div className="rounded-2xl bg-foreground text-white p-8 lg:p-10 shadow-[0_20px_60px_-20px_rgba(60,48,42,0.5)]">
+              <p
+                className="text-xs font-semibold tracking-[0.22em] uppercase text-primary/80 mb-3"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                If This Sounds Like You
+              </p>
+              <h2 className="text-2xl lg:text-3xl font-bold mb-5">
+                For readers put off by the clinical, pathology framing of most rehab marketing
+              </h2>
+
+              <p
+                className="text-white/85 leading-relaxed text-base lg:text-lg"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                If you&apos;ve looked at treatment websites and felt a quiet
+                aversion you couldn&apos;t quite name — pages full of disease
+                language, dual-diagnosis acronyms, before-and-after images
+                that look like medication ads, &quot;levels of care&quot;
+                charts that make recovery sound like a graded illness —
+                you&apos;ve been reading the pathology frame correctly. The
+                aversion is data. It&apos;s your nervous system noticing
+                that the program is going to talk about you the way the
+                website talks about you.
+              </p>
+
+              <p
+                className="mt-5 text-white/85 leading-relaxed text-base lg:text-lg"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                We get that pushback constantly from a particular kind of
+                person we tend to do well with. They are usually high-
+                functioning by external measures. They have a vocabulary.
+                They&apos;ve read a few books. They are not in denial about
+                what&apos;s happening to them — they are in a different
+                kind of resistance: an unwillingness to let their identity
+                be reduced to a diagnostic label they don&apos;t actually
+                think describes them. The instinct is sound. The diagnosis
+                rarely describes anyone fully. The salutogenic frame
+                doesn&apos;t require it to.
+              </p>
+
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  "You read AA's first chapter and felt the spirit of it but couldn&apos;t make peace with the language about yourself.",
+                  "You&apos;ve been told you&apos;re &quot;in denial&quot; for not embracing a label you simply don&apos;t recognise as the whole story.",
+                  "You suspect something is wrong, but you don&apos;t want to organise the rest of your life around what&apos;s wrong with you.",
+                  "You want a program that takes your suffering seriously without making it the centerpiece of your identity.",
+                ].map((s) => (
+                  <div
+                    key={s}
+                    className="flex gap-3 items-start rounded-xl bg-white/5 border border-white/10 p-4"
+                  >
+                    <span className="text-primary text-lg leading-none mt-0.5">•</span>
+                    <p
+                      className="text-sm text-white/80 leading-relaxed"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      dangerouslySetInnerHTML={{ __html: s }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <p
+                className="mt-8 text-white/70 leading-relaxed text-sm lg:text-base"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                If two or more of those land — you are not difficult, and
+                you are not in denial. You are reading the room, and the
+                room you&apos;ve been shown is the wrong one. The frame that
+                fits you exists. It&apos;s older than the marketing language.
+                It&apos;s what we organise our days around.
+              </p>
+            </div>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
