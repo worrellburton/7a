@@ -65,7 +65,105 @@ const CATEGORY_ORDER: DirectoryCategory[] = [
 
 // Filled across Phases 2-10. Each phase appends ~10 entries with
 // real submission URLs, never placeholders.
-export const DIRECTORIES: Directory[] = [];
+export const DIRECTORIES: Directory[] = [
+  // ── Phase 2: National addiction treatment ───────────────────────
+  {
+    id: 'samhsa-findtreatment',
+    name: 'SAMHSA Treatment Locator',
+    url: 'https://findtreatment.gov/',
+    category: 'national',
+    why: 'Federal directory used by hospitals, EAPs, and 211 referrals. Highest authority listing in the addiction space.',
+    priority: 'high',
+  },
+  {
+    id: 'psychology-today-rehab',
+    name: 'Psychology Today — Treatment Centers',
+    url: 'https://www.psychologytoday.com/us/treatment-rehab',
+    category: 'national',
+    why: 'High-traffic, paid listing. Generates qualified inquiries from people specifically searching for residential care.',
+    priority: 'high',
+  },
+  {
+    id: 'recovery-org',
+    name: 'Recovery.org',
+    url: 'https://www.recovery.org/treatment-centers/',
+    category: 'national',
+    why: 'AAC-owned but lets independent centers claim listings. Decent referral volume from organic search.',
+    priority: 'high',
+  },
+  {
+    id: 'rehab-com',
+    name: 'Rehab.com',
+    url: 'https://www.rehab.com/',
+    category: 'national',
+    why: 'High DA rehab finder with editor-reviewed listings; profile claim is free.',
+    priority: 'high',
+  },
+  {
+    id: 'addiction-center',
+    name: 'AddictionCenter.com',
+    url: 'https://www.addictioncenter.com/treatment/',
+    category: 'national',
+    why: 'Editorial-style directory. Backlinks from category and condition pages help topical authority.',
+    priority: 'high',
+  },
+  {
+    id: 'rehabs-com',
+    name: 'Rehabs.com',
+    url: 'https://www.rehabs.com/',
+    category: 'national',
+    why: 'AAC-owned. Free profile, paid premium. Strong organic visibility for state + condition queries.',
+    priority: 'medium',
+  },
+  {
+    id: 'detox-com',
+    name: 'Detox.com',
+    url: 'https://detox.com/',
+    category: 'national',
+    why: 'Niche directory targeting detox-stage searchers. Useful since we admit people coming off active use.',
+    priority: 'medium',
+  },
+  {
+    id: 'rehabcenter-net',
+    name: 'RehabCenter.net',
+    url: 'https://www.rehabcenter.net/',
+    category: 'national',
+    why: 'Long-running rehab directory with editorial reviews and state landing pages.',
+    priority: 'medium',
+  },
+  {
+    id: 'thefix',
+    name: 'The Fix — Rehab Reviews',
+    url: 'https://www.thefix.com/rehab-reviews',
+    category: 'national',
+    why: 'Trusted recovery-journalism brand. Reviews can drive qualified traffic and earn editorial backlinks.',
+    priority: 'medium',
+  },
+  {
+    id: 'rehabspot',
+    name: 'RehabSpot',
+    url: 'https://www.rehabspot.com/',
+    category: 'national',
+    why: 'Substance-specific landing pages plus state filters. Free claim available.',
+    priority: 'medium',
+  },
+  {
+    id: 'addiction-resource',
+    name: 'AddictionResource.net',
+    url: 'https://www.addictionresource.net/',
+    category: 'national',
+    why: 'Editorial directory with strong organic rankings on state-level rehab queries.',
+    priority: 'medium',
+  },
+  {
+    id: 'ncadd',
+    name: 'NCADD Treatment Search',
+    url: 'https://www.ncadd.org/get-help/find-help',
+    category: 'national',
+    why: 'National Council on Alcoholism and Drug Dependence. Lower traffic but high credibility for the field.',
+    priority: 'low',
+  },
+];
 
 // ── Status tracking ────────────────────────────────────────────────
 
