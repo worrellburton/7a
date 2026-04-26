@@ -346,6 +346,114 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 5: Regulated presence vs performing calm ─────── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The Counterfeit
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Regulated presence vs performing calm
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Performing calm looks identical to regulated presence on the
+              outside for about ninety seconds, which is why it&apos;s so
+              dangerous. The vocabulary is the same. The body language has
+              been studied. The pacing has been rehearsed. But your nervous
+              system is reading something the clinician&apos;s training
+              cannot mask: whether the calm is being held in their body or
+              held over the top of it. Underneath is usually a clinician
+              with their own untreated activation, working very hard to
+              keep it offstage.
+            </p>
+
+            <p
+              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The cost lands on you. A nervous system that is being held
+              shut still leaks — through tight breath, frozen face, a voice
+              that is just slightly too smooth. Your body reads the leak as
+              danger and braces. You walk out tired and a little
+              demoralized and you blame yourself for &quot;not being open
+              enough.&quot; You were open. The room wasn&apos;t.
+            </p>
+
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Regulated */}
+              <div className="rounded-2xl bg-emerald-50/60 border border-emerald-200/70 p-6 lg:p-7">
+                <p
+                  className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-700 mb-3"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Regulated presence
+                </p>
+                <ul className="space-y-3 text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                  {[
+                    'Breath is slow and visible — chest moves, low and steady, even when you say something hard.',
+                    'Pauses are comfortable. They wait three seconds without flinching and the silence does work.',
+                    "Face has small real movements that match what you're saying — brow softens, mouth lifts.",
+                    "Voice lands downward at the end of sentences. They don't need reassurance from you.",
+                    'They notice your body before they notice your words and name it gently.',
+                    'When they don&apos;t know, they say "I don&apos;t know" without scrambling to recover.',
+                  ].map((line) => (
+                    <li key={line} className="flex gap-2">
+                      <span className="text-emerald-600 shrink-0">●</span>
+                      <span dangerouslySetInnerHTML={{ __html: line }} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Performing calm */}
+              <div className="rounded-2xl bg-rose-50/60 border border-rose-200/70 p-6 lg:p-7">
+                <p
+                  className="text-[10px] font-bold uppercase tracking-[0.22em] text-rose-700 mb-3"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Performing calm
+                </p>
+                <ul className="space-y-3 text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                  {[
+                    'Breath is shallow and held high in the chest — they look still because they&apos;ve braced, not because they&apos;ve settled.',
+                    'Silence is filled instantly with the next prompt. The pause never gets to do its job.',
+                    'Face is smooth and almost frozen — the "therapist face." Reads as evaluation, not reception.',
+                    "Voice lifts at the end of sentences. Every statement subtly framed as a question, looking for confirmation.",
+                    'They reach for the technique — a worksheet, a reframe, a script — when the moment actually wanted them to stay.',
+                    'When you say something hard, the response is fast and clean. Too fast. The room moves on before you have.',
+                  ].map((line) => (
+                    <li key={line} className="flex gap-2">
+                      <span className="text-rose-600 shrink-0">●</span>
+                      <span dangerouslySetInnerHTML={{ __html: line }} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The hardest part of this for our profession is that performing
+              calm often gets rewarded. Clients describe a smooth, frictionless
+              session as &quot;professional.&quot; Supervisors compliment a
+              clinician for &quot;holding the room.&quot; The leak only shows
+              up later — in the client who quietly disengages between
+              sessions, the one who reports therapy &quot;isn&apos;t doing
+              much,&quot; the one who keeps starting over with new providers.
+              None of those clients knew what they were tracking. Their
+              bodies did.
+            </p>
+          </section>
+
           {/* CTA — kept here so the page never feels stub-y. */}
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
