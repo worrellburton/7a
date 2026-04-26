@@ -246,7 +246,6 @@ export default function SeoContent() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <SeoSubNav />
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-2">
@@ -290,6 +289,7 @@ export default function SeoContent() {
       </div>
 
       <SeoRangePicker days={days} onChange={setDays} />
+      <SeoSubNav />
 
       {error ? (
         <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
