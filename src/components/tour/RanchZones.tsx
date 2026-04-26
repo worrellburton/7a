@@ -21,7 +21,7 @@ const flagship: Zone = {
   title: 'The land',
   eyebrow: 'All Around You',
   body: 'Sonoran desert, yucca and ocotillo, red-rock ridgelines running to the horizon. 160 private acres to walk, ride, sit, or just breathe. The working perimeter of the ranch is part of every day here.',
-  image: '/images/facility-exterior-mountains.jpg',
+  image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776855931921-5a0akvko2vg-arizona-desert-mountain-stronghold-vista.jpg',
 };
 
 const zones: Zone[] = [
@@ -29,37 +29,37 @@ const zones: Zone[] = [
     title: 'Residences',
     eyebrow: 'Where you live',
     body: 'Home-like shared rooms, real linens, windows that open onto the desert. Nothing institutional.',
-    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776855988197-mah7icy291-twin-beds-southwest-guest-room.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1777067193683-8nc4pns8cot-twin-beds-southwest-guest-room.webp',
   },
   {
     title: 'Common spaces',
     eyebrow: 'Where community happens',
     body: 'Warm gathering rooms for meals, groups, evenings on the couch, and the quieter conversations you didn’t plan.',
-    image: '/images/common-area-living-room.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776855995762-iqhxljba2g9-southwestern-lounge-bison-mount-fireplace.jpg',
   },
   {
     title: 'Therapy rooms',
     eyebrow: 'Where the work happens',
     body: 'Light-filled, intimate spaces for individual and small-group clinical sessions — trauma-informed and fully private.',
-    image: '/images/group-therapy-room.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776856087391-y07h8u1n6bp-group-therapy-room-blue-chairs-circle.jpg',
   },
   {
     title: 'The equine arena',
     eyebrow: 'Where the horses are',
     body: 'Working arena for equine-assisted psychotherapy. Every client partners 1:1 with a horse for the duration of their stay.',
-    image: '/images/equine-therapy-portrait.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776807547175-5jxd8z6mulv-equine-therapy-woman-resting-head-on-horse.jpg',
   },
   {
     title: 'Ceremonial spaces',
     eyebrow: 'Where spirit is welcome',
     body: 'Sweat lodge, talking-circle grounds, and indoor ceremony space for the Indigenous healing practices woven through our program.',
-    image: '/images/campfire-ceremony-circle.webp',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776856020399-q7cxjll1t0s-circular-stone-fire-pit-gathering-space-at-dusk.jpg',
   },
   {
     title: 'Porches & perimeter',
     eyebrow: 'Where you process',
     body: 'Covered porches wrap the residences — rocking chairs, desert views, and the shade that makes the hardest conversations finally possible.',
-    image: '/images/covered-porch-desert-view.jpg',
+    image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776856102755-lbylphm7vpr-covered-porch-rocking-chairs-desert-view.jpg',
   },
 ];
 
