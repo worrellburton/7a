@@ -641,6 +641,92 @@ export default function PageContent() {
             </div>
           </section>
 
+          {/* ── Phase 8: Clinical authority / how we hire and supervise ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              How We Hire For It
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              The clinical hiring bar at Seven Arrows
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The license is the floor, not the ceiling. Every clinician
+              we hire is licensed, board-credentialed, and trained in at
+              least one trauma-specific modality — that part isn&apos;t
+              negotiable. But credentialing alone doesn&apos;t answer the
+              question this episode is about. The question is whether the
+              clinician&apos;s own nervous system can hold the room. We
+              hire for that explicitly.
+            </p>
+
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-5">
+              {[
+                {
+                  title: 'Their own therapist, named',
+                  body:
+                    'Every clinician on our team has an active therapist of their own and can name them. Not "I went a few years ago" — present-tense, ongoing. If a clinician hasn&apos;t been a client in five years, they&apos;ve drifted from the experience of what they&apos;re asking yours to do.',
+                },
+                {
+                  title: 'A nervous-system practice they actually use',
+                  body:
+                    'Yoga teacher, somatic experiencing student, breathwork practitioner, long-time meditator, bodyworker — the specific lineage matters less than whether the practice is real. We ask in the interview, and we ask again at the 90-day check-in.',
+                },
+                {
+                  title: 'Reflective supervision, weekly',
+                  body:
+                    'Every clinician sits with a clinical supervisor every week and the agenda includes their own state, not just case material. The supervisor&apos;s job is partly to notice when a clinician is leaking and to intervene before a client has to.',
+                },
+                {
+                  title: 'A protected reset between sessions',
+                  body:
+                    'Caseloads are designed with built-in transition time. Clinicians who chronically run over are flagged in supervision — not as productivity stars, as regulation risks. The schedule is part of the clinical hygiene.',
+                },
+                {
+                  title: "Capacity to say 'I don't know'",
+                  body:
+                    "We test for it in the interview by asking unanswerable questions. The candidates who improvise smoothly through them are usually the wrong hire. The ones who pause and say honestly &quot;I&apos;m not sure how I&apos;d hold that&quot; are the ones we want in the room with our clients.",
+                },
+                {
+                  title: 'Lived recovery in long-term practice',
+                  body:
+                    'Many — not all — of our clinicians are themselves long-term recovery. The credential isn&apos;t the recovery; the years of doing the work are. We don&apos;t require lived experience, but where it exists with depth, it shortens the distance between clinician and client without collapsing it.',
+                },
+              ].map((c) => (
+                <div
+                  key={c.title}
+                  className="rounded-xl bg-warm-bg/50 border border-black/5 p-6"
+                >
+                  <h3 className="font-bold text-foreground mb-2">{c.title}</h3>
+                  <p
+                    className="text-sm text-foreground/70 leading-relaxed"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                    dangerouslySetInnerHTML={{ __html: c.body }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              None of this is glamorous. It&apos;s slower than the industry
+              standard for hiring and it costs us candidates who would
+              otherwise look great on paper. We think it&apos;s the
+              difference between a program that works for a client during
+              their stay and one that changes how their nervous system
+              behaves a year after they leave.
+            </p>
+          </section>
+
           {/* CTA — kept here so the page never feels stub-y. */}
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
