@@ -360,6 +360,115 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 5: Dorsal vagal — numb, foggy, checked out ────── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-sky-700 mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              State Three · Bottom of the Ladder
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Dorsal vagal — the numb, foggy, checked-out you
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Dorsal is what the nervous system does when sympathetic
+              hasn&apos;t worked and the threat is still there: it
+              flips the breaker. Energy down. Heart rate down. Color
+              drains out of the day. People who&apos;ve only learned
+              about &quot;fight or flight&quot; tend to miss this state
+              entirely — but for many people in long-term addiction or
+              trauma history, dorsal is actually the home address.
+              Sympathetic is the visit. Dorsal is where they wake up.
+            </p>
+
+            <p
+              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Because dorsal is quiet, the people around you often miss
+              it too. They read the slowness as moodiness, the
+              disengagement as laziness, the late-afternoon couch as a
+              lifestyle choice. It is none of those. It is your body
+              choosing the off-switch because the dial doesn&apos;t feel
+              like it has anywhere safer to go.
+            </p>
+
+            <div className="mt-10 rounded-2xl bg-sky-50/40 border border-sky-200/60 p-6 lg:p-8">
+              <div className="flex items-baseline gap-3 mb-5">
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-500" aria-hidden />
+                <p
+                  className="text-[11px] font-bold uppercase tracking-[0.22em] text-sky-700"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  How dorsal feels and looks
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-sky-700/80 mb-2">
+                    From the inside
+                  </p>
+                  <ul className="space-y-2 text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                    {[
+                      'Breath is small. So shallow you stop noticing it altogether.',
+                      "Time feels slow and slightly thick — hours can pass without registering.",
+                      'You feel heavy. Not tired exactly; weighted, like the air is denser around you.',
+                      "Things you usually care about feel distant — not painful, just dull.",
+                      "You watch yourself live the day from a half-step behind your own eyes.",
+                    ].map((line) => (
+                      <li key={line} className="flex gap-2">
+                        <span className="text-sky-600 shrink-0">●</span>
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-sky-700/80 mb-2">
+                    From the outside
+                  </p>
+                  <ul className="space-y-2 text-sm text-foreground/80 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                    {[
+                      'Your face is flat — slack rather than serene.',
+                      "Your voice is low and monotone, sentences trailing off rather than landing.",
+                      "Eye contact is drifty. You're looking at people without quite seeing them.",
+                      "You don't move much. The body has gone quiet on purpose.",
+                      "You text 'I'm fine' and mean it the way a wall means it.",
+                    ].map((line) => (
+                      <li key={line} className="flex gap-2">
+                        <span className="text-sky-600 shrink-0">●</span>
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Dorsal is also not the enemy. It&apos;s an old, deep
+              survival strategy — the freeze of a possum in a road, the
+              shutdown of a child in a household that wasn&apos;t safe.
+              It saved a lot of people. The trouble is when it stops
+              being a temporary visit and starts being the only state
+              the body remembers how to come down to. The work then
+              isn&apos;t to fight your way out of dorsal. It&apos;s to
+              learn the small, specific cues that walk you back up the
+              ladder, one rung at a time. Which is exactly what the
+              next section is about.
+            </p>
+          </section>
+
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
