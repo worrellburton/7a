@@ -454,6 +454,115 @@ export default function PageContent() {
             </p>
           </section>
 
+          {/* ── Phase 6: Warning signs in therapists who aren't doing their own work ── */}
+
+          <section className="mt-16">
+            <p
+              className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Warning Signs
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-5">
+              Therapists who aren&apos;t doing their own work
+            </h2>
+
+            <p
+              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Most clinicians who haven&apos;t done their own nervous-system
+              work are not bad people and they are not unintelligent. Many of
+              them are deeply trained, well-credentialed, and genuinely
+              trying to help. The problem isn&apos;t character. The problem
+              is that the field still treats personal regulation as optional
+              continuing education instead of the actual instrument the work
+              is delivered through. Below are patterns clients pick up on
+              without quite knowing what they&apos;re seeing — and that
+              clinicians, if they&apos;re honest, can recognize in
+              themselves on hard weeks.
+            </p>
+
+            <div className="mt-10 space-y-4">
+              {[
+                {
+                  flag: 'They jump in to fix the moment a hard feeling lands',
+                  why:
+                    "A regulated clinician can sit inside grief, rage, or shame with you for thirty seconds before reaching for the intervention. A clinician whose own activation is leaking will fast-forward to a coping skill, a worksheet, or a reframe within five seconds. The fix is for them, not for you.",
+                },
+                {
+                  flag: 'They self-disclose at the wrong volume',
+                  why:
+                    'Used carefully, self-disclosure can build trust. Used to discharge their own activation, it makes the room about them. If you leave a session having heard a long story about your therapist&apos;s divorce, sponsor, or ex-client and you didn&apos;t need that story, what you witnessed was a small somatic dump.',
+                },
+                {
+                  flag: "They can't tolerate not knowing",
+                  why:
+                    "When a regulated clinician hits the edge of what they can offer, they say so plainly — 'I don&apos;t know,' or 'this is bigger than what I can hold alone, let&apos;s loop in the team.' A dysregulated one will improvise, over-interpret, or quietly switch frameworks. The improvisation is panic in a professional voice.",
+                },
+                {
+                  flag: 'They are subtly competitive with your suffering',
+                  why:
+                    "Phrases like 'well, when I went through…' or 'most of my clients struggle with much worse' that arrive at moments when you most needed to be met. It&apos;s usually not malicious. It&apos;s their nervous system trying to dilute the intensity in the room — and what their nervous system needs takes priority over what yours does.",
+                },
+                {
+                  flag: 'They take ownership of your progress',
+                  why:
+                    'A clinician quietly doing their own work is curious about what worked. A clinician who isn&apos;t needs your wins to confirm something about themselves. You&apos;ll feel the subtle pressure to report you&apos;re doing well even when you&apos;re not.',
+                },
+                {
+                  flag: 'They schedule too tightly and run late',
+                  why:
+                    'A nervous system without recovery time between sessions cannot hold the next room properly. Chronic over-booking is itself a regulation problem — the over-booking is often what the clinician is using to avoid sitting with their own internal state.',
+                },
+                {
+                  flag: 'You feel obligated to take care of them',
+                  why:
+                    "The most reliable signal of all. If you walk out of sessions wondering whether the therapist is okay, censoring your hardest material to spare them, or feeling like you should send a follow-up note to make sure they're not worried about you — the rooms they're holding aren&apos;t actually holding you. That dynamic is unmissable to a regulated supervisor and it&apos;s unmistakable to your body.",
+                },
+              ].map((f) => (
+                <div
+                  key={f.flag}
+                  className="rounded-xl border border-amber-200/70 bg-amber-50/40 p-5 lg:p-6"
+                >
+                  <div className="flex gap-3 items-start">
+                    <span
+                      className="mt-0.5 inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-200 text-amber-900 text-[12px] font-bold shrink-0"
+                      aria-hidden
+                    >
+                      !
+                    </span>
+                    <div>
+                      <p className="font-semibold text-foreground">{f.flag}</p>
+                      <p
+                        className="text-sm text-foreground/70 leading-relaxed mt-1.5"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {f.why}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p
+              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The right number of these to see in a clinician you&apos;re
+              working with is not zero — every therapist has hard weeks. The
+              question is whether the pattern is intermittent and named (a
+              regulated clinician will sometimes say, &quot;I&apos;m a little
+              off today, can you help me come back to what you were
+              saying?&quot;) or whether it&apos;s constant and invisible.
+              Constant-and-invisible is the configuration that quietly hurts
+              people. Naming it doesn&apos;t require leaving the therapist —
+              sometimes it just requires saying out loud what your body has
+              been tracking, and watching what they do with it.
+            </p>
+          </section>
+
           {/* CTA — kept here so the page never feels stub-y. */}
           <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
             <p
