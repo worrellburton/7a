@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 
@@ -222,6 +222,7 @@ function CategoryCard({
 interface RespondedFields {
   responded_at: string | null;
   responded_by: string | null;
+  responded_note: string | null;
   responder_name: string | null;
   responder_avatar_url: string | null;
 }
@@ -234,20 +235,25 @@ function formatRespondedAt(iso: string) {
 
 function useRespond(kind: 'vob' | 'contact') {
   const [busyId, setBusyId] = useState<string | null>(null);
-  const respond = useCallback(async (id: string, clear = false): Promise<RespondedFields | null> => {
+  const respond = useCallback(async (
+    id: string,
+    opts: { clear?: boolean; note?: string } = {},
+  ): Promise<RespondedFields | null> => {
+    const { clear = false, note } = opts;
     setBusyId(id);
     try {
       const res = await fetch('/api/website-requests/respond', {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ kind, id, clear }),
+        body: JSON.stringify({ kind, id, clear, note }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       return {
         responded_at: json.responded_at ?? null,
         responded_by: json.responded_by ?? null,
+        responded_note: json.responded_note ?? null,
         responder_name: json.responder_name ?? null,
         responder_avatar_url: json.responder_avatar_url ?? null,
       };
@@ -366,33 +372,79 @@ function ResponderAvatar({
 }
 
 function RespondedBadge({
-  respondedAt, responderName, responderAvatarUrl,
+  respondedAt, responderName, responderAvatarUrl, respondedNote,
 }: {
-  respondedAt: string; responderName: string | null; responderAvatarUrl: string | null;
+  respondedAt: string;
+  responderName: string | null;
+  responderAvatarUrl: string | null;
+  respondedNote: string | null;
 }) {
+  // Note tooltip — shows the follow-up text on hover. We render our
+  // own bubble (rather than the native title attribute) so we can
+  // wrap long notes nicely and show the metadata header above them.
+  const stamp = `Responded ${formatRespondedAt(respondedAt)}${responderName ? ` by ${responderName}` : ''}`;
   return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 pl-1 pr-2 py-0.5 text-[11px] font-medium text-emerald-800"
-      title={`Responded ${formatRespondedAt(respondedAt)}${responderName ? ` by ${responderName}` : ''}`}
-    >
-      <ResponderAvatar url={responderAvatarUrl} name={responderName} />
-      <span>
-        {responderName ?? 'Responded'} · {new Date(respondedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+    <span className="relative inline-block group">
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 pl-1 pr-2 py-0.5 text-[11px] font-medium text-emerald-800 cursor-default"
+      >
+        <ResponderAvatar url={responderAvatarUrl} name={responderName} />
+        <span>
+          {responderName ?? 'Responded'} · {new Date(respondedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </span>
+        {respondedNote ? (
+          <svg className="w-3 h-3 text-emerald-700/70" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+          </svg>
+        ) : null}
+      </span>
+      {/* Hover bubble */}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 w-72 rounded-lg border border-black/10 bg-white p-3 text-left shadow-lg opacity-0 translate-y-1 transition-all duration-150 group-hover:opacity-100 group-hover:translate-y-0"
+      >
+        <span className="block text-[10px] font-semibold uppercase tracking-wider text-foreground/45">
+          {stamp}
+        </span>
+        {respondedNote ? (
+          <span className="mt-1.5 block text-[12px] leading-relaxed text-foreground/80 whitespace-pre-wrap">
+            {respondedNote}
+          </span>
+        ) : (
+          <span className="mt-1.5 block text-[11px] italic text-foreground/45">
+            No note recorded.
+          </span>
+        )}
       </span>
     </span>
   );
 }
 
 function RespondButton({
-  responded_at, responder_name, responder_avatar_url, onClick, busy, compact = false,
+  responded_at, responder_name, responder_avatar_url, responded_note,
+  onRespond, onClear, busy, compact = false,
 }: {
   responded_at: string | null;
   responder_name: string | null;
   responder_avatar_url: string | null;
-  onClick: () => void;
+  responded_note: string | null;
+  /** Called when admin saves the response with an optional note. */
+  onRespond: (note: string) => void;
+  /** Called when the row was already marked and the admin clicks "undo". */
+  onClear: () => void;
   busy: boolean;
   compact?: boolean;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-focus the textarea once the popover opens so the admin can
+  // start typing immediately.
+  useEffect(() => {
+    if (editing) textareaRef.current?.focus();
+  }, [editing]);
+
   if (responded_at) {
     return (
       <div className={`flex ${compact ? 'flex-col items-end gap-0.5' : 'items-center gap-2'}`}>
@@ -400,10 +452,11 @@ function RespondButton({
           respondedAt={responded_at}
           responderName={responder_name}
           responderAvatarUrl={responder_avatar_url}
+          respondedNote={responded_note}
         />
         <button
           type="button"
-          onClick={onClick}
+          onClick={onClear}
           disabled={busy}
           className="text-[10px] text-foreground/50 underline decoration-dotted hover:text-foreground disabled:opacity-40"
         >
@@ -412,10 +465,69 @@ function RespondButton({
       </div>
     );
   }
+
+  if (editing) {
+    return (
+      <div className="relative inline-block">
+        <div className="absolute right-0 top-0 z-30 w-72 rounded-xl border border-black/10 bg-white p-3 shadow-lg">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 mb-1.5">
+            Add a note (optional)
+          </p>
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="What did you say to them? Left a voicemail at 2pm, sent the VOB form, etc."
+            rows={4}
+            maxLength={2000}
+            className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12px] leading-relaxed text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
+            onKeyDown={(e) => {
+              // Cmd/Ctrl-Enter saves; Escape cancels.
+              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                onRespond(draft.trim());
+                setEditing(false);
+                setDraft('');
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setEditing(false);
+                setDraft('');
+              }
+            }}
+          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="text-[10px] text-foreground/40">⌘↵ to save</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => { setEditing(false); setDraft(''); }}
+                className="text-[11px] text-foreground/55 hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onRespond(draft.trim());
+                  setEditing(false);
+                  setDraft('');
+                }}
+                disabled={busy}
+                className="inline-flex items-center rounded-md bg-primary px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                {busy ? 'Saving…' : 'Mark responded'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => setEditing(true)}
       disabled={busy}
       className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-white px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary hover:text-white disabled:opacity-50 transition-colors"
     >
@@ -465,8 +577,13 @@ function VobsPanel() {
     return () => { cancelled = true; };
   }, []);
 
-  async function handleRespond(id: string, alreadyResponded: boolean) {
-    const result = await respond(id, alreadyResponded);
+  async function handleMarkResponded(id: string, note: string) {
+    const result = await respond(id, { note });
+    if (!result) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
+  }
+  async function handleClearResponded(id: string) {
+    const result = await respond(id, { clear: true });
     if (!result) return;
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
   }
@@ -536,7 +653,9 @@ function VobsPanel() {
                     responded_at={r.responded_at}
                     responder_name={r.responder_name}
                     responder_avatar_url={r.responder_avatar_url}
-                    onClick={() => handleRespond(r.id, !!r.responded_at)}
+                    responded_note={r.responded_note}
+                    onRespond={(n) => handleMarkResponded(r.id, n)}
+                    onClear={() => handleClearResponded(r.id)}
                     busy={busyId === r.id}
                     compact
                   />
@@ -612,8 +731,13 @@ function FormsPanel() {
     [rows, filter],
   );
 
-  async function handleRespond(id: string, alreadyResponded: boolean) {
-    const result = await respond(id, alreadyResponded);
+  async function handleMarkResponded(id: string, note: string) {
+    const result = await respond(id, { note });
+    if (!result) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
+  }
+  async function handleClearResponded(id: string) {
+    const result = await respond(id, { clear: true });
     if (!result) return;
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
   }
@@ -720,7 +844,9 @@ function FormsPanel() {
                         responded_at={r.responded_at}
                         responder_name={r.responder_name}
                         responder_avatar_url={r.responder_avatar_url}
-                        onClick={() => handleRespond(r.id, !!r.responded_at)}
+                        responded_note={r.responded_note}
+                    onRespond={(n) => handleMarkResponded(r.id, n)}
+                    onClear={() => handleClearResponded(r.id)}
                         busy={busyId === r.id}
                         compact
                       />
@@ -774,8 +900,13 @@ function CareersPanel() {
     return () => { cancelled = true; };
   }, []);
 
-  async function handleRespond(id: string, alreadyResponded: boolean) {
-    const result = await respond(id, alreadyResponded);
+  async function handleMarkResponded(id: string, note: string) {
+    const result = await respond(id, { note });
+    if (!result) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
+  }
+  async function handleClearResponded(id: string) {
+    const result = await respond(id, { clear: true });
     if (!result) return;
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
   }
@@ -848,7 +979,9 @@ function CareersPanel() {
                       responded_at={r.responded_at}
                       responder_name={r.responder_name}
                       responder_avatar_url={r.responder_avatar_url}
-                      onClick={() => handleRespond(r.id, !!r.responded_at)}
+                      responded_note={r.responded_note}
+                    onRespond={(n) => handleMarkResponded(r.id, n)}
+                    onClear={() => handleClearResponded(r.id)}
                       busy={busyId === r.id}
                       compact
                     />
