@@ -243,3 +243,91 @@ export async function fetchBacklinksOverview(opts: {
 // endpoints (e.g. /units to check remaining quota) can use the same
 // auth scheme.
 export const SEMRUSH_PROJECT_API_BASE = SEMRUSH_PROJECT_BASE;
+
+// ─── Referring domains ─────────────────────────────────────────
+
+export interface RefDomainRow {
+  domain: string;
+  ascore: number;
+  backlinks_num: number;
+  ip: string;
+  country: string;
+  first_seen: string;
+  last_seen: string;
+}
+
+const REFDOMAIN_COLUMNS = [
+  'domain',
+  'ascore',
+  'backlinks_num',
+  'ip',
+  'country',
+  'first_seen',
+  'last_seen',
+];
+
+export async function fetchRefDomains(opts: {
+  target: string;
+  target_type?: 'root_domain' | 'domain' | 'url';
+  limit?: number;
+  offset?: number;
+  /** Default sort is ascore_desc — drives the histogram nicely. */
+  sort?: string;
+}): Promise<RefDomainRow[]> {
+  const limit = Math.min(1000, Math.max(1, opts.limit ?? 500));
+  const { rows } = await semrushFetch({
+    type: 'backlinks_refdomains',
+    target: opts.target,
+    target_type: opts.target_type ?? 'root_domain',
+    export_columns: REFDOMAIN_COLUMNS,
+    display_limit: limit,
+    display_offset: opts.offset ?? 0,
+    display_sort: opts.sort ?? 'ascore_desc',
+  });
+  return rows.map((r) => ({
+    domain: r.domain ?? '',
+    ascore: Number(r.ascore ?? 0),
+    backlinks_num: Number(r.backlinks_num ?? 0),
+    ip: r.ip ?? '',
+    country: r.country ?? '',
+    first_seen: r.first_seen ?? '',
+    last_seen: r.last_seen ?? '',
+  } satisfies RefDomainRow));
+}
+
+// 10-bucket histogram matching the Semrush dashboard layout
+// (0-10, 11-20, …, 91-100). Used by the Referring Domains page to
+// give a quick at-a-glance read on the quality distribution of the
+// link profile.
+export interface RefDomainBucket {
+  label: string;
+  /** Inclusive lower bound of the bucket. */
+  lo: number;
+  /** Inclusive upper bound. */
+  hi: number;
+  count: number;
+}
+
+export function bucketRefDomainsByAscore(rows: RefDomainRow[]): RefDomainBucket[] {
+  // 0-10 is its own bucket; everything above is decile-stepped to
+  // match the Semrush convention shown in their dashboard. A domain
+  // with ascore=10 belongs in the 0-10 bucket; ascore=11 in 11-20.
+  const buckets: RefDomainBucket[] = [
+    { label: '91 - 100', lo: 91, hi: 100, count: 0 },
+    { label: '81 - 90', lo: 81, hi: 90, count: 0 },
+    { label: '71 - 80', lo: 71, hi: 80, count: 0 },
+    { label: '61 - 70', lo: 61, hi: 70, count: 0 },
+    { label: '51 - 60', lo: 51, hi: 60, count: 0 },
+    { label: '41 - 50', lo: 41, hi: 50, count: 0 },
+    { label: '31 - 40', lo: 31, hi: 40, count: 0 },
+    { label: '21 - 30', lo: 21, hi: 30, count: 0 },
+    { label: '11 - 20', lo: 11, hi: 20, count: 0 },
+    { label: '0 - 10', lo: 0, hi: 10, count: 0 },
+  ];
+  for (const row of rows) {
+    const score = Math.max(0, Math.min(100, Math.floor(row.ascore || 0)));
+    const b = buckets.find((x) => score >= x.lo && score <= x.hi);
+    if (b) b.count += 1;
+  }
+  return buckets;
+}

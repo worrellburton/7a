@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import SeoSubNav from './SeoSubNav';
+import { SeoRangePicker } from './SeoRangePicker';
 import {
   CATEGORY_LABELS,
   KEYWORDS,
@@ -246,7 +247,7 @@ export default function SeoContent() {
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <SeoSubNav />
-      <div className="mb-8 flex items-start justify-between gap-4">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-2">
             Marketing &amp; Admissions
@@ -282,20 +283,13 @@ export default function SeoContent() {
             </svg>
             SEO Video
           </Link>
-          {/* Backlinks / Redirects / Site audit moved into the
-              SeoSubNav strip at the top of the page so the same
-              tabs follow you across every SEO sub-page. */}
-          <select
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-            className="text-sm rounded-lg border border-black/10 bg-white px-3 py-2"
-          >
-            <option value={7}>Last 7 days</option>
-            <option value={28}>Last 28 days</option>
-            <option value={90}>Last 90 days</option>
-          </select>
+          {/* Date range chooser moved into its own analytics-style
+              card below — kept the SEO Images / SEO Video buttons
+              here in the header so they stay one click away. */}
         </div>
       </div>
+
+      <SeoRangePicker days={days} onChange={setDays} />
 
       {error ? (
         <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">

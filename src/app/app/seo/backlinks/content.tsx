@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
 
-// Live backlinks dashboard powered by Semrush analytics v1. The
-// overview cards mirror what Semrush's own dashboard surfaces,
-// and the filter chips (All / Dofollow / Nofollow / UGC /
-// Sponsored) operate on the loaded page so the chip change feels
-// instant — refilling chip state doesn't refetch.
+// Backlinks dashboard powered by a persisted Semrush snapshot. Click
+// "Sync" to refresh against Semrush — until then everyone reads the
+// last good pull. Filter chips (All / Dofollow / Nofollow / UGC /
+// Sponsored) operate purely client-side over the snapshot rows so
+// switching is instant and free.
 
 interface BacklinkRow {
   source_url: string;
@@ -37,16 +37,22 @@ interface Overview {
   ref_pages_num: number;
 }
 
-interface Response {
+interface RefDomainBucket {
+  label: string;
+  lo: number;
+  hi: number;
+  count: number;
+}
+
+interface Snapshot {
   target: string;
-  filter: string;
   overview: Overview | null;
   rows: BacklinkRow[];
-  total_in_page: number;
-  filtered_in_page: number;
-  fetched_at: string;
-  cached?: boolean;
-  error?: string;
+  refdomain_buckets?: RefDomainBucket[];
+  total_in_snapshot?: number;
+  synced_at: string | null;
+  synced_by_name: string | null;
+  empty?: boolean;
 }
 
 type Filter = 'all' | 'follow' | 'nofollow' | 'ugc' | 'sponsored';
@@ -59,39 +65,76 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: 'sponsored', label: 'Sponsored' },
 ];
 
+function applyFilter(rows: BacklinkRow[], filter: Filter): BacklinkRow[] {
+  switch (filter) {
+    case 'follow': return rows.filter((r) => r.is_follow);
+    case 'nofollow': return rows.filter((r) => r.is_nofollow);
+    case 'ugc': return rows.filter((r) => r.is_ugc);
+    case 'sponsored': return rows.filter((r) => r.is_sponsored);
+    case 'all':
+    default: return rows;
+  }
+}
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return 'never';
+  const then = new Date(iso).getTime();
+  const diffSec = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (diffSec < 60) return `${diffSec}s ago`;
+  if (diffSec < 3600) return `${Math.round(diffSec / 60)} min ago`;
+  if (diffSec < 86_400) return `${Math.round(diffSec / 3600)} hr ago`;
+  return `${Math.round(diffSec / 86_400)} d ago`;
+}
+
 export default function BacklinksContent() {
   const [filter, setFilter] = useState<Filter>('all');
-  const [data, setData] = useState<Response | null>(null);
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    fetch(`/api/seo/backlinks?filter=${encodeURIComponent(filter)}`, { cache: 'no-store' })
-      .then(async (r) => {
-        const json = await r.json();
-        if (cancelled) return;
-        if (!r.ok) {
-          setError(json?.error ?? `HTTP ${r.status}`);
-          setData(null);
-        } else {
-          setData(json as Response);
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [filter]);
+    try {
+      const res = await fetch('/api/seo/backlinks', { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
+      setSnapshot(json as Snapshot);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const overview = data?.overview ?? null;
+  const sync = useCallback(async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/seo/backlinks', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
+      setSnapshot(json as Snapshot);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const overview = snapshot?.overview ?? null;
   const followPct = useMemo(() => {
     if (!overview || overview.total === 0) return null;
     return (overview.follows_num / overview.total) * 100;
   }, [overview]);
+
+  const visibleRows = useMemo(() => {
+    if (!snapshot) return [];
+    return applyFilter(snapshot.rows ?? [], filter);
+  }, [snapshot, filter]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-10" style={{ fontFamily: 'var(--font-body)' }}>
@@ -113,14 +156,50 @@ export default function BacklinksContent() {
             Backlinks
           </h1>
           <p className="mt-1 text-sm text-foreground/60 max-w-2xl">
-            Live backlink profile from Semrush. Dofollow links pass ranking authority; nofollow / UGC / sponsored don&apos;t but still count for brand reach + crawl discovery. Filter to spot-check each bucket.
+            Backlink profile from Semrush. Dofollow links pass ranking authority; nofollow / UGC / sponsored don&apos;t but still count for brand reach + crawl discovery. Click <span className="font-semibold">Sync</span> to refresh.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-end gap-1">
+          <button
+            type="button"
+            onClick={sync}
+            disabled={syncing}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition ${
+              syncing
+                ? 'bg-foreground/40 text-white cursor-wait'
+                : 'bg-primary text-white hover:bg-primary/90'
+            }`}
+            title="Pull a fresh snapshot from Semrush. Each sync uses Semrush API units, so don't hammer the button."
+          >
+            <svg className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-3-6.7" />
+              <path d="M21 4v5h-5" />
+            </svg>
+            {syncing ? 'Syncing…' : 'Sync from Semrush'}
+          </button>
+          <p className="text-[11px] text-foreground/50 tabular-nums">
+            Last updated{' '}
+            <span className="font-medium text-foreground/70">
+              {relativeTime(snapshot?.synced_at ?? null)}
+            </span>
+            {snapshot?.synced_by_name ? (
+              <span className="text-foreground/40"> by {snapshot.synced_by_name}</span>
+            ) : null}
           </p>
         </div>
       </header>
 
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 mb-5">
           <strong>Couldn&apos;t load backlinks:</strong> {error}
+        </div>
+      ) : null}
+
+      {snapshot?.empty && !error ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 mb-5">
+          No snapshot yet for <span className="font-mono">{snapshot.target}</span>.
+          Click <span className="font-semibold">Sync from Semrush</span> to pull the first one.
         </div>
       ) : null}
 
@@ -154,13 +233,15 @@ export default function BacklinksContent() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {loading && !data ? (
+        {loading && !snapshot ? (
           <div className="p-10 text-center text-sm text-foreground/50">Loading…</div>
-        ) : !data || data.rows.length === 0 ? (
+        ) : !snapshot || visibleRows.length === 0 ? (
           <div className="p-10 text-center text-sm text-foreground/50">
-            {data?.total_in_page === 0
-              ? 'No backlinks returned for this domain — Semrush may not have indexed any yet.'
-              : `No ${filter === 'all' ? '' : filter} backlinks in this page of results.`}
+            {snapshot?.empty
+              ? 'Sync to see backlinks.'
+              : (snapshot?.total_in_snapshot ?? 0) === 0
+                ? 'No backlinks in the latest snapshot — Semrush may not have indexed any yet.'
+                : `No ${filter === 'all' ? '' : filter} backlinks in the snapshot. Try a different filter or run Sync to refresh.`}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -175,7 +256,7 @@ export default function BacklinksContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/5">
-                {data.rows.map((r, i) => (
+                {visibleRows.map((r, i) => (
                   <tr key={`${r.source_url}-${i}`} className="align-top">
                     <Td>
                       <a href={r.source_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium truncate max-w-[280px] block" title={r.source_url}>
@@ -206,11 +287,16 @@ export default function BacklinksContent() {
         )}
       </div>
 
-      {data?.fetched_at ? (
+      {snapshot?.target ? (
         <p className="text-[11px] text-foreground/40 mt-3">
-          Fetched {new Date(data.fetched_at).toLocaleString()}
-          {data.cached ? ' · from cache (10 min TTL)' : ''}
-          {' · target '}<span className="font-mono">{data.target}</span>
+          Target <span className="font-mono">{snapshot.target}</span>
+          {snapshot?.total_in_snapshot != null
+            ? ` · ${snapshot.total_in_snapshot} rows in snapshot`
+            : ''}
+          {' · '}
+          <Link href="/app/seo/refdomains" className="underline decoration-dotted hover:text-foreground">
+            See referring-domain quality
+          </Link>
         </p>
       ) : null}
     </div>
