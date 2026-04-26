@@ -79,10 +79,11 @@ export default function HomeHorsesRow() {
           {rideableCount !== horses.length ? ` · ${rideableCount} rideable` : ''}
         </span>
       </div>
-      {/* Horses live on a single horizontal row regardless of count.
-          When the row is wider than the viewport it scrolls instead
-          of wrapping to a second line. */}
-      <div className="flex items-center justify-start gap-3 flex-nowrap overflow-x-auto -mx-4 px-4 sm:-mx-6 sm:px-6 pb-1">
+      {/* Horses are presented as an overlapping avatar stack — same
+          pattern as the "Online today" row at the top of the page.
+          Hover lifts a horse out of the stack so you can read its
+          face + tooltip, and the row never scrolls. */}
+      <div className="flex items-center justify-center -space-x-3">
         {horses.map((h) => {
           const lastWeight = lastWeightFor(h.id);
           const lastFeed = lastFeedFor(h.id);
@@ -90,7 +91,7 @@ export default function HomeHorsesRow() {
             <button
               key={h.id}
               onClick={() => router.push(`/app/equine/${h.id}`)}
-              className="relative group shrink-0"
+              className="relative group shrink-0 transition-transform hover:scale-110 hover:z-10"
               title={h.name}
             >
               {h.image_url ? (

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+import { useAnimatedNumber } from '@/lib/useAnimatedNumber';
 import { MARKETING_ADMISSIONS_DEPT_ID } from '@/lib/website-requests-auth';
 
 // Home row: count of website-request submissions awaiting a response
@@ -118,21 +119,22 @@ function UnrespondedCard({
     tone === 'amber' ? 'text-amber-700'
     : tone === 'blue' ? 'text-blue-600'
     : 'text-foreground/70';
+  const animated = useAnimatedNumber(loading ? null : (value as number));
   return (
     <button
       type="button"
       onClick={onClick}
-      className="text-left bg-white rounded-2xl border border-gray-100 px-4 py-3 hover:border-primary/40 hover:shadow-sm transition-all"
+      className="text-center px-4 py-3 rounded-xl hover:bg-warm-bg/50 transition-colors"
       style={{ fontFamily: 'var(--font-body)' }}
     >
       <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider">{label}</p>
-      <div className="mt-1 flex items-baseline gap-2">
-        <span className={`text-2xl font-bold ${empty ? 'text-foreground/30' : numColor}`}>
-          {loading ? '—' : value}
+      <div className="mt-1 flex items-baseline justify-center gap-2">
+        <span className={`text-3xl font-bold tabular-nums ${empty ? 'text-foreground/30' : numColor}`}>
+          {loading ? '—' : (animated ?? 0).toLocaleString()}
         </span>
         {!loading && (
           <span className="text-[11px] font-medium text-foreground/40">
-            {value === 1 ? 'awaiting response' : 'awaiting response'}
+            awaiting response
           </span>
         )}
       </div>
