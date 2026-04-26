@@ -2,10 +2,23 @@
 
 import Link from 'next/link';
 import PageHero from '@/components/PageHero';
+import { EPISODES_BY_NUMBER, episodeHref } from '@/lib/episodes';
+
+const CURRENT_SLUG = 'polyvagal-in-plain-english';
 
 // Episode 6 — Polyvagal in Plain English.
-// Phase 1: scaffold (hero + intro + admissions CTA placeholder).
-// Phases 2-9 fill in the body sections; Phase 10 polishes cross-links.
+//
+// Section order (top → bottom):
+//   1. Hero + intro
+//   2. Why This Matters — naming the state changes what you can do
+//   3. Ventral — the curious, connected, grounded you
+//   4. Sympathetic — the urgent, jaw-clenched, fight-or-flight you
+//   5. Dorsal — the numb, foggy, checked-out you
+//   6. The Ladder — walking up and down it
+//   7. Why White-Knuckle It Fails — addiction's different shape per state
+//   8. The Practical Takeaway — two questions to ask mid-craving
+//   9. If This Sounds Like You — for "I've never understood dysregulated"
+//   10. Continue the Series + admissions CTA
 
 export default function PageContent() {
   return (
@@ -900,23 +913,103 @@ export default function PageContent() {
             </div>
           </section>
 
-          <div className="mt-16 lg:mt-20 rounded-2xl bg-warm-bg p-8 lg:p-10 text-center">
+          {/* ── Phase 10: Cross-links + admissions CTA ─────────────── */}
+
+          <section className="mt-16">
             <p
               className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-3"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Continue the Series
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4">
-              The rest of the Recovery Roadmap
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-6">
+              More from the Recovery Roadmap
             </h2>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/who-we-are/recovery-roadmap" className="btn-primary">
-                See all episodes
-              </Link>
-              <a href="tel:8669964308" className="btn-outline">
-                Talk to admissions · (866) 996-4308
-              </a>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {EPISODES_BY_NUMBER.filter((ep) => ep.slug !== CURRENT_SLUG).map((ep) => (
+                <Link
+                  key={ep.slug}
+                  href={episodeHref(ep.slug)}
+                  className="group block rounded-xl overflow-hidden bg-white border border-black/5 shadow-sm hover:shadow-[0_8px_30px_rgba(160,82,45,0.18)] hover:-translate-y-1 transition-all duration-300 no-underline"
+                >
+                  <div className="relative">
+                    <img
+                      src={ep.image}
+                      alt={ep.imageAlt}
+                      className="h-40 w-full object-cover"
+                      loading="lazy"
+                    />
+                    <div
+                      className="absolute top-3 left-3 bg-primary text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Episode {ep.number}
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    <p
+                      className="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1.5"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {ep.publishedDisplay}
+                    </p>
+                    <h3 className="text-base font-bold text-foreground mb-2 group-hover:text-primary transition-colors leading-snug">
+                      {ep.title}
+                    </h3>
+                    <p
+                      className="text-sm text-foreground/65 leading-relaxed line-clamp-3"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {ep.blurb}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          {/* Admissions CTA */}
+          <div className="mt-12 lg:mt-16 rounded-2xl bg-foreground text-white p-8 lg:p-10">
+            <div className="flex flex-col lg:flex-row gap-8 items-start lg:items-center justify-between">
+              <div className="max-w-xl">
+                <p
+                  className="text-xs font-semibold tracking-[0.22em] uppercase text-primary/80 mb-2"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Want to learn the ladder in your own body?
+                </p>
+                <h3 className="text-xl lg:text-2xl font-bold mb-3">
+                  Our admissions line is staffed by humans who know which rung they&apos;re on.
+                </h3>
+                <p
+                  className="text-white/75 leading-relaxed text-sm lg:text-base"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Call any time — confidential, free, no-obligation.
+                  We&apos;ll talk about what your nervous system is
+                  actually doing, where on the ladder you keep getting
+                  stuck, and whether what we offer is the right next
+                  step for the version of you who&apos;s reading this.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+                <a
+                  href="tel:8669964308"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-white hover:bg-primary/90 transition"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                  (866) 996-4308
+                </a>
+                <Link
+                  href="/admissions"
+                  className="inline-flex items-center justify-center rounded-lg border border-white/30 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10 transition"
+                >
+                  Begin admissions
+                </Link>
+              </div>
             </div>
           </div>
         </div>
