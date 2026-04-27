@@ -3055,8 +3055,24 @@ export default function DirectoriesContent() {
     for (const d of filtered) {
       (out[d.category] ||= []).push(d);
     }
+    // Within each category: rows with a live link recorded (the green
+    // tint) bubble to the top so completed work is visible first.
+    // Stable within each tier (preserves the curated DIRECTORIES order).
+    for (const cat of Object.keys(out) as DirectoryCategory[]) {
+      const list = out[cat];
+      if (!list) continue;
+      out[cat] = list
+        .map((d, i) => ({ d, i }))
+        .sort((a, b) => {
+          const aLinked = !!linkMap[a.d.id] && statusMap[a.d.id] !== 'skip';
+          const bLinked = !!linkMap[b.d.id] && statusMap[b.d.id] !== 'skip';
+          if (aLinked !== bLinked) return aLinked ? -1 : 1;
+          return a.i - b.i;
+        })
+        .map((x) => x.d);
+    }
     return out;
-  }, [filtered]);
+  }, [filtered, linkMap, statusMap]);
 
   const total = DIRECTORIES.length;
   const listed = DIRECTORIES.filter((d) => statusMap[d.id] === 'listed').length;
