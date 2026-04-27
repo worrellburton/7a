@@ -607,7 +607,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           rest of the page scrolls — keeping the user card + user
           menu permanently at the lower-left. */}
       <aside className="w-64 shrink-0 hidden lg:block bg-white border-r border-gray-100">
-        <div className="sticky top-0 h-screen flex flex-col">
+        {/* `app-shell` applies zoom: 0.82 at lg+, so a plain h-screen
+            renders at only 82% of the real viewport — that's why the
+            user card used to float ~120px above the bottom edge.
+            Mirroring the outer `min-height: calc(100vh / 0.82)` here
+            puts the bottom of the sidebar exactly on the viewport
+            edge so the user card pins to the actual lower-left. */}
+        <div className="sticky top-0 h-[calc(100vh/0.82)] flex flex-col">
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
