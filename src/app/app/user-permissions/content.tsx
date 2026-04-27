@@ -23,6 +23,8 @@ interface AppUser {
   full_name: string | null;
   avatar_url: string | null;
   is_admin: boolean;
+  is_super_admin: boolean;
+  status: 'active' | 'on_hold' | 'denied';
   department_id: string | null;
   job_title: string | null;
   credentials: string | null;
@@ -44,6 +46,7 @@ interface JobDescriptionLite {
 
 type SortKey = 'user' | 'viewing' | 'department' | 'job_title' | 'created_at';
 type SortDir = 'asc' | 'desc';
+type FilterPill = 'all' | 'admins' | 'super_admins' | 'pending';
 
 const ROOT_ADMIN_EMAIL = 'bobby@sevenarrowsrecovery.com';
 const isRootAdmin = (email: string | null | undefined) =>
@@ -112,6 +115,7 @@ export default function UserPermissionsContent() {
   const [jobDescriptions, setJobDescriptions] = useState<JobDescriptionLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
+  const [filterPill, setFilterPill] = useState<FilterPill>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [permissionsTarget, setPermissionsTarget] = useState<AppUser | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('user');
@@ -136,7 +140,7 @@ export default function UserPermissionsContent() {
       const data = await db({
         action: 'select',
         table: 'users',
-        select: 'id, email, full_name, avatar_url, is_admin, department_id, job_title, credentials, last_seen_at, last_path, created_at',
+        select: 'id, email, full_name, avatar_url, is_admin, is_super_admin, status, department_id, job_title, credentials, last_seen_at, last_path, created_at',
         order: { column: 'full_name', ascending: true },
       }).catch(() => []);
       if (!cancelled && Array.isArray(data)) setUsers(data as AppUser[]);
@@ -238,8 +242,15 @@ export default function UserPermissionsContent() {
   const sortedUsers = useMemo(() => {
     const visible = (() => {
       const q = filter.trim().toLowerCase();
-      if (!q) return users;
-      return users.filter(
+      let list = users;
+      switch (filterPill) {
+        case 'admins':       list = list.filter((u) => u.is_admin); break;
+        case 'super_admins': list = list.filter((u) => u.is_super_admin); break;
+        case 'pending':      list = list.filter((u) => u.status === 'on_hold'); break;
+        case 'all':          break;
+      }
+      if (!q) return list;
+      return list.filter(
         (u) => (u.full_name || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
       );
     })();
@@ -269,7 +280,7 @@ export default function UserPermissionsContent() {
           return cmp(new Date(a.created_at).getTime(), new Date(b.created_at).getTime());
       }
     });
-  }, [users, filter, sortKey, sortDir, departments]);
+  }, [users, filter, filterPill, sortKey, sortDir, departments]);
 
   if (!isAdmin) {
     return (
@@ -280,6 +291,20 @@ export default function UserPermissionsContent() {
   }
 
   const adminCount = users.filter((u) => u.is_admin).length;
+  const superAdminCount = users.filter((u) => u.is_super_admin).length;
+  const pendingCount = users.filter((u) => u.status === 'on_hold').length;
+  const pillCounts: Record<FilterPill, number> = {
+    all: users.length,
+    admins: adminCount,
+    super_admins: superAdminCount,
+    pending: pendingCount,
+  };
+  const pillLabels: Record<FilterPill, string> = {
+    all: 'All',
+    admins: 'Admins',
+    super_admins: 'Super Admins',
+    pending: 'Pending Approval',
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-7xl">
@@ -300,6 +325,35 @@ export default function UserPermissionsContent() {
           className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-primary/40"
           style={{ fontFamily: 'var(--font-body)' }}
         />
+      </div>
+
+      <div className="flex items-center gap-1.5 mb-4 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
+        {(['all', 'super_admins', 'admins', 'pending'] as FilterPill[]).map((pill) => {
+          const active = filterPill === pill;
+          const count = pillCounts[pill];
+          const isPending = pill === 'pending';
+          return (
+            <button
+              key={pill}
+              type="button"
+              onClick={() => setFilterPill(pill)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                active
+                  ? isPending
+                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                    : 'bg-primary text-white border border-primary'
+                  : 'bg-white text-foreground/60 border border-gray-200 hover:bg-warm-bg'
+              }`}
+            >
+              {pillLabels[pill]}
+              <span className={`tabular-nums px-1.5 py-0.5 rounded-full text-[10px] ${
+                active && !isPending ? 'bg-white/20 text-white' : 'bg-foreground/5 text-foreground/55'
+              }`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -346,6 +400,16 @@ export default function UserPermissionsContent() {
                             <p className="text-sm font-medium text-foreground">
                               {formatNameWithCredentials(u.full_name, u.credentials) || 'Unknown'}
                               {isSelf && <span className="ml-2 text-[11px] text-foreground/40">(you)</span>}
+                              {u.status === 'on_hold' && (
+                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-100 text-amber-800">
+                                  On hold
+                                </span>
+                              )}
+                              {u.status === 'denied' && (
+                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-red-100 text-red-700">
+                                  Denied
+                                </span>
+                              )}
                             </p>
                             <p className="text-xs text-foreground/40">{u.email}</p>
                           </div>
