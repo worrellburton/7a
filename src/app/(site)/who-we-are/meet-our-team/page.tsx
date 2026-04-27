@@ -15,7 +15,12 @@ import TeamQuoteCarousel from '@/components/team/TeamQuoteCarousel';
 import HowWeHire from '@/components/team/HowWeHire';
 import { fetchPublicTeam } from '@/lib/team';
 
-export const revalidate = 60;
+// Dynamic so visibility flips in the admin Team Page Order modal
+// take effect on the next page load instead of waiting up to a
+// minute for ISR revalidation. The page is a single small Supabase
+// query — well within the budget of a per-request render.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function MeetOurTeamPage() {
   const team = await fetchPublicTeam();
