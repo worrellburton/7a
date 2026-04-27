@@ -509,6 +509,15 @@ function ActionCard({
       }`}
     >
       <div className="flex items-start gap-3 flex-wrap sm:flex-nowrap">
+        <Avatar
+          name={a.submitted_by_name}
+          src={a.submitted_by_avatar_url}
+          tooltip={
+            a.submitted_by_name
+              ? `${a.submitted_by_name} · ${new Date(a.created_at).toLocaleString()}`
+              : new Date(a.created_at).toLocaleString()
+          }
+        />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3
@@ -638,6 +647,49 @@ function FlameIcon({ className }: { className?: string }) {
 // Inject the @keyframes once on mount. The SeoSubNav fire-glow tab
 // references these animations by name, but they only need to be
 // registered when an SEO sub-page mounts.
+/**
+ * Circular avatar with an initial-letter fallback. Uses the snapshot
+ * URL captured on submit so deleting the underlying user later still
+ * shows the right face. The snapshot can be a Google profile photo
+ * (=s96-c suffix) so we upgrade to s256 for crisper render at the
+ * 40px tile size.
+ */
+function Avatar({
+  name,
+  src,
+  tooltip,
+}: {
+  name: string | null;
+  src: string | null;
+  tooltip?: string;
+}) {
+  const initial = (name || '?').charAt(0).toUpperCase();
+  const upgraded =
+    src && /googleusercontent\.com/i.test(src)
+      ? /=s\d+(-c)?$/i.test(src)
+        ? src.replace(/=s\d+(-c)?$/i, '=s256-c')
+        : `${src}=s256-c`
+      : src;
+  return (
+    <div
+      className="shrink-0 relative w-10 h-10 rounded-full overflow-hidden bg-warm-bg/70 border border-black/5 flex items-center justify-center text-foreground/55 text-sm font-bold"
+      title={tooltip}
+    >
+      {upgraded ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={upgraded}
+          alt={name ?? ''}
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        initial
+      )}
+    </div>
+  );
+}
+
 function FireGlowKeyframes() {
   return (
     <style jsx global>{`
