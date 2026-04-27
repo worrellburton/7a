@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/lib/AuthProvider';
 
 // Insights — visual rollup of call volume over time. Reuses the
 // existing /api/calls/insights endpoint (Phoenix-day buckets,
@@ -37,6 +38,7 @@ const RANGE_OPTIONS: { value: Range; label: string }[] = [
 ];
 
 export default function InsightsContent() {
+  const { session } = useAuth();
   const [range, setRange] = useState<Range>(30);
   const [series, setSeries] = useState<Series>('total');
   const [data, setData] = useState<InsightsResponse | null>(null);
@@ -44,17 +46,21 @@ export default function InsightsContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // The /api/calls/insights endpoint authenticates via the
+    // Authorization: Bearer header (same pattern the home dashboard
+    // and the heatmap use) — cookie-only requests come back as 401.
+    const token = session?.access_token;
+    if (!token) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
     const to = new Date();
     const from = new Date();
     from.setDate(from.getDate() - (range - 1));
-    // Snap to start-of-day in local time so we capture the whole window.
     from.setHours(0, 0, 0, 0);
     to.setHours(23, 59, 59, 999);
-    const url = `/api/calls/insights?from=${from.toISOString()}&to=${to.toISOString()}`;
-    fetch(url, { credentials: 'include' })
+    const url = `/api/calls/insights?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`;
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return (await r.json()) as InsightsResponse;
@@ -63,7 +69,7 @@ export default function InsightsContent() {
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [range]);
+  }, [range, session?.access_token]);
 
   return (
     <div className="p-8 max-w-7xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
