@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
@@ -331,6 +331,39 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     return isPageAllowedForDepartmentSet(item.path, [departmentId, ...userExtraDepartmentIds]);
   };
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Dismiss the desktop user menu on outside-click, Escape, or
+  // route change. The popup used to require a second click on the
+  // chevron to close, which felt broken — clicking anywhere else
+  // on the page (including the page content under the popup) now
+  // closes it.
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setUserMenuOpen(false);
+    };
+    const onPointerDown = (e: MouseEvent) => {
+      if (!userMenuRef.current) return;
+      if (!userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    // mousedown (not click) so the popup closes the moment the press
+    // starts — feels snappier than waiting for the up event.
+    document.addEventListener('mousedown', onPointerDown);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onPointerDown);
+    };
+  }, [userMenuOpen]);
+
+  // Close the popup whenever the route changes — clicking a link
+  // inside the popup already calls setUserMenuOpen(false), but a
+  // global pathname-watch handles edge cases (back button, links
+  // that don't manually close, etc).
+  useEffect(() => {
+    setUserMenuOpen(false);
+  }, [pathname]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [navMounted, setNavMounted] = useState(false);
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
@@ -693,9 +726,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         </nav>
 
         {/* User settings — bottom left */}
-        <div className="relative p-3 border-t border-gray-100">
+        <div ref={userMenuRef} className="relative p-3 border-t border-gray-100">
           {userMenuOpen && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-y-auto z-50 max-h-[calc(100vh-120px)]">
+            <div
+              role="menu"
+              aria-label="Account menu"
+              className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-y-auto z-50 max-h-[calc(100vh-120px)] py-1"
+            >
               <Link
                 href="/app/profile"
                 onClick={() => setUserMenuOpen(false)}
