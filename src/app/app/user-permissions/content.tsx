@@ -130,6 +130,11 @@ export default function UserPermissionsContent() {
   // pick "+ Custom title…" → swap the <select> for a free-text input.
   const [customTitleUserId, setCustomTitleUserId] = useState<string | null>(null);
   const [customTitleDraft, setCustomTitleDraft] = useState('');
+  // Per-user count of explicit page overrides + extra departments.
+  // Surfaced as a small badge next to the lock icon so super admins
+  // can see at a glance which users have custom permissions without
+  // having to open every modal.
+  const [overrideCounts, setOverrideCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const id = setInterval(() => setNowTick((t) => t + 1), 30_000);
@@ -166,7 +171,26 @@ export default function UserPermissionsContent() {
       }).catch(() => []);
       if (!cancelled && Array.isArray(data)) setJobDescriptions(data as JobDescriptionLite[]);
     }
-    Promise.all([fetchUsers(), fetchDepartments(), fetchJobDescriptions()]).finally(() => {
+    async function fetchOverrideCounts() {
+      const [pageRows, deptRows] = await Promise.all([
+        db({ action: 'select', table: 'user_page_permissions', select: 'user_id' }).catch(() => null),
+        db({ action: 'select', table: 'user_extra_departments', select: 'user_id' }).catch(() => null),
+      ]);
+      if (cancelled) return;
+      const counts: Record<string, number> = {};
+      if (Array.isArray(pageRows)) {
+        for (const r of pageRows as Array<{ user_id: string }>) {
+          counts[r.user_id] = (counts[r.user_id] || 0) + 1;
+        }
+      }
+      if (Array.isArray(deptRows)) {
+        for (const r of deptRows as Array<{ user_id: string }>) {
+          counts[r.user_id] = (counts[r.user_id] || 0) + 1;
+        }
+      }
+      setOverrideCounts(counts);
+    }
+    Promise.all([fetchUsers(), fetchDepartments(), fetchJobDescriptions(), fetchOverrideCounts()]).finally(() => {
       if (!cancelled) setLoading(false);
     });
     // Keep presence + recent edits fresh.
@@ -413,7 +437,7 @@ export default function UserPermissionsContent() {
                   <SortableTh label="Job Title" sortKey="job_title" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden sm:table-cell" />
                   <SortableTh label="Joined" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden lg:table-cell" />
                   <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Super Admin</th>
-                  <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider w-12" style={{ fontFamily: 'var(--font-body)' }} />
+                  <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider text-center" style={{ fontFamily: 'var(--font-body)' }}>Pages</th>
                 </tr>
               </thead>
               <tbody>
@@ -601,22 +625,36 @@ export default function UserPermissionsContent() {
                         )}
                       </td>
 
-                      {/* Permissions lock icon — super admins only */}
+                      {/* Per-user page permissions — super admins only.
+                          When the user already has overrides, the button
+                          shows the count + uses a primary tone so it
+                          reads as "customized" at a glance. */}
                       <td className="px-6 py-4 text-center">
-                        {isSuperAdmin && !isSelf && (
-                          <button
-                            type="button"
-                            onClick={() => setPermissionsTarget(u)}
-                            title={`Edit page permissions for ${u.full_name || u.email}`}
-                            aria-label={`Edit page permissions for ${u.full_name || u.email}`}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/5 transition-colors"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="4" y="11" width="16" height="9" rx="2" />
-                              <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                            </svg>
-                          </button>
-                        )}
+                        {isSuperAdmin && !isSelf && (() => {
+                          const count = overrideCounts[u.id] ?? 0;
+                          const customized = count > 0;
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setPermissionsTarget(u)}
+                              title={customized
+                                ? `${count} custom permission${count === 1 ? '' : 's'} — click to edit`
+                                : `Edit page permissions for ${u.full_name || u.email}`}
+                              aria-label={`Edit page permissions for ${u.full_name || u.email}`}
+                              className={`inline-flex items-center gap-1.5 px-2.5 h-8 rounded-lg border text-xs font-semibold transition-colors ${
+                                customized
+                                  ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/15'
+                                  : 'border-black/10 bg-white text-foreground/65 hover:border-primary/30 hover:text-primary hover:bg-primary/5'
+                              }`}
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <rect x="4" y="11" width="16" height="9" rx="2" />
+                                <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                              </svg>
+                              {customized ? `${count} custom` : 'Edit'}
+                            </button>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
@@ -630,7 +668,25 @@ export default function UserPermissionsContent() {
       {permissionsTarget && (
         <PermissionsModal
           open={!!permissionsTarget}
-          onClose={() => setPermissionsTarget(null)}
+          onClose={async () => {
+            const closing = permissionsTarget;
+            setPermissionsTarget(null);
+            // Refresh the override counts so the row badge reflects
+            // any add/remove the super admin just made in the modal.
+            const [pageRows, deptRows] = await Promise.all([
+              db({ action: 'select', table: 'user_page_permissions', select: 'user_id' }).catch(() => null),
+              db({ action: 'select', table: 'user_extra_departments', select: 'user_id' }).catch(() => null),
+            ]);
+            const counts: Record<string, number> = {};
+            if (Array.isArray(pageRows)) {
+              for (const r of pageRows as Array<{ user_id: string }>) counts[r.user_id] = (counts[r.user_id] || 0) + 1;
+            }
+            if (Array.isArray(deptRows)) {
+              for (const r of deptRows as Array<{ user_id: string }>) counts[r.user_id] = (counts[r.user_id] || 0) + 1;
+            }
+            setOverrideCounts(counts);
+            void closing;
+          }}
           userId={permissionsTarget.id}
           userLabel={permissionsTarget.full_name || permissionsTarget.email}
           userIsAdmin={permissionsTarget.is_admin}
