@@ -36,6 +36,7 @@ const defaultPages: PageConfig[] = [
   { path: '/app/equine', label: 'Horses', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [], departmentId: null },
   { path: '/app/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6, allowedDepartments: [], departmentId: null },
   { path: '/app/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7, allowedDepartments: [], departmentId: null },
+  { path: '/app/insights', label: 'Insights', adminOnly: false, section: 'nav', sort_order: 7.5, allowedDepartments: [], departmentId: null },
   { path: '/app/fleet', label: 'Fleet', adminOnly: false, section: 'nav', sort_order: 8, allowedDepartments: [], departmentId: null },
   { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [], departmentId: null },
   { path: '/app/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },
@@ -56,7 +57,7 @@ const defaultPages: PageConfig[] = [
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
   { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [], departmentId: null },
   { path: '/app/apis', label: 'APIs', adminOnly: true, section: 'popup', sort_order: 3, allowedDepartments: [], departmentId: null },
-  { path: '/app/super-admin', label: 'Super Admin', adminOnly: true, section: 'popup', sort_order: 4, allowedDepartments: [], departmentId: null },
+  { path: '/app/user-permissions', label: 'User Permissions', adminOnly: true, section: 'popup', sort_order: 4, allowedDepartments: [], departmentId: null },
   { path: '/app/activity', label: 'Activity', adminOnly: true, section: 'popup', sort_order: 5, allowedDepartments: [], departmentId: null },
 ];
 
@@ -71,6 +72,28 @@ interface PagePermissionsContextType {
   // True when `userDepartmentId` (may be null) is allowed to view `path`.
   // Unrestricted pages (empty allowedDepartments) are always allowed.
   isPageAllowedForDepartment: (path: string, userDepartmentId: string | null) => boolean;
+  /**
+   * Per-user page overrides loaded from `user_page_permissions` for the
+   * currently signed-in user. Maps path → can_view. Absence = inherit
+   * (fall back to dept + admin-only rules). Used by `PlatformShell` and
+   * `PageGuard` to enforce super-admin-set overrides.
+   */
+  userOverrides: Record<string, boolean>;
+  /**
+   * Department ids beyond the user's primary `users.department_id` that
+   * a super admin has granted them via `user_extra_departments`. Used
+   * by `isPageAllowedForDepartmentSet` (and its callers in PlatformShell
+   * / PageGuard) so a member can effectively belong to multiple depts
+   * for permission purposes without changing where they sit on the org
+   * chart.
+   */
+  userExtraDepartmentIds: string[];
+  /**
+   * True if any of `userDepartmentId` plus the signed-in user's extra
+   * departments is allowed to view `path`. Mirrors the single-dept
+   * check above but accepts a set.
+   */
+  isPageAllowedForDepartmentSet: (path: string, departmentIds: (string | null)[]) => boolean;
   updatePageLayout: (updatedPages: PageConfig[]) => void;
   loading: boolean;
 }
@@ -84,14 +107,72 @@ const PagePermissionsContext = createContext<PagePermissionsContextType>({
   setPageDepartmentGroup: () => {},
   isPageAdminOnly: () => false,
   isPageAllowedForDepartment: () => true,
+  userOverrides: {},
+  userExtraDepartmentIds: [],
+  isPageAllowedForDepartmentSet: () => true,
   updatePageLayout: () => {},
   loading: true,
 });
 
 export function PagePermissionsProvider({ children }: { children: React.ReactNode }) {
-  const { session } = useAuth();
+  const { session, user } = useAuth();
   const [pages, setPages] = useState<PageConfig[]>(defaultPages);
   const [loading, setLoading] = useState(true);
+  const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({});
+  const [userExtraDepartmentIds, setUserExtraDepartmentIds] = useState<string[]>([]);
+
+  // Load per-user page overrides for the signed-in user. RLS lets the
+  // user read their own rows, so this works for non-admin members too.
+  useEffect(() => {
+    if (!user?.id) {
+      setUserOverrides({});
+      return;
+    }
+    let cancelled = false;
+    db({
+      action: 'select',
+      table: 'user_page_permissions',
+      match: { user_id: user.id },
+      select: 'path, can_view',
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        const map: Record<string, boolean> = {};
+        if (Array.isArray(rows)) {
+          for (const r of rows as { path: string; can_view: boolean }[]) {
+            map[r.path] = r.can_view;
+          }
+        }
+        setUserOverrides(map);
+      })
+      .catch(() => { /* table missing or RLS — fall back to inherit */ });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // Load extra (effective) department memberships for the signed-in
+  // user. Same pattern as user_page_permissions — RLS lets the user
+  // read their own rows so non-admin members get correct gating.
+  useEffect(() => {
+    if (!user?.id) {
+      setUserExtraDepartmentIds([]);
+      return;
+    }
+    let cancelled = false;
+    db({
+      action: 'select',
+      table: 'user_extra_departments',
+      match: { user_id: user.id },
+      select: 'department_id',
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        if (Array.isArray(rows)) {
+          setUserExtraDepartmentIds((rows as { department_id: string }[]).map((r) => r.department_id));
+        }
+      })
+      .catch(() => { /* table missing or RLS — fall back to no extras */ });
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -190,6 +271,15 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
     return page.allowedDepartments.includes(userDepartmentId);
   };
 
+  const isPageAllowedForDepartmentSet = (path: string, departmentIds: (string | null)[]) => {
+    const page = pages.find((p) => p.path === path);
+    if (!page) return true;
+    if (!page.allowedDepartments || page.allowedDepartments.length === 0) return true;
+    const ids = departmentIds.filter((d): d is string => !!d);
+    if (ids.length === 0) return false;
+    return ids.some((id) => page.allowedDepartments.includes(id));
+  };
+
   const updatePageLayout = useCallback(async (updatedPages: PageConfig[]) => {
     setPages(updatedPages);
 
@@ -227,7 +317,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   const popupPages = sorted.filter((p) => p.section === 'popup');
 
   return (
-    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, setPageDepartments, setPageDepartmentGroup, isPageAdminOnly, isPageAllowedForDepartment, updatePageLayout, loading }}>
+    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, setPageDepartments, setPageDepartmentGroup, isPageAdminOnly, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds, updatePageLayout, loading }}>
       {children}
     </PagePermissionsContext.Provider>
   );

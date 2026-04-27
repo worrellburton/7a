@@ -125,6 +125,11 @@ export default function UsersContent() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   // force presence labels to re-render every 15s
   const [, setNowTick] = useState(0);
+  // When the admin picks "+ Custom title…" from the Job Title dropdown,
+  // we swap that row's <select> for an <input> so they can type a one-
+  // off title without first creating a Job Description record.
+  const [customTitleUserId, setCustomTitleUserId] = useState<string | null>(null);
+  const [customTitleDraft, setCustomTitleDraft] = useState('');
   useEffect(() => {
     const i = setInterval(() => setNowTick((n) => n + 1), 15 * 1000);
     return () => clearInterval(i);
@@ -564,20 +569,59 @@ export default function UsersContent() {
                                 </span>
                               </span>
                             )}
-                            <select
-                              value={u.job_title || ''}
-                              onChange={(e) => updateJobTitle(u.id, e.target.value || null)}
-                              className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-full sm:max-w-[180px] ${u.job_title ? 'text-foreground' : 'text-foreground/30 italic'}`}
-                              style={{ fontFamily: 'var(--font-body)' }}
-                            >
-                              <option value="">Add title...</option>
-                              {jobDescriptions.map((j) => (
-                                <option key={j.id} value={j.title}>{j.title}</option>
-                              ))}
-                              {u.job_title && !jobDescriptions.some((j) => j.title === u.job_title) && (
-                                <option value={u.job_title}>{u.job_title}</option>
-                              )}
-                            </select>
+                            {customTitleUserId === u.id ? (
+                              <input
+                                autoFocus
+                                type="text"
+                                value={customTitleDraft}
+                                placeholder="Custom title…"
+                                onChange={(e) => setCustomTitleDraft(e.target.value)}
+                                onBlur={() => {
+                                  const v = customTitleDraft.trim();
+                                  if (v) updateJobTitle(u.id, v);
+                                  setCustomTitleUserId(null);
+                                  setCustomTitleDraft('');
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const v = customTitleDraft.trim();
+                                    if (v) updateJobTitle(u.id, v);
+                                    setCustomTitleUserId(null);
+                                    setCustomTitleDraft('');
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    setCustomTitleUserId(null);
+                                    setCustomTitleDraft('');
+                                  }
+                                }}
+                                className="text-xs px-2 py-1 rounded-lg border border-primary/40 focus:border-primary focus:outline-none bg-white max-w-full sm:max-w-[180px]"
+                                style={{ fontFamily: 'var(--font-body)' }}
+                              />
+                            ) : (
+                              <select
+                                value={u.job_title || ''}
+                                onChange={(e) => {
+                                  if (e.target.value === '__custom__') {
+                                    setCustomTitleDraft('');
+                                    setCustomTitleUserId(u.id);
+                                    return;
+                                  }
+                                  updateJobTitle(u.id, e.target.value || null);
+                                }}
+                                className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-full sm:max-w-[180px] ${u.job_title ? 'text-foreground' : 'text-foreground/30 italic'}`}
+                                style={{ fontFamily: 'var(--font-body)' }}
+                              >
+                                <option value="">Add title...</option>
+                                <option value="__custom__">+ Custom title…</option>
+                                {jobDescriptions.map((j) => (
+                                  <option key={j.id} value={j.title}>{j.title}</option>
+                                ))}
+                                {u.job_title && !jobDescriptions.some((j) => j.title === u.job_title) && (
+                                  <option value={u.job_title}>{u.job_title}</option>
+                                )}
+                              </select>
+                            )}
                             {matchedJd && (
                               <button
                                 onClick={() => router.push(`/app/job-descriptions/${matchedJd.id}`)}

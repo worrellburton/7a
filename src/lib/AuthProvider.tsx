@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
@@ -14,6 +14,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   departmentId: string | null;
   status: UserStatus;
   /**
@@ -27,6 +28,12 @@ interface AuthContextType {
   avatarUrl: string | null;
   /** Re-fetch the avatar from `users` (call after a save). */
   refreshAvatar: () => void;
+  /**
+   * Re-fetch is_admin / department_id / status from `users`. Used by
+   * the "Waiting for approval" hold screen to poll the DB so an admin's
+   * Approve click unblocks the user without a manual sign-out.
+   */
+  refreshProfile: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -36,10 +43,12 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   loading: true,
   isAdmin: false,
+  isSuperAdmin: false,
   departmentId: null,
   status: 'active',
   avatarUrl: null,
   refreshAvatar: () => {},
+  refreshProfile: async () => {},
   signInWithGoogle: async () => {},
   signOut: async () => {},
 });
@@ -65,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [status, setStatus] = useState<UserStatus>('active');
   // Custom avatar from the users table — separate from
@@ -92,9 +102,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // never silently blanked out by an unrelated DB error. This exact bug
     // once hid Team + Super Admin from every admin's sidebar, so the
     // fallback is intentional belt-and-suspenders.
-    type ProfileRow = { is_admin?: boolean; department_id?: string | null; status?: UserStatus };
+    type ProfileRow = { is_admin?: boolean; is_super_admin?: boolean; department_id?: string | null; status?: UserStatus };
     let row: ProfileRow | null = null;
-    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, department_id, status' });
+    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, is_super_admin, department_id, status' });
     if (Array.isArray(full) && full[0]) {
       row = full[0] as ProfileRow;
     } else {
@@ -113,19 +123,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!row) return;
 
     setIsAdmin(row.is_admin === true);
+    setIsSuperAdmin(row.is_super_admin === true);
     setDepartmentId(row.department_id ?? null);
-    const current: UserStatus = row.status ?? 'active';
-    // Backfill path for rows created before the trigger existed: if the
-    // email isn't on the org domain and the user isn't an admin, hold them.
-    const needsHold = current === 'active'
-      && row.is_admin !== true
-      && !(email ?? '').toLowerCase().endsWith('@sevenarrowsrecovery.com');
-    if (needsHold) {
-      setStatus('on_hold');
-      db({ action: 'update', table: 'users', data: { status: 'on_hold' }, match: { id: userId } }).catch(() => {});
-    } else {
-      setStatus(current);
-    }
+    // Trust the DB. The status column is set on insert by the
+    // `users_set_initial_status` trigger, and admins flip it via the
+    // Team page. Don't second-guess that here — an earlier client-side
+    // "auto-hold non-org email" backfill kept yanking approved users
+    // back to on_hold every time they hit /app, so admin approvals
+    // never stuck for Gmail/Yahoo accounts.
+    setStatus(row.status ?? 'active');
   }
 
   useEffect(() => {
@@ -174,6 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           setIsAdmin(false);
+          setIsSuperAdmin(false);
           setDepartmentId(null);
           setStatus('active');
           setCustomAvatarUrl(null);
@@ -262,6 +269,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user?.id) loadAvatar(user.id);
   };
 
+  const refreshProfile = useCallback(async () => {
+    if (user?.id) await loadProfile(user.id, user.email ?? null);
+  }, [user?.id, user?.email]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -269,10 +280,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session,
         loading,
         isAdmin,
+        isSuperAdmin,
         departmentId,
         status,
         avatarUrl,
         refreshAvatar,
+        refreshProfile,
         signInWithGoogle,
         signOut,
       }}

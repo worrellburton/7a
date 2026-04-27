@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
@@ -127,6 +127,14 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
     </svg>
   ),
+  '/app/insights': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18" />
+      <rect x="7" y="13" width="3" height="5" rx="0.5" />
+      <rect x="12" y="9" width="3" height="9" rx="0.5" />
+      <rect x="17" y="5" width="3" height="13" rx="0.5" />
+    </svg>
+  ),
   '/app/reviews': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -171,7 +179,7 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="10" cy="18" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   ),
-  '/app/super-admin': (
+  '/app/user-permissions': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z" />
       <path d="m9.5 12 2 2 3.5-4" />
@@ -275,8 +283,8 @@ function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
 export { pageIcons };
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session, avatarUrl } = useAuth();
-  const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
+  const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
   const [navDepartments, setNavDepartments] = useState<NavDepartment[]>([]);
@@ -314,14 +322,56 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     };
   }, [canSeeWebsiteRequests]);
 
-  // Sidebar/popup links are gated on both admin-only flag and the
-  // per-page department allow-list. Admins bypass the department check.
+  // Sidebar/popup links are gated on three layers, in this order:
+  //   1. Per-user override (set by a super admin via /app/user-permissions
+  //      → user_page_permissions). Allow / Block beats everything else.
+  //   2. Admin-only flag — non-admins can't see admin pages.
+  //   3. Department allow-list — admins bypass; everyone else needs
+  //      their dept on the page's allowed list (empty = unrestricted).
   const canSeePage = (item: { path: string; adminOnly: boolean }) => {
+    const override = userOverrides[item.path];
+    if (override === false) return false;
+    if (override === true) return true;
     if (item.adminOnly && !isAdmin) return false;
     if (isAdmin) return true;
-    return isPageAllowedForDepartment(item.path, departmentId);
+    // Effective dept set = primary department_id + any extras a super
+    // admin granted via /app/user-permissions → Departments tab.
+    return isPageAllowedForDepartmentSet(item.path, [departmentId, ...userExtraDepartmentIds]);
   };
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Dismiss the desktop user menu on outside-click, Escape, or
+  // route change. The popup used to require a second click on the
+  // chevron to close, which felt broken — clicking anywhere else
+  // on the page (including the page content under the popup) now
+  // closes it.
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setUserMenuOpen(false);
+    };
+    const onPointerDown = (e: MouseEvent) => {
+      if (!userMenuRef.current) return;
+      if (!userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    // mousedown (not click) so the popup closes the moment the press
+    // starts — feels snappier than waiting for the up event.
+    document.addEventListener('mousedown', onPointerDown);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onPointerDown);
+    };
+  }, [userMenuOpen]);
+
+  // Close the popup whenever the route changes — clicking a link
+  // inside the popup already calls setUserMenuOpen(false), but a
+  // global pathname-watch handles edge cases (back button, links
+  // that don't manually close, etc).
+  useEffect(() => {
+    setUserMenuOpen(false);
+  }, [pathname]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [navMounted, setNavMounted] = useState(false);
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
@@ -490,6 +540,19 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     setMobileMenuOpen(false);
   }, [pathname]);
 
+  // While the user is on the "Waiting for approval" hold screen, poll
+  // their profile every 5s so an admin's Approve click unblocks them
+  // without requiring a manual sign-out / refresh. Stops as soon as
+  // status flips to active.
+  useEffect(() => {
+    if (status !== 'on_hold' && status !== 'denied') return;
+    if (!user?.id) return;
+    const id = setInterval(() => {
+      refreshProfile().catch(() => { /* network blip — try again next tick */ });
+    }, 5000);
+    return () => clearInterval(id);
+  }, [status, user?.id, refreshProfile]);
+
   // Loading state
   if (loading) {
     return (
@@ -545,8 +608,20 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     <div className="flex min-h-screen app-shell relative">
       <FlowBackground />
       <PresenceCursors />
-      {/* Left Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 hidden lg:flex">
+      {/* Left Sidebar — outer aside fills the parent's full height so
+          the white bg never reveals the warm-bg behind it on tall
+          pages. The inner div is `sticky top-0 h-screen` so the
+          actual sidebar UI stays pinned to the viewport while the
+          rest of the page scrolls — keeping the user card + user
+          menu permanently at the lower-left. */}
+      <aside className="w-64 shrink-0 hidden lg:block bg-white border-r border-gray-100">
+        {/* `app-shell` applies zoom: 0.82 at lg+, so a plain h-screen
+            renders at only 82% of the real viewport — that's why the
+            user card used to float ~120px above the bottom edge.
+            Mirroring the outer `min-height: calc(100vh / 0.82)` here
+            puts the bottom of the sidebar exactly on the viewport
+            edge so the user card pins to the actual lower-left. */}
+        <div className="sticky top-0 h-[calc(100vh/0.82)] flex flex-col">
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
@@ -665,9 +740,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         </nav>
 
         {/* User settings — bottom left */}
-        <div className="relative p-3 border-t border-gray-100">
+        <div ref={userMenuRef} className="relative p-3 border-t border-gray-100">
           {userMenuOpen && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+            <div
+              role="menu"
+              aria-label="Account menu"
+              className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-y-auto z-50 max-h-[calc(100vh-120px)] py-1"
+            >
               <Link
                 href="/app/profile"
                 onClick={() => setUserMenuOpen(false)}
@@ -744,6 +823,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               </svg>
             </button>
           </div>
+        </div>
         </div>
       </aside>
 
@@ -890,37 +970,42 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   </div>
                 ))}
 
-                {popupPages.filter(canSeePage).length > 0 && (
-                  <>
-                    <div className="h-px my-3 bg-gray-100" />
-                    {popupPages.filter(canSeePage).map((item) => {
-                      const isActive = pathname === item.path;
-                      return (
-                        <Link
-                          key={item.path}
-                          href={item.path}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
-                            isActive
-                              ? 'bg-primary/10 text-primary'
-                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                          }`}
-                          style={{ fontFamily: 'var(--font-body)' }}
-                        >
-                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                            {getPageIcon(item.path)}
-                          </span>
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </>
-                )}
+              </nav>
 
+              {/* Pinned popup section + My Profile — always visible at the
+                  bottom-left of the drawer so admin pages (Team, Pages,
+                  Super Admin, …) and Profile don't disappear below the
+                  scroll fold on tall nav lists. */}
+              {popupPages.filter(canSeePage).length > 0 && (
+                <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[40vh] overflow-y-auto">
+                  {popupPages.filter(canSeePage).map((item) => {
+                    const isActive = pathname === item.path;
+                    return (
+                      <Link
+                        key={item.path}
+                        href={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                          isActive
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                        }`}
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                          {getPageIcon(item.path)}
+                        </span>
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="p-3 border-t border-gray-100 space-y-0.5">
                 <Link
                   href="/app/profile"
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                     pathname === '/app/profile'
                       ? 'bg-primary/10 text-primary'
                       : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
@@ -934,7 +1019,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   </span>
                   My Profile
                 </Link>
-              </nav>
+              </div>
 
               {/* User card + sign out */}
               <div className="p-3 border-t border-gray-100 space-y-1">

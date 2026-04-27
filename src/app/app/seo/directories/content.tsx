@@ -1,8 +1,31 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
+import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthProvider';
+import { RowChat } from '@/components/RowChat';
+import { logActivity } from '@/lib/activity';
+
+// localStorage for per-user "last read" timestamps so the unread dot
+// only lights up when there's a directory comment the current user
+// hasn't seen. Per-browser, same pattern as facilities + backlinks.
+const COMMENT_READ_KEY = 'sa-directory-chat-read';
+function getDirectoryReadMap(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try { return JSON.parse(window.localStorage.getItem(COMMENT_READ_KEY) || '{}'); }
+  catch { return {}; }
+}
+function setDirectoryReadAt(directoryId: string, ts: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const map = getDirectoryReadMap();
+    map[directoryId] = ts;
+    window.localStorage.setItem(COMMENT_READ_KEY, JSON.stringify(map));
+  } catch { /* quota — fine */ }
+}
 
 // Off-site directory tracker. Listings here are places Seven Arrows
 // should claim, monitor, or submit to in order to grow domain
@@ -2936,6 +2959,468 @@ function useLinkMap(): [
   return [map, setLink];
 }
 
+// ── Server-backed directory state ──────────────────────────────────
+//
+// Single source of truth for status + link + attribution. Reads the
+// `directory_states` table on mount, subscribes to realtime so a
+// teammate's edits appear without refresh, and on first load imports
+// any leftover localStorage state from the old hooks above (one-time
+// migration; the localStorage keys are then cleared so the import
+// doesn't re-run on subsequent loads).
+
+interface DirectoryStateRow {
+  directory_id: string;
+  status: Status;
+  link: string | null;
+  link_set_by: string | null;
+  link_set_at: string | null;
+  status_set_by: string | null;
+  status_set_at: string | null;
+}
+
+interface UserLite {
+  id: string;
+  full_name: string | null;
+}
+
+function useDirectoryStates() {
+  const { user, session } = useAuth();
+  const [byId, setById] = useState<Record<string, DirectoryStateRow>>({});
+  const [users, setUsers] = useState<Record<string, UserLite>>({});
+
+  // Initial load + realtime + one-time localStorage import.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let cancelled = false;
+    async function load() {
+      const rows = await db({
+        action: 'select',
+        table: 'directory_states',
+        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at',
+      }).catch(() => null);
+      if (cancelled) return;
+      const map: Record<string, DirectoryStateRow> = {};
+      if (Array.isArray(rows)) {
+        for (const r of rows as DirectoryStateRow[]) map[r.directory_id] = r;
+      }
+      setById(map);
+
+      // Idempotent localStorage migration: every load, push any
+      // localStorage entry the server doesn't already have. No
+      // "imported" flag — if a teammate added entries on a different
+      // browser between page loads, this still picks them up. Cheap
+      // because in steady state localStorage is empty so there's
+      // nothing to upsert.
+      if (typeof window !== 'undefined' && user?.id) {
+        const localLinks = (() => {
+          try { return JSON.parse(window.localStorage.getItem(LINKS_KEY) || '{}') as Record<string, string>; }
+          catch { return {}; }
+        })();
+        const localStatus = (() => {
+          try { return JSON.parse(window.localStorage.getItem(STATUS_KEY) || '{}') as Record<string, Status>; }
+          catch { return {}; }
+        })();
+        const ids = new Set([...Object.keys(localLinks), ...Object.keys(localStatus)]);
+        const upserts = Array.from(ids)
+          .filter((id) => !map[id])
+          .map((id) => ({
+            directory_id: id,
+            status: localStatus[id] || 'todo',
+            link: localLinks[id] || null,
+            link_set_by: localLinks[id] ? user.id : null,
+            link_set_at: localLinks[id] ? new Date().toISOString() : null,
+            status_set_by: localStatus[id] ? user.id : null,
+            status_set_at: localStatus[id] ? new Date().toISOString() : null,
+          }));
+        if (upserts.length > 0) {
+          await db({ action: 'upsert', table: 'directory_states', data: upserts, onConflict: 'directory_id' }).catch(() => null);
+          // Refetch so attribution is consistent with what just landed.
+          const fresh = await db({
+            action: 'select',
+            table: 'directory_states',
+            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at',
+          }).catch(() => null);
+          if (!cancelled && Array.isArray(fresh)) {
+            const next: Record<string, DirectoryStateRow> = {};
+            for (const r of fresh as DirectoryStateRow[]) next[r.directory_id] = r;
+            setById(next);
+          }
+        }
+      }
+    }
+    load();
+
+    const channel = supabase
+      .channel('directory-states')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'directory_states' }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          const old = payload.old as { directory_id: string };
+          setById((prev) => {
+            const next = { ...prev };
+            delete next[old.directory_id];
+            return next;
+          });
+        } else {
+          const row = payload.new as DirectoryStateRow;
+          setById((prev) => ({ ...prev, [row.directory_id]: row }));
+        }
+      })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [session, user?.id]);
+
+  // Resolve user_id → full_name once. Only fetched if we don't have
+  // a name for at least one referenced id.
+  useEffect(() => {
+    const referenced = new Set<string>();
+    for (const r of Object.values(byId)) {
+      if (r.link_set_by) referenced.add(r.link_set_by);
+      if (r.status_set_by) referenced.add(r.status_set_by);
+    }
+    const missing = Array.from(referenced).filter((id) => !users[id]);
+    if (missing.length === 0) return;
+    db({
+      action: 'select',
+      table: 'users',
+      select: 'id, full_name',
+    })
+      .then((rows) => {
+        if (!Array.isArray(rows)) return;
+        const next: Record<string, UserLite> = { ...users };
+        for (const r of rows as UserLite[]) next[r.id] = r;
+        setUsers(next);
+      })
+      .catch(() => null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [byId]);
+
+  const upsert = async (id: string, patch: Partial<DirectoryStateRow>) => {
+    if (!user?.id) return;
+    const existing = byId[id];
+    const next: DirectoryStateRow = {
+      directory_id: id,
+      status: patch.status ?? existing?.status ?? 'todo',
+      link: patch.link !== undefined ? patch.link : (existing?.link ?? null),
+      link_set_by: patch.link !== undefined
+        ? (patch.link ? user.id : null)
+        : (existing?.link_set_by ?? null),
+      link_set_at: patch.link !== undefined
+        ? (patch.link ? new Date().toISOString() : null)
+        : (existing?.link_set_at ?? null),
+      status_set_by: patch.status !== undefined ? user.id : (existing?.status_set_by ?? null),
+      status_set_at: patch.status !== undefined ? new Date().toISOString() : (existing?.status_set_at ?? null),
+    };
+    setById((prev) => ({ ...prev, [id]: next }));
+    await db({ action: 'upsert', table: 'directory_states', data: [next as unknown as Record<string, unknown>], onConflict: 'directory_id' }).catch(() => null);
+
+    // Cloud-backed activity feed. Each meaningful change (status flip
+    // or link add/remove) writes a row to public.activity_log so the
+    // Recent Activity panel — and the global /app/activity feed —
+    // both pick it up. Fire-and-forget; failures never block the UI.
+    const dirMeta = DIRECTORIES.find((d) => d.id === id);
+    const label = dirMeta?.name ?? id;
+    if (patch.status !== undefined && patch.status !== existing?.status) {
+      void logActivity({
+        userId: user.id,
+        type: 'seo.directory_status_changed',
+        targetKind: 'seo_directory',
+        targetId: id,
+        targetLabel: label,
+        targetPath: '/app/seo/directories',
+        metadata: {
+          from: existing?.status ?? 'todo',
+          to: next.status,
+        },
+      });
+    }
+    if (patch.link !== undefined && (patch.link ?? null) !== (existing?.link ?? null)) {
+      const adding = !!patch.link;
+      void logActivity({
+        userId: user.id,
+        type: adding ? 'seo.directory_link_added' : 'seo.directory_link_removed',
+        targetKind: 'seo_directory',
+        targetId: id,
+        targetLabel: label,
+        targetPath: '/app/seo/directories',
+        metadata: adding
+          ? { url: patch.link }
+          : { previousUrl: existing?.link ?? null },
+      });
+    }
+  };
+
+  return { byId, users, upsert };
+}
+
+// ── Semrush referring-domain match ─────────────────────────────────
+//
+// The Backlinks page persists a snapshot of Semrush data in
+// `seo_backlinks_snapshots`. Reading the latest snapshot lets us
+// annotate each directory row with whether Semrush has actually seen
+// a link from that domain to us — and, if so, the authority score
+// and total backlinks. Apex domain (host minus a leading "www.") is
+// the matching key on both sides.
+
+interface SemrushRefDomain {
+  domain: string;
+  ascore: number;
+  backlinks_num: number;
+  first_seen: string;
+  last_seen: string;
+}
+
+interface SemrushSnapshot {
+  rows: SemrushRefDomain[];
+  byDomain: Map<string, SemrushRefDomain>;
+  syncedAt: string | null;
+  empty: boolean;
+}
+
+function apexDomain(input: string): string {
+  try {
+    const u = new URL(input);
+    return u.hostname.replace(/^www\./i, '').toLowerCase();
+  } catch {
+    return input.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0].toLowerCase();
+  }
+}
+
+function useSemrushSnapshot(): { snap: SemrushSnapshot | null; loading: boolean; error: string | null } {
+  const [snap, setSnap] = useState<SemrushSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/seo/backlinks', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json() as {
+          refdomains?: SemrushRefDomain[];
+          synced_at?: string | null;
+          empty?: boolean;
+        };
+        if (cancelled) return;
+        const rows = data.refdomains ?? [];
+        const byDomain = new Map<string, SemrushRefDomain>();
+        for (const r of rows) {
+          byDomain.set(r.domain.replace(/^www\./i, '').toLowerCase(), r);
+        }
+        setSnap({
+          rows,
+          byDomain,
+          syncedAt: data.synced_at ?? null,
+          empty: !!data.empty,
+        });
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return { snap, loading, error };
+}
+
+// ── Recent activity feed ───────────────────────────────────────────
+//
+// Reads from public.activity_log (the same cloud-backed table the
+// global /app/activity page renders) so every directory edit shows
+// up here in real time, no localStorage involved. Filtered to
+// target_kind = 'seo_directory' so only directory updates appear.
+
+interface ActivityRow {
+  id: string;
+  user_id: string | null;
+  type: string;
+  target_id: string | null;
+  target_label: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+interface ActivityUser {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  email: string | null;
+}
+
+function activityTimeAgo(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function describeDirectoryActivity(row: ActivityRow): { verb: string; accent: string } {
+  switch (row.type) {
+    case 'seo.directory_status_changed': {
+      const meta = row.metadata as { from?: string; to?: string } | null;
+      const to = meta?.to ?? '';
+      const label =
+        to === 'listed' ? 'marked as Listed'
+        : to === 'pending' ? 'marked as Submitted'
+        : to === 'skip' ? 'marked as Skip'
+        : to === 'todo' ? 'reset to To do'
+        : 'updated status of';
+      const accent =
+        to === 'listed' ? 'text-emerald-700'
+        : to === 'pending' ? 'text-amber-700'
+        : to === 'skip' ? 'text-foreground/55'
+        : 'text-foreground/70';
+      return { verb: label, accent };
+    }
+    case 'seo.directory_link_added':
+      return { verb: 'added a live link for', accent: 'text-emerald-700' };
+    case 'seo.directory_link_removed':
+      return { verb: 'removed the live link for', accent: 'text-rose-700' };
+    case 'seo.directory_chat_message':
+      return { verb: 'commented on', accent: 'text-primary' };
+    default:
+      return { verb: row.type.replace(/[._]/g, ' '), accent: 'text-foreground/70' };
+  }
+}
+
+function RecentDirectoryActivity() {
+  const { session } = useAuth();
+  const [rows, setRows] = useState<ActivityRow[]>([]);
+  const [usersById, setUsersById] = useState<Record<string, ActivityUser>>({});
+  const [collapsed, setCollapsed] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let cancelled = false;
+    async function load() {
+      const data = await db({
+        action: 'select',
+        table: 'activity_log',
+        select: 'id, user_id, type, target_id, target_label, metadata, created_at',
+        order: { column: 'created_at', ascending: false },
+      }).catch(() => null);
+      if (cancelled || !Array.isArray(data)) {
+        setLoading(false);
+        return;
+      }
+      const directoryRows = (data as ActivityRow[])
+        .filter((r) => r.type.startsWith('seo.directory_'))
+        .slice(0, 25);
+      setRows(directoryRows);
+      setLoading(false);
+
+      const ids = Array.from(new Set(directoryRows.map((r) => r.user_id).filter((v): v is string => !!v)));
+      if (ids.length > 0) {
+        const usrs = await db({
+          action: 'select',
+          table: 'users',
+          select: 'id, full_name, avatar_url, email',
+        }).catch(() => null);
+        if (!cancelled && Array.isArray(usrs)) {
+          const map: Record<string, ActivityUser> = {};
+          for (const u of usrs as ActivityUser[]) map[u.id] = u;
+          setUsersById(map);
+        }
+      }
+    }
+    load();
+
+    // Realtime — every team member sees new activity within a second
+    // of it landing in Supabase. Inserts only; we don't ever delete
+    // or update activity_log rows.
+    const channel = supabase
+      .channel('directory-recent-activity')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_log' }, (payload) => {
+        const row = payload.new as ActivityRow;
+        if (!row.type?.startsWith('seo.directory_')) return;
+        setRows((prev) => [row, ...prev].slice(0, 25));
+      })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
+
+  if (loading && rows.length === 0) return null;
+
+  return (
+    <section className="mb-5 rounded-xl border border-black/10 bg-white">
+      <button
+        type="button"
+        onClick={() => setCollapsed((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 border-b border-black/10 hover:bg-warm-bg/40 transition-colors"
+        aria-expanded={!collapsed}
+      >
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-foreground/55">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Recent activity
+          </span>
+          <span className="text-[11px] text-foreground/45">
+            {rows.length === 0 ? 'No edits yet' : `last ${rows.length} update${rows.length === 1 ? '' : 's'} · synced live`}
+          </span>
+        </div>
+        <svg
+          className={`w-3.5 h-3.5 text-foreground/40 transition-transform ${collapsed ? '' : 'rotate-180'}`}
+          fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {!collapsed && (
+        <div className="max-h-72 overflow-y-auto">
+          {rows.length === 0 ? (
+            <p className="px-4 py-6 text-xs text-foreground/45 text-center">
+              No directory edits yet — status changes and live links you save will appear here.
+            </p>
+          ) : (
+            <ol className="divide-y divide-black/5">
+              {rows.map((row) => {
+                const u = row.user_id ? usersById[row.user_id] : null;
+                const { verb, accent } = describeDirectoryActivity(row);
+                const initial = (u?.full_name || u?.email || '?').charAt(0).toUpperCase();
+                return (
+                  <li key={row.id} className="flex items-center gap-2.5 px-4 py-2">
+                    {u?.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-black/5" />
+                    ) : (
+                      <span className="w-6 h-6 rounded-full shrink-0 bg-primary text-white flex items-center justify-center text-[10px] font-bold">
+                        {initial}
+                      </span>
+                    )}
+                    <p className="text-xs text-foreground/85 flex-1 min-w-0 truncate">
+                      <span className="font-semibold">{u?.full_name || u?.email || 'Someone'}</span>
+                      <span className={`ml-1 ${accent}`}>{verb}</span>
+                      {row.target_label && (
+                        <span className="ml-1 text-foreground/80">&quot;{row.target_label}&quot;</span>
+                      )}
+                    </p>
+                    <span className="shrink-0 text-[10px] text-foreground/40 whitespace-nowrap">
+                      {activityTimeAgo(row.created_at)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ── UI ─────────────────────────────────────────────────────────────
 
 const PRIORITY_TONE: Record<Directory['priority'], string> = {
@@ -2945,11 +3430,125 @@ const PRIORITY_TONE: Record<Directory['priority'], string> = {
 };
 
 export default function DirectoriesContent() {
-  const [statusMap, cycleStatus, setStatus] = useStatusMap();
-  const [linkMap, setLink] = useLinkMap();
+  // Server-backed state. The legacy localStorage hooks (useStatusMap /
+  // useLinkMap) are retained only as a one-time import source inside
+  // useDirectoryStates — every read/write below now goes through the
+  // server table directly.
+  const { byId: directoryStates, users: directoryStateUsers, upsert: upsertDirectoryState } = useDirectoryStates();
+  const statusMap = useMemo(() => {
+    const out: Record<string, Status> = {};
+    for (const [id, row] of Object.entries(directoryStates)) {
+      if (row.status && row.status !== 'todo') out[id] = row.status as Status;
+    }
+    return out;
+  }, [directoryStates]);
+  const linkMap = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const [id, row] of Object.entries(directoryStates)) {
+      if (row.link) out[id] = row.link;
+    }
+    return out;
+  }, [directoryStates]);
+  const cycleStatus = (id: string) => {
+    const current = statusMap[id] ?? 'todo';
+    const next = STATUS_CYCLE[current];
+    void upsertDirectoryState(id, { status: next });
+  };
+  const setStatus = (id: string, value: Status) => {
+    void upsertDirectoryState(id, { status: value });
+  };
+  const setLink = (id: string, value: string) => {
+    void upsertDirectoryState(id, { link: value || null });
+  };
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<DirectoryCategory | 'all'>('all');
   const [hideListed, setHideListed] = useState(false);
+  const { snap: semrush, loading: semrushLoading, error: semrushError } = useSemrushSnapshot();
+
+  // Per-row comment thread metadata (count + latest msg timestamp +
+  // last-read timestamp). Subscribe to realtime so the unread dot
+  // lights up the moment a teammate posts.
+  const { session } = useAuth();
+  const [chatLatest, setChatLatest] = useState<Record<string, string>>({});
+  const [chatCounts, setChatCounts] = useState<Record<string, number>>({});
+  const [chatRead, setChatRead] = useState<Record<string, string>>({});
+  const [openChat, setOpenChat] = useState<Directory | null>(null);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    setChatRead(getDirectoryReadMap());
+    let cancelled = false;
+    async function loadChatMeta() {
+      const rows = await db({
+        action: 'select',
+        table: 'seo_directory_messages',
+        select: 'directory_id, created_at',
+        order: { column: 'created_at', ascending: false },
+      }).catch(() => null);
+      if (cancelled || !Array.isArray(rows)) return;
+      const latest: Record<string, string> = {};
+      const counts: Record<string, number> = {};
+      for (const r of rows as Array<{ directory_id: string; created_at: string }>) {
+        if (!latest[r.directory_id]) latest[r.directory_id] = r.created_at;
+        counts[r.directory_id] = (counts[r.directory_id] || 0) + 1;
+      }
+      setChatLatest(latest);
+      setChatCounts(counts);
+    }
+    loadChatMeta();
+    const channel = supabase
+      .channel('directory-chat-meta')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'seo_directory_messages' }, (payload) => {
+        const row = payload.new as { directory_id: string; created_at: string };
+        setChatLatest((prev) => ({ ...prev, [row.directory_id]: row.created_at }));
+        setChatCounts((prev) => ({ ...prev, [row.directory_id]: (prev[row.directory_id] || 0) + 1 }));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'seo_directory_messages' }, (payload) => {
+        const row = payload.old as { directory_id: string };
+        setChatCounts((prev) => {
+          const next = { ...prev };
+          if (next[row.directory_id]) next[row.directory_id] = Math.max(0, next[row.directory_id] - 1);
+          return next;
+        });
+      })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
+
+  const markChatRead = useCallback((directoryId: string) => {
+    const ts = chatLatest[directoryId] || new Date().toISOString();
+    setDirectoryReadAt(directoryId, ts);
+    setChatRead((prev) => ({ ...prev, [directoryId]: ts }));
+  }, [chatLatest]);
+
+  const isUnread = (directoryId: string): boolean => {
+    const latest = chatLatest[directoryId];
+    if (!latest) return false;
+    const read = chatRead[directoryId];
+    if (!read) return true;
+    return new Date(latest).getTime() > new Date(read).getTime();
+  };
+
+  const openComments = (d: Directory) => {
+    setOpenChat(d);
+    markChatRead(d.id);
+  };
+
+  // Lock body scroll + close on Escape while drawer is open.
+  useEffect(() => {
+    if (!openChat) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenChat(null); };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [openChat]);
 
   // Saving a live URL implies "we got listed there" — flip the
   // status to listed automatically. Clearing the URL backs the
@@ -2980,8 +3579,24 @@ export default function DirectoriesContent() {
     for (const d of filtered) {
       (out[d.category] ||= []).push(d);
     }
+    // Within each category: rows with a live link recorded (the green
+    // tint) bubble to the top so completed work is visible first.
+    // Stable within each tier (preserves the curated DIRECTORIES order).
+    for (const cat of Object.keys(out) as DirectoryCategory[]) {
+      const list = out[cat];
+      if (!list) continue;
+      out[cat] = list
+        .map((d, i) => ({ d, i }))
+        .sort((a, b) => {
+          const aLinked = !!linkMap[a.d.id] && statusMap[a.d.id] !== 'skip';
+          const bLinked = !!linkMap[b.d.id] && statusMap[b.d.id] !== 'skip';
+          if (aLinked !== bLinked) return aLinked ? -1 : 1;
+          return a.i - b.i;
+        })
+        .map((x) => x.d);
+    }
     return out;
-  }, [filtered]);
+  }, [filtered, linkMap, statusMap]);
 
   const total = DIRECTORIES.length;
   const listed = DIRECTORIES.filter((d) => statusMap[d.id] === 'listed').length;
@@ -3009,7 +3624,8 @@ export default function DirectoriesContent() {
             Off-site listings the team should claim, monitor, or submit
             to. Each one builds domain authority, brand reach, or both.
             Click a status pill to cycle through To do → Submitted →
-            Listed → Skip. Status saves locally in this browser.
+            Listed → Skip. Every change syncs with the team in real
+            time and shows up in the Recent activity feed below.
           </p>
         </div>
       </header>
@@ -3040,6 +3656,14 @@ export default function DirectoriesContent() {
           </p>
         </div>
       </div>
+
+      <SemrushStatusBanner
+        loading={semrushLoading}
+        error={semrushError}
+        snap={semrush}
+      />
+
+      <RecentDirectoryActivity />
 
       {/* Progress strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
@@ -3107,7 +3731,9 @@ export default function DirectoriesContent() {
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10">Why</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-24">Priority</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-20">Fit</th>
+                    <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-32" title="Semrush referring-domain match for this directory's apex domain">Semrush</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-64">Live link</th>
+                    <th className="text-center px-4 py-2.5 font-semibold border-b border-black/10 w-16">Notes</th>
                     <th className="text-right px-4 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
                   </tr>
                 </thead>
@@ -3150,10 +3776,42 @@ export default function DirectoriesContent() {
                           <FitChip score={d.fit} />
                         </td>
                         <td className="px-4 py-3">
+                          <SemrushCell
+                            domain={apexDomain(d.url)}
+                            snap={semrush}
+                            loading={semrushLoading}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
                           <LinkCell
                             value={link}
                             onSave={(v) => saveLink(d.id, v)}
+                            setBy={directoryStates[d.id]?.link_set_by
+                              ? (directoryStateUsers[directoryStates[d.id].link_set_by!]?.full_name ?? null)
+                              : null}
+                            setAt={directoryStates[d.id]?.link_set_at ?? null}
                           />
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => openComments(d)}
+                            title={chatCounts[d.id] ? `${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}` : 'Add a comment'}
+                            aria-label={`Comments for ${d.name}`}
+                            className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/5 transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                            </svg>
+                            {chatCounts[d.id] ? (
+                              <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold tabular-nums">
+                                {chatCounts[d.id] > 99 ? '99+' : chatCounts[d.id]}
+                              </span>
+                            ) : null}
+                            {isUnread(d.id) && (
+                              <span aria-label="Unread" className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
+                            )}
+                          </button>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button
@@ -3174,7 +3832,174 @@ export default function DirectoriesContent() {
           </section>
         );
       })}
+
+      {openChat && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Comments for ${openChat.name}`}
+          className="fixed inset-0 z-[100] flex justify-end"
+          onClick={() => setOpenChat(null)}
+        >
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <aside
+            className="relative bg-white w-full sm:max-w-md h-full shadow-2xl flex flex-col animate-drawer-slide"
+            onClick={(e) => e.stopPropagation()}
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <header className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">
+                  Directory comments
+                </p>
+                <p className="text-sm font-medium text-foreground truncate mt-0.5" title={openChat.name}>
+                  {openChat.name}
+                </p>
+                <a
+                  href={openChat.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-primary/70 hover:text-primary hover:underline truncate block max-w-full"
+                  title={openChat.url}
+                >
+                  {openChat.url.replace(/^https?:\/\//, '')}
+                </a>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenChat(null)}
+                aria-label="Close"
+                className="shrink-0 p-1.5 rounded-lg text-foreground/45 hover:bg-warm-bg hover:text-foreground/80 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </header>
+            <div className="flex-1 min-h-0">
+              <RowChat
+                table="seo_directory_messages"
+                keyColumn="directory_id"
+                keyValue={openChat.id}
+                label={openChat.name}
+                targetPath="/app/seo/directories"
+                activityType="seo.directory_chat_message"
+                activityKind="seo_directory"
+              />
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
+  );
+}
+
+// Banner above the table summarising the Semrush snapshot's age and
+// pointing the user at the Backlinks page when no snapshot exists.
+function SemrushStatusBanner({
+  loading,
+  error,
+  snap,
+}: {
+  loading: boolean;
+  error: string | null;
+  snap: SemrushSnapshot | null;
+}) {
+  if (loading) {
+    return (
+      <div className="mb-5 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-[12px] text-foreground/55">
+        Loading Semrush referring-domain data…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-[12px] text-rose-800">
+        Couldn&apos;t load Semrush data: {error}
+      </div>
+    );
+  }
+  if (!snap || snap.empty || snap.rows.length === 0) {
+    return (
+      <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900 flex items-start gap-2">
+        <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="13" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <span>
+          No Semrush snapshot yet — click <strong>Sync from Semrush</strong> on the{' '}
+          <Link href="/app/seo/backlinks" className="underline font-semibold hover:text-amber-700">
+            Backlinks page
+          </Link>{' '}
+          to populate the Semrush column below.
+        </span>
+      </div>
+    );
+  }
+  const matched = DIRECTORIES.filter((d) => snap.byDomain.has(apexDomain(d.url))).length;
+  const synced = snap.syncedAt
+    ? new Date(snap.syncedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    : null;
+  return (
+    <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-[12px] text-emerald-900 flex items-center justify-between gap-3 flex-wrap">
+      <span>
+        <strong>{matched}</strong> of <strong>{DIRECTORIES.length}</strong> directories
+        present in Semrush&apos;s referring-domain set
+        {' · '}
+        <strong>{snap.rows.length}</strong> total ref. domains
+      </span>
+      {synced ? (
+        <span className="text-emerald-800/70">Last synced {synced}</span>
+      ) : null}
+    </div>
+  );
+}
+
+// Per-row Semrush match. "—" if not seen by Semrush, otherwise shows
+// authority score and total backlinks from that domain.
+function SemrushCell({
+  domain,
+  snap,
+  loading,
+}: {
+  domain: string;
+  snap: SemrushSnapshot | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return <span className="text-[11px] text-foreground/35">…</span>;
+  }
+  if (!snap || snap.empty) {
+    return <span className="text-[11px] text-foreground/30" title="No snapshot">—</span>;
+  }
+  const hit = snap.byDomain.get(domain);
+  if (!hit) {
+    return (
+      <span
+        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-foreground/5 text-foreground/45 border-black/5"
+        title={`Semrush has not detected a backlink from ${domain}`}
+      >
+        Not seen
+      </span>
+    );
+  }
+  const ascore = Math.max(0, Math.min(100, Math.round(hit.ascore || 0)));
+  const tone =
+    ascore >= 80 ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    : ascore >= 60 ? 'bg-sky-100 text-sky-800 border-sky-200'
+    : ascore >= 40 ? 'bg-amber-100 text-amber-800 border-amber-200'
+    : 'bg-foreground/5 text-foreground/65 border-black/10';
+  const lastSeen = hit.last_seen ? new Date(hit.last_seen).toLocaleDateString() : 'unknown';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold tabular-nums border ${tone}`}
+      title={`Authority Score ${ascore} · ${hit.backlinks_num} backlink${hit.backlinks_num === 1 ? '' : 's'} · last seen ${lastSeen}`}
+    >
+      AS {ascore}
+      <span className="text-foreground/50 font-normal">·</span>
+      <span className="font-normal">{hit.backlinks_num}</span>
+    </span>
   );
 }
 
@@ -3184,9 +4009,13 @@ export default function DirectoriesContent() {
 function LinkCell({
   value,
   onSave,
+  setBy,
+  setAt,
 }: {
   value: string;
   onSave: (v: string) => void;
+  setBy?: string | null;
+  setAt?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -3221,28 +4050,44 @@ function LinkCell({
   }
 
   if (value) {
+    const dateLabel = setAt
+      ? new Date(setAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : null;
+    const fullTimestamp = setAt
+      ? new Date(setAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+      : null;
     return (
-      <div className="flex items-center gap-2 max-w-full">
-        <a
-          href={value}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={value}
-          className="text-[12px] font-medium text-emerald-700 hover:text-emerald-800 truncate max-w-[180px]"
-        >
-          {value.replace(/^https?:\/\//, '')}
-        </a>
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          title="Edit link"
-          aria-label="Edit live link"
-          className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-foreground/45 hover:text-foreground/80 hover:bg-black/5"
-        >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5h-7a2 2 0 00-2 2v13a2 2 0 002 2h13a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
-        </button>
+      <div className="flex flex-col gap-0.5 max-w-full">
+        <div className="flex items-center gap-2 max-w-full">
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={value}
+            className="text-[12px] font-medium text-emerald-700 hover:text-emerald-800 truncate max-w-[180px]"
+          >
+            {value.replace(/^https?:\/\//, '')}
+          </a>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            title="Edit link"
+            aria-label="Edit live link"
+            className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-foreground/45 hover:text-foreground/80 hover:bg-black/5"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5h-7a2 2 0 00-2 2v13a2 2 0 002 2h13a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+        </div>
+        {(setBy || dateLabel) && (
+          <p
+            className="text-[10px] text-foreground/45 truncate max-w-[230px]"
+            title={fullTimestamp ?? undefined}
+          >
+            added{setBy ? ` by ${setBy}` : ''}{dateLabel ? ` · ${dateLabel}` : ''}
+          </p>
+        )}
       </div>
     );
   }
