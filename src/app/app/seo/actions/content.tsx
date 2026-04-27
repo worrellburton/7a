@@ -177,6 +177,44 @@ export default function ActionsContent() {
     setPendingShots((prev) => prev.filter((u) => u !== url));
   }
 
+  // Drag-and-drop state — only true while a drag is hovering the
+  // form, drives the dashed-glow outline so the drop target is
+  // discoverable.
+  const [isDragging, setIsDragging] = useState(false);
+
+  function onDragOver(e: React.DragEvent<HTMLFormElement>) {
+    if (e.dataTransfer.types.includes('Files')) {
+      e.preventDefault();
+      setIsDragging(true);
+    }
+  }
+  function onDragLeave(e: React.DragEvent<HTMLFormElement>) {
+    // Only clear when the drag actually leaves the form, not when it
+    // crosses an inner child's boundary.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setIsDragging(false);
+  }
+  function onDrop(e: React.DragEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setIsDragging(false);
+    void handleFiles(e.dataTransfer.files);
+  }
+  // Paste-to-upload — Cmd+V / Ctrl+V on the textarea (or anywhere
+  // inside the form) drops any clipboard images into the queue.
+  function onPaste(e: React.ClipboardEvent<HTMLFormElement>) {
+    const files: File[] = [];
+    for (const item of Array.from(e.clipboardData.items)) {
+      if (item.kind === 'file') {
+        const f = item.getAsFile();
+        if (f && f.type.startsWith('image/')) files.push(f);
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      void handleFiles(files);
+    }
+  }
+
   async function patchAction(id: string, body: Partial<Pick<Action, 'status' | 'priority' | 'title' | 'description' | 'category'>>) {
     // Optimistic — flip locally first, then reconcile with the
     // server's authoritative copy on success / revert on failure.
@@ -275,15 +313,32 @@ export default function ActionsContent() {
       <SeoSubNav />
 
       {/* Submit form — bordered with a soft amber→rose glow so it
-          reads as the "input" area and ties to the fire-glow tab. */}
+          reads as the "input" area and ties to the fire-glow tab.
+          Drag-and-drop or paste an image anywhere on the form to
+          attach a screenshot without the file picker. */}
       <form
         onSubmit={submit}
-        className="relative mb-6 rounded-2xl bg-white p-5 border border-orange-200"
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onPaste={onPaste}
+        className={`relative mb-6 rounded-2xl bg-white p-5 border transition-colors ${
+          isDragging ? 'border-orange-500 ring-2 ring-orange-300/40' : 'border-orange-200'
+        }`}
         style={{
-          boxShadow:
-            '0 0 0 1px rgba(255,140,40,0.12), 0 8px 30px -12px rgba(255,90,30,0.35)',
+          boxShadow: isDragging
+            ? '0 0 0 1px rgba(255,140,40,0.35), 0 12px 40px -10px rgba(255,90,30,0.55)'
+            : '0 0 0 1px rgba(255,140,40,0.12), 0 8px 30px -12px rgba(255,90,30,0.35)',
         }}
       >
+        {isDragging ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-orange-50/85 pointer-events-none text-orange-700 text-sm font-semibold"
+          >
+            Drop to attach
+          </div>
+        ) : null}
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
