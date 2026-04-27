@@ -565,8 +565,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     <div className="flex min-h-screen app-shell relative">
       <FlowBackground />
       <PresenceCursors />
-      {/* Left Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 hidden lg:flex">
+      {/* Left Sidebar — sticky viewport-height column so the user card
+          (and the user menu that opens above it) stay pinned to the
+          lower-left even when the main page content is much taller
+          than the viewport. */}
+      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 hidden lg:flex sticky top-0 h-screen">
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
@@ -687,7 +690,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         {/* User settings — bottom left */}
         <div className="relative p-3 border-t border-gray-100">
           {userMenuOpen && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-y-auto z-50 max-h-[calc(100vh-120px)]">
               <Link
                 href="/app/profile"
                 onClick={() => setUserMenuOpen(false)}
