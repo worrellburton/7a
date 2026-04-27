@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
+import { uploadActionScreenshot } from '@/lib/seo/actionScreenshots';
 
 // SEO Actions — free-form admin todo list. Anyone with admin access
 // can submit an action ("redirect /old → /new", "request backlink from
@@ -83,6 +84,12 @@ export default function ActionsContent() {
   const [category, setCategory] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [submitting, setSubmitting] = useState(false);
+  // Screenshots queued for the next submit. Each entry is an
+  // already-uploaded URL; uploads happen the moment a file is
+  // picked so a slow connection doesn't bottleneck the click.
+  const [pendingShots, setPendingShots] = useState<string[]>([]);
+  const [uploadingShot, setUploadingShot] = useState(false);
+  const [shotError, setShotError] = useState<string | null>(null);
 
   // Filter + search
   const [filter, setFilter] = useState<'active' | 'all' | Status>('active');
@@ -120,6 +127,7 @@ export default function ActionsContent() {
           title: message.trim(),
           category: category.trim() || null,
           priority,
+          screenshot_urls: pendingShots,
         }),
       });
       const json = await res.json();
@@ -129,11 +137,44 @@ export default function ActionsContent() {
       setMessage('');
       setCategory('');
       setPriority('medium');
+      setPendingShots([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Push every selected file through the storage helper in parallel.
+  // Errors on individual files surface as a banner but the rest still
+  // upload — half a batch is better than nothing.
+  async function handleFiles(files: FileList | File[] | null) {
+    if (!files) return;
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    setShotError(null);
+    setUploadingShot(true);
+    const uploaded: string[] = [];
+    const errors: string[] = [];
+    await Promise.all(
+      list.map(async (f) => {
+        try {
+          const r = await uploadActionScreenshot(f);
+          uploaded.push(r.url);
+        } catch (e) {
+          errors.push(e instanceof Error ? e.message : String(e));
+        }
+      }),
+    );
+    setPendingShots((prev) => [...prev, ...uploaded].slice(0, 12));
+    if (errors.length > 0) {
+      setShotError(errors.join(' · '));
+    }
+    setUploadingShot(false);
+  }
+
+  function removePendingShot(url: string) {
+    setPendingShots((prev) => prev.filter((u) => u !== url));
   }
 
   async function patchAction(id: string, body: Partial<Pick<Action, 'status' | 'priority' | 'title' | 'description' | 'category'>>) {
@@ -251,6 +292,65 @@ export default function ActionsContent() {
           maxLength={4000}
           className="block w-full rounded-lg border border-black/10 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300/50 resize-y"
         />
+
+        {/* Screenshot strip — thumbs of already-uploaded files plus
+            a visible "attach" button. Drag-and-drop + paste handlers
+            land in the next phase; this is the click-to-pick path. */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {pendingShots.map((url) => (
+            <div key={url} className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt="attached screenshot"
+                className="w-14 h-14 object-cover rounded-md border border-black/10"
+              />
+              <button
+                type="button"
+                onClick={() => removePendingShot(url)}
+                title="Remove this screenshot"
+                aria-label="Remove screenshot"
+                className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-foreground text-white text-[10px] hover:bg-rose-600"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <label
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-dashed border-orange-300 text-[11px] font-semibold transition-colors cursor-pointer ${
+              uploadingShot
+                ? 'text-orange-400 cursor-wait'
+                : 'text-orange-700 hover:bg-orange-50'
+            }`}
+          >
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            {uploadingShot ? 'Uploading…' : 'Attach screenshot'}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                void handleFiles(e.target.files);
+                // Reset so picking the same file twice still triggers
+                // the change handler.
+                e.target.value = '';
+              }}
+            />
+          </label>
+          {pendingShots.length > 0 && (
+            <span className="text-[10px] text-foreground/45">
+              {pendingShots.length} attached · max 12
+            </span>
+          )}
+        </div>
+        {shotError ? (
+          <p className="text-[11px] text-rose-700 mt-1">{shotError}</p>
+        ) : null}
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 mt-3">
           <input
             list="seo-action-categories"
