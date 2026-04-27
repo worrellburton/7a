@@ -26,6 +26,9 @@ interface Action {
   status: Status;
   submitted_by: string | null;
   submitted_by_name: string | null;
+  submitted_by_avatar_url: string | null;
+  screenshot_urls: string[];
+  source_directory_id: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -73,9 +76,10 @@ export default function ActionsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Submit form
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  // Submit form — one message textarea (title + description merged)
+  // plus a category + priority. The API still stores the message in
+  // the `title` column; the schema now allows up to 4000 chars there.
+  const [message, setMessage] = useState('');
   const [category, setCategory] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [submitting, setSubmitting] = useState(false);
@@ -105,7 +109,7 @@ export default function ActionsContent() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!message.trim()) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -113,8 +117,7 @@ export default function ActionsContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
+          title: message.trim(),
           category: category.trim() || null,
           priority,
         }),
@@ -123,8 +126,7 @@ export default function ActionsContent() {
       if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
       const created = json.action as Action;
       setActions((prev) => [created, ...prev]);
-      setTitle('');
-      setDescription('');
+      setMessage('');
       setCategory('');
       setPriority('medium');
     } catch (e) {
@@ -241,41 +243,15 @@ export default function ActionsContent() {
             '0 0 0 1px rgba(255,140,40,0.12), 0 8px 30px -12px rgba(255,90,30,0.35)',
         }}
       >
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3">
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Submit an action — e.g. fix broken redirect /resources → /blog"
-            maxLength={200}
-            className="rounded-lg border border-black/10 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300/50"
-          />
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as Priority)}
-            className="rounded-lg border border-black/10 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300/50"
-            aria-label="Priority"
-          >
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-          <button
-            type="submit"
-            disabled={submitting || !title.trim()}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-rose-500 via-orange-500 to-amber-400 text-white text-sm font-semibold shadow-sm hover:brightness-110 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting ? 'Submitting…' : 'Submit'}
-          </button>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_220px] gap-3 mt-3">
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Optional details — what, why, links, anything that helps the next person pick this up."
-            rows={2}
-            className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300/50 resize-y"
-          />
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Submit an action — what, why, links, anything that helps the next person pick this up."
+          rows={3}
+          maxLength={4000}
+          className="block w-full rounded-lg border border-black/10 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300/50 resize-y"
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 mt-3">
           <input
             list="seo-action-categories"
             type="text"
@@ -289,6 +265,23 @@ export default function ActionsContent() {
               <option key={c} value={c} />
             ))}
           </datalist>
+          <select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value as Priority)}
+            className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300/50"
+            aria-label="Priority"
+          >
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <button
+            type="submit"
+            disabled={submitting || !message.trim()}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-rose-500 via-orange-500 to-amber-400 text-white text-sm font-semibold shadow-sm hover:brightness-110 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? 'Submitting…' : 'Submit'}
+          </button>
         </div>
       </form>
 
