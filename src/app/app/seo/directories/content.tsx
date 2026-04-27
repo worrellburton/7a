@@ -1,8 +1,30 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
+import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthProvider';
+import { RowChat } from '@/components/RowChat';
+
+// localStorage for per-user "last read" timestamps so the unread dot
+// only lights up when there's a directory comment the current user
+// hasn't seen. Per-browser, same pattern as facilities + backlinks.
+const COMMENT_READ_KEY = 'sa-directory-chat-read';
+function getDirectoryReadMap(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try { return JSON.parse(window.localStorage.getItem(COMMENT_READ_KEY) || '{}'); }
+  catch { return {}; }
+}
+function setDirectoryReadAt(directoryId: string, ts: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const map = getDirectoryReadMap();
+    map[directoryId] = ts;
+    window.localStorage.setItem(COMMENT_READ_KEY, JSON.stringify(map));
+  } catch { /* quota — fine */ }
+}
 
 // Off-site directory tracker. Listings here are places Seven Arrows
 // should claim, monitor, or submit to in order to grow domain
@@ -3026,6 +3048,91 @@ export default function DirectoriesContent() {
   const [hideListed, setHideListed] = useState(false);
   const { snap: semrush, loading: semrushLoading, error: semrushError } = useSemrushSnapshot();
 
+  // Per-row comment thread metadata (count + latest msg timestamp +
+  // last-read timestamp). Subscribe to realtime so the unread dot
+  // lights up the moment a teammate posts.
+  const { session } = useAuth();
+  const [chatLatest, setChatLatest] = useState<Record<string, string>>({});
+  const [chatCounts, setChatCounts] = useState<Record<string, number>>({});
+  const [chatRead, setChatRead] = useState<Record<string, string>>({});
+  const [openChat, setOpenChat] = useState<Directory | null>(null);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    setChatRead(getDirectoryReadMap());
+    let cancelled = false;
+    async function loadChatMeta() {
+      const rows = await db({
+        action: 'select',
+        table: 'seo_directory_messages',
+        select: 'directory_id, created_at',
+        order: { column: 'created_at', ascending: false },
+      }).catch(() => null);
+      if (cancelled || !Array.isArray(rows)) return;
+      const latest: Record<string, string> = {};
+      const counts: Record<string, number> = {};
+      for (const r of rows as Array<{ directory_id: string; created_at: string }>) {
+        if (!latest[r.directory_id]) latest[r.directory_id] = r.created_at;
+        counts[r.directory_id] = (counts[r.directory_id] || 0) + 1;
+      }
+      setChatLatest(latest);
+      setChatCounts(counts);
+    }
+    loadChatMeta();
+    const channel = supabase
+      .channel('directory-chat-meta')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'seo_directory_messages' }, (payload) => {
+        const row = payload.new as { directory_id: string; created_at: string };
+        setChatLatest((prev) => ({ ...prev, [row.directory_id]: row.created_at }));
+        setChatCounts((prev) => ({ ...prev, [row.directory_id]: (prev[row.directory_id] || 0) + 1 }));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'seo_directory_messages' }, (payload) => {
+        const row = payload.old as { directory_id: string };
+        setChatCounts((prev) => {
+          const next = { ...prev };
+          if (next[row.directory_id]) next[row.directory_id] = Math.max(0, next[row.directory_id] - 1);
+          return next;
+        });
+      })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
+
+  const markChatRead = useCallback((directoryId: string) => {
+    const ts = chatLatest[directoryId] || new Date().toISOString();
+    setDirectoryReadAt(directoryId, ts);
+    setChatRead((prev) => ({ ...prev, [directoryId]: ts }));
+  }, [chatLatest]);
+
+  const isUnread = (directoryId: string): boolean => {
+    const latest = chatLatest[directoryId];
+    if (!latest) return false;
+    const read = chatRead[directoryId];
+    if (!read) return true;
+    return new Date(latest).getTime() > new Date(read).getTime();
+  };
+
+  const openComments = (d: Directory) => {
+    setOpenChat(d);
+    markChatRead(d.id);
+  };
+
+  // Lock body scroll + close on Escape while drawer is open.
+  useEffect(() => {
+    if (!openChat) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenChat(null); };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [openChat]);
+
   // Saving a live URL implies "we got listed there" — flip the
   // status to listed automatically. Clearing the URL backs the
   // status down to "to do" so red/empty rows stay honest.
@@ -3206,6 +3313,7 @@ export default function DirectoriesContent() {
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-20">Fit</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-32" title="Semrush referring-domain match for this directory's apex domain">Semrush</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-64">Live link</th>
+                    <th className="text-center px-4 py-2.5 font-semibold border-b border-black/10 w-16">Notes</th>
                     <th className="text-right px-4 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
                   </tr>
                 </thead>
@@ -3260,6 +3368,27 @@ export default function DirectoriesContent() {
                             onSave={(v) => saveLink(d.id, v)}
                           />
                         </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => openComments(d)}
+                            title={chatCounts[d.id] ? `${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}` : 'Add a comment'}
+                            aria-label={`Comments for ${d.name}`}
+                            className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/5 transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                            </svg>
+                            {chatCounts[d.id] ? (
+                              <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold tabular-nums">
+                                {chatCounts[d.id] > 99 ? '99+' : chatCounts[d.id]}
+                              </span>
+                            ) : null}
+                            {isUnread(d.id) && (
+                              <span aria-label="Unread" className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
+                            )}
+                          </button>
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <button
                             type="button"
@@ -3279,6 +3408,64 @@ export default function DirectoriesContent() {
           </section>
         );
       })}
+
+      {openChat && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Comments for ${openChat.name}`}
+          className="fixed inset-0 z-[100] flex justify-end"
+          onClick={() => setOpenChat(null)}
+        >
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <aside
+            className="relative bg-white w-full sm:max-w-md h-full shadow-2xl flex flex-col animate-drawer-slide"
+            onClick={(e) => e.stopPropagation()}
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <header className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">
+                  Directory comments
+                </p>
+                <p className="text-sm font-medium text-foreground truncate mt-0.5" title={openChat.name}>
+                  {openChat.name}
+                </p>
+                <a
+                  href={openChat.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-primary/70 hover:text-primary hover:underline truncate block max-w-full"
+                  title={openChat.url}
+                >
+                  {openChat.url.replace(/^https?:\/\//, '')}
+                </a>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenChat(null)}
+                aria-label="Close"
+                className="shrink-0 p-1.5 rounded-lg text-foreground/45 hover:bg-warm-bg hover:text-foreground/80 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </header>
+            <div className="flex-1 min-h-0">
+              <RowChat
+                table="seo_directory_messages"
+                keyColumn="directory_id"
+                keyValue={openChat.id}
+                label={openChat.name}
+                targetPath="/app/seo/directories"
+                activityType="seo.directory_chat_message"
+                activityKind="seo_directory"
+              />
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }

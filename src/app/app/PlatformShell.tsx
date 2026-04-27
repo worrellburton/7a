@@ -565,11 +565,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     <div className="flex min-h-screen app-shell relative">
       <FlowBackground />
       <PresenceCursors />
-      {/* Left Sidebar — sticky viewport-height column so the user card
-          (and the user menu that opens above it) stay pinned to the
-          lower-left even when the main page content is much taller
-          than the viewport. */}
-      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 hidden lg:flex sticky top-0 h-screen">
+      {/* Left Sidebar — outer aside fills the parent's full height so
+          the white bg never reveals the warm-bg behind it on tall
+          pages. The inner div is `sticky top-0 h-screen` so the
+          actual sidebar UI stays pinned to the viewport while the
+          rest of the page scrolls — keeping the user card + user
+          menu permanently at the lower-left. */}
+      <aside className="w-64 shrink-0 hidden lg:block bg-white border-r border-gray-100">
+        <div className="sticky top-0 h-screen flex flex-col">
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
@@ -767,6 +770,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               </svg>
             </button>
           </div>
+        </div>
         </div>
       </aside>
 
