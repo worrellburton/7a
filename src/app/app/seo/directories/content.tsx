@@ -2936,6 +2936,80 @@ function useLinkMap(): [
   return [map, setLink];
 }
 
+// ── Semrush referring-domain match ─────────────────────────────────
+//
+// The Backlinks page persists a snapshot of Semrush data in
+// `seo_backlinks_snapshots`. Reading the latest snapshot lets us
+// annotate each directory row with whether Semrush has actually seen
+// a link from that domain to us — and, if so, the authority score
+// and total backlinks. Apex domain (host minus a leading "www.") is
+// the matching key on both sides.
+
+interface SemrushRefDomain {
+  domain: string;
+  ascore: number;
+  backlinks_num: number;
+  first_seen: string;
+  last_seen: string;
+}
+
+interface SemrushSnapshot {
+  rows: SemrushRefDomain[];
+  byDomain: Map<string, SemrushRefDomain>;
+  syncedAt: string | null;
+  empty: boolean;
+}
+
+function apexDomain(input: string): string {
+  try {
+    const u = new URL(input);
+    return u.hostname.replace(/^www\./i, '').toLowerCase();
+  } catch {
+    return input.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0].toLowerCase();
+  }
+}
+
+function useSemrushSnapshot(): { snap: SemrushSnapshot | null; loading: boolean; error: string | null } {
+  const [snap, setSnap] = useState<SemrushSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/seo/backlinks', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json() as {
+          refdomains?: SemrushRefDomain[];
+          synced_at?: string | null;
+          empty?: boolean;
+        };
+        if (cancelled) return;
+        const rows = data.refdomains ?? [];
+        const byDomain = new Map<string, SemrushRefDomain>();
+        for (const r of rows) {
+          byDomain.set(r.domain.replace(/^www\./i, '').toLowerCase(), r);
+        }
+        setSnap({
+          rows,
+          byDomain,
+          syncedAt: data.synced_at ?? null,
+          empty: !!data.empty,
+        });
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return { snap, loading, error };
+}
+
 // ── UI ─────────────────────────────────────────────────────────────
 
 const PRIORITY_TONE: Record<Directory['priority'], string> = {
@@ -2950,6 +3024,7 @@ export default function DirectoriesContent() {
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<DirectoryCategory | 'all'>('all');
   const [hideListed, setHideListed] = useState(false);
+  const { snap: semrush, loading: semrushLoading, error: semrushError } = useSemrushSnapshot();
 
   // Saving a live URL implies "we got listed there" — flip the
   // status to listed automatically. Clearing the URL backs the
@@ -3041,6 +3116,12 @@ export default function DirectoriesContent() {
         </div>
       </div>
 
+      <SemrushStatusBanner
+        loading={semrushLoading}
+        error={semrushError}
+        snap={semrush}
+      />
+
       {/* Progress strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <ProgressCard label="Total" value={total} />
@@ -3107,6 +3188,7 @@ export default function DirectoriesContent() {
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10">Why</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-24">Priority</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-20">Fit</th>
+                    <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-32" title="Semrush referring-domain match for this directory's apex domain">Semrush</th>
                     <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-64">Live link</th>
                     <th className="text-right px-4 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
                   </tr>
@@ -3150,6 +3232,13 @@ export default function DirectoriesContent() {
                           <FitChip score={d.fit} />
                         </td>
                         <td className="px-4 py-3">
+                          <SemrushCell
+                            domain={apexDomain(d.url)}
+                            snap={semrush}
+                            loading={semrushLoading}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
                           <LinkCell
                             value={link}
                             onSave={(v) => saveLink(d.id, v)}
@@ -3175,6 +3264,115 @@ export default function DirectoriesContent() {
         );
       })}
     </div>
+  );
+}
+
+// Banner above the table summarising the Semrush snapshot's age and
+// pointing the user at the Backlinks page when no snapshot exists.
+function SemrushStatusBanner({
+  loading,
+  error,
+  snap,
+}: {
+  loading: boolean;
+  error: string | null;
+  snap: SemrushSnapshot | null;
+}) {
+  if (loading) {
+    return (
+      <div className="mb-5 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-[12px] text-foreground/55">
+        Loading Semrush referring-domain data…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-[12px] text-rose-800">
+        Couldn&apos;t load Semrush data: {error}
+      </div>
+    );
+  }
+  if (!snap || snap.empty || snap.rows.length === 0) {
+    return (
+      <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900 flex items-start gap-2">
+        <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="13" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <span>
+          No Semrush snapshot yet — click <strong>Sync from Semrush</strong> on the{' '}
+          <Link href="/app/seo/backlinks" className="underline font-semibold hover:text-amber-700">
+            Backlinks page
+          </Link>{' '}
+          to populate the Semrush column below.
+        </span>
+      </div>
+    );
+  }
+  const matched = DIRECTORIES.filter((d) => snap.byDomain.has(apexDomain(d.url))).length;
+  const synced = snap.syncedAt
+    ? new Date(snap.syncedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    : null;
+  return (
+    <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-[12px] text-emerald-900 flex items-center justify-between gap-3 flex-wrap">
+      <span>
+        <strong>{matched}</strong> of <strong>{DIRECTORIES.length}</strong> directories
+        present in Semrush&apos;s referring-domain set
+        {' · '}
+        <strong>{snap.rows.length}</strong> total ref. domains
+      </span>
+      {synced ? (
+        <span className="text-emerald-800/70">Last synced {synced}</span>
+      ) : null}
+    </div>
+  );
+}
+
+// Per-row Semrush match. "—" if not seen by Semrush, otherwise shows
+// authority score and total backlinks from that domain.
+function SemrushCell({
+  domain,
+  snap,
+  loading,
+}: {
+  domain: string;
+  snap: SemrushSnapshot | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return <span className="text-[11px] text-foreground/35">…</span>;
+  }
+  if (!snap || snap.empty) {
+    return <span className="text-[11px] text-foreground/30" title="No snapshot">—</span>;
+  }
+  const hit = snap.byDomain.get(domain);
+  if (!hit) {
+    return (
+      <span
+        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-foreground/5 text-foreground/45 border-black/5"
+        title={`Semrush has not detected a backlink from ${domain}`}
+      >
+        Not seen
+      </span>
+    );
+  }
+  const ascore = Math.max(0, Math.min(100, Math.round(hit.ascore || 0)));
+  const tone =
+    ascore >= 80 ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    : ascore >= 60 ? 'bg-sky-100 text-sky-800 border-sky-200'
+    : ascore >= 40 ? 'bg-amber-100 text-amber-800 border-amber-200'
+    : 'bg-foreground/5 text-foreground/65 border-black/10';
+  const lastSeen = hit.last_seen ? new Date(hit.last_seen).toLocaleDateString() : 'unknown';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold tabular-nums border ${tone}`}
+      title={`Authority Score ${ascore} · ${hit.backlinks_num} backlink${hit.backlinks_num === 1 ? '' : 's'} · last seen ${lastSeen}`}
+    >
+      AS {ascore}
+      <span className="text-foreground/50 font-normal">·</span>
+      <span className="font-normal">{hit.backlinks_num}</span>
+    </span>
   );
 }
 

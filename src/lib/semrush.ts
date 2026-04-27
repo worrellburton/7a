@@ -146,6 +146,9 @@ export interface BacklinksOverview {
   ref_pages_num: number;
 }
 
+// page_ascore (not page_score) is the column name accepted by the
+// current backlinks endpoint — Semrush rejects "page_score" with
+// `Validation Error : export columns: score`.
 const BACKLINK_COLUMNS = [
   'source_url',
   'source_title',
@@ -157,7 +160,7 @@ const BACKLINK_COLUMNS = [
   'last_seen',
   'nofollow',
   'response_code',
-  'page_score',
+  'page_ascore',
 ];
 
 export async function fetchBacklinks(opts: {
@@ -165,7 +168,7 @@ export async function fetchBacklinks(opts: {
   target_type?: 'root_domain' | 'domain' | 'url';
   limit?: number;
   offset?: number;
-  /** "newest" | "oldest" | "page_score_desc" — passed through verbatim. */
+  /** "last_seen_desc" | "first_seen_desc" | "page_ascore_desc" — passed through verbatim. */
   sort?: string;
 }): Promise<BacklinkRow[]> {
   const limit = Math.min(100, Math.max(1, opts.limit ?? 50));
@@ -201,7 +204,7 @@ export async function fetchBacklinks(opts: {
       is_ugc: ugc,
       is_sponsored: sponsored,
       response_code: Number(r.response_code ?? 0),
-      page_score: Number(r.page_score ?? 0),
+      page_score: Number(r.page_ascore ?? 0),
     } satisfies BacklinkRow;
   });
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
@@ -27,6 +27,12 @@ interface AuthContextType {
   avatarUrl: string | null;
   /** Re-fetch the avatar from `users` (call after a save). */
   refreshAvatar: () => void;
+  /**
+   * Re-fetch is_admin / department_id / status from `users`. Used by
+   * the "Waiting for approval" hold screen to poll the DB so an admin's
+   * Approve click unblocks the user without a manual sign-out.
+   */
+  refreshProfile: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -40,6 +46,7 @@ const AuthContext = createContext<AuthContextType>({
   status: 'active',
   avatarUrl: null,
   refreshAvatar: () => {},
+  refreshProfile: async () => {},
   signInWithGoogle: async () => {},
   signOut: async () => {},
 });
@@ -114,18 +121,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setIsAdmin(row.is_admin === true);
     setDepartmentId(row.department_id ?? null);
-    const current: UserStatus = row.status ?? 'active';
-    // Backfill path for rows created before the trigger existed: if the
-    // email isn't on the org domain and the user isn't an admin, hold them.
-    const needsHold = current === 'active'
-      && row.is_admin !== true
-      && !(email ?? '').toLowerCase().endsWith('@sevenarrowsrecovery.com');
-    if (needsHold) {
-      setStatus('on_hold');
-      db({ action: 'update', table: 'users', data: { status: 'on_hold' }, match: { id: userId } }).catch(() => {});
-    } else {
-      setStatus(current);
-    }
+    // Trust the DB. The status column is set on insert by the
+    // `users_set_initial_status` trigger, and admins flip it via the
+    // Team page. Don't second-guess that here — an earlier client-side
+    // "auto-hold non-org email" backfill kept yanking approved users
+    // back to on_hold every time they hit /app, so admin approvals
+    // never stuck for Gmail/Yahoo accounts.
+    setStatus(row.status ?? 'active');
   }
 
   useEffect(() => {
@@ -262,6 +264,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user?.id) loadAvatar(user.id);
   };
 
+  const refreshProfile = useCallback(async () => {
+    if (user?.id) await loadProfile(user.id, user.email ?? null);
+  }, [user?.id, user?.email]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -273,6 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status,
         avatarUrl,
         refreshAvatar,
+        refreshProfile,
         signInWithGoogle,
         signOut,
       }}

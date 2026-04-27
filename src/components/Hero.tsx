@@ -52,14 +52,18 @@ export type HeroSource =
 // is the *fallback* set used when no landing_heros row is marked
 // live or the live row has no playable clips. The live timeline
 // edited at /app/landing wins when present (passed in via props).
+//
+// Keep the fallback list short — only working sources. Each extra
+// slide preloads in parallel and competes for bandwidth with the
+// active clip, which slows first-frame on the homepage.
 const fallbackHeroSources: HeroSource[] = [
   { kind: 'cloudflare', id: '23efc2d576759452ccdf1a2b1813580a', label: 'Our Facility' },
-  {
-    kind: 'mp4',
-    url: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-videos/9c83abff-3c23-47a6-a407-467dd6d4dec4.mp4',
-    label: 'Swisshelm Mountains',
-  },
 ];
+
+// Poster shown until the first <video> frame paints. Eliminates the
+// black flash between page load and video decode. Static asset, so
+// it lands with the HTML/CSS rather than over the video pipeline.
+const HERO_POSTER = '/images/facility-exterior-mountains.jpg';
 
 /* ── Ticker Items ──────────────────────────────────────────────────── */
 
@@ -137,44 +141,39 @@ function CloudflareSlide({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
   const [loaded, setLoaded] = useState(false);
-  const hlsUrl = `https://${CLOUDFLARE_CUSTOMER}.cloudflarestream.com/${videoId}/manifest/video.m3u8?clientBandwidthHint=10`;
+  // No clientBandwidthHint — letting Hls.js' ABR pick the starting
+  // rendition is faster to first-frame than asking Cloudflare for the
+  // top tier up front.
+  const hlsUrl = `https://${CLOUDFLARE_CUSTOMER}.cloudflarestream.com/${videoId}/manifest/video.m3u8`;
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     const onLoaded = () => setLoaded(true);
 
+    // enableWorker keeps HLS parsing off the main thread (faster
+    // first-frame, no jank). Don't pin currentLevel — the default
+    // (-1) lets ABR start at a lower rendition and ramp up, which
+    // gets the first frame on screen seconds sooner than forcing
+    // the highest level immediately.
+    const startHls = (Hls: any) => {
+      if (!Hls || !Hls.isSupported()) return;
+      const hls = new Hls({ enableWorker: true, capLevelToPlayerSize: true });
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => onLoaded());
+      hlsRef.current = hls;
+    };
+
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = hlsUrl;
       video.addEventListener('loadeddata', onLoaded, { once: true });
     } else if (typeof (window as any).Hls !== 'undefined') {
-      const Hls = (window as any).Hls;
-      if (Hls.isSupported()) {
-        const hls = new Hls({ enableWorker: false, capLevelToPlayerSize: false });
-        hls.loadSource(hlsUrl);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, (_: unknown, data: { levels: unknown[] }) => {
-          hls.currentLevel = data.levels.length - 1;
-          onLoaded();
-        });
-        hlsRef.current = hls;
-      }
+      startHls((window as any).Hls);
     } else {
       const script = document.createElement('script');
       script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js';
-      script.onload = () => {
-        const Hls = (window as any).Hls;
-        if (Hls && Hls.isSupported()) {
-          const hls = new Hls({ enableWorker: false, capLevelToPlayerSize: false });
-          hls.loadSource(hlsUrl);
-          hls.attachMedia(video);
-          hls.on(Hls.Events.MANIFEST_PARSED, (_: unknown, data: { levels: unknown[] }) => {
-            hls.currentLevel = data.levels.length - 1;
-            onLoaded();
-          });
-          hlsRef.current = hls;
-        }
-      };
+      script.onload = () => startHls((window as any).Hls);
       document.head.appendChild(script);
     }
 
@@ -208,6 +207,10 @@ function CloudflareSlide({
       muted
       loop={isOnly}
       playsInline
+      poster={HERO_POSTER}
+      // Inactive slides stay at preload="none" — they shouldn't fight
+      // the active clip for bandwidth on first paint.
+      preload={active ? 'auto' : 'none'}
       onEnded={() => { if (!isOnly) onEnded(); }}
       className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}
     />
@@ -250,10 +253,11 @@ function Mp4Slide({
       muted
       loop={isOnly}
       playsInline
-      // preload="auto" so the next slide is buffered before its
-      // turn — the rotation between clips would otherwise show a
-      // poster-less black frame for a beat.
-      preload="auto"
+      poster={HERO_POSTER}
+      // Active slide preloads aggressively; inactive slides hold off
+      // so they don't compete with the active clip for bandwidth on
+      // first paint. The poster covers the brief gap on rotation.
+      preload={active ? 'auto' : 'none'}
       onLoadedData={() => setLoaded(true)}
       onEnded={() => { if (!isOnly) onEnded(); }}
       className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}
