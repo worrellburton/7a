@@ -147,7 +147,7 @@ export default function PermissionsModal({
           targetKind: 'user',
           targetId: userId,
           targetLabel: userLabel,
-          targetPath: '/app/super-admin',
+          targetPath: '/app/user-permissions',
           metadata: { path, state: next },
         });
       }
