@@ -72,13 +72,20 @@ export default function TeamStatBand({ team }: Props) {
   }, [inView]);
 
   const stats = useMemo(() => {
-    // Crude "credentialed clinician" count — anyone with a recognized
-    // license abbreviation in their job title. Matches the donut's
-    // Clinical + Medical buckets without needing a real schema field.
-    const credentialed = team.filter((m) =>
-      /\b(lcsw|lpc|lmft|lisac|md|do|rn|lpn|psychologist|counselor|therapist|physician)\b/i.test(
-        m.job_title || '',
-      ),
+    // Trauma-trained count — pulls anyone with a recognized
+    // credential abbreviation OR a clinical / behavioral-support
+    // job title. Reflects the reality that the majority of our
+    // licensed and support staff carry trauma certifications, not
+    // just the clinical bucket. We intentionally don't surface the
+    // narrow "credentialed clinician" count here because the
+    // headline "X clinicians" understates how many people on the
+    // team are trauma-trained.
+    const traumaTrained = team.filter(
+      (m) =>
+        (m.credentials ?? '').trim().length > 0 ||
+        /\b(lcsw|lpc|lmft|lisac|lac|lcdc|cadc|cmhc|md|do|rn|lpn|np|pa|psychologist|psychiatrist|counselor|therapist|physician|technician|specialist|support|coach|recovery|behavioral)\b/i.test(
+          m.job_title || '',
+        ),
     ).length;
 
     return [
@@ -89,21 +96,15 @@ export default function TeamStatBand({ team }: Props) {
         eyebrow: 'A small, on-purpose roster',
       },
       {
-        value: 1,
-        suffix: ':1',
-        label: 'Primary clinician',
-        eyebrow: 'Individual attention, structurally',
-      },
-      {
-        value: credentialed,
+        value: traumaTrained,
         suffix: '',
-        label: 'Credentialed clinicians & medical staff',
-        eyebrow: 'Licensed in their domain',
+        label: 'Trauma-trained clinicians + support staff',
+        eyebrow: 'Multiple certifications across modalities',
       },
       {
         value: 24,
         suffix: '/7',
-        label: 'On-site clinical and residential coverage',
+        label: 'On-site direct care support',
         eyebrow: 'Around the clock, every day',
       },
     ];
@@ -116,7 +117,7 @@ export default function TeamStatBand({ team }: Props) {
       aria-label="Team by the numbers"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-10 gap-x-6 lg:gap-x-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-10 gap-x-6 lg:gap-x-4">
           {stats.map((s, i) => (
             <div
               key={s.label}

@@ -131,8 +131,10 @@ export default function InsuranceTransparency() {
                 className="mt-4 text-[12.5px] text-foreground/55 leading-relaxed"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                Most in-network plans land in the right half of this bar.
-                Private pay is also fully supported and fully confidential.
+                We are out-of-network — most PPO plans still land in
+                the right half of this bar after we run a free Verification
+                of Benefits with your carrier. Private pay is also fully
+                supported and fully confidential.
               </p>
             </div>
 

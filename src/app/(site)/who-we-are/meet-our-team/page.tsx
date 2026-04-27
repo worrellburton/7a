@@ -71,17 +71,26 @@ export default async function MeetOurTeamPage() {
           <div className="max-w-3xl mx-auto text-center mb-16">
             <p className="section-label mb-4">The people you will meet</p>
             <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
-              A small team, <em className="not-italic text-primary">on purpose.</em>
+              Individualized care, <em className="not-italic text-primary">built into the structure.</em>
             </h2>
             <p
               className="text-foreground/70 leading-relaxed text-lg"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Seven Arrows runs on a deliberately small census and a 1:1 primary-clinician
-              model for a reason — it is how individual attention becomes structural instead of aspirational.
-              Our clinicians, admissions team, medical staff, and holistic
-              facilitators are the people you will actually talk to on the phone,
-              meet on your first day, and keep in touch with after discharge.
+              Seven Arrows is intentionally designed as a small, highly attuned
+              treatment environment where individualized care is built into the
+              structure. Our entire team, from admissions to discharge, is highly
+              trained and specialized in trauma-informed care and nervous system
+              regulation. This means every interaction, not just therapy sessions,
+              supports safety, resilience, and meaningful growth.
+            </p>
+            <p
+              className="text-foreground/70 leading-relaxed text-lg mt-5"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              From your first call through discharge and beyond, you are supported
+              by a cohesive team committed to reducing shame, fostering connection,
+              and helping you move forward with purpose.
             </p>
           </div>
 
