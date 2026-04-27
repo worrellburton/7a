@@ -88,16 +88,30 @@ export async function GET() {
   ];
 
   try {
-    // GA4 multi-range report: one call, six values. The response
-    // adds an implicit `dateRange` dimension so each row maps to
-    // one of the named ranges (in input order).
-    const res = await ga4Run({
-      dateRanges: ranges.map(({ startDate, endDate, name }) => ({ startDate, endDate, name })),
-      metrics: [{ name: 'sessions' }],
-    });
+    // GA4 caps dateRanges at 4 per request, so we split the six
+    // windows we need into two parallel calls — current periods in
+    // one, prior periods in the other. The response adds an implicit
+    // `dateRange` dimension whose value matches the `name` we set,
+    // so merging is a simple by-name lookup.
+    const currentRanges = ranges.filter((r) =>
+      ['today', 'thisWeek', 'thisMonth'].includes(r.name),
+    );
+    const previousRanges = ranges.filter((r) =>
+      ['yesterday', 'lastWeek', 'lastMonth'].includes(r.name),
+    );
+    const [currentRes, previousRes] = await Promise.all([
+      ga4Run({
+        dateRanges: currentRanges.map(({ startDate, endDate, name }) => ({ startDate, endDate, name })),
+        metrics: [{ name: 'sessions' }],
+      }),
+      ga4Run({
+        dateRanges: previousRanges.map(({ startDate, endDate, name }) => ({ startDate, endDate, name })),
+        metrics: [{ name: 'sessions' }],
+      }),
+    ]);
 
     const out: Record<string, number> = {};
-    for (const row of res.rows ?? []) {
+    for (const row of [...(currentRes.rows ?? []), ...(previousRes.rows ?? [])]) {
       // The dateRange dimension is appended LAST when there's no
       // explicit dimensions array. Read it via dimensionValues.
       const rangeName = row.dimensionValues?.[0]?.value ?? '';
