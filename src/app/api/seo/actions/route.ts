@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 
-// GET  /api/seo/actions  → list every action, sorted open-first
-// POST /api/seo/actions  → submit a new action
-//
-// Both gated to is_admin via the RLS policies on public.seo_actions
-// — the route still re-checks here so we can return a friendly 403
-// instead of a generic Postgres "row violates row-level security"
-// error when a non-admin tries.
+// GET  /api/seo/actions  → list every action, sorted active-first
+// POST /api/seo/actions  → submit a new action (or upsert by
+//                          source_directory_id when one is provided
+//                          so re-saving a directory link doesn't
+//                          pile up duplicates)
 
 export const dynamic = 'force-dynamic';
 
@@ -20,47 +18,51 @@ interface ActionRow {
   status: 'open' | 'in_progress' | 'done' | 'wontfix';
   submitted_by: string | null;
   submitted_by_name: string | null;
+  submitted_by_avatar_url: string | null;
+  screenshot_urls: string[];
+  source_directory_id: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
 const PRIORITY_VALUES = ['low', 'medium', 'high'] as const;
+const STATUS_VALUES = ['open', 'in_progress', 'done', 'wontfix'] as const;
+const SELECT_COLS =
+  'id, title, description, category, priority, status, submitted_by, submitted_by_name, submitted_by_avatar_url, screenshot_urls, source_directory_id, completed_at, created_at, updated_at';
 
-async function requireAdmin(): Promise<
-  | { ok: true; supabase: Awaited<ReturnType<typeof getServerSupabase>>; userId: string; userName: string | null }
-  | { ok: false; res: NextResponse }
-> {
+async function requireAdmin() {
   const supabase = await getServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return { ok: false, res: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+    return { ok: false as const, res: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
   const { data: profile } = await supabase
     .from('users')
-    .select('is_admin, full_name')
+    .select('is_admin, full_name, avatar_url')
     .eq('id', user.id)
     .maybeSingle();
   if (!profile?.is_admin) {
-    return { ok: false, res: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
+    return { ok: false as const, res: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
-  return { ok: true, supabase, userId: user.id, userName: profile.full_name ?? null };
+  return {
+    ok: true as const,
+    supabase,
+    userId: user.id,
+    userName: (profile.full_name as string | null) ?? null,
+    userAvatar: (profile.avatar_url as string | null) ?? null,
+  };
 }
 
 export async function GET() {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.res;
 
-  // Open + in_progress first (active work), then done + wontfix
-  // afterwards. Within each bucket, high priority before low and
-  // newest before oldest — so the action board reads top-down.
   const { data, error } = await auth.supabase
     .from('seo_actions')
-    .select(
-      'id, title, description, category, priority, status, submitted_by, submitted_by_name, completed_at, created_at, updated_at',
-    )
+    .select(SELECT_COLS)
     .order('status', { ascending: true })
     .order('created_at', { ascending: false })
     .limit(500);
@@ -80,7 +82,10 @@ export async function POST(req: Request) {
     title?: string;
     description?: string | null;
     category?: string | null;
-    priority?: 'low' | 'medium' | 'high';
+    priority?: (typeof PRIORITY_VALUES)[number];
+    status?: (typeof STATUS_VALUES)[number];
+    screenshot_urls?: string[];
+    source_directory_id?: string | null;
   } = {};
   try {
     body = (await req.json()) as typeof body;
@@ -90,26 +95,55 @@ export async function POST(req: Request) {
 
   const title = (body.title ?? '').trim();
   if (title.length === 0) {
-    return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+    return NextResponse.json({ error: 'Message is required' }, { status: 400 });
   }
-  if (title.length > 200) {
-    return NextResponse.json({ error: 'Title must be 200 characters or fewer' }, { status: 400 });
+  if (title.length > 4000) {
+    return NextResponse.json({ error: 'Message must be 4000 characters or fewer' }, { status: 400 });
   }
-  const priority = body.priority && PRIORITY_VALUES.includes(body.priority) ? body.priority : 'medium';
+  const priority =
+    body.priority && PRIORITY_VALUES.includes(body.priority) ? body.priority : 'medium';
+  const status =
+    body.status && STATUS_VALUES.includes(body.status) ? body.status : 'open';
+
+  const screenshotUrls = Array.isArray(body.screenshot_urls)
+    ? body.screenshot_urls.filter((u): u is string => typeof u === 'string' && u.length > 0).slice(0, 12)
+    : [];
+
+  const payload = {
+    title,
+    description: typeof body.description === 'string' ? body.description.trim() || null : null,
+    category: typeof body.category === 'string' ? body.category.trim() || null : null,
+    priority,
+    status,
+    screenshot_urls: screenshotUrls,
+    submitted_by: auth.userId,
+    submitted_by_name: auth.userName,
+    submitted_by_avatar_url: auth.userAvatar,
+    source_directory_id:
+      typeof body.source_directory_id === 'string' && body.source_directory_id.length > 0
+        ? body.source_directory_id
+        : null,
+  };
+
+  // Directory-link auto-log path: upsert by source_directory_id so
+  // re-saving a URL doesn't create duplicates. Plain insert for
+  // human-submitted actions (source_directory_id is null).
+  if (payload.source_directory_id) {
+    const { data, error } = await auth.supabase
+      .from('seo_actions')
+      .upsert(payload, { onConflict: 'source_directory_id' })
+      .select(SELECT_COLS)
+      .single();
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 502 });
+    }
+    return NextResponse.json({ action: data as ActionRow }, { status: 201 });
+  }
 
   const { data, error } = await auth.supabase
     .from('seo_actions')
-    .insert({
-      title,
-      description: typeof body.description === 'string' ? body.description.trim() || null : null,
-      category: typeof body.category === 'string' ? body.category.trim() || null : null,
-      priority,
-      submitted_by: auth.userId,
-      submitted_by_name: auth.userName,
-    })
-    .select(
-      'id, title, description, category, priority, status, submitted_by, submitted_by_name, completed_at, created_at, updated_at',
-    )
+    .insert(payload)
+    .select(SELECT_COLS)
     .single();
 
   if (error) {
