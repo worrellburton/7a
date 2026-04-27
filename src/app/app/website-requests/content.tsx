@@ -267,6 +267,72 @@ function useRespond(kind: 'vob' | 'contact') {
   return { respond, busyId };
 }
 
+function useMarkSpam() {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const markSpam = useCallback(async (id: string, spam: boolean): Promise<boolean> => {
+    setBusyId(id);
+    try {
+      const res = await fetch('/api/website-requests/mark-spam', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, spam }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return true;
+    } catch (e) {
+      console.error('mark-spam failed', e);
+      return false;
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+  return { markSpam, busyId };
+}
+
+function SpamButton({
+  isSpam, onMark, onUnmark, busy,
+}: {
+  isSpam: boolean;
+  onMark: () => void;
+  onUnmark: () => void;
+  busy: boolean;
+}) {
+  // Single-click toggle. When the row is already spam, the button
+  // turns into an "Unspam" affordance so a misclick can be reversed
+  // without leaving the row.
+  if (isSpam) {
+    return (
+      <button
+        type="button"
+        onClick={onUnmark}
+        disabled={busy}
+        title="Unmark as spam"
+        aria-label="Unmark as spam"
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-40"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onMark}
+      disabled={busy}
+      title="Mark as spam"
+      aria-label="Mark as spam"
+      className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-black/10 bg-white text-foreground/55 hover:text-amber-700 hover:border-amber-300 hover:bg-amber-50 transition-colors disabled:opacity-40"
+    >
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+      </svg>
+    </button>
+  );
+}
+
 function useDelete(kind: 'vob' | 'contact') {
   const [busyId, setBusyId] = useState<string | null>(null);
   const remove = useCallback(async (id: string): Promise<boolean> => {
@@ -689,6 +755,7 @@ interface FormRow extends RespondedFields {
   status: string;
   notes: string | null;
   created_at: string;
+  is_spam: boolean;
 }
 
 type FormSourceFilter = 'all' | 'contact_page' | 'footer' | 'exit_intent' | 'other';
@@ -704,8 +771,10 @@ function FormsPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FormSourceFilter>('all');
+  const [showSpam, setShowSpam] = useState(false);
   const { respond, busyId } = useRespond('contact');
   const { remove, busyId: deletingId } = useDelete('contact');
+  const { markSpam, busyId: spamId } = useMarkSpam();
 
   useEffect(() => {
     let cancelled = false;
@@ -726,10 +795,14 @@ function FormsPanel() {
     return () => { cancelled = true; };
   }, []);
 
-  const visible = useMemo(
-    () => (filter === 'all' ? rows : rows.filter((r) => r.source === filter)),
-    [rows, filter],
-  );
+  const spamCount = useMemo(() => rows.filter((r) => r.is_spam).length, [rows]);
+
+  const visible = useMemo(() => {
+    let out = rows;
+    if (!showSpam) out = out.filter((r) => !r.is_spam);
+    if (filter !== 'all') out = out.filter((r) => r.source === filter);
+    return out;
+  }, [rows, filter, showSpam]);
 
   async function handleMarkResponded(id: string, note: string) {
     const result = await respond(id, { note });
@@ -745,6 +818,12 @@ function FormsPanel() {
   async function handleDelete(id: string) {
     const ok = await remove(id);
     if (ok) setRows((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  async function handleMarkSpam(id: string, spam: boolean) {
+    const ok = await markSpam(id, spam);
+    if (!ok) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, is_spam: spam } : r)));
   }
 
   return (
@@ -765,6 +844,21 @@ function FormsPanel() {
             {v === 'all' ? 'All' : FORM_SOURCE_LABELS[v]}
           </button>
         ))}
+        <span className="ml-auto" />
+        {spamCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowSpam((v) => !v)}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+              showSpam
+                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                : 'bg-white text-foreground/70 border-black/10 hover:border-amber-300 hover:text-amber-700'
+            }`}
+            title={showSpam ? 'Hide spam' : 'Show spam'}
+          >
+            {showSpam ? 'Hide' : 'Show'} spam ({spamCount})
+          </button>
+        )}
       </div>
 
       {visible.length === 0 && filter !== 'all' && (
@@ -790,12 +884,19 @@ function FormsPanel() {
               {visible.map((r) => {
                 const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ') || '(no name)';
                 return (
-                  <tr key={r.id} className="align-top">
+                  <tr key={r.id} className={`align-top ${r.is_spam ? 'bg-amber-50/40' : ''}`}>
                     <Td>
-                      <p className="font-semibold text-foreground">{fullName}</p>
+                      <p className={`font-semibold ${r.is_spam ? 'text-foreground/55' : 'text-foreground'}`}>
+                        {fullName}
+                      </p>
                     </Td>
                     <Td>
                       <div className="flex flex-wrap items-center gap-1">
+                        {r.is_spam && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-amber-100 text-amber-900 border-amber-300">
+                            Spam
+                          </span>
+                        )}
                         {r.source && r.source !== 'careers' && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border bg-amber-50 text-amber-800 border-amber-200">
                             {FORM_SOURCE_LABELS[r.source as Exclude<FormSourceFilter, 'all'>] ?? r.source}
@@ -852,7 +953,15 @@ function FormsPanel() {
                       />
                     </Td>
                     <Td className="text-right">
-                      <DeleteButton onConfirm={() => handleDelete(r.id)} busy={deletingId === r.id} />
+                      <div className="inline-flex items-center gap-1">
+                        <SpamButton
+                          isSpam={r.is_spam}
+                          onMark={() => handleMarkSpam(r.id, true)}
+                          onUnmark={() => handleMarkSpam(r.id, false)}
+                          busy={spamId === r.id}
+                        />
+                        <DeleteButton onConfirm={() => handleDelete(r.id)} busy={deletingId === r.id} />
+                      </div>
                     </Td>
                   </tr>
                 );

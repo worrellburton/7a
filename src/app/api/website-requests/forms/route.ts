@@ -22,9 +22,14 @@ export async function GET() {
   //
   // Try the full select with responded_*; fall back if the columns
   // aren't in the deployed schema yet.
-  const FULL = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by, responded_note';
+  const FULL = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by, responded_note, is_spam';
+  const NO_SPAM = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by, responded_note';
   const MIN  = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at';
   let resp = await admin.from('contact_submissions').select(FULL).neq('source', 'careers').order('created_at', { ascending: false });
+  if (resp.error && /is_spam/i.test(resp.error.message)) {
+    console.warn('[forms] is_spam column missing, degrading read:', resp.error.message);
+    resp = await admin.from('contact_submissions').select(NO_SPAM).neq('source', 'careers').order('created_at', { ascending: false }) as typeof resp;
+  }
   if (resp.error && /responded_/i.test(resp.error.message)) {
     console.warn('[forms] responded_* columns missing, degrading read:', resp.error.message);
     const fb = await admin.from('contact_submissions').select(MIN).neq('source', 'careers').order('created_at', { ascending: false });
@@ -51,6 +56,7 @@ export async function GET() {
     responded_note: (r.responded_note as string | null | undefined) ?? null,
     responder_name: r.responded_by ? responderNames.get(r.responded_by) ?? null : null,
     responder_avatar_url: r.responded_by ? responderAvatars.get(r.responded_by) ?? null : null,
+    is_spam: (r.is_spam as boolean | null | undefined) ?? false,
   }));
 
   return NextResponse.json({ rows: shaped, total: shaped.length });
