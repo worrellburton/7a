@@ -13,9 +13,12 @@ interface Params {
   params: Promise<{ slug: string }>;
 }
 
-// Short ISR window so admin reorder, photo change, or bio edit shows
-// up on the next page view rather than after a long stale cache.
-export const revalidate = 60;
+// Dynamic so a member's visibility flip / photo change / bio edit
+// surfaces on the next page load instead of waiting on ISR. A
+// single Supabase query per render is cheap, and the slug pages
+// only get hit when somebody clicks through from the team grid.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function generateStaticParams() {
   try {
