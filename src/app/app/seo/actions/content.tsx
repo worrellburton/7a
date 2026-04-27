@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
 import { uploadActionScreenshot } from '@/lib/seo/actionScreenshots';
 
@@ -62,15 +62,120 @@ const PRIORITY_TONE: Record<Priority, string> = {
   low: 'bg-foreground/5 text-foreground/55 border-black/10',
 };
 
-const CATEGORY_SUGGESTIONS = [
-  'on-page',
-  'off-page',
-  'technical',
-  'content',
-  'local',
-  'analytics',
-  'other',
+// Seven SEO-specific categories. Each carries its own SVG glyph
+// shown in the category dropdown + on each action card. The `value`
+// is what gets persisted to `category`; the `label` is what the user
+// sees. Order is intentional — most-used at the top.
+type CategoryValue =
+  | 'on-page'
+  | 'off-page'
+  | 'technical'
+  | 'content'
+  | 'local'
+  | 'analytics'
+  | 'other';
+
+interface CategoryDef {
+  value: CategoryValue;
+  label: string;
+  description: string;
+  /** Tailwind tone for the chip background + text. */
+  tone: string;
+  /** SVG path drawn at 16×16 — keep monochrome (currentColor). */
+  icon: React.ReactNode;
+}
+
+const CATEGORIES: CategoryDef[] = [
+  {
+    value: 'on-page',
+    label: 'On-page',
+    description: 'Title tags, meta, headings, internal links',
+    tone: 'bg-sky-50 text-sky-700 border-sky-200',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="8" y1="13" x2="16" y2="13" />
+        <line x1="8" y1="17" x2="13" y2="17" />
+      </svg>
+    ),
+  },
+  {
+    value: 'off-page',
+    label: 'Off-page',
+    description: 'Backlinks, outreach, citations',
+    tone: 'bg-violet-50 text-violet-700 border-violet-200',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 1 0-7.07-7.07l-1.5 1.5" />
+        <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 1 0 7.07 7.07l1.5-1.5" />
+      </svg>
+    ),
+  },
+  {
+    value: 'technical',
+    label: 'Technical',
+    description: 'Redirects, sitemap, schema, performance',
+    tone: 'bg-foreground/5 text-foreground/65 border-black/10',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5z" />
+      </svg>
+    ),
+  },
+  {
+    value: 'content',
+    label: 'Content',
+    description: 'New pages, FAQ blocks, blog posts',
+    tone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4z" />
+      </svg>
+    ),
+  },
+  {
+    value: 'local',
+    label: 'Local',
+    description: 'GBP, citations, NAP, map pack',
+    tone: 'bg-amber-50 text-amber-700 border-amber-200',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1 1 18 0z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+    ),
+  },
+  {
+    value: 'analytics',
+    label: 'Analytics',
+    description: 'GA4, Search Console, attribution',
+    tone: 'bg-rose-50 text-rose-700 border-rose-200',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+      </svg>
+    ),
+  },
+  {
+    value: 'other',
+    label: 'Other',
+    description: 'Anything else',
+    tone: 'bg-foreground/5 text-foreground/55 border-black/10',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2v6M12 16v6M2 12h6M16 12h6M5 5l4 4M15 15l4 4M5 19l4-4M15 9l4-4" />
+      </svg>
+    ),
+  },
 ];
+
+const CATEGORY_BY_VALUE: Record<string, CategoryDef> = Object.fromEntries(
+  CATEGORIES.map((c) => [c.value, c]),
+);
 
 export default function ActionsContent() {
   const [actions, setActions] = useState<Action[]>([]);
@@ -416,8 +521,8 @@ export default function ActionsContent() {
             className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300/50"
           />
           <datalist id="seo-action-categories">
-            {CATEGORY_SUGGESTIONS.map((c) => (
-              <option key={c} value={c} />
+            {CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value} />
             ))}
           </datalist>
           <select
