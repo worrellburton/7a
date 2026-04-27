@@ -3004,50 +3004,46 @@ function useDirectoryStates() {
       }
       setById(map);
 
-      // One-time migration: pick up any localStorage entries from the
-      // legacy useLinkMap / useStatusMap hooks and push them up to the
-      // server tagged with the current user. After a successful import
-      // we clear the keys so this branch never runs again.
+      // Idempotent localStorage migration: every load, push any
+      // localStorage entry the server doesn't already have. No
+      // "imported" flag — if a teammate added entries on a different
+      // browser between page loads, this still picks them up. Cheap
+      // because in steady state localStorage is empty so there's
+      // nothing to upsert.
       if (typeof window !== 'undefined' && user?.id) {
-        const importedFlag = window.localStorage.getItem('sa-seo-directories:imported');
-        if (!importedFlag) {
-          const localLinks = (() => {
-            try { return JSON.parse(window.localStorage.getItem(LINKS_KEY) || '{}') as Record<string, string>; }
-            catch { return {}; }
-          })();
-          const localStatus = (() => {
-            try { return JSON.parse(window.localStorage.getItem(STATUS_KEY) || '{}') as Record<string, Status>; }
-            catch { return {}; }
-          })();
-          const ids = new Set([...Object.keys(localLinks), ...Object.keys(localStatus)]);
-          const upserts = Array.from(ids)
-            .filter((id) => !map[id])
-            .map((id) => ({
-              directory_id: id,
-              status: localStatus[id] || 'todo',
-              link: localLinks[id] || null,
-              link_set_by: localLinks[id] ? user.id : null,
-              link_set_at: localLinks[id] ? new Date().toISOString() : null,
-              status_set_by: localStatus[id] ? user.id : null,
-              status_set_at: localStatus[id] ? new Date().toISOString() : null,
-            }));
-          if (upserts.length > 0) {
-            await db({ action: 'upsert', table: 'directory_states', data: upserts, onConflict: 'directory_id' }).catch(() => null);
-            // Refetch so attribution is consistent with what just landed.
-            const fresh = await db({
-              action: 'select',
-              table: 'directory_states',
-              select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at',
-            }).catch(() => null);
-            if (!cancelled && Array.isArray(fresh)) {
-              const next: Record<string, DirectoryStateRow> = {};
-              for (const r of fresh as DirectoryStateRow[]) next[r.directory_id] = r;
-              setById(next);
-            }
+        const localLinks = (() => {
+          try { return JSON.parse(window.localStorage.getItem(LINKS_KEY) || '{}') as Record<string, string>; }
+          catch { return {}; }
+        })();
+        const localStatus = (() => {
+          try { return JSON.parse(window.localStorage.getItem(STATUS_KEY) || '{}') as Record<string, Status>; }
+          catch { return {}; }
+        })();
+        const ids = new Set([...Object.keys(localLinks), ...Object.keys(localStatus)]);
+        const upserts = Array.from(ids)
+          .filter((id) => !map[id])
+          .map((id) => ({
+            directory_id: id,
+            status: localStatus[id] || 'todo',
+            link: localLinks[id] || null,
+            link_set_by: localLinks[id] ? user.id : null,
+            link_set_at: localLinks[id] ? new Date().toISOString() : null,
+            status_set_by: localStatus[id] ? user.id : null,
+            status_set_at: localStatus[id] ? new Date().toISOString() : null,
+          }));
+        if (upserts.length > 0) {
+          await db({ action: 'upsert', table: 'directory_states', data: upserts, onConflict: 'directory_id' }).catch(() => null);
+          // Refetch so attribution is consistent with what just landed.
+          const fresh = await db({
+            action: 'select',
+            table: 'directory_states',
+            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at',
+          }).catch(() => null);
+          if (!cancelled && Array.isArray(fresh)) {
+            const next: Record<string, DirectoryStateRow> = {};
+            for (const r of fresh as DirectoryStateRow[]) next[r.directory_id] = r;
+            setById(next);
           }
-          try {
-            window.localStorage.setItem('sa-seo-directories:imported', String(Date.now()));
-          } catch { /* quota */ }
         }
       }
     }

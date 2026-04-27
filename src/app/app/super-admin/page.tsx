@@ -1,10 +1,10 @@
-import type { Metadata } from 'next';
-import SuperAdminContent from './content';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'Super Admin - Patient Portal',
-};
+// /app/super-admin was renamed to /app/user-permissions in Phase 1 of
+// the User Permissions overhaul. Keep the old path alive as a server
+// redirect so bookmarks, links in commit messages, and Activity log
+// entries pointing at the old route still work.
 
-export default function SuperAdminPage() {
-  return <SuperAdminContent />;
+export default function LegacySuperAdminRedirect() {
+  redirect('/app/user-permissions');
 }

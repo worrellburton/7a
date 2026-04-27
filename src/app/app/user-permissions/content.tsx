@@ -19,7 +19,7 @@ const ROOT_ADMIN_EMAIL = 'bobby@sevenarrowsrecovery.com';
 const isRootAdmin = (email: string | null | undefined) =>
   (email || '').toLowerCase() === ROOT_ADMIN_EMAIL;
 
-export default function SuperAdminContent() {
+export default function UserPermissionsContent() {
   const { session, user, isAdmin, isSuperAdmin } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +58,7 @@ export default function SuperAdminContent() {
         targetKind: 'user',
         targetId: u.id,
         targetLabel: u.full_name || u.email,
-        targetPath: '/app/super-admin',
+        targetPath: '/app/user-permissions',
         metadata: { is_admin: next },
       });
     }
@@ -87,9 +87,9 @@ export default function SuperAdminContent() {
     <div className="p-4 sm:p-6 lg:p-10 max-w-4xl">
       <div className="flex items-baseline justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Super Admin</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">User Permissions</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            Grant or revoke admin access. {adminCount} {adminCount === 1 ? 'admin' : 'admins'} total.
+            Grant super-admin access and per-user page overrides. {adminCount} {adminCount === 1 ? 'super admin' : 'super admins'} total.
           </p>
         </div>
         <input
