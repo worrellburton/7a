@@ -68,6 +68,13 @@ interface AuditResult {
   effectiveWeight?: number;
   ranAt: string;
   durationMs: number;
+  // Set when the audit was hydrated from public.seo_audits — i.e. it's
+  // the shared "team" run, not a local-only one. The /api/seo/audit/run
+  // route returns the audit it just computed (no ranByName) and the
+  // page also stores it locally; /api/seo/audit/latest enriches with
+  // ranByName so we can label shared runs in the header.
+  ranByName?: string | null;
+  createdAt?: string;
   sitemap: {
     url: string;
     type?: string;
@@ -260,6 +267,7 @@ export default function AuditContent() {
         onRun={runAudit}
         ranAt={result?.ranAt ?? null}
         durationMs={result?.durationMs ?? null}
+        ranByName={result?.ranByName ?? null}
         progress={progress}
         stage={stage}
         estimatedMs={estimatedMs}
@@ -611,6 +619,7 @@ function ScoreCard({
   onRun,
   ranAt,
   durationMs,
+  ranByName,
   progress,
   stage,
   estimatedMs,
@@ -622,6 +631,7 @@ function ScoreCard({
   onRun: () => void;
   ranAt: string | null;
   durationMs: number | null;
+  ranByName: string | null;
   progress: number;
   stage: string;
   estimatedMs: number;
@@ -682,7 +692,20 @@ function ScoreCard({
           </div>
         ) : ranAt ? (
           <p className="mt-2 text-[11px] text-foreground/40">
-            Last run {new Date(ranAt).toLocaleString()}
+            {ranByName ? (
+              <>
+                <span
+                  title="Shared with every admin — pulled from Supabase, not your browser."
+                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 mr-2"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                  Shared
+                </span>
+                Last run by {ranByName} on {new Date(ranAt).toLocaleString()}
+              </>
+            ) : (
+              <>Last run {new Date(ranAt).toLocaleString()}</>
+            )}
             {typeof durationMs === 'number' ? ` · ${(durationMs / 1000).toFixed(1)}s` : ''}
           </p>
         ) : null}
