@@ -16,6 +16,7 @@ const TABS: { href: string; label: string; hint?: string }[] = [
   { href: '/app/seo/backlinks', label: 'Backlinks', hint: 'Semrush link profile' },
   { href: '/app/seo/refdomains', label: 'Ref. domains', hint: 'Authority Score histogram' },
   { href: '/app/seo/directories', label: 'Directories', hint: 'Off-site listings to claim' },
+  { href: '/app/seo/information', label: 'Information', hint: 'Canonical NAP / business info' },
   { href: '/app/seo/redirects', label: 'Redirects', hint: '301/302 manager' },
   { href: '/app/seo/audit', label: 'Site audit', hint: 'On-page issues' },
 ];
