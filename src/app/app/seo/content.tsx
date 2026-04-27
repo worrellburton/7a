@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import SeoSubNav from './SeoSubNav';
 import { SeoRangePicker } from './SeoRangePicker';
 import {
@@ -40,6 +40,28 @@ interface RankResponse {
   results: RankRow[];
   summary: { total: number; ranked: number; errors: number };
   notice?: string;
+}
+
+interface RankHistoryPoint {
+  rank: number | null;
+  checked_at: string;
+}
+
+interface RankHistoryEntry {
+  id: string;
+  text: string;
+  latest: { rank: number | null; url: string | null; checked_at: string; features: Record<string, unknown> | null } | null;
+  previous: { rank: number | null; checked_at: string } | null;
+  /** previous.rank − latest.rank — positive means we improved (lower
+   *  position number is better). Null when either side is missing. */
+  delta: number | null;
+  sparkline: RankHistoryPoint[];
+}
+
+interface RankHistoryResponse {
+  domain: string;
+  latestRanAt: string | null;
+  keywords: RankHistoryEntry[];
 }
 
 export interface FitRow {
@@ -112,6 +134,11 @@ export default function SeoContent() {
   const [ranksLoading, setRanksLoading] = useState(false);
   const [ranksError, setRanksError] = useState<string | null>(null);
 
+  // Persisted rank history from public.seo_keyword_ranks. Hydrated
+  // from /api/seo/keywords/rank GET on mount + after every sweep so
+  // RankCell can render a sparkline + Δ-vs-last-week.
+  const [rankHistory, setRankHistory] = useState<Record<string, RankHistoryEntry>>({});
+
   // Current-fit card state — one row per keyword with a score from
   // the live-site scanner (H1/title/URL/meta/body match).
   const [fits, setFits] = useState<Record<string, FitRow>>({});
@@ -129,6 +156,26 @@ export default function SeoContent() {
       // stale / corrupt — ignore
     }
   }, []);
+
+  // Pull the persisted rank history on mount so the table can show
+  // Δ-vs-last-week + a sparkline immediately. Refreshed after every
+  // sweep via refreshHistory() below so a fresh sweep updates the
+  // viz without a full page reload.
+  const refreshHistory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/seo/keywords/rank', { cache: 'no-store' });
+      if (!res.ok) return;
+      const json = (await res.json()) as RankHistoryResponse;
+      const map: Record<string, RankHistoryEntry> = {};
+      for (const k of json.keywords) map[k.id] = k;
+      setRankHistory(map);
+    } catch {
+      // Non-fatal — sparklines just won't render this load.
+    }
+  }, []);
+  useEffect(() => {
+    void refreshHistory();
+  }, [refreshHistory]);
 
   // Hydrate current-fit data from Supabase on mount. This is admin-
   // gated so we can't cache in localStorage (staff collaborate) —
@@ -207,6 +254,9 @@ export default function SeoContent() {
       } catch {
         // quota — non-fatal
       }
+      // Refresh the persisted history so deltas + sparklines reflect
+      // the just-completed sweep without a page reload.
+      void refreshHistory();
     } catch (e) {
       setRanksError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -371,6 +421,7 @@ export default function SeoContent() {
 
       <KeywordResearchCard
         ranks={ranks}
+        rankHistory={rankHistory}
         loading={ranksLoading}
         error={ranksError}
         onCheck={checkRankings}
@@ -392,6 +443,7 @@ export default function SeoContent() {
 
 function KeywordResearchCard({
   ranks,
+  rankHistory,
   loading,
   error,
   onCheck,
@@ -402,6 +454,7 @@ function KeywordResearchCard({
   onRunFitScan,
 }: {
   ranks: RankResponse | null;
+  rankHistory: Record<string, RankHistoryEntry>;
   loading: boolean;
   error: string | null;
   onCheck: () => void;
@@ -593,6 +646,7 @@ function KeywordResearchCard({
                       {list.map((k) => {
                         const r = rankMap.get(k.id);
                         const fit = fits[k.id];
+                        const h = rankHistory[k.id];
                         return (
                           <tr key={k.id}>
                             <td
@@ -623,7 +677,7 @@ function KeywordResearchCard({
                               />
                             </td>
                             <td className="py-2 pl-2 text-right">
-                              <RankCell row={r} loading={loading} />
+                              <RankCell row={r} history={h} loading={loading} />
                             </td>
                           </tr>
                         );
@@ -699,15 +753,21 @@ function PriorityPill({ p }: { p: 1 | 2 | 3 }) {
 
 function RankCell({
   row,
+  history,
   loading,
 }: {
   row: RankRow | undefined;
+  history: RankHistoryEntry | undefined;
   loading: boolean;
 }) {
   if (!row) {
-    return (
-      <span className="text-foreground/40">{loading ? '…' : '—'}</span>
-    );
+    // Without a fresh sweep result, fall back to the persisted
+    // history's latest rank — that way the page is informative even
+    // before the admin clicks "Check rankings".
+    if (history?.latest?.rank != null) {
+      return <RankBadge rank={history.latest.rank} url={history.latest.url ?? null} delta={history.delta ?? null} sparkline={history.sparkline} stale />;
+    }
+    return <span className="text-foreground/40">{loading ? '…' : '—'}</span>;
   }
   if (row.error) {
     return (
@@ -720,24 +780,106 @@ function RankCell({
     );
   }
   if (row.rank == null) {
-    return <span className="text-foreground/50">not in top 100</span>;
+    return (
+      <div className="flex flex-col items-end gap-0.5">
+        <span className="text-foreground/50 text-[11px]">not in top 100</span>
+        {history && history.sparkline.length > 1 ? (
+          <Sparkline points={history.sparkline} />
+        ) : null}
+      </div>
+    );
   }
+  return (
+    <RankBadge
+      rank={row.rank}
+      url={row.url}
+      delta={history?.delta ?? null}
+      sparkline={history?.sparkline ?? []}
+    />
+  );
+}
+
+function RankBadge({
+  rank,
+  url,
+  delta,
+  sparkline,
+  stale,
+}: {
+  rank: number;
+  url: string | null;
+  delta: number | null;
+  sparkline: { rank: number | null; checked_at: string }[];
+  stale?: boolean;
+}) {
   const cls =
-    row.rank <= 3
+    rank <= 3
       ? 'text-emerald-600'
-      : row.rank <= 10
+      : rank <= 10
         ? 'text-amber-600'
         : 'text-foreground/70';
+  // delta = previous − current. Lower rank number is better, so a
+  // positive delta means "we moved up". Use a generous stale class
+  // when the rank came from history rather than a fresh sweep.
+  const arrow =
+    delta == null ? null : delta > 0 ? '▲' : delta < 0 ? '▼' : '·';
+  const arrowClass =
+    delta == null
+      ? ''
+      : delta > 0
+        ? 'text-emerald-600'
+        : delta < 0
+          ? 'text-rose-600'
+          : 'text-foreground/40';
   return (
-    <a
-      href={row.url ?? '#'}
-      target="_blank"
-      rel="noreferrer"
-      className={`font-bold tabular-nums hover:underline ${cls}`}
-      title={row.url ?? ''}
-    >
-      #{row.rank}
-    </a>
+    <div className={`flex items-center justify-end gap-2 ${stale ? 'opacity-70' : ''}`} title={stale ? 'From last persisted check — run a new sweep for live rank' : ''}>
+      {sparkline.length > 1 ? <Sparkline points={sparkline} /> : null}
+      <a
+        href={url ?? '#'}
+        target="_blank"
+        rel="noreferrer"
+        className={`font-bold tabular-nums hover:underline ${cls}`}
+        title={url ?? ''}
+      >
+        #{rank}
+      </a>
+      {arrow && delta != null ? (
+        <span className={`text-[10px] font-semibold tabular-nums ${arrowClass}`} title={`${delta > 0 ? 'Improved' : delta < 0 ? 'Dropped' : 'No change'} ${Math.abs(delta)} positions vs ~7 days ago`}>
+          {arrow}{Math.abs(delta) > 0 ? Math.abs(delta) : ''}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+// Tiny inline rank sparkline. The y-axis is inverted because lower
+// rank numbers are better — visually, a high spark line means
+// "ranking high (small position number)". Null ranks are clamped to
+// the bottom (101) so an off-the-chart day is obvious.
+function Sparkline({
+  points,
+}: {
+  points: { rank: number | null; checked_at: string }[];
+}) {
+  const w = 44;
+  const h = 14;
+  const ranks = points.map((p) => (p.rank == null ? 101 : Math.min(101, Math.max(1, p.rank))));
+  if (ranks.length < 2) return null;
+  const minR = Math.max(1, Math.min(...ranks) - 1);
+  const maxR = Math.min(101, Math.max(...ranks) + 1);
+  const span = Math.max(1, maxR - minR);
+  // Invert: lower rank → higher pixel.
+  const ys = ranks.map((r) => h - ((r - minR) / span) * h);
+  const xs = ranks.map((_, i) => (ranks.length === 1 ? 0 : (i / (ranks.length - 1)) * w));
+  const d = xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+  const last = ranks[ranks.length - 1];
+  const stroke =
+    last <= 3 ? '#059669' : last <= 10 ? '#d97706' : '#a8a29e';
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0" aria-hidden="true">
+      <path d={d} fill="none" stroke={stroke} strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r={1.6} fill={stroke} />
+    </svg>
   );
 }
 
