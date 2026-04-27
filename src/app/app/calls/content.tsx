@@ -2584,8 +2584,18 @@ function TimelineSlider({
   }, [min, max, totalMs]);
 
   // Day-by-day activity bars (one per day across the full range).
+  // Each bar carries its own start/end so click handlers can snap
+  // the timeline to exactly that day without recomputing from a
+  // pixel position.
   const activityBars = useMemo(() => {
-    const bars: { pct: number; widthPct: number; count: number }[] = [];
+    const bars: {
+      pct: number;
+      widthPct: number;
+      count: number;
+      dateStr: string;
+      startMs: number;
+      endMs: number;
+    }[] = [];
     let peak = 1;
     activityByDay.forEach(v => { if (v > peak) peak = v; });
     const startDay = new Date(min); startDay.setHours(0, 0, 0, 0);
@@ -2596,10 +2606,15 @@ function TimelineSlider({
       const count = activityByDay.get(dateStr) || 0;
       if (count > 0) {
         const t = cursor.getTime();
+        const dayStart = new Date(t); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(t); dayEnd.setHours(23, 59, 59, 999);
         bars.push({
           pct: (t - min.getTime()) / totalMs,
           widthPct: (dayMs / totalMs) * 100,
           count: count / peak,
+          dateStr,
+          startMs: dayStart.getTime(),
+          endMs: dayEnd.getTime(),
         });
       }
       cursor.setTime(cursor.getTime() + dayMs);
@@ -2774,22 +2789,64 @@ function TimelineSlider({
         onPointerCancel={onPointerUp}
         onClick={onTrackClick}
       >
-        {/* Bar chart area (unselected = muted, selected = full) */}
+        {/* Bar chart area (unselected = muted, selected = full).
+            Each bar is a button — clicking it snaps the timeline to
+            exactly that one day. Bars expand the hit target to the
+            full vertical strip via a transparent overlay so users
+            don't have to aim for the short bar itself. */}
         <div className="absolute inset-x-0 top-0 bottom-8 overflow-hidden">
           {activityBars.map((b, i) => {
             const barRightPct = b.pct + b.widthPct / 100;
             const inRange = barRightPct > startPct && b.pct < endPct;
+            // Snap the visible date string ("2026-04-21") into a
+            // friendly tooltip so hover tells the user what they're
+            // about to click.
+            const tooltip = `${new Date(b.startMs).toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })} — click to view this day`;
             return (
-              <div
+              <button
+                type="button"
                 key={i}
-                className={`absolute bottom-0 rounded-sm transition-colors ${inRange ? 'bg-primary' : 'bg-primary/25'}`}
+                title={tooltip}
+                aria-label={tooltip}
+                onClick={(e) => {
+                  // Stop the parent track click from firing too — we
+                  // want this single click to mean "select this day",
+                  // not "center the current span on this day".
+                  e.stopPropagation();
+                  onChange(new Date(b.startMs), new Date(b.endMs));
+                }}
+                onPointerDown={(e) => {
+                  // Same protection against the parent's drag-band
+                  // pointer-down handler.
+                  e.stopPropagation();
+                }}
+                className={`absolute inset-y-0 cursor-pointer group focus:outline-none ${
+                  inRange ? '' : 'hover:brightness-110'
+                }`}
                 style={{
                   left: `${b.pct * 100}%`,
                   width: `${b.widthPct}%`,
-                  height: `${Math.max(8, b.count * 100)}%`,
-                  minHeight: 3,
                 }}
-              />
+              >
+                {/* The visible bar. */}
+                <span
+                  aria-hidden="true"
+                  className={`absolute bottom-0 left-0 right-0 rounded-sm transition-all ${
+                    inRange
+                      ? 'bg-primary group-hover:bg-primary-dark'
+                      : 'bg-primary/25 group-hover:bg-primary/55'
+                  }`}
+                  style={{
+                    height: `${Math.max(8, b.count * 100)}%`,
+                    minHeight: 3,
+                  }}
+                />
+              </button>
             );
           })}
         </div>
