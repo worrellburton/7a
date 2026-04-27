@@ -132,6 +132,68 @@ export async function getGoogleAccessToken(): Promise<string> {
   return json.access_token;
 }
 
+/**
+ * Typed error for any non-2xx response from a Google API. Replaces
+ * the previous opaque `throw new Error("POST <url> -> 403: …")` with
+ * structured fields the UI can render legibly. The `message` field
+ * is the meaningful one Google returns in `{"error":{"message":…}}`
+ * — when we can parse it. Falls back to the raw text otherwise.
+ *
+ * `code` is Google's textual status (e.g. "PERMISSION_DENIED",
+ * "RESOURCE_EXHAUSTED", "UNAUTHENTICATED"). The visits-summary route
+ * + the diagnostic page key off this to drive UX (Reconnect CTA,
+ * quota banner, etc.) without string-matching the message body.
+ */
+export class GoogleApiError extends Error {
+  status: number;
+  code: string | null;
+  endpoint: string;
+  httpMethod: string;
+  rawBody: string;
+  constructor(opts: {
+    status: number;
+    code: string | null;
+    message: string;
+    endpoint: string;
+    httpMethod: string;
+    rawBody: string;
+  }) {
+    super(opts.message);
+    this.name = 'GoogleApiError';
+    this.status = opts.status;
+    this.code = opts.code;
+    this.endpoint = opts.endpoint;
+    this.httpMethod = opts.httpMethod;
+    this.rawBody = opts.rawBody;
+  }
+  /** Convenience for routes that want to surface the error verbatim. */
+  toJSON() {
+    return {
+      error: this.message,
+      errorCode: this.code,
+      status: this.status,
+      endpoint: this.endpoint,
+    };
+  }
+}
+
+// Compact path tail of a full Google API URL, e.g.
+//   https://analyticsdata.googleapis.com/v1beta/properties/277266316:runReport
+//     → "analyticsdata · properties/277266316:runReport"
+// Used in error envelopes so the UI can mention the failing surface
+// without dragging in the whole URL.
+function summarizeEndpoint(url: string): string {
+  try {
+    const u = new URL(url);
+    const service = u.host.split('.')[0]; // "analyticsdata", "searchconsole"
+    // Drop the leading /v1beta or /v3 chunk for legibility.
+    const path = u.pathname.replace(/^\/v\d+(beta\d*)?\//, '');
+    return `${service} · ${path}`;
+  } catch {
+    return url;
+  }
+}
+
 async function googleFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
   const token = await getGoogleAccessToken();
   const res = await fetch(url, {
@@ -145,7 +207,31 @@ async function googleFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${init.method || 'GET'} ${url} -> ${res.status}: ${text}`);
+    // Google API errors are JSON envelopes:
+    //   { "error": { "code": 403, "message": "…", "status": "PERMISSION_DENIED",
+    //                "details": [...] } }
+    // Lift the meaningful fields when parseable; fall back to raw
+    // text body when the response wasn't JSON (rare — e.g. 502 from
+    // an upstream gateway).
+    let message = text.slice(0, 400);
+    let code: string | null = null;
+    try {
+      const json = JSON.parse(text) as {
+        error?: { message?: string; status?: string; code?: number };
+      };
+      if (json?.error?.message) message = json.error.message;
+      if (json?.error?.status) code = json.error.status;
+    } catch {
+      // Non-JSON body — keep the truncated text as message.
+    }
+    throw new GoogleApiError({
+      status: res.status,
+      code,
+      message,
+      endpoint: summarizeEndpoint(url),
+      httpMethod: init.method || 'GET',
+      rawBody: text,
+    });
   }
   return (await res.json()) as T;
 }
