@@ -1,10 +1,21 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
-import { useEffect, useMemo, useState } from 'react';
+import { formatNameWithCredentials } from '@/lib/displayName';
 import PermissionsModal from './PermissionsModal';
+
+// User Permissions page (renamed from /app/super-admin in Phase 1).
+// Same column layout as /app/team — User | Viewing | Department |
+// Job Title | Joined — but the trailing actions cell hosts the
+// Super Admin toggle + the per-user permissions lock icon instead
+// of the trash button.
+//
+// Department + Job Title are editable inline so super admins can
+// reassign without bouncing out to /app/team. Permissions overrides
+// open in a modal (PermissionsModal) and write to user_page_permissions.
 
 interface AppUser {
   id: string;
@@ -13,43 +24,158 @@ interface AppUser {
   avatar_url: string | null;
   is_admin: boolean;
   department_id: string | null;
+  job_title: string | null;
+  credentials: string | null;
+  last_seen_at: string | null;
+  last_path: string | null;
+  created_at: string;
 }
+
+interface Department {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+interface JobDescriptionLite {
+  id: string;
+  title: string;
+}
+
+type SortKey = 'user' | 'viewing' | 'department' | 'job_title' | 'created_at';
+type SortDir = 'asc' | 'desc';
 
 const ROOT_ADMIN_EMAIL = 'bobby@sevenarrowsrecovery.com';
 const isRootAdmin = (email: string | null | undefined) =>
   (email || '').toLowerCase() === ROOT_ADMIN_EMAIL;
 
+function pageLabelFromPath(path: string | null): string {
+  if (!path) return '';
+  if (path === '/app' || path === '/app/') return 'Home';
+  if (path.startsWith('/app/job-descriptions')) return 'Job Descriptions';
+  if (path.startsWith('/app/sign')) return 'Signing';
+  const parts = path.split('/').filter(Boolean);
+  const last = parts[parts.length - 1] || '';
+  const looksLikeId = /^[0-9a-f-]{8,}$/i.test(last) || /^\d+$/.test(last);
+  const pick = looksLikeId && parts.length > 1 ? parts[parts.length - 2] : last;
+  return pick.charAt(0).toUpperCase() + pick.slice(1).replace(/-/g, ' ');
+}
+
+function presenceLabel(lastSeenAt: string | null): { online: boolean; text: string } {
+  if (!lastSeenAt) return { online: false, text: 'Offline' };
+  const diff = Date.now() - new Date(lastSeenAt).getTime();
+  const sec = Math.max(0, Math.floor(diff / 1000));
+  if (sec < 120) return { online: true, text: 'Online now' };
+  const min = Math.floor(sec / 60);
+  if (min < 60) return { online: false, text: `${min}m ago` };
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return { online: false, text: `${hr}h ago` };
+  const day = Math.floor(hr / 24);
+  return { online: false, text: `${day}d ago` };
+}
+
+function SortableTh({
+  label, sortKey, currentKey, currentDir, onClick, className,
+}: {
+  label: string;
+  sortKey: SortKey;
+  currentKey: SortKey;
+  currentDir: SortDir;
+  onClick: (key: SortKey) => void;
+  className?: string;
+}) {
+  const isActive = currentKey === sortKey;
+  return (
+    <th
+      className={`text-left px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider ${className || ''}`}
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      <button
+        type="button"
+        onClick={() => onClick(sortKey)}
+        className={`inline-flex items-center gap-1 hover:text-foreground/80 transition-colors ${isActive ? 'text-foreground/80' : ''}`}
+      >
+        {label}
+        <span className="inline-flex flex-col leading-none text-[8px]">
+          <span className={isActive && currentDir === 'asc' ? 'text-foreground' : 'text-foreground/20'}>▲</span>
+          <span className={isActive && currentDir === 'desc' ? 'text-foreground' : 'text-foreground/20'}>▼</span>
+        </span>
+      </button>
+    </th>
+  );
+}
+
 export default function UserPermissionsContent() {
   const { session, user, isAdmin, isSuperAdmin } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [jobDescriptions, setJobDescriptions] = useState<JobDescriptionLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [permissionsTarget, setPermissionsTarget] = useState<AppUser | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('user');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  // 30s tick so the presence column re-renders ("Online now" → "2m ago")
+  // without us re-fetching the whole user list.
+  const [, setNowTick] = useState(0);
+  // Custom-title state for the Job Title cell — same UX as /app/team:
+  // pick "+ Custom title…" → swap the <select> for a free-text input.
+  const [customTitleUserId, setCustomTitleUserId] = useState<string | null>(null);
+  const [customTitleDraft, setCustomTitleDraft] = useState('');
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!session?.access_token) return;
-    async function load() {
+    let cancelled = false;
+    async function fetchUsers() {
       const data = await db({
         action: 'select',
         table: 'users',
-        select: 'id, email, full_name, avatar_url, is_admin, department_id',
+        select: 'id, email, full_name, avatar_url, is_admin, department_id, job_title, credentials, last_seen_at, last_path, created_at',
         order: { column: 'full_name', ascending: true },
       }).catch(() => []);
-      if (Array.isArray(data)) setUsers(data as AppUser[]);
-      setLoading(false);
+      if (!cancelled && Array.isArray(data)) setUsers(data as AppUser[]);
     }
-    load();
+    async function fetchDepartments() {
+      const data = await db({
+        action: 'select',
+        table: 'departments',
+        select: 'id, name, color',
+        order: { column: 'name', ascending: true },
+      }).catch(() => []);
+      if (!cancelled && Array.isArray(data)) setDepartments(data as Department[]);
+    }
+    async function fetchJobDescriptions() {
+      const data = await db({
+        action: 'select',
+        table: 'job_descriptions',
+        select: 'id, title',
+        order: { column: 'title', ascending: true },
+      }).catch(() => []);
+      if (!cancelled && Array.isArray(data)) setJobDescriptions(data as JobDescriptionLite[]);
+    }
+    Promise.all([fetchUsers(), fetchDepartments(), fetchJobDescriptions()]).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    // Keep presence + recent edits fresh.
+    const refresh = setInterval(fetchUsers, 30 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(refresh);
+    };
   }, [session]);
 
   async function toggleAdmin(u: AppUser, next: boolean) {
-    // Root super admin can never be demoted from this UI.
     if (isRootAdmin(u.email) && next === false) return;
     setBusyId(u.id);
     setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_admin: next } : x)));
     const res = await db({ action: 'update', table: 'users', data: { is_admin: next }, match: { id: u.id } }).catch(() => null);
     if (!res || (typeof res === 'object' && 'error' in res)) {
-      // revert on failure
       setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_admin: !next } : x)));
     } else if (user?.id) {
       logActivity({
@@ -65,13 +191,85 @@ export default function UserPermissionsContent() {
     setBusyId(null);
   }
 
-  const visible = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(
-      (u) => (u.full_name || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
-    );
-  }, [users, filter]);
+  async function updateDepartment(userId: string, departmentId: string | null) {
+    const res = await db({ action: 'update', table: 'users', data: { department_id: departmentId }, match: { id: userId } });
+    if (res && typeof res === 'object' && 'error' in res) return;
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, department_id: departmentId } : u)));
+    if (user?.id) {
+      const dept = departments.find((d) => d.id === departmentId);
+      logActivity({
+        userId: user.id,
+        type: 'user.department_changed',
+        targetKind: 'user',
+        targetId: userId,
+        targetLabel: users.find((u) => u.id === userId)?.full_name || 'user',
+        targetPath: '/app/user-permissions',
+        metadata: { department_id: departmentId, department_name: dept?.name || null },
+      });
+    }
+  }
+
+  async function updateJobTitle(userId: string, jobTitle: string | null) {
+    const res = await db({ action: 'update', table: 'users', data: { job_title: jobTitle }, match: { id: userId } });
+    if (res && typeof res === 'object' && 'error' in res) return;
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, job_title: jobTitle } : u)));
+    if (user?.id) {
+      logActivity({
+        userId: user.id,
+        type: 'user.job_title_changed',
+        targetKind: 'user',
+        targetId: userId,
+        targetLabel: users.find((u) => u.id === userId)?.full_name || 'user',
+        targetPath: '/app/user-permissions',
+        metadata: { job_title: jobTitle },
+      });
+    }
+  }
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  const sortedUsers = useMemo(() => {
+    const visible = (() => {
+      const q = filter.trim().toLowerCase();
+      if (!q) return users;
+      return users.filter(
+        (u) => (u.full_name || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+      );
+    })();
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const cmp = (va: string | number | null, vb: string | number | null) => {
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    };
+    return [...visible].sort((a, b) => {
+      switch (sortKey) {
+        case 'user':
+          return cmp((a.full_name || a.email || '').toLowerCase(), (b.full_name || b.email || '').toLowerCase());
+        case 'viewing':
+          return cmp(a.last_seen_at ? new Date(a.last_seen_at).getTime() : null, b.last_seen_at ? new Date(b.last_seen_at).getTime() : null);
+        case 'department': {
+          const da = departments.find((d) => d.id === a.department_id)?.name?.toLowerCase() || null;
+          const dpb = departments.find((d) => d.id === b.department_id)?.name?.toLowerCase() || null;
+          return cmp(da, dpb);
+        }
+        case 'job_title':
+          return cmp((a.job_title || '').toLowerCase() || null, (b.job_title || '').toLowerCase() || null);
+        case 'created_at':
+          return cmp(new Date(a.created_at).getTime(), new Date(b.created_at).getTime());
+      }
+    });
+  }, [users, filter, sortKey, sortDir, departments]);
 
   if (!isAdmin) {
     return (
@@ -84,12 +282,14 @@ export default function UserPermissionsContent() {
   const adminCount = users.filter((u) => u.is_admin).length;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10 max-w-4xl">
-      <div className="flex items-baseline justify-between mb-6 gap-4">
+    <div className="p-4 sm:p-6 lg:p-10 max-w-7xl">
+      <div className="flex items-baseline justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">User Permissions</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            Grant super-admin access and per-user page overrides. {adminCount} {adminCount === 1 ? 'super admin' : 'super admins'} total.
+            Grant super-admin access and per-user page overrides.{' '}
+            <span className="font-medium text-foreground/70">{adminCount}</span>{' '}
+            {adminCount === 1 ? 'super admin' : 'super admins'} total.
           </p>
         </div>
         <input
@@ -107,77 +307,222 @@ export default function UserPermissionsContent() {
           <div className="p-10 text-center text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Loading…
           </div>
-        ) : visible.length === 0 ? (
+        ) : sortedUsers.length === 0 ? (
           <div className="p-10 text-center text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             No team members match that search.
           </div>
         ) : (
-          visible.map((u, idx) => {
-            const isSelf = u.id === user?.id;
-            return (
-              <div
-                key={u.id}
-                className={`flex items-center gap-3 px-5 py-3 ${idx > 0 ? 'border-t border-gray-100' : ''}`}
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                {u.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={u.avatar_url} alt={u.full_name || ''} className="w-9 h-9 rounded-full object-cover border border-gray-100" />
-                ) : (
-                  <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold">
-                    {(u.full_name || u.email).charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {u.full_name || 'Unnamed'}
-                    {isSelf && <span className="ml-2 text-[11px] text-foreground/40">(you)</span>}
-                  </p>
-                  <p className="text-xs text-foreground/50 truncate">{u.email}</p>
-                </div>
-                {isRootAdmin(u.email) ? (
-                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-primary" title="Root super admin — locked">
-                    Super Admin
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c1.657 0 3-1.343 3-3V6a3 3 0 10-6 0v2c0 1.657 1.343 3 3 3z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 11h14v9a2 2 0 01-2 2H7a2 2 0 01-2-2v-9z" />
-                    </svg>
-                  </span>
-                ) : (
-                  <label className={`inline-flex items-center gap-2 cursor-pointer select-none ${busyId === u.id ? 'opacity-50' : ''}`}>
-                    <span className={`text-xs font-medium ${u.is_admin ? 'text-primary' : 'text-foreground/40'}`}>
-                      {u.is_admin ? 'Super Admin' : 'Not super admin'}
-                    </span>
-                    <span className="relative inline-block w-9 h-5">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={u.is_admin}
-                        disabled={busyId === u.id || isSelf}
-                        onChange={(e) => toggleAdmin(u, e.target.checked)}
-                      />
-                      <span className="absolute inset-0 rounded-full bg-gray-200 peer-checked:bg-primary transition-colors" />
-                      <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
-                    </span>
-                  </label>
-                )}
-                {isSuperAdmin && !isSelf && (
-                  <button
-                    type="button"
-                    onClick={() => setPermissionsTarget(u)}
-                    title={`Edit page permissions for ${u.full_name || u.email}`}
-                    aria-label={`Edit page permissions for ${u.full_name || u.email}`}
-                    className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/5 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="4" y="11" width="16" height="9" rx="2" />
-                      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            );
-          })
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100 bg-warm-bg/50">
+                  <SortableTh label="User" sortKey="user" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                  <SortableTh label="Viewing" sortKey="viewing" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                  <SortableTh label="Department" sortKey="department" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden md:table-cell" />
+                  <SortableTh label="Job Title" sortKey="job_title" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden sm:table-cell" />
+                  <SortableTh label="Joined" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden lg:table-cell" />
+                  <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Super Admin</th>
+                  <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider w-12" style={{ fontFamily: 'var(--font-body)' }} />
+                </tr>
+              </thead>
+              <tbody>
+                {sortedUsers.map((u) => {
+                  const isSelf = u.id === user?.id;
+                  const userDept = departments.find((d) => d.id === u.department_id) || null;
+                  return (
+                    <tr key={u.id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors">
+                      {/* User */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {u.avatar_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+                              {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm font-medium text-foreground">
+                              {formatNameWithCredentials(u.full_name, u.credentials) || 'Unknown'}
+                              {isSelf && <span className="ml-2 text-[11px] text-foreground/40">(you)</span>}
+                            </p>
+                            <p className="text-xs text-foreground/40">{u.email}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Viewing */}
+                      <td className="px-6 py-4">
+                        {(() => {
+                          const p = presenceLabel(u.last_seen_at);
+                          const pageLabel = pageLabelFromPath(u.last_path);
+                          return (
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${p.online ? 'bg-emerald-500 ring-2 ring-emerald-500/20 animate-pulse' : 'bg-gray-300'}`} />
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium text-foreground/80 truncate" style={{ fontFamily: 'var(--font-body)' }}>
+                                  {p.online && pageLabel ? pageLabel : p.text}
+                                </p>
+                                {p.online && pageLabel && (
+                                  <p className="text-[10px] text-emerald-600" style={{ fontFamily: 'var(--font-body)' }}>Online now</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </td>
+
+                      {/* Department */}
+                      <td className="px-6 py-4 hidden md:table-cell">
+                        <select
+                          value={u.department_id || ''}
+                          onChange={(e) => updateDepartment(u.id, e.target.value || null)}
+                          className={`text-xs px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[180px] ${userDept ? 'font-medium' : 'text-foreground/40 bg-white border border-gray-200'}`}
+                          style={{
+                            fontFamily: 'var(--font-body)',
+                            backgroundColor: userDept ? (userDept.color || '#a0522d') + '1f' : undefined,
+                            color: userDept ? (userDept.color || '#a0522d') : undefined,
+                          }}
+                        >
+                          <option value="">—</option>
+                          {departments.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* Job Title — same dropdown + inline custom-title input as /app/team */}
+                      <td className="px-6 py-4 hidden sm:table-cell">
+                        {customTitleUserId === u.id ? (
+                          <input
+                            autoFocus
+                            type="text"
+                            value={customTitleDraft}
+                            placeholder="Custom title…"
+                            onChange={(e) => setCustomTitleDraft(e.target.value)}
+                            onBlur={() => {
+                              const v = customTitleDraft.trim();
+                              if (v) updateJobTitle(u.id, v);
+                              setCustomTitleUserId(null);
+                              setCustomTitleDraft('');
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const v = customTitleDraft.trim();
+                                if (v) updateJobTitle(u.id, v);
+                                setCustomTitleUserId(null);
+                                setCustomTitleDraft('');
+                              } else if (e.key === 'Escape') {
+                                e.preventDefault();
+                                setCustomTitleUserId(null);
+                                setCustomTitleDraft('');
+                              }
+                            }}
+                            className="text-xs px-2 py-1 rounded-lg border border-primary/40 focus:border-primary focus:outline-none bg-white max-w-full sm:max-w-[180px]"
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          />
+                        ) : (
+                          <select
+                            value={u.job_title || ''}
+                            onChange={(e) => {
+                              if (e.target.value === '__custom__') {
+                                setCustomTitleDraft('');
+                                setCustomTitleUserId(u.id);
+                                return;
+                              }
+                              updateJobTitle(u.id, e.target.value || null);
+                            }}
+                            className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-full sm:max-w-[180px] ${u.job_title ? 'text-foreground' : 'text-foreground/30 italic'}`}
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          >
+                            <option value="">Add title...</option>
+                            <option value="__custom__">+ Custom title…</option>
+                            {jobDescriptions.map((j) => (
+                              <option key={j.id} value={j.title}>{j.title}</option>
+                            ))}
+                            {u.job_title && !jobDescriptions.some((j) => j.title === u.job_title) && (
+                              <option value={u.job_title}>{u.job_title}</option>
+                            )}
+                          </select>
+                        )}
+                      </td>
+
+                      {/* Joined */}
+                      <td className="px-6 py-4 hidden lg:table-cell">
+                        {(() => {
+                          const d = new Date(u.created_at);
+                          const now = new Date();
+                          const sameYear = d.getFullYear() === now.getFullYear();
+                          const text = sameYear
+                            ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                            : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                          return (
+                            <span
+                              className="text-xs text-foreground/50 whitespace-nowrap"
+                              style={{ fontFamily: 'var(--font-body)' }}
+                              title={d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            >
+                              {text}
+                            </span>
+                          );
+                        })()}
+                      </td>
+
+                      {/* Super Admin toggle */}
+                      <td className="px-6 py-4">
+                        {isRootAdmin(u.email) ? (
+                          <span className="inline-flex items-center gap-2 text-xs font-semibold text-primary" title="Root super admin — locked">
+                            Super Admin
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c1.657 0 3-1.343 3-3V6a3 3 0 10-6 0v2c0 1.657 1.343 3 3 3z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 11h14v9a2 2 0 01-2 2H7a2 2 0 01-2-2v-9z" />
+                            </svg>
+                          </span>
+                        ) : (
+                          <label className={`inline-flex items-center gap-2 cursor-pointer select-none ${busyId === u.id ? 'opacity-50' : ''}`}>
+                            <span className="relative inline-block w-9 h-5">
+                              <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={u.is_admin}
+                                disabled={busyId === u.id || isSelf}
+                                onChange={(e) => toggleAdmin(u, e.target.checked)}
+                              />
+                              <span className="absolute inset-0 rounded-full bg-gray-200 peer-checked:bg-primary transition-colors" />
+                              <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
+                            </span>
+                            <span className={`text-xs font-medium ${u.is_admin ? 'text-primary' : 'text-foreground/40'}`}>
+                              {u.is_admin ? 'Super Admin' : 'Off'}
+                            </span>
+                          </label>
+                        )}
+                      </td>
+
+                      {/* Permissions lock icon — super admins only */}
+                      <td className="px-6 py-4 text-center">
+                        {isSuperAdmin && !isSelf && (
+                          <button
+                            type="button"
+                            onClick={() => setPermissionsTarget(u)}
+                            title={`Edit page permissions for ${u.full_name || u.email}`}
+                            aria-label={`Edit page permissions for ${u.full_name || u.email}`}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/5 transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="4" y="11" width="16" height="9" rx="2" />
+                              <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                            </svg>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
