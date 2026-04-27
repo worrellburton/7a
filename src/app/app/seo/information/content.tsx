@@ -67,11 +67,17 @@ const SELECT = 'id, business_name, address_line1, address_line2, city, state, po
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 export default function InformationContent() {
-  const { user, session } = useAuth();
+  const { user, session, isSuperAdmin } = useAuth();
   const [info, setInfo] = useState<BusinessInfo>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  // Reads stay open to every admin (the team copies these values
+  // into directory listings); only super admins can mutate. RLS
+  // enforces this at the database level too — a regular admin
+  // calling .upsert() will get a permission error and we surface
+  // it via saveState='error'.
+  const canEdit = isSuperAdmin;
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -161,14 +167,29 @@ export default function InformationContent() {
           <p className="mt-1 text-sm text-foreground/60 max-w-2xl">
             Canonical business info — the team&apos;s source of truth when
             filling out directory listings, Google Business Profile, and
-            any third-party form. Every field saves to the cloud on
-            blur and syncs across the team in real time.
+            any third-party form. Locked to super admins so a typo
+            doesn&apos;t propagate to every listing.
           </p>
         </div>
-        <SaveIndicator state={saveState} savedAt={savedAt} />
+        {canEdit ? <SaveIndicator state={saveState} savedAt={savedAt} /> : <LockedBadge />}
       </header>
 
       <SeoSubNav />
+
+      {!canEdit && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-start gap-2.5">
+          <svg className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="5" y="11" width="14" height="9" rx="2" />
+            <path d="M8 11V7a4 4 0 1 1 8 0v4" />
+          </svg>
+          <p className="text-xs text-amber-900 leading-relaxed">
+            <span className="font-semibold">Read-only.</span> Only super
+            admins can edit these fields — they&apos;re the canonical
+            source of truth for every directory listing. Copy values
+            freely, but ask a super admin to make changes.
+          </p>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-foreground/50">Loading…</p>
@@ -178,16 +199,16 @@ export default function InformationContent() {
             title="NAP data"
             blurb="Business name, address, and phone — the trio every directory asks for. Keep these identical across every listing so Google reads them as one consistent business."
           >
-            <Field label="Business name" value={info.business_name} onSave={(v) => save({ business_name: v })} placeholder="Seven Arrows Recovery" />
-            <Field label="Phone number" value={info.phone} onSave={(v) => save({ phone: v })} placeholder="(555) 123-4567" />
-            <Field label="Address line 1" value={info.address_line1} onSave={(v) => save({ address_line1: v })} placeholder="123 Main Street" />
-            <Field label="Address line 2" value={info.address_line2} onSave={(v) => save({ address_line2: v })} placeholder="Suite 200" />
+            <Field label="Business name" value={info.business_name} onSave={(v) => save({ business_name: v })} placeholder="Seven Arrows Recovery" readOnly={!canEdit} />
+            <Field label="Phone number" value={info.phone} onSave={(v) => save({ phone: v })} placeholder="(555) 123-4567" readOnly={!canEdit} />
+            <Field label="Address line 1" value={info.address_line1} onSave={(v) => save({ address_line1: v })} placeholder="123 Main Street" readOnly={!canEdit} />
+            <Field label="Address line 2" value={info.address_line2} onSave={(v) => save({ address_line2: v })} placeholder="Suite 200" readOnly={!canEdit} />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Field label="City" value={info.city} onSave={(v) => save({ city: v })} placeholder="Phoenix" />
-              <Field label="State" value={info.state} onSave={(v) => save({ state: v })} placeholder="AZ" />
-              <Field label="Postal code" value={info.postal_code} onSave={(v) => save({ postal_code: v })} placeholder="85001" />
+              <Field label="City" value={info.city} onSave={(v) => save({ city: v })} placeholder="Phoenix" readOnly={!canEdit} />
+              <Field label="State" value={info.state} onSave={(v) => save({ state: v })} placeholder="AZ" readOnly={!canEdit} />
+              <Field label="Postal code" value={info.postal_code} onSave={(v) => save({ postal_code: v })} placeholder="85001" readOnly={!canEdit} />
             </div>
-            <Field label="Country" value={info.country} onSave={(v) => save({ country: v })} placeholder="United States" />
+            <Field label="Country" value={info.country} onSave={(v) => save({ country: v })} placeholder="United States" readOnly={!canEdit} />
             {fullAddress && (
               <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
                 <span className="font-semibold uppercase tracking-wider text-[10px] mr-2">Preview</span>
@@ -200,30 +221,32 @@ export default function InformationContent() {
             title="Essential info"
             blurb="Website URL, hours of operation, and business category. These three drive how a listing actually surfaces in search."
           >
-            <Field label="Website URL" value={info.website_url} onSave={(v) => save({ website_url: v })} placeholder="https://www.sevenarrowsrecoveryarizona.com" />
-            <Field label="Hours of operation" value={info.hours} onSave={(v) => save({ hours: v })} placeholder="Mon-Fri 9-5, Sat 10-2" multiline />
-            <Field label="Business category" value={info.business_category} onSave={(v) => save({ business_category: v })} placeholder="Addiction Treatment Center" />
-            <Field label="Short description" value={info.description} onSave={(v) => save({ description: v })} placeholder="One-paragraph blurb for 'About' fields. Mirror what's on the homepage hero." multiline />
+            <Field label="Website URL" value={info.website_url} onSave={(v) => save({ website_url: v })} placeholder="https://www.sevenarrowsrecoveryarizona.com" readOnly={!canEdit} />
+            <Field label="Hours of operation" value={info.hours} onSave={(v) => save({ hours: v })} placeholder="Mon-Fri 9-5, Sat 10-2" multiline readOnly={!canEdit} />
+            <Field label="Business category" value={info.business_category} onSave={(v) => save({ business_category: v })} placeholder="Addiction Treatment Center" readOnly={!canEdit} />
+            <Field label="Short description" value={info.description} onSave={(v) => save({ description: v })} placeholder="One-paragraph blurb for 'About' fields. Mirror what's on the homepage hero." multiline readOnly={!canEdit} />
           </Section>
 
           <Section
             title="Rich media & engagement"
             blurb="Photos, logos, videos, and where customers leave reviews. One URL per line — paste from Supabase storage, the public site, or wherever the asset already lives."
           >
-            <Field label="Logo URL" value={info.logo_url} onSave={(v) => save({ logo_url: v })} placeholder="https://…/logo.png" />
+            <Field label="Logo URL" value={info.logo_url} onSave={(v) => save({ logo_url: v })} placeholder="https://…/logo.png" readOnly={!canEdit} />
             <ListField
               label="Photo URLs"
               values={info.photo_urls}
               onSave={(v) => save({ photo_urls: v })}
               placeholder={'One URL per line\nhttps://…/exterior.jpg\nhttps://…/lobby.jpg'}
+              readOnly={!canEdit}
             />
             <ListField
               label="Video URLs"
               values={info.video_urls}
               onSave={(v) => save({ video_urls: v })}
               placeholder={'One URL per line\nhttps://youtube.com/watch?v=…'}
+              readOnly={!canEdit}
             />
-            <Field label="Reviews URL" value={info.reviews_url} onSave={(v) => save({ reviews_url: v })} placeholder="https://g.page/r/…" />
+            <Field label="Reviews URL" value={info.reviews_url} onSave={(v) => save({ reviews_url: v })} placeholder="https://g.page/r/…" readOnly={!canEdit} />
           </Section>
 
           <Section
@@ -235,6 +258,7 @@ export default function InformationContent() {
               values={info.attributes}
               onSave={(v) => save({ attributes: v })}
               placeholder={'One attribute per line\nWheelchair accessible\nVeteran-owned\nLGBTQ+ friendly'}
+              readOnly={!canEdit}
             />
           </Section>
         </div>
@@ -264,13 +288,14 @@ function Section({
 }
 
 function Field({
-  label, value, onSave, placeholder, multiline = false,
+  label, value, onSave, placeholder, multiline = false, readOnly = false,
 }: {
   label: string;
   value: string | null;
   onSave: (next: string | null) => void;
   placeholder?: string;
   multiline?: boolean;
+  readOnly?: boolean;
 }) {
   // Local draft mirrors `value` and only escapes via onSave on blur
   // (or Cmd-Enter for the multiline variant). Avoids hammering
@@ -279,12 +304,17 @@ function Field({
   useEffect(() => { setDraft(value ?? ''); }, [value]);
 
   const commit = () => {
+    if (readOnly) return;
     const next = draft.trim();
     if ((next || null) === (value ?? null)) return;
     onSave(next || null);
   };
 
-  const inputClass = 'w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40';
+  const inputClass = `w-full rounded-md border px-3 py-2 text-sm text-foreground focus:outline-none ${
+    readOnly
+      ? 'bg-warm-bg/60 border-black/5 cursor-default'
+      : 'bg-white border-black/10 focus:ring-2 focus:ring-primary/40 focus:border-primary/40'
+  }`;
 
   return (
     <label className="block">
@@ -305,6 +335,7 @@ function Field({
           }}
           rows={3}
           placeholder={placeholder}
+          readOnly={readOnly}
           className={`${inputClass} resize-y`}
         />
       ) : (
@@ -321,6 +352,7 @@ function Field({
             }
           }}
           placeholder={placeholder}
+          readOnly={readOnly}
           className={inputClass}
         />
       )}
@@ -329,12 +361,13 @@ function Field({
 }
 
 function ListField({
-  label, values, onSave, placeholder,
+  label, values, onSave, placeholder, readOnly = false,
 }: {
   label: string;
   values: string[];
   onSave: (next: string[]) => void;
   placeholder?: string;
+  readOnly?: boolean;
 }) {
   // Internally edited as a newline-separated string; saved as an
   // array. Empty lines collapse so the array stays clean.
@@ -342,6 +375,7 @@ function ListField({
   useEffect(() => { setDraft((values ?? []).join('\n')); }, [values]);
 
   const commit = () => {
+    if (readOnly) return;
     const next = draft
       .split('\n')
       .map((line) => line.trim())
@@ -366,9 +400,26 @@ function ListField({
         onBlur={commit}
         rows={Math.max(3, Math.min(8, draft.split('\n').length))}
         placeholder={placeholder}
-        className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 resize-y font-mono"
+        readOnly={readOnly}
+        className={`w-full rounded-md border px-3 py-2 text-sm text-foreground focus:outline-none resize-y font-mono ${
+          readOnly
+            ? 'bg-warm-bg/60 border-black/5 cursor-default'
+            : 'bg-white border-black/10 focus:ring-2 focus:ring-primary/40 focus:border-primary/40'
+        }`}
       />
     </div>
+  );
+}
+
+function LockedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800">
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="5" y="11" width="14" height="9" rx="2" />
+        <path d="M8 11V7a4 4 0 1 1 8 0v4" />
+      </svg>
+      Super-admin only
+    </span>
   );
 }
 
