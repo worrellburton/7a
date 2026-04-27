@@ -2958,6 +2958,171 @@ function useLinkMap(): [
   return [map, setLink];
 }
 
+// ── Server-backed directory state ──────────────────────────────────
+//
+// Single source of truth for status + link + attribution. Reads the
+// `directory_states` table on mount, subscribes to realtime so a
+// teammate's edits appear without refresh, and on first load imports
+// any leftover localStorage state from the old hooks above (one-time
+// migration; the localStorage keys are then cleared so the import
+// doesn't re-run on subsequent loads).
+
+interface DirectoryStateRow {
+  directory_id: string;
+  status: Status;
+  link: string | null;
+  link_set_by: string | null;
+  link_set_at: string | null;
+  status_set_by: string | null;
+  status_set_at: string | null;
+}
+
+interface UserLite {
+  id: string;
+  full_name: string | null;
+}
+
+function useDirectoryStates() {
+  const { user, session } = useAuth();
+  const [byId, setById] = useState<Record<string, DirectoryStateRow>>({});
+  const [users, setUsers] = useState<Record<string, UserLite>>({});
+
+  // Initial load + realtime + one-time localStorage import.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let cancelled = false;
+    async function load() {
+      const rows = await db({
+        action: 'select',
+        table: 'directory_states',
+        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at',
+      }).catch(() => null);
+      if (cancelled) return;
+      const map: Record<string, DirectoryStateRow> = {};
+      if (Array.isArray(rows)) {
+        for (const r of rows as DirectoryStateRow[]) map[r.directory_id] = r;
+      }
+      setById(map);
+
+      // One-time migration: pick up any localStorage entries from the
+      // legacy useLinkMap / useStatusMap hooks and push them up to the
+      // server tagged with the current user. After a successful import
+      // we clear the keys so this branch never runs again.
+      if (typeof window !== 'undefined' && user?.id) {
+        const importedFlag = window.localStorage.getItem('sa-seo-directories:imported');
+        if (!importedFlag) {
+          const localLinks = (() => {
+            try { return JSON.parse(window.localStorage.getItem(LINKS_KEY) || '{}') as Record<string, string>; }
+            catch { return {}; }
+          })();
+          const localStatus = (() => {
+            try { return JSON.parse(window.localStorage.getItem(STATUS_KEY) || '{}') as Record<string, Status>; }
+            catch { return {}; }
+          })();
+          const ids = new Set([...Object.keys(localLinks), ...Object.keys(localStatus)]);
+          const upserts = Array.from(ids)
+            .filter((id) => !map[id])
+            .map((id) => ({
+              directory_id: id,
+              status: localStatus[id] || 'todo',
+              link: localLinks[id] || null,
+              link_set_by: localLinks[id] ? user.id : null,
+              link_set_at: localLinks[id] ? new Date().toISOString() : null,
+              status_set_by: localStatus[id] ? user.id : null,
+              status_set_at: localStatus[id] ? new Date().toISOString() : null,
+            }));
+          if (upserts.length > 0) {
+            await db({ action: 'upsert', table: 'directory_states', data: upserts, onConflict: 'directory_id' }).catch(() => null);
+            // Refetch so attribution is consistent with what just landed.
+            const fresh = await db({
+              action: 'select',
+              table: 'directory_states',
+              select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at',
+            }).catch(() => null);
+            if (!cancelled && Array.isArray(fresh)) {
+              const next: Record<string, DirectoryStateRow> = {};
+              for (const r of fresh as DirectoryStateRow[]) next[r.directory_id] = r;
+              setById(next);
+            }
+          }
+          try {
+            window.localStorage.setItem('sa-seo-directories:imported', String(Date.now()));
+          } catch { /* quota */ }
+        }
+      }
+    }
+    load();
+
+    const channel = supabase
+      .channel('directory-states')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'directory_states' }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          const old = payload.old as { directory_id: string };
+          setById((prev) => {
+            const next = { ...prev };
+            delete next[old.directory_id];
+            return next;
+          });
+        } else {
+          const row = payload.new as DirectoryStateRow;
+          setById((prev) => ({ ...prev, [row.directory_id]: row }));
+        }
+      })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [session, user?.id]);
+
+  // Resolve user_id → full_name once. Only fetched if we don't have
+  // a name for at least one referenced id.
+  useEffect(() => {
+    const referenced = new Set<string>();
+    for (const r of Object.values(byId)) {
+      if (r.link_set_by) referenced.add(r.link_set_by);
+      if (r.status_set_by) referenced.add(r.status_set_by);
+    }
+    const missing = Array.from(referenced).filter((id) => !users[id]);
+    if (missing.length === 0) return;
+    db({
+      action: 'select',
+      table: 'users',
+      select: 'id, full_name',
+    })
+      .then((rows) => {
+        if (!Array.isArray(rows)) return;
+        const next: Record<string, UserLite> = { ...users };
+        for (const r of rows as UserLite[]) next[r.id] = r;
+        setUsers(next);
+      })
+      .catch(() => null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [byId]);
+
+  const upsert = async (id: string, patch: Partial<DirectoryStateRow>) => {
+    if (!user?.id) return;
+    const existing = byId[id];
+    const next: DirectoryStateRow = {
+      directory_id: id,
+      status: patch.status ?? existing?.status ?? 'todo',
+      link: patch.link !== undefined ? patch.link : (existing?.link ?? null),
+      link_set_by: patch.link !== undefined
+        ? (patch.link ? user.id : null)
+        : (existing?.link_set_by ?? null),
+      link_set_at: patch.link !== undefined
+        ? (patch.link ? new Date().toISOString() : null)
+        : (existing?.link_set_at ?? null),
+      status_set_by: patch.status !== undefined ? user.id : (existing?.status_set_by ?? null),
+      status_set_at: patch.status !== undefined ? new Date().toISOString() : (existing?.status_set_at ?? null),
+    };
+    setById((prev) => ({ ...prev, [id]: next }));
+    await db({ action: 'upsert', table: 'directory_states', data: [next as unknown as Record<string, unknown>], onConflict: 'directory_id' }).catch(() => null);
+  };
+
+  return { byId, users, upsert };
+}
+
 // ── Semrush referring-domain match ─────────────────────────────────
 //
 // The Backlinks page persists a snapshot of Semrush data in
@@ -3041,8 +3206,36 @@ const PRIORITY_TONE: Record<Directory['priority'], string> = {
 };
 
 export default function DirectoriesContent() {
-  const [statusMap, cycleStatus, setStatus] = useStatusMap();
-  const [linkMap, setLink] = useLinkMap();
+  // Server-backed state. The legacy localStorage hooks (useStatusMap /
+  // useLinkMap) are retained only as a one-time import source inside
+  // useDirectoryStates — every read/write below now goes through the
+  // server table directly.
+  const { byId: directoryStates, users: directoryStateUsers, upsert: upsertDirectoryState } = useDirectoryStates();
+  const statusMap = useMemo(() => {
+    const out: Record<string, Status> = {};
+    for (const [id, row] of Object.entries(directoryStates)) {
+      if (row.status && row.status !== 'todo') out[id] = row.status as Status;
+    }
+    return out;
+  }, [directoryStates]);
+  const linkMap = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const [id, row] of Object.entries(directoryStates)) {
+      if (row.link) out[id] = row.link;
+    }
+    return out;
+  }, [directoryStates]);
+  const cycleStatus = (id: string) => {
+    const current = statusMap[id] ?? 'todo';
+    const next = STATUS_CYCLE[current];
+    void upsertDirectoryState(id, { status: next });
+  };
+  const setStatus = (id: string, value: Status) => {
+    void upsertDirectoryState(id, { status: value });
+  };
+  const setLink = (id: string, value: string) => {
+    void upsertDirectoryState(id, { link: value || null });
+  };
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<DirectoryCategory | 'all'>('all');
   const [hideListed, setHideListed] = useState(false);
@@ -3366,6 +3559,10 @@ export default function DirectoriesContent() {
                           <LinkCell
                             value={link}
                             onSave={(v) => saveLink(d.id, v)}
+                            setBy={directoryStates[d.id]?.link_set_by
+                              ? (directoryStateUsers[directoryStates[d.id].link_set_by!]?.full_name ?? null)
+                              : null}
+                            setAt={directoryStates[d.id]?.link_set_at ?? null}
                           />
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -3585,9 +3782,13 @@ function SemrushCell({
 function LinkCell({
   value,
   onSave,
+  setBy,
+  setAt,
 }: {
   value: string;
   onSave: (v: string) => void;
+  setBy?: string | null;
+  setAt?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -3622,28 +3823,44 @@ function LinkCell({
   }
 
   if (value) {
+    const dateLabel = setAt
+      ? new Date(setAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : null;
+    const fullTimestamp = setAt
+      ? new Date(setAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+      : null;
     return (
-      <div className="flex items-center gap-2 max-w-full">
-        <a
-          href={value}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={value}
-          className="text-[12px] font-medium text-emerald-700 hover:text-emerald-800 truncate max-w-[180px]"
-        >
-          {value.replace(/^https?:\/\//, '')}
-        </a>
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          title="Edit link"
-          aria-label="Edit live link"
-          className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-foreground/45 hover:text-foreground/80 hover:bg-black/5"
-        >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5h-7a2 2 0 00-2 2v13a2 2 0 002 2h13a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
-        </button>
+      <div className="flex flex-col gap-0.5 max-w-full">
+        <div className="flex items-center gap-2 max-w-full">
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={value}
+            className="text-[12px] font-medium text-emerald-700 hover:text-emerald-800 truncate max-w-[180px]"
+          >
+            {value.replace(/^https?:\/\//, '')}
+          </a>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            title="Edit link"
+            aria-label="Edit live link"
+            className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-foreground/45 hover:text-foreground/80 hover:bg-black/5"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5h-7a2 2 0 00-2 2v13a2 2 0 002 2h13a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+        </div>
+        {(setBy || dateLabel) && (
+          <p
+            className="text-[10px] text-foreground/45 truncate max-w-[230px]"
+            title={fullTimestamp ?? undefined}
+          >
+            added{setBy ? ` by ${setBy}` : ''}{dateLabel ? ` · ${dateLabel}` : ''}
+          </p>
+        )}
       </div>
     );
   }
