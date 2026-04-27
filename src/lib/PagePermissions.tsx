@@ -71,6 +71,13 @@ interface PagePermissionsContextType {
   // True when `userDepartmentId` (may be null) is allowed to view `path`.
   // Unrestricted pages (empty allowedDepartments) are always allowed.
   isPageAllowedForDepartment: (path: string, userDepartmentId: string | null) => boolean;
+  /**
+   * Per-user page overrides loaded from `user_page_permissions` for the
+   * currently signed-in user. Maps path → can_view. Absence = inherit
+   * (fall back to dept + admin-only rules). Used by `PlatformShell` and
+   * `PageGuard` to enforce super-admin-set overrides.
+   */
+  userOverrides: Record<string, boolean>;
   updatePageLayout: (updatedPages: PageConfig[]) => void;
   loading: boolean;
 }
@@ -84,14 +91,44 @@ const PagePermissionsContext = createContext<PagePermissionsContextType>({
   setPageDepartmentGroup: () => {},
   isPageAdminOnly: () => false,
   isPageAllowedForDepartment: () => true,
+  userOverrides: {},
   updatePageLayout: () => {},
   loading: true,
 });
 
 export function PagePermissionsProvider({ children }: { children: React.ReactNode }) {
-  const { session } = useAuth();
+  const { session, user } = useAuth();
   const [pages, setPages] = useState<PageConfig[]>(defaultPages);
   const [loading, setLoading] = useState(true);
+  const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({});
+
+  // Load per-user page overrides for the signed-in user. RLS lets the
+  // user read their own rows, so this works for non-admin members too.
+  useEffect(() => {
+    if (!user?.id) {
+      setUserOverrides({});
+      return;
+    }
+    let cancelled = false;
+    db({
+      action: 'select',
+      table: 'user_page_permissions',
+      match: { user_id: user.id },
+      select: 'path, can_view',
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        const map: Record<string, boolean> = {};
+        if (Array.isArray(rows)) {
+          for (const r of rows as { path: string; can_view: boolean }[]) {
+            map[r.path] = r.can_view;
+          }
+        }
+        setUserOverrides(map);
+      })
+      .catch(() => { /* table missing or RLS — fall back to inherit */ });
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -227,7 +264,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   const popupPages = sorted.filter((p) => p.section === 'popup');
 
   return (
-    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, setPageDepartments, setPageDepartmentGroup, isPageAdminOnly, isPageAllowedForDepartment, updatePageLayout, loading }}>
+    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, setPageDepartments, setPageDepartmentGroup, isPageAdminOnly, isPageAllowedForDepartment, userOverrides, updatePageLayout, loading }}>
       {children}
     </PagePermissionsContext.Provider>
   );

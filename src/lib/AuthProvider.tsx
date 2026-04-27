@@ -14,6 +14,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   departmentId: string | null;
   status: UserStatus;
   /**
@@ -42,6 +43,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   loading: true,
   isAdmin: false,
+  isSuperAdmin: false,
   departmentId: null,
   status: 'active',
   avatarUrl: null,
@@ -72,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [status, setStatus] = useState<UserStatus>('active');
   // Custom avatar from the users table — separate from
@@ -99,9 +102,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // never silently blanked out by an unrelated DB error. This exact bug
     // once hid Team + Super Admin from every admin's sidebar, so the
     // fallback is intentional belt-and-suspenders.
-    type ProfileRow = { is_admin?: boolean; department_id?: string | null; status?: UserStatus };
+    type ProfileRow = { is_admin?: boolean; is_super_admin?: boolean; department_id?: string | null; status?: UserStatus };
     let row: ProfileRow | null = null;
-    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, department_id, status' });
+    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, is_super_admin, department_id, status' });
     if (Array.isArray(full) && full[0]) {
       row = full[0] as ProfileRow;
     } else {
@@ -120,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!row) return;
 
     setIsAdmin(row.is_admin === true);
+    setIsSuperAdmin(row.is_super_admin === true);
     setDepartmentId(row.department_id ?? null);
     // Trust the DB. The status column is set on insert by the
     // `users_set_initial_status` trigger, and admins flip it via the
@@ -176,6 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           setIsAdmin(false);
+          setIsSuperAdmin(false);
           setDepartmentId(null);
           setStatus('active');
           setCustomAvatarUrl(null);
@@ -275,6 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session,
         loading,
         isAdmin,
+        isSuperAdmin,
         departmentId,
         status,
         avatarUrl,

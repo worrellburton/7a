@@ -7,13 +7,17 @@ import { usePagePermissions } from './PagePermissions';
 
 export default function PageGuard({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, departmentId, loading: authLoading } = useAuth();
-  const { isPageAdminOnly, isPageAllowedForDepartment, loading: permLoading } = usePagePermissions();
+  const { isPageAdminOnly, isPageAllowedForDepartment, userOverrides, loading: permLoading } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
 
+  // Per-user override beats every other rule. Allow grants access even
+  // if dept rules / admin-only would deny it; Block denies even if
+  // dept rules would allow.
+  const override = userOverrides[pathname];
   const deniedAdmin = isPageAdminOnly(pathname) && !isAdmin;
   const deniedDept = !isAdmin && !isPageAllowedForDepartment(pathname, departmentId);
-  const denied = deniedAdmin || deniedDept;
+  const denied = override === false ? true : override === true ? false : (deniedAdmin || deniedDept);
 
   useEffect(() => {
     if (authLoading || permLoading || !user) return;
