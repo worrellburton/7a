@@ -8,10 +8,8 @@
 // route already tops out around the curated set (~50 calls); adding
 // local-pack + PAA + competitor sweeps could 4-5× that, so this
 // module enforces a daily cap before issuing any HTTP request. The
-// counter lives in process memory — good enough until we have a
-// usage table (deferred to a later phase because the Supabase MCP
-// auth flow is currently broken and we won't ship code that reads
-// columns that don't exist yet).
+// in-process counter is the fast-path guard; the slow-path audit
+// trail is `seo_serpapi_usage` (callers pass a recorder via opts).
 //
 // Env:
 //   SERPAPI_KEY            required — issue from serpapi.com
