@@ -276,7 +276,7 @@ export { pageIcons };
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
   const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
-  const { navPages, popupPages, isPageAllowedForDepartment, userOverrides } = usePagePermissions();
+  const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
   const [navDepartments, setNavDepartments] = useState<NavDepartment[]>([]);
@@ -326,7 +326,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     if (override === true) return true;
     if (item.adminOnly && !isAdmin) return false;
     if (isAdmin) return true;
-    return isPageAllowedForDepartment(item.path, departmentId);
+    // Effective dept set = primary department_id + any extras a super
+    // admin granted via /app/user-permissions → Departments tab.
+    return isPageAllowedForDepartmentSet(item.path, [departmentId, ...userExtraDepartmentIds]);
   };
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
