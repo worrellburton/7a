@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
-import { ga4Run, hasGoogleOAuth } from '@/lib/google';
+import { ga4Run, GoogleApiError, hasGoogleOAuth } from '@/lib/google';
 
 // GET /api/google/visits-summary
 //
@@ -117,18 +117,43 @@ export async function GET() {
     cached = { data, expiresAt: Date.now() + CACHE_TTL_MS };
     return NextResponse.json(data);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (/RESOURCE_EXHAUSTED|429/i.test(message)) {
-      // Same self-soothing pattern as the realtime route — return
-      // cached data with a quota flag if we have any, else 429.
-      if (cached) {
-        return NextResponse.json({ ...cached.data, cached: true, quota_exhausted: true });
+    // Structured error path — GoogleApiError carries the Google
+    // status code (e.g. PERMISSION_DENIED, UNAUTHENTICATED) so the
+    // client can drive a smarter UX without string-matching.
+    if (err instanceof GoogleApiError) {
+      // Verbose log so an admin in Vercel can see the full body, but
+      // the response payload only carries the structured fields.
+      console.warn('[visits-summary] GA4 error', {
+        status: err.status,
+        code: err.code,
+        endpoint: err.endpoint,
+        body: err.rawBody.slice(0, 600),
+      });
+      // Quota exhaustion: degrade to last cached value when we have
+      // one, otherwise 429 with the structured envelope.
+      if (err.code === 'RESOURCE_EXHAUSTED' || err.status === 429) {
+        if (cached) {
+          return NextResponse.json({ ...cached.data, cached: true, quota_exhausted: true });
+        }
+        return NextResponse.json(
+          { ...err.toJSON(), quota_exhausted: true },
+          { status: 429 },
+        );
       }
+      // Auth failure: surface so the client can show the Reconnect
+      // CTA. 401 + 403 with PERMISSION_DENIED both qualify — the
+      // first means the token's dead, the second means the connected
+      // account doesn't have access to the configured property.
+      const reconnect =
+        err.status === 401 ||
+        err.code === 'UNAUTHENTICATED' ||
+        err.code === 'PERMISSION_DENIED';
       return NextResponse.json(
-        { error: 'GA4 rate-limited; try again in <60 min', quota_exhausted: true },
-        { status: 429 },
+        { ...err.toJSON(), reconnect },
+        { status: err.status === 401 ? 401 : 502 },
       );
     }
+    const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
