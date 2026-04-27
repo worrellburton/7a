@@ -533,6 +533,24 @@ function ActionCard({
           {a.description ? (
             <p className="text-sm text-foreground/70 mt-1.5 whitespace-pre-wrap">{a.description}</p>
           ) : null}
+          {a.screenshot_urls.length > 0 ? (
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {a.screenshot_urls.map((url) => (
+                <li key={url}>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-14 h-14 rounded-md overflow-hidden border border-black/10 hover:ring-2 hover:ring-orange-300/60 transition"
+                    title="Open screenshot in new tab"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="screenshot" className="w-full h-full object-cover" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <p className="text-[11px] text-foreground/45 mt-2">
             Submitted{' '}
             {a.submitted_by_name ? (
