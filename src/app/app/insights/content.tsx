@@ -12,7 +12,10 @@ import { useAuth } from '@/lib/AuthProvider';
 // Pure SVG — no chart library — keeps the bundle lean.
 
 type Series = 'total' | 'meaningful';
-type Range = 7 | 30 | 90;
+// Numeric values are day-counts; the two named tokens cover the
+// open-ended cases. "ytd" runs from Jan 1 of the current year,
+// "all" runs from a date safely before any call we'll ever have.
+type Range = 7 | 30 | 90 | 'ytd' | 'all';
 
 interface DailyCount {
   date: string;          // YYYY-MM-DD (Phoenix day)
@@ -35,7 +38,30 @@ const RANGE_OPTIONS: { value: Range; label: string }[] = [
   { value: 7, label: 'Last 7 days' },
   { value: 30, label: 'Last 30 days' },
   { value: 90, label: 'Last 90 days' },
+  { value: 'ytd', label: 'This year' },
+  { value: 'all', label: 'All time' },
 ];
+
+// Earliest plausible call date — anything older than this we treat
+// as "before our data". Using 2000-01-01 keeps the "All time" range
+// safely lossless without hitting the API with a literal Date(0).
+const ALL_TIME_FROM = new Date('2000-01-01T00:00:00.000Z');
+
+function rangeToWindow(range: Range): { from: Date; to: Date } {
+  const to = new Date();
+  to.setHours(23, 59, 59, 999);
+  if (range === 'all') {
+    return { from: ALL_TIME_FROM, to };
+  }
+  if (range === 'ytd') {
+    const from = new Date(to.getFullYear(), 0, 1, 0, 0, 0, 0);
+    return { from, to };
+  }
+  const from = new Date();
+  from.setDate(from.getDate() - (range - 1));
+  from.setHours(0, 0, 0, 0);
+  return { from, to };
+}
 
 export default function InsightsContent() {
   const { session } = useAuth();
@@ -54,11 +80,7 @@ export default function InsightsContent() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const to = new Date();
-    const from = new Date();
-    from.setDate(from.getDate() - (range - 1));
-    from.setHours(0, 0, 0, 0);
-    to.setHours(23, 59, 59, 999);
+    const { from, to } = rangeToWindow(range);
     const url = `/api/calls/insights?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`;
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
@@ -382,21 +404,76 @@ function CallChart({
           stroke="#0000001a" strokeWidth={1}
         />
 
-        {/* Average reference line */}
+        {/* Average reference line — draws from left to right on
+            every range/series change. The technique: render the line
+            at full length, mask it with a stroke-dashoffset equal to
+            the line length, then animate the offset back to 0 so it
+            appears to draw in. The label fades in alongside so it
+            doesn't pop in before the line reaches it.
+            `key` is range-and-series-and-avg keyed so React unmounts +
+            remounts the group when any of those change, restarting
+            the SMIL animation. */}
         {avg > 0 && (
-          <g>
+          <g
+            key={`avg-${series}-${avg.toFixed(2)}-${n}`}
+            opacity={0.85}
+          >
             <line
               x1={PAD_L} y1={yScale(avg)} x2={W - PAD_R} y2={yScale(avg)}
-              stroke={fill} strokeWidth={1} strokeDasharray="3 3" opacity={0.4}
-            />
-            <rect x={W - PAD_R - 64} y={yScale(avg) - 16} width={62} height={14} rx={3} fill={fillSoft} />
-            <text
-              x={W - PAD_R - 4} y={yScale(avg) - 5}
-              fontSize={9} textAnchor="end" fill={fill}
-              fontFamily="var(--font-body)" fontWeight={600}
+              stroke={fill} strokeWidth={1.5} strokeDasharray={`${innerW} ${innerW}`} strokeDashoffset={innerW} opacity={0.55}
             >
-              avg {avg.toFixed(1)}
-            </text>
+              <animate
+                attributeName="stroke-dashoffset"
+                from={innerW}
+                to={0}
+                dur="1.4s"
+                fill="freeze"
+                begin="0s"
+                calcMode="spline"
+                keyTimes="0; 1"
+                keySplines="0.16 1 0.3 1"
+              />
+            </line>
+            {/* Tiny pulse dot riding the leading edge — visually
+                signals the line is still drawing in and gives the
+                "moving from left to right" cue the user asked for. */}
+            <circle r={3.5} cy={yScale(avg)} fill={fill}>
+              <animate
+                attributeName="cx"
+                from={PAD_L}
+                to={W - PAD_R}
+                dur="1.4s"
+                fill="freeze"
+                begin="0s"
+                calcMode="spline"
+                keyTimes="0; 1"
+                keySplines="0.16 1 0.3 1"
+              />
+              <animate
+                attributeName="opacity"
+                values="0; 1; 1; 0"
+                keyTimes="0; 0.05; 0.85; 1"
+                dur="1.4s"
+                fill="freeze"
+                begin="0s"
+              />
+            </circle>
+            {/* Label — fades in once the line is most of the way
+                across so it doesn't appear out of the void. */}
+            <g>
+              <rect x={W - PAD_R - 64} y={yScale(avg) - 16} width={62} height={14} rx={3} fill={fillSoft} opacity={0}>
+                <animate attributeName="opacity" from={0} to={1} dur="0.5s" begin="0.9s" fill="freeze" />
+              </rect>
+              <text
+                x={W - PAD_R - 4} y={yScale(avg) - 5}
+                fontSize={9} textAnchor="end" fill={fill}
+                fontFamily="var(--font-body)" fontWeight={600}
+                opacity={0}
+              >
+                avg {avg.toFixed(1)}
+                <animate attributeName="opacity" from={0} to={1} dur="0.5s" begin="0.9s" fill="freeze" />
+              </text>
+            </g>
           </g>
         )}
       </svg>

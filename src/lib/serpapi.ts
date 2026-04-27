@@ -90,6 +90,27 @@ export function readSerpApiUsage(): SerpApiUsage {
   return { date: today, count: c, cap, remaining: Math.max(0, cap - c) };
 }
 
+// ── Usage recording ──────────────────────────────────────────────
+//
+// Callers can pass an `onUsage` callback into any engine wrapper to
+// log the call into seo_serpapi_usage. The callback is invoked once
+// per HTTP attempt (success or failure) with everything the audit
+// table needs. Invocation is fire-and-forget from the engine — the
+// engine resolves with the API result regardless of whether the
+// log row succeeds, so a flaky DB never breaks SerpAPI calls.
+
+export interface SerpApiUsageRecord {
+  engine: SerpEngine;
+  query: string | null;
+  ok: boolean;
+  duration_ms: number;
+  http_status: number | null;
+  error: string | null;
+  search_id: string | null;
+}
+
+export type SerpApiUsageRecorder = (record: SerpApiUsageRecord) => void | Promise<void>;
+
 // ── Core fetch ───────────────────────────────────────────────────
 
 interface SerpApiCallOptions {
@@ -100,6 +121,10 @@ interface SerpApiCallOptions {
   timeoutMs?: number;
   /** When true, the daily cap is bypassed — only for cron / admin. */
   ignoreCap?: boolean;
+  /** Fire-and-forget logger. Caller decides where rows land — usually
+   *  the seo_serpapi_usage table, but cron jobs may swap this for a
+   *  service-role client to bypass user RLS. */
+  onUsage?: SerpApiUsageRecorder;
 }
 
 interface SerpApiResult<T> {
@@ -135,6 +160,32 @@ async function callSerpApi<T = Record<string, unknown>>(
     if (v != null && v !== '') url.searchParams.set(k, String(v));
   }
 
+  // The recorder receives a successful or failed call summary. We
+  // never await it from inside callSerpApi — a slow Supabase write
+  // mustn't slow down the SerpAPI response. Failures inside the
+  // recorder are caught + logged to stderr so logging is best-effort.
+  const queryForLog =
+    typeof opts.params.q === 'string' || typeof opts.params.q === 'number'
+      ? String(opts.params.q)
+      : null;
+  function record(rec: Omit<SerpApiUsageRecord, 'engine' | 'query'>): void {
+    if (!opts.onUsage) return;
+    try {
+      const out = opts.onUsage({
+        engine: opts.engine,
+        query: queryForLog,
+        ...rec,
+      });
+      if (out && typeof (out as Promise<void>).then === 'function') {
+        (out as Promise<void>).catch((e) => {
+          console.warn('[serpapi] usage recorder threw', e);
+        });
+      }
+    } catch (e) {
+      console.warn('[serpapi] usage recorder threw', e);
+    }
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(),
@@ -149,6 +200,13 @@ async function callSerpApi<T = Record<string, unknown>>(
     const durationMs = Date.now() - startedAt;
     const text = await res.text();
     if (!res.ok) {
+      record({
+        ok: false,
+        duration_ms: durationMs,
+        http_status: res.status,
+        error: text.slice(0, 400),
+        search_id: null,
+      });
       throw new SerpApiError(
         `SerpAPI HTTP ${res.status}: ${text.slice(0, 400)}`,
         res.status,
@@ -159,6 +217,13 @@ async function callSerpApi<T = Record<string, unknown>>(
     try {
       json = JSON.parse(text) as typeof json;
     } catch {
+      record({
+        ok: false,
+        duration_ms: durationMs,
+        http_status: res.status,
+        error: 'Non-JSON body',
+        search_id: null,
+      });
       throw new SerpApiError(
         `SerpAPI returned non-JSON body: ${text.slice(0, 200)}`,
         502,
@@ -166,12 +231,18 @@ async function callSerpApi<T = Record<string, unknown>>(
       );
     }
     if (typeof json.error === 'string' && json.error.length > 0) {
+      record({
+        ok: false,
+        duration_ms: durationMs,
+        http_status: res.status,
+        error: json.error,
+        search_id: json.search_metadata?.id ?? null,
+      });
       throw new SerpApiError(json.error, 502, opts.engine);
     }
     const searchId = json.search_metadata?.id ?? null;
     // Structured log line — picked up by Vercel/CloudWatch and useful
-    // for "where did our credits go this week?" investigations until
-    // the usage table lands.
+    // for "where did our credits go this week?" investigations.
     console.info(
       JSON.stringify({
         kind: 'serpapi.call',
@@ -181,16 +252,38 @@ async function callSerpApi<T = Record<string, unknown>>(
         search_id: searchId,
       }),
     );
+    record({
+      ok: true,
+      duration_ms: durationMs,
+      http_status: res.status,
+      error: null,
+      search_id: searchId,
+    });
     return { json: json as T, searchId, durationMs };
   } catch (err) {
     if (err instanceof SerpApiError) throw err;
     if (err instanceof Error && err.name === 'AbortError') {
+      const durationMs = Date.now() - startedAt;
+      record({
+        ok: false,
+        duration_ms: durationMs,
+        http_status: null,
+        error: 'Timeout',
+        search_id: null,
+      });
       throw new SerpApiError(
         `SerpAPI ${opts.engine} timed out after ${opts.timeoutMs ?? DEFAULT_TIMEOUT_MS}ms`,
         504,
         opts.engine,
       );
     }
+    record({
+      ok: false,
+      duration_ms: Date.now() - startedAt,
+      http_status: null,
+      error: err instanceof Error ? err.message : String(err),
+      search_id: null,
+    });
     throw new SerpApiError(
       err instanceof Error ? err.message : String(err),
       500,
@@ -259,6 +352,7 @@ export async function googleSearch(opts: {
   /** Pass an explicit lat/lng/zoom string to localize SERPs. */
   location?: string;
   ignoreCap?: boolean;
+  onUsage?: SerpApiUsageRecorder;
   timeoutMs?: number;
 }): Promise<GoogleSerpResponse> {
   const { json } = await callSerpApi<RawGoogleJson>({
@@ -272,6 +366,7 @@ export async function googleSearch(opts: {
     },
     timeoutMs: opts.timeoutMs,
     ignoreCap: opts.ignoreCap,
+    onUsage: opts.onUsage,
   });
   const organic: GoogleOrganicResult[] = (json.organic_results ?? [])
     .filter((o) => typeof o.link === 'string' && o.link.length > 0)
@@ -354,6 +449,7 @@ export async function googleLocalPack(opts: {
   location: string;
   hl?: string;
   ignoreCap?: boolean;
+  onUsage?: SerpApiUsageRecorder;
 }): Promise<GoogleLocalPackEntry[]> {
   const { json } = await callSerpApi<RawLocalJson>({
     engine: 'google_local',
@@ -363,6 +459,7 @@ export async function googleLocalPack(opts: {
       hl: opts.hl ?? process.env.SERPAPI_DEFAULT_HL ?? 'en',
     },
     ignoreCap: opts.ignoreCap,
+    onUsage: opts.onUsage,
   });
   const places = json.local_results?.places ?? [];
   return places.map((p, i) => ({
@@ -387,6 +484,7 @@ export async function googleAutocomplete(opts: {
   gl?: string;
   hl?: string;
   ignoreCap?: boolean;
+  onUsage?: SerpApiUsageRecorder;
 }): Promise<{ value: string; relevance: number | null }[]> {
   const { json } = await callSerpApi<RawAutocompleteJson>({
     engine: 'google_autocomplete',
@@ -396,6 +494,7 @@ export async function googleAutocomplete(opts: {
       hl: opts.hl ?? process.env.SERPAPI_DEFAULT_HL ?? 'en',
     },
     ignoreCap: opts.ignoreCap,
+    onUsage: opts.onUsage,
   });
   return (json.suggestions ?? [])
     .filter((s) => typeof s.value === 'string' && s.value.length > 0)
@@ -427,6 +526,7 @@ export async function googleRelatedQuestions(opts: {
   gl?: string;
   hl?: string;
   ignoreCap?: boolean;
+  onUsage?: SerpApiUsageRecorder;
 }): Promise<RelatedQuestion[]> {
   // SerpAPI exposes related_questions as a top-level field on the
   // standard `google` engine response. The dedicated
@@ -442,6 +542,7 @@ export async function googleRelatedQuestions(opts: {
       num: 10,
     },
     ignoreCap: opts.ignoreCap,
+    onUsage: opts.onUsage,
   });
   return (json.related_questions ?? [])
     .filter((q) => typeof q.question === 'string' && q.question.length > 0)
@@ -475,6 +576,7 @@ export async function googleMapsReviews(opts: {
   place_id: string;
   hl?: string;
   ignoreCap?: boolean;
+  onUsage?: SerpApiUsageRecorder;
 }): Promise<MapsReview[]> {
   const { json } = await callSerpApi<RawMapsReviewsJson>({
     engine: 'google_maps_reviews',
@@ -483,6 +585,7 @@ export async function googleMapsReviews(opts: {
       hl: opts.hl ?? process.env.SERPAPI_DEFAULT_HL ?? 'en',
     },
     ignoreCap: opts.ignoreCap,
+    onUsage: opts.onUsage,
   });
   return (json.reviews ?? []).map((r) => ({
     author: r.user?.name ?? null,
@@ -515,6 +618,7 @@ export async function googleTrends(opts: {
   /** Time range token, e.g. "today 12-m", "today 5-y". */
   date?: string;
   ignoreCap?: boolean;
+  onUsage?: SerpApiUsageRecorder;
 }): Promise<TrendPoint[]> {
   const { json } = await callSerpApi<RawTrendsJson>({
     engine: 'google_trends',
@@ -525,6 +629,7 @@ export async function googleTrends(opts: {
       data_type: 'TIMESERIES',
     },
     ignoreCap: opts.ignoreCap,
+    onUsage: opts.onUsage,
   });
   const timeline = json.interest_over_time?.timeline_data ?? [];
   return timeline
