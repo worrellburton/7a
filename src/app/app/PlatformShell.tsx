@@ -565,8 +565,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     <div className="flex min-h-screen app-shell relative">
       <FlowBackground />
       <PresenceCursors />
-      {/* Left Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 hidden lg:flex">
+      {/* Left Sidebar — sticky viewport-height column so the user card
+          (and the user menu that opens above it) stay pinned to the
+          lower-left even when the main page content is much taller
+          than the viewport. */}
+      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 hidden lg:flex sticky top-0 h-screen">
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
@@ -684,42 +687,10 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           })()}
         </nav>
 
-        {/* Popup pages — pinned at the bottom of the sidebar, always
-            visible. Previously these only opened when the user clicked
-            the avatar; pinning means Team / Pages / Super Admin / etc.
-            are one click from anywhere without scrolling or hunting
-            through a popup. The block has its own internal scroll cap
-            so a long popup-pages list can't push the user card off the
-            bottom of the screen. */}
-        {popupPages.filter(canSeePage).length > 0 && (
-          <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[35vh] overflow-y-auto">
-            {popupPages.filter(canSeePage).map((item) => {
-              const isActive = pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  href={item.path}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-foreground/60 hover:bg-warm-bg hover:text-foreground'
-                  }`}
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                    {getPageIcon(item.path, 'sm')}
-                  </span>
-                  <span className="flex-1">{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-
         {/* User settings — bottom left */}
         <div className="relative p-3 border-t border-gray-100">
           {userMenuOpen && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-y-auto z-50 max-h-[calc(100vh-120px)]">
               <Link
                 href="/app/profile"
                 onClick={() => setUserMenuOpen(false)}
