@@ -3,6 +3,27 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
+import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthProvider';
+import { BacklinkChat } from '@/components/BacklinkChat';
+
+// localStorage for per-user "last read" timestamps so the unread dot
+// only lights up when there's a message the current user hasn't seen.
+const READ_KEY = 'sa-backlink-chat-read';
+function getReadMap(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try { return JSON.parse(window.localStorage.getItem(READ_KEY) || '{}'); }
+  catch { return {}; }
+}
+function setReadAt(sourceUrl: string, ts: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const map = getReadMap();
+    map[sourceUrl] = ts;
+    window.localStorage.setItem(READ_KEY, JSON.stringify(map));
+  } catch { /* quota — fine */ }
+}
 
 // Backlinks dashboard powered by a persisted Semrush snapshot. Click
 // "Sync" to refresh against Semrush — until then everyone reads the
@@ -92,6 +113,92 @@ export default function BacklinksContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  // Per-row chat metadata: latest message timestamp + total count per
+  // source_url, plus a localStorage read map so the unread dot only
+  // lights up for messages this user hasn't seen.
+  const { session } = useAuth();
+  const [chatLatest, setChatLatest] = useState<Record<string, string>>({});
+  const [chatCounts, setChatCounts] = useState<Record<string, number>>({});
+  const [chatRead, setChatRead] = useState<Record<string, string>>({});
+  const [openChat, setOpenChat] = useState<BacklinkRow | null>(null);
+
+  // Load chat metadata + subscribe to realtime so the bubble icon
+  // updates the moment a teammate posts.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    setChatRead(getReadMap());
+    let cancelled = false;
+    async function loadChatMeta() {
+      const rows = await db({
+        action: 'select',
+        table: 'seo_backlink_messages',
+        select: 'source_url, created_at',
+        order: { column: 'created_at', ascending: false },
+      }).catch(() => null);
+      if (cancelled || !Array.isArray(rows)) return;
+      const latest: Record<string, string> = {};
+      const counts: Record<string, number> = {};
+      for (const r of rows as Array<{ source_url: string; created_at: string }>) {
+        if (!latest[r.source_url]) latest[r.source_url] = r.created_at;
+        counts[r.source_url] = (counts[r.source_url] || 0) + 1;
+      }
+      setChatLatest(latest);
+      setChatCounts(counts);
+    }
+    loadChatMeta();
+    const channel = supabase
+      .channel('backlinks-chat-meta')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'seo_backlink_messages' }, (payload) => {
+        const row = payload.new as { source_url: string; created_at: string };
+        setChatLatest((prev) => ({ ...prev, [row.source_url]: row.created_at }));
+        setChatCounts((prev) => ({ ...prev, [row.source_url]: (prev[row.source_url] || 0) + 1 }));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'seo_backlink_messages' }, (payload) => {
+        const row = payload.old as { source_url: string };
+        setChatCounts((prev) => {
+          const next = { ...prev };
+          if (next[row.source_url]) next[row.source_url] = Math.max(0, next[row.source_url] - 1);
+          return next;
+        });
+      })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
+
+  const markChatRead = useCallback((sourceUrl: string) => {
+    const ts = chatLatest[sourceUrl] || new Date().toISOString();
+    setReadAt(sourceUrl, ts);
+    setChatRead((prev) => ({ ...prev, [sourceUrl]: ts }));
+  }, [chatLatest]);
+
+  const isUnread = (sourceUrl: string): boolean => {
+    const latest = chatLatest[sourceUrl];
+    if (!latest) return false;
+    const read = chatRead[sourceUrl];
+    if (!read) return true;
+    return new Date(latest).getTime() > new Date(read).getTime();
+  };
+
+  const openComments = (row: BacklinkRow) => {
+    setOpenChat(row);
+    markChatRead(row.source_url);
+  };
+
+  // Close the drawer on Escape + lock body scroll while open.
+  useEffect(() => {
+    if (!openChat) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenChat(null); };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [openChat]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -254,6 +361,7 @@ export default function BacklinksContent() {
                   <Th>Type</Th>
                   <Th className="text-right">Page score</Th>
                   <Th className="text-right">Last seen</Th>
+                  <Th className="text-right w-12">Notes</Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/5">
@@ -280,6 +388,27 @@ export default function BacklinksContent() {
                     </Td>
                     <Td className="text-right tabular-nums">{r.page_score || '—'}</Td>
                     <Td className="text-right text-foreground/60">{r.last_seen || '—'}</Td>
+                    <Td className="text-right">
+                      <button
+                        type="button"
+                        onClick={() => openComments(r)}
+                        title={chatCounts[r.source_url] ? `${chatCounts[r.source_url]} comment${chatCounts[r.source_url] === 1 ? '' : 's'}` : 'Add a comment'}
+                        aria-label="Open comments"
+                        className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/5 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                        </svg>
+                        {chatCounts[r.source_url] ? (
+                          <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold tabular-nums">
+                            {chatCounts[r.source_url] > 99 ? '99+' : chatCounts[r.source_url]}
+                          </span>
+                        ) : null}
+                        {isUnread(r.source_url) && (
+                          <span aria-label="Unread" className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
+                        )}
+                      </button>
+                    </Td>
                   </tr>
                 ))}
               </tbody>
@@ -300,6 +429,59 @@ export default function BacklinksContent() {
           </Link>
         </p>
       ) : null}
+
+      {openChat && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Comments for ${openChat.source_url}`}
+          className="fixed inset-0 z-[100] flex justify-end"
+          onClick={() => setOpenChat(null)}
+        >
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <aside
+            className="relative bg-white w-full sm:max-w-md h-full shadow-2xl flex flex-col animate-drawer-slide"
+            onClick={(e) => e.stopPropagation()}
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <header className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">
+                  Backlink comments
+                </p>
+                <p className="text-sm font-medium text-foreground truncate mt-0.5" title={openChat.source_title || openChat.source_url}>
+                  {openChat.source_title || openChat.source_url}
+                </p>
+                <a
+                  href={openChat.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-primary/70 hover:text-primary hover:underline truncate block max-w-full"
+                  title={openChat.source_url}
+                >
+                  {openChat.source_url}
+                </a>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenChat(null)}
+                aria-label="Close"
+                className="shrink-0 p-1.5 rounded-lg text-foreground/45 hover:bg-warm-bg hover:text-foreground/80 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </header>
+            <div className="flex-1 min-h-0">
+              <BacklinkChat
+                sourceUrl={openChat.source_url}
+                label={openChat.source_title || openChat.source_url}
+              />
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
