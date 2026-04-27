@@ -17,7 +17,6 @@ const shots: Shot[] = [
   { src: '/images/facility-exterior-mountains.jpg', alt: 'Facility exterior', caption: 'Main residence at first light' },
   { src: '/images/horses-grazing.jpg', alt: 'Horses grazing', caption: 'The herd, grazing before morning sessions' },
   { src: '/images/group-sunset-desert.jpg', alt: 'Group at sunset', caption: 'Sunset gathering on the ridgeline' },
-  { src: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776855988197-mah7icy291-twin-beds-southwest-guest-room.jpg', alt: 'Twin-bed guest room with Southwest textiles', caption: 'Twin-bed guest room — Southwest textiles, soft light' },
   { src: '/images/campfire-ceremony-circle.webp', alt: 'Ceremony circle', caption: 'Evening talking circle & ceremony' },
   { src: '/images/covered-porch-desert-view.jpg', alt: 'Covered porch', caption: 'The porches where hard conversations finally happen' },
   { src: '/images/sound-healing-session.jpg', alt: 'Sound healing', caption: 'Sound healing with singing bowls' },
