@@ -78,6 +78,21 @@ interface PagePermissionsContextType {
    * `PageGuard` to enforce super-admin-set overrides.
    */
   userOverrides: Record<string, boolean>;
+  /**
+   * Department ids beyond the user's primary `users.department_id` that
+   * a super admin has granted them via `user_extra_departments`. Used
+   * by `isPageAllowedForDepartmentSet` (and its callers in PlatformShell
+   * / PageGuard) so a member can effectively belong to multiple depts
+   * for permission purposes without changing where they sit on the org
+   * chart.
+   */
+  userExtraDepartmentIds: string[];
+  /**
+   * True if any of `userDepartmentId` plus the signed-in user's extra
+   * departments is allowed to view `path`. Mirrors the single-dept
+   * check above but accepts a set.
+   */
+  isPageAllowedForDepartmentSet: (path: string, departmentIds: (string | null)[]) => boolean;
   updatePageLayout: (updatedPages: PageConfig[]) => void;
   loading: boolean;
 }
@@ -92,6 +107,8 @@ const PagePermissionsContext = createContext<PagePermissionsContextType>({
   isPageAdminOnly: () => false,
   isPageAllowedForDepartment: () => true,
   userOverrides: {},
+  userExtraDepartmentIds: [],
+  isPageAllowedForDepartmentSet: () => true,
   updatePageLayout: () => {},
   loading: true,
 });
@@ -101,6 +118,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   const [pages, setPages] = useState<PageConfig[]>(defaultPages);
   const [loading, setLoading] = useState(true);
   const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({});
+  const [userExtraDepartmentIds, setUserExtraDepartmentIds] = useState<string[]>([]);
 
   // Load per-user page overrides for the signed-in user. RLS lets the
   // user read their own rows, so this works for non-admin members too.
@@ -127,6 +145,31 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
         setUserOverrides(map);
       })
       .catch(() => { /* table missing or RLS — fall back to inherit */ });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // Load extra (effective) department memberships for the signed-in
+  // user. Same pattern as user_page_permissions — RLS lets the user
+  // read their own rows so non-admin members get correct gating.
+  useEffect(() => {
+    if (!user?.id) {
+      setUserExtraDepartmentIds([]);
+      return;
+    }
+    let cancelled = false;
+    db({
+      action: 'select',
+      table: 'user_extra_departments',
+      match: { user_id: user.id },
+      select: 'department_id',
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        if (Array.isArray(rows)) {
+          setUserExtraDepartmentIds((rows as { department_id: string }[]).map((r) => r.department_id));
+        }
+      })
+      .catch(() => { /* table missing or RLS — fall back to no extras */ });
     return () => { cancelled = true; };
   }, [user?.id]);
 
@@ -227,6 +270,15 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
     return page.allowedDepartments.includes(userDepartmentId);
   };
 
+  const isPageAllowedForDepartmentSet = (path: string, departmentIds: (string | null)[]) => {
+    const page = pages.find((p) => p.path === path);
+    if (!page) return true;
+    if (!page.allowedDepartments || page.allowedDepartments.length === 0) return true;
+    const ids = departmentIds.filter((d): d is string => !!d);
+    if (ids.length === 0) return false;
+    return ids.some((id) => page.allowedDepartments.includes(id));
+  };
+
   const updatePageLayout = useCallback(async (updatedPages: PageConfig[]) => {
     setPages(updatedPages);
 
@@ -264,7 +316,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   const popupPages = sorted.filter((p) => p.section === 'popup');
 
   return (
-    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, setPageDepartments, setPageDepartmentGroup, isPageAdminOnly, isPageAllowedForDepartment, userOverrides, updatePageLayout, loading }}>
+    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, setPageDepartments, setPageDepartmentGroup, isPageAdminOnly, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds, updatePageLayout, loading }}>
       {children}
     </PagePermissionsContext.Provider>
   );
