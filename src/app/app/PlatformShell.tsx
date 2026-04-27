@@ -275,7 +275,7 @@ function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
 export { pageIcons };
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session, avatarUrl } = useAuth();
+  const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
   const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
@@ -489,6 +489,19 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  // While the user is on the "Waiting for approval" hold screen, poll
+  // their profile every 5s so an admin's Approve click unblocks them
+  // without requiring a manual sign-out / refresh. Stops as soon as
+  // status flips to active.
+  useEffect(() => {
+    if (status !== 'on_hold' && status !== 'denied') return;
+    if (!user?.id) return;
+    const id = setInterval(() => {
+      refreshProfile().catch(() => { /* network blip — try again next tick */ });
+    }, 5000);
+    return () => clearInterval(id);
+  }, [status, user?.id, refreshProfile]);
 
   // Loading state
   if (loading) {
