@@ -903,37 +903,42 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   </div>
                 ))}
 
-                {popupPages.filter(canSeePage).length > 0 && (
-                  <>
-                    <div className="h-px my-3 bg-gray-100" />
-                    {popupPages.filter(canSeePage).map((item) => {
-                      const isActive = pathname === item.path;
-                      return (
-                        <Link
-                          key={item.path}
-                          href={item.path}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
-                            isActive
-                              ? 'bg-primary/10 text-primary'
-                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                          }`}
-                          style={{ fontFamily: 'var(--font-body)' }}
-                        >
-                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                            {getPageIcon(item.path)}
-                          </span>
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </>
-                )}
+              </nav>
 
+              {/* Pinned popup section + My Profile — always visible at the
+                  bottom-left of the drawer so admin pages (Team, Pages,
+                  Super Admin, …) and Profile don't disappear below the
+                  scroll fold on tall nav lists. */}
+              {popupPages.filter(canSeePage).length > 0 && (
+                <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[40vh] overflow-y-auto">
+                  {popupPages.filter(canSeePage).map((item) => {
+                    const isActive = pathname === item.path;
+                    return (
+                      <Link
+                        key={item.path}
+                        href={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                          isActive
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                        }`}
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                          {getPageIcon(item.path)}
+                        </span>
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="p-3 border-t border-gray-100 space-y-0.5">
                 <Link
                   href="/app/profile"
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                     pathname === '/app/profile'
                       ? 'bg-primary/10 text-primary'
                       : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
@@ -947,7 +952,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   </span>
                   My Profile
                 </Link>
-              </nav>
+              </div>
 
               {/* User card + sign out */}
               <div className="p-3 border-t border-gray-100 space-y-1">
