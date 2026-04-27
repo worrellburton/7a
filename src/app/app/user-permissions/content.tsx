@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 import { formatNameWithCredentials } from '@/lib/displayName';
 import PermissionsModal from './PermissionsModal';
+import AccessGroupsTab from './AccessGroupsTab';
 
 // User Permissions page (renamed from /app/super-admin in Phase 1).
 // Same column layout as /app/team — User | Viewing | Department |
@@ -47,6 +48,7 @@ interface JobDescriptionLite {
 type SortKey = 'user' | 'viewing' | 'department' | 'job_title' | 'created_at';
 type SortDir = 'asc' | 'desc';
 type FilterPill = 'all' | 'admins' | 'super_admins' | 'pending';
+type TopTab = 'users' | 'groups';
 
 const ROOT_ADMIN_EMAIL = 'bobby@sevenarrowsrecovery.com';
 const isRootAdmin = (email: string | null | undefined) =>
@@ -116,6 +118,7 @@ export default function UserPermissionsContent() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [filterPill, setFilterPill] = useState<FilterPill>('all');
+  const [topTab, setTopTab] = useState<TopTab>('users');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [permissionsTarget, setPermissionsTarget] = useState<AppUser | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('user');
@@ -308,24 +311,58 @@ export default function UserPermissionsContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-7xl">
-      <div className="flex items-baseline justify-between mb-6 gap-4 flex-wrap">
+      <div className="flex items-baseline justify-between mb-4 gap-4 flex-wrap">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">User Permissions</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            Grant super-admin access and per-user page overrides.{' '}
-            <span className="font-medium text-foreground/70">{adminCount}</span>{' '}
-            {adminCount === 1 ? 'super admin' : 'super admins'} total.
+            {topTab === 'users'
+              ? <>Grant super-admin access and per-user page overrides.{' '}
+                  <span className="font-medium text-foreground/70">{adminCount}</span>{' '}
+                  {adminCount === 1 ? 'super admin' : 'super admins'} total.</>
+              : <>Bundle pages + departments + members under a name, then assign in bulk.</>}
           </p>
         </div>
-        <input
-          type="search"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Search team…"
-          className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-primary/40"
-          style={{ fontFamily: 'var(--font-body)' }}
-        />
+        {topTab === 'users' && (
+          <input
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Search team…"
+            className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-primary/40"
+            style={{ fontFamily: 'var(--font-body)' }}
+          />
+        )}
       </div>
+
+      {/* Top-level tabs — Users (default) | Access Groups (super-admin
+          builder for named permission templates). */}
+      <div className="border-b border-gray-100 mb-5 flex gap-1" style={{ fontFamily: 'var(--font-body)' }}>
+        {([
+          { id: 'users' as TopTab, label: 'Users' },
+          { id: 'groups' as TopTab, label: 'Access Groups' },
+        ]).map((t) => {
+          const active = topTab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTopTab(t.id)}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors -mb-px ${
+                active
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-foreground/55 hover:text-foreground/80'
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {topTab === 'groups' ? (
+        <AccessGroupsTab />
+      ) : (
+      <>
 
       <div className="flex items-center gap-1.5 mb-4 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
         {(['all', 'super_admins', 'admins', 'pending'] as FilterPill[]).map((pill) => {
@@ -599,6 +636,8 @@ export default function UserPermissionsContent() {
           userIsAdmin={permissionsTarget.is_admin}
           userDepartmentId={permissionsTarget.department_id}
         />
+      )}
+      </>
       )}
     </div>
   );
