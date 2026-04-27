@@ -54,9 +54,15 @@ export default function SenseOfCoherence() {
             Three domains. <em className="not-italic text-primary">One felt sense.</em>
           </h2>
           <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-            Antonovsky&rsquo;s Sense of Coherence — the feeling that life is
-            comprehensible, manageable, and meaningful — sits at the center
-            of every phase of treatment.
+            Aaron Antonovsky&rsquo;s Sense of Coherence — the felt
+            experience that life is comprehensible, manageable, and
+            meaningful — sits at the center of every phase of
+            treatment.
+          </p>
+          <p className="text-[11px] text-foreground/40 mt-3 italic" style={{ fontFamily: 'var(--font-body)' }}>
+            Antonovsky, A. (1979). <em>Health, Stress, and Coping</em>.
+            San Francisco: Jossey-Bass · (1987) <em>Unraveling the
+            Mystery of Health: How People Manage Stress and Stay Well</em>.
           </p>
         </div>
 

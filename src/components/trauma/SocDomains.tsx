@@ -118,11 +118,24 @@ export default function SocDomains() {
               transition: 'opacity 0.9s ease 0.35s',
             }}
           >
-            Developed by J. Eric Gentry, PhD and Lindsay Rothschild, LCSW,
-            Forward-Facing Freedom is a present-focused, salutogenic model.
-            Rather than beginning with retrospective trauma processing, it
-            builds capacity first — creating the neurological foundation
+            Developed by J. Eric Gentry, PhD, Forward-Facing Freedom
+            is a present-focused, salutogenic model. Rather than
+            beginning with retrospective trauma processing, it builds
+            capacity first — creating the neurological foundation
             needed for deep, lasting change.
+          </p>
+          <p
+            className="text-white/45 text-[11px] mt-4 italic"
+            style={{
+              fontFamily: 'var(--font-body)',
+              opacity: visible ? 1 : 0,
+              transition: 'opacity 0.9s ease 0.55s',
+            }}
+          >
+            The three domains — Comprehensibility, Manageability, and
+            Meaningfulness — are drawn from Aaron Antonovsky&rsquo;s
+            Sense of Coherence (1979, 1987), the foundational work on
+            salutogenesis.
           </p>
         </div>
 
