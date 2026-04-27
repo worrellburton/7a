@@ -276,7 +276,7 @@ export { pageIcons };
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
   const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
-  const { navPages, popupPages, isPageAllowedForDepartment } = usePagePermissions();
+  const { navPages, popupPages, isPageAllowedForDepartment, userOverrides } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
   const [navDepartments, setNavDepartments] = useState<NavDepartment[]>([]);
@@ -314,9 +314,16 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     };
   }, [canSeeWebsiteRequests]);
 
-  // Sidebar/popup links are gated on both admin-only flag and the
-  // per-page department allow-list. Admins bypass the department check.
+  // Sidebar/popup links are gated on three layers, in this order:
+  //   1. Per-user override (set by a super admin via /app/super-admin
+  //      → user_page_permissions). Allow / Block beats everything else.
+  //   2. Admin-only flag — non-admins can't see admin pages.
+  //   3. Department allow-list — admins bypass; everyone else needs
+  //      their dept on the page's allowed list (empty = unrestricted).
   const canSeePage = (item: { path: string; adminOnly: boolean }) => {
+    const override = userOverrides[item.path];
+    if (override === false) return false;
+    if (override === true) return true;
     if (item.adminOnly && !isAdmin) return false;
     if (isAdmin) return true;
     return isPageAllowedForDepartment(item.path, departmentId);
@@ -676,6 +683,38 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             );
           })()}
         </nav>
+
+        {/* Popup pages — pinned at the bottom of the sidebar, always
+            visible. Previously these only opened when the user clicked
+            the avatar; pinning means Team / Pages / Super Admin / etc.
+            are one click from anywhere without scrolling or hunting
+            through a popup. The block has its own internal scroll cap
+            so a long popup-pages list can't push the user card off the
+            bottom of the screen. */}
+        {popupPages.filter(canSeePage).length > 0 && (
+          <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[35vh] overflow-y-auto">
+            {popupPages.filter(canSeePage).map((item) => {
+              const isActive = pathname === item.path;
+              return (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-foreground/60 hover:bg-warm-bg hover:text-foreground'
+                  }`}
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                    {getPageIcon(item.path, 'sm')}
+                  </span>
+                  <span className="flex-1">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
         {/* User settings — bottom left */}
         <div className="relative p-3 border-t border-gray-100">

@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 import { useEffect, useMemo, useState } from 'react';
+import PermissionsModal from './PermissionsModal';
 
 interface AppUser {
   id: string;
@@ -11,6 +12,7 @@ interface AppUser {
   full_name: string | null;
   avatar_url: string | null;
   is_admin: boolean;
+  department_id: string | null;
 }
 
 const ROOT_ADMIN_EMAIL = 'bobby@sevenarrowsrecovery.com';
@@ -18,11 +20,12 @@ const isRootAdmin = (email: string | null | undefined) =>
   (email || '').toLowerCase() === ROOT_ADMIN_EMAIL;
 
 export default function SuperAdminContent() {
-  const { session, user, isAdmin } = useAuth();
+  const { session, user, isAdmin, isSuperAdmin } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [permissionsTarget, setPermissionsTarget] = useState<AppUser | null>(null);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -30,7 +33,7 @@ export default function SuperAdminContent() {
       const data = await db({
         action: 'select',
         table: 'users',
-        select: 'id, email, full_name, avatar_url, is_admin',
+        select: 'id, email, full_name, avatar_url, is_admin, department_id',
         order: { column: 'full_name', ascending: true },
       }).catch(() => []);
       if (Array.isArray(data)) setUsers(data as AppUser[]);
@@ -158,11 +161,36 @@ export default function SuperAdminContent() {
                     </span>
                   </label>
                 )}
+                {isSuperAdmin && !isSelf && (
+                  <button
+                    type="button"
+                    onClick={() => setPermissionsTarget(u)}
+                    title={`Edit page permissions for ${u.full_name || u.email}`}
+                    aria-label={`Edit page permissions for ${u.full_name || u.email}`}
+                    className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/5 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="4" y="11" width="16" height="9" rx="2" />
+                      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                    </svg>
+                  </button>
+                )}
               </div>
             );
           })
         )}
       </div>
+
+      {permissionsTarget && (
+        <PermissionsModal
+          open={!!permissionsTarget}
+          onClose={() => setPermissionsTarget(null)}
+          userId={permissionsTarget.id}
+          userLabel={permissionsTarget.full_name || permissionsTarget.email}
+          userIsAdmin={permissionsTarget.is_admin}
+          userDepartmentId={permissionsTarget.department_id}
+        />
+      )}
     </div>
   );
 }
