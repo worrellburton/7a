@@ -23,6 +23,7 @@ const PRIMARY_TABS: Tab[] = [
   { href: '/app/seo/actions', label: 'Actions', hint: 'Submit + track SEO action items', flair: 'fire' },
   { href: '/app/seo/directories', label: 'Directories', hint: 'Off-site listings to claim' },
   { href: '/app/seo/audit', label: 'Site audit', hint: 'On-page issues' },
+  { href: '/app/seo/media', label: 'Media', hint: 'Images + videos with optimize batch' },
 ];
 
 const WIP_TABS: Tab[] = [
@@ -33,7 +34,6 @@ const WIP_TABS: Tab[] = [
   { href: '/app/seo/questions', label: 'Questions', hint: 'PAA content backlog' },
   { href: '/app/seo/discover', label: 'Discover', hint: 'Autocomplete keyword discovery' },
   { href: '/app/seo/competitors', label: 'Competitors', hint: 'Top-10 SERP churn week-over-week' },
-  { href: '/app/seo/media', label: 'Media', hint: 'Images + videos with optimize batch' },
   { href: '/app/seo/information', label: 'Information', hint: 'Canonical NAP / business info' },
   { href: '/app/seo/redirects', label: 'Redirects', hint: '301/302 manager' },
 ];

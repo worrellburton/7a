@@ -200,16 +200,6 @@ export default function ActionsContent() {
   const [category, setCategory] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [submitting, setSubmitting] = useState(false);
-  // Rewrite-for-SEO flow. When the user clicks Submit, we ask Claude
-  // for a tighter SEO-clear rewrite, then show a modal with the
-  // original + the rewrite side-by-side so the user picks which one
-  // gets posted. `pendingRewrite` is null while the modal is closed.
-  const [pendingRewrite, setPendingRewrite] = useState<{
-    original: string;
-    rewrite: string | null;
-    error: string | null;
-    loading: boolean;
-  } | null>(null);
   // Screenshots queued for the next submit. Each entry is an
   // already-uploaded URL; uploads happen the moment a file is
   // picked so a slow connection doesn't bottleneck the click.
@@ -250,32 +240,7 @@ export default function ActionsContent() {
     e.preventDefault();
     const original = message.trim();
     if (!original) return;
-    // Open the rewrite modal. Fire the rewrite request in parallel —
-    // the modal renders a skeleton until Claude replies. The user
-    // picks which version gets posted (or cancels) inside the modal.
-    setPendingRewrite({ original, rewrite: null, error: null, loading: true });
-    try {
-      const res = await fetch('/api/seo/actions/rewrite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: original }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
-      setPendingRewrite({
-        original,
-        rewrite: (json.rewrite as string) || '',
-        error: null,
-        loading: false,
-      });
-    } catch (e) {
-      setPendingRewrite({
-        original,
-        rewrite: null,
-        error: e instanceof Error ? e.message : String(e),
-        loading: false,
-      });
-    }
+    await postAction(original);
   }
 
   // Posts the chosen action title and clears form state. Submitting
@@ -305,7 +270,6 @@ export default function ActionsContent() {
       setCategory('');
       setPriority('medium');
       setPendingShots([]);
-      setPendingRewrite(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -446,7 +410,7 @@ export default function ActionsContent() {
   }, [actions]);
 
   return (
-    <div className="p-8 max-w-5xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
+    <div className="p-8 max-w-7xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
       <FireGlowKeyframes />
 
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
@@ -678,128 +642,6 @@ export default function ActionsContent() {
         />
       )}
 
-      {pendingRewrite ? (
-        <RewriteModal
-          state={pendingRewrite}
-          onCancel={() => setPendingRewrite(null)}
-          onPick={(text) => void postAction(text)}
-          submitting={submitting}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-// Rewrite-confirm modal. Opens after Submit, before the action is
-// posted. Shows the original line + Claude's SEO-clear rewrite
-// side-by-side; the user picks which version gets stored. On rewrite
-// error, falls back to a "Post original" CTA so a flaky LLM doesn't
-// block the action being filed.
-function RewriteModal({
-  state,
-  onCancel,
-  onPick,
-  submitting,
-}: {
-  state: { original: string; rewrite: string | null; error: string | null; loading: boolean };
-  onCancel: () => void;
-  onPick: (text: string) => void;
-  submitting: boolean;
-}) {
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Confirm SEO rewrite"
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
-      onClick={onCancel}
-    >
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-      <div
-        className="relative bg-white w-full sm:max-w-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[80vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">
-              Rewrite for SEO clarity
-            </p>
-            <h2 className="text-base font-semibold text-foreground mt-0.5">
-              Pick which version to post
-            </h2>
-            <p className="text-xs text-foreground/55 mt-1">
-              Claude rewrites your line to name the page and SEO lever — clearer for whoever picks this up. Use whichever you prefer.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            aria-label="Cancel"
-            className="shrink-0 p-1.5 rounded-lg text-foreground/45 hover:bg-warm-bg hover:text-foreground/80 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-foreground/55 mb-1.5">
-              Original
-            </p>
-            <div className="rounded-xl border border-black/10 bg-warm-bg/40 p-3 text-sm text-foreground whitespace-pre-wrap">
-              {state.original}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-orange-600 mb-1.5">
-              Rewritten for SEO
-            </p>
-            {state.loading ? (
-              <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-3 text-sm text-orange-700">
-                Rewriting…
-              </div>
-            ) : state.error ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-                Couldn&apos;t rewrite: {state.error}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-3 text-sm text-foreground whitespace-pre-wrap">
-                {state.rewrite}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="px-5 py-3 border-t border-gray-100 flex flex-wrap items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={submitting}
-            className="px-3 py-2 rounded-lg text-sm font-semibold text-foreground/65 hover:bg-warm-bg disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => onPick(state.original)}
-            disabled={submitting}
-            className="px-3 py-2 rounded-lg text-sm font-semibold border border-black/10 bg-white hover:bg-warm-bg/50 disabled:opacity-50"
-          >
-            Use original
-          </button>
-          <button
-            type="button"
-            onClick={() => state.rewrite && onPick(state.rewrite)}
-            disabled={submitting || state.loading || !state.rewrite}
-            className="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-rose-500 via-orange-500 to-amber-400 hover:brightness-110 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting ? 'Posting…' : 'Use rewrite'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
