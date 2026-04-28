@@ -410,7 +410,7 @@ export default function ActionsContent() {
   }, [actions]);
 
   return (
-    <div className="p-8 max-w-5xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
+    <div className="p-8 max-w-7xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
       <FireGlowKeyframes />
 
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
