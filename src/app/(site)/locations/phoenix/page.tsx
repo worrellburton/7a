@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Drug Rehab in Phoenix AZ | Addiction Treatment Phoenix | Seven Arrows Recovery',
+  title: 'Drug Rehab in Phoenix, AZ | Seven Arrows Recovery',
   description:
     'Drug rehab for Phoenix, AZ residents at Seven Arrows Recovery — residential care, dual diagnosis, equine therapy, and coordinated detox. Call (866) 996-4308.',
 };

@@ -13,7 +13,7 @@ import EquineCTA from './EquineCTA';
 import { equineFaqs } from './equineFaqs';
 
 export const metadata: Metadata = {
-  title: 'Equine-Assisted Psychotherapy (EAP) in Arizona | Seven Arrows Recovery',
+  title: 'Equine-Assisted Psychotherapy (EAP) | Seven Arrows Recovery',
   description:
     'Equine-Assisted Psychotherapy on a 160-acre ranch in Cochise County, AZ — trauma-informed, JCAHO-accredited care for PTSD, addiction, and complex trauma.',
   keywords:

@@ -3,7 +3,7 @@ import SubstancePage10Phase from '@/components/substance/SubstancePage10Phase';
 import { prescriptionContent } from '@/lib/substances/prescription';
 
 export const metadata: Metadata = {
-  title: 'Prescription Drug Addiction Treatment | Seven Arrows Recovery',
+  title: 'Prescription Drug Addiction Treatment | Seven Arrows',
   description:
     "Residential prescription drug addiction treatment in Arizona — medication review, class-specific tapering, and direct treatment for what's underneath.",
 };

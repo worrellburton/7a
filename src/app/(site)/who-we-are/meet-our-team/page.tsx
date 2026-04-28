@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Meet Our Team',
+  title: 'Meet Our Team | Seven Arrows Recovery, Arizona',
   description:
     'Meet the team at Seven Arrows Recovery — clinicians, medical staff, holistic facilitators, and the admissions team you will actually talk to when you call.',
 };

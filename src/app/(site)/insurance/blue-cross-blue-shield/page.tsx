@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Does Blue Cross Blue Shield Cover Rehab? | Seven Arrows Recovery',
+  title: 'Blue Cross Blue Shield Rehab Coverage | Seven Arrows',
   description:
-    'Seven Arrows Recovery accepts Blue Cross Blue Shield (BCBS) insurance for drug and alcohol rehab. Learn what BCBS covers for addiction treatment. Call (866) 996-4308.',
+    'Seven Arrows Recovery accepts Blue Cross Blue Shield (BCBS) for drug and alcohol rehab. Learn what BCBS covers for addiction treatment. Call (866) 996-4308.',
 };
 
 import Link from 'next/link';

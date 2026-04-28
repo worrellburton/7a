@@ -14,7 +14,7 @@ import AdmissionsCTA from '@/components/admissions/AdmissionsCTA';
 import { admissionsFaqs } from '@/components/admissions/admissionsFaqs';
 
 export const metadata: Metadata = {
-  title: 'Admissions | Arizona Drug & Alcohol Rehab — Seven Arrows Recovery',
+  title: 'Admissions · Arizona Rehab | Seven Arrows Recovery',
   description:
     'Start residential addiction treatment in Arizona — free 24/7 insurance verification, phone assessment, and travel coordination. Most arrive in 24-48 hours.',
   keywords:

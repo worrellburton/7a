@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Drug Rehab in Tucson AZ | Addiction Treatment Tucson | Seven Arrows Recovery',
+  title: 'Drug Rehab in Tucson, AZ | Seven Arrows Recovery',
   description:
     'Drug rehab near Tucson, AZ — Seven Arrows is 90 miles away, offering residential care, trauma therapy, equine work, and coordinated detox.',
 };

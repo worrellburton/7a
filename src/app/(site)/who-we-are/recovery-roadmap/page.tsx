@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'The Recovery Roadmap — An Investigative Series | Seven Arrows Recovery',
+  title: 'The Recovery Roadmap | Seven Arrows Recovery',
   description:
     'An in-depth investigative series exploring addiction, recovery, and the journey to lasting healing. From the clinical team at Seven Arrows Recovery.',
 };

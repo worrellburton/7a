@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Drug Rehab in Mesa AZ | Addiction Treatment Mesa | Seven Arrows Recovery',
+  title: 'Drug Rehab in Mesa, AZ | Seven Arrows Recovery',
   description:
     'Drug rehab for Mesa, AZ residents — residential addiction treatment, dual diagnosis, equine therapy, and coordinated detox at our Cochise County ranch.',
 };

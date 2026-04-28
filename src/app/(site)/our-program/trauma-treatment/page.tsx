@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'TraumAddiction® Treatment | Forward-Facing Freedom® | Seven Arrows Recovery',
+  title: 'TraumAddiction® Treatment | Seven Arrows Recovery',
   description:
-    'Seven Arrows Recovery',
+    'Forward-Facing Freedom® and TraumAddiction® treatment in Arizona — trauma-informed residential care that addresses addiction at its root. Call (866) 996-4308.',
 };
 
 import PageHero from '@/components/PageHero';

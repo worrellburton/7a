@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Drug Rehab in Scottsdale AZ | Addiction Treatment Scottsdale | Seven Arrows Recovery',
+  title: 'Drug Rehab in Scottsdale, AZ | Seven Arrows Recovery',
   description:
     'Discreet, luxury-level drug rehab for Scottsdale, AZ — residential care, equine therapy, dual diagnosis, and coordinated detox. Call (866) 996-4308.',
 };

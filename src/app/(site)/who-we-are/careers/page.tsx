@@ -12,7 +12,7 @@ import TeamVoices from '@/components/careers/TeamVoices';
 import CareersCTA from '@/components/careers/CareersCTA';
 
 export const metadata: Metadata = {
-  title: 'Careers | Arizona Addiction Treatment Jobs — Seven Arrows Recovery',
+  title: 'Careers · Arizona Rehab Jobs | Seven Arrows Recovery',
   description:
     'Now hiring at Seven Arrows Recovery — LCSWs, LPCs, LMFTs, LISACs, RNs, BHTs, yoga teachers, and admissions counselors at our Cochise County ranch.',
   keywords:

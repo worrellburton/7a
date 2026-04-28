@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Who We Are',
+  title: 'Who We Are | Seven Arrows Recovery, Arizona',
   description:
     'Learn about Seven Arrows Recovery — a boutique drug and alcohol rehab at the base of the Swisshelm Mountains in Arizona. Our team, philosophy, and approach.',
 };

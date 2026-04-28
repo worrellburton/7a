@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Areas We Serve',
+  title: 'Areas We Serve | Seven Arrows Recovery, Arizona',
   description:
     'Seven Arrows Recovery serves Arizona — Tucson, Phoenix, Scottsdale, Mesa, Cochise County, and statewide. Located at the base of the Swisshelm Mountains.',
 };

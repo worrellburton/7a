@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Does Humana Cover Drug & Alcohol Rehab? | Seven Arrows Recovery',
+  title: 'Humana Rehab Coverage | Seven Arrows Recovery',
   description:
     'Seven Arrows Recovery accepts Humana for addiction treatment in Arizona — detox, residential care, and therapy coverage. Call (866) 996-4308.',
 };
