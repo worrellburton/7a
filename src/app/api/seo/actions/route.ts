@@ -60,10 +60,14 @@ export async function GET() {
   const auth = await requireUser();
   if (!auth.ok) return auth.res;
 
+  // Newest-first only. Submitting an action is now treated as
+  // logging completed work, so the old status-then-recency sort
+  // (which pushed legacy not-done rows up regardless of date) just
+  // produces a confusing mixed timeline. Newest at top, oldest at
+  // bottom.
   const { data, error } = await auth.supabase
     .from('seo_actions')
     .select(SELECT_COLS)
-    .order('status', { ascending: true })
     .order('created_at', { ascending: false })
     .limit(500);
 
