@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 
@@ -713,7 +714,14 @@ function AttemptPill({
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  // Required for createPortal — guard against the SSR pass where
+  // document doesn't exist. Once mounted on the client we can portal.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const label = ATTEMPT_LABELS[index];
 
   // Seed the textarea with the existing note when editing a filled
@@ -726,6 +734,63 @@ function AttemptPill({
     }
   }, [open, attempt]);
 
+  // Compute popover position relative to the viewport so the
+  // overflow-x-auto wrapper around the table can't clip it. We
+  // open downward when there's room, upward otherwise.
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const update = () => {
+      const t = triggerRef.current;
+      if (!t) return;
+      const rect = t.getBoundingClientRect();
+      const popoverHeight = popoverRef.current?.offsetHeight ?? 240;
+      const popoverWidth = 288; // matches w-72
+      const margin = 8;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUp = spaceBelow < popoverHeight + margin;
+      const top = openUp
+        ? Math.max(margin, rect.top - margin - popoverHeight)
+        : rect.bottom + margin;
+      // Right-align the popover to the trigger, but clamp inside viewport.
+      const left = Math.max(
+        margin,
+        Math.min(window.innerWidth - popoverWidth - margin, rect.right - popoverWidth),
+      );
+      setPos({ top, left });
+    };
+    update();
+    // Reposition on scroll (anywhere in the page) and resize so the
+    // popover follows its trigger if the user scrolls the table or
+    // the window resizes while it's open.
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open]);
+
+  // Outside click + Escape close.
+  useEffect(() => {
+    if (!open) return;
+    const onDocPointer = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (triggerRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
   const filled = !!attempt;
   const firstName = (attempt?.by_name ?? '').split(' ')[0] || attempt?.by_name || 'Unknown';
   const dateLabel = attempt
@@ -737,8 +802,9 @@ function AttemptPill({
     : label;
 
   return (
-    <span className="relative inline-block">
+    <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={busy}
@@ -763,8 +829,22 @@ function AttemptPill({
           <span>{label}</span>
         )}
       </button>
-      {open && (
-        <div className="absolute right-0 top-full z-30 mt-1.5 w-72 rounded-xl border border-black/10 bg-white p-3 shadow-lg text-left">
+      {mounted && open && createPortal(
+        <div
+          ref={popoverRef}
+          role="dialog"
+          aria-label={filled ? `Edit ${label}` : `Log ${label}`}
+          style={{
+            position: 'fixed',
+            top: pos?.top ?? -9999,
+            left: pos?.left ?? -9999,
+            width: 288,
+            // Keep invisible until pos is computed so the popover
+            // doesn't flash in the wrong place for one frame.
+            visibility: pos ? 'visible' : 'hidden',
+          }}
+          className="z-[60] rounded-xl border border-black/10 bg-white p-3 shadow-xl text-left"
+        >
           <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 mb-1.5">
             {filled ? `Edit ${label.toLowerCase()}` : `Log ${label.toLowerCase()}`}
           </p>
@@ -822,9 +902,10 @@ function AttemptPill({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
-    </span>
+    </>
   );
 }
 
@@ -841,7 +922,7 @@ function AttemptsCell({
 }) {
   const slots: (Attempt | null)[] = [attempts[0] ?? null, attempts[1] ?? null, attempts[2] ?? null];
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1.5">
+    <div className="flex flex-col items-end gap-1.5">
       {slots.map((slot, i) => {
         const idx1 = (i + 1) as 1 | 2 | 3;
         const key = `${rowId}:${idx1}`;
@@ -977,6 +1058,9 @@ interface VobRow extends RespondedFields {
   received_at: string;
   card_front_url: string | null;
   card_back_url: string | null;
+  // True when the current admin has already viewed this row in a
+  // previous page load — used to suppress the NEW badge on repeats.
+  seen_by_me?: boolean;
 }
 
 function VobsPanel() {
@@ -995,8 +1079,26 @@ function VobsPanel() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
-        setRows(data.rows ?? []);
+        const fresh = (data.rows ?? []) as VobRow[];
+        setRows(fresh);
         setError(null);
+
+        // Mark currently-unseen rows as seen for this admin so the
+        // NEW badge clears on their next visit. We deliberately do
+        // NOT update local state — the badges stay this session so
+        // the admin can still tell which rows arrived since they
+        // last opened the page.
+        const newIds = fresh
+          .filter((r) => r.status === 'new' && !r.seen_by_me)
+          .map((r) => r.id);
+        if (newIds.length > 0) {
+          fetch('/api/website-requests/vob-mark-seen', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ ids: newIds }),
+          }).catch(() => {/* best-effort */});
+        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -1071,7 +1173,17 @@ function VobsPanel() {
                     busy={notesBusyId === r.id}
                   />
                 </Td>
-                <Td><StatusChip status={r.status} /></Td>
+                <Td>
+                  {/* Suppress the NEW badge once the current admin
+                      has loaded this row at least once before — keeps
+                      the column quiet on repeat visits while still
+                      flagging genuinely-new submissions. */}
+                  {r.status === 'new' && r.seen_by_me ? (
+                    <span className="text-foreground/30 text-xs">—</span>
+                  ) : (
+                    <StatusChip status={r.status} />
+                  )}
+                </Td>
                 <Td>
                   <span className="text-xs text-foreground/60 whitespace-nowrap">
                     {new Date(r.received_at).toLocaleString('en-US', {
