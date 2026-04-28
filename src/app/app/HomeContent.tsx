@@ -266,19 +266,24 @@ export default function HomeContent() {
         </button>
       </div>
 
-      {/* Online today — centered at the top of the dashboard. */}
+      {/* Online today + Horses on the team share one row on desktop —
+          stacks back to two strips on mobile. The label sits inline
+          with the avatars so the strip reads as one band rather than
+          two centered columns of text. */}
       {recentUsers.length > 0 && (
         <div
-          className={`flex flex-col items-center justify-center gap-1.5 px-4 sm:px-6 lg:px-10 pt-3 lg:pt-4 transition-all duration-500 ease-out ${
+          className={`px-4 sm:px-6 lg:px-10 pt-3 lg:pt-4 transition-all duration-500 ease-out ${
             loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
           }`}
         >
-          <p
-            className="text-[10px] font-semibold text-foreground/40 uppercase tracking-[0.18em]"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Online today
-          </p>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:gap-6 gap-3">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-1.5 lg:gap-3 shrink-0">
+              <p
+                className="text-[10px] font-semibold text-foreground/40 uppercase tracking-[0.18em]"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Online today
+              </p>
           <div className="flex -space-x-2">
             {recentUsers.map((u) => {
               const online = isOnlineNow(u.last_seen_at || u.last_sign_in);
@@ -318,14 +323,19 @@ export default function HomeContent() {
                 </Wrapper>
               );
             })}
+              </div>
+            </div>
+            {/* Right: horses on the team. Takes the remaining width
+                on desktop so its avatar strip can scroll horizontally
+                without pushing the Online-today block off-screen. */}
+            <div className="flex-1 min-w-0">
+              <HomeHorsesRow />
+            </div>
           </div>
           {/* HomeClientsRow temporarily hidden — client info isn't
               meant to live on the home dashboard yet. Keep the
               import + component around so re-enabling is a
               one-line change later. */}
-          <div className="mt-3 w-full">
-            <HomeHorsesRow />
-          </div>
           <div className="mt-4 w-full">
             <AtAGlance />
           </div>
