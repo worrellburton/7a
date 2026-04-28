@@ -587,7 +587,7 @@ export default function ActionsContent() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search actions…"
-          className="ml-auto text-sm rounded-md border border-black/10 bg-white px-3 py-2 w-72 max-w-full"
+          className="w-full text-sm rounded-md border border-black/10 bg-white px-3 py-2"
         />
       </div>
 
@@ -609,7 +609,6 @@ export default function ActionsContent() {
         <ActionTableGroups
           rows={visible}
           onCycle={(id, next) => patchAction(id, { status: next })}
-          onPriority={(id, p) => patchAction(id, { priority: p })}
           onDelete={(id) => deleteAction(id)}
           canDelete={canModify}
         />
@@ -628,7 +627,6 @@ export default function ActionsContent() {
         <ActionTable
           rows={visible}
           onCycle={(id, next) => patchAction(id, { status: next })}
-          onPriority={(id, p) => patchAction(id, { priority: p })}
           onDelete={(id) => deleteAction(id)}
           canDelete={canModify}
         />
@@ -647,13 +645,11 @@ export default function ActionsContent() {
 function ActionTable({
   rows,
   onCycle,
-  onPriority,
   onDelete,
   canDelete,
 }: {
   rows: Action[];
   onCycle: (id: string, next: Status) => void;
-  onPriority: (id: string, p: Priority) => void;
   onDelete: (id: string) => void;
   canDelete: (a: Action) => boolean;
 }) {
@@ -669,7 +665,6 @@ function ActionTable({
             <th className="text-left px-4 py-3 font-semibold border-b border-black/10">Title</th>
             <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-44">Screenshots</th>
             <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-32">Category</th>
-            <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-24">Priority</th>
             <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-32">Status</th>
             <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-44">Submitted</th>
             <th className="text-right px-4 py-3 font-semibold border-b border-black/10 w-12" aria-label="Actions" />
@@ -737,18 +732,6 @@ function ActionTable({
                   ) : (
                     <span className="text-foreground/35 text-[12px]">—</span>
                   )}
-                </td>
-                <td className="px-4 py-4 align-top">
-                  <select
-                    value={a.priority}
-                    onChange={(e) => onPriority(a.id, e.target.value as Priority)}
-                    className="text-[11px] rounded-md border border-black/10 bg-white px-1.5 py-1 text-foreground/70"
-                    aria-label="Change priority"
-                  >
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                  </select>
                 </td>
                 <td className="px-4 py-4 align-top">
                   <button
@@ -835,13 +818,11 @@ const STATUS_GROUP_ORDER: Status[] = ['open', 'in_progress', 'done', 'wontfix'];
 function ActionTableGroups({
   rows,
   onCycle,
-  onPriority,
   onDelete,
   canDelete,
 }: {
   rows: Action[];
   onCycle: (id: string, next: Status) => void;
-  onPriority: (id: string, p: Priority) => void;
   onDelete: (id: string) => void;
   canDelete: (a: Action) => boolean;
 }) {
@@ -868,7 +849,6 @@ function ActionTableGroups({
           <ActionTable
             rows={g.rows}
             onCycle={onCycle}
-            onPriority={onPriority}
             onDelete={onDelete}
             canDelete={canDelete}
           />
@@ -902,7 +882,6 @@ function ActionSpreadsheet({
           <tr>
             <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10">Title</th>
             <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10 w-28">Category</th>
-            <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10 w-20">Priority</th>
             <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10 w-28">Status</th>
             <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10 w-32">Submitted</th>
             <th className="text-right px-2 py-1.5 font-semibold border-b border-black/10 w-8" aria-label="Delete" />
@@ -989,18 +968,6 @@ function SpreadsheetRow({
           placeholder="—"
           className="w-full bg-transparent px-1 py-0.5 rounded text-[11.5px] text-foreground/75 focus:outline-none focus:bg-white focus:ring-1 focus:ring-orange-300/60"
         />
-      </td>
-      <td className="px-2 py-1 align-top">
-        <select
-          value={a.priority}
-          onChange={(e) => onPatch({ priority: e.target.value as Priority })}
-          className="w-full bg-transparent text-[11.5px] text-foreground/75 px-1 py-0.5 rounded focus:outline-none focus:bg-white focus:ring-1 focus:ring-orange-300/60"
-          aria-label="Priority"
-        >
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
       </td>
       <td className="px-2 py-1 align-top">
         <select
