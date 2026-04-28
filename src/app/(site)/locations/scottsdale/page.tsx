@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Drug Rehab in Scottsdale AZ | Addiction Treatment Scottsdale | Seven Arrows Recovery',
   description:
-    'Seeking drug rehab in Scottsdale, AZ? Seven Arrows Recovery provides discreet, luxury-level addiction treatment for Scottsdale residents including residential programs, equine therapy, dual diagnosis care, and coordinated detox with partnered facilities. Call (866) 996-4308.',
+    'Discreet, luxury-level drug rehab for Scottsdale, AZ — residential care, equine therapy, dual diagnosis, and coordinated detox. Call (866) 996-4308.',
 };
 
 import PageHero from '@/components/PageHero';

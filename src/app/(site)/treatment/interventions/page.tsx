@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Professional Interventions | Seven Arrows Recovery',
   description:
-    'Structured, compassionate professional interventions — planned with your family, held by a trained specialist, and followed by immediate admission to Seven Arrows Recovery in Arizona.',
+    'Compassionate professional interventions in Arizona — planned with your family, led by a trained specialist, with immediate admission to Seven Arrows.',
 };
 
 import PageHero from '@/components/PageHero';

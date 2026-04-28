@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Our Program | Seven Arrows Recovery',
   description:
-    'Explore the unique Seven Arrows Recovery approach to addiction treatment. Trauma-focused care, indigenous healing, family programs, holistic therapies, and evidence-based treatment in Arizona.',
+    'Trauma-focused addiction treatment in Arizona — evidence-based therapy, equine work, indigenous healing, and family programs on a private Cochise County ranch.',
 };
 
 import PageHero from '@/components/PageHero';

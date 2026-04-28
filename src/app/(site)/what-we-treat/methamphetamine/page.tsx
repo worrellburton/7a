@@ -5,7 +5,7 @@ import { methContent } from '@/lib/substances/methamphetamine';
 export const metadata: Metadata = {
   title: 'Methamphetamine Addiction Treatment | Seven Arrows Recovery',
   description:
-    'Residential methamphetamine addiction treatment in Arizona. Long-arc dopamine recovery, cardiac stabilization, trauma-informed therapy, and contingency management at Seven Arrows Recovery. Call (866) 996-4308.',
+    'Residential meth addiction treatment in Arizona — long-arc dopamine recovery, cardiac stabilization, and trauma-informed therapy. Call (866) 996-4308.',
 };
 
 export default function MethAddictionPage() {

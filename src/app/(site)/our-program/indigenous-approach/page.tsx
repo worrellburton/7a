@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Indigenous Approach | Seven Arrows Recovery',
   description:
-    'Experience traditional healing practices at Seven Arrows Recovery. Sweat lodge ceremonies, connection to the land, and culturally integrated recovery in the Arizona high desert.',
+    'Traditional healing at Seven Arrows — sweat lodge ceremonies, land connection, and culturally integrated recovery in the Arizona high desert.',
 };
 
 import PageHero from '@/components/PageHero';

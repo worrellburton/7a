@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Does UnitedHealthcare Cover Drug & Alcohol Rehab? | Seven Arrows Recovery',
   description:
-    'Seven Arrows Recovery accepts UnitedHealthcare (UHC) insurance for addiction treatment. Learn what UHC covers for rehab including detox, residential, and therapy. Call (866) 996-4308.',
+    'Seven Arrows Recovery accepts UnitedHealthcare for addiction treatment in Arizona — detox, residential care, and therapy coverage. Call (866) 996-4308.',
 };
 
 import Link from 'next/link';

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Who We Are',
   description:
-    'Learn about Seven Arrows Recovery, a boutique drug and alcohol rehab center at the base of the Swisshelm Mountains in Arizona. Discover our team, philosophy, and what sets us apart.',
+    'Learn about Seven Arrows Recovery — a boutique drug and alcohol rehab at the base of the Swisshelm Mountains in Arizona. Our team, philosophy, and approach.',
 };
 
 import PageHero from '@/components/PageHero';

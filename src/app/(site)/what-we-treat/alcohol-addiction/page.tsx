@@ -7,7 +7,7 @@ import { faqPageSchema, medicalWebPageSchema, jsonLdScript } from '@/lib/seo/pag
 export const metadata: Metadata = {
   title: 'Alcohol Rehab in Arizona | Seven Arrows Recovery',
   description:
-    'Residential alcohol rehab in Arizona at Seven Arrows Recovery — JCAHO-accredited trauma-informed treatment on a 160-acre Cochise County ranch, with coordinated medical detox. Call (866) 996-4308.',
+    'JCAHO-accredited residential alcohol rehab in Arizona — trauma-informed care on a 160-acre Cochise County ranch with coordinated medical detox. (866) 996-4308.',
 };
 
 const faqJsonLd = faqPageSchema([

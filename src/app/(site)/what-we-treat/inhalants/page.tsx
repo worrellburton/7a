@@ -5,7 +5,7 @@ import { inhalantsContent } from '@/lib/substances/inhalants';
 export const metadata: Metadata = {
   title: 'Inhalant Addiction Treatment | Seven Arrows Recovery',
   description:
-    'Residential inhalant addiction treatment in Arizona. Urgent medical and neurological assessment, cognitive rehabilitation, trauma-informed therapy at Seven Arrows Recovery. Call (866) 996-4308.',
+    'Residential inhalant addiction treatment in Arizona — urgent medical and neurological assessment, cognitive rehab, and trauma-informed therapy.',
 };
 
 export default function InhalantsAddictionPage() {

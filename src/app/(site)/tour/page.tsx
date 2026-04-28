@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Tour Our Campus | Seven Arrows Recovery',
   description:
-    'A cinematic tour of Seven Arrows Recovery — 160 private acres at the base of the Swisshelm Mountains in Cochise County, Arizona. Explore the residences, equine arena, ceremonial spaces, and the Arizona night sky.',
+    'A cinematic tour of Seven Arrows Recovery — 160 private acres at the base of the Swisshelm Mountains in Cochise County, Arizona. Walk the land before you call.',
 };
 
 import PageHero from '@/components/PageHero';

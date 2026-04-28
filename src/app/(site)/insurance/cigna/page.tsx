@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Does Cigna Cover Drug & Alcohol Rehab? | Seven Arrows Recovery',
   description:
-    'Seven Arrows Recovery accepts Cigna insurance for addiction treatment. Learn what Cigna covers for rehab including detox, residential, and therapy. Call (866) 996-4308 to verify.',
+    'Seven Arrows Recovery accepts Cigna for addiction treatment in Arizona — detox, residential care, and therapy coverage. Call (866) 996-4308 to verify.',
 };
 
 import Link from 'next/link';

@@ -14,7 +14,7 @@ import AlumniCTA from '@/components/alumni/AlumniCTA';
 export const metadata: Metadata = {
   title: 'Alumni & Aftercare | Seven Arrows Recovery',
   description:
-    'Continuing care for Seven Arrows alumni: individualized aftercare plans, IOP and PHP step-down referrals, sober-living placement, alumni community, relapse-prevention toolkit, and 24/7 crisis support. The first 90 days after discharge are the hardest — we stay close.',
+    'Continuing care for Seven Arrows alumni — individualized aftercare plans, IOP/PHP referrals, sober-living placement, and 24/7 crisis support after discharge.',
   keywords:
     'alumni program Arizona rehab, aftercare planning residential, sober living placement Arizona, IOP step-down, PHP step-down, relapse prevention, recovery community Arizona, post-rehab support, continuing care Seven Arrows',
   alternates: {

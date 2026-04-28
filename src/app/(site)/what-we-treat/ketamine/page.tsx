@@ -5,7 +5,7 @@ import { ketamineContent } from '@/lib/substances/ketamine';
 export const metadata: Metadata = {
   title: 'Ketamine Addiction Treatment | Seven Arrows Recovery',
   description:
-    'Residential ketamine use disorder treatment in Arizona. Urological assessment, cognitive rehabilitation, dissociation-aware trauma work at Seven Arrows Recovery. Call (866) 996-4308.',
+    'Residential ketamine use disorder treatment in Arizona — urological assessment, cognitive rehabilitation, and dissociation-aware trauma work.',
 };
 
 export default function KetamineAddictionPage() {

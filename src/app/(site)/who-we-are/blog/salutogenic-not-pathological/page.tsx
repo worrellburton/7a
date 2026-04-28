@@ -6,7 +6,7 @@ const SLUG = 'salutogenic-not-pathological';
 const ep = EPISODES.find((e) => e.slug === SLUG)!;
 const url = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${SLUG}`;
 const description =
-  "The DSM mindset says you are what's wrong with you. The salutogenic frame says you are what's underneath, still intact, waiting to surface. Why self-leadership beats symptom management for 5-year outcomes.";
+  "The DSM says you are what's wrong with you — the salutogenic frame says you are what's underneath. Why self-leadership beats symptom management long-term.";
 
 export const metadata: Metadata = {
   title: `${ep.title} | Seven Arrows Recovery`,

@@ -15,7 +15,7 @@ import FamilyCTA from '@/components/family/FamilyCTA';
 export const metadata: Metadata = {
   title: 'Family Program | Seven Arrows Recovery',
   description:
-    'Weekly family support sessions, family education groups, and boundary coaching for loved ones of clients at Seven Arrows Recovery. The whole system heals, or nothing does.',
+    'Weekly family sessions, education groups, and boundary coaching for loved ones at Seven Arrows Recovery — the whole system heals, or nothing does.',
   keywords:
     'family program rehab, family support sessions addiction, rehab for loved ones, codependency support, boundaries addiction family, family visitation rehab Arizona, rehab family weekend, adult child of addict support',
   alternates: {
