@@ -6,13 +6,15 @@ import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 //
 // Accessible to admins and Marketing & Admissions department members.
 // Returns two parallel views of the inbox:
-//   * `total / vobs / forms` — submissions with status='new' (the
-//     sidebar badge has used this shape since launch).
-//   * `unresponded` — submissions where responded_at is NULL,
-//     broken down into VOBs / contact forms / careers. The home-page
-//     widget uses this; "responded" is the action a coordinator
-//     actually takes ("I responded" button), which is a stronger
-//     signal than the legacy status enum.
+//   * `total / vobs / forms` — submissions with status='new' and not
+//     marked spam (the sidebar badge has used this shape since
+//     launch). Spam rows are excluded so a wave of bot submissions
+//     doesn't keep the badge lit indefinitely.
+//   * `unresponded` — submissions where responded_at is NULL and
+//     not spam, broken down into VOBs / contact forms / careers. The
+//     home-page widget uses this; "responded" is the action a
+//     coordinator actually takes ("I responded" button), which is a
+//     stronger signal than the legacy status enum.
 
 export const dynamic = 'force-dynamic';
 
@@ -29,11 +31,11 @@ export async function GET() {
     formsUnresponded,
     careersUnresponded,
   ] = await Promise.all([
-    admin.from('vob_requests').select('id', { count: 'exact', head: true }).eq('status', 'new'),
-    admin.from('contact_submissions').select('id', { count: 'exact', head: true }).eq('status', 'new'),
-    admin.from('vob_requests').select('id', { count: 'exact', head: true }).is('responded_at', null),
-    admin.from('contact_submissions').select('id', { count: 'exact', head: true }).is('responded_at', null).neq('source', 'careers'),
-    admin.from('contact_submissions').select('id', { count: 'exact', head: true }).is('responded_at', null).eq('source', 'careers'),
+    admin.from('vob_requests').select('id', { count: 'exact', head: true }).eq('status', 'new').is('spam_at', null),
+    admin.from('contact_submissions').select('id', { count: 'exact', head: true }).eq('status', 'new').is('spam_at', null),
+    admin.from('vob_requests').select('id', { count: 'exact', head: true }).is('responded_at', null).is('spam_at', null),
+    admin.from('contact_submissions').select('id', { count: 'exact', head: true }).is('responded_at', null).is('spam_at', null).neq('source', 'careers'),
+    admin.from('contact_submissions').select('id', { count: 'exact', head: true }).is('responded_at', null).is('spam_at', null).eq('source', 'careers'),
   ]);
 
   const vobCount = vobsNew.count ?? 0;
