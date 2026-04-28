@@ -199,6 +199,11 @@ export default function ActionsContent() {
   // Filter + search
   const [filter, setFilter] = useState<'active' | 'all' | Status>('active');
   const [query, setQuery] = useState('');
+  // View mode — three densities for the same action list:
+  //   list        — current expanded cards (avatar, screenshots, full message)
+  //   table       — compact rows: title, category icon, priority, status, who, when
+  //   spreadsheet — dense edit-in-place rows (zebra-striped, no padding)
+  const [view, setView] = useState<'list' | 'table' | 'spreadsheet'>('list');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -551,7 +556,7 @@ export default function ActionsContent() {
         </div>
       ) : null}
 
-      {/* Filter + search */}
+      {/* Filter + search + view mode */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <FilterChip active={filter === 'active'} onClick={() => setFilter('active')} label="Active" count={counts.active} />
         <FilterChip active={filter === 'open'} onClick={() => setFilter('open')} label="Open" count={counts.open} />
@@ -566,6 +571,7 @@ export default function ActionsContent() {
           placeholder="Search actions…"
           className="ml-auto text-sm rounded-md border border-black/10 bg-white px-3 py-1.5 w-64 max-w-full"
         />
+        <ViewModeToggle value={view} onChange={setView} />
       </div>
 
       {loading ? (
@@ -710,6 +716,89 @@ function ActionCard({
         </div>
       </div>
     </li>
+  );
+}
+
+/**
+ * Three-density view toggle for the action list. Mirrors the
+ * pattern teams use in BI dashboards: roomy cards by default,
+ * compact rows for triage, ultra-dense rows for spreadsheet-style
+ * editing. State is in-memory — no persistence needed since admins
+ * pick a density per visit, not per session.
+ */
+function ViewModeToggle({
+  value,
+  onChange,
+}: {
+  value: 'list' | 'table' | 'spreadsheet';
+  onChange: (v: 'list' | 'table' | 'spreadsheet') => void;
+}) {
+  const opts: { id: 'list' | 'table' | 'spreadsheet'; label: string; icon: React.ReactNode }[] = [
+    {
+      id: 'list',
+      label: 'List',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <line x1="8" y1="6" x2="21" y2="6" />
+          <line x1="8" y1="12" x2="21" y2="12" />
+          <line x1="8" y1="18" x2="21" y2="18" />
+          <line x1="3" y1="6" x2="3.01" y2="6" />
+          <line x1="3" y1="12" x2="3.01" y2="12" />
+          <line x1="3" y1="18" x2="3.01" y2="18" />
+        </svg>
+      ),
+    },
+    {
+      id: 'table',
+      label: 'Table',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <line x1="3" y1="9" x2="21" y2="9" />
+          <line x1="3" y1="15" x2="21" y2="15" />
+          <line x1="12" y1="3" x2="12" y2="21" />
+        </svg>
+      ),
+    },
+    {
+      id: 'spreadsheet',
+      label: 'Spreadsheet',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="1" />
+          <line x1="3" y1="7" x2="21" y2="7" />
+          <line x1="3" y1="11" x2="21" y2="11" />
+          <line x1="3" y1="15" x2="21" y2="15" />
+          <line x1="3" y1="19" x2="21" y2="19" />
+          <line x1="9" y1="3" x2="9" y2="21" />
+          <line x1="15" y1="3" x2="15" y2="21" />
+        </svg>
+      ),
+    },
+  ];
+  return (
+    <div className="inline-flex rounded-md border border-black/10 bg-white p-0.5">
+      {opts.map((o) => {
+        const active = o.id === value;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => onChange(o.id)}
+            title={o.label}
+            aria-label={`${o.label} view`}
+            aria-pressed={active}
+            className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
+              active
+                ? 'bg-foreground text-white'
+                : 'text-foreground/55 hover:text-foreground hover:bg-warm-bg/60'
+            }`}
+          >
+            <span className="w-3.5 h-3.5">{o.icon}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
