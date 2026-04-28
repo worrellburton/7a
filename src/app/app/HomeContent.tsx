@@ -237,48 +237,51 @@ export default function HomeContent() {
       {/* New facilities request — upper right on desktop. On mobile the
           parent shell already has a sticky top bar, so we keep this button
           inline (top-3) and shrink the label to an icon-only pill. */}
-      <div className="absolute top-3 right-3 lg:top-5 lg:right-5 z-10 flex items-center gap-2">
+      <div className="absolute top-2 right-3 lg:top-3 lg:right-4 z-10 flex items-center gap-1.5">
         <button
           onClick={() => setFeatureRequestOpen(true)}
-          className="inline-flex items-center gap-2 px-3 py-1.5 lg:px-4 lg:py-2 rounded-full bg-primary text-white text-xs font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-sm"
+          className="inline-flex items-center justify-center gap-1.5 w-8 h-8 lg:w-auto lg:h-auto lg:px-3 lg:py-1.5 rounded-full bg-primary text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-sm"
           style={{ fontFamily: 'var(--font-body)' }}
           title="Submit a new feature request"
           aria-label="New feature request"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
           </svg>
-          <span className="hidden sm:inline">Feature request</span>
-          <span className="sm:hidden">Feature</span>
+          <span className="hidden lg:inline">Feature request</span>
         </button>
         <button
           onClick={() => router.push('/app/facilities?new=1')}
-          className="inline-flex items-center gap-2 px-3 py-1.5 lg:px-4 lg:py-2 rounded-full bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors shadow-sm"
+          className="inline-flex items-center justify-center gap-1.5 w-8 h-8 lg:w-auto lg:h-auto lg:px-3 lg:py-1.5 rounded-full bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors shadow-sm"
           style={{ fontFamily: 'var(--font-body)' }}
           title="Report a new facilities issue"
           aria-label="New facilities request"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 5v14M5 12h14" />
           </svg>
-          <span className="hidden sm:inline">New facilities request</span>
-          <span className="sm:hidden">Facilities</span>
+          <span className="hidden lg:inline">New facilities</span>
         </button>
       </div>
 
-      {/* Online today — centered at the top of the dashboard. */}
+      {/* Online today + Horses on the team share one row on desktop —
+          stacks back to two strips on mobile. The label sits inline
+          with the avatars so the strip reads as one band rather than
+          two centered columns of text. */}
       {recentUsers.length > 0 && (
         <div
-          className={`flex flex-col items-center justify-center gap-2 px-4 sm:px-6 lg:px-10 pt-6 transition-all duration-500 ease-out ${
+          className={`px-4 sm:px-6 lg:px-10 pt-3 lg:pt-4 transition-all duration-500 ease-out ${
             loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
           }`}
         >
-          <p
-            className="text-[10px] font-semibold text-foreground/40 uppercase tracking-[0.18em]"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Online today
-          </p>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:gap-6 gap-3">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-1.5 lg:gap-3 shrink-0">
+              <p
+                className="text-[10px] font-semibold text-foreground/40 uppercase tracking-[0.18em]"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Online today
+              </p>
           <div className="flex -space-x-2">
             {recentUsers.map((u) => {
               const online = isOnlineNow(u.last_seen_at || u.last_sign_in);
@@ -318,15 +321,20 @@ export default function HomeContent() {
                 </Wrapper>
               );
             })}
+              </div>
+            </div>
+            {/* Right: horses on the team. Takes the remaining width
+                on desktop so its avatar strip can scroll horizontally
+                without pushing the Online-today block off-screen. */}
+            <div className="flex-1 min-w-0">
+              <HomeHorsesRow />
+            </div>
           </div>
           {/* HomeClientsRow temporarily hidden — client info isn't
               meant to live on the home dashboard yet. Keep the
               import + component around so re-enabling is a
               one-line change later. */}
-          <div className="mt-6 w-full">
-            <HomeHorsesRow />
-          </div>
-          <div className="mt-8 w-full">
+          <div className="mt-4 w-full">
             <AtAGlance />
           </div>
         </div>
@@ -336,20 +344,23 @@ export default function HomeContent() {
           horses + the at-a-glance grouping. Clients row stays hidden
           here too for now. */}
       {recentUsers.length === 0 && (
-        <div className="px-4 sm:px-6 lg:px-10 pt-6 space-y-8">
+        <div className="px-4 sm:px-6 lg:px-10 pt-3 lg:pt-4 space-y-4">
           <HomeHorsesRow />
           <AtAGlance />
         </div>
       )}
 
-      {/* Centered welcome */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 py-10">
-        <div className="flex flex-col items-center gap-3">
+      {/* Inline welcome strip — small avatar + greeting on a single
+          line, replacing the previous full-width centered hero that
+          consumed ~180 px of vertical real estate. The avatar stays
+          a click target for changing the profile picture. */}
+      <div className="flex flex-col items-center justify-center gap-2 px-4 sm:px-6 lg:px-10 py-3">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => avatarInputRef.current?.click()}
             disabled={uploadingAvatar}
-            className="group relative w-20 h-20 rounded-full border-2 border-white shadow-md overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            className="group relative w-10 h-10 rounded-full border-2 border-white shadow-md overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
             aria-label="Change profile picture"
             title="Click to change your profile picture"
           >
@@ -357,20 +368,20 @@ export default function HomeContent() {
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-2xl font-bold">
+              <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold">
                 {(user.user_metadata?.full_name as string || user.email || '?').charAt(0).toUpperCase()}
               </div>
             )}
-            <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-[10px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontFamily: 'var(--font-body)' }}>
+            <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-[8px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontFamily: 'var(--font-body)' }}>
               {uploadingAvatar ? (
-                <span className="w-5 h-5 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                <span className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
               ) : (
-                'Change'
+                'Edit'
               )}
             </span>
             {uploadingAvatar && (
               <span className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                <span className="w-5 h-5 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                <span className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
               </span>
             )}
           </button>
@@ -381,7 +392,7 @@ export default function HomeContent() {
             onChange={handleAvatarUpload}
             className="hidden"
           />
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground text-center px-4">
+          <h1 className="text-base sm:text-lg font-bold text-foreground">
             Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
           </h1>
         </div>
@@ -450,21 +461,17 @@ export default function HomeContent() {
         <AskPolicies />
       </div>
 
-      {/* Work-in-progress notice — pinned to the bottom of the dashboard. */}
-      <div className="px-4 sm:px-6 lg:px-10 pb-6">
-        <div
-          className="mx-auto max-w-2xl rounded-xl border border-amber-200/70 bg-amber-50/70 px-4 py-2.5 flex items-center justify-center gap-2.5 text-amber-900 shadow-sm"
+      {/* Work-in-progress notice — pinned to the bottom of the
+          dashboard. Compressed to a one-line tone so it doesn't
+          dominate the bottom of the viewport. */}
+      <div className="px-4 sm:px-6 lg:px-10 pb-2">
+        <p
+          className="text-[10.5px] text-amber-700/80 text-center"
           role="status"
+          style={{ fontFamily: 'var(--font-body)' }}
         >
-          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 9v4" />
-            <path d="M12 17h.01" />
-            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          </svg>
-          <p className="text-xs sm:text-sm text-center" style={{ fontFamily: 'var(--font-body)' }}>
-            This is a work in progress and is constantly being updated — some things might not work yet.
-          </p>
-        </div>
+          Work in progress — some things might not work yet.
+        </p>
       </div>
 
       <FeatureRequestModal open={featureRequestOpen} onClose={() => setFeatureRequestOpen(false)} />
@@ -491,7 +498,7 @@ function AtAGlance() {
       <div
         className="rounded-3xl border border-white/60 shadow-[0_8px_24px_-12px_rgba(60,48,42,0.18)] bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl"
       >
-        <div className="px-5 sm:px-6 pt-5 pb-2 flex items-baseline justify-between">
+        <div className="px-5 sm:px-6 pt-3 pb-1.5 flex items-baseline justify-between">
           <p
             className="text-[11px] font-bold tracking-[0.22em] uppercase text-foreground/55"
             style={{ fontFamily: 'var(--font-body)' }}
@@ -503,13 +510,13 @@ function AtAGlance() {
           </p>
         </div>
         <div className="divide-y divide-gray-100">
-          <div className="py-4 -mx-4 sm:-mx-6">
+          <div className="py-2 -mx-4 sm:-mx-6">
             <HomeMeaningfulCallsRow />
           </div>
-          <div className="py-4 -mx-4 sm:-mx-6">
+          <div className="py-2 -mx-4 sm:-mx-6">
             <HomeWebsiteVisitsRow />
           </div>
-          <div className="py-4 -mx-4 sm:-mx-6">
+          <div className="py-2 -mx-4 sm:-mx-6">
             <HomeWebsiteRequestsRow />
           </div>
         </div>

@@ -69,12 +69,12 @@ export default function HomeHorsesRow() {
   if (loading || horses.length === 0) return null;
 
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col gap-2 px-4 sm:px-6">
-      <div className="flex items-baseline justify-between">
-        <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+    <div className="w-full max-w-4xl mx-auto flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-3 px-0 sm:px-2">
+      <div className="flex items-baseline justify-between lg:justify-start lg:gap-2 shrink-0">
+        <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-[0.18em] whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
           Horses on the team
         </p>
-        <span className="text-[10px] text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
+        <span className="text-[10px] text-foreground/30 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
           {horses.length} {horses.length === 1 ? 'horse' : 'horses'}
           {rideableCount !== horses.length ? ` · ${rideableCount} rideable` : ''}
         </span>
@@ -96,9 +96,9 @@ export default function HomeHorsesRow() {
             >
               {h.image_url ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={h.image_url} alt={h.name} className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-primary/40 transition-all" />
+                <img src={h.image_url} alt={h.name} className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-primary/40 transition-all" />
               ) : (
-                <div className="w-12 h-12 rounded-full bg-warm-bg flex items-center justify-center text-foreground/50 text-xs font-semibold border-2 border-white shadow-sm">
+                <div className="w-9 h-9 rounded-full bg-warm-bg flex items-center justify-center text-foreground/50 text-xs font-semibold border-2 border-white shadow-sm">
                   {h.name.charAt(0)}
                 </div>
               )}
