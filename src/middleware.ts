@@ -42,6 +42,16 @@ function lookup(map: RedirectMap, pathname: string): RedirectEntry | null {
 export async function middleware(req: NextRequest) {
   const { pathname, search, searchParams } = req.nextUrl;
 
+  // Forward the request pathname as a header so server components
+  // (specifically the (site) layout's generateMetadata) can build a
+  // self-referencing canonical + og:url without each page re-declaring
+  // its own URL. Every NextResponse.next() below uses the same forwarded
+  // headers so the value is available on every passthrough request.
+  const forwarded = new Headers(req.headers);
+  forwarded.set('x-pathname', pathname);
+  const passthrough = () =>
+    NextResponse.next({ request: { headers: forwarded } });
+
   // OAuth fallback: if Supabase's Site URL config ever drops a visitor
   // back at the root with ?code=... (instead of /auth/callback), funnel
   // the code through our real callback route so they still land on /app
@@ -65,12 +75,12 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/_next') ||
     /\.[a-z0-9]{2,5}(?:\?|$)/i.test(pathname)
   ) {
-    return NextResponse.next();
+    return passthrough();
   }
 
   const map = await fetchRedirectMap(req.nextUrl.origin);
   const hit = lookup(map, pathname);
-  if (!hit) return NextResponse.next();
+  if (!hit) return passthrough();
 
   // Build the destination. Relative `to` stays on the current host;
   // absolute URLs (http://…) pass through untouched.
@@ -102,7 +112,7 @@ export async function middleware(req: NextRequest) {
   if (destinationPath) {
     const norm = (p: string) => (p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p);
     if (norm(destinationPath) === norm(pathname)) {
-      return NextResponse.next();
+      return passthrough();
     }
   }
 
