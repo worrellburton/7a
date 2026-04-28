@@ -34,4 +34,3 @@ User-agent: Applebot-Extended
 Allow: /
 
 Sitemap: https://sevenarrowsrecoveryarizona.com/sitemap.xml
-Sitemap: https://sevenarrowsrecoveryarizona.com/redirects-sitemap.xml
