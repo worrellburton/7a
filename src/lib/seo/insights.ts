@@ -95,7 +95,11 @@ export function buildInsights(categories: CategoryAudit[]): AuditInsights {
         severity: worst,
         message: sample.message,
         count: group.issues.length,
-        examples: group.issues.slice(0, 5).map((i) => i.url),
+        // Keep up to 100 URLs per issue group so the Claude prompt
+        // can list every affected page and an agent can verify each
+        // one. The original 5-cap was a UI display limit; the prompt
+        // needs the full set to fix 100% of the errors.
+        examples: group.issues.slice(0, 100).map((i) => i.url),
         impact: Math.round(impact * 100) / 100,
       });
     }
