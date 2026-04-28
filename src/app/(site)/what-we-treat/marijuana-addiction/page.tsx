@@ -5,7 +5,7 @@ import { marijuanaContent } from '@/lib/substances/marijuana';
 export const metadata: Metadata = {
   title: 'Marijuana Addiction Treatment | Seven Arrows Recovery',
   description:
-    'Residential cannabis use disorder treatment in Arizona. Sleep rebuilding, anxiety-direct CBT, and trauma-informed therapy at Seven Arrows Recovery. Call (866) 996-4308.',
+    'Residential cannabis use disorder treatment in Arizona — sleep rebuilding, anxiety-direct CBT, and trauma-informed therapy. Call (866) 996-4308.',
 };
 
 export default function MarijuanaAddictionPage() {
