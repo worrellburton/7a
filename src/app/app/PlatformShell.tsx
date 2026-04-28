@@ -858,9 +858,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               aria-hidden="true"
             />
             {/* Panel */}
-            <aside className="absolute inset-y-0 left-0 w-[82%] max-w-[320px] bg-white border-r border-gray-100 shadow-2xl flex flex-col animate-drawer-slide">
+            <aside className="absolute inset-y-0 left-0 w-[82%] max-w-[320px] bg-white border-r border-gray-100 shadow-2xl flex flex-col overflow-hidden animate-drawer-slide">
               {/* Header: brand + close */}
-              <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
                 <Link href="/app" className="flex items-center gap-2.5">
                   <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
                 </Link>
@@ -876,8 +876,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </button>
               </div>
 
-              {/* Nav links — grouped by department */}
-              <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+              {/* Nav links — grouped by department.
+                  `min-h-0` is the critical bit for mobile scroll: in a
+                  flex column the default min-height is `auto`, which
+                  lets this nav grow to fit its content and disables
+                  the inner overflow-y-auto. min-h-0 lets it shrink
+                  below content height so the inner scroll engages. */}
+              <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
                 {ungroupedPages.map((item) => {
                   const isActive = pathname === item.path;
                   return (
@@ -977,7 +982,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   Super Admin, …) and Profile don't disappear below the
                   scroll fold on tall nav lists. */}
               {popupPages.filter(canSeePage).length > 0 && (
-                <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[40vh] overflow-y-auto">
+                <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[30vh] overflow-y-auto shrink-0">
                   {popupPages.filter(canSeePage).map((item) => {
                     const isActive = pathname === item.path;
                     return (
@@ -1001,7 +1006,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   })}
                 </div>
               )}
-              <div className="p-3 border-t border-gray-100 space-y-0.5">
+              <div className="p-3 border-t border-gray-100 space-y-0.5 shrink-0">
                 <Link
                   href="/app/profile"
                   onClick={() => setMobileMenuOpen(false)}
@@ -1022,7 +1027,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               </div>
 
               {/* User card + sign out */}
-              <div className="p-3 border-t border-gray-100 space-y-1">
+              <div className="p-3 border-t border-gray-100 space-y-1 shrink-0">
                 <div className="flex items-center gap-3 px-3 py-2.5">
                   {avatarUrl ? (
                     <img src={avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover" referrerPolicy="no-referrer" />
