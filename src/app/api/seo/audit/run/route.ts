@@ -130,7 +130,11 @@ export async function POST(req: Request) {
   let crawl: { pages: CrawledPage[]; skipped: { url: string; reason: string }[]; trimmed: number; totalMs: number } | null = null;
   let homepage: CrawledPage | null = null;
   try {
-    crawl = await crawlAll(urlsToCrawl, { maxPages: 1000, concurrency: 10 });
+    // keepHtml so per-category audits (title, meta, headings, canonical,
+    // OG/Twitter, schema, alt text, internal links) can re-read the raw
+    // HTML. Without this they all skip with "No pages crawled to audit"
+    // even though crawlability + HTTP score correctly off the headers.
+    crawl = await crawlAll(urlsToCrawl, { maxPages: 1000, concurrency: 10, keepHtml: true });
     homepage =
       crawl.pages.find(
         (p) => p.url === origin || p.finalUrl === origin || p.url === origin + '/',
@@ -321,8 +325,8 @@ export async function POST(req: Request) {
     issues,
     notice:
       crawlSummary && crawlSummary.crawled > 0
-        ? `Crawled ${crawlSummary.crawled} pages (${crawlSummary.ok} OK). Per-category audits + scoring land in phases 6–17.`
-        : 'Crawl incomplete. Per-category audits + scoring land in phases 6–17.',
+        ? `Crawled ${crawlSummary.crawled} pages (${crawlSummary.ok} OK).`
+        : 'Crawl incomplete — couldn’t reach the sitemap or homepage.',
   };
 
   // Persist this run to public.seo_audits for history + shared durability.
