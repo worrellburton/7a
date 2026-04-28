@@ -43,6 +43,7 @@ export async function GET() {
   const supabase = await getServerSupabase();
   const auth = await requireWebsiteRequestsAccess(supabase);
   if (auth.response) return auth.response;
+  const { user } = auth;
 
   const admin = getAdminSupabase();
   // Try the full select first. If newer columns aren't there yet
@@ -130,6 +131,28 @@ export async function GET() {
     }
   }
 
+  // Per-admin "seen" tracking — fetch which of the visible VOB ids
+  // the current user has already viewed, so the UI can suppress the
+  // NEW status badge for repeat visits. Soft-fail if vob_views isn't
+  // there yet (migration not applied) so the list still loads.
+  const seenSet = new Set<string>();
+  if (rawRows.length > 0) {
+    const { data: views, error: viewsErr } = await admin
+      .from('vob_views')
+      .select('vob_id')
+      .eq('user_id', user.id)
+      .in('vob_id', rawRows.map((r) => r.id));
+    if (viewsErr) {
+      if (/vob_views/i.test(viewsErr.message)) {
+        console.warn('[vobs] vob_views missing, treating all rows as unseen:', viewsErr.message);
+      } else {
+        console.warn('[vobs] vob_views read failed, treating all rows as unseen:', viewsErr.message);
+      }
+    } else {
+      for (const v of views ?? []) seenSet.add(v.vob_id as string);
+    }
+  }
+
   const rows = rawRows.map((r) => {
     const slots = normalizedByRow.get(r.id) ?? [null, null, null];
     // Enrich each filled slot with the latest user metadata. The
@@ -166,6 +189,7 @@ export async function GET() {
       responded_note: r.responded_note ?? null,
       responder_name: responder?.name ?? null,
       responder_avatar_url: responder?.avatar ?? null,
+      seen_by_me: seenSet.has(r.id),
     };
   });
 
