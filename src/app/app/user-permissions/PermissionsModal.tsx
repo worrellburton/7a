@@ -1,19 +1,13 @@
 'use client';
 
-// Super-admin-only per-user page permission editor. Sits on top of
-// the existing department + admin-only rules in
-// `lib/PagePermissions.tsx`: each row is a 3-state cycle.
-//
-//   Inherit  — no row in user_page_permissions; the user sees the
-//              page if (a) it's not admin-only or they're admin,
-//              and (b) the page is unrestricted or their dept is
-//              on the allowed list.
-//   Allow    — explicit override can_view=true; user sees the page
-//              even if dept rules would hide it.
-//   Block    — explicit override can_view=false; user does NOT see
-//              the page even if dept rules would show it. (Admins
-//              still see admin pages by virtue of is_admin — block
-//              is intended for non-admin members.)
+// Super-admin-only per-user page permission editor. The UI is a
+// simple eyeball toggle per page: open eye = visible, slashed eye =
+// hidden. Storage still uses the existing `user_page_permissions`
+// table with explicit allow/block rows — the eyeball reflects the
+// effective visibility (override OR department-derived default), and
+// flipping it always writes an explicit override (no more 3-state
+// "Inherit" cycle in the UI). Bulk Turn-on-all / Turn-off-all act on
+// the currently visible / search-filtered list.
 
 import { useEffect, useMemo, useState } from 'react';
 import { db } from '@/lib/db';
@@ -63,6 +57,7 @@ export default function PermissionsModal({
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [savingPath, setSavingPath] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [query, setQuery] = useState('');
   const [departments, setDepartments] = useState<Department[]>([]);
   const [extraDeptIds, setExtraDeptIds] = useState<Set<string>>(new Set());
@@ -194,10 +189,53 @@ export default function PermissionsModal({
     }
   }
 
-  function cycle(path: string) {
+  // Flip the effective visibility for a single page. The eyeball
+  // shows the *effective* state (override OR dept-derived default),
+  // so toggling always writes an explicit allow/block override —
+  // never "inherit" — to make sure the new state sticks regardless
+  // of whatever the underlying defaults say.
+  function toggleVisible(path: string) {
     const cur = stateFor(path);
-    const next: OverrideState = cur === 'inherit' ? 'allow' : cur === 'allow' ? 'block' : 'inherit';
-    setOverride(path, next);
+    const def = defaultCanView(path);
+    const visible = cur === 'allow' ? true : cur === 'block' ? false : def;
+    setOverride(path, visible ? 'block' : 'allow');
+  }
+
+  // Bulk on/off acts on whatever the user can currently see in the
+  // list (post-search). Persists in parallel; UI reflects each row
+  // as it lands. Errors on individual rows are silent — the next
+  // refresh re-syncs.
+  async function bulkSet(target: 'allow' | 'block') {
+    if (bulkBusy || filteredPages.length === 0) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all(
+        filteredPages.map(async (p) => {
+          const can_view = target === 'allow';
+          const res = await db({
+            action: 'upsert',
+            table: 'user_page_permissions',
+            data: [{ user_id: userId, path: p.path, can_view, updated_by: user?.id ?? null }],
+            onConflict: 'user_id,path',
+          });
+          if (!res || (typeof res === 'object' && 'error' in res)) return;
+          setOverrides((prev) => ({ ...prev, [p.path]: can_view }));
+        }),
+      );
+      if (user?.id) {
+        logActivity({
+          userId: user.id,
+          type: 'user.page_permission_bulk_changed',
+          targetKind: 'user',
+          targetId: userId,
+          targetLabel: userLabel,
+          targetPath: '/app/user-permissions',
+          metadata: { state: target, count: filteredPages.length },
+        });
+      }
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   async function toggleExtraDept(departmentId: string, next: boolean) {
@@ -269,7 +307,7 @@ export default function PermissionsModal({
             <h2 className="text-base font-semibold text-foreground mt-0.5">{userLabel}</h2>
             <p className="text-xs text-foreground/50 mt-1">
               {tab === 'pages'
-                ? <>Click a page to cycle <span className="font-medium">Inherit → Allow → Block</span>. Inherit follows the department + admin-only rules; Allow and Block override them.</>
+                ? <>Click the eye to show or hide a page for this user. Use <span className="font-medium">Turn on all</span> / <span className="font-medium">Turn off all</span> for bulk changes — they only apply to whatever the search is currently showing.</>
                 : <>Tick extra departments to grant the user access as if they were a member of those departments. Their <span className="font-medium">primary</span> department comes from /app/team and is shown read-only.</>}
               {tab === 'pages' && overrideCount > 0 && <> · <span className="font-medium">{overrideCount}</span> override{overrideCount === 1 ? '' : 's'}</>}
               {tab === 'departments' && extraDeptIds.size > 0 && <> · <span className="font-medium">{extraDeptIds.size}</span> extra</>}
@@ -315,14 +353,32 @@ export default function PermissionsModal({
         </div>
 
         {tab === 'pages' && (
-          <div className="px-5 py-3 border-b border-gray-100">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
             <input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search pages…"
-              className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="flex-1 text-sm px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-primary/40"
             />
+            <button
+              type="button"
+              onClick={() => bulkSet('allow')}
+              disabled={bulkBusy || filteredPages.length === 0}
+              className="shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Show every page in the current list to this user"
+            >
+              Turn on all
+            </button>
+            <button
+              type="button"
+              onClick={() => bulkSet('block')}
+              disabled={bulkBusy || filteredPages.length === 0}
+              className="shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Hide every page in the current list from this user"
+            >
+              Turn off all
+            </button>
           </div>
         )}
 
@@ -337,17 +393,8 @@ export default function PermissionsModal({
                 {filteredPages.map((p) => {
                   const state = stateFor(p.path);
                   const def = defaultCanView(p.path);
-                  const effective = state === 'allow' ? true : state === 'block' ? false : def;
-                  const tone =
-                    state === 'allow' ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                    : state === 'block' ? 'bg-rose-100 text-rose-800 border-rose-200'
-                    : effective
-                      ? 'bg-gray-100 text-foreground/65 border-gray-200'
-                      : 'bg-gray-50 text-foreground/40 border-gray-100';
-                  const label =
-                    state === 'allow' ? 'Allow'
-                    : state === 'block' ? 'Block'
-                    : effective ? 'Inherit · visible' : 'Inherit · hidden';
+                  const visible = state === 'allow' ? true : state === 'block' ? false : def;
+                  const saving = savingPath === p.path || bulkBusy;
                   return (
                     <li key={p.path} className="flex items-center justify-between gap-3 px-5 py-2.5">
                       <div className="min-w-0">
@@ -356,11 +403,30 @@ export default function PermissionsModal({
                       </div>
                       <button
                         type="button"
-                        onClick={() => cycle(p.path)}
-                        disabled={savingPath === p.path}
-                        className={`shrink-0 inline-flex items-center px-2.5 py-1 rounded-md border text-[11px] font-semibold transition-colors min-w-[110px] justify-center ${tone} ${savingPath === p.path ? 'opacity-50' : 'hover:brightness-95'}`}
+                        onClick={() => toggleVisible(p.path)}
+                        disabled={saving}
+                        aria-pressed={visible}
+                        aria-label={visible ? `Hide ${p.label} from this user` : `Show ${p.label} to this user`}
+                        title={visible ? 'Visible — click to hide' : 'Hidden — click to show'}
+                        className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg border transition-colors ${
+                          visible
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                            : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
+                        } ${saving ? 'opacity-50 cursor-wait' : ''}`}
                       >
-                        {savingPath === p.path ? 'Saving…' : label}
+                        {visible ? (
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a19.77 19.77 0 0 1 4.22-5.31" />
+                            <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a19.79 19.79 0 0 1-3.16 4.19" />
+                            <path d="M14.12 14.12A3 3 0 1 1 9.88 9.88" />
+                            <line x1="1" y1="1" x2="23" y2="23" />
+                          </svg>
+                        )}
                       </button>
                     </li>
                   );
