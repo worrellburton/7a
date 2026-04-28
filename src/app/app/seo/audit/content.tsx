@@ -238,26 +238,30 @@ export default function AuditContent() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-6 flex items-start justify-between gap-4">
+    <div className="p-8 max-w-7xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
+      <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <p className="text-xs font-semibold tracking-[0.22em] uppercase text-primary mb-2">
-            Marketing &amp; Admissions
-          </p>
-          <Link
-            href="/app/seo"
-            className="text-xs text-foreground/50 hover:text-foreground transition"
-          >
-            ← SEO
-          </Link>
-          <h1 className="text-2xl font-bold text-foreground mt-1">Site audit</h1>
-          <p className="text-sm text-foreground/60 mt-2 max-w-2xl">
+          <div className="flex items-center gap-3 mb-1">
+            <Link
+              href="/app/seo"
+              className="text-xs font-semibold text-foreground/40 hover:text-primary uppercase tracking-wider inline-flex items-center gap-1"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+              SEO
+            </Link>
+          </div>
+          <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+            Site audit
+          </h1>
+          <p className="mt-1 text-sm text-foreground/60 max-w-2xl">
             Crawls the live site, scores it 0–100 against modern SEO criteria, and
             generates a paste-ready prompt to push the score to 100. No Google
             Search Console required — this audit reads the site directly.
           </p>
         </div>
-      </div>
+      </header>
 
       <SeoSubNav />
 
