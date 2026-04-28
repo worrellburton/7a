@@ -90,6 +90,17 @@ export const EPISODES: Episode[] = [
     image: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?w=1200&q=80',
     imageAlt: 'A person at the foot of a long ladder — the polyvagal ladder you climb up and down all day',
   },
+  {
+    number: 7,
+    slug: 'transition-from-suboxone-to-sublocade',
+    title: 'Transitioning from Suboxone to Sublocade',
+    blurb:
+      'A clinical, plain-English guide to switching from daily Suboxone to a monthly Sublocade injection — eligibility, the 300/300/100 mg arc, and what the first month actually feels like when the morning film is gone.',
+    publishedAt: '2026-04-28',
+    publishedDisplay: 'April 28, 2026',
+    image: '/images/resident-reading-window.jpg',
+    imageAlt: 'A resident sitting quietly by a window — recovery on a monthly rhythm instead of a daily one',
+  },
 ];
 
 /** Newest-first — drives the landing page's "latest" surfacing. */
