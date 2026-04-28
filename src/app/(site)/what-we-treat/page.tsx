@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'What We Treat | Seven Arrows Recovery',
   description:
-    'Seven Arrows Recovery treats alcohol addiction, drug addiction, opioid dependence, dual diagnosis, and more. Explore our evidence-based treatment programs in Arizona.',
+    'Seven Arrows treats alcohol, opioids, stimulants, benzos, dual diagnosis, and more — evidence-based residential addiction treatment in Arizona.',
 };
 
 import PageHero from '@/components/PageHero';
