@@ -278,9 +278,10 @@ export default function ActionsContent() {
     }
   }
 
-  // Posts the chosen action title and clears form state. Called from
-  // the rewrite-confirm modal once the user picks original vs rewrite
-  // (or skips Claude entirely on rewrite error).
+  // Posts the chosen action title and clears form state. Submitting
+  // an action is now a *log of completed SEO work*, so we default
+  // status to 'done' — every row renders in the green completed state
+  // with no per-row toggle to flip it back open.
   async function postAction(title: string) {
     setSubmitting(true);
     setError(null);
@@ -292,6 +293,7 @@ export default function ActionsContent() {
           title,
           category: category.trim() || null,
           priority,
+          status: 'done',
           screenshot_urls: pendingShots,
         }),
       });
@@ -652,8 +654,7 @@ export default function ActionsContent() {
         // one mixed list.
         <ActionTableGroups
           rows={visible}
-          onCycle={(id, next) => patchAction(id, { status: next })}
-          onPriority={(id, p) => patchAction(id, { priority: p })}
+          onPatch={(id, body) => patchAction(id, body)}
           onDelete={(id) => deleteAction(id)}
           canDelete={canModify}
         />
@@ -671,8 +672,7 @@ export default function ActionsContent() {
         // verbose; this keeps the same data dense + scannable.
         <ActionTable
           rows={visible}
-          onCycle={(id, next) => patchAction(id, { status: next })}
-          onPriority={(id, p) => patchAction(id, { priority: p })}
+          onPatch={(id, body) => patchAction(id, body)}
           onDelete={(id) => deleteAction(id)}
           canDelete={canModify}
         />
@@ -813,14 +813,12 @@ function RewriteModal({
  */
 function ActionTable({
   rows,
-  onCycle,
-  onPriority,
+  onPatch,
   onDelete,
   canDelete,
 }: {
   rows: Action[];
-  onCycle: (id: string, next: Status) => void;
-  onPriority: (id: string, p: Priority) => void;
+  onPatch: (id: string, body: Partial<Pick<Action, 'status' | 'priority' | 'title' | 'description' | 'category'>>) => void;
   onDelete: (id: string) => void;
   canDelete: (a: Action) => boolean;
 }) {
@@ -833,7 +831,6 @@ function ActionTable({
       <table className="w-full text-sm">
         <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
           <tr>
-            <th className="text-center px-3 py-3 font-semibold border-b border-black/10 w-12" aria-label="Done" />
             <th className="text-left px-4 py-3 font-semibold border-b border-black/10">Title</th>
             <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-44">Screenshots</th>
             <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-32">Category</th>
@@ -846,22 +843,13 @@ function ActionTable({
             const cat = a.category ? CATEGORY_BY_VALUE[a.category] : null;
             const completed = a.status === 'done' || a.status === 'wontfix';
             return (
-              <tr key={a.id} className={completed ? 'opacity-65' : ''}>
-                <td className="px-3 py-4 align-top">
-                  <DoneCheck
-                    done={a.status === 'done'}
-                    onToggle={() => onCycle(a.id, a.status === 'done' ? 'open' : 'done')}
-                  />
-                </td>
+              <tr key={a.id} className="bg-emerald-50/40 hover:bg-emerald-50/70 transition-colors">
                 <td className="px-4 py-4 align-top">
-                  <p
-                    className={`font-medium text-foreground line-clamp-3 max-w-[520px] text-[14px] leading-relaxed ${
-                      completed ? 'line-through decoration-foreground/40' : ''
-                    }`}
-                    title={a.title}
-                  >
-                    {a.title}
-                  </p>
+                  <EditableTitle
+                    value={a.title}
+                    canEdit={canDelete(a)}
+                    onCommit={(next) => onPatch(a.id, { title: next })}
+                  />
                 </td>
                 <td className="px-4 py-4 align-top">
                   {a.screenshot_urls.length === 0 ? (
@@ -984,14 +972,12 @@ const STATUS_GROUP_ORDER: Status[] = ['open', 'in_progress', 'done', 'wontfix'];
 
 function ActionTableGroups({
   rows,
-  onCycle,
-  onPriority,
+  onPatch,
   onDelete,
   canDelete,
 }: {
   rows: Action[];
-  onCycle: (id: string, next: Status) => void;
-  onPriority: (id: string, p: Priority) => void;
+  onPatch: (id: string, body: Partial<Pick<Action, 'status' | 'priority' | 'title' | 'description' | 'category'>>) => void;
   onDelete: (id: string) => void;
   canDelete: (a: Action) => boolean;
 }) {
@@ -1017,8 +1003,7 @@ function ActionTableGroups({
           </div>
           <ActionTable
             rows={g.rows}
-            onCycle={onCycle}
-            onPriority={onPriority}
+            onPatch={onPatch}
             onDelete={onDelete}
             canDelete={canDelete}
           />
@@ -1050,7 +1035,6 @@ function ActionSpreadsheet({
       <table className="w-full text-[12.5px]">
         <thead className="bg-warm-bg/60 text-[10px] uppercase tracking-wider text-foreground/55">
           <tr>
-            <th className="text-center px-2 py-1.5 font-semibold border-b border-black/10 w-10" aria-label="Done" />
             <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10">Title</th>
             <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10 w-28">Category</th>
             <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10 w-32">Submitted</th>
@@ -1107,13 +1091,7 @@ function SpreadsheetRow({
   }
 
   return (
-    <tr className={`${striped ? 'bg-warm-bg/30' : 'bg-white'} ${completed ? 'opacity-65' : ''}`}>
-      <td className="px-2 py-1 align-middle">
-        <DoneCheck
-          done={a.status === 'done'}
-          onToggle={() => onPatch({ status: a.status === 'done' ? 'open' : 'done' })}
-        />
-      </td>
+    <tr className={`${striped ? 'bg-emerald-50/30' : 'bg-emerald-50/60'} hover:bg-emerald-50/80 transition-colors`}>
       <td className="px-2 py-1 align-top">
         <input
           value={title}
@@ -1126,9 +1104,7 @@ function SpreadsheetRow({
             }
             if (e.key === 'Escape') setTitle(a.title);
           }}
-          className={`w-full bg-transparent px-1 py-0.5 rounded text-[12.5px] focus:outline-none focus:bg-white focus:ring-1 focus:ring-orange-300/60 ${
-            completed ? 'line-through decoration-foreground/40 text-foreground/55' : 'text-foreground'
-          }`}
+          className="w-full bg-transparent px-1 py-0.5 rounded text-[12.5px] focus:outline-none focus:bg-white focus:ring-1 focus:ring-orange-300/60 text-foreground"
         />
       </td>
       <td className="px-2 py-1 align-top">
@@ -1413,37 +1389,86 @@ function FilterChip({
 }
 
 /**
- * Glowing-green-check toggle that lives in column A. When the action
- * is `done`, renders a filled, softly-pulsing emerald check; when not
- * done, renders an empty hollow circle. Click toggles between the
- * two — the parent flips status open ↔ done. Keeps the action mark-
- * complete affordance visible without a separate "Status" column.
+ * Inline-editable action title. Shows as plain text by default; click
+ * (when canEdit) flips it into a textarea that auto-grows with the
+ * content. Commits on blur or Cmd/Ctrl+Enter; Escape cancels and
+ * reverts. Non-owners (canEdit=false) see read-only text.
  */
-function DoneCheck({ done, onToggle }: { done: boolean; onToggle: () => void }) {
+function EditableTitle({
+  value,
+  canEdit,
+  onCommit,
+}: {
+  value: string;
+  canEdit: boolean;
+  onCommit: (next: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+
+  // Re-sync when the parent re-renders the row with a new server copy.
+  useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [value, editing]);
+
+  // Auto-size the textarea to fit its content while editing.
+  useEffect(() => {
+    if (!editing || !ref.current) return;
+    ref.current.style.height = 'auto';
+    ref.current.style.height = `${ref.current.scrollHeight}px`;
+    ref.current.focus();
+    ref.current.select();
+  }, [editing]);
+
+  function commit() {
+    const next = draft.trim();
+    setEditing(false);
+    if (!next) {
+      setDraft(value);
+      return;
+    }
+    if (next === value) return;
+    onCommit(next);
+  }
+
+  if (!canEdit || !editing) {
+    return (
+      <p
+        className={`font-medium text-foreground line-clamp-3 max-w-[520px] text-[14px] leading-relaxed whitespace-pre-wrap ${
+          canEdit ? 'cursor-text hover:bg-white/60 rounded px-1 -mx-1' : ''
+        }`}
+        title={canEdit ? 'Click to edit' : value}
+        onClick={canEdit ? () => setEditing(true) : undefined}
+      >
+        {value}
+      </p>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={done}
-      aria-label={done ? 'Mark as not done' : 'Mark as done'}
-      title={done ? 'Done — click to reopen' : 'Mark as done'}
-      className={`group inline-flex items-center justify-center w-6 h-6 rounded-full transition-all ${
-        done
-          ? 'bg-emerald-500 text-white'
-          : 'bg-transparent text-foreground/30 border-2 border-black/15 hover:border-emerald-400 hover:text-emerald-500'
-      }`}
-      style={
-        done
-          ? { animation: 'seo-done-glow 2.4s ease-in-out infinite' }
-          : undefined
-      }
-    >
-      {done ? (
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      ) : null}
-    </button>
+    <textarea
+      ref={ref}
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        e.currentTarget.style.height = 'auto';
+        e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setDraft(value);
+          setEditing(false);
+        } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          commit();
+        }
+      }}
+      rows={1}
+      className="block w-full max-w-[520px] resize-none rounded border border-orange-300/60 bg-white px-2 py-1 text-[14px] leading-relaxed text-foreground focus:outline-none focus:ring-2 focus:ring-orange-300/50"
+    />
   );
 }
 

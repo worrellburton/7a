@@ -8,9 +8,12 @@ import './globals.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://sevenarrowsrecoveryarizona.com'),
+  // Pages already include " | Seven Arrows Recovery" in their full
+  // title strings; template `%s` renders them as-is so we don't get
+  // 'X | Seven Arrows Recovery | Seven Arrows Recovery'.
   title: {
     default: 'Seven Arrows Recovery | Drug Rehab in Arizona',
-    template: '%s | Seven Arrows Recovery',
+    template: '%s',
   },
   description:
     'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 996-4308.',
