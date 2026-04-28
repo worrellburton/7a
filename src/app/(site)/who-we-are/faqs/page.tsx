@@ -9,7 +9,7 @@ import { allFaqs } from '@/components/faqs/faqData';
 export const metadata: Metadata = {
   title: 'FAQs | Arizona Drug & Alcohol Rehab — Seven Arrows Recovery',
   description:
-    'Answers to the most common questions about Seven Arrows Recovery: admissions, insurance (Aetna, BCBS, Cigna, UnitedHealthcare, Humana, TRICARE), detox, treatment length, family involvement, dual diagnosis, aftercare, and privacy.',
+    'Common questions about Seven Arrows Recovery — admissions, insurance, detox, treatment length, family involvement, dual diagnosis, aftercare, and privacy.',
   keywords:
     'rehab FAQ Arizona, drug rehab questions, alcohol rehab insurance, TRICARE rehab, dual diagnosis FAQ, residential treatment FAQ, medical detox FAQ, MAT rehab, family visitation rehab, HIPAA 42 CFR Part 2, JCAHO rehab, LegitScript rehab, Arizona rehab admissions',
   alternates: {

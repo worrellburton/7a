@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Does Aetna Cover Drug & Alcohol Rehab? | Seven Arrows Recovery',
   description:
-    'Yes — Seven Arrows Recovery accepts Aetna insurance for addiction treatment. Learn what Aetna covers for rehab including detox, residential, and therapy. Call (866) 996-4308 to verify benefits.',
+    'Seven Arrows Recovery accepts Aetna for addiction treatment in Arizona — detox, residential care, and therapy coverage. Call (866) 996-4308 to verify benefits.',
 };
 
 import Link from 'next/link';

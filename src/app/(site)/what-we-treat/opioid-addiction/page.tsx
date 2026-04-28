@@ -7,7 +7,7 @@ import { faqPageSchema, medicalWebPageSchema, jsonLdScript } from '@/lib/seo/pag
 export const metadata: Metadata = {
   title: 'Opioid Treatment Center in Arizona | Seven Arrows Recovery',
   description:
-    'Residential opioid treatment center in Arizona at Seven Arrows Recovery — MAT coordination, medical detox, and trauma-informed care on a Cochise County ranch. Call (866) 996-4308.',
+    'Residential opioid treatment in Arizona — MAT coordination, medical detox, and trauma-informed care on a Cochise County ranch. Call (866) 996-4308.',
 };
 
 const faqJsonLd = faqPageSchema([

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Holistic & Indigenous Practice | Seven Arrows Recovery',
   description:
-    'Yoga, breathwork, sound, art, music, sweat lodge, talking circle, and land-based ceremony — held by credentialed practitioners alongside our clinical program. Where modern practice meets ancient wisdom.',
+    'Yoga, breathwork, sound, art, sweat lodge, and land-based ceremony — held by credentialed practitioners alongside clinical care at Seven Arrows, Arizona.',
 };
 
 import PageHero from '@/components/PageHero';

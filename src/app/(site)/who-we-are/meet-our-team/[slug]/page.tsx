@@ -8,6 +8,7 @@ import {
   type PublicTeamMember,
 } from '@/lib/team';
 import { formatNameWithCredentials } from '@/lib/displayName';
+import { TEAM_META_DESCRIPTIONS } from '@/lib/seo/teamMetaDescriptions';
 
 interface Params {
   params: Promise<{ slug: string }>;
@@ -41,6 +42,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   return {
     title: `${member.full_name} · ${titlePiece}`,
     description:
+      TEAM_META_DESCRIPTIONS[slug] ||
       (member.bio || '').slice(0, 180) ||
       `Meet ${member.full_name}${member.job_title ? `, ${member.job_title},` : ''} at Seven Arrows Recovery.`,
   };

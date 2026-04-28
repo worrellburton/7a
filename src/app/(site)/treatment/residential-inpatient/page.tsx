@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Residential Inpatient Treatment | Seven Arrows Recovery',
   description:
-    'Our 30-to-90-day residential inpatient program offers 24/7 support, a low client-to-staff ratio, 1:1 primary-clinician attention, and a structured daily schedule in a small group setting at Seven Arrows Recovery.',
+    '30-to-90-day residential inpatient rehab in Arizona — 24/7 support, low staff ratio, 1:1 primary clinician care, and structured days at Seven Arrows.',
 };
 
 import PageHero from '@/components/PageHero';

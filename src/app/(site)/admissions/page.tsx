@@ -16,7 +16,7 @@ import { admissionsFaqs } from '@/components/admissions/admissionsFaqs';
 export const metadata: Metadata = {
   title: 'Admissions | Arizona Drug & Alcohol Rehab — Seven Arrows Recovery',
   description:
-    'Start residential addiction treatment at Seven Arrows Recovery. Free 24/7 insurance verification (Aetna, BCBS, Cigna, UnitedHealthcare, Humana, TRICARE), phone assessment, travel coordination. Most clients arrive within 24–48 hours. Call (866) 996-4308.',
+    'Start residential addiction treatment in Arizona — free 24/7 insurance verification, phone assessment, and travel coordination. Most arrive in 24-48 hours.',
   keywords:
     'rehab admissions Arizona, drug rehab insurance verification, fast rehab admission, 24-hour rehab admissions, residential treatment Arizona, TRICARE rehab admission, what to bring to rehab, airport pickup rehab Arizona, sober transport, intervention support',
   alternates: {

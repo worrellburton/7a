@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Drug Rehab in Phoenix AZ | Addiction Treatment Phoenix | Seven Arrows Recovery',
   description:
-    'Looking for drug rehab in Phoenix, AZ? Seven Arrows Recovery offers personalized addiction treatment for Phoenix residents including residential care, dual diagnosis, equine therapy, and coordinated detox with partnered facilities at our private Cochise County campus. Call (866) 996-4308.',
+    'Drug rehab for Phoenix, AZ residents at Seven Arrows Recovery — residential care, dual diagnosis, equine therapy, and coordinated detox. Call (866) 996-4308.',
 };
 
 import PageHero from '@/components/PageHero';
