@@ -352,14 +352,17 @@ export default function HomeContent() {
         </div>
       )}
 
-      {/* Centered welcome */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 py-4 lg:py-5">
-        <div className="flex flex-col items-center gap-3">
+      {/* Inline welcome strip — small avatar + greeting on a single
+          line, replacing the previous full-width centered hero that
+          consumed ~180 px of vertical real estate. The avatar stays
+          a click target for changing the profile picture. */}
+      <div className="flex flex-col items-center justify-center gap-2 px-4 sm:px-6 lg:px-10 py-3">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => avatarInputRef.current?.click()}
             disabled={uploadingAvatar}
-            className="group relative w-20 h-20 rounded-full border-2 border-white shadow-md overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            className="group relative w-10 h-10 rounded-full border-2 border-white shadow-md overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
             aria-label="Change profile picture"
             title="Click to change your profile picture"
           >
@@ -367,20 +370,20 @@ export default function HomeContent() {
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-2xl font-bold">
+              <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold">
                 {(user.user_metadata?.full_name as string || user.email || '?').charAt(0).toUpperCase()}
               </div>
             )}
-            <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-[10px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontFamily: 'var(--font-body)' }}>
+            <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-[8px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontFamily: 'var(--font-body)' }}>
               {uploadingAvatar ? (
-                <span className="w-5 h-5 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                <span className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
               ) : (
-                'Change'
+                'Edit'
               )}
             </span>
             {uploadingAvatar && (
               <span className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                <span className="w-5 h-5 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                <span className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
               </span>
             )}
           </button>
@@ -391,7 +394,7 @@ export default function HomeContent() {
             onChange={handleAvatarUpload}
             className="hidden"
           />
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground text-center px-4">
+          <h1 className="text-base sm:text-lg font-bold text-foreground">
             Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
           </h1>
         </div>
