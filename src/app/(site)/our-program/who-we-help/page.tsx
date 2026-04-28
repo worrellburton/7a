@@ -15,7 +15,7 @@ import WhoCTA from '@/components/who-we-help/WhoCTA';
 export const metadata: Metadata = {
   title: 'Who We Help | Arizona Drug & Alcohol Rehab for Adults 18+',
   description:
-    'Seven Arrows Recovery provides residential addiction treatment for adults 18+ with alcohol, opioid, stimulant, benzodiazepine, and dual-diagnosis conditions. Serving Phoenix, Tucson, Scottsdale, Mesa, and nationwide. Call (866) 996-4308.',
+    'Residential addiction treatment for adults 18+ in Arizona — alcohol, opioids, stimulants, benzos, and dual-diagnosis care. Call (866) 996-4308.',
   keywords:
     'residential addiction treatment Arizona, drug rehab adults Arizona, alcohol rehab Arizona, opioid addiction treatment, fentanyl rehab Arizona, stimulant rehab, meth addiction treatment, benzodiazepine detox, dual diagnosis treatment Arizona, first responder rehab, veteran rehab Arizona, healthcare professional rehab, Phoenix rehab, Tucson rehab, Scottsdale rehab, Mesa rehab',
   alternates: {

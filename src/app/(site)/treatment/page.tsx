@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Treatment | Seven Arrows Recovery',
   description:
-    'Explore our comprehensive addiction treatment services including detoxification, residential inpatient care, professional interventions, and alumni aftercare programs at Seven Arrows Recovery.',
+    'Addiction treatment in Arizona — coordinated detox, residential inpatient care, professional interventions, and alumni aftercare. Call (866) 996-4308.',
 };
 
 import PageHero from "@/components/PageHero";

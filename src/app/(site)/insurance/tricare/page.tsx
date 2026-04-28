@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Does TRICARE Cover Drug & Alcohol Rehab? | Seven Arrows Recovery',
   description:
-    'Seven Arrows Recovery accepts TRICARE insurance for military addiction treatment. Learn what TRICARE covers for rehab including detox, residential, and therapy. Call (866) 996-4308.',
+    'Seven Arrows Recovery accepts TRICARE for military addiction treatment in Arizona — detox, residential care, and therapy. Call (866) 996-4308.',
 };
 
 import Link from 'next/link';

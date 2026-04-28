@@ -15,7 +15,7 @@ import { equineFaqs } from './equineFaqs';
 export const metadata: Metadata = {
   title: 'Equine-Assisted Psychotherapy (EAP) in Arizona | Seven Arrows Recovery',
   description:
-    'Equine-Assisted Psychotherapy on a 160-acre private ranch in Cochise County, Arizona. Licensed clinicians, trauma-informed framework, and a full herd — for PTSD, addiction, attachment, and complex trauma. JCAHO-accredited, HIPAA + 42 CFR Part 2 compliant.',
+    'Equine-Assisted Psychotherapy on a 160-acre ranch in Cochise County, AZ — trauma-informed, JCAHO-accredited care for PTSD, addiction, and complex trauma.',
   keywords:
     'equine assisted psychotherapy Arizona, equine therapy for addiction, horse therapy PTSD, EAP Cochise County, horse assisted therapy veterans, equine therapy Tucson, equine assisted learning rehab, trauma-informed equine therapy, residential equine therapy Arizona, Seven Arrows Recovery equine',
   alternates: {

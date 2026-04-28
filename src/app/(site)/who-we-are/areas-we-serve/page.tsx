@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Areas We Serve',
   description:
-    'Seven Arrows Recovery serves individuals and families across Arizona, including Tucson, Phoenix, Cochise County, and statewide. Located at the base of the Swisshelm Mountains.',
+    'Seven Arrows Recovery serves Arizona — Tucson, Phoenix, Scottsdale, Mesa, Cochise County, and statewide. Located at the base of the Swisshelm Mountains.',
 };
 
 import PageHero from '@/components/PageHero';

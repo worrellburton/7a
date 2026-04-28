@@ -5,7 +5,7 @@ import { prescriptionContent } from '@/lib/substances/prescription';
 export const metadata: Metadata = {
   title: 'Prescription Drug Addiction Treatment | Seven Arrows Recovery',
   description:
-    'Residential prescription drug addiction treatment in Arizona. Comprehensive medication review, class-specific tapering, and direct treatment for the condition underneath every prescription. Call (866) 996-4308.',
+    "Residential prescription drug addiction treatment in Arizona — medication review, class-specific tapering, and direct treatment for what's underneath.",
 };
 
 export default function PrescriptionAddictionPage() {

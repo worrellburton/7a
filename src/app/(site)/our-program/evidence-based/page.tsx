@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Our Clinical Approach | Seven Arrows Recovery',
   description:
-    'Seven Arrows Recovery’s clinical approach is relational first — grounded in the empowerment and resilience-based frameworks of Dr. Robert Rhoton and Dr. J. Eric Gentry, delivered through a polyvagal-informed lens.',
+    "Relational-first clinical care grounded in Rhoton and Gentry's resilience-based frameworks — delivered through a polyvagal-informed lens at Seven Arrows.",
 };
 
 import PageHero from '@/components/PageHero';

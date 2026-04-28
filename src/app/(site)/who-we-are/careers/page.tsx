@@ -14,7 +14,7 @@ import CareersCTA from '@/components/careers/CareersCTA';
 export const metadata: Metadata = {
   title: 'Careers | Arizona Addiction Treatment Jobs — Seven Arrows Recovery',
   description:
-    'Join the team at Seven Arrows Recovery. We are hiring LCSWs, LPCs, LMFTs, LISACs, RNs, BHTs, yoga teachers, and admissions counselors at our 160-acre residential ranch in Cochise County, Arizona.',
+    'Now hiring at Seven Arrows Recovery — LCSWs, LPCs, LMFTs, LISACs, RNs, BHTs, yoga teachers, and admissions counselors at our Cochise County ranch.',
   keywords:
     'Arizona rehab jobs, addiction counselor jobs Arizona, LCSW Arizona rehab, LMFT rehab, LISAC jobs, behavioral health tech jobs, RN rehab jobs Arizona, admissions counselor rehab, trauma therapist jobs, equine therapy jobs',
   alternates: {
