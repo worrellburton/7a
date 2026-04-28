@@ -232,246 +232,303 @@ export default function HomeContent() {
 
   if (!user) return null;
 
+  const firstName = (user.user_metadata?.full_name as string | undefined)?.split(' ')[0] || 'there';
+
   return (
-    <div className="flex flex-col min-h-full relative">
-      {/* New facilities request — upper right on desktop. On mobile the
-          parent shell already has a sticky top bar, so we keep this button
-          inline (top-3) and shrink the label to an icon-only pill. */}
-      <div className="absolute top-2 right-3 lg:top-3 lg:right-4 z-10 flex items-center gap-1.5">
-        <button
-          onClick={() => setFeatureRequestOpen(true)}
-          className="inline-flex items-center justify-center gap-1.5 w-8 h-8 lg:w-auto lg:h-auto lg:px-3 lg:py-1.5 rounded-full bg-primary text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-sm"
-          style={{ fontFamily: 'var(--font-body)' }}
-          title="Submit a new feature request"
-          aria-label="New feature request"
-        >
-          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
-          </svg>
-          <span className="hidden lg:inline">Feature request</span>
-        </button>
-        <button
-          onClick={() => router.push('/app/facilities?new=1')}
-          className="inline-flex items-center justify-center gap-1.5 w-8 h-8 lg:w-auto lg:h-auto lg:px-3 lg:py-1.5 rounded-full bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors shadow-sm"
-          style={{ fontFamily: 'var(--font-body)' }}
-          title="Report a new facilities issue"
-          aria-label="New facilities request"
-        >
-          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          <span className="hidden lg:inline">New facilities</span>
-        </button>
+    <div className="relative flex flex-col min-h-full overflow-hidden">
+      {/* Phase 3: ambient backdrop. Three soft warm orbs sit behind
+          everything so the glass surfaces have something colorful to
+          refract. Pointer-events off so they never trap clicks. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-32 -left-24 w-[420px] h-[420px] rounded-full bg-orange-300/35 blur-[120px]" />
+        <div className="absolute top-1/4 -right-20 w-[360px] h-[360px] rounded-full bg-rose-200/40 blur-[110px]" />
+        <div className="absolute bottom-0 left-1/3 w-[480px] h-[480px] rounded-full bg-amber-200/35 blur-[130px]" />
       </div>
 
-      {/* Online today + Horses on the team share one row on desktop —
-          stacks back to two strips on mobile. The label sits inline
-          with the avatars so the strip reads as one band rather than
-          two centered columns of text. */}
-      {recentUsers.length > 0 && (
-        <div
-          className={`px-4 sm:px-6 lg:px-10 pt-3 lg:pt-4 transition-all duration-500 ease-out ${
+      <div className="px-4 sm:px-6 lg:px-10 pt-4 lg:pt-6 pb-10 space-y-5 lg:space-y-6">
+
+        {/* Phase 4: hero band — one liquid-glass plank.
+            Identity (avatar + greeting) on the left, presence
+            (Online today + Horses) in the middle on desktop, and
+            the two action buttons on the right. The previous
+            absolute-positioned floating button cluster lived here
+            and overlapped the avatar strip on tight viewports —
+            folding it into the band fixes that. */}
+        <header
+          className={`relative rounded-3xl border border-white/70 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-2xl shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)] transition-all duration-500 ease-out ${
             loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
           }`}
         >
-          <div className="flex flex-col lg:flex-row lg:items-center lg:gap-6 gap-3">
-            <div className="flex flex-col lg:flex-row lg:items-center gap-1.5 lg:gap-3 shrink-0">
-              <p
-                className="text-[10px] font-semibold text-foreground/40 uppercase tracking-[0.18em]"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Online today
-              </p>
-          <div className="flex -space-x-2">
-            {recentUsers.map((u) => {
-              const online = isOnlineNow(u.last_seen_at || u.last_sign_in);
-              const viewing = online ? pathLabel(u.last_path) : null;
-              const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
-              const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
-              return (
-                <Wrapper
-                  key={u.id}
-                  onClick={navTarget ? () => router.push(navTarget) : undefined}
-                  className={`relative group shrink-0 ${navTarget ? 'cursor-pointer' : ''}`}
-                  title={navTarget ? `Go to ${viewing}` : undefined}
-                >
-                  {u.avatar_url ? (
-                    <img
-                      src={u.avatar_url}
-                      alt={u.full_name || ''}
-                      className={`w-9 h-9 rounded-full border-2 object-cover transition-transform hover:scale-110 hover:z-10 ${
-                        online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'border-white'
-                      }`}
-                    />
-                  ) : (
-                    <div
-                      className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-transform hover:scale-110 hover:z-10 ${
-                        online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] bg-primary text-white' : 'border-white bg-primary text-white'
-                      }`}
-                    >
-                      {(u.full_name || '?').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="hidden md:block absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left">
-                    <p className="font-semibold text-white">{u.full_name || 'User'}</p>
-                    {u.job_title && <p className="text-white/90">{u.job_title}</p>}
-                    <p className="text-white/80">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
-                    {viewing && <p className="text-emerald-300">Viewing {viewing}{navTarget ? ' — click to jump' : ''}</p>}
-                  </div>
-                </Wrapper>
-              );
-            })}
-              </div>
-            </div>
-            {/* Right: horses on the team. Takes the remaining width
-                on desktop so its avatar strip can scroll horizontally
-                without pushing the Online-today block off-screen. */}
-            <div className="flex-1 min-w-0">
-              <HomeHorsesRow />
-            </div>
-          </div>
-          {/* HomeClientsRow temporarily hidden — client info isn't
-              meant to live on the home dashboard yet. Keep the
-              import + component around so re-enabling is a
-              one-line change later. */}
-          <div className="mt-4 w-full">
-            <AtAGlance />
-          </div>
-        </div>
-      )}
-
-      {/* If there's no "Online today" row (empty state), still show
-          horses + the at-a-glance grouping. Clients row stays hidden
-          here too for now. */}
-      {recentUsers.length === 0 && (
-        <div className="px-4 sm:px-6 lg:px-10 pt-3 lg:pt-4 space-y-4">
-          <HomeHorsesRow />
-          <AtAGlance />
-        </div>
-      )}
-
-      {/* Inline welcome strip — small avatar + greeting on a single
-          line, replacing the previous full-width centered hero that
-          consumed ~180 px of vertical real estate. The avatar stays
-          a click target for changing the profile picture. */}
-      <div className="flex flex-col items-center justify-center gap-2 px-4 sm:px-6 lg:px-10 py-3">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => avatarInputRef.current?.click()}
-            disabled={uploadingAvatar}
-            className="group relative w-10 h-10 rounded-full border-2 border-white shadow-md overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            aria-label="Change profile picture"
-            title="Click to change your profile picture"
-          >
-            {avatarUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold">
-                {(user.user_metadata?.full_name as string || user.email || '?').charAt(0).toUpperCase()}
-              </div>
-            )}
-            <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-[8px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontFamily: 'var(--font-body)' }}>
-              {uploadingAvatar ? (
-                <span className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                'Edit'
-              )}
-            </span>
-            {uploadingAvatar && (
-              <span className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                <span className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
-              </span>
-            )}
-          </button>
-          <input
-            ref={avatarInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleAvatarUpload}
-            className="hidden"
+          {/* Top inner sheen — gives the glass a clean specular
+              edge without an extra wrapping element on each card. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
           />
-          <h1 className="text-base sm:text-lg font-bold text-foreground">
-            Welcome back, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}
-          </h1>
-        </div>
-        {pendingSignatures.length > 0 && (
-          <div className="w-full max-w-md mx-auto flex flex-col gap-2 px-4 sm:px-6">
-            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
-              Waiting for your signature
-            </p>
-            {pendingSignatures.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => router.push(`/app/sign/${p.id}`)}
-                className="w-full text-left bg-white rounded-2xl border border-gray-100 px-4 py-3 hover:border-primary/40 hover:shadow-sm transition-all flex items-center justify-between gap-3"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{p.title}</p>
-                  <p className="text-xs text-foreground/50">is waiting to be signed</p>
-                </div>
-                <span className="text-xs font-medium text-primary whitespace-nowrap">Sign now →</span>
-              </button>
-            ))}
-          </div>
-        )}
+          <div className="px-4 sm:px-6 py-4 lg:py-5 grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-4 lg:gap-6 items-center">
 
-        {/* My signed job description — shown right above What's new. */}
-        {latestSignedJd && (
-          <div className="w-full max-w-md mx-auto flex flex-col gap-2 px-4 sm:px-6">
-            <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
-              Your signed job description
-            </p>
-            {latestSignedJd.pdfUrl ? (
-              <a
-                href={latestSignedJd.pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-white rounded-2xl border border-gray-100 px-4 py-3 hover:border-primary/40 hover:shadow-sm transition-all flex items-center justify-between gap-3"
-                style={{ fontFamily: 'var(--font-body)' }}
-                title="Open signed PDF"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <svg className="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                    <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
-                  </svg>
-                  <span className="text-sm font-semibold text-foreground truncate">{latestSignedJd.title}</span>
-                </div>
-                <span className="uppercase tracking-wider text-[11px] font-bold text-primary/70 shrink-0">PDF</span>
-              </a>
-            ) : (
+            {/* LEFT: avatar + greeting */}
+            <div className="flex items-center gap-3 lg:gap-4 min-w-0">
               <button
-                onClick={() => router.push(`/app/job-descriptions/${latestSignedJd.id}`)}
-                className="w-full text-left bg-white rounded-2xl border border-gray-100 px-4 py-3 hover:border-primary/40 hover:shadow-sm transition-all flex items-center justify-between gap-3"
-                style={{ fontFamily: 'var(--font-body)' }}
-                title="Open my signed job description"
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="group relative shrink-0 w-12 h-12 lg:w-14 lg:h-14 rounded-full border-2 border-white shadow-md overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                aria-label="Change profile picture"
+                title="Click to change your profile picture"
               >
-                <span className="text-sm font-semibold text-foreground truncate">{latestSignedJd.title}</span>
-                <span className="text-xs font-medium text-primary whitespace-nowrap">Open →</span>
+                {avatarUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-base font-bold">
+                    {(user.user_metadata?.full_name as string || user.email || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white text-[8px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontFamily: 'var(--font-body)' }}>
+                  {uploadingAvatar ? (
+                    <span className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    'Edit'
+                  )}
+                </span>
+                {uploadingAvatar && (
+                  <span className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                    <span className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                  </span>
+                )}
               </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+              <div className="min-w-0">
+                <p
+                  className="text-[10px] font-semibold text-foreground/45 uppercase tracking-[0.22em]"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Welcome back
+                </p>
+                <h1 className="text-xl lg:text-2xl font-bold text-foreground leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                  {firstName}
+                </h1>
+              </div>
+            </div>
+
+            {/* MIDDLE: presence — Online today + Horses on the team. */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 min-w-0">
+              {recentUsers.length > 0 && (
+                <div className="flex items-center gap-2 min-w-0">
+                  <p
+                    className="text-[10px] font-semibold text-foreground/45 uppercase tracking-[0.18em] shrink-0"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Online today
+                  </p>
+                  <div className="flex -space-x-2">
+                    {recentUsers.map((u) => {
+                      const online = isOnlineNow(u.last_seen_at || u.last_sign_in);
+                      const viewing = online ? pathLabel(u.last_path) : null;
+                      const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
+                      const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
+                      return (
+                        <Wrapper
+                          key={u.id}
+                          onClick={navTarget ? () => router.push(navTarget) : undefined}
+                          className={`relative group shrink-0 ${navTarget ? 'cursor-pointer' : ''}`}
+                          title={navTarget ? `Go to ${viewing}` : undefined}
+                        >
+                          {u.avatar_url ? (
+                            <img
+                              src={u.avatar_url}
+                              alt={u.full_name || ''}
+                              className={`w-9 h-9 rounded-full border-2 object-cover transition-transform hover:scale-110 hover:z-10 ${
+                                online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'border-white'
+                              }`}
+                            />
+                          ) : (
+                            <div
+                              className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-transform hover:scale-110 hover:z-10 ${
+                                online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] bg-primary text-white' : 'border-white bg-primary text-white'
+                              }`}
+                            >
+                              {(u.full_name || '?').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="hidden md:block absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left">
+                            <p className="font-semibold text-white">{u.full_name || 'User'}</p>
+                            {u.job_title && <p className="text-white/90">{u.job_title}</p>}
+                            <p className="text-white/80">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
+                            {viewing && <p className="text-emerald-300">Viewing {viewing}{navTarget ? ' — click to jump' : ''}</p>}
+                          </div>
+                        </Wrapper>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <HomeHorsesRow />
+              </div>
+            </div>
+
+            {/* RIGHT: action buttons. Used to live as absolute-positioned
+                pills in the corner — overlapped the avatar strip and
+                the page padding box on small viewports. Inline now. */}
+            <div className="flex items-center gap-1.5 justify-end shrink-0">
+              <button
+                onClick={() => setFeatureRequestOpen(true)}
+                className="inline-flex items-center justify-center gap-1.5 w-9 h-9 lg:w-auto lg:h-auto lg:px-3 lg:py-1.5 rounded-full bg-primary text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-sm"
+                style={{ fontFamily: 'var(--font-body)' }}
+                title="Submit a new feature request"
+                aria-label="New feature request"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+                </svg>
+                <span className="hidden lg:inline">Feature request</span>
+              </button>
+              <button
+                onClick={() => router.push('/app/facilities?new=1')}
+                className="inline-flex items-center justify-center gap-1.5 w-9 h-9 lg:w-auto lg:h-auto lg:px-3 lg:py-1.5 rounded-full bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors shadow-sm"
+                style={{ fontFamily: 'var(--font-body)' }}
+                title="Report a new facilities issue"
+                aria-label="New facilities request"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span className="hidden lg:inline">New facilities</span>
+              </button>
+            </div>
+
+          </div>
+        </header>
+
+        {/* Phase 5: at-a-glance pulse — already a glass panel, lifted
+            with a deeper shadow + sheen so it reads as the primary
+            content area below the hero. */}
+        <AtAGlance />
+
+        {/* Phase 6: action stack — pending signatures + signed JD,
+            uniform glass cards. Renders only when there's something
+            to show; otherwise the space below the pulse stays clean. */}
+        {(pendingSignatures.length > 0 || latestSignedJd) && (
+          <section className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-3">
+            {pendingSignatures.length > 0 && (
+              <div className="md:col-span-2">
+                <p
+                  className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2 px-1"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Waiting for your signature
+                </p>
+                <div className="grid grid-cols-1 gap-2">
+                  {pendingSignatures.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => router.push(`/app/sign/${p.id}`)}
+                      className="relative w-full text-left rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl px-4 py-3 hover:border-primary/45 hover:shadow-md transition-all flex items-center justify-between gap-3 shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)]"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{p.title}</p>
+                        <p className="text-xs text-foreground/55">is waiting to be signed</p>
+                      </div>
+                      <span className="text-xs font-semibold text-primary whitespace-nowrap">Sign now →</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
-          </div>
+
+            {latestSignedJd && (
+              <div className={pendingSignatures.length === 0 ? 'md:col-span-2' : 'md:col-span-2'}>
+                <p
+                  className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2 px-1"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Your signed job description
+                </p>
+                {latestSignedJd.pdfUrl ? (
+                  <a
+                    href={latestSignedJd.pdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="relative block rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl px-4 py-3 hover:border-primary/45 hover:shadow-md transition-all shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)]"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                    title="Open signed PDF"
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
+                    />
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <svg className="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                          <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+                        </svg>
+                        <span className="text-sm font-semibold text-foreground truncate">{latestSignedJd.title}</span>
+                      </div>
+                      <span className="uppercase tracking-wider text-[11px] font-bold text-primary/70 shrink-0">PDF</span>
+                    </div>
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => router.push(`/app/job-descriptions/${latestSignedJd.id}`)}
+                    className="relative w-full text-left rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl px-4 py-3 hover:border-primary/45 hover:shadow-md transition-all flex items-center justify-between gap-3 shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)]"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                    title="Open my signed job description"
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
+                    />
+                    <span className="text-sm font-semibold text-foreground truncate">{latestSignedJd.title}</span>
+                    <span className="text-xs font-semibold text-primary whitespace-nowrap">Open →</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
         )}
 
-        {/* Policy Q&A — replaces the inline update log; the log now lives in
-            a floating "What's new" popup in the lower-right. */}
-        <AskPolicies />
-      </div>
+        {/* Phase 7: Ask Policies — the most-used admin action gets
+            the headline glass treatment. AskPolicies handles its own
+            internal layout; we wrap it so the surface tone matches
+            the rest of the page. */}
+        <section className="w-full max-w-xl mx-auto">
+          <div className="relative rounded-3xl border border-white/70 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-2xl shadow-[0_14px_40px_-18px_rgba(60,48,42,0.28)] p-2 sm:p-3">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
+            />
+            <AskPolicies />
+          </div>
+        </section>
 
-      {/* Work-in-progress notice — pinned to the bottom of the
-          dashboard. Compressed to a one-line tone so it doesn't
-          dominate the bottom of the viewport. */}
-      <div className="px-4 sm:px-6 lg:px-10 pb-2">
-        <p
-          className="text-[10.5px] text-amber-700/80 text-center"
-          role="status"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          Work in progress — some things might not work yet.
-        </p>
+        {/* Phase 8: footer status pill — small glass capsule so the
+            WIP notice has the same visual language as everything
+            above. */}
+        <div className="flex justify-center pt-2">
+          <p
+            className="inline-flex items-center gap-2 text-[10.5px] text-amber-700/85 rounded-full border border-white/60 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-xl px-3 py-1 shadow-sm"
+            role="status"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" aria-hidden="true" />
+            Work in progress — some things might not work yet.
+          </p>
+        </div>
+
       </div>
 
       <FeatureRequestModal open={featureRequestOpen} onClose={() => setFeatureRequestOpen(false)} />
@@ -490,15 +547,17 @@ export default function HomeContent() {
 // header stays consistent.
 function AtAGlance() {
   return (
-    <section className="w-full max-w-4xl mx-auto px-4 sm:px-6">
-      {/* Glass treatment: semi-transparent white panel + heavy
-          backdrop-blur picks up the warm-bg behind it, light inner
-          border + soft shadow. Falls back to a solid pane when the
-          browser doesn't support backdrop-filter. */}
-      <div
-        className="rounded-3xl border border-white/60 shadow-[0_8px_24px_-12px_rgba(60,48,42,0.18)] bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl"
-      >
-        <div className="px-5 sm:px-6 pt-3 pb-1.5 flex items-baseline justify-between">
+    <section className="w-full max-w-4xl mx-auto">
+      {/* Liquid-glass treatment: heavy backdrop blur, semi-transparent
+          white tint, white-haze border, soft drop shadow, and a top
+          inner sheen line that catches as a specular highlight.
+          Solid-tone fallback for browsers without backdrop-filter. */}
+      <div className="relative rounded-3xl border border-white/70 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-2xl shadow-[0_14px_40px_-18px_rgba(60,48,42,0.28)]">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
+        />
+        <div className="px-5 sm:px-6 pt-3.5 pb-2 flex items-baseline justify-between">
           <p
             className="text-[11px] font-bold tracking-[0.22em] uppercase text-foreground/55"
             style={{ fontFamily: 'var(--font-body)' }}
@@ -509,14 +568,14 @@ function AtAGlance() {
             Today / week / month
           </p>
         </div>
-        <div className="divide-y divide-gray-100">
-          <div className="py-2 -mx-4 sm:-mx-6">
+        <div className="divide-y divide-white/40">
+          <div className="py-2.5">
             <HomeMeaningfulCallsRow />
           </div>
-          <div className="py-2 -mx-4 sm:-mx-6">
+          <div className="py-2.5">
             <HomeWebsiteVisitsRow />
           </div>
-          <div className="py-2 -mx-4 sm:-mx-6">
+          <div className="py-2.5">
             <HomeWebsiteRequestsRow />
           </div>
         </div>
