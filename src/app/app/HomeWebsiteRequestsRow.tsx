@@ -58,7 +58,7 @@ export default function HomeWebsiteRequestsRow() {
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 sm:px-6">
-      <div className="flex items-baseline justify-between mb-2">
+      <div className="flex items-baseline justify-between mb-0.5">
         <p
           className="text-xs font-semibold text-foreground/40 uppercase tracking-wider"
           style={{ fontFamily: 'var(--font-body)' }}
@@ -124,12 +124,12 @@ function UnrespondedCard({
     <button
       type="button"
       onClick={onClick}
-      className="text-center px-4 py-3 rounded-xl hover:bg-warm-bg/50 transition-colors"
+      className="text-center px-3 py-1.5 rounded-xl hover:bg-warm-bg/50 transition-colors"
       style={{ fontFamily: 'var(--font-body)' }}
     >
       <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider">{label}</p>
       <div className="mt-1 flex items-baseline justify-center gap-2">
-        <span className={`text-3xl font-bold tabular-nums ${empty ? 'text-foreground/30' : numColor}`}>
+        <span className={`text-2xl font-bold tabular-nums ${empty ? 'text-foreground/30' : numColor}`}>
           {loading ? '—' : (animated ?? 0).toLocaleString()}
         </span>
         {!loading && (
