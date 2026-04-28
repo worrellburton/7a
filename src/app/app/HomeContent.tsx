@@ -463,21 +463,17 @@ export default function HomeContent() {
         <AskPolicies />
       </div>
 
-      {/* Work-in-progress notice — pinned to the bottom of the dashboard. */}
-      <div className="px-4 sm:px-6 lg:px-10 pb-6">
-        <div
-          className="mx-auto max-w-2xl rounded-xl border border-amber-200/70 bg-amber-50/70 px-4 py-2.5 flex items-center justify-center gap-2.5 text-amber-900 shadow-sm"
+      {/* Work-in-progress notice — pinned to the bottom of the
+          dashboard. Compressed to a one-line tone so it doesn't
+          dominate the bottom of the viewport. */}
+      <div className="px-4 sm:px-6 lg:px-10 pb-2">
+        <p
+          className="text-[10.5px] text-amber-700/80 text-center"
           role="status"
+          style={{ fontFamily: 'var(--font-body)' }}
         >
-          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 9v4" />
-            <path d="M12 17h.01" />
-            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          </svg>
-          <p className="text-xs sm:text-sm text-center" style={{ fontFamily: 'var(--font-body)' }}>
-            This is a work in progress and is constantly being updated — some things might not work yet.
-          </p>
-        </div>
+          Work in progress — some things might not work yet.
+        </p>
       </div>
 
       <FeatureRequestModal open={featureRequestOpen} onClose={() => setFeatureRequestOpen(false)} />
