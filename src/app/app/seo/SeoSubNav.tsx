@@ -27,6 +27,7 @@ const TABS: Tab[] = [
   { href: '/app/seo/backlinks', label: 'Backlinks', hint: 'Semrush link profile' },
   { href: '/app/seo/refdomains', label: 'Ref. domains', hint: 'Authority Score histogram' },
   { href: '/app/seo/directories', label: 'Directories', hint: 'Off-site listings to claim' },
+  { href: '/app/seo/local', label: 'Local pack', hint: 'Map-pack rank across markets' },
   { href: '/app/seo/media', label: 'Media', hint: 'Images + videos with optimize batch' },
   { href: '/app/seo/information', label: 'Information', hint: 'Canonical NAP / business info' },
   { href: '/app/seo/redirects', label: 'Redirects', hint: '301/302 manager' },
