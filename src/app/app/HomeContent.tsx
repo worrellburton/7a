@@ -269,7 +269,7 @@ export default function HomeContent() {
       {/* Online today — centered at the top of the dashboard. */}
       {recentUsers.length > 0 && (
         <div
-          className={`flex flex-col items-center justify-center gap-2 px-4 sm:px-6 lg:px-10 pt-6 transition-all duration-500 ease-out ${
+          className={`flex flex-col items-center justify-center gap-1.5 px-4 sm:px-6 lg:px-10 pt-3 lg:pt-4 transition-all duration-500 ease-out ${
             loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
           }`}
         >
@@ -323,10 +323,10 @@ export default function HomeContent() {
               meant to live on the home dashboard yet. Keep the
               import + component around so re-enabling is a
               one-line change later. */}
-          <div className="mt-6 w-full">
+          <div className="mt-3 w-full">
             <HomeHorsesRow />
           </div>
-          <div className="mt-8 w-full">
+          <div className="mt-4 w-full">
             <AtAGlance />
           </div>
         </div>
@@ -336,14 +336,14 @@ export default function HomeContent() {
           horses + the at-a-glance grouping. Clients row stays hidden
           here too for now. */}
       {recentUsers.length === 0 && (
-        <div className="px-4 sm:px-6 lg:px-10 pt-6 space-y-8">
+        <div className="px-4 sm:px-6 lg:px-10 pt-3 lg:pt-4 space-y-4">
           <HomeHorsesRow />
           <AtAGlance />
         </div>
       )}
 
       {/* Centered welcome */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 py-10">
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 py-4 lg:py-5">
         <div className="flex flex-col items-center gap-3">
           <button
             type="button"
