@@ -469,61 +469,76 @@ export default function ActionsContent() {
           className="block w-full rounded-lg border border-black/10 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300/50 resize-y"
         />
 
-        {/* Screenshot strip — thumbs of already-uploaded files plus
-            a visible "attach" button. Drag-and-drop + paste handlers
-            land in the next phase; this is the click-to-pick path. */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {pendingShots.map((url) => (
-            <div key={url} className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={url}
-                alt="attached screenshot"
-                className="w-14 h-14 object-cover rounded-md border border-black/10"
-              />
-              <button
-                type="button"
-                onClick={() => removePendingShot(url)}
-                title="Remove this screenshot"
-                aria-label="Remove screenshot"
-                className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-foreground text-white text-[10px] hover:bg-rose-600"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          <label
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-dashed border-orange-300 text-[11px] font-semibold transition-colors cursor-pointer ${
-              uploadingShot
-                ? 'text-orange-400 cursor-wait'
-                : 'text-orange-700 hover:bg-orange-50'
-            }`}
-          >
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            {uploadingShot ? 'Uploading…' : 'Attach screenshot'}
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              hidden
-              onChange={(e) => {
-                void handleFiles(e.target.files);
-                // Reset so picking the same file twice still triggers
-                // the change handler.
-                e.target.value = '';
-              }}
-            />
-          </label>
-          {pendingShots.length > 0 && (
+        {/* Screenshot drop zone — a visible, click-or-drag-or-paste
+            target so the affordance reads even when nothing is being
+            dragged. The form-level drag handlers higher up still
+            catch drops anywhere on the form, but most users hover
+            over the drop zone first because it's where the icon
+            says "drop". The label wraps the whole panel so click
+            anywhere opens the file picker. */}
+        <label
+          className={`mt-3 flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-5 text-[12px] cursor-pointer transition-colors ${
+            uploadingShot
+              ? 'border-orange-300 bg-orange-50/40 text-orange-500 cursor-wait'
+              : 'border-orange-300/70 bg-orange-50/30 text-orange-700 hover:bg-orange-50 hover:border-orange-400'
+          }`}
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          <span className="font-semibold">
+            {uploadingShot
+              ? 'Uploading…'
+              : 'Drop screenshots here, paste, or click to attach'}
+          </span>
+          <span className="text-[10.5px] text-orange-700/70">
+            PNG / JPG · up to 12 files · 10 MB each
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              void handleFiles(e.target.files);
+              // Reset so picking the same file twice still triggers
+              // the change handler.
+              e.target.value = '';
+            }}
+          />
+        </label>
+
+        {/* Thumbs of files already queued for this submit, with × to
+            remove individual attachments before the user clicks
+            Submit. Renders only when there's at least one. */}
+        {pendingShots.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {pendingShots.map((url) => (
+              <div key={url} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt="attached screenshot"
+                  className="w-14 h-14 object-cover rounded-md border border-black/10"
+                />
+                <button
+                  type="button"
+                  onClick={() => removePendingShot(url)}
+                  title="Remove this screenshot"
+                  aria-label="Remove screenshot"
+                  className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-foreground text-white text-[10px] hover:bg-rose-600"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
             <span className="text-[10px] text-foreground/45">
               {pendingShots.length} attached · max 12
             </span>
-          )}
-        </div>
+          </div>
+        )}
         {shotError ? (
           <p className="text-[11px] text-rose-700 mt-1">{shotError}</p>
         ) : null}
@@ -596,7 +611,11 @@ export default function ActionsContent() {
           </p>
         </div>
       ) : view === 'table' ? (
-        <ActionTable
+        // Grouped tables — one ActionTable per non-empty status,
+        // with a section header for each. Lets the team scan
+        // Open / In progress / Done as separate panels rather than
+        // one mixed list.
+        <ActionTableGroups
           rows={visible}
           onCycle={(id, next) => patchAction(id, { status: next })}
           onPriority={(id, p) => patchAction(id, { priority: p })}
@@ -611,18 +630,17 @@ export default function ActionsContent() {
           canDelete={canModify}
         />
       ) : (
-        <ul className="space-y-2">
-          {visible.map((a) => (
-            <ActionCard
-              key={a.id}
-              a={a}
-              onCycle={() => patchAction(a.id, { status: STATUS_CYCLE[a.status] })}
-              onPriority={(p) => patchAction(a.id, { priority: p })}
-              onDelete={() => deleteAction(a.id)}
-              canDelete={canModify(a)}
-            />
-          ))}
-        </ul>
+        // List view — a single compact spreadsheet-style table with
+        // every row in time order, identical shape to the Table mode
+        // but ungrouped. The card-based render previously here was
+        // verbose; this keeps the same data dense + scannable.
+        <ActionTable
+          rows={visible}
+          onCycle={(id, next) => patchAction(id, { status: next })}
+          onPriority={(id, p) => patchAction(id, { priority: p })}
+          onDelete={(id) => deleteAction(id)}
+          canDelete={canModify}
+        />
       )}
     </div>
   );
@@ -763,6 +781,60 @@ function ActionTable({
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/**
+ * Grouped table view — same compact-row shape as ActionTable, but
+ * one separate table per status with a small section header above
+ * each. Empty groups are dropped entirely so the page doesn't show
+ * empty "Done · 0" panels.
+ */
+const STATUS_GROUP_ORDER: Status[] = ['open', 'in_progress', 'done', 'wontfix'];
+
+function ActionTableGroups({
+  rows,
+  onCycle,
+  onPriority,
+  onDelete,
+  canDelete,
+}: {
+  rows: Action[];
+  onCycle: (id: string, next: Status) => void;
+  onPriority: (id: string, p: Priority) => void;
+  onDelete: (id: string) => void;
+  canDelete: (a: Action) => boolean;
+}) {
+  const groups = STATUS_GROUP_ORDER
+    .map((s) => ({ status: s, rows: rows.filter((r) => r.status === s) }))
+    .filter((g) => g.rows.length > 0);
+  if (groups.length === 0) {
+    return (
+      <div className="rounded-2xl border border-black/5 bg-warm-bg/40 p-10 text-center">
+        <p className="text-sm text-foreground/60">No actions match the current filter.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-6">
+      {groups.map((g) => (
+        <section key={g.status}>
+          <div className="flex items-baseline gap-2 mb-2">
+            <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-foreground/55">
+              {STATUS_LABELS[g.status]}
+            </h3>
+            <span className="text-[11px] text-foreground/40 tabular-nums">· {g.rows.length}</span>
+          </div>
+          <ActionTable
+            rows={g.rows}
+            onCycle={onCycle}
+            onPriority={onPriority}
+            onDelete={onDelete}
+            canDelete={canDelete}
+          />
+        </section>
+      ))}
     </div>
   );
 }
