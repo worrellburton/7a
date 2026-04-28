@@ -199,6 +199,11 @@ export default function ActionsContent() {
   // Filter + search
   const [filter, setFilter] = useState<'active' | 'all' | Status>('active');
   const [query, setQuery] = useState('');
+  // View mode — three densities for the same action list:
+  //   list        — current expanded cards (avatar, screenshots, full message)
+  //   table       — compact rows: title, category icon, priority, status, who, when
+  //   spreadsheet — dense edit-in-place rows (zebra-striped, no padding)
+  const [view, setView] = useState<'list' | 'table' | 'spreadsheet'>('list');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -551,7 +556,7 @@ export default function ActionsContent() {
         </div>
       ) : null}
 
-      {/* Filter + search */}
+      {/* Filter + search + view mode */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <FilterChip active={filter === 'active'} onClick={() => setFilter('active')} label="Active" count={counts.active} />
         <FilterChip active={filter === 'open'} onClick={() => setFilter('open')} label="Open" count={counts.open} />
@@ -566,6 +571,7 @@ export default function ActionsContent() {
           placeholder="Search actions…"
           className="ml-auto text-sm rounded-md border border-black/10 bg-white px-3 py-1.5 w-64 max-w-full"
         />
+        <ViewModeToggle value={view} onChange={setView} />
       </div>
 
       {loading ? (
@@ -578,6 +584,13 @@ export default function ActionsContent() {
               : 'No actions match the current filter.'}
           </p>
         </div>
+      ) : view === 'table' ? (
+        <ActionTable
+          rows={visible}
+          onCycle={(id, next) => patchAction(id, { status: next })}
+          onPriority={(id, p) => patchAction(id, { priority: p })}
+          onDelete={(id) => deleteAction(id)}
+        />
       ) : (
         <ul className="space-y-2">
           {visible.map((a) => (
@@ -591,6 +604,141 @@ export default function ActionsContent() {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/**
+ * Compact table render for the action list. Title truncates, every
+ * other column stays narrow + tabular-nums where possible. Click a
+ * row to open the source action card (TODO when modal lands); for
+ * now the priority + status cells remain interactive in place. The
+ * delete button shows as a trash icon at the end of the row.
+ */
+function ActionTable({
+  rows,
+  onCycle,
+  onPriority,
+  onDelete,
+}: {
+  rows: Action[];
+  onCycle: (id: string, next: Status) => void;
+  onPriority: (id: string, p: Priority) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="overflow-hidden border border-black/10 rounded-xl bg-white">
+      <table className="w-full text-sm">
+        <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
+          <tr>
+            <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10">Title</th>
+            <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-32">Category</th>
+            <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-24">Priority</th>
+            <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
+            <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-44">Submitted</th>
+            <th className="text-right px-3 py-2.5 font-semibold border-b border-black/10 w-12" aria-label="Actions" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-black/5">
+          {rows.map((a) => {
+            const cat = a.category ? CATEGORY_BY_VALUE[a.category] : null;
+            const completed = a.status === 'done' || a.status === 'wontfix';
+            return (
+              <tr key={a.id} className={completed ? 'opacity-65' : ''}>
+                <td className="px-3 py-2.5 align-top">
+                  <p
+                    className={`font-medium text-foreground line-clamp-2 max-w-[480px] ${
+                      completed ? 'line-through decoration-foreground/40' : ''
+                    }`}
+                    title={a.title}
+                  >
+                    {a.title}
+                  </p>
+                  {a.screenshot_urls.length > 0 ? (
+                    <p className="text-[10px] text-foreground/45 mt-0.5">
+                      {a.screenshot_urls.length} screenshot
+                      {a.screenshot_urls.length === 1 ? '' : 's'}
+                    </p>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2.5 align-top">
+                  {cat ? (
+                    <span
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border ${cat.tone}`}
+                      title={cat.description}
+                    >
+                      <span className="w-3 h-3 shrink-0">{cat.icon}</span>
+                      {cat.label}
+                    </span>
+                  ) : a.category ? (
+                    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider bg-warm-bg/70 text-foreground/55 border border-black/5">
+                      {a.category}
+                    </span>
+                  ) : (
+                    <span className="text-foreground/35 text-[12px]">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-2.5 align-top">
+                  <select
+                    value={a.priority}
+                    onChange={(e) => onPriority(a.id, e.target.value as Priority)}
+                    className="text-[11px] rounded-md border border-black/10 bg-white px-1.5 py-1 text-foreground/70"
+                    aria-label="Change priority"
+                  >
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </td>
+                <td className="px-3 py-2.5 align-top">
+                  <button
+                    type="button"
+                    onClick={() => onCycle(a.id, STATUS_CYCLE[a.status])}
+                    className={`inline-flex items-center px-2 py-1 rounded-md border text-[11px] font-semibold transition-colors ${STATUS_TONE[a.status]}`}
+                    title="Cycle status"
+                  >
+                    {STATUS_LABELS[a.status]}
+                  </button>
+                </td>
+                <td className="px-3 py-2.5 align-top">
+                  <div className="flex items-center gap-2">
+                    <Avatar
+                      name={a.submitted_by_name}
+                      src={a.submitted_by_avatar_url}
+                      tooltip={
+                        a.submitted_by_name
+                          ? `${a.submitted_by_name} · ${new Date(a.created_at).toLocaleString()}`
+                          : new Date(a.created_at).toLocaleString()
+                      }
+                    />
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-medium text-foreground/80 truncate">
+                        {a.submitted_by_name ?? '—'}
+                      </p>
+                      <p className="text-[10px] text-foreground/45 truncate">
+                        {new Date(a.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-3 py-2.5 align-top text-right">
+                  <button
+                    type="button"
+                    onClick={() => onDelete(a.id)}
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-red-600 hover:bg-red-50"
+                    aria-label="Delete action"
+                    title="Delete"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -710,6 +858,89 @@ function ActionCard({
         </div>
       </div>
     </li>
+  );
+}
+
+/**
+ * Three-density view toggle for the action list. Mirrors the
+ * pattern teams use in BI dashboards: roomy cards by default,
+ * compact rows for triage, ultra-dense rows for spreadsheet-style
+ * editing. State is in-memory — no persistence needed since admins
+ * pick a density per visit, not per session.
+ */
+function ViewModeToggle({
+  value,
+  onChange,
+}: {
+  value: 'list' | 'table' | 'spreadsheet';
+  onChange: (v: 'list' | 'table' | 'spreadsheet') => void;
+}) {
+  const opts: { id: 'list' | 'table' | 'spreadsheet'; label: string; icon: React.ReactNode }[] = [
+    {
+      id: 'list',
+      label: 'List',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <line x1="8" y1="6" x2="21" y2="6" />
+          <line x1="8" y1="12" x2="21" y2="12" />
+          <line x1="8" y1="18" x2="21" y2="18" />
+          <line x1="3" y1="6" x2="3.01" y2="6" />
+          <line x1="3" y1="12" x2="3.01" y2="12" />
+          <line x1="3" y1="18" x2="3.01" y2="18" />
+        </svg>
+      ),
+    },
+    {
+      id: 'table',
+      label: 'Table',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <line x1="3" y1="9" x2="21" y2="9" />
+          <line x1="3" y1="15" x2="21" y2="15" />
+          <line x1="12" y1="3" x2="12" y2="21" />
+        </svg>
+      ),
+    },
+    {
+      id: 'spreadsheet',
+      label: 'Spreadsheet',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="1" />
+          <line x1="3" y1="7" x2="21" y2="7" />
+          <line x1="3" y1="11" x2="21" y2="11" />
+          <line x1="3" y1="15" x2="21" y2="15" />
+          <line x1="3" y1="19" x2="21" y2="19" />
+          <line x1="9" y1="3" x2="9" y2="21" />
+          <line x1="15" y1="3" x2="15" y2="21" />
+        </svg>
+      ),
+    },
+  ];
+  return (
+    <div className="inline-flex rounded-md border border-black/10 bg-white p-0.5">
+      {opts.map((o) => {
+        const active = o.id === value;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => onChange(o.id)}
+            title={o.label}
+            aria-label={`${o.label} view`}
+            aria-pressed={active}
+            className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
+              active
+                ? 'bg-foreground text-white'
+                : 'text-foreground/55 hover:text-foreground hover:bg-warm-bg/60'
+            }`}
+          >
+            <span className="w-3.5 h-3.5">{o.icon}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
