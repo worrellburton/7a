@@ -501,7 +501,7 @@ function AtAGlance() {
       <div
         className="rounded-3xl border border-white/60 shadow-[0_8px_24px_-12px_rgba(60,48,42,0.18)] bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl"
       >
-        <div className="px-5 sm:px-6 pt-5 pb-2 flex items-baseline justify-between">
+        <div className="px-5 sm:px-6 pt-3 pb-1.5 flex items-baseline justify-between">
           <p
             className="text-[11px] font-bold tracking-[0.22em] uppercase text-foreground/55"
             style={{ fontFamily: 'var(--font-body)' }}
@@ -513,13 +513,13 @@ function AtAGlance() {
           </p>
         </div>
         <div className="divide-y divide-gray-100">
-          <div className="py-4 -mx-4 sm:-mx-6">
+          <div className="py-2 -mx-4 sm:-mx-6">
             <HomeMeaningfulCallsRow />
           </div>
-          <div className="py-4 -mx-4 sm:-mx-6">
+          <div className="py-2 -mx-4 sm:-mx-6">
             <HomeWebsiteVisitsRow />
           </div>
-          <div className="py-4 -mx-4 sm:-mx-6">
+          <div className="py-2 -mx-4 sm:-mx-6">
             <HomeWebsiteRequestsRow />
           </div>
         </div>
