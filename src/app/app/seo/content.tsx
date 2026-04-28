@@ -341,6 +341,8 @@ export default function SeoContent() {
       <SeoRangePicker days={days} onChange={setDays} />
       <SeoSubNav />
 
+      <SourceCommandCenter />
+
       {error ? (
         <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           <strong>Couldn&apos;t load Search Console:</strong> {error}
@@ -1323,5 +1325,86 @@ function Empty({ loading }: { loading: boolean }) {
     <div className="rounded-lg border border-dashed border-black/10 bg-warm-bg/40 p-4 text-xs text-foreground/50">
       {loading ? 'Loading…' : 'No data in this range.'}
     </div>
+  );
+}
+
+// ── Source command center ────────────────────────────────────────
+//
+// Pulls from /api/seo/source-health to render four "source" cards
+// at the top of the Overview, each showing the latest write into
+// its persisted table + a one-click jump to the full page. Lets
+// admins scan "what's stale" before they pick a tab.
+
+interface SourceHealthShape {
+  serpapi: { configured: boolean; usage: { count: number; cap: number; remaining: number } };
+  freshness: Array<{ table: string; label: string; latest_at: string | null; count_30d: number }>;
+}
+
+function SourceCommandCenter() {
+  const [data, setData] = useState<SourceHealthShape | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/seo/source-health', { cache: 'no-store' })
+      .then(async (r) => (r.ok ? ((await r.json()) as SourceHealthShape) : null))
+      .then((j) => { if (!cancelled && j) setData(j); })
+      .catch(() => { /* non-fatal */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const byTable = new Map((data?.freshness ?? []).map((f) => [f.table, f] as const));
+  const cards: { href: string; label: string; tableKey: string; emoji: string }[] = [
+    { href: '/app/seo', label: 'Keyword ranks', tableKey: 'seo_keyword_ranks', emoji: '◷' },
+    { href: '/app/seo/local', label: 'Local pack', tableKey: 'seo_local_ranks', emoji: '◉' },
+    { href: '/app/seo/questions', label: 'PAA questions', tableKey: 'seo_paa_questions', emoji: '?' },
+    { href: '/app/seo/competitors', label: 'Competitors', tableKey: 'seo_competitor_serps', emoji: '⌘' },
+  ];
+
+  return (
+    <section className="mb-6">
+      <div className="flex items-baseline justify-between mb-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/45">
+          Source command center
+        </p>
+        {data?.serpapi.configured ? (
+          <p className="text-[11px] text-foreground/45 tabular-nums">
+            SerpAPI {data.serpapi.usage.count} / {data.serpapi.usage.cap} today
+          </p>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {cards.map((c) => {
+          const f = byTable.get(c.tableKey);
+          const fresh = f?.latest_at ? Date.now() - new Date(f.latest_at).getTime() : null;
+          const isStale = fresh != null && fresh > 14 * 24 * 60 * 60 * 1000;
+          const tone = !f?.latest_at
+            ? 'border-rose-200 bg-rose-50/40'
+            : isStale
+              ? 'border-amber-200 bg-amber-50/40'
+              : 'border-emerald-200 bg-emerald-50/30';
+          return (
+            <Link
+              key={c.tableKey}
+              href={c.href}
+              className={`block rounded-2xl border p-4 hover:shadow-sm transition ${tone}`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[12px] text-foreground/55" aria-hidden="true">{c.emoji}</span>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/65">
+                  {c.label}
+                </p>
+              </div>
+              <p className="text-2xl font-bold tabular-nums text-foreground">
+                {f?.count_30d ?? 0}
+              </p>
+              <p className="text-[11px] text-foreground/55 mt-1">
+                {f?.latest_at
+                  ? `Last write ${new Date(f.latest_at).toLocaleDateString()}`
+                  : 'No data yet'}
+              </p>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
