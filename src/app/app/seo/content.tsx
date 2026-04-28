@@ -308,33 +308,11 @@ export default function SeoContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/app/images?autoRun=1"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-foreground text-white px-3 py-2 text-sm font-semibold hover:bg-foreground/90 transition"
-            title="Open the Images gallery and immediately run an SEO pass on every image that hasn't been optimized yet (WebP recompression, alt text, SEO title + meta description)."
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="7" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              <path d="M8 11h6M11 8v6" />
-            </svg>
-            SEO Images
-          </Link>
-          <Link
-            href="/app/video?autoRun=1"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-foreground text-white px-3 py-2 text-sm font-semibold hover:bg-foreground/90 transition"
-            title="Open the Video gallery and immediately run an SEO pass on every clip that hasn't been optimized yet (alt text, SEO title + meta description from the prompt + thumbnail)."
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="7" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              <path d="M8 11h6M11 8v6" />
-            </svg>
-            SEO Video
-          </Link>
-          {/* Date range chooser moved into its own analytics-style
-              card below — kept the SEO Images / SEO Video buttons
-              here in the header so they stay one click away. */}
+          <SyncSerpApiButton onDone={refreshHistory} />
+          {/* Image + video sync moved off the Overview header — both
+              flows now live inside the Media tab where they belong.
+              Date range chooser is in its own analytics-style card
+              below. */}
         </div>
       </div>
 
@@ -1406,5 +1384,80 @@ function SourceCommandCenter() {
         })}
       </div>
     </section>
+  );
+}
+
+// ── Sync with SerpAPI ────────────────────────────────────────────
+//
+// Single button that fans out to the four SerpAPI-backed sweeps —
+// keyword ranks, local pack, PAA mining, autocomplete discovery —
+// in parallel, then triggers the parent's history refresh so the
+// Overview's source cards + keyword sparklines update without a
+// page reload. Each per-sweep failure surfaces as a toast-style
+// caption beneath the button rather than aborting the whole batch.
+
+function SyncSerpApiButton({ onDone }: { onDone: () => void | Promise<void> }) {
+  const [running, setRunning] = useState(false);
+  const [last, setLast] = useState<{ ok: number; failed: number; at: Date } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setRunning(true);
+    setError(null);
+    const endpoints = [
+      '/api/seo/keywords/rank',
+      '/api/seo/local',
+      '/api/seo/questions',
+      '/api/seo/discover',
+    ];
+    const results = await Promise.allSettled(
+      endpoints.map((e) => fetch(e, { method: 'POST' }).then(async (r) => {
+        const body = await r.json().catch(() => null);
+        if (!r.ok) throw new Error((body?.error as string) ?? `HTTP ${r.status}`);
+        return body;
+      })),
+    );
+    let ok = 0;
+    let failed = 0;
+    const messages: string[] = [];
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') ok += 1;
+      else {
+        failed += 1;
+        messages.push(`${endpoints[i].split('/').pop()}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);
+      }
+    });
+    setLast({ ok, failed, at: new Date() });
+    if (messages.length > 0) setError(messages.join(' · '));
+    setRunning(false);
+    await onDone();
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={run}
+        disabled={running}
+        className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition ${
+          running ? 'bg-foreground/40 text-white cursor-wait' : 'bg-primary text-white hover:bg-primary-dark'
+        }`}
+        title="Run keyword ranks + local pack + PAA mining + autocomplete discovery in parallel."
+      >
+        <svg className={`w-4 h-4 ${running ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-3-6.7" />
+          <path d="M21 4v5h-5" />
+        </svg>
+        {running ? 'Syncing…' : 'Sync with SerpAPI'}
+      </button>
+      {last ? (
+        <p className="text-[10px] text-foreground/45 tabular-nums">
+          {last.ok}/{last.ok + last.failed} sweeps ok · {last.at.toLocaleTimeString()}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="text-[10px] text-rose-700 max-w-xs truncate" title={error}>{error}</p>
+      ) : null}
+    </div>
   );
 }
