@@ -794,11 +794,23 @@ export default function CallsContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ callId, call, force }),
       });
-      let data: { result?: ScoreRow; error?: string; detail?: string } = {};
+      let data: { result?: ScoreRow; error?: string; detail?: string; call_in_progress?: boolean; audio_pending?: boolean } = {};
       try { data = await res.json(); } catch { /* non-json response */ }
       if (!res.ok) {
         const msg = data.error || data.detail || `Analyze failed (${res.status})`;
         setScoringErrors((prev) => ({ ...prev, [callId]: msg }));
+        return;
+      }
+      // 202 from the score route means the call isn't ready to be
+      // analyzed yet — either it's still in progress, or the
+      // recording hasn't been transcoded by CTM. Both resolve on
+      // their own; surface a friendly message instead of an error.
+      if (data.call_in_progress) {
+        setScoringErrors((prev) => ({ ...prev, [callId]: 'Call still in progress — analysis will run once it ends.' }));
+        return;
+      }
+      if (data.audio_pending) {
+        setScoringErrors((prev) => ({ ...prev, [callId]: 'Recording not ready yet — try again in a few minutes.' }));
         return;
       }
       if (data.result) {
