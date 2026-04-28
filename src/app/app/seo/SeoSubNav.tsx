@@ -69,7 +69,7 @@ export default function SeoSubNav() {
   }, [wipOpen]);
 
   return (
-    <div className="sticky top-0 z-10 -mx-8 mb-6 bg-warm-bg/80 px-8 py-2 backdrop-blur-md border-b border-black/5">
+    <div className="sticky top-0 z-10 -mx-8 mb-6 bg-warm-bg/80 px-8 py-4 backdrop-blur-md border-b border-black/5">
       {/* Keyframes scoped to SeoSubNav so every page that imports the
           nav gets the fire-glow animation without each page having to
           register it themselves. */}
@@ -105,96 +105,105 @@ export default function SeoSubNav() {
         }
       `}</style>
 
-      <div className="overflow-x-auto no-scrollbar" ref={wrapperRef}>
-        <div className="inline-flex gap-1 items-center">
-          {PRIMARY_TABS.map((t) => {
-            const isActive = isTabActive(pathname, t.href);
+      {/* The WIP trigger sits OUTSIDE the overflow-x-auto scroller —
+          if it lived inside, the menu (absolute-positioned below the
+          row) would get clipped by the scroller's overflow context.
+          Wrapper is in `ref` so outside-clicks still close the
+          menu. */}
+      <div className="flex items-center gap-1" ref={wrapperRef}>
+        {/* py-1.5 + px-1 inside the scroller gives the fire-glow
+            box-shadow room to render in full. Without it the glow
+            clips against the scroller's overflow box on every side. */}
+        <div className="flex-1 overflow-x-auto no-scrollbar -mx-1">
+          <div className="inline-flex gap-1 items-center px-1 py-1.5">
+            {PRIMARY_TABS.map((t) => {
+              const isActive = isTabActive(pathname, t.href);
 
-            if (t.flair === 'fire') {
+              if (t.flair === 'fire') {
+                return (
+                  <Link
+                    key={t.href}
+                    href={t.href}
+                    title={t.hint}
+                    className={`seo-fire-tab inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[12px] font-semibold whitespace-nowrap text-white transition-[filter] ${
+                      isActive ? 'ring-2 ring-white/70 brightness-110' : 'hover:brightness-110'
+                    }`}
+                  >
+                    <FlameGlyph />
+                    {t.label}
+                  </Link>
+                );
+              }
+
               return (
                 <Link
                   key={t.href}
                   href={t.href}
                   title={t.hint}
-                  className={`seo-fire-tab inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-semibold whitespace-nowrap text-white transition-transform ${
-                    isActive ? 'ring-2 ring-white/60 scale-[1.02]' : 'hover:scale-[1.03]'
+                  className={`px-3.5 py-2 rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors ${
+                    isActive
+                      ? 'bg-foreground text-white shadow-sm'
+                      : 'text-foreground/60 hover:text-foreground hover:bg-white'
                   }`}
                 >
-                  <FlameGlyph />
                   {t.label}
                 </Link>
               );
-            }
-
-            return (
-              <Link
-                key={t.href}
-                href={t.href}
-                title={t.hint}
-                className={`px-3.5 py-2 rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors ${
-                  isActive
-                    ? 'bg-foreground text-white shadow-sm'
-                    : 'text-foreground/60 hover:text-foreground hover:bg-white'
-                }`}
-              >
-                {t.label}
-              </Link>
-            );
-          })}
-
-          {/* WIP dropdown — surfaces every in-progress SEO sub-page
-              without crowding the primary strip. Highlights when the
-              current path is on a WIP route so the user can tell
-              they're 'inside' the dropdown. */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setWipOpen((v) => !v)}
-              aria-haspopup="menu"
-              aria-expanded={wipOpen}
-              title="Work-in-progress SEO views"
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors ${
-                wipActive
-                  ? 'bg-foreground text-white shadow-sm'
-                  : 'text-foreground/60 hover:text-foreground hover:bg-white'
-              }`}
-            >
-              WIP
-              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-
-            {wipOpen && (
-              <div
-                role="menu"
-                className="absolute left-0 top-full mt-1 min-w-[220px] rounded-lg border border-black/10 bg-white shadow-lg py-1 z-20"
-              >
-                {WIP_TABS.map((t) => {
-                  const isActive = isTabActive(pathname, t.href);
-                  return (
-                    <Link
-                      key={t.href}
-                      href={t.href}
-                      title={t.hint}
-                      role="menuitem"
-                      onClick={() => setWipOpen(false)}
-                      className={`block px-3 py-1.5 text-[12px] font-medium ${
-                        isActive
-                          ? 'bg-foreground/5 text-foreground'
-                          : 'text-foreground/70 hover:bg-warm-bg/60 hover:text-foreground'
-                      }`}
-                    >
-                      {t.label}
-                      {t.hint ? (
-                        <span className="block text-[10px] text-foreground/40 mt-0.5">{t.hint}</span>
-                      ) : null}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
+            })}
           </div>
+        </div>
+
+        {/* WIP dropdown trigger + menu. Stays outside the scrolling
+            region so the absolute-positioned menu can hang freely
+            below it without getting clipped. */}
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setWipOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={wipOpen}
+            title="Work-in-progress SEO views"
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors ${
+              wipActive || wipOpen
+                ? 'bg-foreground text-white shadow-sm'
+                : 'text-foreground/60 hover:text-foreground hover:bg-white'
+            }`}
+          >
+            WIP
+            <svg className={`w-3 h-3 transition-transform ${wipOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+
+          {wipOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-full mt-1 min-w-[260px] rounded-lg border border-black/10 bg-white shadow-lg py-1 z-50"
+            >
+              {WIP_TABS.map((t) => {
+                const isActive = isTabActive(pathname, t.href);
+                return (
+                  <Link
+                    key={t.href}
+                    href={t.href}
+                    title={t.hint}
+                    role="menuitem"
+                    onClick={() => setWipOpen(false)}
+                    className={`block px-3 py-1.5 text-[12px] font-medium ${
+                      isActive
+                        ? 'bg-foreground/5 text-foreground'
+                        : 'text-foreground/70 hover:bg-warm-bg/60 hover:text-foreground'
+                    }`}
+                  >
+                    {t.label}
+                    {t.hint ? (
+                      <span className="block text-[10px] text-foreground/40 mt-0.5">{t.hint}</span>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
