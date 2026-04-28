@@ -141,6 +141,18 @@ export default function PagesContent() {
 
     dragPage.section = overSection;
 
+    // Drop-to-(un)group: inherit the target row's department so a drag
+    // gesture is also a grouping gesture. Drag a dept page onto an
+    // ungrouped row → page becomes ungrouped (top-level). Drag an
+    // ungrouped page onto a row inside a dept → page joins that dept.
+    // Drop on empty section space (__end__) treats it as top-level.
+    if (overPath === '__end__') {
+      dragPage.departmentId = null;
+    } else {
+      const overPage = updated.find((p) => p.path === overPath);
+      if (overPage) dragPage.departmentId = overPage.departmentId;
+    }
+
     const newNav = updated.filter((p) => p.section === 'nav').sort((a, b) => a.sort_order - b.sort_order);
     const newPopup = updated.filter((p) => p.section === 'popup').sort((a, b) => a.sort_order - b.sort_order);
 
@@ -168,7 +180,8 @@ export default function PagesContent() {
 
     const final = [...newNav, ...newPopup];
     updatePageLayout(final);
-    showToast(`Moved ${dragPage.label}`);
+    const groupLabel = dragPage.departmentId ? getDeptName(dragPage.departmentId) : 'top of sidebar';
+    showToast(`Moved ${dragPage.label} to ${groupLabel}`);
 
     dragItem.current = null;
     dragOverItem.current = null;
@@ -408,7 +421,7 @@ export default function PagesContent() {
             </span>
           </div>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            Drag pages between sections to reorganize. Drag onto a department group to move it.
+            Drag pages between sections to reorganize. Drop a row into the top (departmentless) area to ungroup it, or drop it inside a department group to move it there.
           </p>
         </div>
         <button
