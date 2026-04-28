@@ -4,6 +4,9 @@ import { PagePermissionsProvider } from '@/lib/PagePermissions';
 
 export const metadata: Metadata = {
   title: { default: 'Patient Portal', template: '%s | Seven Arrows Recovery' },
+  description: null,
+  openGraph: null,
+  twitter: null,
   robots: 'noindex, nofollow',
 };
 
