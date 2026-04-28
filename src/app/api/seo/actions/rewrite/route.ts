@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/supabase-server';
+import { NextResponse } from 'next/server';
+import { getServerSupabase } from '@/lib/supabase-server';
 
 // POST /api/seo/actions/rewrite — rewrites a free-form SEO Action
 // title for SEO clarity. The user pastes a quick line ("Updated meta
@@ -10,6 +10,12 @@ import { getUserFromRequest } from '@/lib/supabase-server';
 //
 // Body: { title: string }
 // Returns: { rewrite: string }
+//
+// Auth: cookies, matching the sibling /api/seo/actions route that
+// the same submit flow already POSTs to. Earlier this route used
+// getUserFromRequest which checks for a Bearer token, so the same-
+// origin browser fetch (which only sends the session cookie) hit a
+// 401 and the modal showed "Couldn't rewrite: Unauthorized".
 
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 const API_URL = 'https://api.anthropic.com/v1/messages';
@@ -17,8 +23,11 @@ const API_VERSION = '2023-06-01';
 
 type Body = { title?: string };
 
-export async function POST(req: NextRequest) {
-  const user = await getUserFromRequest(req);
+export async function POST(req: Request) {
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
