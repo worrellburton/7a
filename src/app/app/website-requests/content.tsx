@@ -602,6 +602,366 @@ function RespondButton({
   );
 }
 
+// ------------- VOB attempts (multi-attempt follow-up) ---------------------
+
+interface Attempt {
+  at: string;
+  by: string | null;
+  by_name: string | null;
+  by_avatar_url: string | null;
+  note: string | null;
+}
+
+const ATTEMPT_LABELS = ['1st attempt', '2nd attempt', '3rd attempt'] as const;
+
+function useVobAttempt() {
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  // busyKey is `${rowId}:${attemptIndex}` so two pills on the same
+  // row don't disable each other while one is saving.
+  const submit = useCallback(async (
+    id: string,
+    attemptIndex: 1 | 2 | 3,
+    opts: { clear?: boolean; note?: string } = {},
+  ): Promise<{ attempts: (Attempt | null)[] } | null> => {
+    const key = `${id}:${attemptIndex}`;
+    setBusyKey(key);
+    try {
+      const res = await fetch('/api/website-requests/respond', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'vob', id, attempt_index: attemptIndex, clear: !!opts.clear, note: opts.note ?? null }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      return { attempts: Array.isArray(json.attempts) ? json.attempts : [null, null, null] };
+    } catch (e) {
+      console.error('vob attempt failed', e);
+      return null;
+    } finally {
+      setBusyKey(null);
+    }
+  }, []);
+  return { submit, busyKey };
+}
+
+function useVobAdminNotes() {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const save = useCallback(async (id: string, notes: string): Promise<string | null | undefined> => {
+    setBusyId(id);
+    try {
+      const res = await fetch('/api/website-requests/vob-admin-notes', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, notes }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      return (json.admin_notes ?? null) as string | null;
+    } catch (e) {
+      console.error('admin notes save failed', e);
+      return undefined;
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+  return { save, busyId };
+}
+
+function AttemptAvatar({ url, name, size = 18 }: { url: string | null; name: string | null; size?: number }) {
+  // Same shape as ResponderAvatar but tinted neutral/blue rather
+  // than the responded-emerald, so a filled pill reads as "log of
+  // who made the attempt" instead of "this is fully resolved".
+  const initial = (name || '?').trim().charAt(0).toUpperCase();
+  if (url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={url}
+        alt={name ? `${name}'s avatar` : 'Responder avatar'}
+        referrerPolicy="no-referrer"
+        className="rounded-full object-cover ring-1 ring-blue-200 bg-blue-100"
+        style={{ width: size, height: size }}
+        loading="lazy"
+      />
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center justify-center rounded-full bg-blue-200 text-blue-900 font-bold"
+      style={{ width: size, height: size, fontSize: Math.max(9, Math.floor(size * 0.55)) }}
+      aria-hidden="true"
+    >
+      {initial}
+    </span>
+  );
+}
+
+function AttemptPill({
+  index,
+  attempt,
+  onSave,
+  onClear,
+  busy,
+}: {
+  index: 0 | 1 | 2;
+  attempt: Attempt | null;
+  onSave: (note: string) => void;
+  onClear: () => void;
+  busy: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const label = ATTEMPT_LABELS[index];
+
+  // Seed the textarea with the existing note when editing a filled
+  // pill, blank when filling an empty one.
+  useEffect(() => {
+    if (open) {
+      setDraft(attempt?.note ?? '');
+      // requestAnimationFrame so the popover is mounted before focus.
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    }
+  }, [open, attempt]);
+
+  const filled = !!attempt;
+  const firstName = (attempt?.by_name ?? '').split(' ')[0] || attempt?.by_name || 'Unknown';
+  const dateLabel = attempt
+    ? new Date(attempt.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null;
+
+  const stamp = attempt
+    ? `${label} · ${formatRespondedAt(attempt.at)}${attempt.by_name ? ` by ${attempt.by_name}` : ''}`
+    : label;
+
+  return (
+    <span className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={busy}
+        title={stamp}
+        className={
+          filled
+            ? 'inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 pl-1 pr-2 py-0.5 text-[11px] font-medium text-blue-900 hover:bg-blue-100 transition-colors disabled:opacity-50'
+            : 'inline-flex items-center rounded-full border border-dashed border-foreground/25 bg-white px-2.5 py-0.5 text-[11px] font-medium text-foreground/55 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-50'
+        }
+      >
+        {filled ? (
+          <>
+            <AttemptAvatar url={attempt!.by_avatar_url} name={attempt!.by_name} />
+            <span>{firstName} · {dateLabel}</span>
+            {attempt!.note ? (
+              <svg className="w-3 h-3 text-blue-700/70" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+              </svg>
+            ) : null}
+          </>
+        ) : (
+          <span>{label}</span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-30 mt-1.5 w-72 rounded-xl border border-black/10 bg-white p-3 shadow-lg text-left">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 mb-1.5">
+            {filled ? `Edit ${label.toLowerCase()}` : `Log ${label.toLowerCase()}`}
+          </p>
+          {filled && attempt?.by_name && (
+            <p className="text-[11px] text-foreground/50 mb-1.5">
+              Originally by <span className="font-medium text-foreground/70">{attempt.by_name}</span> · {formatRespondedAt(attempt.at)}
+            </p>
+          )}
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="What happened on this attempt? Left a voicemail at 2pm, sent the VOB form, etc."
+            rows={4}
+            maxLength={2000}
+            className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12px] leading-relaxed text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                onSave(draft.trim());
+                setOpen(false);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setOpen(false);
+              }
+            }}
+          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="text-[10px] text-foreground/40">⌘↵ to save</span>
+            <div className="flex items-center gap-2">
+              {filled && (
+                <button
+                  type="button"
+                  onClick={() => { onClear(); setOpen(false); }}
+                  disabled={busy}
+                  className="text-[11px] text-red-600/80 hover:text-red-700 underline decoration-dotted disabled:opacity-40"
+                >
+                  Clear
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-[11px] text-foreground/55 hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { onSave(draft.trim()); setOpen(false); }}
+                disabled={busy}
+                className="inline-flex items-center rounded-md bg-primary px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                {busy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+function AttemptsCell({
+  rowId,
+  attempts,
+  onSubmit,
+  busyKey,
+}: {
+  rowId: string;
+  attempts: (Attempt | null)[];
+  onSubmit: (attemptIndex: 1 | 2 | 3, opts: { clear?: boolean; note?: string }) => void;
+  busyKey: string | null;
+}) {
+  const slots: (Attempt | null)[] = [attempts[0] ?? null, attempts[1] ?? null, attempts[2] ?? null];
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-1.5">
+      {slots.map((slot, i) => {
+        const idx1 = (i + 1) as 1 | 2 | 3;
+        const key = `${rowId}:${idx1}`;
+        return (
+          <AttemptPill
+            key={i}
+            index={i as 0 | 1 | 2}
+            attempt={slot}
+            onSave={(note) => onSubmit(idx1, { note })}
+            onClear={() => onSubmit(idx1, { clear: true })}
+            busy={busyKey === key}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function AdminNotesCell({
+  customerNote,
+  adminNotes,
+  onSave,
+  busy,
+}: {
+  customerNote: string | null;
+  adminNotes: string | null;
+  onSave: (next: string) => void;
+  busy: boolean;
+}) {
+  // Click-to-edit textarea. Empty rows show a faint "Add note" hint
+  // so it's discoverable without taking up much space. The customer's
+  // form-submitted note (if any) renders as an italic subtitle so
+  // the admin can see the original context without losing their own
+  // notes underneath.
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(adminNotes ?? '');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setDraft(adminNotes ?? '');
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(textareaRef.current.value.length, textareaRef.current.value.length);
+      });
+    }
+  }, [editing, adminNotes]);
+
+  if (editing) {
+    return (
+      <div className="space-y-1.5">
+        {customerNote && (
+          <p className="text-[10px] italic text-foreground/40 leading-snug">
+            From form: <span className="not-italic text-foreground/55">{customerNote}</span>
+          </p>
+        )}
+        <textarea
+          ref={textareaRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Notes about this person…"
+          rows={3}
+          maxLength={4000}
+          className="w-full min-w-[180px] rounded-md border border-primary/40 px-2 py-1.5 text-[12px] leading-relaxed text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              e.preventDefault();
+              onSave(draft);
+              setEditing(false);
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              setEditing(false);
+            }
+          }}
+        />
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] text-foreground/40">⌘↵ to save</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="text-[11px] text-foreground/55 hover:text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => { onSave(draft); setEditing(false); }}
+              disabled={busy}
+              className="inline-flex items-center rounded-md bg-primary px-2.5 py-0.5 text-[11px] font-semibold text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      title={adminNotes ? 'Edit notes' : 'Add notes'}
+      className="block w-full text-left rounded-md px-1 -mx-1 py-0.5 hover:bg-warm-bg/60 transition-colors"
+    >
+      {customerNote && (
+        <p className="text-[10px] italic text-foreground/40 leading-snug mb-0.5">
+          From form: <span className="not-italic text-foreground/55">{customerNote}</span>
+        </p>
+      )}
+      {adminNotes ? (
+        <span className="text-xs text-foreground/75 line-clamp-3 whitespace-pre-wrap">{adminNotes}</span>
+      ) : !customerNote ? (
+        <span className="text-foreground/30 text-xs italic">Add notes…</span>
+      ) : null}
+    </button>
+  );
+}
+
 // ------------- VObs (spreadsheet view) ------------------------------------
 
 interface VobRow extends RespondedFields {
@@ -612,6 +972,8 @@ interface VobRow extends RespondedFields {
   insurance_provider: string | null;
   status: string;
   notes: string | null;
+  admin_notes: string | null;
+  attempts: (Attempt | null)[];
   received_at: string;
   card_front_url: string | null;
   card_back_url: string | null;
@@ -621,7 +983,8 @@ function VobsPanel() {
   const [rows, setRows] = useState<VobRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { respond, busyId } = useRespond('vob');
+  const { submit: submitAttempt, busyKey: attemptBusyKey } = useVobAttempt();
+  const { save: saveAdminNotes, busyId: notesBusyId } = useVobAdminNotes();
   const { remove, busyId: deletingId } = useDelete('vob');
 
   useEffect(() => {
@@ -643,15 +1006,16 @@ function VobsPanel() {
     return () => { cancelled = true; };
   }, []);
 
-  async function handleMarkResponded(id: string, note: string) {
-    const result = await respond(id, { note });
+  async function handleAttempt(id: string, attemptIndex: 1 | 2 | 3, opts: { clear?: boolean; note?: string }) {
+    const result = await submitAttempt(id, attemptIndex, opts);
     if (!result) return;
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, attempts: result.attempts } : r)));
   }
-  async function handleClearResponded(id: string) {
-    const result = await respond(id, { clear: true });
-    if (!result) return;
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...result } : r)));
+
+  async function handleAdminNotes(id: string, next: string) {
+    const result = await saveAdminNotes(id, next);
+    if (result === undefined) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, admin_notes: result } : r)));
   }
 
   async function handleDelete(id: string) {
@@ -672,7 +1036,7 @@ function VobsPanel() {
               <Th>Notes</Th>
               <Th>Status</Th>
               <Th>Received</Th>
-              <Th className="text-right">Responded</Th>
+              <Th className="text-right">Attempts</Th>
               <Th className="text-right"><span className="sr-only">Actions</span></Th>
             </tr>
           </thead>
@@ -700,11 +1064,12 @@ function VobsPanel() {
                   )}
                 </Td>
                 <Td>
-                  {r.notes ? (
-                    <span className="text-xs text-foreground/70 line-clamp-3 whitespace-pre-wrap">{r.notes}</span>
-                  ) : (
-                    <span className="text-foreground/40">—</span>
-                  )}
+                  <AdminNotesCell
+                    customerNote={r.notes}
+                    adminNotes={r.admin_notes}
+                    onSave={(next) => handleAdminNotes(r.id, next)}
+                    busy={notesBusyId === r.id}
+                  />
                 </Td>
                 <Td><StatusChip status={r.status} /></Td>
                 <Td>
@@ -715,15 +1080,11 @@ function VobsPanel() {
                   </span>
                 </Td>
                 <Td className="text-right">
-                  <RespondButton
-                    responded_at={r.responded_at}
-                    responder_name={r.responder_name}
-                    responder_avatar_url={r.responder_avatar_url}
-                    responded_note={r.responded_note}
-                    onRespond={(n) => handleMarkResponded(r.id, n)}
-                    onClear={() => handleClearResponded(r.id)}
-                    busy={busyId === r.id}
-                    compact
+                  <AttemptsCell
+                    rowId={r.id}
+                    attempts={r.attempts ?? [null, null, null]}
+                    onSubmit={(idx, opts) => handleAttempt(r.id, idx, opts)}
+                    busyKey={attemptBusyKey}
                   />
                 </Td>
                 <Td className="text-right">
