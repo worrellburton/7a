@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
+import { useAuth } from '@/lib/AuthProvider';
 
 const STORAGE_KEY = 'sa-seo-audit:last-result';
 const DURATION_KEY = 'sa-seo-audit:last-duration-ms';
@@ -115,6 +116,7 @@ interface AuditResult {
 }
 
 export default function AuditContent() {
+  const { isAdmin } = useAuth();
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AuditResult | null>(null);
@@ -265,6 +267,7 @@ export default function AuditContent() {
         headline={result?.headline ?? null}
         running={running}
         onRun={runAudit}
+        canRun={isAdmin}
         ranAt={result?.ranAt ?? null}
         durationMs={result?.durationMs ?? null}
         ranByName={result?.ranByName ?? null}
@@ -617,6 +620,7 @@ function ScoreCard({
   headline,
   running,
   onRun,
+  canRun,
   ranAt,
   durationMs,
   ranByName,
@@ -629,6 +633,7 @@ function ScoreCard({
   headline: string | null;
   running: boolean;
   onRun: () => void;
+  canRun: boolean;
   ranAt: string | null;
   durationMs: number | null;
   ranByName: string | null;
@@ -667,14 +672,16 @@ function ScoreCard({
           {headline ??
             'A weighted score across titles, meta, headings, schema, links, images, performance, and crawlability.'}
         </p>
-        <button
-          type="button"
-          onClick={onRun}
-          disabled={running}
-          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {running ? 'Running audit…' : score == null ? 'Run audit' : 'Re-run audit'}
-        </button>
+        {canRun ? (
+          <button
+            type="button"
+            onClick={onRun}
+            disabled={running}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {running ? 'Running audit…' : score == null ? 'Run audit' : 'Re-run audit'}
+          </button>
+        ) : null}
         {running ? (
           <div className="mt-4">
             <div className="flex items-baseline justify-between gap-3 text-[11px] mb-1.5">
