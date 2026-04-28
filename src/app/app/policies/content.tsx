@@ -22,6 +22,14 @@ interface Policy {
   version: number;
   created_at: string;
   updated_at: string;
+  department_id: string | null;
+}
+
+interface PolicyDepartment {
+  id: string;
+  name: string;
+  color: string | null;
+  hidden: boolean;
 }
 
 interface PolicySection {
@@ -641,18 +649,40 @@ export default function PoliciesContent() {
   // Filtering
   const [search, setSearch] = useState('');
   const [sectionFilter, setSectionFilter] = useState<string>('');
+  // Department filter sentinel: '' = all, '__none__' = policies with
+  // no department assigned, otherwise a department uuid.
+  const [departmentFilter, setDepartmentFilter] = useState<string>('');
 
   // Batch selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkSection, setBulkSection] = useState<string>('');
+  // Bulk department change. '' = no change selected, '__none__' = clear
+  // department on selected rows, otherwise a department uuid.
+  const [bulkDepartment, setBulkDepartment] = useState<string>('');
   const [applyingBulk, setApplyingBulk] = useState(false);
+
+  // Departments — loaded alongside policies, used by the filter
+  // dropdown, the per-row badge, the create/edit form, and the bulk
+  // toolbar. A read failure degrades gracefully: the dropdown hides,
+  // existing policies still render with a fallback em-dash.
+  const [departments, setDepartments] = useState<PolicyDepartment[]>([]);
+  const [formDepartmentId, setFormDepartmentId] = useState<string | null>(null);
+  const departmentMap = useMemo(() => {
+    const m = new Map<string, PolicyDepartment>();
+    for (const d of departments) m.set(d.id, d);
+    return m;
+  }, [departments]);
+  const visibleDepartments = useMemo(
+    () => departments.filter((d) => !d.hidden),
+    [departments],
+  );
 
   // Inline name edit
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [editingNameValue, setEditingNameValue] = useState('');
 
   // Sorting
-  const [sortBy, setSortBy] = useState<'section' | 'name' | 'date_created' | 'date_reviewed' | 'date_revised'>('section');
+  const [sortBy, setSortBy] = useState<'section' | 'name' | 'department' | 'date_created' | 'date_reviewed' | 'date_revised'>('section');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   // Edit policy mode (detail view)
@@ -666,12 +696,22 @@ export default function PoliciesContent() {
   useEffect(() => {
     if (!session?.access_token) return;
     async function load() {
-      const [pols, secs] = await Promise.all([
+      const [pols, secs, depts] = await Promise.all([
         db({ action: 'select', table: 'policies', order: { column: 'section', ascending: true } }),
         db({ action: 'select', table: 'policy_sections', order: { column: 'sort_order', ascending: true } }),
+        // Soft-fail the departments select so a permissions miss on
+        // the departments table doesn't blank the whole Policies page.
+        db({ action: 'select', table: 'departments', select: 'id, name, color, hidden, display_order', order: { column: 'display_order', ascending: true } }).catch(() => null),
       ]);
       if (Array.isArray(pols)) setPolicies(pols as Policy[]);
       if (Array.isArray(secs)) setSections(secs as PolicySection[]);
+      if (Array.isArray(depts)) {
+        setDepartments(depts as PolicyDepartment[]);
+      } else if (depts !== null) {
+        // Reached if the call resolved with something non-array but
+        // not the catch — log + carry on rendering.
+        console.warn('[policies] departments returned non-array, falling back to empty list');
+      }
       setLoading(false);
     }
     load();
@@ -704,13 +744,30 @@ export default function PoliciesContent() {
     const q = search.trim().toLowerCase();
     const matched = policies.filter((p) => {
       if (sectionFilter && p.section !== sectionFilter) return false;
+      if (departmentFilter === '__none__') {
+        if (p.department_id != null) return false;
+      } else if (departmentFilter) {
+        if (p.department_id !== departmentFilter) return false;
+      }
       if (!q) return true;
-      return p.name.toLowerCase().includes(q) || p.section.toLowerCase().includes(q) || (p.policy_number || '').toLowerCase().includes(q);
+      const deptName = p.department_id ? (departmentMap.get(p.department_id)?.name || '') : '';
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.section.toLowerCase().includes(q) ||
+        (p.policy_number || '').toLowerCase().includes(q) ||
+        deptName.toLowerCase().includes(q)
+      );
     });
     const cmp = (a: Policy, b: Policy): number => {
       const get = (p: Policy): string => {
         if (sortBy === 'section') return p.section || '';
         if (sortBy === 'name') return p.name || '';
+        if (sortBy === 'department') {
+          // Sort by department name so the column reads alphabetically;
+          // empty string sorts before any name, which puts unassigned
+          // policies at the top of an asc sort and the bottom of desc.
+          return p.department_id ? (departmentMap.get(p.department_id)?.name || '') : '';
+        }
         if (sortBy === 'date_created') return p.date_created || '';
         if (sortBy === 'date_reviewed') return p.date_reviewed || '';
         return p.date_revised || '';
@@ -722,7 +779,7 @@ export default function PoliciesContent() {
     const sorted = [...matched].sort(cmp);
     if (sortDir === 'desc') sorted.reverse();
     return sorted;
-  }, [policies, search, sectionFilter, sortBy, sortDir]);
+  }, [policies, search, sectionFilter, departmentFilter, sortBy, sortDir, departmentMap]);
 
   function openAdd() {
     setAddOpen(true);
@@ -734,6 +791,7 @@ export default function PoliciesContent() {
     setFormPurpose('');
     setFormScope('');
     setFormBody('');
+    setFormDepartmentId(null);
   }
 
   function closeAdd() {
@@ -770,6 +828,7 @@ export default function PoliciesContent() {
       date_created: today,
       date_reviewed: today,
       date_revised: null,
+      department_id: formDepartmentId,
     };
     const data = await db({ action: 'insert', table: 'policies', data: payload });
     if (data && (data as Policy).id) {
@@ -857,6 +916,27 @@ export default function PoliciesContent() {
     setApplyingBulk(false);
   }
 
+  async function applyBulkDepartment() {
+    if (selectedIds.size === 0 || !bulkDepartment) return;
+    const nextDepartmentId = bulkDepartment === '__none__' ? null : bulkDepartment;
+    setApplyingBulk(true);
+    const ids = Array.from(selectedIds);
+    const results = await Promise.all(
+      ids.map((id) => db({ action: 'update', table: 'policies', data: { department_id: nextDepartmentId }, match: { id } }))
+    );
+    const okIds = ids.filter((_, i) => results[i] && (results[i] as { ok?: boolean }).ok);
+    setPolicies((prev) => prev.map((p) => (okIds.includes(p.id) ? { ...p, department_id: nextDepartmentId } : p)));
+    if (user) {
+      const deptName = nextDepartmentId ? (departmentMap.get(nextDepartmentId)?.name || null) : null;
+      okIds.forEach((id) => {
+        const p = policies.find((x) => x.id === id);
+        if (p) logActivity({ userId: user.id, type: 'policy.updated', targetKind: 'policy', targetId: id, targetLabel: p.name, targetPath: '/app/policies', metadata: { department_id: nextDepartmentId, department: deptName } });
+      });
+    }
+    setSelectedIds(new Set());
+    setApplyingBulk(false);
+  }
+
   async function bulkDelete() {
     if (selectedIds.size === 0) return;
     const ok = await confirm(`Delete ${selectedIds.size} ${selectedIds.size === 1 ? 'policy' : 'policies'}?`, { message: 'This cannot be undone.', confirmLabel: 'Delete', tone: 'danger' });
@@ -927,6 +1007,7 @@ export default function PoliciesContent() {
       content: selectedPolicy.content,
       purpose: selectedPolicy.purpose,
       scope: selectedPolicy.scope,
+      department_id: selectedPolicy.department_id,
     });
     setEditMode(true);
   }
@@ -940,6 +1021,7 @@ export default function PoliciesContent() {
     if ((editForm.purpose || '') !== (selectedPolicy.purpose || '')) changes.push('purpose');
     if ((editForm.scope || '') !== (selectedPolicy.scope || '')) changes.push('scope');
     if (editForm.content !== selectedPolicy.content) changes.push('body');
+    if ((editForm.department_id ?? null) !== (selectedPolicy.department_id ?? null)) changes.push('department');
     if (changes.length === 0) { setEditMode(false); return; }
 
     setSavingEdit(true);
@@ -972,6 +1054,7 @@ export default function PoliciesContent() {
       content: (editForm.content || '').trim() || selectedPolicy.content,
       purpose: (editForm.purpose || '').toString().trim() || null,
       scope: (editForm.scope || '').toString().trim() || null,
+      department_id: editForm.department_id ?? null,
       version: nextVersion,
       date_revised: today,
       date_reviewed: today,
@@ -1056,6 +1139,20 @@ export default function PoliciesContent() {
               <option value="">All sections</option>
               {sectionNames.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
+            {visibleDepartments.length > 0 && (
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none"
+                aria-label="Filter by department"
+              >
+                <option value="">All departments</option>
+                <option value="__none__">No department</option>
+                {visibleDepartments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            )}
             <button onClick={() => setManageSectionsOpen(true)} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-foreground/70 hover:bg-warm-bg transition-colors whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
               <span className="hidden sm:inline">Manage sections</span>
               <span className="sm:hidden">Sections</span>
@@ -1066,7 +1163,7 @@ export default function PoliciesContent() {
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-3 mb-4 px-4 py-3 rounded-xl bg-primary/5 border border-primary/20">
               <span className="text-sm font-semibold text-foreground">{selectedIds.size} selected</span>
-              <div className="flex items-center gap-2 ml-auto">
+              <div className="flex items-center gap-2 ml-auto flex-wrap">
                 <span className="text-xs text-foreground/60">Section:</span>
                 <select value={bulkSection} onChange={(e) => setBulkSection(e.target.value)} className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:border-primary focus:outline-none">
                   {sectionNames.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -1074,6 +1171,31 @@ export default function PoliciesContent() {
                 <button onClick={applyBulkSection} disabled={applyingBulk} className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50" style={{ fontFamily: 'var(--font-body)' }}>
                   Apply
                 </button>
+                {visibleDepartments.length > 0 && (
+                  <>
+                    <span className="text-xs text-foreground/60 ml-1">Dept:</span>
+                    <select
+                      value={bulkDepartment}
+                      onChange={(e) => setBulkDepartment(e.target.value)}
+                      className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:border-primary focus:outline-none"
+                      aria-label="Bulk set department"
+                    >
+                      <option value="">— pick —</option>
+                      <option value="__none__">No department</option>
+                      {visibleDepartments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={applyBulkDepartment}
+                      disabled={applyingBulk || !bulkDepartment}
+                      className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Apply dept
+                    </button>
+                  </>
+                )}
                 <button onClick={bulkDelete} disabled={applyingBulk} className="px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded-lg text-xs font-semibold hover:bg-red-50 transition-colors disabled:opacity-50" style={{ fontFamily: 'var(--font-body)' }}>
                   Delete
                 </button>
@@ -1114,6 +1236,7 @@ export default function PoliciesContent() {
                     {([
                       { key: 'section', label: 'Section', alwaysShow: true },
                       { key: 'name', label: 'Name', alwaysShow: true },
+                      { key: 'department', label: 'Department', alwaysShow: false },
                       { key: 'date_created', label: 'Created', alwaysShow: false },
                       { key: 'date_reviewed', label: 'Reviewed', alwaysShow: false },
                       { key: 'date_revised', label: 'Revised', alwaysShow: false },
@@ -1178,6 +1301,22 @@ export default function PoliciesContent() {
                         )}
                         {p.policy_number && <div className="text-[11px] text-foreground/40 mt-0.5 px-2">{p.policy_number}</div>}
                       </td>
+                      <td className="px-3 sm:px-5 py-3 cursor-pointer hidden md:table-cell" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>
+                        {(() => {
+                          const d = p.department_id ? departmentMap.get(p.department_id) : null;
+                          if (!d) return <span className="text-foreground/30 text-sm">—</span>;
+                          return (
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full bg-warm-bg/70 border border-black/5 text-foreground/75 whitespace-nowrap">
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: d.color || '#a0522d' }}
+                                aria-hidden="true"
+                              />
+                              {d.name}
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td className="px-3 sm:px-5 py-3 text-sm text-foreground/60 cursor-pointer hidden md:table-cell" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>{fmtDate(p.date_created)}</td>
                       <td className="px-3 sm:px-5 py-3 text-sm text-foreground/60 cursor-pointer hidden md:table-cell" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>{fmtDate(p.date_reviewed)}</td>
                       <td className="px-3 sm:px-5 py-3 text-sm text-foreground/60 cursor-pointer hidden md:table-cell" onClick={() => { setSelectedPolicy(p); setView('detail'); }}>{fmtDate(p.date_revised)}</td>
@@ -1190,7 +1329,7 @@ export default function PoliciesContent() {
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-5 py-8 text-center text-sm text-foreground/40">No policies match your search.</td>
+                      <td colSpan={8} className="px-5 py-8 text-center text-sm text-foreground/40">No policies match your search.</td>
                     </tr>
                   )}
                 </tbody>
@@ -1279,6 +1418,21 @@ export default function PoliciesContent() {
                   {sectionNames.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
+              {visibleDepartments.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Department</label>
+                  <select
+                    value={editForm.department_id ?? ''}
+                    onChange={(e) => setEditForm({ ...editForm, department_id: e.target.value || null })}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none"
+                  >
+                    <option value="">— No department —</option>
+                    {visibleDepartments.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Purpose</label>
                 <textarea value={editForm.purpose || ''} onChange={(e) => setEditForm({ ...editForm, purpose: e.target.value })} rows={3} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none resize-none" />
@@ -1406,6 +1560,21 @@ export default function PoliciesContent() {
                       {sectionNames.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
+                  {visibleDepartments.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Department</label>
+                      <select
+                        value={formDepartmentId ?? ''}
+                        onChange={(e) => setFormDepartmentId(e.target.value || null)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none"
+                      >
+                        <option value="">— No department —</option>
+                        {visibleDepartments.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="grid grid-cols-3 gap-4">
                     <div className="col-span-2">
                       <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5" style={{ fontFamily: 'var(--font-body)' }}>Name</label>
