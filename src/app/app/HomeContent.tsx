@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
 import AskPolicies from './AskPolicies';
 import WhatsNewButton from './WhatsNewButton';
+import JdSignatureNagModal from './JdSignatureNagModal';
 // Temporarily not rendered — see HomeContent.tsx note. Keeping the
 // import in source so the re-enable diff is one line.
 // import HomeClientsRow from './HomeClientsRow';
@@ -60,6 +61,11 @@ export default function HomeContent() {
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string; pdfUrl: string | null } | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
+  // JD nag: surfaces a full-screen modal when any pending signature
+  // has been waiting >= 3 days. Dismissal lives in sessionStorage so
+  // it stays gone for the rest of the tab's session and reappears on
+  // the next sign-in.
+  const [nagDismissed, setNagDismissed] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -230,9 +236,36 @@ export default function HomeContent() {
     return () => { cancelled = true; };
   }, [session, user?.id]);
 
+  // JD nag: pick the oldest pending signature that's been waiting >=
+  // 3 days. Computed every render — cheap, depends only on
+  // pendingSignatures. Hydrate dismissal from sessionStorage so a
+  // mid-session reload does not re-show the modal.
+  const NAG_DAYS = 3;
+  const nagSignature = (() => {
+    const cutoffMs = Date.now() - NAG_DAYS * 24 * 60 * 60 * 1000;
+    const overdue = pendingSignatures.filter((p) => new Date(p.sent_at).getTime() <= cutoffMs);
+    if (overdue.length === 0) return null;
+    overdue.sort((a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime());
+    return overdue[0];
+  })();
+  const nagStorageKey = nagSignature ? `jd-nag-dismissed:${nagSignature.id}` : null;
+  useEffect(() => {
+    if (!nagStorageKey || typeof window === 'undefined') return;
+    if (window.sessionStorage.getItem(nagStorageKey) === '1') setNagDismissed(true);
+  }, [nagStorageKey]);
+
   if (!user) return null;
 
   const firstName = (user.user_metadata?.full_name as string | undefined)?.split(' ')[0] || 'there';
+  const nagDays = nagSignature
+    ? Math.max(NAG_DAYS, Math.floor((Date.now() - new Date(nagSignature.sent_at).getTime()) / (24 * 60 * 60 * 1000)))
+    : 0;
+  function dismissNag() {
+    if (nagStorageKey && typeof window !== 'undefined') {
+      window.sessionStorage.setItem(nagStorageKey, '1');
+    }
+    setNagDismissed(true);
+  }
 
   return (
     <div className="relative flex flex-col min-h-full overflow-hidden">
@@ -544,6 +577,14 @@ export default function HomeContent() {
 
       <FeatureRequestModal open={featureRequestOpen} onClose={() => setFeatureRequestOpen(false)} />
       <WhatsNewButton />
+
+      {nagSignature && !nagDismissed && (
+        <JdSignatureNagModal
+          signature={{ id: nagSignature.id, title: nagSignature.title, sent_at: nagSignature.sent_at }}
+          daysWaiting={nagDays}
+          onContinueWithoutSigning={dismissNag}
+        />
+      )}
     </div>
   );
 }
