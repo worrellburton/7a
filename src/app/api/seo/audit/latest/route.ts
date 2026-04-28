@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { getAdminSupabase, getServerSupabase } from '@/lib/supabase-server';
 
 // GET /api/seo/audit/latest?origin=<optional>
 // Admin-only. Returns the most recent audit from public.seo_audits,
 // or { audit: null } if none exists yet. Powers the hydrate-on-mount
 // behavior of /app/seo/audit so a fresh browser sees the last run
 // without anyone having to click Run audit.
+//
+// We gate on admin status via the user-cookie client, then read
+// seo_audits via the service-role client. /run also writes via the
+// service-role client, so reads and writes share the same path —
+// keeping the row visible regardless of whether the SELECT RLS policy
+// has drifted on a given environment.
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +32,8 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const origin = url.searchParams.get('origin');
 
-  let q = supabase
+  const admin = getAdminSupabase();
+  let q = admin
     .from('seo_audits')
     .select('id, origin, score, grade, payload, duration_ms, ran_by, created_at')
     .order('created_at', { ascending: false })
@@ -46,7 +53,7 @@ export async function GET(req: Request) {
   // plain lookup works. Failures degrade silently to "by someone".
   let ranByName: string | null = null;
   if (data.ran_by) {
-    const { data: u } = await supabase
+    const { data: u } = await admin
       .from('users')
       .select('full_name, email')
       .eq('id', data.ran_by)
