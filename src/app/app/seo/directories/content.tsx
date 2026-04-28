@@ -3553,11 +3553,42 @@ export default function DirectoriesContent() {
   // Saving a live URL implies "we got listed there" — flip the
   // status to listed automatically. Clearing the URL backs the
   // status down to "to do" so red/empty rows stay honest.
+  // Side effect on save: fire a fire-and-forget POST to
+  // /api/seo/actions so the team's central Actions page reflects
+  // the listing as completed work. The API upserts on
+  // source_directory_id, so re-saving an entry just refreshes the
+  // existing action row instead of piling up duplicates.
   const saveLink = (id: string, value: string) => {
     const trimmed = value.trim();
     setLink(id, trimmed);
-    if (trimmed) setStatus(id, 'listed');
-    else if (statusMap[id] === 'listed') setStatus(id, 'todo');
+    if (trimmed) {
+      setStatus(id, 'listed');
+      const d = DIRECTORIES.find((x) => x.id === id);
+      if (d) {
+        const title = `Listed in ${d.name}`;
+        const description = `${d.url}\n\nLive listing: ${trimmed}`;
+        // Non-blocking: a flaky network shouldn't keep the user
+        // from seeing their local link save. The POST returns the
+        // upserted action either way.
+        void fetch('/api/seo/actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            description,
+            category: 'off-page',
+            priority: 'medium',
+            status: 'done',
+            source_directory_id: id,
+          }),
+        }).catch(() => {
+          // Logged-out previews + first-load races shouldn't surface
+          // an alert here — the local listing save still succeeded.
+        });
+      }
+    } else if (statusMap[id] === 'listed') {
+      setStatus(id, 'todo');
+    }
   };
 
   const filtered = useMemo(() => {
