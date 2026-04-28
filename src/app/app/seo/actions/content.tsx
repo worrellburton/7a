@@ -207,14 +207,15 @@ export default function ActionsContent() {
   const [uploadingShot, setUploadingShot] = useState(false);
   const [shotError, setShotError] = useState<string | null>(null);
 
-  // Filter + search
-  const [filter, setFilter] = useState<'active' | 'all' | Status>('active');
+  // Filter + search. The chip row + view-mode toggle were removed
+  // in a recent UI pass — both pin to constants so the existing
+  // filter / view branching keeps compiling without exhaustively
+  // re-checking literal types. Search still filters live.
+  type FilterValue = 'active' | 'all' | Status;
+  type ViewValue = 'list' | 'table' | 'spreadsheet';
+  const filter = 'all' as FilterValue;
+  const view = 'list' as ViewValue;
   const [query, setQuery] = useState('');
-  // View mode — three densities for the same action list:
-  //   list        — current expanded cards (avatar, screenshots, full message)
-  //   table       — compact rows: title, category icon, priority, status, who, when
-  //   spreadsheet — dense edit-in-place rows (zebra-striped, no padding)
-  const [view, setView] = useState<'list' | 'table' | 'spreadsheet'>('list');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -542,7 +543,10 @@ export default function ActionsContent() {
         {shotError ? (
           <p className="text-[11px] text-rose-700 mt-1">{shotError}</p>
         ) : null}
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 mt-3">
+        {/* Submit row — category + Submit only. Priority drops to
+            the row-level controls in the table view; new submissions
+            default to medium and are easy to bump after the fact. */}
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 mt-3">
           <input
             list="seo-action-categories"
             type="text"
@@ -556,16 +560,6 @@ export default function ActionsContent() {
               <option key={c.value} value={c.value} />
             ))}
           </datalist>
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as Priority)}
-            className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300/50"
-            aria-label="Priority"
-          >
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
           <button
             type="submit"
             disabled={submitting || !message.trim()}
@@ -582,22 +576,19 @@ export default function ActionsContent() {
         </div>
       ) : null}
 
-      {/* Filter + search + view mode */}
+      {/* Search-only — filter chips and view-mode toggle were
+          removed per request. The default filter is "all" and the
+          default view is the compact list table; status filtering
+          is still available by clicking the per-row status pill to
+          cycle through values. */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <FilterChip active={filter === 'active'} onClick={() => setFilter('active')} label="Active" count={counts.active} />
-        <FilterChip active={filter === 'open'} onClick={() => setFilter('open')} label="Open" count={counts.open} />
-        <FilterChip active={filter === 'in_progress'} onClick={() => setFilter('in_progress')} label="In progress" count={counts.in_progress} />
-        <FilterChip active={filter === 'done'} onClick={() => setFilter('done')} label="Done" count={counts.done} />
-        <FilterChip active={filter === 'wontfix'} onClick={() => setFilter('wontfix')} label="Won't fix" count={counts.wontfix} />
-        <FilterChip active={filter === 'all'} onClick={() => setFilter('all')} label="All" count={counts.all} />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search actions…"
-          className="ml-auto text-sm rounded-md border border-black/10 bg-white px-3 py-1.5 w-64 max-w-full"
+          className="ml-auto text-sm rounded-md border border-black/10 bg-white px-3 py-2 w-72 max-w-full"
         />
-        <ViewModeToggle value={view} onChange={setView} />
       </div>
 
       {loading ? (
@@ -666,17 +657,22 @@ function ActionTable({
   onDelete: (id: string) => void;
   canDelete: (a: Action) => boolean;
 }) {
+  // Currently-hovered screenshot URL — used to render the centered
+  // popup overlay below. Null when nothing is hovered. State lives
+  // here so the overlay sits outside any single row's overflow box.
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   return (
     <div className="overflow-hidden border border-black/10 rounded-xl bg-white">
       <table className="w-full text-sm">
         <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
           <tr>
-            <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10">Title</th>
-            <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-32">Category</th>
-            <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-24">Priority</th>
-            <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
-            <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-44">Submitted</th>
-            <th className="text-right px-3 py-2.5 font-semibold border-b border-black/10 w-12" aria-label="Actions" />
+            <th className="text-left px-4 py-3 font-semibold border-b border-black/10">Title</th>
+            <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-44">Screenshots</th>
+            <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-32">Category</th>
+            <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-24">Priority</th>
+            <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-32">Status</th>
+            <th className="text-left px-4 py-3 font-semibold border-b border-black/10 w-44">Submitted</th>
+            <th className="text-right px-4 py-3 font-semibold border-b border-black/10 w-12" aria-label="Actions" />
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5">
@@ -685,23 +681,47 @@ function ActionTable({
             const completed = a.status === 'done' || a.status === 'wontfix';
             return (
               <tr key={a.id} className={completed ? 'opacity-65' : ''}>
-                <td className="px-3 py-2.5 align-top">
+                <td className="px-4 py-4 align-top">
                   <p
-                    className={`font-medium text-foreground line-clamp-2 max-w-[480px] ${
+                    className={`font-medium text-foreground line-clamp-3 max-w-[520px] text-[14px] leading-relaxed ${
                       completed ? 'line-through decoration-foreground/40' : ''
                     }`}
                     title={a.title}
                   >
                     {a.title}
                   </p>
-                  {a.screenshot_urls.length > 0 ? (
-                    <p className="text-[10px] text-foreground/45 mt-0.5">
-                      {a.screenshot_urls.length} screenshot
-                      {a.screenshot_urls.length === 1 ? '' : 's'}
-                    </p>
-                  ) : null}
                 </td>
-                <td className="px-3 py-2.5 align-top">
+                <td className="px-4 py-4 align-top">
+                  {a.screenshot_urls.length === 0 ? (
+                    <span className="text-foreground/35 text-[12px]">—</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {a.screenshot_urls.slice(0, 4).map((url) => (
+                        <a
+                          key={url}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onMouseEnter={() => setPreviewUrl(url)}
+                          onMouseLeave={() => setPreviewUrl((cur) => (cur === url ? null : cur))}
+                          onFocus={() => setPreviewUrl(url)}
+                          onBlur={() => setPreviewUrl((cur) => (cur === url ? null : cur))}
+                          className="block w-12 h-12 rounded-md overflow-hidden border border-black/10 hover:ring-2 hover:ring-orange-300/60 transition"
+                          title="Click to open original; hover to enlarge"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt="screenshot" className="w-full h-full object-cover" />
+                        </a>
+                      ))}
+                      {a.screenshot_urls.length > 4 ? (
+                        <span className="inline-flex items-center justify-center w-12 h-12 rounded-md border border-dashed border-black/15 text-[10px] text-foreground/55 font-semibold">
+                          +{a.screenshot_urls.length - 4}
+                        </span>
+                      ) : null}
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-4 align-top">
                   {cat ? (
                     <span
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border ${cat.tone}`}
@@ -718,7 +738,7 @@ function ActionTable({
                     <span className="text-foreground/35 text-[12px]">—</span>
                   )}
                 </td>
-                <td className="px-3 py-2.5 align-top">
+                <td className="px-4 py-4 align-top">
                   <select
                     value={a.priority}
                     onChange={(e) => onPriority(a.id, e.target.value as Priority)}
@@ -730,7 +750,7 @@ function ActionTable({
                     <option value="low">Low</option>
                   </select>
                 </td>
-                <td className="px-3 py-2.5 align-top">
+                <td className="px-4 py-4 align-top">
                   <button
                     type="button"
                     onClick={() => onCycle(a.id, STATUS_CYCLE[a.status])}
@@ -740,7 +760,7 @@ function ActionTable({
                     {STATUS_LABELS[a.status]}
                   </button>
                 </td>
-                <td className="px-3 py-2.5 align-top">
+                <td className="px-4 py-4 align-top">
                   <div className="flex items-center gap-2">
                     <Avatar
                       name={a.submitted_by_name}
@@ -761,7 +781,7 @@ function ActionTable({
                     </div>
                   </div>
                 </td>
-                <td className="px-3 py-2.5 align-top text-right">
+                <td className="px-4 py-4 align-top text-right">
                   {canDelete(a) ? (
                     <button
                       type="button"
@@ -781,6 +801,25 @@ function ActionTable({
           })}
         </tbody>
       </table>
+      {/* Centered hover preview — fixed-position overlay so it
+          escapes the table's overflow box. Renders only while a
+          thumbnail is hovered. Click anywhere on the backdrop to
+          dismiss; pointer-events stay disabled so hovering the
+          overlay itself doesn't keep it pinned. */}
+      {previewUrl ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none"
+          aria-hidden="true"
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={previewUrl}
+            alt=""
+            className="relative max-w-[80vw] max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-white/20"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
