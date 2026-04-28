@@ -14,7 +14,7 @@ export default function Footer() {
       <div className="relative z-10">
         {/* ─── Footer Links ─── */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12 lg:pt-20 lg:pb-16">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-10">
             {/* Brand */}
             <div className="lg:col-span-1">
               <Link href="/" className="flex items-center gap-3 mb-5" aria-label="Seven Arrows Recovery">
@@ -32,9 +32,11 @@ export default function Footer() {
                 {[
                   { label: 'Who We Are', href: '/who-we-are' },
                   { label: 'Our Program', href: '/our-program' },
+                  { label: 'Treatment', href: '/treatment' },
                   { label: 'What We Treat', href: '/what-we-treat' },
                   { label: 'Admissions', href: '/admissions' },
                   { label: 'Areas We Serve', href: '/who-we-are/areas-we-serve' },
+                  { label: 'Indigenous Approach', href: '/our-program/indigenous-approach' },
                 ].map((item) => (
                   <li key={item.href}>
                     <Link href={item.href} className="text-white/40 text-xs hover:text-primary transition-colors">
@@ -67,6 +69,30 @@ export default function Footer() {
                 ].map((loc) => (
                   <li key={loc.name}>
                     <Link href={loc.href} className="text-white/40 text-xs hover:text-primary transition-colors">{loc.name}, AZ</Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Insurance accepted — links to every carrier landing page
+                so each one picks up an inbound from every public page
+                (footer is rendered globally), boosting them above the
+                ≥3 inbound-link threshold the audit checks. */}
+            <div>
+              <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 text-white/70">Insurance</h3>
+              <ul className="space-y-2.5" role="list">
+                {[
+                  { label: 'Aetna', href: '/insurance/aetna' },
+                  { label: 'Blue Cross Blue Shield', href: '/insurance/blue-cross-blue-shield' },
+                  { label: 'Cigna', href: '/insurance/cigna' },
+                  { label: 'UnitedHealthcare', href: '/insurance/united-healthcare' },
+                  { label: 'Humana', href: '/insurance/humana' },
+                  { label: 'TRICARE', href: '/insurance/tricare' },
+                ].map((carrier) => (
+                  <li key={carrier.href}>
+                    <Link href={carrier.href} className="text-white/40 text-xs hover:text-primary transition-colors">
+                      {carrier.label}
+                    </Link>
                   </li>
                 ))}
               </ul>
