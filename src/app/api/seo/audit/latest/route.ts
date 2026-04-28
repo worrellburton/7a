@@ -2,16 +2,14 @@ import { NextResponse } from 'next/server';
 import { getAdminSupabase, getServerSupabase } from '@/lib/supabase-server';
 
 // GET /api/seo/audit/latest?origin=<optional>
-// Admin-only. Returns the most recent audit from public.seo_audits,
-// or { audit: null } if none exists yet. Powers the hydrate-on-mount
-// behavior of /app/seo/audit so a fresh browser sees the last run
-// without anyone having to click Run audit.
+// Any signed-in user. Returns the most recent audit from
+// public.seo_audits, or { audit: null } if none exists yet. Powers
+// the hydrate-on-mount behavior of /app/seo/audit so anyone landing
+// on the page sees the last run an admin kicked off.
 //
-// We gate on admin status via the user-cookie client, then read
-// seo_audits via the service-role client. /run also writes via the
-// service-role client, so reads and writes share the same path —
-// keeping the row visible regardless of whether the SELECT RLS policy
-// has drifted on a given environment.
+// Reads via the service-role client so the row is visible regardless
+// of whether the SELECT RLS policy has drifted on a given environment.
+// Running an audit (POST /api/seo/audit/run) is still admin-only.
 
 export const dynamic = 'force-dynamic';
 
@@ -21,13 +19,6 @@ export async function GET(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('is_admin')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (!profile?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const url = new URL(req.url);
   const origin = url.searchParams.get('origin');
