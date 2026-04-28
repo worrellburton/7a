@@ -646,6 +646,86 @@ function useVobAttempt() {
   return { submit, busyKey };
 }
 
+// VOB statuses surfaced in the dropdown. Keep this list in sync with
+// the vob_requests_status_check constraint and with the validator in
+// /api/website-requests/vob-status.
+const VOB_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: 'new', label: 'New' },
+  { value: 'qualifying', label: 'Qualifying' },
+  { value: 'short_term', label: 'Short term' },
+  { value: 'closed', label: 'Closed' },
+];
+
+const VOB_STATUS_TONES: Record<string, string> = {
+  new: 'bg-blue-50 text-blue-700 border-blue-200',
+  qualifying: 'bg-amber-50 text-amber-800 border-amber-200',
+  short_term: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  closed: 'bg-gray-50 text-gray-600 border-gray-200',
+};
+
+function useVobStatus() {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const save = useCallback(async (id: string, status: string): Promise<string | null | undefined> => {
+    setBusyId(id);
+    try {
+      const res = await fetch('/api/website-requests/vob-status', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      return (json.status ?? null) as string | null;
+    } catch (e) {
+      console.error('vob-status save failed', e);
+      return undefined;
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+  return { save, busyId };
+}
+
+function VobStatusSelect({
+  status,
+  mutedNew,
+  onChange,
+  busy,
+}: {
+  status: string;
+  /** True when status === 'new' but the current admin has already
+   * loaded this row in a previous session. We dim the chip to gray
+   * in that case so the eye stops snapping to it on repeat visits. */
+  mutedNew: boolean;
+  onChange: (next: string) => void;
+  busy: boolean;
+}) {
+  const isNewSeen = status === 'new' && mutedNew;
+  const tone = isNewSeen
+    ? 'bg-gray-50 text-gray-500 border-gray-200'
+    : (VOB_STATUS_TONES[status] ?? VOB_STATUS_TONES.closed);
+  return (
+    <span className="relative inline-block">
+      <select
+        value={status}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={busy}
+        aria-label="Change VOB status"
+        className={`appearance-none cursor-pointer pl-2 pr-5 py-0.5 rounded text-[10px] uppercase tracking-wider border focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 ${tone}`}
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        {VOB_STATUS_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      <svg className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-2.5 h-2.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+      </svg>
+    </span>
+  );
+}
+
 function useVobAdminNotes() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const save = useCallback(async (id: string, notes: string): Promise<string | null | undefined> => {
@@ -1069,6 +1149,7 @@ function VobsPanel() {
   const [error, setError] = useState<string | null>(null);
   const { submit: submitAttempt, busyKey: attemptBusyKey } = useVobAttempt();
   const { save: saveAdminNotes, busyId: notesBusyId } = useVobAdminNotes();
+  const { save: saveStatus, busyId: statusBusyId } = useVobStatus();
   const { remove, busyId: deletingId } = useDelete('vob');
 
   useEffect(() => {
@@ -1118,6 +1199,22 @@ function VobsPanel() {
     const result = await saveAdminNotes(id, next);
     if (result === undefined) return;
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, admin_notes: result } : r)));
+  }
+
+  async function handleStatus(id: string, next: string) {
+    // Optimistic update so the chip color flips immediately, then
+    // reconcile with whatever the server actually wrote.
+    const prevStatus = rows.find((r) => r.id === id)?.status ?? null;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: next } : r)));
+    const result = await saveStatus(id, next);
+    if (result === undefined) {
+      // Revert on failure.
+      setRows((prev) => prev.map((r) => (r.id === id && prevStatus !== null ? { ...r, status: prevStatus } : r)));
+      return;
+    }
+    if (result !== next) {
+      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: result as string } : r)));
+    }
   }
 
   async function handleDelete(id: string) {
@@ -1174,15 +1271,16 @@ function VobsPanel() {
                   />
                 </Td>
                 <Td>
-                  {/* Suppress the NEW badge once the current admin
-                      has loaded this row at least once before — keeps
-                      the column quiet on repeat visits while still
-                      flagging genuinely-new submissions. */}
-                  {r.status === 'new' && r.seen_by_me ? (
-                    <span className="text-foreground/30 text-xs">—</span>
-                  ) : (
-                    <StatusChip status={r.status} />
-                  )}
+                  {/* Editable triage dropdown. When the row is still
+                      'new' but the current admin has already loaded
+                      it once, the chip dims to gray so the eye stops
+                      snapping to it on repeat visits. */}
+                  <VobStatusSelect
+                    status={r.status}
+                    mutedNew={!!r.seen_by_me}
+                    onChange={(next) => handleStatus(r.id, next)}
+                    busy={statusBusyId === r.id}
+                  />
                 </Td>
                 <Td>
                   <span className="text-xs text-foreground/60 whitespace-nowrap">
