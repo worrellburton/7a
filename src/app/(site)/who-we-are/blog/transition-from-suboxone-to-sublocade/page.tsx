@@ -7,7 +7,8 @@ export const metadata: Metadata = {
   keywords:
     'transition from Suboxone to Sublocade, Sublocade injection, buprenorphine extended release, Suboxone to Sublocade timeline, MAT for opioid use disorder, monthly buprenorphine injection, opioid addiction treatment Arizona',
   alternates: {
-    canonical: 'https://sevenarrowsrecoveryarizona.com/transition-from-suboxone-to-sublocade',
+    canonical:
+      'https://sevenarrowsrecoveryarizona.com/who-we-are/blog/transition-from-suboxone-to-sublocade',
   },
 };
 
