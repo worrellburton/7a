@@ -31,7 +31,10 @@ const STATUS_VALUES = ['open', 'in_progress', 'done', 'wontfix'] as const;
 const SELECT_COLS =
   'id, title, description, category, priority, status, submitted_by, submitted_by_name, submitted_by_avatar_url, screenshot_urls, source_directory_id, completed_at, created_at, updated_at';
 
-async function requireAdmin() {
+// Any signed-in user can list/submit SEO actions. Row-level rules
+// in the seo_actions RLS policy still gate update/delete to the
+// submitter (or a super-admin), so opening this up is safe.
+async function requireUser() {
   const supabase = await getServerSupabase();
   const {
     data: { user },
@@ -41,23 +44,20 @@ async function requireAdmin() {
   }
   const { data: profile } = await supabase
     .from('users')
-    .select('is_admin, full_name, avatar_url')
+    .select('full_name, avatar_url')
     .eq('id', user.id)
     .maybeSingle();
-  if (!profile?.is_admin) {
-    return { ok: false as const, res: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-  }
   return {
     ok: true as const,
     supabase,
     userId: user.id,
-    userName: (profile.full_name as string | null) ?? null,
-    userAvatar: (profile.avatar_url as string | null) ?? null,
+    userName: (profile?.full_name as string | null) ?? null,
+    userAvatar: (profile?.avatar_url as string | null) ?? null,
   };
 }
 
 export async function GET() {
-  const auth = await requireAdmin();
+  const auth = await requireUser();
   if (!auth.ok) return auth.res;
 
   const { data, error } = await auth.supabase
@@ -75,7 +75,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const auth = await requireAdmin();
+  const auth = await requireUser();
   if (!auth.ok) return auth.res;
 
   let body: {
