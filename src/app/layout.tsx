@@ -122,7 +122,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&display=swap"
         />
-        <link rel="canonical" href="https://sevenarrowsrecoveryarizona.com" />
+        {/* No hardcoded canonical here — every page declared the
+            same homepage URL, scoring 0/100 on the audit's Canonical
+            URLs category. (site)/layout.tsx now emits a per-request
+            self-canonical via generateMetadata + the x-pathname
+            header set in middleware.ts. */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
