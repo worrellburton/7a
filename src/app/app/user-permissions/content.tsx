@@ -334,7 +334,7 @@ export default function UserPermissionsContent() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10 max-w-7xl">
+    <div className="p-4 sm:p-6 lg:p-10">
       <div className="flex items-baseline justify-between mb-4 gap-4 flex-wrap">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">User Permissions</h1>
