@@ -41,6 +41,13 @@ interface SerpFeatures {
   ads_bottom: number;
 }
 
+interface CompetitorEntry {
+  position: number;
+  url: string;
+  title: string;
+  snippet: string | null;
+}
+
 interface RankRow {
   id: string;
   keyword: string;
@@ -48,6 +55,10 @@ interface RankRow {
   url: string | null;
   totalResults: number;
   features: SerpFeatures | null;
+  /** Top-10 organic results from the same google_search call.
+   *  Persisted to seo_competitor_serps so the Competitors page can
+   *  show week-over-week churn without spending more SerpAPI units. */
+  top10: CompetitorEntry[];
   error: string | null;
 }
 
@@ -63,6 +74,12 @@ async function fetchRank(
       onUsage,
     });
     const hit = findRankInOrganic(organic, domain);
+    const top10 = organic.slice(0, 10).map((o) => ({
+      position: o.position,
+      url: o.link,
+      title: o.title,
+      snippet: o.snippet ?? null,
+    }));
     return {
       id: keyword.id,
       keyword: keyword.text,
@@ -70,6 +87,7 @@ async function fetchRank(
       url: hit?.url ?? null,
       totalResults: organic.length,
       features,
+      top10,
       error: null,
     };
   } catch (err) {
@@ -80,6 +98,7 @@ async function fetchRank(
       url: null,
       totalResults: 0,
       features: null,
+      top10: [],
       error: err instanceof Error ? err.message : String(err),
     };
   }
@@ -135,6 +154,48 @@ async function persistRankHistory(
   const { error } = await supabase.from('seo_keyword_ranks').insert(inserts);
   if (error) {
     console.warn('[seo_keyword_ranks] insert failed', error.message);
+  }
+}
+
+// Persist top-10 competitor URLs from each keyword sweep into
+// seo_competitor_serps. Each row pairs (keyword × position × url)
+// at this exact checked_at — the Competitors page reads the latest
+// row per (keyword, position) to render the current top 10 + a
+// week-ago column for diffing.
+function competitorDomain(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return '';
+  }
+}
+async function persistCompetitorSerps(
+  supabase: SupabaseClient,
+  domain: string,
+  rows: RankRow[],
+): Promise<void> {
+  const target = domain.replace(/^https?:\/\//, '').replace(/^www\./, '').toLowerCase();
+  const inserts: Record<string, unknown>[] = [];
+  for (const r of rows) {
+    for (const c of r.top10) {
+      const d = competitorDomain(c.url);
+      if (!d) continue;
+      inserts.push({
+        keyword_id: r.id,
+        keyword_text: r.keyword,
+        position: c.position,
+        url: c.url,
+        domain: d,
+        title: c.title || null,
+        snippet: c.snippet,
+        is_us: d === target || d.endsWith(`.${target}`),
+      });
+    }
+  }
+  if (inserts.length === 0) return;
+  const { error } = await supabase.from('seo_competitor_serps').insert(inserts);
+  if (error) {
+    console.warn('[seo_competitor_serps] insert failed', error.message);
   }
 }
 
@@ -242,6 +303,9 @@ export async function POST(req: Request) {
   // next render. Awaited (vs. fire-and-forget) so a Vercel function
   // teardown doesn't silently drop the writes.
   await persistRankHistory(supabase, user.id, domain, results, keywords);
+  // Same sweep — persist the top-10 competitors per keyword. The
+  // Competitors page reads from seo_competitor_serps directly.
+  await persistCompetitorSerps(supabase, domain, results);
 
   const ranked = results.filter((r) => r.rank != null).length;
   const errors = results.filter((r) => r.error != null).length;

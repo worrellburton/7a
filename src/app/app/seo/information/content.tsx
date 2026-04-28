@@ -261,6 +261,8 @@ export default function InformationContent() {
               readOnly={!canEdit}
             />
           </Section>
+
+          <SourceHealthPanel />
         </div>
       )}
     </div>
@@ -473,4 +475,217 @@ function SaveIndicator({ state, savedAt }: { state: SaveState; savedAt: number |
     );
   }
   return null;
+}
+
+// ── Source Health panel ──────────────────────────────────────────
+//
+// Shows the live state of every data source the SEO surface
+// depends on. Reads from /api/seo/source-health, which aggregates
+// SerpAPI usage, Semrush + Google OAuth env presence, and
+// freshness counts per persisted table.
+
+interface SourceHealth {
+  serpapi: {
+    configured: boolean;
+    usage: { date: string; count: number; cap: number; remaining: number };
+    today_total: number;
+    today_failed: number;
+    by_engine: Record<string, { ok: number; failed: number }>;
+    recent: Array<{
+      engine: string;
+      query: string | null;
+      ok: boolean;
+      duration_ms: number | null;
+      http_status: number | null;
+      error: string | null;
+      search_id: string | null;
+      called_at: string;
+    }>;
+  };
+  semrush: { configured: boolean };
+  google_oauth: {
+    configured: boolean;
+    token_present: boolean;
+    token_updated_at: string | null;
+  };
+  ga4: { property_id: string | null };
+  freshness: Array<{ table: string; label: string; latest_at: string | null; count_30d: number }>;
+}
+
+function SourceHealthPanel() {
+  const [data, setData] = useState<SourceHealth | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/seo/source-health', { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
+      setData(json as SourceHealth);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  return (
+    <Section
+      title="Source Health"
+      blurb="Live status of every data source the SEO surface depends on — SerpAPI burn rate, Semrush + Google OAuth configuration, and how fresh each persisted table is. Click refresh after a sweep to see updated numbers."
+    >
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[11px] text-foreground/45">
+          {data ? `${data.serpapi.usage.count}/${data.serpapi.usage.cap} SerpAPI calls today` : ''}
+        </p>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          className="text-[11px] font-semibold text-primary hover:underline disabled:opacity-50"
+        >
+          {loading ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+      {error ? (
+        <p className="text-[12px] text-rose-700">Couldn&rsquo;t load: {error}</p>
+      ) : !data ? (
+        <p className="text-[12px] text-foreground/55">Loading…</p>
+      ) : (
+        <div className="space-y-4">
+          {/* Provider chips */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            <ProviderChip
+              label="SerpAPI"
+              ok={data.serpapi.configured}
+              detail={
+                data.serpapi.configured
+                  ? `${data.serpapi.usage.count} of ${data.serpapi.usage.cap} today`
+                  : 'SERPAPI_KEY not set'
+              }
+            />
+            <ProviderChip
+              label="Semrush"
+              ok={data.semrush.configured}
+              detail={data.semrush.configured ? 'API key configured' : 'SEMRUSH_API_KEY not set'}
+            />
+            <ProviderChip
+              label="Google OAuth"
+              ok={data.google_oauth.configured && data.google_oauth.token_present}
+              detail={
+                !data.google_oauth.configured
+                  ? 'OAuth client envs missing'
+                  : data.google_oauth.token_present
+                    ? `Token refreshed ${data.google_oauth.token_updated_at ? new Date(data.google_oauth.token_updated_at).toLocaleDateString() : 'unknown'}`
+                    : 'No refresh token saved'
+              }
+            />
+            <ProviderChip
+              label="GA4"
+              ok={!!data.ga4.property_id}
+              detail={data.ga4.property_id ? `property ${data.ga4.property_id}` : 'GA4_PROPERTY_ID not set'}
+            />
+          </div>
+
+          {/* Per-engine breakdown */}
+          {Object.keys(data.serpapi.by_engine).length > 0 ? (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/45 mb-2">
+                SerpAPI today by engine
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {Object.entries(data.serpapi.by_engine).map(([engine, c]) => (
+                  <div key={engine} className="rounded-lg border border-black/5 bg-warm-bg/30 px-3 py-2">
+                    <p className="text-[11px] font-mono text-foreground/65 truncate">{engine}</p>
+                    <p className="text-[14px] font-bold text-foreground tabular-nums">
+                      {c.ok}{c.failed > 0 ? <span className="text-rose-600"> · {c.failed} failed</span> : null}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Freshness table */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/45 mb-2">
+              Table freshness
+            </p>
+            <div className="overflow-hidden rounded-lg border border-black/5">
+              <table className="w-full text-[12px]">
+                <thead className="bg-warm-bg/40 text-[10px] uppercase tracking-wider text-foreground/55">
+                  <tr>
+                    <th className="text-left px-3 py-1.5 font-semibold">Table</th>
+                    <th className="text-left px-3 py-1.5 font-semibold w-44">Latest write</th>
+                    <th className="text-right px-3 py-1.5 font-semibold w-28">Last 30d</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/5">
+                  {data.freshness.map((f) => (
+                    <tr key={f.table}>
+                      <td className="px-3 py-1.5">
+                        <p className="text-foreground">{f.label}</p>
+                        <p className="text-[10px] font-mono text-foreground/40">{f.table}</p>
+                      </td>
+                      <td className="px-3 py-1.5 text-foreground/65">
+                        {f.latest_at ? new Date(f.latest_at).toLocaleString() : <span className="text-foreground/35">never</span>}
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-foreground/65">{f.count_30d}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Recent calls */}
+          {data.serpapi.recent.length > 0 ? (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/45 mb-2">
+                Recent SerpAPI calls
+              </p>
+              <ul className="divide-y divide-black/5 rounded-lg border border-black/5 max-h-72 overflow-y-auto">
+                {data.serpapi.recent.map((c, i) => (
+                  <li key={`${c.search_id ?? c.called_at}-${i}`} className="px-3 py-1.5 flex items-center gap-2 text-[11.5px]">
+                    <span
+                      className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
+                        c.ok ? 'bg-emerald-500' : 'bg-rose-500'
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span className="font-mono text-foreground/70 truncate w-28 shrink-0">{c.engine}</span>
+                    <span className="text-foreground/65 truncate flex-1" title={c.query ?? ''}>{c.query ?? '—'}</span>
+                    {c.duration_ms != null ? (
+                      <span className="text-[10px] text-foreground/40 tabular-nums shrink-0">{c.duration_ms}ms</span>
+                    ) : null}
+                    <span className="text-[10px] text-foreground/40 shrink-0">{new Date(c.called_at).toLocaleTimeString()}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function ProviderChip({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${ok ? 'border-emerald-200 bg-emerald-50/40' : 'border-rose-200 bg-rose-50/40'}`}>
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-block w-2 h-2 rounded-full ${ok ? 'bg-emerald-500' : 'bg-rose-500'}`}
+          aria-hidden="true"
+        />
+        <p className="text-[11px] font-bold uppercase tracking-wider text-foreground/65">{label}</p>
+      </div>
+      <p className="text-[11px] text-foreground/55 mt-1 truncate" title={detail}>{detail}</p>
+    </div>
+  );
 }
