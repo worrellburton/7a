@@ -591,6 +591,12 @@ export default function ActionsContent() {
           onPriority={(id, p) => patchAction(id, { priority: p })}
           onDelete={(id) => deleteAction(id)}
         />
+      ) : view === 'spreadsheet' ? (
+        <ActionSpreadsheet
+          rows={visible}
+          onPatch={(id, body) => patchAction(id, body)}
+          onDelete={(id) => deleteAction(id)}
+        />
       ) : (
         <ul className="space-y-2">
           {visible.map((a) => (
@@ -740,6 +746,176 @@ function ActionTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * Spreadsheet view — every row is editable in place. Title + category
+ * are text inputs that commit on blur or Enter; priority + status
+ * stay as inline selects. Zebra-striped, no padding waste, designed
+ * for triage-style mass edits where a card view would be too noisy.
+ */
+function ActionSpreadsheet({
+  rows,
+  onPatch,
+  onDelete,
+}: {
+  rows: Action[];
+  onPatch: (id: string, body: Partial<Pick<Action, 'status' | 'priority' | 'title' | 'description' | 'category'>>) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="overflow-hidden border border-black/10 rounded-xl bg-white">
+      <table className="w-full text-[12.5px]">
+        <thead className="bg-warm-bg/60 text-[10px] uppercase tracking-wider text-foreground/55">
+          <tr>
+            <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10">Title</th>
+            <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10 w-28">Category</th>
+            <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10 w-20">Priority</th>
+            <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10 w-28">Status</th>
+            <th className="text-left px-2 py-1.5 font-semibold border-b border-black/10 w-32">Submitted</th>
+            <th className="text-right px-2 py-1.5 font-semibold border-b border-black/10 w-8" aria-label="Delete" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((a, i) => (
+            <SpreadsheetRow
+              key={a.id}
+              a={a}
+              striped={i % 2 === 1}
+              onPatch={(body) => onPatch(a.id, body)}
+              onDelete={() => onDelete(a.id)}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SpreadsheetRow({
+  a,
+  striped,
+  onPatch,
+  onDelete,
+}: {
+  a: Action;
+  striped: boolean;
+  onPatch: (body: Partial<Pick<Action, 'status' | 'priority' | 'title' | 'category'>>) => void;
+  onDelete: () => void;
+}) {
+  const [title, setTitle] = useState(a.title);
+  const [category, setCategory] = useState(a.category ?? '');
+  const completed = a.status === 'done' || a.status === 'wontfix';
+
+  // Keep local state in sync when the parent re-syncs from server.
+  useEffect(() => { setTitle(a.title); }, [a.title]);
+  useEffect(() => { setCategory(a.category ?? ''); }, [a.category]);
+
+  function commitTitle() {
+    const next = title.trim();
+    if (next.length === 0 || next === a.title) return;
+    onPatch({ title: next });
+  }
+  function commitCategory() {
+    const next = category.trim();
+    if (next === (a.category ?? '')) return;
+    onPatch({ category: next || null });
+  }
+
+  return (
+    <tr className={`${striped ? 'bg-warm-bg/30' : 'bg-white'} ${completed ? 'opacity-65' : ''}`}>
+      <td className="px-2 py-1 align-top">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={commitTitle}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              (e.currentTarget as HTMLInputElement).blur();
+            }
+            if (e.key === 'Escape') setTitle(a.title);
+          }}
+          className={`w-full bg-transparent px-1 py-0.5 rounded text-[12.5px] focus:outline-none focus:bg-white focus:ring-1 focus:ring-orange-300/60 ${
+            completed ? 'line-through decoration-foreground/40 text-foreground/55' : 'text-foreground'
+          }`}
+        />
+      </td>
+      <td className="px-2 py-1 align-top">
+        <input
+          list="seo-action-categories"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          onBlur={commitCategory}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+            if (e.key === 'Escape') setCategory(a.category ?? '');
+          }}
+          placeholder="—"
+          className="w-full bg-transparent px-1 py-0.5 rounded text-[11.5px] text-foreground/75 focus:outline-none focus:bg-white focus:ring-1 focus:ring-orange-300/60"
+        />
+      </td>
+      <td className="px-2 py-1 align-top">
+        <select
+          value={a.priority}
+          onChange={(e) => onPatch({ priority: e.target.value as Priority })}
+          className="w-full bg-transparent text-[11.5px] text-foreground/75 px-1 py-0.5 rounded focus:outline-none focus:bg-white focus:ring-1 focus:ring-orange-300/60"
+          aria-label="Priority"
+        >
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </td>
+      <td className="px-2 py-1 align-top">
+        <select
+          value={a.status}
+          onChange={(e) => onPatch({ status: e.target.value as Status })}
+          className={`w-full bg-transparent text-[11.5px] px-1 py-0.5 rounded focus:outline-none focus:bg-white focus:ring-1 focus:ring-orange-300/60 ${
+            a.status === 'open' ? 'text-rose-700' :
+            a.status === 'in_progress' ? 'text-amber-700' :
+            a.status === 'done' ? 'text-emerald-700' :
+            'text-foreground/55'
+          }`}
+          aria-label="Status"
+        >
+          <option value="open">Open</option>
+          <option value="in_progress">In progress</option>
+          <option value="done">Done</option>
+          <option value="wontfix">Won&apos;t fix</option>
+        </select>
+      </td>
+      <td className="px-2 py-1 align-top">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Avatar
+            name={a.submitted_by_name}
+            src={a.submitted_by_avatar_url}
+            tooltip={
+              a.submitted_by_name
+                ? `${a.submitted_by_name} · ${new Date(a.created_at).toLocaleString()}`
+                : new Date(a.created_at).toLocaleString()
+            }
+          />
+          <span className="truncate text-[11px] text-foreground/65">
+            {a.submitted_by_name ?? '—'}
+          </span>
+        </div>
+      </td>
+      <td className="px-2 py-1 align-top text-right">
+        <button
+          type="button"
+          onClick={onDelete}
+          className="inline-flex items-center justify-center w-6 h-6 rounded text-foreground/35 hover:text-red-600 hover:bg-red-50"
+          aria-label="Delete action"
+          title="Delete"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" />
+          </svg>
+        </button>
+      </td>
+    </tr>
   );
 }
 
