@@ -415,6 +415,35 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // In-progress guard. CTM exposes calls while they're still ringing
+  // or live, but the metadata at that point is incomplete (no
+  // duration, no audio URL, status=in-progress). Scoring here
+  // produces nonsense like "Outbound call - in progress" which then
+  // gets cached forever and never refreshes when the call ends.
+  // Refuse to score until the call has actually finished — the
+  // auto-score loop will retry on the next poll cycle, and the CTM
+  // webhook will trigger a clean re-score once the recording lands.
+  const statusStr = typeof call.status === 'string' ? call.status : '';
+  const isInProgressStatus = /in.?progress|ringing|live|active/i.test(statusStr);
+  // Belt-and-suspenders: some CTM accounts don't surface a status
+  // string but still expose the call mid-flight with no duration.
+  // Treat "no duration AND no audio AND placed within the last 30
+  // minutes" as live too. We avoid the recency check on older calls
+  // so a legitimately-zero-second call from days ago can still be
+  // scored on the metadata-only path.
+  const calledAtMs = call.called_at ? new Date(call.called_at).getTime() : NaN;
+  const recentlyPlaced = Number.isFinite(calledAtMs) && Date.now() - calledAtMs < 30 * 60_000;
+  const looksLiveByMissingMetadata = call.duration == null && !call.audio && recentlyPlaced;
+  if (isInProgressStatus || looksLiveByMissingMetadata) {
+    return NextResponse.json(
+      {
+        call_in_progress: true,
+        reason: isInProgressStatus ? 'status' : 'no_duration_recent',
+      },
+      { status: 202 },
+    );
+  }
+
   const debug: { audio_status?: string; analyzer?: string; analyzer_error?: string } = {};
 
   // Try audio-first analysis with Gemini.

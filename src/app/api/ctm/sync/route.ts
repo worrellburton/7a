@@ -228,6 +228,21 @@ async function handleSync(req: NextRequest) {
       // count them together as processed rows.
       inserted += count ?? rows.length;
 
+      // Clean stale in-progress AI scores for any call in this batch
+      // that now has audio. Same pattern as the webhook cleanup —
+      // metadata-only rows (summary forced to start with "No audio
+      // available…") and legacy "in progress" call_name placeholders
+      // get nuked so auto-score redoes them. Real audio-based scores
+      // are untouched.
+      const finalizedCtmIds = rows.filter((r) => r.audio_url).map((r) => r.ctm_id);
+      if (finalizedCtmIds.length > 0) {
+        await supabase
+          .from('call_ai_scores')
+          .delete()
+          .in('call_id', finalizedCtmIds)
+          .or('summary.ilike.No audio available%,call_name.ilike.%in progress%,call_name.ilike.%in-progress%');
+      }
+
       if (page >= (resp.total_pages ?? page)) break;
       page++;
     }
