@@ -15,6 +15,7 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // import in source so the re-enable diff is one line.
 // import HomeClientsRow from './HomeClientsRow';
 import HomeHorsesRow from './HomeHorsesRow';
+import HomeOnlineOrbit from './HomeOnlineOrbit';
 import HomeMeaningfulCallsRow from './HomeMeaningfulCallsRow';
 import HomeWebsiteVisitsRow from './HomeWebsiteVisitsRow';
 import HomeWebsiteRequestsRow from './HomeWebsiteRequestsRow';
@@ -393,65 +394,26 @@ export default function HomeContent() {
 
             </div> {/* end TOP ROW */}
 
-            {/* BOTTOM ROW: presence — Online today + Horses on the team. */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 min-w-0">
-              {recentUsers.length > 0 && (
-                <div className="flex items-center gap-2 min-w-0">
-                  <p
-                    className="text-[10px] font-semibold text-foreground/45 uppercase tracking-[0.18em] shrink-0"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    Online today
-                  </p>
-                  <div className="flex -space-x-2">
-                    {recentUsers.map((u) => {
-                      const online = isOnlineNow(u.last_seen_at || u.last_sign_in);
-                      const viewing = online ? pathLabel(u.last_path) : null;
-                      const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
-                      const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
-                      return (
-                        <Wrapper
-                          key={u.id}
-                          onClick={navTarget ? () => router.push(navTarget) : undefined}
-                          className={`relative group shrink-0 ${navTarget ? 'cursor-pointer' : ''}`}
-                          title={navTarget ? `Go to ${viewing}` : undefined}
-                        >
-                          {u.avatar_url ? (
-                            <img
-                              src={u.avatar_url}
-                              alt={u.full_name || ''}
-                              className={`w-9 h-9 rounded-full border-2 object-cover transition-transform hover:scale-110 hover:z-10 ${
-                                online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'border-white'
-                              }`}
-                            />
-                          ) : (
-                            <div
-                              className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-transform hover:scale-110 hover:z-10 ${
-                                online ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] bg-primary text-white' : 'border-white bg-primary text-white'
-                              }`}
-                            >
-                              {(u.full_name || '?').charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <div className="hidden md:block absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-left">
-                            <p className="font-semibold text-white">{u.full_name || 'User'}</p>
-                            {u.job_title && <p className="text-white/90">{u.job_title}</p>}
-                            <p className="text-white/80">{online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}</p>
-                            {viewing && <p className="text-emerald-300">Viewing {viewing}{navTarget ? ' — click to jump' : ''}</p>}
-                          </div>
-                        </Wrapper>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <HomeHorsesRow />
-              </div>
+            {/* BOTTOM ROW: horses on the team. The "Online today"
+                avatar strip used to sit alongside the horses here;
+                it now lives as a centerpiece spinning orbit between
+                the hero band and the at-a-glance pulse. */}
+            <div className="min-w-0">
+              <HomeHorsesRow />
             </div>
 
           </div>
         </header>
+
+        {/* Centered, slowly-rotating ring of teammates active in the
+            last 24 hours. Replaces the inline "Online today" strip
+            that used to sit in the hero footer — see
+            HomeOnlineOrbit.tsx for the anatomy + animation. */}
+        {recentUsers.length > 0 && (
+          <section className="w-full max-w-4xl mx-auto py-2">
+            <HomeOnlineOrbit users={recentUsers} pathLabelFor={pathLabel} />
+          </section>
+        )}
 
         {/* Phase 5: at-a-glance pulse — already a glass panel, lifted
             with a deeper shadow + sheen so it reads as the primary
