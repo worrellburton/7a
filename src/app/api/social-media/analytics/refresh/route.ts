@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
-import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
+import { requireSuperAdmin } from '@/lib/social-media-auth';
 
 // POST /api/social-media/analytics/refresh
 //
@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   const supabase = await getServerSupabase();
-  const auth = await requireWebsiteRequestsAccess(supabase);
+  const auth = await requireSuperAdmin(supabase);
   if (auth.response) return auth.response;
 
   const secret = process.env.CRON_SECRET;
