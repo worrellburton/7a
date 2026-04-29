@@ -174,12 +174,15 @@ export default function EquineContent() {
   const [blingError, setBlingError] = useState<string | null>(null);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const saved = localStorage.getItem('equine_bling_mode');
+    // Storage key bumped to v2 so anyone who toggled bling off
+    // pre-launch gets reset to the new default-on state. Their
+    // preference still persists going forward via this same key.
+    const saved = localStorage.getItem('equine_bling_mode_v2');
     if (saved === 'off') setBlingMode(false);
   }, []);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('equine_bling_mode', blingMode ? 'on' : 'off');
+    localStorage.setItem('equine_bling_mode_v2', blingMode ? 'on' : 'off');
   }, [blingMode]);
 
   // The toggle itself is intentionally just a visual switch. The
