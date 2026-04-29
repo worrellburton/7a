@@ -349,6 +349,11 @@ export async function googleSearch(opts: {
   gl?: string;
   hl?: string;
   num?: number;
+  /** 0-based offset into the organic result set. Pair with `num` to
+   *  paginate through deeper SERPs (start=0, 100, 200, …). Google
+   *  effectively dedupes past ~300 unique organic results, so a
+   *  caller that loops beyond that will mostly see duplicate URLs. */
+  start?: number;
   /** Pass an explicit lat/lng/zoom string to localize SERPs. */
   location?: string;
   ignoreCap?: boolean;
@@ -362,6 +367,7 @@ export async function googleSearch(opts: {
       gl: opts.gl ?? process.env.SERPAPI_DEFAULT_GL ?? 'us',
       hl: opts.hl ?? process.env.SERPAPI_DEFAULT_HL ?? 'en',
       num: opts.num ?? 100,
+      start: opts.start,
       location: opts.location,
     },
     timeoutMs: opts.timeoutMs,

@@ -10,14 +10,26 @@ import { googleSearch, hasSerpApi, SerpApiError } from '@/lib/serpapi';
 // are NOT hosted on the domain. Useful for spotting scraped content,
 // citation opportunities, and link-building leads.
 //
+// Paginates through every page Google will return (start=0, 100,
+// 200, …) and dedupes by URL — Google effectively caps a query at
+// ~300 unique organic results before duplicating, but pulling every
+// page beats stopping at one and missing tail mentions.
+//
 // Persists the run + results to public.seo_serp_audits so the team
 // can scroll through history without burning another SerpAPI credit
 // each time. Admin-only, matching the rest of the SEO area.
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const DEFAULT_DOMAIN = 'sevenarrowsrecoveryarizona.com';
+
+// 10 pages × 100 results = up to 1000 hits. Google deduplicates well
+// before that for any normal query, so the loop almost always exits
+// early via the "page returned no new URLs" stop condition. The hard
+// cap is a runaway-cost guard, not an expected ceiling.
+const MAX_PAGES = 10;
+const PAGE_SIZE = 100;
 
 interface SerpHit {
   position: number;
@@ -74,20 +86,45 @@ export async function POST(req: Request) {
   const admin = getAdminSupabase();
 
   try {
-    const result = await googleSearch({
-      q: query,
-      // 100 is the max SerpAPI returns in a single request and the
-      // most useful for an audit — it covers ~10 SERP pages.
-      num: 100,
-    });
+    // Loop through SerpAPI pages until Google stops returning new
+    // URLs. Each iteration burns one SerpAPI credit; the dedupe loop
+    // stops as soon as a page returns zero never-seen URLs, so for
+    // small brand-mention queries we usually cost out at 1–2 pages.
+    const seen = new Set<string>();
+    const hits: SerpHit[] = [];
+    let pagesFetched = 0;
+    let lastRaw: Record<string, unknown> | null = null;
 
-    const hits: SerpHit[] = result.organic.map((o) => ({
-      position: o.position,
-      title: o.title,
-      link: o.link,
-      displayed_link: o.displayed_link,
-      snippet: o.snippet,
-    }));
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const result = await googleSearch({
+        q: query,
+        num: PAGE_SIZE,
+        start: page * PAGE_SIZE,
+      });
+      pagesFetched = page + 1;
+      lastRaw = result.raw;
+      let added = 0;
+      for (const o of result.organic) {
+        if (!o.link || seen.has(o.link)) continue;
+        seen.add(o.link);
+        hits.push({
+          // Re-number positions across pages so the table reads 1..N
+          // instead of resetting per page.
+          position: hits.length + 1,
+          title: o.title,
+          link: o.link,
+          displayed_link: o.displayed_link,
+          snippet: o.snippet,
+        });
+        added++;
+      }
+      // Stop when this page contributed nothing new — that's Google
+      // signaling the unique-result tail. Also stop if the page
+      // returned fewer than PAGE_SIZE rows; SerpAPI returns the
+      // largest available batch, so a short page = we're at the end.
+      if (added === 0) break;
+      if (result.organic.length < PAGE_SIZE) break;
+    }
 
     const { data: row, error: insertErr } = await admin
       .from('seo_serp_audits')
@@ -96,7 +133,7 @@ export async function POST(req: Request) {
         query,
         result_count: hits.length,
         results: hits,
-        raw: result.raw,
+        raw: { lastPage: lastRaw, pagesFetched },
       })
       .select('id, run_at, query, result_count, results')
       .maybeSingle();
