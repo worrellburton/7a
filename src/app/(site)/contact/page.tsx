@@ -4,6 +4,7 @@ import PageHero from '@/components/PageHero';
 import ContactAtAGlance from '@/components/contact/ContactAtAGlance';
 import WaysToReach from '@/components/contact/WaysToReach';
 import ContactForm from '@/components/contact/ContactForm';
+import { RanchAddress, RanchMap } from '@/components/RanchAddress';
 
 export const metadata: Metadata = {
   title: 'Contact Us | Seven Arrows Recovery',
@@ -82,6 +83,29 @@ export default function ContactPage() {
       <ContactAtAGlance />
       <WaysToReach />
       <ContactForm />
+      {/* Visit-us section — campus address + interactive Google Map.
+          Lazy-loaded iframe so it doesn't drag LCP on the form-
+          first audience that landed for the contact form, not the
+          map. Two-column layout collapses to stacked on mobile. */}
+      <section className="bg-white py-16 lg:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr),minmax(0,1.4fr)] gap-8 lg:gap-12 items-center">
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-foreground/55 mb-2">Visit us</p>
+              <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4" style={{ fontFamily: 'var(--font-display)' }}>
+                160 acres at the base of the Swisshelm Mountains.
+              </h2>
+              <p className="text-foreground/70 leading-relaxed mb-5">
+                The campus sits about an hour southeast of Tucson in Cochise
+                County. We schedule on-site tours by appointment — call
+                ahead so we can have someone meet you at the gate.
+              </p>
+              <RanchAddress />
+            </div>
+            <RanchMap className="aspect-video lg:aspect-square" ariaLabel="Map of Seven Arrows Recovery in Elfrida, Arizona" />
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

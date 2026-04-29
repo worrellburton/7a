@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { RANCH_ADDRESS, RANCH_PHONE, RANCH_PHONE_TEL, ranchDirectionsUrl } from './RanchAddress';
 
 /* ── Footer (links + legal) ───────────────────────────────────────── */
 
@@ -18,11 +19,38 @@ export default function Footer() {
             {/* Brand */}
             <div className="lg:col-span-1">
               <Link href="/" className="flex items-center gap-3 mb-5" aria-label="Seven Arrows Recovery">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/images/logo.png" alt="Seven Arrows Recovery" className="h-14 w-auto brightness-0 invert" />
               </Link>
-              <p className="text-white/40 text-xs leading-relaxed">
+              <p className="text-white/40 text-xs leading-relaxed mb-5">
                 A boutique drug and alcohol rehab center nestled at the base of the Swisshelm Mountains in Arizona.
               </p>
+              {/* Postal address — every page sees the footer, so this
+                  is the highest-traffic surface for the address.
+                  Wrapped in <address> for semantic + microdata
+                  reasons; the JSON-LD schema in src/app/layout.tsx
+                  carries the structured copy for crawlers. */}
+              <address className="not-italic text-xs leading-relaxed text-white/65">
+                <p>{RANCH_ADDRESS.streetAddress}</p>
+                <p>{RANCH_ADDRESS.locality}, {RANCH_ADDRESS.region} {RANCH_ADDRESS.postalCode}</p>
+                <a
+                  href={`tel:${RANCH_PHONE_TEL}`}
+                  className="block mt-1 text-white/85 font-semibold hover:text-white transition-colors"
+                >
+                  {RANCH_PHONE}
+                </a>
+                <a
+                  href={ranchDirectionsUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 mt-1 text-primary/90 font-semibold hover:text-primary transition-colors"
+                >
+                  Get directions
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </a>
+              </address>
             </div>
 
             {/* Quick Links */}
