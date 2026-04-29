@@ -20,9 +20,20 @@ interface VisitsSummary {
   today: number;
   yesterday: number;
   thisWeek: number;
+  /** Sessions over the last full Mon-Sun week. Apples-to-oranges
+   *  vs thisWeek mid-week — kept around for context. */
   lastWeek: number;
+  /** Apples-to-apples: sessions from last week's Monday through the
+   *  same day-of-week we're on now. Drives the pacing comparison
+   *  ("on track / ahead / behind") so a Tuesday Tue-of-this-week
+   *  vs Mon+Tue-of-last-week is a fair fight. */
+  lastWeekToDate: number;
   thisMonth: number;
+  /** Sessions over the last full calendar month. */
   lastMonth: number;
+  /** Apples-to-apples: sessions from day 1 of last month through
+   *  the same day-of-month we're on now. */
+  lastMonthToDate: number;
   fetched_at: string;
 }
 
@@ -78,26 +89,39 @@ export async function GET() {
   };
   const lastMonthStart = { y: lastMonthEnd.y, m: lastMonthEnd.m, d: 1 };
 
+  // Pacing windows: last week / month summed only through the same
+  // day-offset we're on this week / month, so the % delta is a
+  // fair comparison instead of "partial week vs full week".
+  // dow = days into this week (Mon=0..Sun=6).
+  // Last-week-to-date = lastWeekStart through lastWeekStart + dow.
+  const lastWeekToDateEnd = addDays(lastWeekStart.y, lastWeekStart.m, lastWeekStart.d, dow);
+  // Last-month-to-date = day 1 of last month through min(d, last
+  // day of last month) — clamps when 'today' is the 31st but last
+  // month ended on the 30th, etc.
+  const lastMonthToDateRawDay = Math.min(d, lastMonthEnd.d);
+
   const ranges = [
     { name: 'today', startDate: ymd(y, m, d), endDate: ymd(y, m, d) },
     { name: 'yesterday', startDate: ymd(yest.y, yest.m, yest.d), endDate: ymd(yest.y, yest.m, yest.d) },
     { name: 'thisWeek', startDate: ymd(weekStart.y, weekStart.m, weekStart.d), endDate: ymd(y, m, d) },
     { name: 'lastWeek', startDate: ymd(lastWeekStart.y, lastWeekStart.m, lastWeekStart.d), endDate: ymd(lastWeekEnd.y, lastWeekEnd.m, lastWeekEnd.d) },
+    { name: 'lastWeekToDate', startDate: ymd(lastWeekStart.y, lastWeekStart.m, lastWeekStart.d), endDate: ymd(lastWeekToDateEnd.y, lastWeekToDateEnd.m, lastWeekToDateEnd.d) },
     { name: 'thisMonth', startDate: ymd(y, m, 1), endDate: ymd(y, m, d) },
     { name: 'lastMonth', startDate: ymd(lastMonthStart.y, lastMonthStart.m, lastMonthStart.d), endDate: ymd(lastMonthEnd.y, lastMonthEnd.m, lastMonthEnd.d) },
+    { name: 'lastMonthToDate', startDate: ymd(lastMonthStart.y, lastMonthStart.m, 1), endDate: ymd(lastMonthStart.y, lastMonthStart.m, lastMonthToDateRawDay) },
   ];
 
   try {
-    // GA4 caps dateRanges at 4 per request, so we split the six
-    // windows we need into two parallel calls — current periods in
-    // one, prior periods in the other. The response adds an implicit
+    // GA4 caps dateRanges at 4 per request. Eight ranges split into
+    // two parallel calls — current windows in one batch, prior +
+    // prior-to-date in the other. The response adds an implicit
     // `dateRange` dimension whose value matches the `name` we set,
     // so merging is a simple by-name lookup.
     const currentRanges = ranges.filter((r) =>
-      ['today', 'thisWeek', 'thisMonth'].includes(r.name),
+      ['today', 'yesterday', 'thisWeek', 'thisMonth'].includes(r.name),
     );
     const previousRanges = ranges.filter((r) =>
-      ['yesterday', 'lastWeek', 'lastMonth'].includes(r.name),
+      ['lastWeek', 'lastWeekToDate', 'lastMonth', 'lastMonthToDate'].includes(r.name),
     );
     const [currentRes, previousRes] = await Promise.all([
       ga4Run({
@@ -124,8 +148,10 @@ export async function GET() {
       yesterday: out.yesterday ?? 0,
       thisWeek: out.thisWeek ?? 0,
       lastWeek: out.lastWeek ?? 0,
+      lastWeekToDate: out.lastWeekToDate ?? 0,
       thisMonth: out.thisMonth ?? 0,
       lastMonth: out.lastMonth ?? 0,
+      lastMonthToDate: out.lastMonthToDate ?? 0,
       fetched_at: new Date().toISOString(),
     };
     cached = { data, expiresAt: Date.now() + CACHE_TTL_MS };
