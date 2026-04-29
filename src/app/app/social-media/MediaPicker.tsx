@@ -379,9 +379,34 @@ function VideosGrid({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="absolute inset-0 bg-foreground/10 flex items-center justify-center text-[10px] text-foreground/55">
-                No preview
-              </span>
+              // No thumbnail in the DB? Render the video itself with
+              // preload="metadata" so the browser pulls the first
+              // frame and uses it as the implicit poster. Muted +
+              // playsInline so it doesn't autoplay or hijack focus.
+              // Falls back to "No preview" when the video URL is
+              // also missing or fails to load. Way better than the
+              // empty gray box that was previously rendered for ~12
+              // of 14 videos in the Seven Arrows library.
+              <video
+                src={vid.video_url ?? undefined}
+                preload="metadata"
+                muted
+                playsInline
+                aria-label={vid.alt || vid.filename || 'Video preview'}
+                className="w-full h-full object-cover bg-foreground/10"
+                // The first-frame poster trick relies on a
+                // #t=0.001 fragment to nudge some browsers (Safari,
+                // mobile WebKit) to render the first frame instead
+                // of an empty box.
+                poster={undefined}
+                onLoadedMetadata={(e) => {
+                  const v = e.currentTarget;
+                  // Seek a smidge in so iOS / Safari paint a frame.
+                  if (Number.isFinite(v.duration) && v.duration > 0.05 && v.currentTime === 0) {
+                    try { v.currentTime = 0.01; } catch { /* ignore */ }
+                  }
+                }}
+              />
             )}
             {/* Play-icon overlay so the user always reads the tile
                 as a video even when the thumbnail is opaque. */}
