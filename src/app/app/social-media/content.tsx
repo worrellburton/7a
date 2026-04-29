@@ -372,6 +372,10 @@ function Composer({
           {PLATFORMS.map((p) => {
             const checked = selected.has(p.id);
             const isConnected = connected.includes(p.id);
+            // When the pill is "checked" (active selection) we render
+            // it filled in the app's primary color, so the brand glyph
+            // gets recolored white to stay legible against that fill.
+            const iconColor = checked ? '#ffffff' : !isConnected ? 'rgba(0,0,0,0.25)' : undefined;
             return (
               <button
                 key={p.id}
@@ -386,6 +390,7 @@ function Composer({
                 }`}
                 title={isConnected ? p.label : `${p.label} — not connected`}
               >
+                <PlatformIcon platform={p.id as PlatformId} size={12} color={iconColor} />
                 {p.label}
                 {!isConnected && <span className="text-[9px] uppercase">offline</span>}
               </button>
