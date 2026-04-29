@@ -448,7 +448,7 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                   className="text-white/55 text-[11px] tracking-[0.22em] uppercase mb-4"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  In-Network &amp; Out-of-Network
+                  Insurance Accepted
                 </p>
                 <div className="flex flex-wrap justify-center items-center gap-x-6 sm:gap-x-8 lg:gap-x-10 gap-y-4">
                   {heroPayers.map((p) => (
