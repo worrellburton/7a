@@ -176,18 +176,62 @@ export default function HorseContent() {
     setEditValue('');
   };
 
-  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!horse || !e.target.files?.length) return;
+  // Multi-file upload — used by both the file input change handler
+  // and the drag-and-drop drop handler. Sequential rather than
+  // parallel so a slow / failing first upload doesn't get masked by
+  // later successes; the document list updates once at the end.
+  const uploadDocs = async (files: File[]) => {
+    if (!horse || files.length === 0) return;
     setUploading('doc');
-    const file = e.target.files[0];
-    const { url } = await uploadFile(file);
-    if (url) {
-      const newUrls = [...(horse.document_urls || []), url];
+    const newUrls = [...(horse.document_urls || [])];
+    for (const file of files) {
+      const { url } = await uploadFile(file);
+      if (url) newUrls.push(url);
+    }
+    if (newUrls.length !== (horse.document_urls || []).length) {
       await db({ action: 'update', table: 'equine', data: { document_urls: newUrls }, match: { id: horse.id } });
       setHorse({ ...horse, document_urls: newUrls });
     }
     setUploading(null);
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    await uploadDocs(Array.from(e.target.files));
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Drag-and-drop state. We track depth (enter/leave count) instead
+  // of a single flag because dragenter/dragleave fire on child
+  // elements as the cursor moves, and a naive flag flickers off the
+  // moment the cursor crosses an inner border. Reaching 0 means the
+  // drag has truly left the drop zone.
+  const dragDepthRef = useRef(0);
+  const [isDocsDragging, setIsDocsDragging] = useState(false);
+
+  const onDocsDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDocsDragging(true);
+  };
+  const onDocsDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    // Required so the browser allows a drop event to fire.
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const onDocsDragLeave = () => {
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDocsDragging(false);
+  };
+  const onDocsDrop = async (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDocsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) await uploadDocs(files);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -422,7 +466,7 @@ export default function HorseContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-5xl">
-      <input ref={fileInputRef} type="file" accept="*/*" onChange={handleDocUpload} className="hidden" />
+      <input ref={fileInputRef} type="file" accept="*/*" multiple onChange={handleDocUpload} className="hidden" />
       <input ref={vetFileInputRef} type="file" accept="*/*" onChange={handleVetDocUpload} className="hidden" />
       <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
 
@@ -745,9 +789,49 @@ export default function HorseContent() {
         )}
       </div>
 
-      {/* Documents */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-foreground mb-3" style={{ fontFamily: 'var(--font-body)' }}>Documents</h2>
+      {/* Documents — drop a file (or several) anywhere on this card
+          to upload. The visible "Attach Document" button still works
+          for keyboard / accessibility flows; the drop overlay only
+          appears while a real file drag is over the card. */}
+      <div
+        onDragEnter={onDocsDragEnter}
+        onDragOver={onDocsDragOver}
+        onDragLeave={onDocsDragLeave}
+        onDrop={(e) => { void onDocsDrop(e); }}
+        className={`relative bg-white rounded-2xl shadow-sm border p-5 transition-colors ${
+          isDocsDragging
+            ? 'border-primary border-dashed bg-primary/[0.04]'
+            : 'border-gray-100'
+        }`}
+      >
+        <h2
+          className="text-sm font-semibold text-foreground mb-3 flex items-center justify-between"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          <span>Documents</span>
+          <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/35">
+            Drop files to upload
+          </span>
+        </h2>
+        {/* Drop overlay — visible only while a file is being dragged
+            over the card, so the rest of the time the layout stays
+            quiet. pointer-events-none so the dragleave logic on the
+            outer container keeps firing as expected. */}
+        {isDocsDragging && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-2xl border-2 border-dashed border-primary/60 bg-primary/[0.06] flex items-center justify-center z-10"
+          >
+            <div className="flex flex-col items-center gap-1.5 text-primary">
+              <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v8m0 0l-4-4m4 4l4-4" />
+              </svg>
+              <p className="text-xs font-semibold tracking-[0.06em]" style={{ fontFamily: 'var(--font-body)' }}>
+                Drop to attach
+              </p>
+            </div>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
           {(horse.document_urls || []).map((url, i) => {
             const filename = decodeURIComponent(url.split('/').pop() || 'Document');
