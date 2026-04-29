@@ -311,22 +311,32 @@ export function PresenceCursors() {
             className="absolute top-0 left-0 will-change-transform transition-transform duration-75 ease-linear"
             style={{ transform: `translate(${x}px, ${y}px)` }}
           >
-            {/* Fire trail — sits BEHIND the cursor arrow. A radial
-                glow sets the heat halo, then a flame teardrop
-                streams downward from the cursor tip with a flicker
-                + sway loop. The flame's gradient runs from the
-                cursor's color at the tip → orange in the middle →
-                bright yellow at the base, so even when the user's
-                color is purple/blue, the trail still reads as "fire". */}
+            {/* Fire trail — sits BEHIND the cursor arrow. The
+                outer wrapper rotates around the cursor TIP based on
+                trailAngleDeg, so the flame always drags opposite to
+                motion. Inside the wrapper, the flame element itself
+                renders pointing "down" in its local frame; the
+                rotation handles direction.
+                transform-origin sits at the cursor tip (top center
+                of the box) so rotation pivots around the pointer
+                rather than the flame's midpoint — otherwise fast
+                direction changes would slingshot the flame around. */}
             <div
               aria-hidden="true"
               className="absolute pointer-events-none"
               style={{
-                top: 14,
-                left: 8,
+                top: 4,
+                left: 4,
                 width: 28,
                 height: 60,
-                transform: 'translateX(-50%)',
+                transformOrigin: '50% 0%',
+                transform: `translateX(-50%) rotate(${trailAngleDeg}deg)`,
+                transition: 'transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+              }}
+            >
+            <div
+              className="relative w-full h-full"
+              style={{
                 animation: 'presence-flame-sway 1.4s ease-in-out infinite',
                 filter: 'blur(0.4px)',
               }}
@@ -359,6 +369,7 @@ export function PresenceCursors() {
                   mixBlendMode: 'screen',
                 }}
               />
+            </div>
             </div>
 
             {/* Cursor arrow — sits above the flame so the pointer
