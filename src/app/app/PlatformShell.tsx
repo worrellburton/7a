@@ -756,15 +756,61 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       router.replace(item.path, { scroll: false });
                     }
                   }}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out ${
+                  className={`group/nav relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium overflow-hidden transition-all duration-500 ease-out motion-reduce:transition-none hover:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.35)] ${
                     isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-foreground/60 hover:bg-warm-bg hover:text-foreground'
+                      ? 'bg-primary/12 text-primary shadow-[inset_0_0_0_1px_rgba(188,107,74,0.18)]'
+                      : 'text-foreground/60 hover:text-foreground'
                   } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
                   style={{ fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` }}
                 >
-                  <span className={isActive ? 'text-primary' : 'text-foreground/40'}>{getPageIcon(item.path)}</span>
-                  <span className="flex-1">{item.label}</span>
+                  {/* Phase 2: sliding pill background — primary-tinted
+                      gradient that grows from the left edge on hover.
+                      Sits underneath the link content via -z-10 +
+                      pointer-events-none so clicks pass through. The
+                      pill width is animated via scale-x with a left
+                      origin so it reads as 'sliding in from the
+                      handle' rather than a fade. Active links skip
+                      this — they already have their own primary tint. */}
+                  {!isActive && (
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 -z-10 rounded-xl origin-left scale-x-0 group-hover/nav:scale-x-100 transition-transform duration-300 ease-out"
+                      style={{
+                        background:
+                          'linear-gradient(90deg, rgba(188,107,74,0.16) 0%, rgba(188,107,74,0.06) 65%, transparent 100%)',
+                      }}
+                    />
+                  )}
+                  {/* Phase 3: left-edge accent bar — 3px stripe in the
+                      brand color that scales up vertically on hover.
+                      Pinned to the left inset so the bar reads as a
+                      'tab marker' nodding to the active state. */}
+                  {!isActive && (
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-primary scale-y-0 group-hover/nav:scale-y-100 origin-center transition-transform duration-300 ease-out"
+                    />
+                  )}
+                  {/* Phase 4 + 8: icon shifts up + scales on hover, with
+                      a soft brand-color glow filter that fades in.
+                      Active state keeps its primary color statically. */}
+                  <span
+                    className={`relative transition-all duration-300 ease-out ${
+                      isActive
+                        ? 'text-primary'
+                        : 'text-foreground/40 group-hover/nav:text-primary group-hover/nav:scale-110 group-hover/nav:-translate-y-px'
+                    }`}
+                    style={{
+                      filter: isActive
+                        ? undefined
+                        : undefined,
+                    }}
+                  >
+                    {getPageIcon(item.path)}
+                  </span>
+                  {/* Phase 5: text translateX nudge — 2px right shift
+                      so the label "leans into" the cursor on hover. */}
+                  <span className="flex-1 transition-transform duration-300 ease-out group-hover/nav:translate-x-0.5">{item.label}</span>
                   {(navBadges[item.path] ?? 0) > 0 && (
                     <span
                       aria-label={`${navBadges[item.path]} new`}
@@ -772,6 +818,24 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     >
                       {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
                     </span>
+                  )}
+                  {/* Phase 6: right-side chevron — fades + slides in
+                      from -4px on hover so the row reads as
+                      "click-through" without taking up a slot when
+                      the cursor isn't there. Only on non-active rows
+                      since the active state is already the
+                      destination. */}
+                  {!isActive && (
+                    <svg
+                      aria-hidden="true"
+                      className="pointer-events-none w-3 h-3 text-primary opacity-0 -translate-x-1 group-hover/nav:opacity-90 group-hover/nav:translate-x-0 transition-all duration-300 ease-out"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
                   )}
                 </Link>
               );
