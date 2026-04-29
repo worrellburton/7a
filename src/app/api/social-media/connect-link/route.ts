@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
-import { ayrsharePost, AyrshareNotConfigured } from '@/lib/ayrshare';
+import { ayrsharePost, AyrshareNotConfigured, extractAyrshareError } from '@/lib/ayrshare';
 
 // POST /api/social-media/connect-link
 //   body: { platform?: string }   // optional — pre-select a platform on the hosted page
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     const { status, body: result } = await ayrsharePost('/profiles/generateJWT', payload);
     if (status >= 400) {
       return NextResponse.json(
-        { error: typeof result.message === 'string' ? result.message : `Ayrshare returned ${status}` },
+        { error: extractAyrshareError(result, status, '/profiles/generateJWT') },
         { status: 502 },
       );
     }
