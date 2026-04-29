@@ -362,6 +362,20 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
               className="max-w-3xl w-full text-center text-white py-16 lg:py-20"
               style={{ paddingTop: 'calc(var(--site-header-height, 68px) + 2rem)' }}
             >
+              {/* Small kicker above the H1 — gives "A drug rehab center
+                  in Arizona" visual + SEO presence without taking the
+                  H1 slot away from "A place to land." */}
+              <p
+                className="mb-3 text-[0.78rem] sm:text-sm font-semibold uppercase tracking-[0.18em] text-white/85"
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
+                  transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.1s',
+                }}
+              >
+                A Drug Rehab Center in Arizona
+              </p>
               <h1
                 id="hero-heading"
                 className="font-bold leading-[1.02] tracking-tight mb-6"
