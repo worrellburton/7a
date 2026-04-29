@@ -14,6 +14,8 @@ import { TimelineSlider } from './TimelineSlider';
 import { OperatorInsightsPanel } from './OperatorInsights';
 import { SourcesPanel } from './SourcesPanel';
 import { CallDetail } from './CallDetail';
+import { CallMobileRow, CallMobileRowSkeleton } from './CallMobileRow';
+import { MobileSelect } from './MobileSelect';
 import {
   ScoreRow,
   Call,
@@ -1233,211 +1235,125 @@ export default function CallsContent() {
         })}
       </div>
 
-      {/* Filters */}
+      {/* Filters — sticky on mobile so the toolbar stays reachable
+          while scrolling a long list, and uses MobileSelect for the
+          two enum filters so each chip gets a 44px tap target +
+          bottom-sheet picker (the native <select> + appearance-none
+          combo was clipping the tap area on iOS WebKit). */}
       {(tab === 'calls' || tab === 'spam') && (
-        <div className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') fetchCalls(1); }}
-            placeholder="Search calls..."
-            className="px-3 py-2 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary flex-1 min-w-[140px] sm:w-48 sm:flex-none"
-            style={{ fontFamily: 'var(--font-body)' }}
-          />
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={e => { setDateFilter(e.target.value); }}
-            className="px-3 py-2 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary"
-            style={{ fontFamily: 'var(--font-body)' }}
-          />
-          <div className="relative">
-            <select
+        <div className="sticky md:static top-0 z-20 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 sm:py-0 bg-warm-bg/85 supports-[backdrop-filter]:bg-warm-bg/65 backdrop-blur-md md:bg-transparent md:backdrop-blur-0 mb-4 md:mb-4">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') fetchCalls(1); }}
+              placeholder="Search calls..."
+              className="min-h-[44px] md:min-h-0 md:py-2 px-3 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary flex-1 min-w-[140px] sm:w-48 sm:flex-none"
+              style={{ fontFamily: 'var(--font-body)' }}
+            />
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={e => { setDateFilter(e.target.value); }}
+              className="min-h-[44px] md:min-h-0 md:py-2 px-3 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary"
+              style={{ fontFamily: 'var(--font-body)' }}
+            />
+            <MobileSelect
+              ariaLabel="Direction"
               value={directionFilter}
-              onChange={e => setDirectionFilter(e.target.value)}
-              className="appearance-none pl-3 pr-7 py-2 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <option value="all">All Directions</option>
-              <option value="inbound">Inbound</option>
-              <option value="outbound">Outbound</option>
-            </select>
-            <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-          </div>
-          <div className="relative">
-            <select
+              onChange={setDirectionFilter}
+              options={[
+                { value: 'all', label: 'All directions' },
+                { value: 'inbound', label: 'Inbound' },
+                { value: 'outbound', label: 'Outbound' },
+              ]}
+            />
+            <MobileSelect
+              ariaLabel="Operator"
               value={operatorFilter}
-              onChange={e => setOperatorFilter(e.target.value)}
-              className="appearance-none pl-3 pr-7 py-2 rounded-lg text-xs font-medium bg-white border border-gray-100 text-foreground/70 focus:outline-none focus:border-primary cursor-pointer"
+              onChange={setOperatorFilter}
+              options={[
+                { value: 'all', label: 'All operators' },
+                ...Array.from(new Set(
+                  Object.values(scores)
+                    .map(s => s.operator_name)
+                    .filter((n): n is string => !!n)
+                )).sort().map(name => ({ value: name, label: name })),
+              ]}
+            />
+            <button
+              onClick={() => fetchCalls(1)}
+              className="min-h-[44px] md:min-h-0 md:py-2 px-4 rounded-lg text-xs font-medium bg-foreground text-white hover:bg-foreground/80 transition-colors"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              <option value="all">All Operators</option>
-              {Array.from(new Set(
-                Object.values(scores)
-                  .map(s => s.operator_name)
-                  .filter((n): n is string => !!n)
-              )).sort().map(name => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-            <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+              Search
+            </button>
           </div>
-          <button onClick={() => fetchCalls(1)} className="px-4 py-2 rounded-lg text-xs font-medium bg-foreground text-white hover:bg-foreground/80 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
-            Search
-          </button>
         </div>
       )}
 
-      {/* Loading */}
+      {/* Loading — desktop keeps the simple spinner, mobile gets
+          skeleton rows so the perceived delay matches the eventual
+          layout (no mid-scroll reflow). */}
       {loading && (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
+        <>
+          <div className="hidden md:flex items-center justify-center py-20">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin motion-reduce:animate-none" />
+          </div>
+          <div className="md:hidden bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <CallMobileRowSkeleton key={i} />
+            ))}
+          </div>
+        </>
       )}
 
       {/* Call Log Tab */}
       {(tab === 'calls' || tab === 'spam') && !loading && (
         <>
           {calls.length === 0 && !error ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-20">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-12 md:py-20 px-6">
               <svg className="w-12 h-12 mx-auto text-foreground/15 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>
-              <p className="text-sm text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>
-                {tab === 'spam' ? 'No reported spam numbers' : 'No calls found'}
+              <p className="text-sm font-semibold text-foreground/65 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
+                {tab === 'spam' ? 'No reported spam numbers' : 'No calls match these filters'}
+              </p>
+              <p className="text-xs text-foreground/45 max-w-xs mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
+                {tab === 'spam'
+                  ? 'Spam-flagged numbers will show up here once you mark a call as spam.'
+                  : 'Try a wider date range, clear the search, or switch operators.'}
               </p>
             </div>
           ) : calls.length > 0 && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              {/* Mobile card view */}
+              {/* Mobile single-row layout — see CallMobileRow.tsx for
+                  the row anatomy and why we replaced the multi-line
+                  card. The row is its own component now so the
+                  list-level concerns (selection state, expanded id,
+                  audio playback) stay in the parent and the row only
+                  worries about presentation + the per-row action
+                  popover. */}
               <div className="md:hidden divide-y divide-gray-50">
-                {visibleCalls.map(call => {
+                {visibleCalls.map((call) => {
                   const expanded = expandedId === call.id;
                   const score = scores[String(call.id)];
                   const spamFlag = isSpamCall(call);
-                  const missedFlag = isMissedCall(call);
-                  const callNumber = call.caller_number_formatted || call.caller_number || 'Unknown';
-                  const rowBg = spamFlag ? 'bg-amber-50/70' : missedFlag ? 'bg-red-50/60' : 'bg-white';
-                  const accentBar = spamFlag ? 'bg-amber-400' : missedFlag ? 'bg-red-400' : score?.fit_score != null ? (score.fit_score >= 75 ? 'bg-emerald-500' : score.fit_score >= 50 ? 'bg-blue-500' : score.fit_score >= 25 ? 'bg-amber-500' : 'bg-red-500') : 'bg-gray-200';
                   return (
                     <Fragment key={call.id}>
-                      <div
-                        onClick={() => setExpandedId(expanded ? null : call.id)}
-                        className={`${rowBg} cursor-pointer transition-colors active:bg-warm-bg/40`}
-                      >
-                        <div className="flex items-stretch">
-                          <div className={`w-1 shrink-0 ${accentBar}`} />
-                          <div
-                            className="shrink-0 flex items-center pl-2.5 pr-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.has(String(call.id))}
-                              onChange={() => toggleSelect(String(call.id))}
-                              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                              aria-label={`Select call ${call.id}`}
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0 px-3.5 py-3">
-                            {/* Top: fit score + call name + chevron */}
-                            <div className="flex items-center gap-3">
-                              <div className="shrink-0">
-                                {score?.fit_score != null ? (
-                                  <span className={`inline-flex items-center justify-center w-11 h-11 rounded-xl text-base font-bold text-white ${fitScoreBg(score.fit_score)}`}>
-                                    {score.fit_score}
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl text-xs font-medium text-foreground/30 bg-gray-100">
-                                    —
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[15px] font-semibold text-foreground leading-tight line-clamp-2">
-                                  {score?.call_name || (spamFlag ? 'Spam call' : missedFlag ? (call.voicemail ? 'Voicemail' : 'Missed call') : 'Unanalyzed call')}
-                                </p>
-                                <p className="text-[11px] text-foreground/50 mt-0.5 font-medium" style={{ fontFamily: 'var(--font-body)' }}>
-                                  {formatDate(call.called_at)} · {formatTime(call.called_at)}
-                                  {call.duration != null && ` · ${formatDuration(call.duration)}`}
-                                </p>
-                              </div>
-                              <svg className={`w-4 h-4 shrink-0 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-
-                            {/* Middle: number + badges */}
-                            <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-medium text-foreground" style={{ fontFamily: 'var(--font-body)' }}>
-                                {callNumber}
-                              </span>
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
-                                {call.direction || 'unknown'}
-                              </span>
-                              {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">VM</span>}
-                              {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">1st</span>}
-                              {spamFlag && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">Spam</span>}
-                              {missedFlag && !spamFlag && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700">Missed</span>}
-                            </div>
-
-                            {/* Bottom: operator/type + actions */}
-                            <div className="mt-2 flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 text-xs text-foreground/60 min-w-0 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
-                                {score?.caller_name && <span className="font-medium text-foreground/80 truncate">{score.caller_name}</span>}
-                                {score?.operator_name && (
-                                  <span className="inline-flex items-center gap-1">
-                                    <span className="w-1 h-1 rounded-full bg-foreground/20" />
-                                    <span>Op: <span className="text-foreground/80">{score.operator_name}</span></span>
-                                  </span>
-                                )}
-                                {score?.client_type && (
-                                  <span className="inline-flex items-center gap-1">
-                                    <span className="w-1 h-1 rounded-full bg-foreground/20" />
-                                    <span>{score.client_type}</span>
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                                {call.audio && (
-                                  <button
-                                    onClick={() => playRecording(call.audio)}
-                                    className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${playingAudio === call.audio ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700 active:bg-emerald-100'}`}
-                                    aria-label={playingAudio === call.audio ? 'Stop' : 'Play'}
-                                  >
-                                    {playingAudio === call.audio ? (
-                                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
-                                    ) : (
-                                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                                    )}
-                                  </button>
-                                )}
-                                {score?.transcript && (
-                                  <button
-                                    onClick={() => setTranscriptFor(call.id)}
-                                    className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-700 active:bg-blue-100"
-                                    aria-label="Transcript"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => rescoreCall(String(call.id), true)}
-                                  disabled={scoringIds.has(String(call.id))}
-                                  className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-200 text-foreground/60 active:bg-warm-bg/50 disabled:opacity-50"
-                                  aria-label={score?.scored_at ? 'Re-analyze' : 'Analyze'}
-                                >
-                                  <svg className={`w-3.5 h-3.5 ${scoringIds.has(String(call.id)) ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-
-                            <p className="text-[10px] font-mono text-foreground/30 mt-1.5">#{call.id}</p>
-                          </div>
-                        </div>
-                      </div>
+                      <CallMobileRow
+                        call={call}
+                        score={score}
+                        expanded={expanded}
+                        selected={selectedIds.has(String(call.id))}
+                        scoring={scoringIds.has(String(call.id))}
+                        isSpam={spamFlag}
+                        playingAudio={playingAudio}
+                        onToggleExpand={() => setExpandedId(expanded ? null : call.id)}
+                        onToggleSelect={() => toggleSelect(String(call.id))}
+                        onPlay={(url) => playRecording(url)}
+                        onOpenTranscript={() => setTranscriptFor(call.id)}
+                        onRescore={() => rescoreCall(String(call.id), true)}
+                      />
                       {expanded && (
                         <div className="bg-warm-bg/30 px-3.5 py-4">
                           <CallDetail

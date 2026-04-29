@@ -265,6 +265,17 @@ body {
   animation: drawerFade 200ms ease-out both;
 }
 
+/* Mobile bottom-sheet — slide up from the bottom edge for filter
+   pickers + lightweight dialogs. Same easing curve as the side
+   drawer so motion language stays consistent across surfaces. */
+@keyframes sheetSlide {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.animate-sheet-slide {
+  animation: sheetSlide 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* Week graph — points/labels fade in after the line draws */
 @keyframes wgFadeIn {
   from { opacity: 0; }
