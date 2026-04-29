@@ -32,7 +32,7 @@ const phases = [
     title: 'Psychoeducation & cognitive restructuring',
     tagline: 'Understanding reduces fear. Clarity creates choice.',
     body:
-      'Clients develop a coherent understanding of their nervous system, trauma responses, and behavioral patterns. We identify and reshape unhelpful thought patterns and increase awareness of internal experience — transforming confusion into comprehensibility, overwhelm into manageability.',
+      'Clients develop a coherent understanding of their nervous system, trauma responses, and behavioral patterns. We identify and reshape unhelpful thought patterns and increase awareness of internal experience — transforming confusion into comprehensibility, overwhelm into manageability. This phase is woven through the entire treatment process rather than confined to a single window — every other phase is supported by ongoing education and reframe.',
     Icon: BookIcon,
   },
   {
@@ -40,7 +40,7 @@ const phases = [
     title: 'Desensitization & integration',
     tagline: 'Processing happens when the nervous system is ready.',
     body:
-      'Once internal resources and regulation capacity are established, clients may choose to engage in trauma memory processing. Our approach emphasizes titration, safety, and client-led pacing. We prioritize forward-facing approaches so integration doesn’t re-traumatize.',
+      'Once internal resources and regulation capacity are established, clients engage in in vivo (live-time) trauma healing methods so the nervous system is never overwhelmed. We emphasize forward-facing approaches — practiced in real life, in real relationships — so integration deepens capacity instead of re-traumatizing.',
     Icon: WaveIcon,
   },
   {
@@ -102,6 +102,17 @@ export default function PhaseFramework() {
             Every phase builds the resources needed for the next. Nobody here
             is asked to process a memory their nervous system is not yet
             equipped to hold.
+          </p>
+          <p className="mt-4 text-foreground/70 text-[15px] leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+            Effective treatment honors the sequence inherent in both
+            neurobiology and recovery: the development of resources and
+            regulation capacity must precede intensive trauma processing.
+            Without that foundation, the body remains vulnerable to
+            dysregulation, which reinforces the instinctual cycles of
+            avoidance and addiction (i.e. self-defense). A capacity-first
+            approach makes sure clients are stabilized enough to engage in
+            healing without becoming overwhelmed — the path that supports
+            sustainable, integrated recovery.
           </p>
           <p
             className="mt-5 text-[12px] text-foreground/50 leading-relaxed italic"

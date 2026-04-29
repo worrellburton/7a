@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Our Clinical Approach | Seven Arrows Recovery',
   description:
-    "Relational-first clinical care grounded in Rhoton and Gentry's resilience-based frameworks — delivered through a polyvagal-informed lens at Seven Arrows.",
+    "Relational-first clinical care grounded in the Salutogenic Treatment Structure conceptualized by Dr. Robert Rhoton and Dr. J. Eric Gentry — delivered through a polyvagal-informed lens at Seven Arrows.",
 };
 
 import PageHero from '@/components/PageHero';
@@ -33,7 +33,7 @@ export default function EvidenceBasedPage() {
           { text: 'relational', accent: true },
           ' first.',
         ]}
-        description="Grounded in the empowerment and resilience-based frameworks of Dr. Robert Rhoton and Dr. J. Eric Gentry, delivered through a polyvagal-informed lens. Healing occurs through relationship and regulated presence, not through force or pathology."
+        description="Grounded in the Salutogenic Treatment Structure conceptualized by Dr. Robert Rhoton and Dr. J. Eric Gentry, delivered through a polyvagal-informed lens. Healing occurs through relationship and regulated presence, not through force or focus on pathology."
       />
 
       {/* Phase 2 — Rhoton/Gentry framework intro + shift glyph */}

@@ -185,8 +185,8 @@ export default function WhyHolistic() {
                 That&rsquo;s why every client at Seven Arrows walks a parallel
                 path &mdash; clinical work on one side, body-based and spirit-
                 based practice on the other. Yoga, breathwork, sweat lodge,
-                sound, movement, land. Practices with lineage, held by people
-                who know them.
+                movement, land. Held in honor of ancient wisdom traditions
+                that have carried these practices for generations.
               </p>
               <p className="text-foreground/90 font-semibold">
                 The goal isn&rsquo;t a spa menu. It&rsquo;s integration &mdash;

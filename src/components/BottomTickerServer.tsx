@@ -9,7 +9,7 @@ import { fetchCachedReviews } from '@/lib/googleReviewsDb';
 import BottomTicker, { type TickerItem } from './BottomTicker';
 
 const STATIC_ITEMS: TickerItem[] = [
-  { type: 'stat', text: '1:1 Primary Clinician' },
+  { type: 'stat', text: 'Small Census · Every Name Known' },
   {
     type: 'link',
     text: 'NEW: When Drinking Stops Working →',

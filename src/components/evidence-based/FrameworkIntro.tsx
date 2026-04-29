@@ -91,12 +91,14 @@ export default function FrameworkIntro() {
               style={{ fontFamily: 'var(--font-body)' }}
             >
               <p>
-                Our clinical approach is grounded in the empowerment and
-                resilience-based frameworks of{' '}
+                Our clinical approach is grounded in the{' '}
+                <span className="text-foreground font-semibold">Salutogenic Treatment Structure</span>{' '}
+                conceptualized by{' '}
                 <span className="text-foreground font-semibold">Dr. Robert Rhoton</span> and{' '}
                 <span className="text-foreground font-semibold">Dr. J. Eric Gentry</span>.
-                We believe healing occurs not through force or pathology, but
-                through the restoration of <em className="not-italic">safety</em>,{' '}
+                We believe healing occurs not through force or focus on
+                pathology, but through the restoration of{' '}
+                <em className="not-italic">safety</em>,{' '}
                 <em className="not-italic">connection</em>, and{' '}
                 <em className="not-italic">self-leadership</em>.
               </p>

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Holistic & Indigenous Practice | Seven Arrows Recovery',
   description:
-    'Yoga, breathwork, sound, art, sweat lodge, and land-based ceremony — held by credentialed practitioners alongside clinical care at Seven Arrows, Arizona.',
+    'Yoga, breathwork, art, sweat lodge, and land-based ceremony — held alongside clinical care at Seven Arrows, Arizona, with experiential outings throughout Cochise County.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -12,9 +12,8 @@ import WhyHolistic from '@/components/holistic/WhyHolistic';
 import FourDimensions from '@/components/holistic/FourDimensions';
 import ModalitiesBento from '@/components/holistic/ModalitiesBento';
 import IndigenousFeature from '@/components/holistic/IndigenousFeature';
-import DayOfPractice from '@/components/holistic/DayOfPractice';
 import EvidenceStats from '@/components/holistic/EvidenceStats';
-import Practitioners from '@/components/holistic/Practitioners';
+import OutingsExperiential from '@/components/holistic/OutingsExperiential';
 import AlumniVoices from '@/components/holistic/AlumniVoices';
 import HolisticCTA from '@/components/holistic/HolisticCTA';
 
@@ -44,15 +43,15 @@ export default function HolisticApproachesPage() {
             integrates outdoor, land-based therapy directly into the clinical program. On a
             private 160-acre ranch at the base of the Swisshelm Mountains in Cochise County,
             Arizona, clients spend time on desert trails, in equine-assisted sessions, and
-            in land-based ceremony — held alongside somatic experiencing, breathwork, and
+            in land-based ceremony — held alongside somatic experiences, breathwork, and
             evidence-based individual and group therapy.
           </p>
         }
         bullets={[
           { label: 'Land-based practice', body: 'Desert walking, sky and silence, fire circles, seasonal ceremony — the environment is part of the treatment.' },
-          { label: 'Equine-assisted', body: 'Weekly equine-assisted psychotherapy sessions on our working herd, ground-based work.' },
+          { label: 'Equine-assisted', body: 'Weekly equine-assisted psychotherapy sessions on the ranch, with horses as co-therapists in ground-based work.' },
           { label: 'Nervous-system focus', body: 'Outdoor time pairs with somatic and polyvagal-informed modalities — regulation first, then deeper processing.' },
-          { label: 'Held by credentialed practitioners', body: 'Licensed clinicians and trained facilitators lead every outdoor and ceremonial session.' },
+          { label: 'Experiential outings', body: 'Off-site programming through Cochise County — Chiricahua, Bisbee, Stronghold Canyon, Whitewater Draw, and more.' },
         ]}
       />
       <WhyHolistic />
@@ -60,9 +59,8 @@ export default function HolisticApproachesPage() {
       <div id="practices" className="scroll-mt-20" />
       <ModalitiesBento />
       <IndigenousFeature />
-      <DayOfPractice />
       <EvidenceStats />
-      <Practitioners />
+      <OutingsExperiential />
       <AlumniVoices />
       <HolisticCTA />
     </main>

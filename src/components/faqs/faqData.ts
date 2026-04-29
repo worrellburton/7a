@@ -71,7 +71,7 @@ export const faqPersonas: PersonaDefinition[] = [
     label: 'Military, veteran, or first responder',
     shortLabel: 'Military & veterans',
     tagline:
-      'TRICARE-in-network, trauma-informed clinical approach, and the specific ways our program fits the service-member and first-responder population.',
+      'TRICARE-friendly out-of-network billing and single case agreements, trauma-informed clinical approach, and the specific ways our program fits the service-member and first-responder population.',
   },
   {
     id: 'professional',
@@ -135,7 +135,7 @@ export const faqCategories: FaqCategory[] = [
       {
         id: 'insurance-accepted',
         q: 'Which insurance plans does Seven Arrows accept?',
-        a: 'Seven Arrows Recovery works with most major insurance plans — Aetna, Blue Cross Blue Shield (BCBS), Cigna, UnitedHealthcare, Humana, TRICARE, and most PPO plans — as an out-of-network provider. Our admissions team runs a free benefits check so you know your coverage before you commit.',
+        a: 'Seven Arrows Recovery is out of network with all carriers. We can create a single case agreement (SCA) or bill out of network with most major plans — Aetna, Blue Cross Blue Shield (BCBS), Cigna, UnitedHealthcare, Humana, TRICARE, and most PPO plans. We also offer flexible payment plans and scholarship options for those who qualify. Our admissions team runs a free benefits check so you know exactly what your coverage looks like before you commit.',
         personas: ['client', 'family', 'military', 'professional'],
       },
       {
@@ -153,7 +153,7 @@ export const faqCategories: FaqCategory[] = [
       {
         id: 'tricare',
         q: 'Do you accept TRICARE for active-duty military and veterans?',
-        a: 'Yes. Seven Arrows regularly treats active-duty service members, reservists, veterans, and TRICARE-covered dependents. We are an out-of-network provider with TRICARE; admissions will verify your benefits and walk you through coverage before you commit. Our TraumAddiction™ approach is designed for trauma-impacted populations including the military community.',
+        a: 'Yes. Seven Arrows regularly treats active-duty service members, reservists, veterans, and TRICARE-covered dependents. We are out of network with TRICARE — we can create a single case agreement or bill out of network, and we offer payment plans and scholarship options where appropriate. Admissions will verify your benefits and walk you through coverage before you commit. Our Forward-Facing TraumAddiction® approach is designed for trauma-impacted populations, including the military community.',
         personas: ['military'],
       },
       {
@@ -183,8 +183,8 @@ export const faqCategories: FaqCategory[] = [
       },
       {
         id: 'traumaddiction',
-        q: 'What is the TraumAddiction™ approach?',
-        a: 'TraumAddiction™ is our proprietary clinical framework for treating trauma and addiction as a single, integrated condition. It pairs cognitive work (CBT, IFS) with body-based interventions (somatic experiencing, EMDR, ART) so the nervous system and the narrative both get attention.',
+        q: 'What is the Forward-Facing TraumAddiction® approach?',
+        a: 'Forward-Facing TraumAddiction® is our proprietary clinical framework — developed by Dr. J. Eric Gentry and Lindsay Rothschild, LCSW — for treating trauma and addiction as a single, integrated condition. It pairs cognitive work (CBT, IFS) with body-based interventions (somatic experiences, EMDR, ART) so the nervous system and the narrative both get attention.',
         personas: ['client', 'family', 'military', 'professional'],
       },
       {

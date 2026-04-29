@@ -101,10 +101,10 @@ export default function PlaceToHeal() {
             {[
               { k: 'Location', v: 'Cochise County, Arizona' },
               { k: 'Program Length', v: '30 · 60 · 90+ days' },
-              { k: 'Setting', v: 'Small-group residential' },
-              { k: 'Primary clinician', v: '1:1 named, not numbered' },
+              { k: 'Setting', v: 'Small-group residential · under 10 clients' },
+              { k: 'Clinical team', v: 'Highly skilled & credentialed' },
               { k: 'Accredited', v: 'JCAHO Gold Seal' },
-              { k: 'In-Network', v: 'Most major insurance' },
+              { k: 'Insurance', v: 'Out of network · single case agreements' },
             ].map((row) => (
               <li
                 key={row.k}
