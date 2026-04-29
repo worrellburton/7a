@@ -28,6 +28,12 @@ interface CursorPayload {
   ts: number;
 }
 
+interface TrailPoint {
+  x: number;
+  y: number;
+  ts: number;
+}
+
 interface RemoteCursor extends CursorPayload {
   // Stable hue derived from id hash, used when no explicit color is set.
   hue: number;
@@ -44,7 +50,14 @@ interface RemoteCursor extends CursorPayload {
   vy?: number;
   /** Smoothed speed magnitude in px/sec. Drives flame length. */
   speed?: number;
+  /** Ring buffer of recent (x, y, ts) so the multi-particle trail
+   *  can render fading copies along the actual path the cursor
+   *  took, not just along the current velocity direction. */
+  trail?: TrailPoint[];
 }
+
+const TRAIL_LENGTH = 8;
+const TRAIL_LIFETIME_MS = 600;
 
 const CHANNEL = 'presence-cursors';
 const THROTTLE_MS = 40; // ~25 fps
@@ -162,6 +175,18 @@ export function PresenceCursors() {
         const smoothedVx = prevVx * (1 - ALPHA) + instVx * ALPHA;
         const smoothedVy = prevVy * (1 - ALPHA) + instVy * ALPHA;
 
+        // Append to trail ring buffer — keep the last TRAIL_LENGTH
+        // points or anything younger than TRAIL_LIFETIME_MS,
+        // whichever is shorter. On a path change we wipe the trail
+        // because the cursor effectively teleported.
+        const oldTrail = previous?.path === c.path ? (previous.trail ?? []) : [];
+        const cutoff = arrivedAt - TRAIL_LIFETIME_MS;
+        const trimmed = oldTrail.filter((p) => p.ts >= cutoff);
+        const nextTrail: TrailPoint[] = [
+          ...trimmed,
+          { x: c.x, y: c.y, ts: arrivedAt },
+        ].slice(-TRAIL_LENGTH);
+
         return {
           ...prev,
           [c.user_id]: {
@@ -174,6 +199,7 @@ export function PresenceCursors() {
             vx: smoothedVx,
             vy: smoothedVy,
             speed: Math.hypot(smoothedVx, smoothedVy),
+            trail: nextTrail,
           },
         };
       });
@@ -325,6 +351,48 @@ export function PresenceCursors() {
             className="absolute top-0 left-0 will-change-transform transition-transform duration-75 ease-linear"
             style={{ transform: `translate(${x}px, ${y}px)` }}
           >
+            {/* Phase 6: multi-particle path trail. Each historical
+                position renders as a small fire blob whose size +
+                opacity fade as the point ages. Coordinates are
+                ABSOLUTE in viewport space, so we offset by the
+                current cursor's screen position to draw them in
+                the same translation frame as the rest of this
+                cursor's elements. */}
+            {(c.trail ?? []).slice(0, -1).map((pt, i, arr) => {
+              const ageMs = c.ts - pt.ts;
+              const ageNorm = Math.max(0, Math.min(1, ageMs / TRAIL_LIFETIME_MS));
+              // Index-based fade so the most recent point is
+              // brightest even before age dominates.
+              const indexNorm = (i + 1) / Math.max(1, arr.length);
+              const alpha = (1 - ageNorm) * indexNorm * 0.7;
+              const size = 6 + indexNorm * 8 + speedNorm * 4;
+              // Translate from the trail point's viewport-space
+              // (px, py) to a delta from the current cursor's
+              // (x, y). The wrapping div is already translated to
+              // (x, y), so we render at (-dx, -dy) to land on the
+              // historical point.
+              const px = (pt.x / Math.max(1, c.vw)) * viewport.w;
+              const py = (pt.y / Math.max(1, c.vh)) * viewport.h;
+              return (
+                <span
+                  key={pt.ts}
+                  aria-hidden="true"
+                  className="absolute pointer-events-none rounded-full"
+                  style={{
+                    left: px - x,
+                    top: py - y,
+                    width: size,
+                    height: size,
+                    transform: 'translate(-50%, -50%)',
+                    background: `radial-gradient(circle, ${color} 0%, #f97316 45%, #fbbf24 80%, transparent 100%)`,
+                    opacity: alpha,
+                    filter: `blur(${1.5 + indexNorm * 1.5}px)`,
+                    mixBlendMode: 'screen',
+                  }}
+                />
+              );
+            })}
+
             {/* Fire trail — sits BEHIND the cursor arrow. The
                 outer wrapper rotates around the cursor TIP based on
                 trailAngleDeg, so the flame always drags opposite to
