@@ -31,6 +31,19 @@ interface CursorPayload {
 interface RemoteCursor extends CursorPayload {
   // Stable hue derived from id hash, used when no explicit color is set.
   hue: number;
+  // Velocity bookkeeping — populated locally on every broadcast we
+  // receive. The fire trail orientation + length are computed from
+  // these. Only the latest (vx, vy, speed) values are read by
+  // render; prevX/prevY/prevTs are bookkeeping for the next delta.
+  prevX?: number;
+  prevY?: number;
+  prevTs?: number;
+  /** Smoothed velocity in px/sec along x/y. Smoothed via EMA so the
+   *  trail direction doesn't flicker between every two frames. */
+  vx?: number;
+  vy?: number;
+  /** Smoothed speed magnitude in px/sec. Drives flame length. */
+  speed?: number;
 }
 
 const CHANNEL = 'presence-cursors';
@@ -112,10 +125,58 @@ export function PresenceCursors() {
     ch.on('broadcast', { event: 'cursor' }, (msg) => {
       const c = msg.payload as CursorPayload;
       if (!c || c.user_id === user.id) return;
-      setCursors((prev) => ({
-        ...prev,
-        [c.user_id]: { ...c, ts: Date.now(), hue: hueFromId(c.user_id) },
-      }));
+      const arrivedAt = Date.now();
+      setCursors((prev) => {
+        const previous = prev[c.user_id];
+        // Compute instantaneous velocity from the last known
+        // position. Skip when there's no prior point or the path
+        // changed (cursor jumped to another page — that's not real
+        // movement, don't infer a 5000px/s spike from it).
+        let prevX: number | undefined = previous?.x;
+        let prevY: number | undefined = previous?.y;
+        let prevTs: number | undefined = previous?.ts;
+        if (previous && previous.path !== c.path) {
+          prevX = undefined;
+          prevY = undefined;
+          prevTs = undefined;
+        }
+
+        let instVx = 0;
+        let instVy = 0;
+        if (prevX != null && prevY != null && prevTs != null) {
+          const dtSec = Math.max(0.001, (arrivedAt - prevTs) / 1000);
+          instVx = (c.x - prevX) / dtSec;
+          instVy = (c.y - prevY) / dtSec;
+        }
+
+        // EMA smoothing — broadcasts come in at ~25 fps so raw
+        // frame-to-frame velocity wobbles wildly even on smooth
+        // pointer motion. Blend ~30% of the new sample into the
+        // previous smoothed value so the trail direction settles
+        // visibly instead of jittering. The constant is calibrated
+        // to feel responsive on flicks but stable while drawing
+        // straight lines.
+        const ALPHA = 0.3;
+        const prevVx = previous?.vx ?? 0;
+        const prevVy = previous?.vy ?? 0;
+        const smoothedVx = prevVx * (1 - ALPHA) + instVx * ALPHA;
+        const smoothedVy = prevVy * (1 - ALPHA) + instVy * ALPHA;
+
+        return {
+          ...prev,
+          [c.user_id]: {
+            ...c,
+            ts: arrivedAt,
+            hue: hueFromId(c.user_id),
+            prevX: c.x,
+            prevY: c.y,
+            prevTs: arrivedAt,
+            vx: smoothedVx,
+            vy: smoothedVy,
+            speed: Math.hypot(smoothedVx, smoothedVy),
+          },
+        };
+      });
     });
 
     ch.on('broadcast', { event: 'leave' }, (msg) => {
@@ -227,28 +288,55 @@ export function PresenceCursors() {
         const y = (c.y / Math.max(1, c.vh)) * viewport.h;
         const initial = (c.name || '?').charAt(0).toUpperCase();
         const color = c.color || `hsl(${c.hue}, 70%, 50%)`;
+
+        // Trail orientation. Flame drags OPPOSITE to motion, so we
+        // negate the velocity vector and atan2 it to get the angle
+        // pointing away from the cursor. Below the IDLE_SPEED
+        // threshold the velocity is too small to be a meaningful
+        // direction (random sub-pixel jitter), so we fall back to
+        // pointing straight down — the cursor reads as a candle
+        // when stationary and as a comet when moving.
+        const speed = c.speed ?? 0;
+        const IDLE_SPEED = 25; // px/sec; below this, treat as idle
+        // CSS rotate() takes 0deg = pointing-up. atan2 returns the
+        // signed angle from the +x axis with +y down (browser
+        // convention), so we offset by +90deg to align "the flame
+        // points along this vector" with CSS's rotation frame.
+        const trailAngleDeg = speed >= IDLE_SPEED
+          ? (Math.atan2(-(c.vy ?? 0), -(c.vx ?? 0)) * 180) / Math.PI + 90
+          : 180; // idle = points straight down (away from cursor up)
         return (
           <div
             key={c.user_id}
             className="absolute top-0 left-0 will-change-transform transition-transform duration-75 ease-linear"
             style={{ transform: `translate(${x}px, ${y}px)` }}
           >
-            {/* Fire trail — sits BEHIND the cursor arrow. A radial
-                glow sets the heat halo, then a flame teardrop
-                streams downward from the cursor tip with a flicker
-                + sway loop. The flame's gradient runs from the
-                cursor's color at the tip → orange in the middle →
-                bright yellow at the base, so even when the user's
-                color is purple/blue, the trail still reads as "fire". */}
+            {/* Fire trail — sits BEHIND the cursor arrow. The
+                outer wrapper rotates around the cursor TIP based on
+                trailAngleDeg, so the flame always drags opposite to
+                motion. Inside the wrapper, the flame element itself
+                renders pointing "down" in its local frame; the
+                rotation handles direction.
+                transform-origin sits at the cursor tip (top center
+                of the box) so rotation pivots around the pointer
+                rather than the flame's midpoint — otherwise fast
+                direction changes would slingshot the flame around. */}
             <div
               aria-hidden="true"
               className="absolute pointer-events-none"
               style={{
-                top: 14,
-                left: 8,
+                top: 4,
+                left: 4,
                 width: 28,
                 height: 60,
-                transform: 'translateX(-50%)',
+                transformOrigin: '50% 0%',
+                transform: `translateX(-50%) rotate(${trailAngleDeg}deg)`,
+                transition: 'transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+              }}
+            >
+            <div
+              className="relative w-full h-full"
+              style={{
                 animation: 'presence-flame-sway 1.4s ease-in-out infinite',
                 filter: 'blur(0.4px)',
               }}
@@ -281,6 +369,7 @@ export function PresenceCursors() {
                   mixBlendMode: 'screen',
                 }}
               />
+            </div>
             </div>
 
             {/* Cursor arrow — sits above the flame so the pointer
