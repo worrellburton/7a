@@ -294,6 +294,81 @@ function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
 
 export { pageIcons };
 
+/**
+ * Seven Arrows brand mark for the sidebar / mobile drawer header.
+ * A copper-gradient pill containing "7A" with a small bow-and-arrow
+ * stroke detail to nod to the Seven Arrows name. A pulsing radial
+ * glow halo sits behind it, breathing on a slow loop so the brand
+ * feels alive without being noisy. Two sizes — md for the pinned
+ * desktop sidebar, sm for the compact mobile drawer header.
+ */
+function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
+  const big = size === 'md';
+  return (
+    <span className="relative inline-flex items-center" aria-label="Seven Arrows Recovery">
+      <style jsx>{`
+        @keyframes sa-logo-glow {
+          0%, 100% {
+            opacity: 0.42;
+            transform: scale(0.92);
+          }
+          50% {
+            opacity: 0.72;
+            transform: scale(1.08);
+          }
+        }
+        @keyframes sa-logo-arrow {
+          0%, 100% { transform: translateX(0); opacity: 0.7; }
+          50%      { transform: translateX(2px); opacity: 1; }
+        }
+      `}</style>
+      {/* Outer glow halo — pulsing breath behind the badge. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute"
+        style={{
+          inset: big ? '-10px' : '-8px',
+          background:
+            'radial-gradient(closest-side, rgba(188,107,74,0.55) 0%, rgba(188,107,74,0.22) 40%, transparent 75%)',
+          filter: 'blur(8px)',
+          animation: 'sa-logo-glow 2.6s ease-in-out infinite',
+        }}
+      />
+      {/* Mark — copper-gradient rounded square with "7A" in white */}
+      <span
+        className={`relative inline-flex items-center gap-1 rounded-xl ${big ? 'px-2.5 py-1' : 'px-2 py-0.5'} text-white tracking-tight font-black`}
+        style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: big ? '1.25rem' : '1rem',
+          background:
+            'linear-gradient(135deg, #d4794a 0%, #bc6b4a 45%, #a45a3d 100%)',
+          boxShadow:
+            '0 4px 12px -3px rgba(188,107,74,0.55), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -1px 0 rgba(0,0,0,0.08)',
+        }}
+      >
+        <span className="leading-none">7A</span>
+        {/* Tiny arrow nod to "Seven Arrows" — points right with a
+            subtle drift animation so it reads as in-motion rather
+            than static. */}
+        <svg
+          aria-hidden="true"
+          width={big ? 12 : 10}
+          height={big ? 12 : 10}
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ animation: 'sa-logo-arrow 2.6s ease-in-out infinite' }}
+        >
+          <path d="M2 6h7M6 3l3 3-3 3" />
+        </svg>
+      </span>
+    </span>
+  );
+}
+
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
   const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
@@ -626,7 +701,23 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           actual sidebar UI stays pinned to the viewport while the
           rest of the page scrolls — keeping the user card + user
           menu permanently at the lower-left. */}
-      <aside className="w-64 shrink-0 hidden lg:block bg-white border-r border-gray-100">
+      <aside className="w-64 shrink-0 hidden lg:block bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-2xl border-r border-white/60 relative">
+        {/* Glass treatment — semi-transparent white, heavy backdrop
+            blur, an inner specular sheen line at the top and a
+            subtle vertical gradient that fades down so the panel
+            reads as a frosted-glass layer over the warm background.
+            The accent line is hairline-fine and uses the brand
+            color at low alpha so the sidebar still feels like a
+            Seven Arrows surface, not a generic glass panel. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 w-px"
+          style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(188,107,74,0.18) 30%, rgba(188,107,74,0.18) 70%, transparent 100%)' }}
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent"
+        />
         {/* `app-shell` applies zoom: 0.82 at lg+, so a plain h-screen
             renders at only 82% of the real viewport — that's why the
             user card used to float ~120px above the bottom edge.
@@ -637,7 +728,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-            <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
+            <SevenArrowsLogo />
+
           </Link>
         </div>
 
@@ -854,8 +946,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <Link href="/app" className="text-xl font-black text-primary tracking-tighter">
-            7A
+          <Link href="/app" aria-label="Seven Arrows Recovery">
+            <SevenArrowsLogo size="sm" />
           </Link>
           <div className="w-10" aria-hidden="true" />
         </div>
@@ -874,7 +966,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               {/* Header: brand + close */}
               <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
                 <Link href="/app" className="flex items-center gap-2.5">
-                  <span className="text-2xl font-black text-primary tracking-tighter">7A</span>
+                  <SevenArrowsLogo />
+
                 </Link>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
