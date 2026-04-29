@@ -7,7 +7,7 @@ import {
   fetchPublicTeamMemberBySlug,
   type PublicTeamMember,
 } from '@/lib/team';
-import { formatNameWithCredentials } from '@/lib/displayName';
+import { formatNameWithCredentials, splitCredentials } from '@/lib/displayName';
 import { TEAM_META_DESCRIPTIONS } from '@/lib/seo/teamMetaDescriptions';
 
 interface Params {
@@ -125,8 +125,34 @@ export default async function TeamMemberPage({ params }: Params) {
                   lineHeight: 1.05,
                 }}
               >
-                {formatNameWithCredentials(member.full_name, member.credentials)}
+                {member.full_name}
               </h1>
+
+              {/* Credentials — pulled out of the bold display heading
+                  and rendered as their own row of pill-style chips so
+                  long credential strings don't compete with the name
+                  for visual weight. Falls back to the joined string in
+                  aria-label so screen readers still get the whole
+                  "Name, Cred1, Cred2…" form. */}
+              {(() => {
+                const creds = splitCredentials(member.credentials);
+                return creds.length > 0 ? (
+                  <ul
+                    className="mt-4 flex flex-wrap gap-1.5"
+                    aria-label={formatNameWithCredentials(member.full_name, member.credentials)}
+                  >
+                    {creds.map((c, i) => (
+                      <li
+                        key={`${c}-${i}`}
+                        className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold tracking-[0.04em] text-white/90"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null;
+              })()}
 
               {(member.job_title || member.hometown) && (
                 <p className="mt-3 text-white/85 text-base sm:text-lg">

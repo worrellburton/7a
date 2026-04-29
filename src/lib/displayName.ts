@@ -17,3 +17,19 @@ export function formatNameWithCredentials(
   if (!creds) return baseName;
   return `${baseName}, ${creds}`;
 }
+
+// Split a free-text credentials string into individual chips.
+// Splits on commas, trims whitespace, keeps multi-word tokens intact
+// (e.g. "EMDRIA Certified" stays as one chip), and drops empties.
+// Tokens like "MD/MPH" or "RYT-200" are preserved as single items
+// because the slash and hyphen are inside the token.
+export function splitCredentials(
+  credentials: string | null | undefined,
+): string[] {
+  const raw = (credentials ?? '').trim();
+  if (!raw) return [];
+  return raw
+    .split(/[,;]/g)
+    .map((c) => c.trim())
+    .filter((c) => c.length > 0);
+}
