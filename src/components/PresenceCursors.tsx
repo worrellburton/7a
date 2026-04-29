@@ -288,6 +288,23 @@ export function PresenceCursors() {
         const y = (c.y / Math.max(1, c.vh)) * viewport.h;
         const initial = (c.name || '?').charAt(0).toUpperCase();
         const color = c.color || `hsl(${c.hue}, 70%, 50%)`;
+
+        // Trail orientation. Flame drags OPPOSITE to motion, so we
+        // negate the velocity vector and atan2 it to get the angle
+        // pointing away from the cursor. Below the IDLE_SPEED
+        // threshold the velocity is too small to be a meaningful
+        // direction (random sub-pixel jitter), so we fall back to
+        // pointing straight down — the cursor reads as a candle
+        // when stationary and as a comet when moving.
+        const speed = c.speed ?? 0;
+        const IDLE_SPEED = 25; // px/sec; below this, treat as idle
+        // CSS rotate() takes 0deg = pointing-up. atan2 returns the
+        // signed angle from the +x axis with +y down (browser
+        // convention), so we offset by +90deg to align "the flame
+        // points along this vector" with CSS's rotation frame.
+        const trailAngleDeg = speed >= IDLE_SPEED
+          ? (Math.atan2(-(c.vy ?? 0), -(c.vx ?? 0)) * 180) / Math.PI + 90
+          : 180; // idle = points straight down (away from cursor up)
         return (
           <div
             key={c.user_id}
