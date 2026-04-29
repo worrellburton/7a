@@ -1016,9 +1016,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           <div className="w-10" aria-hidden="true" />
         </div>
 
-        {/* Mobile drawer */}
+        {/* Mobile drawer — z-[70] so it overlays the home orbit
+            (which now sits at relative z-50 to keep its hover
+            tooltips above the at-a-glance card below). */}
         {mobileMenuOpen && (
-          <div className="lg:hidden fixed inset-0 z-50" role="dialog" aria-modal="true">
+          <div className="lg:hidden fixed inset-0 z-[70]" role="dialog" aria-modal="true">
             {/* Backdrop */}
             <div
               onClick={() => setMobileMenuOpen(false)}
