@@ -47,7 +47,8 @@ export type DirectoryCategory =
   | 'recovery'        // In The Rooms, Sober Recovery
   | 'specialty'       // LGBTQ, veterans, dual-dx
   | 'professional'    // NAATP, NAADAC, ASAM
-  | 'business';       // LinkedIn, BBB, Crunchbase
+  | 'business'        // LinkedIn, BBB, Crunchbase
+  | 'other';          // Catch-all for admin-added directories that don't fit above
 
 export interface Directory {
   id: string;
@@ -79,6 +80,7 @@ const CATEGORY_LABELS: Record<DirectoryCategory, string> = {
   specialty: 'Specialty (LGBTQ, veterans, dual-dx)',
   professional: 'Professional + accreditation',
   business: 'General business + brand',
+  other: 'Other',
 };
 
 const CATEGORY_ORDER: DirectoryCategory[] = [
@@ -92,6 +94,9 @@ const CATEGORY_ORDER: DirectoryCategory[] = [
   'specialty',
   'professional',
   'business',
+  // 'other' sits at the end as a catch-all for admin-added rows that
+  // don't fit any of the curated categories.
+  'other',
 ];
 
 // 100 directories across 10 categories (see CATEGORY_LABELS above).
