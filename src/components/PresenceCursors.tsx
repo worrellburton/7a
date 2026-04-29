@@ -366,6 +366,26 @@ export function PresenceCursors() {
               const indexNorm = (i + 1) / Math.max(1, arr.length);
               const alpha = (1 - ageNorm) * indexNorm * 0.7;
               const size = 6 + indexNorm * 8 + speedNorm * 4;
+              // Phase 7: color temperature falls off as the
+              // particle ages. Hot particles near the cursor are
+              // white-yellow (highest temperature); old particles
+              // at the tail cool through orange to deep red. This
+              // mirrors the way a real flame's tail loses heat as
+              // it dissipates. We pick a Bezier-like 4-stop palette
+              // and lerp index-wise so the gradient ID stays a
+              // single radial-gradient string per particle.
+              //
+              //   indexNorm 1.0  → white core, yellow halo, color-tinted edge
+              //   indexNorm 0.5  → orange core, deep-orange halo, color edge
+              //   indexNorm 0.0  → ember red core, dark red halo, fade
+              const heat = indexNorm; // 1 = hottest (newest), 0 = coolest
+              const core = heat > 0.66 ? '#ffffff'
+                : heat > 0.33 ? '#fde68a'
+                : '#f97316';
+              const mid = heat > 0.66 ? '#fde68a'
+                : heat > 0.33 ? '#fbbf24'
+                : '#dc2626';
+              const edge = heat > 0.5 ? color : '#7c2d12';
               // Translate from the trail point's viewport-space
               // (px, py) to a delta from the current cursor's
               // (x, y). The wrapping div is already translated to
@@ -384,7 +404,7 @@ export function PresenceCursors() {
                     width: size,
                     height: size,
                     transform: 'translate(-50%, -50%)',
-                    background: `radial-gradient(circle, ${color} 0%, #f97316 45%, #fbbf24 80%, transparent 100%)`,
+                    background: `radial-gradient(circle, ${core} 0%, ${mid} 35%, ${edge} 70%, transparent 100%)`,
                     opacity: alpha,
                     filter: `blur(${1.5 + indexNorm * 1.5}px)`,
                     mixBlendMode: 'screen',
