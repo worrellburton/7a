@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
-import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
+import { requireSuperAdmin } from '@/lib/social-media-auth';
 import { ayrshareGet, AyrshareNotConfigured, extractAyrshareError } from '@/lib/ayrshare';
 
 // GET /api/social-media/accounts
@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const supabase = await getServerSupabase();
-  const auth = await requireWebsiteRequestsAccess(supabase);
+  const auth = await requireSuperAdmin(supabase);
   if (auth.response) return auth.response;
 
   try {
