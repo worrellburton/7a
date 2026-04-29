@@ -5,7 +5,7 @@ export const benzoContent: SubstanceContent = {
     label: 'Benzodiazepine Addiction Treatment',
     title: 'Benzos silence the alarm. Healing teaches the alarm it can stop ringing.',
     description:
-      'At Seven Arrows Recovery, benzodiazepine use disorder is treated with the medical seriousness it requires. Benzo withdrawal is one of the only substance withdrawals that can kill you — so we sequence medical tapering, nervous-system regulation, and trauma-informed therapy carefully, in the right order.',
+      'At Seven Arrows Recovery, benzodiazepine use disorder is treated with the medical seriousness it requires. Benzo withdrawal can be fatal without medical oversight, so we sequence medical tapering, nervous-system regulation, and trauma-informed therapy carefully, in the right order.',
     breadcrumbs: [
       { label: 'Home', href: '/' },
       { label: 'What We Treat', href: '/what-we-treat' },

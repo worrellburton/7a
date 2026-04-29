@@ -20,9 +20,9 @@ interface SafetyItem {
 
 const items: SafetyItem[] = [
   {
-    title: 'Dual-leader protocol',
+    title: 'Licensed-therapist led',
     body:
-      'Every session is co-led by a licensed mental-health clinician and a dedicated equine specialist. The clinician owns the therapeutic frame; the specialist owns the horse-and-human safety frame. Neither role is collapsed into the other.',
+      'Every session is led by a licensed mental-health therapist trained in equine-facilitated work. The therapist owns both the clinical frame and the horse-and-human safety frame, with the horses themselves serving as co-therapists in the room.',
   },
   {
     title: 'Licensed clinicians only',

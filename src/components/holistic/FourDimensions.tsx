@@ -71,7 +71,7 @@ const dimensions: Dimension[] = [
     title: 'Spiritual',
     gloss: 'Meaning and the bigger belonging',
     body:
-      'Sweat lodge, land-based ceremony, night sky. Practices with lineage that put a life back inside a story larger than itself.',
+      'Sweat lodge, land-based ceremony, night sky. Practices that honor ancient wisdom traditions and put a life back inside a story larger than itself.',
     glyph: (
       <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M32 8l5 15 16 1-12 11 4 16-13-9-13 9 4-16-12-11 16-1z" />

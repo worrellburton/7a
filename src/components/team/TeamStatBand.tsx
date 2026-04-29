@@ -1,56 +1,40 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PublicTeamMember } from '@/lib/team';
 
-// Quiet four-stat band that sits between the donut and the team grid.
-// Numbers are derived from the actual team list when possible (so the
-// "team size" stays accurate as people are added) and fall back to
-// hand-set values for things the data doesn't carry yet (years
-// combined, % in recovery — those need richer profile fields).
-
-function CountUp({
-  to,
-  active,
-  durationMs = 1400,
-  decimals = 0,
-}: {
-  to: number;
-  active: boolean;
-  durationMs?: number;
-  decimals?: number;
-}) {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    if (!active) return;
-    // Reduced-motion: snap to final value, skip the rAF loop.
-    const reduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) {
-      setValue(to);
-      return;
-    }
-    let raf = 0;
-    const start = performance.now();
-    const loop = (t: number) => {
-      const p = Math.min(1, (t - start) / durationMs);
-      // ease-out quartic — slow stop, no spring
-      const eased = 1 - Math.pow(1 - p, 4);
-      setValue(Number((eased * to).toFixed(decimals)));
-      if (p < 1) raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [active, to, durationMs, decimals]);
-  return <>{decimals === 0 ? Math.round(value) : value.toFixed(decimals)}</>;
-}
+// Three short cards that sit between the donut and the team grid.
+// Earlier versions surfaced a count-up of "X clinicians, Y support
+// staff" — the leadership team flagged that as gimmicky and as
+// quietly highlighting the few staff members without a license, so
+// this version reads as authentic prose instead. We intentionally
+// leave the team prop on the API in case a future iteration
+// re-introduces a single, useful number.
 
 interface Props {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   team: PublicTeamMember[];
 }
 
-export default function TeamStatBand({ team }: Props) {
+const CARDS = [
+  {
+    eyebrow: 'A small, on-purpose roster',
+    headline: 'Credentialed and experienced.',
+    body: 'Our clinical team carries multiple certifications across varying treatment modalities — chosen for depth of training and lived experience, not headcount.',
+  },
+  {
+    eyebrow: 'Trauma-informed by default',
+    headline: 'Trauma specialists across the board.',
+    body: 'The majority of our licensed staff and direct-care support are certified as trauma specialists or trauma clinicians, so trauma-aware practice is the floor, not a feature.',
+  },
+  {
+    eyebrow: 'Around the clock, every day',
+    headline: '24/7 on-site direct care.',
+    body: 'On-site direct-care support with trauma-certified staff present every shift. The night does not feel different from the day.',
+  },
+];
+
+export default function TeamStatBand(_: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {
@@ -71,56 +55,17 @@ export default function TeamStatBand({ team }: Props) {
     return () => io.disconnect();
   }, [inView]);
 
-  const stats = useMemo(() => {
-    // Trauma-trained count — pulls anyone with a recognized
-    // credential abbreviation OR a clinical / behavioral-support
-    // job title. Reflects the reality that the majority of our
-    // licensed and support staff carry trauma certifications, not
-    // just the clinical bucket. We intentionally don't surface the
-    // narrow "credentialed clinician" count here because the
-    // headline "X clinicians" understates how many people on the
-    // team are trauma-trained.
-    const traumaTrained = team.filter(
-      (m) =>
-        (m.credentials ?? '').trim().length > 0 ||
-        /\b(lcsw|lpc|lmft|lisac|lac|lcdc|cadc|cmhc|md|do|rn|lpn|np|pa|psychologist|psychiatrist|counselor|therapist|physician|technician|specialist|support|coach|recovery|behavioral)\b/i.test(
-          m.job_title || '',
-        ),
-    ).length;
-
-    return [
-      {
-        value: team.length,
-        suffix: '',
-        label: 'Active team members',
-        eyebrow: 'A small, on-purpose roster',
-      },
-      {
-        value: traumaTrained,
-        suffix: '',
-        label: 'Trauma-trained clinicians + support staff',
-        eyebrow: 'Multiple certifications across modalities',
-      },
-      {
-        value: 24,
-        suffix: '/7',
-        label: 'On-site direct care support',
-        eyebrow: 'Around the clock, every day',
-      },
-    ];
-  }, [team]);
-
   return (
     <section
       ref={ref}
       className="bg-white py-14 lg:py-20"
-      aria-label="Team by the numbers"
+      aria-label="What our team brings"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-10 gap-x-6 lg:gap-x-4">
-          {stats.map((s, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-10 gap-x-6 lg:gap-x-8">
+          {CARDS.map((c, i) => (
             <div
-              key={s.label}
+              key={c.headline}
               className="relative lg:px-4 lg:border-r lg:border-black/10 lg:last:border-r-0"
               style={{
                 opacity: inView ? 1 : 0,
@@ -132,23 +77,22 @@ export default function TeamStatBand({ team }: Props) {
                 className="text-[10px] font-semibold tracking-[0.22em] uppercase text-primary mb-3"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                {s.eyebrow}
+                {c.eyebrow}
               </p>
-              <div
-                className="text-foreground font-bold tracking-tight tabular-nums leading-[0.95]"
+              <h3
+                className="text-foreground font-bold tracking-tight leading-tight"
                 style={{
                   fontFamily: 'var(--font-display)',
-                  fontSize: 'clamp(2.4rem, 4.4vw, 3.6rem)',
+                  fontSize: 'clamp(1.4rem, 2.2vw, 1.75rem)',
                 }}
               >
-                <CountUp to={s.value} active={inView} />
-                <span className="text-primary">{s.suffix}</span>
-              </div>
+                {c.headline}
+              </h3>
               <p
-                className="text-foreground/65 text-sm leading-snug mt-3 max-w-[220px]"
+                className="text-foreground/65 text-sm leading-relaxed mt-3"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                {s.label}
+                {c.body}
               </p>
             </div>
           ))}
