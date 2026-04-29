@@ -77,13 +77,14 @@ export function MobileRangePresets({
   ];
 
   return (
-    <div className="flex items-center gap-1 bg-warm-bg rounded-xl p-1 overflow-x-auto no-scrollbar">
+    <div className="relative flex items-center gap-1 rounded-xl border border-white/70 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-xl p-1 overflow-x-auto no-scrollbar shadow-sm">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-xl bg-gradient-to-r from-transparent via-white/85 to-transparent" />
       {items.map(it => (
         <button
           key={it.key}
           onClick={it.onClick}
           disabled={it.disabled}
-          className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${it.active ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'} ${it.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+          className={`relative shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${it.active ? 'bg-white shadow-sm text-foreground' : 'text-foreground/45 hover:text-foreground/70'} ${it.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
           style={{ fontFamily: 'var(--font-body)' }}
         >
           {it.label}
