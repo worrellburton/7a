@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { PlatformIcon, type PlatformId } from './PlatformIcon';
+import { MediaPicker, type PickedMedia } from './MediaPicker';
 
 // Marketing → Social Media. v1 wraps Ayrshare's API:
 //   * Connected accounts strip (one button per platform → JWT popup)
@@ -142,28 +143,12 @@ function ConnectedAccountsStrip({
   onChanged: () => void;
 }) {
   const active = new Set(accounts?.activeSocialAccounts ?? []);
-  const [busyPlatform, setBusyPlatform] = useState<Platform | null>(null);
-
-  const connect = async (platform: Platform) => {
-    setBusyPlatform(platform);
-    try {
-      // Ayrshare's /profiles/generateJWT JWT-signed-link flow needs a
-      // white-label domain + RSA private key + per-user email — set
-      // up for multi-tenant SaaS, overkill for a single account.
-      // For now we just open Ayrshare's own dashboard in a new tab;
-      // the admin links the account there, comes back, and the
-      // Connected Accounts strip refreshes via the focus listener
-      // below.
-      void platform;
-      window.open('https://app.ayrshare.com/social-accounts', 'ayrshare_dashboard');
-    } finally {
-      setBusyPlatform(null);
-    }
-  };
 
   // Refresh the connected-accounts list when the user returns to
-  // this tab — covers the "linked an account on Ayrshare's dashboard
-  // and came back" flow above.
+  // this tab — covers the "linked an account on Ayrshare's
+  // dashboard and came back" flow. (Account linking happens in
+  // Ayrshare's own UI; the strip here is a status indicator
+  // only — it stays in sync without a click handler.)
   useEffect(() => {
     const onFocus = () => onChanged();
     window.addEventListener('focus', onFocus);
@@ -233,76 +218,111 @@ function ConnectedAccountsStrip({
 
 // ── Analytics ─────────────────────────────────────────────────────
 
-interface AnalyticsBlob {
-  // Ayrshare returns a top-level object keyed by platform name. Each
-  // platform's value is wildly inconsistent (Facebook nests under
-  // `analytics`, Instagram exposes `mediaCountTotal` + `followers`,
-  // YouTube uses `subscribersCount`, etc.). Renderer pulls the
-  // fields it knows about and falls back to "—" for unknowns.
-  [platform: string]: Record<string, unknown>;
+interface SnapshotEntry {
+  id: string;
+  captured_at: string;
+  platform: string;
+  raw: Record<string, unknown> | null;
+  source: string;
+}
+
+interface HistoryResponse {
+  latest: Record<string, SnapshotEntry>;
+  platforms: string[];
 }
 
 function AnalyticsPanel({ connected }: { connected: string[] }) {
-  const [data, setData] = useState<AnalyticsBlob | null>(null);
+  const [latest, setLatest] = useState<Record<string, SnapshotEntry>>({});
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loadedFor, setLoadedFor] = useState<string>('');
 
-  const platformsKey = useMemo(() => connected.slice().sort().join(','), [connected]);
-
-  const refresh = useCallback(async () => {
-    if (connected.length === 0) {
-      setData(null);
-      setError(null);
-      return;
-    }
+  const loadFromHistory = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/social-media/analytics', {
-        method: 'POST',
+      const res = await fetch('/api/social-media/analytics/history', {
         credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ platforms: connected }),
+        cache: 'no-store',
       });
-      const json = await res.json().catch(() => ({}));
+      const json = (await res.json().catch(() => ({}))) as HistoryResponse & { error?: string };
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      setData(json.analytics ?? null);
+      setLatest(json.latest ?? {});
       setError(null);
-      setLoadedFor(platformsKey);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [connected, platformsKey]);
+  }, []);
 
-  // Auto-load on mount + whenever the connected set changes. The
-  // sorted join keeps the dep array stable across re-renders that
-  // pass an equivalent-but-new array.
-  useEffect(() => {
-    if (connected.length > 0 && loadedFor !== platformsKey) {
-      refresh();
+  // Manual Refresh: trigger a fresh snapshot via the cron handler,
+  // then re-read the history table. The cron handler does the
+  // Ayrshare round-trip; we just kick it off and wait for the row
+  // to land.
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch('/api/social-media/analytics/refresh', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      await loadFromHistory();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefreshing(false);
     }
-  }, [connected.length, loadedFor, platformsKey, refresh]);
+  }, [loadFromHistory]);
+
+  useEffect(() => { loadFromHistory(); }, [loadFromHistory]);
 
   if (connected.length === 0) {
     return null;
   }
 
+  // Show every connected platform — when we don't have a snapshot
+  // for one yet, the card renders an empty-state and prompts the
+  // admin to click Refresh (or wait for the next cron tick).
+  const hasAnySnapshot = Object.keys(latest).length > 0;
+
+  // Pick the most recent captured_at across all connected platforms
+  // for the header timestamp. The team treats the cron as a single
+  // run, so a per-card timestamp would be more noise than signal.
+  const headerCapturedAt = (() => {
+    let max: string | null = null;
+    for (const p of connected) {
+      const at = latest[p]?.captured_at;
+      if (at && (!max || at > max)) max = at;
+    }
+    return max;
+  })();
+
   return (
     <section className="mb-6 rounded-2xl border border-black/10 bg-white p-5">
       <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Analytics</h2>
+        <div>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Analytics</h2>
+          <p className="text-[11px] text-foreground/50 mt-0.5">
+            {headerCapturedAt
+              ? `as of ${new Date(headerCapturedAt).toLocaleString('en-US', {
+                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                })}`
+              : 'No snapshot yet'}
+            {' · auto-refreshes daily at 6am'}
+          </p>
+        </div>
         <button
           type="button"
           onClick={refresh}
-          disabled={loading}
+          disabled={loading || refreshing}
           className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-foreground/55 hover:text-primary disabled:opacity-50"
         >
-          <svg className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+          <svg className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          {loading ? 'Refreshing…' : 'Refresh'}
+          {refreshing ? 'Refreshing…' : 'Refresh now'}
         </button>
       </div>
       {error && (
@@ -310,16 +330,23 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
           {error}
         </p>
       )}
-      {!data && !error && !loading && (
+      {loading && !hasAnySnapshot && !error && (
         <p className="text-xs text-foreground/45 italic">Loading…</p>
       )}
-      {data && (
+      {!loading && !hasAnySnapshot && !error && (
+        <p className="text-xs text-foreground/45 italic">
+          No snapshot yet — click <strong>Refresh now</strong> to capture the first one,
+          then the daily cron takes over.
+        </p>
+      )}
+      {hasAnySnapshot && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {connected.map((p) => (
             <AnalyticsCard
               key={p}
               platform={p as PlatformId}
-              raw={data[p] ?? null}
+              raw={latest[p]?.raw ?? null}
+              capturedAt={latest[p]?.captured_at ?? null}
             />
           ))}
         </div>
@@ -328,7 +355,16 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
   );
 }
 
-function AnalyticsCard({ platform, raw }: { platform: PlatformId; raw: Record<string, unknown> | null }) {
+function AnalyticsCard({
+  platform, raw, capturedAt,
+}: {
+  platform: PlatformId;
+  raw: Record<string, unknown> | null;
+  /** Snapshot captured_at — surfaces in the card footer so each
+   *  platform tile reads as data from a specific moment. */
+  capturedAt?: string | null;
+}) {
+  void capturedAt; // used in the footer below — see render block
   const stats = useMemo(() => extractStats(platform, raw), [platform, raw]);
   return (
     <div className="rounded-xl border border-black/10 bg-warm-bg/30 p-3">
@@ -452,7 +488,7 @@ function Composer({
   onPosted: () => void;
 }) {
   const [text, setText] = useState('');
-  const [mediaUrlsInput, setMediaUrlsInput] = useState('');
+  const [picked, setPicked] = useState<PickedMedia[]>([]);
   const [selected, setSelected] = useState<Set<Platform>>(() => new Set());
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState('');
@@ -496,10 +532,11 @@ function Composer({
     setPosting(true);
     setResultMsg(null);
     try {
-      const mediaUrls = mediaUrlsInput
-        .split(/[\n,]/)
-        .map((v) => v.trim())
-        .filter(Boolean);
+      // Flatten the picker's selections into the simple
+      // mediaUrls[] payload Ayrshare expects. Order is preserved
+      // — first selected = first in the array, which controls the
+      // primary thumbnail on multi-asset posts.
+      const mediaUrls = picked.map((p) => p.url);
       const body: Record<string, unknown> = {
         post: text.trim(),
         platforms: Array.from(selected),
@@ -532,7 +569,7 @@ function Composer({
           : 'Posted.',
       });
       setText('');
-      setMediaUrlsInput('');
+      setPicked([]);
       setScheduleDate('');
       setScheduleEnabled(false);
       onPosted();
@@ -552,33 +589,12 @@ function Composer({
     <section className="mb-6 rounded-2xl border border-black/10 bg-white p-5">
       <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">Compose</h2>
 
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="What do you want to post?"
-        rows={4}
-        className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
-      />
-      <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-foreground/50">
-        <span className={overTwitter ? 'text-amber-700 font-medium' : ''}>
-          {charCount} characters{overTwitter ? ' · over X / Twitter limit (280)' : ''}
-        </span>
-      </div>
-
-      <div className="mt-4">
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55 block mb-1">
-          Image / video URLs (optional, one per line)
-        </label>
-        <textarea
-          value={mediaUrlsInput}
-          onChange={(e) => setMediaUrlsInput(e.target.value)}
-          placeholder="https://example.com/photo.jpg"
-          rows={2}
-          className="w-full rounded-lg border border-black/10 px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y font-mono"
-        />
-      </div>
-
-      <div className="mt-4">
+      {/* "Post to" picker sits at the top — picking the channels is
+          the most consequential decision per post, and seeing the
+          target set before writing copy keeps the admin from drafting
+          a 3000-char LinkedIn essay only to discover they only have
+          X connected. */}
+      <div>
         {/* Header row — picker label on the left, summary count +
             select-all / clear shortcuts on the right. Makes the
             picker read as a deliberate decision the admin makes per
@@ -684,6 +700,36 @@ function Composer({
             Connect at least one account above before posting.
           </p>
         )}
+      </div>
+
+      {/* Caption textarea — moved BELOW the Post to picker so the
+          admin's drafting context (which channels are targeted)
+          is established first. */}
+      <div className="mt-5">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55 block mb-1">
+          Caption
+        </label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="What do you want to post?"
+          rows={4}
+          className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
+        />
+        <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-foreground/50">
+          <span className={overTwitter ? 'text-amber-700 font-medium' : ''}>
+            {charCount} characters{overTwitter ? ' · over X / Twitter limit (280)' : ''}
+          </span>
+        </div>
+      </div>
+
+      {/* Media picker — pulls from public.site_images +
+          public.site_videos. Replaces the legacy "paste URLs one
+          per line" textarea so the admin attaches assets that
+          already live in the 7A media library instead of guessing
+          public URLs. */}
+      <div className="mt-4">
+        <MediaPicker value={picked} onChange={setPicked} />
       </div>
 
       <div className="mt-4 flex items-center gap-3">
