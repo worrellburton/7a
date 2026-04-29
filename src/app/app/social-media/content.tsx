@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { PlatformIcon, type PlatformId } from './PlatformIcon';
 import { MediaPicker, type PickedMedia } from './MediaPicker';
+import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
 
 // Marketing → Social Media. v1 wraps Ayrshare's API:
 //   * Connected accounts strip (one button per platform → JWT popup)
@@ -518,6 +519,10 @@ function Composer({
   const [scheduleDate, setScheduleDate] = useState('');
   const [posting, setPosting] = useState(false);
   const [resultMsg, setResultMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // Top-right delivery toast — see PostStatusToast for the visual.
+  // Holds the lifecycle of the most recent submit so the toast can
+  // animate from "sending" through per-platform results.
+  const [postStatus, setPostStatus] = useState<PostStatus | null>(null);
 
   // Default the platform picker to whichever accounts are connected
   // so a user can hit "Post now" without ticking boxes when they
@@ -553,8 +558,17 @@ function Composer({
       setResultMsg({ kind: 'err', text: 'Pick a schedule date or turn scheduling off.' });
       return;
     }
+    const targetPlatforms = Array.from(selected);
     setPosting(true);
     setResultMsg(null);
+    // Open the top-right toast immediately so the admin sees the
+    // request taking off — even slow Ayrshare round-trips give
+    // visible "Pending" rows per platform while we wait.
+    setPostStatus({
+      phase: 'sending',
+      platforms: targetPlatforms,
+      scheduled: scheduleEnabled,
+    });
     try {
       // Flatten the picker's selections into the simple
       // mediaUrls[] payload Ayrshare expects. Order is preserved
@@ -563,7 +577,7 @@ function Composer({
       const mediaUrls = picked.map((p) => p.url);
       const body: Record<string, unknown> = {
         post: text.trim(),
-        platforms: Array.from(selected),
+        platforms: targetPlatforms,
       };
       if (mediaUrls.length > 0) body.mediaUrls = mediaUrls;
       if (scheduleEnabled && scheduleDate) {
@@ -578,27 +592,83 @@ function Composer({
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        // Ayrshare often surfaces per-platform errors even on a 4xx.
-        const detail = Array.isArray(json.errors) && json.errors.length > 0
-          ? json.errors.map((e: { platform?: string; message?: string }) => `${e.platform ?? '?'}: ${e.message ?? '?'}`).join(' · ')
-          : (json.error || json.message || `HTTP ${res.status}`);
-        setResultMsg({ kind: 'err', text: detail });
+
+      // Build per-platform results from Ayrshare's response.
+      // Successful posts come back under postIds[]; failures under
+      // errors[]. We walk every selected platform and look it up in
+      // both arrays so the toast renders one row per target.
+      const results: PerPlatformResult[] = targetPlatforms.map((platform) => {
+        const errEntry = Array.isArray(json.errors)
+          ? (json.errors as Array<{ platform?: string; message?: string; action?: string }>).find(
+              (e) => e.platform === platform || e.action === platform,
+            )
+          : undefined;
+        const postEntry = Array.isArray(json.postIds)
+          ? (json.postIds as Array<{ platform?: string; postUrl?: string; status?: string; id?: string }>).find(
+              (p) => p.platform === platform,
+            )
+          : undefined;
+        if (errEntry) {
+          return {
+            platform,
+            ok: false,
+            message: errEntry.message || 'Post failed',
+          };
+        }
+        return {
+          platform,
+          ok: !!postEntry || res.ok,
+          postUrl: postEntry?.postUrl,
+        };
+      });
+
+      const allOk = results.every((r) => r.ok);
+      const fatalError = !res.ok && results.every((r) => r.ok)
+        ? json.error || json.message || `HTTP ${res.status}`
+        : undefined;
+
+      setPostStatus({
+        phase: 'settled',
+        platforms: targetPlatforms,
+        results,
+        scheduled: scheduleEnabled,
+        fatalError,
+      });
+
+      if (!res.ok && fatalError) {
+        setResultMsg({ kind: 'err', text: fatalError });
         return;
       }
+
+      // Inline result line stays for accessibility / print fallback,
+      // but the toast is the primary signal now.
       setResultMsg({
-        kind: 'ok',
-        text: scheduleEnabled
-          ? 'Scheduled. It will post automatically.'
-          : 'Posted.',
+        kind: allOk ? 'ok' : 'err',
+        text: allOk
+          ? scheduleEnabled
+            ? 'Scheduled. It will post automatically.'
+            : 'Posted.'
+          : `Posted to ${results.filter((r) => r.ok).length} of ${results.length}; see the notification for details.`,
       });
-      setText('');
-      setPicked([]);
-      setScheduleDate('');
-      setScheduleEnabled(false);
+      // Only clear the composer on a clean success — leave it
+      // populated when even one platform failed so the admin can
+      // tweak and retry without re-typing.
+      if (allOk) {
+        setText('');
+        setPicked([]);
+        setScheduleDate('');
+        setScheduleEnabled(false);
+      }
       onPosted();
     } catch (err) {
-      setResultMsg({ kind: 'err', text: err instanceof Error ? err.message : String(err) });
+      const text = err instanceof Error ? err.message : String(err);
+      setResultMsg({ kind: 'err', text });
+      setPostStatus({
+        phase: 'settled',
+        platforms: targetPlatforms,
+        fatalError: text,
+        scheduled: scheduleEnabled,
+      });
     } finally {
       setPosting(false);
     }
@@ -611,6 +681,14 @@ function Composer({
 
   return (
     <section className="mb-6 rounded-2xl border border-black/10 bg-white p-5">
+      {/* Top-right delivery toast — opens on submit, animates from
+          'sending' through per-platform success/fail rows, auto-
+          dismisses on full success after ~4.5s, sticks on error. */}
+      <PostStatusToast
+        status={postStatus}
+        onClose={() => setPostStatus((s) => (s ? { ...s, phase: 'dismissed' } : null))}
+      />
+
       <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">Compose</h2>
 
       {/* "Post to" picker sits at the top — picking the channels is
