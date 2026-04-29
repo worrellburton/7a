@@ -145,37 +145,28 @@ function ConnectedAccountsStrip({
   const connect = async (platform: Platform) => {
     setBusyPlatform(platform);
     try {
-      const res = await fetch('/api/social-media/connect-link', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ platform }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.url) {
-        alert(json.error || `Failed to start the connect flow (HTTP ${res.status})`);
-        return;
-      }
-      // Pop Ayrshare's hosted OAuth flow. We don't get a callback —
-      // the popup just closes when the user is done — so we re-fetch
-      // accounts when the popup window closes.
-      const popup = window.open(json.url, 'ayrshare_connect', 'width=620,height=780');
-      if (!popup) {
-        alert('Popup blocked. Allow popups for this site and try again.');
-        return;
-      }
-      const watcher = window.setInterval(() => {
-        if (popup.closed) {
-          window.clearInterval(watcher);
-          onChanged();
-          setBusyPlatform(null);
-        }
-      }, 800);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : String(err));
+      // Ayrshare's /profiles/generateJWT JWT-signed-link flow needs a
+      // white-label domain + RSA private key + per-user email — set
+      // up for multi-tenant SaaS, overkill for a single account.
+      // For now we just open Ayrshare's own dashboard in a new tab;
+      // the admin links the account there, comes back, and the
+      // Connected Accounts strip refreshes via the focus listener
+      // below.
+      void platform;
+      window.open('https://app.ayrshare.com/social-accounts', 'ayrshare_dashboard');
+    } finally {
       setBusyPlatform(null);
     }
   };
+
+  // Refresh the connected-accounts list when the user returns to
+  // this tab — covers the "linked an account on Ayrshare's dashboard
+  // and came back" flow above.
+  useEffect(() => {
+    const onFocus = () => onChanged();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [onChanged]);
 
   return (
     <section className="mb-6 rounded-2xl border border-black/10 bg-white p-4">
