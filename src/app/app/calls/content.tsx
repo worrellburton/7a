@@ -1041,33 +1041,46 @@ export default function CallsContent() {
   })();
 
   return (
-    <div className="p-2.5 sm:p-6 lg:p-10">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 sm:mb-8 flex-wrap gap-2 sm:gap-3">
-        <div className="min-w-0">
-          <h1 className="text-base sm:text-lg font-semibold text-foreground tracking-tight mb-0.5 sm:mb-1">Calls</h1>
-          <p className="text-[11px] sm:text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            Call tracking powered by CTM
-            {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total</span>}
-          </p>
-          <SyncStatusIndicator token={session?.access_token ?? null} />
-        </div>
-        <div className="flex items-center gap-2">
-          <a
-            href="/app/calls/heatmap"
-            className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-primary text-white rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors"
-            style={{ fontFamily: 'var(--font-body)' }}
-            aria-label="View Heatmap"
-          >
-            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-              <rect x="3" y="4" width="18" height="16" rx="2" strokeLinejoin="round" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM7 16h2v0H7zM11 16h2v0h-2zM15 16h2v0h-2z" />
-            </svg>
-            <span className="hidden sm:inline">View Heatmap</span>
-            <span className="sm:hidden">Heatmap</span>
-          </a>
-        </div>
+    <div className="relative min-h-full overflow-hidden p-2.5 sm:p-6 lg:p-10">
+      {/* Ambient backdrop — three soft warm orbs behind everything so
+          the glass surfaces have something colorful to refract.
+          Pointer-events off so they never trap clicks. Same pattern
+          as the home page so the visual language stays consistent. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-24 -left-20 w-[420px] h-[420px] rounded-full bg-orange-300/30 blur-[120px]" />
+        <div className="absolute top-1/3 -right-24 w-[360px] h-[360px] rounded-full bg-rose-200/35 blur-[110px]" />
+        <div className="absolute bottom-0 left-1/3 w-[480px] h-[480px] rounded-full bg-amber-200/30 blur-[130px]" />
       </div>
+
+      {/* Header — glass plank with title left, Heatmap CTA right. */}
+      <header className="relative rounded-3xl border border-white/70 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-2xl shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)] mb-4 sm:mb-8">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-white/90 to-transparent" />
+        <div className="px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between flex-wrap gap-2 sm:gap-3">
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-lg font-semibold text-foreground tracking-tight mb-0.5 sm:mb-1">Calls</h1>
+            <p className="text-[11px] sm:text-sm text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+              Call tracking powered by CTM
+              {totalEntries > 0 && <span> &middot; {totalEntries.toLocaleString()} total</span>}
+            </p>
+            <SyncStatusIndicator token={session?.access_token ?? null} />
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href="/app/calls/heatmap"
+              className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-primary text-white rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors shadow-sm"
+              style={{ fontFamily: 'var(--font-body)' }}
+              aria-label="View Heatmap"
+            >
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="16" rx="2" strokeLinejoin="round" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h2v2H7zM11 8h2v2h-2zM15 8h2v2h-2zM7 12h2v2H7zM11 12h2v2h-2zM15 12h2v2h-2zM7 16h2v0H7zM11 16h2v0h-2zM15 16h2v0h-2z" />
+              </svg>
+              <span className="hidden sm:inline">View Heatmap</span>
+              <span className="sm:hidden">Heatmap</span>
+            </a>
+          </div>
+        </div>
+      </header>
 
       {/* Mobile-only quick range presets — always visible, even before
           timelineBounds loads. The full TimelineSlider below is richer
@@ -1108,94 +1121,87 @@ export default function CallsContent() {
         </div>
       )}
 
-      {/* Insights Dashboard */}
+      {/* Insights Dashboard — glass tiles. Each tile carries a top
+          sheen line so the surface reads as real glass; the active
+          "Meaningful" tile gets an emerald-rim instead of a tint
+          shift so the focus state survives the translucent wash. */}
       {insightsLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 animate-pulse">
-              <div className="h-3 bg-gray-100 rounded w-16 mb-3" />
-              <div className="h-7 bg-gray-100 rounded w-12" />
+            <div key={i} className="relative rounded-2xl border border-white/70 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-xl shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)] p-4 sm:p-5 animate-pulse">
+              <div className="h-3 bg-foreground/10 rounded w-16 mb-3" />
+              <div className="h-7 bg-foreground/10 rounded w-12" />
             </div>
           ))}
         </div>
       ) : (
         <div className="mb-6 space-y-4">
-          {/* Stat Cards — range-scoped */}
           <div className="grid grid-cols-4 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 sm:gap-4">
-            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
-              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Total Calls</p>
-              <p className="text-xl sm:text-2xl font-bold text-foreground">{rangeInsights.totalCalls}</p>
-              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {rangeInsights.totalCalls > 0 ? `${rangeInsights.inbound} in · ${rangeInsights.outbound} out` : 'No calls in range'}
-              </p>
-            </div>
-            <div className="bg-white rounded-xl sm:rounded-2xl border border-blue-100 p-2.5 sm:p-5">
-              <p className="text-[10px] sm:text-xs font-medium text-blue-400 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Meaningful</p>
-              <p className="text-xl sm:text-2xl font-bold text-blue-600">{rangeInsights.meaningful}</p>
-              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {rangeInsights.totalCalls > 0 ? `${Math.round((rangeInsights.meaningful / rangeInsights.totalCalls) * 100)}% of calls` : 'No calls in range'}
-              </p>
-            </div>
-            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
-              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed</p>
-              <p className="text-xl sm:text-2xl font-bold text-red-500">{rangeInsights.missed}</p>
-              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {rangeInsights.inbound > 0 ? `${Math.round((rangeInsights.missed / rangeInsights.inbound) * 100)}% of inbound` : 'No inbound'}
-              </p>
-              {rangeInsights.missedSpam > 0 && (
-                <p className="text-[10px] sm:text-xs font-medium text-amber-600 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-                  {rangeInsights.missedSpam} spam excluded
-                </p>
-              )}
-            </div>
-            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
-              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Missed (Paid)</p>
-              <p className="text-xl sm:text-2xl font-bold text-red-500">{rangeInsights.missedPaid}</p>
-              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {rangeInsights.missed > 0 ? `${Math.round((rangeInsights.missedPaid / rangeInsights.missed) * 100)}% of missed` : 'No missed calls'}
-              </p>
-            </div>
-            <div className="bg-white rounded-xl sm:rounded-2xl border border-amber-100 p-2.5 sm:p-5">
-              <p className="text-[10px] sm:text-xs font-medium text-amber-500 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Spam</p>
-              <p className="text-xl sm:text-2xl font-bold text-amber-600">{rangeInsights.spam}</p>
-              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {rangeInsights.spam > 0 ? `${rangeInsights.spam} reported` : 'None reported'}
-              </p>
-            </div>
-            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
-              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Returned</p>
-              <p className="text-xl sm:text-2xl font-bold text-emerald-500">{rangeInsights.returnedMissed}</p>
-              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {rangeInsights.missed > 0 ? `${Math.round((rangeInsights.returnedMissed / rangeInsights.missed) * 100)}% of missed` : 'No missed calls'}
-              </p>
-            </div>
-            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
-              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Returned (Picked Up)</p>
-              <p className="text-xl sm:text-2xl font-bold text-emerald-600">{rangeInsights.returnedPickedUp}</p>
-              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-                {rangeInsights.returnedMissed > 0 ? `${Math.round((rangeInsights.returnedPickedUp / rangeInsights.returnedMissed) * 100)}% of returned` : 'No returned'}
-              </p>
-            </div>
-            <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 p-2.5 sm:p-5">
-              <p className="text-[10px] sm:text-xs font-medium text-foreground/40 uppercase tracking-wider mb-0.5 sm:mb-1" style={{ fontFamily: 'var(--font-body)' }}>Avg Duration</p>
-              <p className="text-xl sm:text-2xl font-bold text-foreground">{formatDuration(rangeInsights.avgDuration)}</p>
-              <p className="text-[10px] sm:text-xs text-foreground/30 mt-0.5 sm:mt-1" style={{ fontFamily: 'var(--font-body)' }}>per call</p>
-            </div>
+            <StatTile label="Total Calls" value={rangeInsights.totalCalls} sub={rangeInsights.totalCalls > 0 ? `${rangeInsights.inbound} in · ${rangeInsights.outbound} out` : 'No calls in range'} />
+            <StatTile
+              label="Meaningful"
+              labelClass="text-blue-500"
+              valueClass="text-blue-600"
+              value={rangeInsights.meaningful}
+              sub={rangeInsights.totalCalls > 0 ? `${Math.round((rangeInsights.meaningful / rangeInsights.totalCalls) * 100)}% of calls` : 'No calls in range'}
+              accent="blue"
+            />
+            <StatTile
+              label="Missed"
+              valueClass="text-red-500"
+              value={rangeInsights.missed}
+              sub={rangeInsights.inbound > 0 ? `${Math.round((rangeInsights.missed / rangeInsights.inbound) * 100)}% of inbound` : 'No inbound'}
+              extra={rangeInsights.missedSpam > 0 ? `${rangeInsights.missedSpam} spam excluded` : undefined}
+              extraClass="text-amber-600"
+            />
+            <StatTile
+              label="Missed (Paid)"
+              valueClass="text-red-500"
+              value={rangeInsights.missedPaid}
+              sub={rangeInsights.missed > 0 ? `${Math.round((rangeInsights.missedPaid / rangeInsights.missed) * 100)}% of missed` : 'No missed calls'}
+            />
+            <StatTile
+              label="Spam"
+              labelClass="text-amber-500"
+              valueClass="text-amber-600"
+              value={rangeInsights.spam}
+              sub={rangeInsights.spam > 0 ? `${rangeInsights.spam} reported` : 'None reported'}
+              accent="amber"
+            />
+            <StatTile
+              label="Returned"
+              valueClass="text-emerald-500"
+              value={rangeInsights.returnedMissed}
+              sub={rangeInsights.missed > 0 ? `${Math.round((rangeInsights.returnedMissed / rangeInsights.missed) * 100)}% of missed` : 'No missed calls'}
+            />
+            <StatTile
+              label="Returned (Picked Up)"
+              valueClass="text-emerald-600"
+              value={rangeInsights.returnedPickedUp}
+              sub={rangeInsights.returnedMissed > 0 ? `${Math.round((rangeInsights.returnedPickedUp / rangeInsights.returnedMissed) * 100)}% of returned` : 'No returned'}
+            />
+            <StatTile label="Avg Duration" value={formatDuration(rangeInsights.avgDuration)} sub="per call" />
           </div>
-
         </div>
       )}
 
-      {/* Error State */}
+      {/* Error State — same glass language but tinted with the
+          error palette so it reads as urgent without breaking
+          the visual system. */}
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-2xl p-5 mb-6">
-          <p className="text-sm text-red-700 font-medium">CTM API Error</p>
-          <p className="text-xs text-red-500 mt-1" style={{ fontFamily: 'var(--font-body)' }}>{error}</p>
+        <div className="relative rounded-2xl border border-red-200/70 bg-red-50/65 supports-[backdrop-filter]:bg-red-50/50 backdrop-blur-xl shadow-[0_8px_24px_-16px_rgba(220,38,38,0.18)] p-5 mb-6">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/80 to-transparent" />
+          <p className="text-sm text-red-700 font-semibold">CTM API Error</p>
+          <p className="text-xs text-red-600 mt-1" style={{ fontFamily: 'var(--font-body)' }}>{error}</p>
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 sm:mb-6 bg-warm-bg rounded-xl p-1 w-fit">
+      {/* Tabs — glass segmented bar. Translucent surface w/ a sheen
+          line so it matches the stat tiles + header above. The
+          active tab still pops as solid white inside the group so
+          the selection signal stays loud. */}
+      <div className="relative flex gap-1 mb-4 sm:mb-6 rounded-xl border border-white/70 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-xl p-1 w-fit shadow-sm">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-xl bg-gradient-to-r from-transparent via-white/85 to-transparent" />
         {(['calls', 'sources', 'spam', ...(isAdmin ? ['operators'] as const : [])] as Tab[]).map(t => {
           const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : t === 'spam' ? 'Spam' : 'Operator Insights';
           const isAdminTab = t === 'operators';
@@ -1242,21 +1248,22 @@ export default function CallsContent() {
           combo was clipping the tap area on iOS WebKit). */}
       {(tab === 'calls' || tab === 'spam') && (
         <div className="sticky md:static top-0 z-20 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 sm:py-0 bg-warm-bg/85 supports-[backdrop-filter]:bg-warm-bg/65 backdrop-blur-md md:bg-transparent md:backdrop-blur-0 mb-4 md:mb-4">
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="relative md:rounded-2xl md:border md:border-white/70 md:bg-white/45 md:supports-[backdrop-filter]:bg-white/30 md:backdrop-blur-xl md:shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)] md:p-2 flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div aria-hidden="true" className="hidden md:block pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/85 to-transparent" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') fetchCalls(1); }}
               placeholder="Search calls..."
-              className="min-h-[44px] md:min-h-0 md:py-2 px-3 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary flex-1 min-w-[140px] sm:w-48 sm:flex-none"
+              className="min-h-[44px] md:min-h-0 md:py-2 px-3 rounded-lg text-sm border border-white/70 bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-sm focus:outline-none focus:border-primary focus:bg-white flex-1 min-w-[140px] sm:w-48 sm:flex-none"
               style={{ fontFamily: 'var(--font-body)' }}
             />
             <input
               type="date"
               value={dateFilter}
               onChange={e => { setDateFilter(e.target.value); }}
-              className="min-h-[44px] md:min-h-0 md:py-2 px-3 rounded-lg text-sm border border-gray-100 bg-white focus:outline-none focus:border-primary"
+              className="min-h-[44px] md:min-h-0 md:py-2 px-3 rounded-lg text-sm border border-white/70 bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-sm focus:outline-none focus:border-primary focus:bg-white"
               style={{ fontFamily: 'var(--font-body)' }}
             />
             <MobileSelect
@@ -1313,7 +1320,8 @@ export default function CallsContent() {
       {(tab === 'calls' || tab === 'spam') && !loading && (
         <>
           {calls.length === 0 && !error ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-12 md:py-20 px-6">
+            <div className="relative rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)] text-center py-12 md:py-20 px-6">
+              <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent" />
               <svg className="w-12 h-12 mx-auto text-foreground/15 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>
               <p className="text-sm font-semibold text-foreground/65 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
                 {tab === 'spam' ? 'No reported spam numbers' : 'No calls match these filters'}
@@ -1325,7 +1333,8 @@ export default function CallsContent() {
               </p>
             </div>
           ) : calls.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="relative rounded-2xl border border-white/70 bg-white/65 supports-[backdrop-filter]:bg-white/50 backdrop-blur-xl shadow-[0_14px_40px_-20px_rgba(60,48,42,0.28)] overflow-hidden">
+              <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent z-10" />
               {/* Mobile single-row layout — see CallMobileRow.tsx for
                   the row anatomy and why we replaced the multi-line
                   card. The row is its own component now so the
@@ -1809,6 +1818,71 @@ export default function CallsContent() {
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+// Single glass tile used by the Insights row at the top of the page.
+// Repeated 8x — extracted so each tile carries the same translucent
+// surface, sheen line, and shadow without 80 lines of duplicate
+// className. The `accent` prop adds a colored ring instead of a tint
+// shift so the focus state survives the white/45 wash of the glass.
+function StatTile({
+  label,
+  value,
+  sub,
+  extra,
+  labelClass,
+  valueClass,
+  extraClass,
+  accent,
+}: {
+  label: string;
+  value: number | string;
+  sub?: string;
+  extra?: string;
+  labelClass?: string;
+  valueClass?: string;
+  extraClass?: string;
+  accent?: 'blue' | 'amber';
+}) {
+  const ringClass =
+    accent === 'blue'
+      ? 'ring-1 ring-blue-300/55 shadow-[0_0_0_1px_rgba(96,165,250,0.18),0_8px_24px_-16px_rgba(60,48,42,0.28)]'
+      : accent === 'amber'
+      ? 'ring-1 ring-amber-300/55 shadow-[0_0_0_1px_rgba(251,191,36,0.18),0_8px_24px_-16px_rgba(60,48,42,0.28)]'
+      : 'shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)]';
+  return (
+    <div
+      className={`relative rounded-xl sm:rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl p-2.5 sm:p-5 ${ringClass}`}
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-xl sm:rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
+      />
+      <p
+        className={`text-[10px] sm:text-xs font-medium uppercase tracking-wider mb-0.5 sm:mb-1 ${labelClass ?? 'text-foreground/45'}`}
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        {label}
+      </p>
+      <p className={`text-xl sm:text-2xl font-bold ${valueClass ?? 'text-foreground'}`}>{value}</p>
+      {sub && (
+        <p
+          className="text-[10px] sm:text-xs text-foreground/35 mt-0.5 sm:mt-1"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {sub}
+        </p>
+      )}
+      {extra && (
+        <p
+          className={`text-[10px] sm:text-xs font-medium mt-0.5 ${extraClass ?? 'text-foreground/55'}`}
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {extra}
+        </p>
+      )}
     </div>
   );
 }
