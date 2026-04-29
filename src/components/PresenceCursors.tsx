@@ -28,6 +28,12 @@ interface CursorPayload {
   ts: number;
 }
 
+interface TrailPoint {
+  x: number;
+  y: number;
+  ts: number;
+}
+
 interface RemoteCursor extends CursorPayload {
   // Stable hue derived from id hash, used when no explicit color is set.
   hue: number;
@@ -44,7 +50,14 @@ interface RemoteCursor extends CursorPayload {
   vy?: number;
   /** Smoothed speed magnitude in px/sec. Drives flame length. */
   speed?: number;
+  /** Ring buffer of recent (x, y, ts) so the multi-particle trail
+   *  can render fading copies along the actual path the cursor
+   *  took, not just along the current velocity direction. */
+  trail?: TrailPoint[];
 }
+
+const TRAIL_LENGTH = 8;
+const TRAIL_LIFETIME_MS = 600;
 
 const CHANNEL = 'presence-cursors';
 const THROTTLE_MS = 40; // ~25 fps
@@ -162,6 +175,18 @@ export function PresenceCursors() {
         const smoothedVx = prevVx * (1 - ALPHA) + instVx * ALPHA;
         const smoothedVy = prevVy * (1 - ALPHA) + instVy * ALPHA;
 
+        // Append to trail ring buffer — keep the last TRAIL_LENGTH
+        // points or anything younger than TRAIL_LIFETIME_MS,
+        // whichever is shorter. On a path change we wipe the trail
+        // because the cursor effectively teleported.
+        const oldTrail = previous?.path === c.path ? (previous.trail ?? []) : [];
+        const cutoff = arrivedAt - TRAIL_LIFETIME_MS;
+        const trimmed = oldTrail.filter((p) => p.ts >= cutoff);
+        const nextTrail: TrailPoint[] = [
+          ...trimmed,
+          { x: c.x, y: c.y, ts: arrivedAt },
+        ].slice(-TRAIL_LENGTH);
+
         return {
           ...prev,
           [c.user_id]: {
@@ -174,6 +199,7 @@ export function PresenceCursors() {
             vx: smoothedVx,
             vy: smoothedVy,
             speed: Math.hypot(smoothedVx, smoothedVy),
+            trail: nextTrail,
           },
         };
       });
@@ -305,12 +331,88 @@ export function PresenceCursors() {
         const trailAngleDeg = speed >= IDLE_SPEED
           ? (Math.atan2(-(c.vy ?? 0), -(c.vx ?? 0)) * 180) / Math.PI + 90
           : 180; // idle = points straight down (away from cursor up)
+
+        // Phase 5: scale the flame by speed. The mapping is two
+        // logistic curves so the response feels natural across the
+        // full range:
+        //   * lengthScale 0.45 → 2.6  (idle ember → comet tail)
+        //   * widthScale  0.85 → 1.25 (fat candle → narrow streak)
+        // Slower cursors get a stout, candle-shaped flame; fast
+        // ones stretch into a long, narrow comet tail. Width
+        // narrows under speed because real flames stretch thinner
+        // when they trail.
+        const SPEED_REF = 1400; // px/sec where the flame is "long"
+        const speedNorm = Math.min(1, speed / SPEED_REF);
+        const lengthScale = 0.45 + speedNorm * 2.15;
+        const widthScale = 0.85 + speedNorm * 0.40;
         return (
           <div
             key={c.user_id}
             className="absolute top-0 left-0 will-change-transform transition-transform duration-75 ease-linear"
             style={{ transform: `translate(${x}px, ${y}px)` }}
           >
+            {/* Phase 6: multi-particle path trail. Each historical
+                position renders as a small fire blob whose size +
+                opacity fade as the point ages. Coordinates are
+                ABSOLUTE in viewport space, so we offset by the
+                current cursor's screen position to draw them in
+                the same translation frame as the rest of this
+                cursor's elements. */}
+            {(c.trail ?? []).slice(0, -1).map((pt, i, arr) => {
+              const ageMs = c.ts - pt.ts;
+              const ageNorm = Math.max(0, Math.min(1, ageMs / TRAIL_LIFETIME_MS));
+              // Index-based fade so the most recent point is
+              // brightest even before age dominates.
+              const indexNorm = (i + 1) / Math.max(1, arr.length);
+              const alpha = (1 - ageNorm) * indexNorm * 0.7;
+              const size = 6 + indexNorm * 8 + speedNorm * 4;
+              // Phase 7: color temperature falls off as the
+              // particle ages. Hot particles near the cursor are
+              // white-yellow (highest temperature); old particles
+              // at the tail cool through orange to deep red. This
+              // mirrors the way a real flame's tail loses heat as
+              // it dissipates. We pick a Bezier-like 4-stop palette
+              // and lerp index-wise so the gradient ID stays a
+              // single radial-gradient string per particle.
+              //
+              //   indexNorm 1.0  → white core, yellow halo, color-tinted edge
+              //   indexNorm 0.5  → orange core, deep-orange halo, color edge
+              //   indexNorm 0.0  → ember red core, dark red halo, fade
+              const heat = indexNorm; // 1 = hottest (newest), 0 = coolest
+              const core = heat > 0.66 ? '#ffffff'
+                : heat > 0.33 ? '#fde68a'
+                : '#f97316';
+              const mid = heat > 0.66 ? '#fde68a'
+                : heat > 0.33 ? '#fbbf24'
+                : '#dc2626';
+              const edge = heat > 0.5 ? color : '#7c2d12';
+              // Translate from the trail point's viewport-space
+              // (px, py) to a delta from the current cursor's
+              // (x, y). The wrapping div is already translated to
+              // (x, y), so we render at (-dx, -dy) to land on the
+              // historical point.
+              const px = (pt.x / Math.max(1, c.vw)) * viewport.w;
+              const py = (pt.y / Math.max(1, c.vh)) * viewport.h;
+              return (
+                <span
+                  key={pt.ts}
+                  aria-hidden="true"
+                  className="absolute pointer-events-none rounded-full"
+                  style={{
+                    left: px - x,
+                    top: py - y,
+                    width: size,
+                    height: size,
+                    transform: 'translate(-50%, -50%)',
+                    background: `radial-gradient(circle, ${core} 0%, ${mid} 35%, ${edge} 70%, transparent 100%)`,
+                    opacity: alpha,
+                    filter: `blur(${1.5 + indexNorm * 1.5}px)`,
+                    mixBlendMode: 'screen',
+                  }}
+                />
+              );
+            })}
+
             {/* Fire trail — sits BEHIND the cursor arrow. The
                 outer wrapper rotates around the cursor TIP based on
                 trailAngleDeg, so the flame always drags opposite to
@@ -352,7 +454,11 @@ export function PresenceCursors() {
                 }}
               />
               {/* Flame body — teardrop with a fire gradient. The
-                  flicker loop scales it up/down so it dances. */}
+                  flicker loop scales it up/down so it dances.
+                  --flame-length / --flame-width CSS variables come
+                  from the speed-driven lengthScale / widthScale
+                  computed above, so the body literally stretches
+                  when the cursor sprints. */}
               <span
                 className="absolute"
                 style={{
@@ -364,6 +470,13 @@ export function PresenceCursors() {
                   borderRadius: '50% 50% 50% 50% / 35% 35% 65% 65%',
                   background: `linear-gradient(to bottom, ${color} 0%, #f97316 38%, #fbbf24 78%, #fde68a 100%)`,
                   transformOrigin: '50% 0%',
+                  // Compose the flicker animation with a base
+                  // scale that varies with speed. The animation
+                  // multiplies onto this via its own scaleX/Y
+                  // transform, so we get "dances at a longer
+                  // length" rather than fighting the keyframes.
+                  scale: `${widthScale} ${lengthScale}`,
+                  transition: 'scale 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
                   animation: 'presence-flame-flicker 0.85s ease-in-out infinite',
                   filter: 'blur(0.6px)',
                   mixBlendMode: 'screen',
