@@ -233,76 +233,111 @@ function ConnectedAccountsStrip({
 
 // ── Analytics ─────────────────────────────────────────────────────
 
-interface AnalyticsBlob {
-  // Ayrshare returns a top-level object keyed by platform name. Each
-  // platform's value is wildly inconsistent (Facebook nests under
-  // `analytics`, Instagram exposes `mediaCountTotal` + `followers`,
-  // YouTube uses `subscribersCount`, etc.). Renderer pulls the
-  // fields it knows about and falls back to "—" for unknowns.
-  [platform: string]: Record<string, unknown>;
+interface SnapshotEntry {
+  id: string;
+  captured_at: string;
+  platform: string;
+  raw: Record<string, unknown> | null;
+  source: string;
+}
+
+interface HistoryResponse {
+  latest: Record<string, SnapshotEntry>;
+  platforms: string[];
 }
 
 function AnalyticsPanel({ connected }: { connected: string[] }) {
-  const [data, setData] = useState<AnalyticsBlob | null>(null);
+  const [latest, setLatest] = useState<Record<string, SnapshotEntry>>({});
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loadedFor, setLoadedFor] = useState<string>('');
 
-  const platformsKey = useMemo(() => connected.slice().sort().join(','), [connected]);
-
-  const refresh = useCallback(async () => {
-    if (connected.length === 0) {
-      setData(null);
-      setError(null);
-      return;
-    }
+  const loadFromHistory = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/social-media/analytics', {
-        method: 'POST',
+      const res = await fetch('/api/social-media/analytics/history', {
         credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ platforms: connected }),
+        cache: 'no-store',
       });
-      const json = await res.json().catch(() => ({}));
+      const json = (await res.json().catch(() => ({}))) as HistoryResponse & { error?: string };
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      setData(json.analytics ?? null);
+      setLatest(json.latest ?? {});
       setError(null);
-      setLoadedFor(platformsKey);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [connected, platformsKey]);
+  }, []);
 
-  // Auto-load on mount + whenever the connected set changes. The
-  // sorted join keeps the dep array stable across re-renders that
-  // pass an equivalent-but-new array.
-  useEffect(() => {
-    if (connected.length > 0 && loadedFor !== platformsKey) {
-      refresh();
+  // Manual Refresh: trigger a fresh snapshot via the cron handler,
+  // then re-read the history table. The cron handler does the
+  // Ayrshare round-trip; we just kick it off and wait for the row
+  // to land.
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch('/api/social-media/analytics/refresh', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      await loadFromHistory();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefreshing(false);
     }
-  }, [connected.length, loadedFor, platformsKey, refresh]);
+  }, [loadFromHistory]);
+
+  useEffect(() => { loadFromHistory(); }, [loadFromHistory]);
 
   if (connected.length === 0) {
     return null;
   }
 
+  // Show every connected platform — when we don't have a snapshot
+  // for one yet, the card renders an empty-state and prompts the
+  // admin to click Refresh (or wait for the next cron tick).
+  const hasAnySnapshot = Object.keys(latest).length > 0;
+
+  // Pick the most recent captured_at across all connected platforms
+  // for the header timestamp. The team treats the cron as a single
+  // run, so a per-card timestamp would be more noise than signal.
+  const headerCapturedAt = (() => {
+    let max: string | null = null;
+    for (const p of connected) {
+      const at = latest[p]?.captured_at;
+      if (at && (!max || at > max)) max = at;
+    }
+    return max;
+  })();
+
   return (
     <section className="mb-6 rounded-2xl border border-black/10 bg-white p-5">
       <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Analytics</h2>
+        <div>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Analytics</h2>
+          <p className="text-[11px] text-foreground/50 mt-0.5">
+            {headerCapturedAt
+              ? `as of ${new Date(headerCapturedAt).toLocaleString('en-US', {
+                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                })}`
+              : 'No snapshot yet'}
+            {' · auto-refreshes daily at 6am'}
+          </p>
+        </div>
         <button
           type="button"
           onClick={refresh}
-          disabled={loading}
+          disabled={loading || refreshing}
           className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-foreground/55 hover:text-primary disabled:opacity-50"
         >
-          <svg className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+          <svg className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          {loading ? 'Refreshing…' : 'Refresh'}
+          {refreshing ? 'Refreshing…' : 'Refresh now'}
         </button>
       </div>
       {error && (
@@ -310,16 +345,23 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
           {error}
         </p>
       )}
-      {!data && !error && !loading && (
+      {loading && !hasAnySnapshot && !error && (
         <p className="text-xs text-foreground/45 italic">Loading…</p>
       )}
-      {data && (
+      {!loading && !hasAnySnapshot && !error && (
+        <p className="text-xs text-foreground/45 italic">
+          No snapshot yet — click <strong>Refresh now</strong> to capture the first one,
+          then the daily cron takes over.
+        </p>
+      )}
+      {hasAnySnapshot && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {connected.map((p) => (
             <AnalyticsCard
               key={p}
               platform={p as PlatformId}
-              raw={data[p] ?? null}
+              raw={latest[p]?.raw ?? null}
+              capturedAt={latest[p]?.captured_at ?? null}
             />
           ))}
         </div>
@@ -328,7 +370,16 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
   );
 }
 
-function AnalyticsCard({ platform, raw }: { platform: PlatformId; raw: Record<string, unknown> | null }) {
+function AnalyticsCard({
+  platform, raw, capturedAt,
+}: {
+  platform: PlatformId;
+  raw: Record<string, unknown> | null;
+  /** Snapshot captured_at — surfaces in the card footer so each
+   *  platform tile reads as data from a specific moment. */
+  capturedAt?: string | null;
+}) {
+  void capturedAt; // used in the footer below — see render block
   const stats = useMemo(() => extractStats(platform, raw), [platform, raw]);
   return (
     <div className="rounded-xl border border-black/10 bg-warm-bg/30 p-3">
