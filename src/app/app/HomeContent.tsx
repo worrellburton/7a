@@ -18,6 +18,7 @@ import HomeHorsesRow from './HomeHorsesRow';
 import HomeMeaningfulCallsRow from './HomeMeaningfulCallsRow';
 import HomeWebsiteVisitsRow from './HomeWebsiteVisitsRow';
 import HomeWebsiteRequestsRow from './HomeWebsiteRequestsRow';
+import HomeSeoActionsRow from './HomeSeoActionsRow';
 
 interface RecentUser {
   id: string;
@@ -629,6 +630,9 @@ function AtAGlance() {
           </div>
           <div className="py-2.5">
             <HomeWebsiteRequestsRow />
+          </div>
+          <div className="py-2.5">
+            <HomeSeoActionsRow />
           </div>
         </div>
       </div>
