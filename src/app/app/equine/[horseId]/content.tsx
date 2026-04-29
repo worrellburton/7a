@@ -42,7 +42,6 @@ interface Horse {
   works_in: string;
   rideable: string;
   shoe_schedule: string;
-  behavior: string;
   needs_next_steps: string;
   internal_info: string;
   ownership_papers: string;
@@ -604,12 +603,8 @@ export default function HorseContent() {
         </div>
       </div>
 
-      {/* Behavior / Needs */}
+      {/* Needs / Internal info */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6 space-y-4">
-        <div>
-          <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Behavior</p>
-          {renderEditableArea('behavior', horse.behavior, 'No notes')}
-        </div>
         <div>
           <p className="text-xs font-semibold text-foreground/40 uppercase tracking-wider mb-1" style={{ fontFamily: 'var(--font-body)' }}>Needs / Next Steps</p>
           {renderEditableArea('needs_next_steps', horse.needs_next_steps, 'No notes')}
