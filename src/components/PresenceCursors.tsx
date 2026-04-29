@@ -149,8 +149,19 @@ export function PresenceCursors() {
           instVy = (c.y - prevY) / dtSec;
         }
 
-        // Phase 2 (next commit) layers EMA smoothing on top — for
-        // now the values we store are the raw instantaneous deltas.
+        // EMA smoothing — broadcasts come in at ~25 fps so raw
+        // frame-to-frame velocity wobbles wildly even on smooth
+        // pointer motion. Blend ~30% of the new sample into the
+        // previous smoothed value so the trail direction settles
+        // visibly instead of jittering. The constant is calibrated
+        // to feel responsive on flicks but stable while drawing
+        // straight lines.
+        const ALPHA = 0.3;
+        const prevVx = previous?.vx ?? 0;
+        const prevVy = previous?.vy ?? 0;
+        const smoothedVx = prevVx * (1 - ALPHA) + instVx * ALPHA;
+        const smoothedVy = prevVy * (1 - ALPHA) + instVy * ALPHA;
+
         return {
           ...prev,
           [c.user_id]: {
@@ -160,9 +171,9 @@ export function PresenceCursors() {
             prevX: c.x,
             prevY: c.y,
             prevTs: arrivedAt,
-            vx: instVx,
-            vy: instVy,
-            speed: Math.hypot(instVx, instVy),
+            vx: smoothedVx,
+            vy: smoothedVy,
+            speed: Math.hypot(smoothedVx, smoothedVy),
           },
         };
       });
