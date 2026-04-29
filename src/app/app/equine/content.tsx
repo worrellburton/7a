@@ -606,11 +606,8 @@ export default function EquineContent() {
         </div>
         </div>
       </div>
-      {blingError && blingMode && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" style={{ fontFamily: 'var(--font-body)' }}>
-          Bling mode is on but at least one horse couldn&rsquo;t be transformed: <span className="font-mono">{blingError}</span>. Originals are shown in place.
-        </div>
-      )}
+      {/* Bling errors stay in the console — UI shows the original
+          photo when a bling URL isn't available, no banner. */}
 
       {view === 'grid' ? (
         // Grid view — photo-dominant tiles, optimized for "skim the
@@ -662,15 +659,10 @@ export default function EquineContent() {
                       Bling
                     </span>
                   )}
-                  {blingMode && preheating && !blingUrls[horse.id] && horse.image_url && (
-                    <span
-                      className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 shadow-sm"
-                      title="Pre-rendering bling…"
-                    >
-                      <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin motion-reduce:animate-none" aria-hidden="true" />
-                      Adding bling…
-                    </span>
-                  )}
+                  {/* No per-tile preheat indicator — generation runs
+                      silently in the background. Original photo
+                      shows until the bling URL lands; the toggle
+                      just selects between original and cached. */}
                   {/* Bottom scrim → name + age. */}
                   <div
                     aria-hidden="true"
