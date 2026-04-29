@@ -35,19 +35,25 @@ export async function GET() {
 
   const admin = getAdminSupabase();
 
+  // Every count + recent-rows query filters spam_at IS NULL so
+  // auto-spammed (and admin-marked-spam) submissions don't pollute
+  // the dashboard. The Forms tab still surfaces them via the
+  // explicit "Show spam" toggle, so admins keep audit access.
   const [vobTotal, vobNew, formsTotal, formsNew, vobRecent, formsRecent] = await Promise.all([
-    admin.from('vob_requests').select('*', { count: 'exact', head: true }),
-    admin.from('vob_requests').select('*', { count: 'exact', head: true }).eq('status', 'new'),
-    admin.from('contact_submissions').select('*', { count: 'exact', head: true }),
-    admin.from('contact_submissions').select('*', { count: 'exact', head: true }).eq('status', 'new'),
+    admin.from('vob_requests').select('*', { count: 'exact', head: true }).is('spam_at', null),
+    admin.from('vob_requests').select('*', { count: 'exact', head: true }).eq('status', 'new').is('spam_at', null),
+    admin.from('contact_submissions').select('*', { count: 'exact', head: true }).is('spam_at', null),
+    admin.from('contact_submissions').select('*', { count: 'exact', head: true }).eq('status', 'new').is('spam_at', null),
     admin
       .from('vob_requests')
       .select('id, full_name, insurance_provider, status, received_at')
+      .is('spam_at', null)
       .order('received_at', { ascending: false })
       .limit(5),
     admin
       .from('contact_submissions')
       .select('id, source, first_name, last_name, email, status, created_at')
+      .is('spam_at', null)
       .order('created_at', { ascending: false })
       .limit(5),
   ]);

@@ -17,15 +17,20 @@
 export default function MenuToggleIcon({ open }: { open: boolean }) {
   const EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
   const duration = '360ms';
-  // Each line uses transform-box: fill-box so the transform-origin
-  // resolves against its own geometry — letting us rotate each bar
-  // about the center of the icon (12, 12 in our 24x24 viewBox).
+  // Each line uses transform-box: fill-box + transform-origin: 50%
+  // 50% so the rotation pivot resolves against the line's OWN
+  // bounding box center, not the SVG's coordinate space. Without
+  // transform-box the percentage resolves to 12px from the bbox
+  // top-left, which sits way below the line's stroke and the
+  // diagonals end up off-center — that's the lopsided "X" we just
+  // saw in the field.
   const common: React.CSSProperties = {
     stroke: 'currentColor',
     strokeWidth: 2.5,
     strokeLinecap: 'round',
     transition: `transform ${duration} ${EASE}, opacity ${duration} ${EASE}`,
-    transformOrigin: '12px 12px',
+    transformBox: 'fill-box',
+    transformOrigin: '50% 50%',
   };
   return (
     <svg
