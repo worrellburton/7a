@@ -1069,6 +1069,40 @@ export default function LoginScreen({
         </p>
         <AnimatedLogo />
         <QuoteRibbon />
+
+        {/* Explicit "Sign in" cue + pointer arrow. Earlier visitors
+            were missing the Continue-with-Google CTA because the
+            screen reads as a quote/greeting card on first glance. The
+            label + bouncing arrow remove that ambiguity by naming
+            the page state explicitly and pointing at the button. */}
+        <div className="flex flex-col items-center mt-1 mb-2 animate-greeting-in">
+          <p
+            className="text-white text-lg sm:text-xl font-bold tracking-[0.18em] uppercase"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            Sign in
+          </p>
+          <p
+            className="mt-1 text-white/65 text-[12px]"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Tap the button below to continue
+          </p>
+          <svg
+            className="w-6 h-6 text-accent mt-2 animate-signin-arrow motion-reduce:animate-none"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="M12 5v14" />
+            <path d="m6 13 6 6 6-6" />
+          </svg>
+        </div>
+
         <SignInButton onSignIn={onSignIn} />
         <style jsx global>{`
           @keyframes greeting-in {
@@ -1076,8 +1110,14 @@ export default function LoginScreen({
             to   { opacity: 1; letter-spacing: 0.32em; }
           }
           .animate-greeting-in { animation: greeting-in 1.4s cubic-bezier(.2,.7,.2,1) 0.2s both; }
+          @keyframes signin-arrow {
+            0%, 100% { transform: translateY(0); opacity: 0.85; }
+            50%      { transform: translateY(6px); opacity: 1; }
+          }
+          .animate-signin-arrow { animation: signin-arrow 1.6s ease-in-out infinite; }
           @media (prefers-reduced-motion: reduce) {
             .animate-greeting-in { animation: none !important; opacity: 1; }
+            .animate-signin-arrow { animation: none !important; }
           }
         `}</style>
       </section>
