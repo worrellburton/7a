@@ -145,6 +145,20 @@ export default function EquineContent() {
   });
   const [dragColIdx, setDragColIdx] = useState<number | null>(null);
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
+  // List vs grid layout for the roster. Defaults to grid because the
+  // tile view reads as the canonical Horses screen on first paint
+  // (photo dominant, behavior + rideable as quick callouts) and the
+  // table is reserved for power editing. Persisted in localStorage so
+  // a teammate's preference sticks across sessions.
+  const [view, setView] = useState<'list' | 'grid'>(() => {
+    if (typeof window === 'undefined') return 'grid';
+    const saved = localStorage.getItem('equine_view');
+    return saved === 'list' ? 'list' : 'grid';
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('equine_view', view);
+  }, [view]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -427,18 +441,169 @@ export default function EquineContent() {
       <input ref={fileInputRef} type="file" accept="*/*" onChange={handleDocUpload} className="hidden" />
       <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
 
-      <div className="mb-8">
-        <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Horses</h1>
-        <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-          {horses.length} horses &middot; Click a row to open &middot; Click any cell to edit
-        </p>
-        {!dbAvailable && (
-          <p className="text-xs text-amber-600 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-            Database table not found — showing sample data. Run the setup migration to persist.
+      <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Horses</h1>
+          <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
+            {horses.length} horses &middot;{' '}
+            {view === 'grid'
+              ? 'Click a tile to open'
+              : 'Click a row to open · Click any cell to edit'}
           </p>
-        )}
+          {!dbAvailable && (
+            <p className="text-xs text-amber-600 mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+              Database table not found — showing sample data. Run the setup migration to persist.
+            </p>
+          )}
+        </div>
+        {/* View toggle — segmented control. Grid is default; list
+            preserves the existing power-editing table. */}
+        <div
+          role="group"
+          aria-label="View"
+          className="inline-flex items-center rounded-full border border-black/10 bg-white p-0.5 shadow-sm"
+        >
+          <button
+            type="button"
+            onClick={() => setView('grid')}
+            aria-pressed={view === 'grid'}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              view === 'grid'
+                ? 'bg-foreground text-white'
+                : 'text-foreground/55 hover:text-foreground'
+            }`}
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            Grid
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('list')}
+            aria-pressed={view === 'list'}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              view === 'list'
+                ? 'bg-foreground text-white'
+                : 'text-foreground/55 hover:text-foreground'
+            }`}
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            List
+          </button>
+        </div>
       </div>
 
+      {view === 'grid' ? (
+        // Grid view — photo-dominant tiles, optimized for "skim the
+        // herd" rather than power editing. Each tile shows the
+        // headline triplet (Rideable, Shoes, Behavior), with the
+        // body-condition score floating top-right when present.
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+          {sortedHorses.map((horse) => {
+            const initial = (horse.name || '?').charAt(0).toUpperCase();
+            const lastVisit = (horse.vet_visits || []).slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+            return (
+              <button
+                key={horse.id}
+                type="button"
+                onClick={() => router.push(`/app/equine/${horse.id}`)}
+                className="group relative text-left bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                <div className="relative aspect-[4/5] bg-warm-bg">
+                  {horse.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={horse.image_url}
+                      alt={horse.name}
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-foreground/25 text-5xl font-bold">
+                      {initial}
+                    </div>
+                  )}
+                  {/* Body-condition score chip (top-right) — same color
+                      mapping as the table cell so the visual language
+                      stays consistent across views. */}
+                  {horse.body_score != null && (
+                    <span
+                      className={`absolute top-2.5 right-2.5 inline-flex items-center justify-center min-w-[1.6rem] px-1.5 py-0.5 rounded-full bg-white/90 text-[11px] tabular-nums shadow-sm ${bodyScoreColor(horse.body_score)}`}
+                      title={`Body condition ${horse.body_score}`}
+                    >
+                      {horse.body_score}
+                    </span>
+                  )}
+                  {/* Bottom scrim → name + age. */}
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-x-0 bottom-0 h-1/2 pointer-events-none"
+                    style={{ background: 'linear-gradient(180deg, rgba(20,10,6,0) 0%, rgba(20,10,6,0.85) 100%)' }}
+                  />
+                  <div className="absolute inset-x-0 bottom-0 p-3">
+                    <p className="text-white text-[15px] font-bold leading-tight">{horse.name}</p>
+                    <p className="text-white/70 text-[11px] mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                      {horse.age != null ? `${horse.age} yrs` : 'Age unknown'}
+                      {horse.weight && <> · {horse.weight}</>}
+                    </p>
+                  </div>
+                </div>
+                <div className="px-3 py-3 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    {horse.rideable && (
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${rideableColor(horse.rideable)}`}>
+                        {horse.rideable === 'Yes' ? 'Rideable' : horse.rideable === 'No' ? 'Not rideable' : horse.rideable}
+                      </span>
+                    )}
+                    {horse.shoe_schedule && (
+                      <span
+                        className="text-[10px] font-medium text-foreground/55 tabular-nums"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        Shoes · {horse.shoe_schedule}
+                      </span>
+                    )}
+                  </div>
+                  {horse.behavior && (
+                    <p
+                      className="text-[12px] text-foreground/70 leading-snug line-clamp-2"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      title={horse.behavior}
+                    >
+                      {horse.behavior}
+                    </p>
+                  )}
+                  {horse.works_in && (
+                    <p
+                      className="text-[11px] text-foreground/45 leading-snug line-clamp-1"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      title={horse.works_in}
+                    >
+                      {horse.works_in}
+                    </p>
+                  )}
+                  {lastVisit?.date && (
+                    <p
+                      className="text-[10px] text-foreground/40 tabular-nums"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Last vet · {lastVisit.date}
+                    </p>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -494,6 +659,7 @@ export default function EquineContent() {
           </table>
         </div>
       </div>
+      )}
 
       {cropTarget && (
         <ImageCropModal
