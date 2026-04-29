@@ -40,14 +40,25 @@ export function CallDetail({
           </div>
         </div>
       )}
-      {/* Header: score + caller + operator + sentiment + rescore */}
+      {/* Header: score + caller + operator + sentiment + rescore.
+          The big tile is the overall AI Call Score (call handling +
+          conversion quality) — not the same metric as the Fit pill
+          below it (caller-fit-for-program). They're labeled
+          explicitly because the two numbers can disagree (e.g. a
+          well-handled call from a low-fit lead gets a high call
+          score and a low fit score). */}
       <div className="flex items-start gap-4 flex-wrap pb-4 border-b border-gray-100">
-        <div
-          className="w-14 h-14 rounded-xl flex items-center justify-center text-white text-lg font-bold shrink-0"
-          style={{ backgroundColor: score ? scoreColorHex(score.score) : '#e5e7eb', color: score ? '#fff' : '#9ca3af' }}
-          title={score ? `AI score ${score.score}/100` : 'Not scored yet'}
-        >
-          {score ? score.score : '—'}
+        <div className="shrink-0 flex flex-col items-center gap-1">
+          <div
+            className="w-14 h-14 rounded-xl flex items-center justify-center text-white text-lg font-bold tabular-nums"
+            style={{ backgroundColor: score ? scoreColorHex(score.score) : '#e5e7eb', color: score ? '#fff' : '#9ca3af' }}
+            title={score ? `AI Call Score ${score.score}/100 — overall handling + conversion quality` : 'Not scored yet'}
+          >
+            {score ? score.score : '—'}
+          </div>
+          <span className="text-[9px] font-semibold tracking-[0.16em] uppercase text-foreground/45" style={{ fontFamily: 'var(--font-body)' }}>
+            Call score
+          </span>
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="text-base font-semibold text-foreground">
