@@ -24,12 +24,21 @@ export const maxDuration = 120;
 
 const DEFAULT_DOMAIN = 'sevenarrowsrecoveryarizona.com';
 
-// 10 pages × 100 results = up to 1000 hits. Google deduplicates well
-// before that for any normal query, so the loop almost always exits
-// early via the "page returned no new URLs" stop condition. The hard
-// cap is a runaway-cost guard, not an expected ceiling.
-const MAX_PAGES = 10;
-const PAGE_SIZE = 100;
+// Google deprecated honoring `num` for organic search around 2023,
+// so even when we ask for 100 per page Google now hands back 10
+// (sometimes 20). We still pass num=100 — it's free and SerpAPI
+// occasionally squeezes more out of Google's adjacent endpoints —
+// but the loop must advance `start` by the *actual* number of
+// results received, not by a fixed PAGE_SIZE, otherwise the second
+// page asks for &start=100 when only 10 results have actually been
+// scanned, missing 90 results in between.
+//
+// 30 iterations × ~10 results each = up to 300 unique URLs, which
+// matches Google's effective dedup ceiling for a brand-mention
+// query. The loop bails out earlier the moment a page returns
+// zero new URLs (Google ran out) or zero results at all.
+const MAX_PAGES = 30;
+const PAGE_SIZE_HINT = 100;
 
 interface SerpHit {
   position: number;
@@ -87,22 +96,25 @@ export async function POST(req: Request) {
 
   try {
     // Loop through SerpAPI pages until Google stops returning new
-    // URLs. Each iteration burns one SerpAPI credit; the dedupe loop
-    // stops as soon as a page returns zero never-seen URLs, so for
-    // small brand-mention queries we usually cost out at 1–2 pages.
+    // URLs. Advance the cursor by the actual rows returned (Google
+    // mostly hands back 10 at a time now even when we ask for 100),
+    // not by a fixed PAGE_SIZE — otherwise we'd skip 90 results
+    // between page 1 and page 2.
     const seen = new Set<string>();
     const hits: SerpHit[] = [];
     let pagesFetched = 0;
     let lastRaw: Record<string, unknown> | null = null;
+    let start = 0;
 
     for (let page = 0; page < MAX_PAGES; page++) {
       const result = await googleSearch({
         q: query,
-        num: PAGE_SIZE,
-        start: page * PAGE_SIZE,
+        num: PAGE_SIZE_HINT,
+        start,
       });
       pagesFetched = page + 1;
       lastRaw = result.raw;
+      const returned = result.organic.length;
       let added = 0;
       for (const o of result.organic) {
         if (!o.link || seen.has(o.link)) continue;
@@ -118,12 +130,15 @@ export async function POST(req: Request) {
         });
         added++;
       }
-      // Stop when this page contributed nothing new — that's Google
-      // signaling the unique-result tail. Also stop if the page
-      // returned fewer than PAGE_SIZE rows; SerpAPI returns the
-      // largest available batch, so a short page = we're at the end.
+      // Stop when Google ran dry (zero results at all) OR when this
+      // page contributed zero NEW URLs (unique-result tail reached
+      // and we'd otherwise just churn duplicates). Don't compare
+      // returned to PAGE_SIZE_HINT — Google ignores `num` so a short
+      // page is normal and not a signal we're at the end.
+      if (returned === 0) break;
       if (added === 0) break;
-      if (result.organic.length < PAGE_SIZE) break;
+      // Advance by the actual count Google returned, not the hint.
+      start += returned;
     }
 
     const { data: row, error: insertErr } = await admin
