@@ -61,22 +61,16 @@ export default function MobileMenu({
   const pathname = usePathname();
   const reduced = useReducedMotion();
 
-  // Determine which top-level item represents the current page.
-  // A nav item is active when its href matches the current path
-  // exactly, when the path starts with its href plus a slash, or
-  // when any of its dropdown children matches. Returns the label
-  // of the active item or null.
-  const activeLabel = (() => {
-    if (!pathname) return null;
-    for (const item of navLinks) {
-      const prefix = item.href.endsWith('/') ? item.href.slice(0, -1) : item.href;
-      if (pathname === prefix || pathname.startsWith(prefix + '/')) return item.label;
-      if (item.dropdown?.some((d) => pathname === d.href || pathname.startsWith(d.href + '/'))) {
-        return item.label;
-      }
-    }
-    return null;
-  })();
+  // The drawer used to auto-highlight the section the user is on
+  // and pre-expand its dropdown. The team felt that read as
+  // "stuck" — every visit opens with the current page selected,
+  // making the menu feel like it has no neutral state. Now the
+  // drawer always opens cold: no highlighted item, no pre-expanded
+  // dropdown, no "you are here" dot. Sub-page links inside an
+  // expanded dropdown still get the active treatment so once the
+  // user opens a section they can still see which child page they
+  // came from.
+  const activeLabel: string | null = null;
 
   // Two-phase mount state — see component-level comment.
   const [mounted, setMounted] = useState(open);
@@ -344,13 +338,16 @@ export default function MobileMenu({
               )}
             </StaggeredItem>
           ))}
+          {/* Review sits above the call CTA so the phone pill is the
+              very last thing the visitor lands on as they scroll the
+              drawer — review primes them, CTA closes them. */}
           <StaggeredItem show={showing} index={navLinks.length}>
-            <div className="px-3 pt-3">
-              <PhoneCTA reduced={reduced} />
-            </div>
+            <DrawerReview open={open} />
           </StaggeredItem>
           <StaggeredItem show={showing} index={navLinks.length + 1}>
-            <DrawerReview open={open} />
+            <div className="px-3 pt-6 pb-2">
+              <PhoneCTA reduced={reduced} />
+            </div>
           </StaggeredItem>
         </div>
     </div>
