@@ -603,33 +603,12 @@ function Composer({
     <section className="mb-6 rounded-2xl border border-black/10 bg-white p-5">
       <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">Compose</h2>
 
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="What do you want to post?"
-        rows={4}
-        className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
-      />
-      <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-foreground/50">
-        <span className={overTwitter ? 'text-amber-700 font-medium' : ''}>
-          {charCount} characters{overTwitter ? ' · over X / Twitter limit (280)' : ''}
-        </span>
-      </div>
-
-      <div className="mt-4">
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55 block mb-1">
-          Image / video URLs (optional, one per line)
-        </label>
-        <textarea
-          value={mediaUrlsInput}
-          onChange={(e) => setMediaUrlsInput(e.target.value)}
-          placeholder="https://example.com/photo.jpg"
-          rows={2}
-          className="w-full rounded-lg border border-black/10 px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y font-mono"
-        />
-      </div>
-
-      <div className="mt-4">
+      {/* "Post to" picker sits at the top — picking the channels is
+          the most consequential decision per post, and seeing the
+          target set before writing copy keeps the admin from drafting
+          a 3000-char LinkedIn essay only to discover they only have
+          X connected. */}
+      <div>
         {/* Header row — picker label on the left, summary count +
             select-all / clear shortcuts on the right. Makes the
             picker read as a deliberate decision the admin makes per
@@ -735,6 +714,43 @@ function Composer({
             Connect at least one account above before posting.
           </p>
         )}
+      </div>
+
+      {/* Caption textarea — moved BELOW the Post to picker so the
+          admin's drafting context (which channels are targeted)
+          is established first. */}
+      <div className="mt-5">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55 block mb-1">
+          Caption
+        </label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="What do you want to post?"
+          rows={4}
+          className="w-full rounded-lg border border-black/10 px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
+        />
+        <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-foreground/50">
+          <span className={overTwitter ? 'text-amber-700 font-medium' : ''}>
+            {charCount} characters{overTwitter ? ' · over X / Twitter limit (280)' : ''}
+          </span>
+        </div>
+      </div>
+
+      {/* Media URLs textarea — phase 9 replaces this with a media
+          picker that pulls from public.site_images / public.site_videos.
+          Until then, paste public URLs one per line. */}
+      <div className="mt-4">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55 block mb-1">
+          Image / video URLs (optional, one per line)
+        </label>
+        <textarea
+          value={mediaUrlsInput}
+          onChange={(e) => setMediaUrlsInput(e.target.value)}
+          placeholder="https://example.com/photo.jpg"
+          rows={2}
+          className="w-full rounded-lg border border-black/10 px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y font-mono"
+        />
       </div>
 
       <div className="mt-4 flex items-center gap-3">
