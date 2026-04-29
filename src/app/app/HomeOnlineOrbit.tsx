@@ -1,24 +1,23 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 
 // Centered, slowly-rotating ring of avatars representing every
-// teammate seen in the last 24 hours. Replaces the old horizontal
-// "Online today" strip that lived inside the home hero band.
+// teammate seen in the last 24 hours.
 //
-// Anatomy:
-//   - Outer wrapper rotates clockwise on a long loop (60s) so the
-//     "team is in motion" feel is gentle, not disorienting.
-//   - Each avatar is positioned along the ring with a per-user
-//     CSS variable `--angle`. Their inner element counter-rotates
-//     at the same speed so faces stay upright as the orbit turns.
-//   - On mount the avatars animate from the center outward to
-//     their slot, staggered by index. Reduced-motion users see
-//     them appear in place with no spin.
+// Layout pattern: each "slot" fills the ring's bounding box and is
+// rotated to its angle. The avatar lives at the top centre of the
+// slot, so once the slot is rotated the avatar sits exactly on the
+// outer edge of the ring — radius = (ring height / 2 - avatar / 2)
+// without having to compute a JS pixel value.
 //
-// The orbit shows everyone whose last_seen_at landed in the last
-// 24 hours; online-now users get a soft halo ring + green dot.
+// Animation:
+//   - The whole ring spins clockwise on a 60s loop.
+//   - The avatar inner element counter-rotates at the same speed so
+//     faces stay upright through the orbit.
+//   - On mount, each avatar animates from the centre to its slot
+//     position with a 65ms-per-index stagger.
 
 interface OrbitUser {
   id: string;
@@ -53,11 +52,8 @@ function timeAgo(dateStr: string | null): string {
 export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const ringRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Tiny delay so the entry animation is reliably perceived even
-    // when the parent renders synchronously above the fold.
     const t = setTimeout(() => setMounted(true), 60);
     return () => clearTimeout(t);
   }, []);
@@ -65,12 +61,6 @@ export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
   if (users.length === 0) return null;
 
   const onlineCount = users.filter((u) => isOnlineNow(u.last_seen_at)).length;
-
-  // Avatar size + ring radius scale with the viewport. The component
-  // sets its own height so the surrounding flow reserves the right
-  // amount of vertical space — no cumulative-layout-shift when the
-  // orbit mounts.
-  const SIZE = 460; // canvas square in CSS px (max width for desktop)
 
   return (
     <section
@@ -101,28 +91,24 @@ export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
       </div>
 
       <div
-        className="relative"
-        style={{
-          width: '100%',
-          maxWidth: SIZE,
-          aspectRatio: '1 / 1',
-        }}
+        className="relative w-full"
+        style={{ maxWidth: 460, aspectRatio: '1 / 1' }}
       >
-        {/* Decorative concentric rings — give the orbit a real centre
-            point so the avatars don't read as floating blobs. */}
+        {/* Decorative concentric rings + centre medallion. The
+            outermost border is exactly where the avatars will land,
+            so the eye reads the orbit as one composed shape. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 rounded-full border border-primary/15"
+          className="absolute inset-[6%] rounded-full border border-primary/15"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-[12%] rounded-full border border-primary/10"
+          className="absolute inset-[20%] rounded-full border border-primary/10"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-[28%] rounded-full bg-gradient-to-br from-primary/[0.07] via-accent/[0.05] to-transparent"
+          className="absolute inset-[36%] rounded-full bg-gradient-to-br from-primary/[0.07] via-accent/[0.05] to-transparent"
         />
-        {/* Center medallion */}
         <div
           aria-hidden="true"
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/45 backdrop-blur-md border border-white/80 shadow-[0_8px_28px_-12px_rgba(60,48,42,0.35)] flex items-center justify-center"
@@ -135,12 +121,11 @@ export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
           </span>
         </div>
 
-        {/* The rotating ring. Position frame for the avatars; rotates
-            clockwise. Avatars counter-rotate to stay upright. */}
+        {/* Rotating ring. Avatars are pinned to the top of each slot;
+            since slots fill the ring + are rotated to their angle,
+            the avatars naturally sit on the outer edge. */}
         <div
-          ref={ringRef}
-          className={`absolute inset-0 motion-reduce:!animate-none ${mounted ? 'orbit-spin' : ''}`}
-          style={{ animationDuration: '60s' }}
+          className={`orbit-ring absolute inset-0 motion-reduce:!animate-none ${mounted ? 'orbit-spin' : ''}`}
         >
           {users.map((u, i) => {
             const angle = (i / users.length) * 360;
@@ -149,152 +134,172 @@ export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
             const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
             const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
             const slotStyle: CSSProperties = {
+              transform: `rotate(${angle}deg)`,
+            };
+            const pinStyle: CSSProperties = {
               ['--angle' as string]: `${angle}deg`,
               ['--enter-delay' as string]: `${i * 65}ms`,
             };
             return (
-              <Wrapper
-                key={u.id}
-                onClick={navTarget ? () => router.push(navTarget) : undefined}
-                className={`orbit-slot group ${mounted ? 'orbit-slot-in' : 'orbit-slot-pre'} ${navTarget ? 'cursor-pointer' : ''}`}
-                style={slotStyle}
-                title={navTarget ? `Go to ${viewing}` : undefined}
-                aria-label={u.full_name || 'Teammate'}
-              >
-                <span
-                  className="orbit-avatar motion-reduce:!animate-none"
-                  style={{ animationDuration: '60s' }}
+              <div key={u.id} className="orbit-slot" style={slotStyle}>
+                <Wrapper
+                  type={navTarget ? 'button' : undefined}
+                  onClick={navTarget ? () => router.push(navTarget) : undefined}
+                  className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} ${navTarget ? 'cursor-pointer' : ''}`}
+                  style={pinStyle}
+                  title={navTarget ? `Go to ${viewing}` : undefined}
+                  aria-label={u.full_name || 'Teammate'}
                 >
-                  <span className="relative block">
-                    {u.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={u.avatar_url}
-                        alt={u.full_name || ''}
-                        referrerPolicy="no-referrer"
-                        className={`block w-12 h-12 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
-                          online
-                            ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
-                            : 'border-white shadow-md'
-                        }`}
-                      />
-                    ) : (
-                      <span
-                        className={`flex w-12 h-12 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
-                          online
-                            ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)] bg-primary text-white'
-                            : 'border-white bg-primary text-white shadow-md'
-                        }`}
-                      >
-                        {(u.full_name || '?').charAt(0).toUpperCase()}
+                  {/* Counter-rotating wrapper keeps the face upright
+                      while the parent ring spins. */}
+                  <span className="orbit-counter motion-reduce:!animate-none">
+                    {/* Slot-rotation undo so the avatar isn't tilted
+                        by the slot's static rotation. */}
+                    <span
+                      className="block"
+                      style={{ transform: `rotate(${-angle}deg)` }}
+                    >
+                      <span className="relative block">
+                        {u.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={u.avatar_url}
+                            alt={u.full_name || ''}
+                            referrerPolicy="no-referrer"
+                            className={`block w-12 h-12 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
+                              online
+                                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
+                                : 'border-white shadow-md'
+                            }`}
+                          />
+                        ) : (
+                          <span
+                            className={`flex w-12 h-12 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
+                              online
+                                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)] bg-primary text-white'
+                                : 'border-white bg-primary text-white shadow-md'
+                            }`}
+                          >
+                            {(u.full_name || '?').charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        {online && (
+                          <span
+                            aria-hidden="true"
+                            className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white"
+                          />
+                        )}
+                        {/* Tooltip — same counter-rotating layer so
+                            it reads upright regardless of which side
+                            of the orbit the avatar currently sits on. */}
+                        <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-30 text-left shadow-lg">
+                          <span className="block font-semibold text-white">
+                            {u.full_name || 'User'}
+                          </span>
+                          {u.job_title && (
+                            <span className="block text-white/85">{u.job_title}</span>
+                          )}
+                          <span className="block text-white/75">
+                            {online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}
+                          </span>
+                          {viewing && (
+                            <span className="block text-emerald-300">
+                              Viewing {viewing}
+                              {navTarget ? ' — click to jump' : ''}
+                            </span>
+                          )}
+                        </span>
                       </span>
-                    )}
-                    {online && (
-                      <span
-                        aria-hidden="true"
-                        className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white"
-                      />
-                    )}
-                  </span>
-                </span>
-                {/* Tooltip — anchors to the avatar, not the slot, so
-                    it never appears flipped when the orbit puts the
-                    slot in the bottom half of the ring. The tooltip
-                    inner is also counter-rotated. */}
-                <span
-                  className="orbit-tooltip motion-reduce:!animate-none pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-30 text-left shadow-lg"
-                  style={{ animationDuration: '60s' }}
-                >
-                  <span className="block font-semibold text-white">{u.full_name || 'User'}</span>
-                  {u.job_title && <span className="block text-white/85">{u.job_title}</span>}
-                  <span className="block text-white/75">
-                    {online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}
-                  </span>
-                  {viewing && (
-                    <span className="block text-emerald-300">
-                      Viewing {viewing}
-                      {navTarget ? ' — click to jump' : ''}
                     </span>
-                  )}
-                </span>
-              </Wrapper>
+                  </span>
+                </Wrapper>
+              </div>
             );
           })}
         </div>
       </div>
 
       <style jsx>{`
-        /* Outer rotation. */
-        @keyframes orbit-spin {
+        /* Outer rotation — the ring container spins. */
+        @keyframes orbit-spin-rot {
           from { transform: rotate(0deg); }
           to   { transform: rotate(360deg); }
         }
-        .orbit-spin { animation: orbit-spin 60s linear infinite; }
+        .orbit-spin { animation: orbit-spin-rot 60s linear infinite; }
 
-        /* Counter-rotation for the avatar so faces stay upright. */
-        @keyframes orbit-counter {
+        /* Counter-rotation so faces stay upright as the ring turns. */
+        @keyframes orbit-counter-rot {
           from { transform: rotate(0deg); }
           to   { transform: rotate(-360deg); }
         }
-        .orbit-avatar {
+        .orbit-counter {
           display: inline-block;
-          animation: orbit-counter 60s linear infinite;
-        }
-        .orbit-tooltip {
-          animation: orbit-counter 60s linear infinite;
-          transform-origin: center;
+          animation: orbit-counter-rot 60s linear infinite;
         }
 
-        /* Slot positioning — places each avatar at its angle along
-           the ring radius. We use percentage-based positions so the
-           ring scales cleanly with the surrounding container. */
+        /* Slots fill the ring's bounding box. Each is rotated to its
+           angle inline; the pin pinned at the top centre of the slot
+           lands the avatar exactly on the outer edge of the ring. */
         .orbit-slot {
           position: absolute;
-          left: 50%;
-          top: 50%;
-          width: 3rem;
-          height: 3rem;
-          margin: -1.5rem 0 0 -1.5rem;
-          /* Combined transform: rotate to angle → translate radially
-             → counter-rotate so the avatar inner doesn't double up
-             with the parent's spin. The avatar element itself runs
-             its own counter-rotation animation; this counter-rotate
-             keeps the slot's local axes aligned to screen at angle 0. */
-          transform: rotate(var(--angle)) translateY(-44%) rotate(calc(-1 * var(--angle)));
+          inset: 0;
+          pointer-events: none;
           transform-origin: center;
         }
+        .orbit-pin {
+          position: absolute;
+          left: 50%;
+          top: 0;
+          transform: translate(-50%, -50%);
+          pointer-events: auto;
+          background: transparent;
+          border: 0;
+          padding: 0;
+          line-height: 0;
+        }
+        .orbit-pin:focus-visible {
+          outline: 2px solid var(--color-primary, #bc6b4a);
+          outline-offset: 4px;
+          border-radius: 9999px;
+        }
 
-        /* Mount animation — start at the centre with zero radius +
-           reduced scale, then ease out to the slot. Stagger the
-           per-avatar delay so the team appears wave-by-wave rather
-           than all at once. */
-        @keyframes orbit-slot-enter {
+        /* Mount animation — start at the centre of the ring at scale
+           0.3, ease out to the slot. We achieve "centre" by pinning
+           the avatar's translate to (-50%, -50%) of (50%, 50%) of the
+           slot, which puts it at slot centre — i.e. ring centre after
+           the slot's static rotation is applied. */
+        @keyframes orbit-pin-enter {
           0% {
             opacity: 0;
-            transform: rotate(var(--angle)) translateY(0) rotate(calc(-1 * var(--angle))) scale(0.3);
+            top: 50%;
+            transform: translate(-50%, -50%) scale(0.3);
           }
           60% { opacity: 1; }
           100% {
             opacity: 1;
-            transform: rotate(var(--angle)) translateY(-44%) rotate(calc(-1 * var(--angle))) scale(1);
+            top: 0;
+            transform: translate(-50%, -50%) scale(1);
           }
         }
-        .orbit-slot-pre {
+        .orbit-pin-pre {
           opacity: 0;
+          top: 50%;
+          transform: translate(-50%, -50%) scale(0.3);
         }
-        .orbit-slot-in {
-          animation: orbit-slot-enter 1100ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+        .orbit-pin-in {
+          animation: orbit-pin-enter 1100ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
           animation-delay: var(--enter-delay);
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .orbit-slot-in,
-          .orbit-slot-pre,
+          .orbit-pin-in,
+          .orbit-pin-pre,
           .orbit-spin,
-          .orbit-avatar,
-          .orbit-tooltip {
+          .orbit-counter {
             animation: none !important;
             opacity: 1 !important;
+            top: 0 !important;
+            transform: translate(-50%, -50%) !important;
           }
         }
       `}</style>
