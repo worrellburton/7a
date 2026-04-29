@@ -163,73 +163,30 @@ export default function EquineContent() {
   // and sunglasses" and swaps the tile portrait for the result. Cached
   // server-side in equine_bling_images so subsequent toggles are
   // instant and don't re-bill the API. blingUrls is the per-horse
-  // resolved cache; blingLoading tracks in-flight requests so the
-  // tile can show a spinner while Gemini is rendering.
-  const [blingMode, setBlingMode] = useState(false);
+  // resolved cache; preheating reflects the single bulk pre-render
+  // request that fires once on roster load.
+  // Bling mode is ON by default — leadership wants the bling
+  // portraits as the canonical roster look. localStorage 'off'
+  // explicitly opts out; missing key (first visit) keeps it on.
+  const [blingMode, setBlingMode] = useState(true);
   const [blingUrls, setBlingUrls] = useState<Record<string, string>>({});
-  const [blingLoading, setBlingLoading] = useState<Set<string>>(new Set());
+  const [preheating, setPreheating] = useState(false);
   const [blingError, setBlingError] = useState<string | null>(null);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const saved = localStorage.getItem('equine_bling_mode');
-    if (saved === 'on') setBlingMode(true);
+    if (saved === 'off') setBlingMode(false);
   }, []);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     localStorage.setItem('equine_bling_mode', blingMode ? 'on' : 'off');
   }, [blingMode]);
 
-  // When bling mode flips on, kick off a request per horse with a
-  // photo — each request hits the cache first server-side, so the
-  // first toggle is the only "slow" one. Subsequent loads are
-  // instant. Errors land in blingError as a single banner so we
-  // don't spam the team if the API key is missing.
-  useEffect(() => {
-    if (!blingMode || !session?.access_token) return;
-    let cancelled = false;
-    setBlingError(null);
-    horses.forEach((horse) => {
-      if (!horse.image_url) return;
-      if (blingUrls[horse.id]) return;
-      if (blingLoading.has(horse.id)) return;
-      setBlingLoading((prev) => {
-        const next = new Set(prev);
-        next.add(horse.id);
-        return next;
-      });
-      fetch(`/api/equine/bling/${horse.id}`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({}),
-      })
-        .then(async (res) => {
-          const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-          if (cancelled) return;
-          if (!res.ok || !json.url) {
-            setBlingError(json.error || `Bling generation failed (HTTP ${res.status})`);
-            return;
-          }
-          setBlingUrls((prev) => ({ ...prev, [horse.id]: json.url! }));
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          setBlingError(err instanceof Error ? err.message : String(err));
-        })
-        .finally(() => {
-          if (cancelled) return;
-          setBlingLoading((prev) => {
-            const next = new Set(prev);
-            next.delete(horse.id);
-            return next;
-          });
-        });
-    });
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blingMode, horses, session?.access_token]);
+  // The toggle itself is intentionally just a visual switch. The
+  // bling images are pre-rendered server-side via the preheat
+  // effect below (runs once on roster load) so flipping the toggle
+  // never triggers a Gemini call — it just selects which URL the
+  // tile renders from the existing cache.
 
   // Resolve the right photo URL for a horse based on bling state.
   // Falls back to the original image while the bling result is
@@ -238,6 +195,57 @@ export default function EquineContent() {
     if (blingMode && blingUrls[horse.id]) return blingUrls[horse.id];
     return horse.image_url;
   };
+
+  // Auto-preheat the bling cache: once the roster has loaded, fire
+  // a single bulk request to /api/equine/bling/preheat in the
+  // background. The endpoint skips horses that already have a
+  // cached row matching their current source URL, so this is a
+  // no-op once everyone is rendered. Persists the resulting URLs
+  // into our local blingUrls map so tiles flip from "Adding bling…"
+  // to the bling portrait without a refresh.
+  const preheatedRef = useRef(false);
+  useEffect(() => {
+    if (preheatedRef.current) return;
+    if (!session?.access_token) return;
+    if (loading) return;
+    if (horses.length === 0) return;
+    preheatedRef.current = true;
+    setPreheating(true);
+    fetch('/api/equine/bling/preheat', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({}),
+    })
+      .then(async (res) => {
+        const json = (await res.json().catch(() => ({}))) as {
+          results?: Array<{ horse_id: string; status: string; url?: string; error?: string }>;
+          error?: string;
+        };
+        if (!res.ok) {
+          if (json.error) setBlingError(json.error);
+          return;
+        }
+        const next: Record<string, string> = {};
+        let firstError: string | null = null;
+        for (const r of json.results ?? []) {
+          if (r.url) next[r.horse_id] = r.url;
+          else if (r.status === 'error' && r.error && !firstError) firstError = r.error;
+        }
+        if (Object.keys(next).length > 0) {
+          setBlingUrls((prev) => ({ ...next, ...prev }));
+        }
+        if (firstError) setBlingError(firstError);
+      })
+      .catch((err) => {
+        setBlingError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        setPreheating(false);
+      });
+  }, [session?.access_token, loading, horses.length]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -654,10 +662,10 @@ export default function EquineContent() {
                       Bling
                     </span>
                   )}
-                  {blingMode && blingLoading.has(horse.id) && !blingUrls[horse.id] && (
+                  {blingMode && preheating && !blingUrls[horse.id] && horse.image_url && (
                     <span
                       className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 shadow-sm"
-                      title="Generating bling…"
+                      title="Pre-rendering bling…"
                     >
                       <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin motion-reduce:animate-none" aria-hidden="true" />
                       Adding bling…
