@@ -23,6 +23,7 @@ const PRIMARY_TABS: Tab[] = [
   { href: '/app/seo/actions', label: 'Actions', hint: 'Submit + track SEO action items', flair: 'fire' },
   { href: '/app/seo/directories', label: 'Directories', hint: 'Off-site listings to claim' },
   { href: '/app/seo/audit', label: 'Site audit', hint: 'On-page issues' },
+  { href: '/app/seo/serp-audit', label: 'SERP Audit', hint: 'Off-site brand mentions on the open web' },
   { href: '/app/seo/media', label: 'Media', hint: 'Images + videos with optimize batch' },
 ];
 
