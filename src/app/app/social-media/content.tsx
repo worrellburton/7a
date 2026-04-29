@@ -187,21 +187,20 @@ function ConnectedAccountsStrip({
           const display = accounts?.displayNames?.[p.id]?.displayName
             ?? accounts?.displayNames?.[p.id]?.username
             ?? null;
-          const busy = busyPlatform === p.id;
+          // Pill is presentational only — no click handler. Connecting
+          // accounts happens in the Ayrshare dashboard, so the strip
+          // is a status indicator rather than an action surface.
           return (
-            <button
+            <span
               key={p.id}
-              type="button"
-              onClick={() => connect(p.id)}
-              disabled={busy}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${
                 isActive
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                  : 'border-dashed border-foreground/25 bg-white text-foreground/60 hover:border-primary/50 hover:text-primary hover:bg-primary/5'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border-dashed border-foreground/25 bg-white text-foreground/60'
               }`}
               title={isActive
-                ? `Connected${display ? ` as ${display}` : ''} — click to manage`
-                : `Connect ${p.label}`}
+                ? `Connected${display ? ` as ${display}` : ''}`
+                : `${p.label} — not connected`}
             >
               <PlatformIcon
                 platform={p.id as PlatformId}
@@ -212,11 +211,19 @@ function ConnectedAccountsStrip({
                 color={isActive ? undefined : 'rgba(0,0,0,0.3)'}
               />
               <span>{p.label}</span>
+              {/* Green dot for connected pills — sits to the right of
+                  the label so the brand glyph stays the primary visual
+                  anchor and the dot reads as a discrete "live" cue. */}
+              {isActive && (
+                <span
+                  aria-label="Connected"
+                  className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.18)]"
+                />
+              )}
               {isActive && display && (
                 <span className="text-[10px] text-emerald-700/70 font-normal">@{display.replace(/^@/, '')}</span>
               )}
-              {busy && <span className="text-[10px] text-foreground/40">opening…</span>}
-            </button>
+            </span>
           );
         })}
       </div>
