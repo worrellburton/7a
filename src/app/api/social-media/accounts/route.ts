@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
-import { ayrshareGet, AyrshareNotConfigured } from '@/lib/ayrshare';
+import { ayrshareGet, AyrshareNotConfigured, extractAyrshareError } from '@/lib/ayrshare';
 
 // GET /api/social-media/accounts
 //
@@ -24,7 +24,7 @@ export async function GET() {
     const { status, body } = await ayrshareGet('/user');
     if (status >= 400) {
       return NextResponse.json(
-        { error: typeof body.message === 'string' ? body.message : `Ayrshare returned ${status}` },
+        { error: extractAyrshareError(body, status, '/user') },
         { status: 502 },
       );
     }

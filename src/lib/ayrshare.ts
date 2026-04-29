@@ -111,6 +111,55 @@ async function safeJson(res: Response): Promise<unknown> {
   }
 }
 
+/**
+ * Extract a human-readable error message out of an Ayrshare 4xx / 5xx
+ * response. Ayrshare scatters error text across half a dozen field
+ * shapes depending on the endpoint:
+ *   { message }
+ *   { error }
+ *   { detail }
+ *   { errors: [{ message, action?, code? }] }
+ *   { errors: [{ error, code? }] }
+ *   { status: 'error', message }
+ * This helper tries them in order and falls back to the raw HTTP
+ * status when nothing matches. The raw body is logged to the server
+ * console alongside so the Vercel function logs always carry the
+ * unredacted response when something actually breaks.
+ */
+export function extractAyrshareError(body: AyrshareResponse, httpStatus: number, endpoint?: string): string {
+  // Log the raw body once on every error so it's always visible in
+  // Vercel logs. Filter on "[ayrshare-error]" to find them.
+  try {
+    console.error('[ayrshare-error]', endpoint ?? '<unknown>', httpStatus, JSON.stringify(body));
+  } catch {
+    /* best-effort logging */
+  }
+
+  if (typeof body.message === 'string' && body.message.length > 0) return body.message;
+  if (typeof body.error === 'string' && body.error.length > 0) return body.error;
+  if (typeof body.detail === 'string' && body.detail.length > 0) return body.detail;
+  if (Array.isArray(body.errors) && body.errors.length > 0) {
+    const parts = body.errors
+      .map((e: unknown) => {
+        if (e && typeof e === 'object') {
+          const o = e as { message?: unknown; error?: unknown; action?: unknown; platform?: unknown };
+          const msg = (typeof o.message === 'string' && o.message)
+            || (typeof o.error === 'string' && o.error)
+            || '';
+          const ctx = (typeof o.action === 'string' && o.action)
+            || (typeof o.platform === 'string' && o.platform)
+            || '';
+          if (msg && ctx) return `${ctx}: ${msg}`;
+          if (msg) return msg;
+        }
+        return '';
+      })
+      .filter(Boolean);
+    if (parts.length > 0) return parts.join(' · ');
+  }
+  return `Ayrshare returned ${httpStatus}`;
+}
+
 // Platforms Ayrshare supports today. Pinned here so the UI picker
 // renders a stable order and the validator on /api/social-media/post
 // can reject typos.

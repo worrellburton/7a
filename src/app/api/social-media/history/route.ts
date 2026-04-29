@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
-import { ayrshareGet, AyrshareNotConfigured } from '@/lib/ayrshare';
+import { ayrshareGet, AyrshareNotConfigured, extractAyrshareError } from '@/lib/ayrshare';
 
 // GET /api/social-media/history?lastRecords=25
 //
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     const { status, body } = await ayrshareGet('/history', { lastRecords });
     if (status >= 400) {
       return NextResponse.json(
-        { error: typeof body.message === 'string' ? body.message : `Ayrshare returned ${status}` },
+        { error: extractAyrshareError(body, status, '/history') },
         { status: 502 },
       );
     }
