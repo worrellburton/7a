@@ -2871,6 +2871,21 @@ const STATUS_TONE: Record<Status, string> = {
   claim_in_process: 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100',
 };
 
+// Row-level tint applied to the whole <tr> so each row reads at a
+// glance as belonging to one of the six workflow buckets. Lighter
+// alpha than the chip itself (the chip pulls 100% of the bg color,
+// the row pulls ~40%) so per-cell text + buttons stay legible
+// against the tint. todo deliberately keeps a near-white tint so
+// the default-state rows don't dominate visually.
+const STATUS_ROW_TINT: Record<Status, string> = {
+  todo: 'bg-warm-bg/30 hover:bg-warm-bg/50',
+  need_credentials: 'bg-rose-50/55 hover:bg-rose-50',
+  claim_in_process: 'bg-blue-50/55 hover:bg-blue-50',
+  pending: 'bg-amber-50/55 hover:bg-amber-50',
+  listed: 'bg-emerald-50/55 hover:bg-emerald-50',
+  skip: 'bg-foreground/[0.03] hover:bg-foreground/[0.06] text-foreground/55',
+};
+
 // Order the dropdown so the most-actioned states sit at the top.
 // Workflow reads: nothing-yet → blocked → mid-flow → submitted →
 // live → not-pursuing.
@@ -4013,12 +4028,12 @@ export default function DirectoriesContent() {
                     // red if no live link recorded, green once one is.
                     // "skip" overrides — we don't want to nag about
                     // directories the team explicitly chose to skip.
-                    const tintClass =
-                      status === 'skip'
-                        ? ''
-                        : link
-                          ? 'bg-emerald-50/60 hover:bg-emerald-50'
-                          : 'bg-rose-50/40 hover:bg-rose-50/60';
+                    // Row tint now flows from the status itself (see
+                    // STATUS_ROW_TINT) so each workflow bucket reads
+                    // at a glance — old "green if linked, red
+                    // otherwise" was overruling the more specific
+                    // status signal.
+                    const tintClass = STATUS_ROW_TINT[status];
                     return (
                       <tr key={d.id} className={`align-top transition-colors ${tintClass}`}>
                         <td className="px-4 py-3">
@@ -4056,7 +4071,41 @@ export default function DirectoriesContent() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-foreground/70 text-[13px] leading-relaxed">{d.why}</td>
+                        {/* Why → "?" icon. The full rationale was
+                            eating a column-and-a-half of horizontal
+                            real estate per row; collapsing it into
+                            a hover-revealed tooltip recovers space
+                            for the Live link + Notes columns
+                            without losing the context. native title
+                            attribute is the accessibility fallback;
+                            the styled bubble below is the visible
+                            hover affordance. */}
+                        <td className="px-4 py-3">
+                          {d.why ? (
+                            <span className="relative inline-block group/why">
+                              <button
+                                type="button"
+                                aria-label={`Why this directory: ${d.why}`}
+                                title={d.why}
+                                className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-foreground/15 bg-white/80 text-[10px] font-bold text-foreground/55 hover:text-primary hover:border-primary/40 transition-colors"
+                              >
+                                ?
+                              </button>
+                              <span
+                                role="tooltip"
+                                className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-64 -translate-x-1/2 rounded-lg border border-black/10 bg-white px-3 py-2 text-[12px] leading-relaxed text-foreground/85 shadow-lg opacity-0 translate-y-1 transition-all duration-150 group-hover/why:opacity-100 group-hover/why:translate-y-0"
+                              >
+                                {d.why}
+                                <span
+                                  aria-hidden="true"
+                                  className="absolute left-1/2 -top-1 -translate-x-1/2 w-2 h-2 rotate-45 bg-white border-l border-t border-black/10"
+                                />
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-foreground/30 text-xs">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border ${PRIORITY_TONE[d.priority]}`}>
                             {d.priority}
