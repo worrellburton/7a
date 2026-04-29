@@ -177,44 +177,72 @@ export function CallMobileRow(props: CallMobileRowProps) {
           onClick={onToggleExpand}
           className="flex-1 min-w-0 flex items-center gap-3 pl-3 pr-2 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-r-xl"
         >
-          {/* Direction / status icon — replaces the old red square
-              fit-score chip. Square shrinks to 38x38 to give the
-              identity column more horizontal room. */}
+          {/* Far-left column: prominent fit-score chip when scored.
+              Spam / missed / unanalyzed rows keep an icon stand-in
+              instead of showing "—" so the column always carries a
+              real signal. Color tracks the same tiers as the
+              desktop table (>=75 emerald, >=50 blue, >=25 amber,
+              <25 rose) so the two views read identically. A tiny
+              direction arrow sits in the bottom-right corner of
+              the chip so we don't lose the inbound/outbound bit. */}
           <span
-            className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-xl ${
+            className={`shrink-0 relative inline-flex items-center justify-center w-10 h-10 rounded-xl font-bold tabular-nums text-[14px] ${
               isSpam
                 ? 'bg-amber-50 text-amber-700'
                 : isMissed
                 ? 'bg-rose-50 text-rose-600'
-                : isInbound
-                ? 'bg-emerald-50 text-emerald-600'
-                : isOutbound
-                ? 'bg-blue-50 text-blue-600'
-                : 'bg-gray-50 text-foreground/40'
+                : score?.fit_score != null
+                ? score.fit_score >= 75
+                  ? 'bg-emerald-500 text-white'
+                  : score.fit_score >= 50
+                  ? 'bg-blue-500 text-white'
+                  : score.fit_score >= 25
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-rose-500 text-white'
+                : 'bg-gray-100 text-foreground/40'
             }`}
-            aria-hidden="true"
+            aria-label={
+              score?.fit_score != null
+                ? `Fit score ${score.fit_score} of 100`
+                : isSpam
+                ? 'Spam'
+                : isMissed
+                ? 'Missed call'
+                : 'Unanalyzed call'
+            }
           >
             {isSpam ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
               </svg>
             ) : isMissed ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.95.36 1.88.7 2.78a2 2 0 0 1-.45 2.11l-1.27 1.27a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.83.57 2.78.7A2 2 0 0 1 22 16.92Z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M22 2 16 8m0-6 6 6" />
               </svg>
-            ) : isInbound ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 19V5m0 14h14M5 19l14-14" />
-              </svg>
-            ) : isOutbound ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 5v14m0-14H5m14 0L5 19" />
-              </svg>
+            ) : score?.fit_score != null ? (
+              <span>{score.fit_score}</span>
             ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.95.36 1.88.7 2.78a2 2 0 0 1-.45 2.11l-1.27 1.27a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.83.57 2.78.7A2 2 0 0 1 22 16.92Z" />
-              </svg>
+              <span className="text-[12px] font-medium">—</span>
+            )}
+            {/* Direction sub-glyph — bottom-right corner. Hidden on
+                spam/missed since the icon already covers status. */}
+            {!isSpam && !isMissed && (isInbound || isOutbound) && (
+              <span
+                aria-hidden="true"
+                className={`absolute -bottom-0.5 -right-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-white ${
+                  isInbound ? 'bg-emerald-500' : 'bg-blue-500'
+                } text-white`}
+                title={isInbound ? 'Inbound' : 'Outbound'}
+              >
+                <svg className="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+                  {isInbound ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 19V5m0 14h14M5 19l14-14" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 5v14m0-14H5m14 0L5 19" />
+                  )}
+                </svg>
+              </span>
             )}
           </span>
 
@@ -237,22 +265,9 @@ export function CallMobileRow(props: CallMobileRowProps) {
                   VM
                 </span>
               )}
-              {score?.fit_score != null && !isSpam && !isMissed && (
-                <span
-                  className={`shrink-0 inline-flex items-center justify-center min-w-[1.6rem] px-1 rounded-md text-[10px] font-bold tabular-nums ${
-                    score.fit_score >= 75
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : score.fit_score >= 50
-                      ? 'bg-blue-50 text-blue-700'
-                      : score.fit_score >= 25
-                      ? 'bg-amber-50 text-amber-700'
-                      : 'bg-rose-50 text-rose-700'
-                  }`}
-                  title={`Fit score ${score.fit_score}/100`}
-                >
-                  {score.fit_score}
-                </span>
-              )}
+              {/* The inline fit chip that used to live next to the
+                  name is gone — the leftmost column now owns that
+                  signal as a prominent color-coded square. */}
             </div>
             <p
               className="text-[12px] text-foreground/55 mt-0.5 truncate"
