@@ -1,19 +1,17 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'TraumAddiction® Treatment | Seven Arrows Recovery',
+  title: 'Forward-Facing TraumAddiction® Treatment | Seven Arrows Recovery',
   description:
-    'Forward-Facing Freedom® and TraumAddiction® treatment in Arizona — trauma-informed residential care that addresses addiction at its root. Call (866) 996-4308.',
+    'Forward-Facing TraumAddiction® (FFTA) treatment in Arizona — trauma-informed residential care that addresses addiction at its root. Call (866) 996-4308.',
 };
 
 import PageHero from '@/components/PageHero';
-import GeoAnswer from '@/components/seo/GeoAnswer';
 import ClinicalGap from '@/components/trauma/ClinicalGap';
 import PostTraumaticAdaptation from '@/components/trauma/PostTraumaticAdaptation';
 import SocDomains from '@/components/trauma/SocDomains';
 import WisdomGallery from '@/components/trauma/WisdomGallery';
 import ClinicalModalities from '@/components/trauma/ClinicalModalities';
-import TreatmentTimeline from '@/components/trauma/TreatmentTimeline';
 import PostTraumaticGrowth from '@/components/trauma/PostTraumaticGrowth';
 import TraumaCTA from '@/components/trauma/TraumaCTA';
 
@@ -24,7 +22,7 @@ export default function TraumaTreatmentPage() {
           every other inner page. The Swisshelm mp4 loops under the
           scrim on first paint. */}
       <PageHero
-        label="TraumAddiction® Treatment"
+        label="Forward-Facing TraumAddiction® Treatment"
         title={[
           { text: 'Healing trauma at ' },
           { text: 'the root', accent: true },
@@ -35,7 +33,7 @@ export default function TraumaTreatmentPage() {
           { label: 'Our Program', href: '/our-program' },
           { label: 'Trauma Treatment' },
         ]}
-        description="Addiction rarely exists in isolation. Our TraumAddiction® approach treats trauma and substance use as one integrated condition through the Forward-Facing Freedom® model — unlocking deeper and more lasting healing."
+        description="The Forward-Facing TraumAddiction® (FFTA) model is an integrative, salutogenic approach to treating trauma and addiction simultaneously — grounded in the understanding that addiction is a post-traumatic adaptive capacity, not a pathology to be eliminated. FFTA addresses both at once without overwhelming the nervous system: rather than intensive memory processing early in recovery, it emphasizes neuroception, interoceptive awareness, and the gradual expansion of capacity as the foundation of healing and relapse prevention."
         ctas={[
           {
             kind: 'phone',
@@ -46,26 +44,103 @@ export default function TraumaTreatmentPage() {
         ]}
       />
 
-      <GeoAnswer
-        id="trauma-informed-rehab-in-arizona"
-        question="Trauma-informed rehab in Arizona"
-        answer={
-          <p>
-            Seven Arrows Recovery is a trauma-informed residential drug and alcohol rehab in
-            Arizona, set on a 160-acre ranch in Cochise County. Clinicians treat trauma and
-            addiction concurrently through the TraumAddiction&reg; model and the
-            Forward-Facing Freedom&reg; framework, drawing on polyvagal theory, somatic
-            experiencing, and the ACE literature — and sequencing nervous-system regulation
-            before memory work so early-recovery clients are not destabilized.
+      {/* Guiding Principles of a Trauma-Informed Approach — SAMHSA's
+          six TIC principles, with our interpretation under each. */}
+      <section
+        id="guiding-principles-of-trauma-informed-care"
+        className="bg-warm-bg/40 py-20 lg:py-28"
+        aria-labelledby="tic-principles-heading"
+      >
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <p
+            className="text-[11px] font-semibold tracking-[0.22em] uppercase text-primary mb-4"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            How we practice it
           </p>
-        }
-        bullets={[
-          { label: 'Stabilize, then process', body: 'Nervous-system capacity is built first; deeper trauma work follows once regulation is reliable.' },
-          { label: 'Concurrent care', body: 'Trauma and substance use treated as one integrated condition — not two sequenced programs.' },
-          { label: 'Somatic + relational', body: 'Body-based interventions, equine-assisted psychotherapy, and attachment-informed groupwork.' },
-          { label: 'Evidence chain', body: 'Informed by the ACE study, polyvagal theory, IFS, and somatic experiencing — named frameworks, not slogans.' },
-        ]}
-      />
+          <h2
+            id="tic-principles-heading"
+            className="text-foreground font-bold tracking-tight mb-5"
+            style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 3.6vw, 2.8rem)', lineHeight: 1.05 }}
+          >
+            Guiding Principles of a Trauma-Informed Approach
+          </h2>
+          <p
+            className="text-foreground/70 text-lg leading-relaxed max-w-3xl mb-12"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Trauma-Informed Care (TIC) is guided by six core principles developed by the{' '}
+            <a
+              href="https://stacks.cdc.gov/view/cdc/56843"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+            >
+              Substance Abuse and Mental Health Services Administration (SAMHSA)
+            </a>
+            . Here is how we interpret and implement those principles at Seven Arrows.
+          </p>
+
+          <ol className="grid grid-cols-1 md:grid-cols-2 gap-5 lg:gap-6">
+            {[
+              {
+                n: 1,
+                title: 'Safety',
+                body: "We prioritize the safety of our client's nervous system and listen to the stories of the nervous system. We create environments where people feel physically and psychologically secure, recognizing that trauma impacts safety needs.",
+              },
+              {
+                n: 2,
+                title: 'Trustworthiness and Transparency',
+                body: 'We build trust by keeping decisions, expectations, and procedures concise and predictable for clients and staff. We integrate healing practices into our own lives and leadership, recognizing our nervous-system regulation as the miracle intervention.',
+              },
+              {
+                n: 3,
+                title: 'Connection and Community',
+                body: 'We value the healing power of connection and lived experience. Peer support is rooted in community, mutual understanding, and shared humanity. Our staff are encouraged to engage in their own healing journeys so they can offer authentic presence and empathy — honoring that no one heals in isolation.',
+              },
+              {
+                n: 4,
+                title: 'Collaboration',
+                body: 'Healing is a shared process grounded in partnership and respect. We intentionally share power, honor lived experience, and recognize that healing happens through relationships, not in a hierarchy. By focusing on a person’s history of survival and movement through trauma, we understand behaviors as expressions of capacity and competency rather than pathology or disease.',
+              },
+              {
+                n: 5,
+                title: 'Empowerment',
+                body: 'We center choice, voice, and personal agency by emphasizing strengths, resilience, and the innate capacity for active adaptation. We view health as a continuum and healing as a process of incremental movement toward greater wellbeing and functionality. We listen for competence and capacity within each person’s story to support transformation toward health rather than defining individuals by pathology or brokenness.',
+              },
+              {
+                n: 6,
+                title: 'Cultural, Historical, and Gender Responsiveness',
+                body: 'We honor the whole person by recognizing how culture, identity, history, and lived experience shape healing. This includes acknowledging the impact of historical harm, discrimination, and intergenerational trauma. We work with humility to reduce bias, listen deeply, and offer care and connections that respect each person’s background and dignity, enhancing their sense of belonging.',
+              },
+            ].map((p) => (
+              <li
+                key={p.n}
+                className="relative rounded-2xl border border-black/8 bg-white p-6 shadow-[0_8px_24px_-18px_rgba(60,48,42,0.18)]"
+              >
+                <span
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white text-sm font-bold mb-3"
+                  aria-hidden="true"
+                >
+                  {p.n}
+                </span>
+                <h3
+                  className="text-foreground font-bold tracking-tight mb-2"
+                  style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', lineHeight: 1.2 }}
+                >
+                  {p.title}
+                </h3>
+                <p
+                  className="text-foreground/70 text-[15px] leading-relaxed"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {p.body}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
       {/* Phase 2 — The Clinical Gap, animated SVG glyph section. */}
       <ClinicalGap />
 
@@ -85,9 +160,11 @@ export default function TraumaTreatmentPage() {
           and flagship Forward-Facing Freedom® feature tile. */}
       <ClinicalModalities />
 
-      {/* Phase 7 — Treatment timeline: week-by-week horizontal stepper
-          with a progress rail that paints on scroll-in. */}
-      <TreatmentTimeline />
+      {/* Phase 7 — Treatment timeline removed per leadership: the
+          "Twelve weeks, paced to the nervous system" stepper
+          implied a fixed schedule that doesn't match how we
+          sequence stays in practice. The TreatmentTimeline
+          component file is preserved for future reuse. */}
 
       {/* Phase 8 — Post-Traumatic Growth: parallax photo + three
           counting-up outcome stats. */}
