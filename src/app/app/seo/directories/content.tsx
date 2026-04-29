@@ -2889,15 +2889,18 @@ const STATUS_ROW_TINT: Record<Status, string> = {
   skip: 'bg-foreground/[0.03] hover:bg-foreground/[0.06] text-foreground/55',
 };
 
-// Order the dropdown so the most-actioned states sit at the top.
-// Workflow reads: nothing-yet → blocked → mid-flow → submitted →
-// approved → publicly live → not-pursuing.
-const STATUS_ORDER: Status[] = ['todo', 'need_credentials', 'claim_in_process', 'pending', 'listed', 'live', 'skip'];
+// Workflow order — chronological from a teammate's perspective:
+// pick it up → start working → get unblocked / submit → confirmed
+// listed → confirmed publicly live → terminal "skip" at the end.
+// "Claim in process" sits before "Need credentials" because the
+// usual sequence is "I started claiming this … oh wait, I need
+// creds" rather than the other way around.
+const STATUS_ORDER: Status[] = ['todo', 'claim_in_process', 'need_credentials', 'pending', 'listed', 'live', 'skip'];
 
 const STATUS_CYCLE: Record<Status, Status> = {
-  todo: 'need_credentials',
-  need_credentials: 'claim_in_process',
-  claim_in_process: 'pending',
+  todo: 'claim_in_process',
+  claim_in_process: 'need_credentials',
+  need_credentials: 'pending',
   pending: 'listed',
   listed: 'live',
   live: 'skip',
@@ -3015,6 +3018,9 @@ interface DirectoryStateRow {
   paid_amount: number | null;
   paid_set_by: string | null;
   paid_set_at: string | null;
+  hidden: boolean;
+  hidden_set_by: string | null;
+  hidden_set_at: string | null;
 }
 
 interface UserLite {
@@ -3035,7 +3041,7 @@ function useDirectoryStates() {
       const rows = await db({
         action: 'select',
         table: 'directory_states',
-        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at',
+        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at',
       }).catch(() => null);
       if (cancelled) return;
       const map: Record<string, DirectoryStateRow> = {};
@@ -3074,6 +3080,9 @@ function useDirectoryStates() {
             paid_amount: null,
             paid_set_by: null,
             paid_set_at: null,
+            hidden: false,
+            hidden_set_by: null,
+            hidden_set_at: null,
           }));
         if (upserts.length > 0) {
           await db({ action: 'upsert', table: 'directory_states', data: upserts, onConflict: 'directory_id' }).catch(() => null);
@@ -3081,7 +3090,7 @@ function useDirectoryStates() {
           const fresh = await db({
             action: 'select',
             table: 'directory_states',
-            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at',
+            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at',
           }).catch(() => null);
           if (!cancelled && Array.isArray(fresh)) {
             const next: Record<string, DirectoryStateRow> = {};
@@ -3144,6 +3153,7 @@ function useDirectoryStates() {
     if (!user?.id) return;
     const existing = byId[id];
     const paidChanged = patch.paid !== undefined || patch.paid_amount !== undefined;
+    const hiddenChanged = patch.hidden !== undefined;
     const next: DirectoryStateRow = {
       directory_id: id,
       status: patch.status ?? existing?.status ?? 'todo',
@@ -3160,6 +3170,9 @@ function useDirectoryStates() {
       paid_amount: patch.paid_amount !== undefined ? patch.paid_amount : (existing?.paid_amount ?? null),
       paid_set_by: paidChanged ? user.id : (existing?.paid_set_by ?? null),
       paid_set_at: paidChanged ? new Date().toISOString() : (existing?.paid_set_at ?? null),
+      hidden: patch.hidden !== undefined ? patch.hidden : (existing?.hidden ?? false),
+      hidden_set_by: hiddenChanged ? user.id : (existing?.hidden_set_by ?? null),
+      hidden_set_at: hiddenChanged ? new Date().toISOString() : (existing?.hidden_set_at ?? null),
     };
     setById((prev) => ({ ...prev, [id]: next }));
     await db({ action: 'upsert', table: 'directory_states', data: [next as unknown as Record<string, unknown>], onConflict: 'directory_id' }).catch(() => null);
@@ -3708,9 +3721,13 @@ export default function DirectoriesContent() {
   const setPaid = (id: string, paid: boolean, amount: number | null) => {
     void upsertDirectoryState(id, { paid, paid_amount: paid ? amount : null });
   };
+  const setHidden = (id: string, hidden: boolean) => {
+    void upsertDirectoryState(id, { hidden });
+  };
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<DirectoryCategory | 'all'>('all');
   const [hideListed, setHideListed] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
   const [adding, setAdding] = useState(false);
   const customDirs = useCustomDirectories();
   // Merge curated + custom into a single list for every render-time
@@ -3723,6 +3740,19 @@ export default function DirectoriesContent() {
     await db({ action: 'delete', table: 'seo_custom_directories', match: { id } }).catch(() => null);
     // Realtime will pull the deletion in; no local state update needed.
   }, []);
+  // Curated directories live in the hardcoded DIRECTORIES array, so
+  // they can't be hard-deleted at the data layer. Trash on those rows
+  // flips the directory_states.hidden flag instead — the row is
+  // dropped from the default view but a "Show hidden" toggle brings
+  // it back. Custom rows still hard-delete (and bypass the flag).
+  const removeDirectory = (id: string) => {
+    if (customIds.has(id)) {
+      void removeCustomDirectory(id);
+      return;
+    }
+    if (!confirm('Hide this directory from the list? You can show hidden ones again from the toolbar.')) return;
+    setHidden(id, true);
+  };
   // Semrush column was removed from the row layout per product
   // feedback ("not actionable enough to keep"). The hook + cell stay
   // defined below so re-enabling is a single edit, but we no longer
@@ -3858,6 +3888,8 @@ export default function DirectoriesContent() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return allDirectories.filter((d) => {
+      const isHidden = !!directoryStates[d.id]?.hidden;
+      if (isHidden && !showHidden) return false;
       if (activeCategory !== 'all' && d.category !== activeCategory) return false;
       if (hideListed && (statusMap[d.id] === 'listed' || statusMap[d.id] === 'skip')) return false;
       if (!q) return true;
@@ -3867,35 +3899,67 @@ export default function DirectoriesContent() {
         d.url.toLowerCase().includes(q)
       );
     });
-  }, [query, activeCategory, hideListed, statusMap, allDirectories]);
+  }, [query, activeCategory, hideListed, showHidden, statusMap, allDirectories, directoryStates]);
 
-  const grouped = useMemo(() => {
-    const out: Partial<Record<DirectoryCategory, Directory[]>> = {};
-    for (const d of filtered) {
-      (out[d.category] ||= []).push(d);
-    }
-    // Within each category: rows with a live link recorded (the green
-    // tint) bubble to the top so completed work is visible first.
-    // Stable within each tier (preserves the curated DIRECTORIES order).
-    for (const cat of Object.keys(out) as DirectoryCategory[]) {
-      const list = out[cat];
-      if (!list) continue;
-      out[cat] = list
-        .map((d, i) => ({ d, i }))
-        .sort((a, b) => {
-          const aLinked = !!linkMap[a.d.id] && statusMap[a.d.id] !== 'skip';
-          const bLinked = !!linkMap[b.d.id] && statusMap[b.d.id] !== 'skip';
-          if (aLinked !== bLinked) return aLinked ? -1 : 1;
-          return a.i - b.i;
-        })
-        .map((x) => x.d);
-    }
-    return out;
+  const hiddenCount = useMemo(
+    () => allDirectories.filter((d) => directoryStates[d.id]?.hidden).length,
+    [allDirectories, directoryStates],
+  );
+
+  // Single flat list — replaces the old per-category section render.
+  // The user sees one master table now with Category as a column, so
+  // sorting works across categories (linked rows bubble first regardless
+  // of which category they're in). Stable within each tier preserves
+  // the curated DIRECTORIES order.
+  const flatRows = useMemo(() => {
+    return filtered
+      .map((d, i) => ({ d, i }))
+      .sort((a, b) => {
+        const aLinked = !!linkMap[a.d.id] && statusMap[a.d.id] !== 'skip';
+        const bLinked = !!linkMap[b.d.id] && statusMap[b.d.id] !== 'skip';
+        if (aLinked !== bLinked) return aLinked ? -1 : 1;
+        // Then keep curated category order so rows still cluster
+        // visually when no link/status differentiator separates them.
+        const aCatIdx = CATEGORY_ORDER.indexOf(a.d.category);
+        const bCatIdx = CATEGORY_ORDER.indexOf(b.d.category);
+        if (aCatIdx !== bCatIdx) return aCatIdx - bCatIdx;
+        return a.i - b.i;
+      })
+      .map((x) => x.d);
   }, [filtered, linkMap, statusMap]);
 
+  // Counts for the progress strip — every status gets its own card.
+  // 'todo' is the implicit default (no row in directory_states), so
+  // we count rows that don't appear in statusMap rather than ones
+  // that map to 'todo' explicitly.
   const total = allDirectories.length;
-  const listed = allDirectories.filter((d) => statusMap[d.id] === 'listed').length;
-  const pending = allDirectories.filter((d) => statusMap[d.id] === 'pending').length;
+  const counts = useMemo(() => {
+    const out: Record<Status, number> = {
+      todo: 0,
+      claim_in_process: 0,
+      need_credentials: 0,
+      pending: 0,
+      listed: 0,
+      live: 0,
+      skip: 0,
+    };
+    for (const d of allDirectories) {
+      const s = (statusMap[d.id] ?? 'todo') as Status;
+      out[s] = (out[s] ?? 0) + 1;
+    }
+    return out;
+  }, [allDirectories, statusMap]);
+  // Card accent per status — mirrors the row tint so the strip and
+  // the table read as the same color language.
+  const STATUS_ACCENT: Record<Status, 'foreground' | 'rose' | 'blue' | 'amber' | 'emerald' | 'teal'> = {
+    todo: 'foreground',
+    claim_in_process: 'blue',
+    need_credentials: 'rose',
+    pending: 'amber',
+    listed: 'emerald',
+    live: 'teal',
+    skip: 'foreground',
+  };
 
   return (
     <div className="p-8 max-w-7xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
@@ -3959,15 +4023,20 @@ export default function DirectoriesContent() {
 
       <RecentDirectoryActivity />
 
-      {/* Progress strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+      {/* Progress strip — every status gets its own card now (was
+          just Total / Listed / Submitted / To do). Card order mirrors
+          STATUS_ORDER so the strip reads as the same workflow as the
+          status dropdown. Total goes first as the running denominator. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-5">
         <ProgressCard label="Total" value={total} />
-        <ProgressCard label="Listed" value={listed} accent="emerald" />
-        <ProgressCard label="Submitted" value={pending} accent="amber" />
-        <ProgressCard
-          label="To do"
-          value={Math.max(0, total - listed - pending - allDirectories.filter((d) => statusMap[d.id] === 'skip').length)}
-        />
+        {STATUS_ORDER.map((s) => (
+          <ProgressCard
+            key={s}
+            label={STATUS_LABELS[s]}
+            value={counts[s] ?? 0}
+            accent={STATUS_ACCENT[s]}
+          />
+        ))}
       </div>
 
       {/* Controls */}
@@ -3997,6 +4066,17 @@ export default function DirectoriesContent() {
           />
           Hide Listed / Skip
         </label>
+        {hiddenCount > 0 && (
+          <label className="inline-flex items-center gap-2 text-xs text-foreground/70">
+            <input
+              type="checkbox"
+              checked={showHidden}
+              onChange={(e) => setShowHidden(e.target.checked)}
+            />
+            Show hidden
+            <span className="text-foreground/45 tabular-nums">({hiddenCount})</span>
+          </label>
+        )}
         <button
           type="button"
           onClick={() => setAdding((v) => !v)}
@@ -4018,201 +4098,202 @@ export default function DirectoriesContent() {
         </div>
       ) : null}
 
-      {CATEGORY_ORDER.map((cat) => {
-        const rows = grouped[cat] ?? [];
-        if (rows.length === 0) return null;
-        return (
-          <section key={cat} className="mb-8">
-            <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-foreground/45 mb-3">
-              {CATEGORY_LABELS[cat]}
-              <span className="ml-2 font-normal tracking-normal normal-case text-foreground/35">
-                · {rows.length}
-              </span>
-            </h2>
-            <div className="overflow-hidden border border-black/10 rounded-xl bg-white">
-              <table className="w-full text-sm">
-                <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
-                  <tr>
-                    <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10">Directory</th>
-                    <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-16">Insights</th>
-                    <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-24">Priority</th>
-                    <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-20">Fit</th>
-                    <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-28">Paid</th>
-                    <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-64">Live link</th>
-                    <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
-                    <th className="text-center px-4 py-2.5 font-semibold border-b border-black/10 w-16">Notes</th>
-                    <th className="text-right px-4 py-2.5 font-semibold border-b border-black/10 w-12" aria-label="Delete" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-black/5">
-                  {rows.map((d) => {
-                    const status = statusMap[d.id] ?? 'todo';
-                    const link = linkMap[d.id] ?? '';
-                    // Row tint is the user's most-requested visual:
-                    // red if no live link recorded, green once one is.
-                    // "skip" overrides — we don't want to nag about
-                    // directories the team explicitly chose to skip.
-                    // Row tint now flows from the status itself (see
-                    // STATUS_ROW_TINT) so each workflow bucket reads
-                    // at a glance — old "green if linked, red
-                    // otherwise" was overruling the more specific
-                    // status signal.
-                    const tintClass = STATUS_ROW_TINT[status];
-                    return (
-                      <tr key={d.id} className={`align-top transition-colors ${tintClass}`}>
-                        <td className="px-4 py-3">
-                          <div className="min-w-0">
-                            <a
-                              href={d.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-semibold text-primary hover:underline"
-                            >
-                              {d.name}
-                            </a>
-                            {customIds.has(d.id) && (
-                              <span className="ml-2 inline-block px-1.5 py-0 rounded text-[9px] uppercase tracking-wider border border-primary/30 bg-primary/10 text-primary align-middle">
-                                Custom
-                              </span>
-                            )}
-                            <p className="text-[11px] text-foreground/40 truncate max-w-[280px]" title={d.url}>
-                              {d.url.replace(/^https?:\/\//, '')}
-                            </p>
-                          </div>
-                        </td>
-                        {/* Insights — was "Why". Same hover-tooltip
-                            mechanism, just relabeled and using a
-                            lightbulb glyph instead of "?" so it reads
-                            as a real surface ("here's the angle on
-                            this directory") rather than a help icon. */}
-                        <td className="px-4 py-3">
-                          {d.why ? (
-                            <span className="relative inline-block group/why">
-                              <button
-                                type="button"
-                                aria-label={`Insights for ${d.name}: ${d.why}`}
-                                title={d.why}
-                                className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-amber-300/60 bg-amber-50 text-amber-700 hover:text-amber-900 hover:border-amber-400 transition-colors"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6m-5 3h4m-2-17a7 7 0 00-4 12.74V17a1 1 0 001 1h6a1 1 0 001-1v-.26A7 7 0 0012 4z" />
-                                </svg>
-                              </button>
-                              <span
-                                role="tooltip"
-                                className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-64 -translate-x-1/2 rounded-lg border border-black/10 bg-white px-3 py-2 text-[12px] leading-relaxed text-foreground/85 shadow-lg opacity-0 translate-y-1 transition-all duration-150 group-hover/why:opacity-100 group-hover/why:translate-y-0"
-                              >
-                                {d.why}
-                                <span
-                                  aria-hidden="true"
-                                  className="absolute left-1/2 -top-1 -translate-x-1/2 w-2 h-2 rotate-45 bg-white border-l border-t border-black/10"
-                                />
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="text-foreground/30 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border ${PRIORITY_TONE[d.priority]}`}>
-                            {d.priority}
+      {/* Single flat table — was per-category sections. Category is
+          now a column on each row so the team can scan the whole
+          workflow in one list and let sort/filter do the work. */}
+      {flatRows.length === 0 ? null : (
+        <div className="mb-8 overflow-hidden border border-black/10 rounded-xl bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
+              <tr>
+                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10">Directory</th>
+                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-44">Category</th>
+                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-16">Insights</th>
+                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-24">Priority</th>
+                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-20">Fit</th>
+                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-28">Paid</th>
+                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-64">Live link</th>
+                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
+                <th className="text-center px-4 py-2.5 font-semibold border-b border-black/10 w-16">Notes</th>
+                <th className="text-right px-4 py-2.5 font-semibold border-b border-black/10 w-12" aria-label="Delete" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {flatRows.map((d) => {
+                const status = statusMap[d.id] ?? 'todo';
+                const link = linkMap[d.id] ?? '';
+                const tintClass = STATUS_ROW_TINT[status];
+                const isHidden = !!directoryStates[d.id]?.hidden;
+                return (
+                  <tr key={d.id} className={`align-top transition-colors ${tintClass} ${isHidden ? 'opacity-50' : ''}`}>
+                    <td className="px-4 py-3">
+                      <div className="min-w-0">
+                        <a
+                          href={d.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold text-primary hover:underline"
+                        >
+                          {d.name}
+                        </a>
+                        {customIds.has(d.id) && (
+                          <span className="ml-2 inline-block px-1.5 py-0 rounded text-[9px] uppercase tracking-wider border border-primary/30 bg-primary/10 text-primary align-middle">
+                            Custom
                           </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <FitChip score={d.fit} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <PaidCell
-                            paid={directoryStates[d.id]?.paid ?? false}
-                            amount={directoryStates[d.id]?.paid_amount ?? null}
-                            onChange={(p, amt) => setPaid(d.id, p, amt)}
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <LinkCell
-                            value={link}
-                            onSave={(v) => saveLink(d.id, v)}
-                            setBy={directoryStates[d.id]?.link_set_by
-                              ? (directoryStateUsers[directoryStates[d.id].link_set_by!]?.full_name ?? null)
-                              : null}
-                            setAt={directoryStates[d.id]?.link_set_at ?? null}
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          {/* Status dropdown — see PaidCell / LinkCell
-                              comments for the rationale. The native
-                              <select> inherits the row's tone via
-                              STATUS_TONE so each option renders in the
-                              right color even when collapsed. */}
-                          <span className={`inline-flex items-center rounded-md border ${STATUS_TONE[status]}`}>
-                            <select
-                              value={status}
-                              onChange={(e) => setStatus(d.id, e.target.value as Status)}
-                              onClick={(e) => e.stopPropagation()}
-                              aria-label="Change directory status"
-                              className="appearance-none bg-transparent pl-2.5 pr-6 py-1 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
-                            >
-                              {STATUS_ORDER.map((s) => (
-                                <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                              ))}
-                            </select>
-                            <svg
-                              aria-hidden="true"
-                              className="pointer-events-none -ml-5 mr-1.5 w-2.5 h-2.5 opacity-60"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                            </svg>
+                        )}
+                        {isHidden && (
+                          <span className="ml-2 inline-block px-1.5 py-0 rounded text-[9px] uppercase tracking-wider border border-foreground/20 bg-foreground/5 text-foreground/55 align-middle">
+                            Hidden
                           </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
+                        )}
+                        <p className="text-[11px] text-foreground/40 truncate max-w-[280px]" title={d.url}>
+                          {d.url.replace(/^https?:\/\//, '')}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-block text-[11px] text-foreground/65 leading-snug">
+                        {CATEGORY_LABELS[d.category]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {d.why ? (
+                        <span className="relative inline-block group/why">
                           <button
                             type="button"
-                            onClick={() => openComments(d)}
-                            title={chatCounts[d.id] ? `${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}` : 'Add a comment'}
-                            aria-label={`Comments for ${d.name}`}
-                            className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/5 transition-colors"
+                            aria-label={`Insights for ${d.name}: ${d.why}`}
+                            title={d.why}
+                            className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-amber-300/60 bg-amber-50 text-amber-700 hover:text-amber-900 hover:border-amber-400 transition-colors"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6m-5 3h4m-2-17a7 7 0 00-4 12.74V17a1 1 0 001 1h6a1 1 0 001-1v-.26A7 7 0 0012 4z" />
                             </svg>
-                            {chatCounts[d.id] ? (
-                              <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold tabular-nums">
-                                {chatCounts[d.id] > 99 ? '99+' : chatCounts[d.id]}
-                              </span>
-                            ) : null}
-                            {isUnread(d.id) && (
-                              <span aria-label="Unread" className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
-                            )}
                           </button>
-                        </td>
-                        <td className="px-2 py-3 text-right">
-                          {customIds.has(d.id) ? (
-                            <button
-                              type="button"
-                              onClick={() => removeCustomDirectory(d.id)}
-                              title="Remove custom directory"
-                              aria-label="Remove custom directory"
-                              className="inline-flex items-center justify-center w-7 h-7 rounded text-foreground/35 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
-                              </svg>
-                            </button>
-                          ) : null}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        );
-      })}
+                          <span
+                            role="tooltip"
+                            className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-64 -translate-x-1/2 rounded-lg border border-black/10 bg-white px-3 py-2 text-[12px] leading-relaxed text-foreground/85 shadow-lg opacity-0 translate-y-1 transition-all duration-150 group-hover/why:opacity-100 group-hover/why:translate-y-0"
+                          >
+                            {d.why}
+                            <span
+                              aria-hidden="true"
+                              className="absolute left-1/2 -top-1 -translate-x-1/2 w-2 h-2 rotate-45 bg-white border-l border-t border-black/10"
+                            />
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-foreground/30 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border ${PRIORITY_TONE[d.priority]}`}>
+                        {d.priority}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <FitChip score={d.fit} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <PaidCell
+                        paid={directoryStates[d.id]?.paid ?? false}
+                        amount={directoryStates[d.id]?.paid_amount ?? null}
+                        onChange={(p, amt) => setPaid(d.id, p, amt)}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <LinkCell
+                        value={link}
+                        onSave={(v) => saveLink(d.id, v)}
+                        setBy={directoryStates[d.id]?.link_set_by
+                          ? (directoryStateUsers[directoryStates[d.id].link_set_by!]?.full_name ?? null)
+                          : null}
+                        setAt={directoryStates[d.id]?.link_set_at ?? null}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center rounded-md border ${STATUS_TONE[status]}`}>
+                        <select
+                          value={status}
+                          onChange={(e) => setStatus(d.id, e.target.value as Status)}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label="Change directory status"
+                          className="appearance-none bg-transparent pl-2.5 pr-6 py-1 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+                        >
+                          {STATUS_ORDER.map((s) => (
+                            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                          ))}
+                        </select>
+                        <svg
+                          aria-hidden="true"
+                          className="pointer-events-none -ml-5 mr-1.5 w-2.5 h-2.5 opacity-60"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => openComments(d)}
+                        title={chatCounts[d.id] ? `${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}` : 'Add a comment'}
+                        aria-label={`Comments for ${d.name}`}
+                        className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/5 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                        </svg>
+                        {chatCounts[d.id] ? (
+                          <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold tabular-nums">
+                            {chatCounts[d.id] > 99 ? '99+' : chatCounts[d.id]}
+                          </span>
+                        ) : null}
+                        {isUnread(d.id) && (
+                          <span aria-label="Unread" className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
+                        )}
+                      </button>
+                    </td>
+                    <td className="px-2 py-3 text-right">
+                      {/* Delete on every row. Custom rows hard-delete
+                          out of seo_custom_directories; curated rows
+                          flip directory_states.hidden=true. The
+                          un-hide path is the "Show hidden" toggle in
+                          the toolbar above. */}
+                      {isHidden ? (
+                        <button
+                          type="button"
+                          onClick={() => setHidden(d.id, false)}
+                          title="Restore directory"
+                          aria-label="Restore directory"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded text-foreground/45 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h13a5 5 0 010 10h-3m0 0l3-3m-3 3l3 3" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => removeDirectory(d.id)}
+                          title={customIds.has(d.id) ? 'Remove custom directory' : 'Hide this directory'}
+                          aria-label={customIds.has(d.id) ? 'Remove custom directory' : 'Hide this directory'}
+                          className="inline-flex items-center justify-center w-7 h-7 rounded text-foreground/35 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                          </svg>
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {openChat && (
         <div
@@ -4596,10 +4677,14 @@ function FitChip({ score }: { score: number }) {
 
 function ProgressCard({
   label, value, accent,
-}: { label: string; value: number; accent?: 'emerald' | 'amber' }) {
+}: { label: string; value: number; accent?: 'emerald' | 'amber' | 'rose' | 'blue' | 'teal' | 'foreground' }) {
   const color =
     accent === 'emerald' ? 'text-emerald-600'
     : accent === 'amber' ? 'text-amber-600'
+    : accent === 'rose' ? 'text-rose-600'
+    : accent === 'blue' ? 'text-blue-600'
+    : accent === 'teal' ? 'text-teal-600'
+    : accent === 'foreground' ? 'text-foreground/40'
     : 'text-foreground';
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
