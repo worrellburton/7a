@@ -93,7 +93,16 @@ export function RanchMap({
   className?: string;
   ariaLabel?: string;
 }) {
-  const src = `https://maps.google.com/maps?q=${ranchAddressMapsQuery()}&z=14&output=embed`;
+  // Prefer the Maps Embed API when NEXT_PUBLIC_GOOGLE_MAPS_EMBED_API_KEY
+  // is set (Vercel env, browser-restricted referrer key) — gives us
+  // a clean styled map with no "For development purposes only"
+  // watermark. Falls back to the unauthenticated maps.google.com
+  // search URL when the key isn't set so dev environments and
+  // un-configured deploys keep working without a config error.
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_API_KEY;
+  const src = apiKey
+    ? `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${ranchAddressMapsQuery()}&zoom=14`
+    : `https://maps.google.com/maps?q=${ranchAddressMapsQuery()}&z=14&output=embed`;
   return (
     <div className={`relative overflow-hidden rounded-2xl border border-black/10 bg-warm-bg/50 ${className ?? ''}`}>
       <iframe
