@@ -4,6 +4,76 @@ import { getPublicSupabase } from '@/lib/supabase-server';
 export const runtime = 'nodejs';
 
 /**
+ * Detects gibberish messages — random keysmash like "BuMundgALtGcMETfBlB"
+ * that bots fire into contact forms to test whether the form posts.
+ * Treats a message as gibberish when ANY of:
+ *
+ *   1. A single "word" (no whitespace) longer than 6 chars contains
+ *      3+ internal case flips (camelCase-but-random pattern). Real
+ *      brand-style camelCase like "PayPal" / "iPhone" / "eBay" tops
+ *      out at 1–2 flips, so 3+ is a strong spam signal.
+ *
+ *   2. A 10+ char word's vowel ratio is below 15%. English words
+ *      average ~38% vowels and even consonant-heavy German loanwords
+ *      stay above 15%, so anything below is mashed letters.
+ *
+ *   3. The whole message is a single long token (≥15 chars, no
+ *      whitespace) — real human messages contain spaces.
+ *
+ * Conservative on purpose: a message has to flag at least one of
+ * the above for a majority of its tokens before we mark it spam,
+ * so a legitimate short note like "ASAP" doesn't get nuked.
+ */
+function looksLikeGibberish(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (trimmed.length < 6) return false;
+
+  // Whole-message single-token check.
+  if (trimmed.length >= 15 && !/\s/.test(trimmed) && /^[A-Za-z]+$/.test(trimmed)) {
+    if (caseFlipCount(trimmed) >= 3) return true;
+  }
+
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return false;
+
+  let gibberishTokens = 0;
+  let countableTokens = 0;
+  for (const t of tokens) {
+    if (t.length < 6) continue;
+    countableTokens++;
+    if (isGibberishToken(t)) gibberishTokens++;
+  }
+  if (countableTokens === 0) return false;
+  return gibberishTokens / countableTokens >= 0.5;
+}
+
+function isGibberishToken(word: string): boolean {
+  if (word.length < 6) return false;
+  if (caseFlipCount(word) >= 3) return true;
+  if (word.length >= 10) {
+    const letters = word.replace(/[^A-Za-z]/g, '');
+    if (letters.length === 0) return false;
+    const vowels = (word.match(/[aeiouAEIOU]/g) || []).length;
+    if (vowels / letters.length < 0.15) return true;
+  }
+  return false;
+}
+
+function caseFlipCount(word: string): number {
+  let flips = 0;
+  for (let i = 1; i < word.length; i++) {
+    const prev = word[i - 1];
+    const cur = word[i];
+    if (!/[A-Za-z]/.test(prev) || !/[A-Za-z]/.test(cur)) continue;
+    const prevUp = prev === prev.toUpperCase() && prev !== prev.toLowerCase();
+    const curUp = cur === cur.toUpperCase() && cur !== cur.toLowerCase();
+    if (prevUp !== curUp) flips++;
+  }
+  return flips;
+}
+
+/**
  * Public contact form endpoint. Accepts a JSON POST from any of the
  * site's contact-style forms (Footer's ContactForm, the /contact
  * page's ContactPageForm, and ExitIntentModal) and inserts a row
@@ -18,6 +88,12 @@ export const runtime = 'nodejs';
  *
  * On insert failure we still return `{ ok: true }` so the visitor's
  * form doesn't break — but log payload + error for admin triage.
+ *
+ * Auto-spam: messages that look like keysmash gibberish (see
+ * looksLikeGibberish above) get spam_at = now() at insert time so
+ * the admin inbox isn't polluted. The row still lands in the table
+ * — just hidden from default counts via the existing spam_at filter
+ * in /api/website-requests/unread-count and the Forms tab.
  */
 export async function POST(req: NextRequest) {
   let payload: Record<string, unknown> = {};
@@ -48,6 +124,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Auto-spam keysmash submissions like "BuMundgALtGcMETfBlB". The
+  // row still gets inserted (so admins can audit what bots are
+  // posting), but spam_at is pre-stamped so unread-count filters and
+  // the Forms tab hide it by default. spam_by stays null because
+  // there's no admin user — the system did it.
+  const autoSpam = looksLikeGibberish(message);
+
   try {
     const supabase = getPublicSupabase();
     const { error } = await supabase.from('contact_submissions').insert({
@@ -62,6 +145,8 @@ export async function POST(req: NextRequest) {
       page_url: pageUrl || null,
       user_agent: req.headers.get('user-agent'),
       referrer: req.headers.get('referer'),
+      spam_at: autoSpam ? new Date().toISOString() : null,
+      spam_by: null,
     });
     if (error) {
       // Per master's pattern — log but don't break the visitor's
