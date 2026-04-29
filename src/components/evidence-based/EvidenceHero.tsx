@@ -128,8 +128,9 @@ export default function EvidenceHero() {
               transition: 'all 0.9s cubic-bezier(0.16,1,0.3,1) 0.5s',
             }}
           >
-            Grounded in empowerment and resilience-based frameworks, we believe
-            healing occurs not through force or pathology, but through the
+            Grounded in the Salutogenic Treatment Structure conceptualized by
+            Dr. Robert Rhoton and Dr. J. Eric Gentry, we believe healing
+            occurs not through force or focus on pathology, but through the
             restoration of safety, connection, and self-leadership.
           </p>
 

@@ -46,14 +46,21 @@ export default function ForwardFacingFreedom() {
       <div aria-hidden="true" className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 50% 55% at 50% 0%, rgba(216,137,102,0.15) 0%, rgba(216,137,102,0) 65%)' }} />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto text-center mb-14 lg:mb-20" style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(12px)', transition: 'all 0.9s cubic-bezier(0.16,1,0.3,1) 0.05s' }}>
-          <p className="text-[11px] font-semibold tracking-[0.28em] uppercase text-accent mb-5" style={{ fontFamily: 'var(--font-body)' }}>Forward-Facing Freedom<span className="align-super text-[9px]">®</span></p>
+          <p className="text-[11px] font-semibold tracking-[0.28em] uppercase text-accent mb-5" style={{ fontFamily: 'var(--font-body)' }}>Forward-Facing TraumAddiction<span className="align-super text-[9px]">®</span> (FFTA)</p>
           <h2 id="fff-heading" className="font-bold tracking-tight mb-5" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.1rem, 4.2vw, 3.2rem)', lineHeight: 1.03 }}>
             Stabilize. Understand. <em className="not-italic" style={{ color: 'var(--color-accent)' }}>Grow.</em>
           </h2>
           <p className="text-white/75 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-            A present-focused model that prioritizes capacity-building over
-            retrospective trauma processing. Developed by Dr. J. Eric Gentry
-            and Lindsay Rothschild.
+            The Forward-Facing TraumAddiction® (FFTA) model — developed by
+            Dr. J. Eric Gentry and Lindsay Rothschild — offers an integrative,
+            salutogenic approach to treating trauma and addiction
+            simultaneously. Addiction is understood as a post-traumatic
+            adaptive capacity rather than a pathology to be eliminated;
+            healing happens in a way that does not overwhelm the nervous
+            system. Rather than relying on intensive memory processing early
+            in recovery, FFTA emphasizes neuroception, interoceptive
+            awareness, and the gradual expansion of capacity as foundational
+            to healing and relapse prevention.
           </p>
         </div>
 

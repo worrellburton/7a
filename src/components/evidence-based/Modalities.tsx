@@ -86,6 +86,27 @@ const modalities: Modality[] = [
     body: 'Daily formal and informal practice that trains present-moment attention — the engine of every other modality.',
     Icon: MindfulnessIcon,
   },
+  {
+    title: 'Motivational Interviewing',
+    abbr: 'MI',
+    body: 'Collaborative conversation that resolves ambivalence — meeting clients in their own language, on their own readiness, without coercion.',
+    Icon: MIIcon,
+  },
+  {
+    title: 'SMART Recovery',
+    body: 'Self-Management And Recovery Training — a science-based peer support framework using CBT and motivational tools alongside our clinical work.',
+    Icon: SmartIcon,
+  },
+  {
+    title: 'Wellbriety',
+    body: 'A culturally-grounded recovery path drawn from Indigenous teachings and the Medicine Wheel — sobriety held inside a return to community and tradition.',
+    Icon: WellbrietyIcon,
+  },
+  {
+    title: 'Trauma-Informed 12 Step',
+    body: 'Twelve-step recovery practiced with attention to nervous-system safety, agency, and titration — preserving the fellowship while removing the re-traumatizing edges.',
+    Icon: TwelveStepIcon,
+  },
 ];
 
 export default function Modalities() {
@@ -350,6 +371,39 @@ function MindfulnessIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 22s7-5 7-12a7 7 0 10-14 0c0 7 7 12 7 12z" />
       <circle cx="12" cy="10" r="2.5" />
+    </svg>
+  );
+}
+function MIIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 5h11a4 4 0 0 1 4 4v3a4 4 0 0 1-4 4H10l-4 3v-3H4V5z" />
+      <path d="M9 11h6" />
+    </svg>
+  );
+}
+function SmartIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9 12l2.5 2.5L16 9" />
+    </svg>
+  );
+}
+function WellbrietyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3v18" />
+      <path d="M5 5l14 14M19 5L5 19" opacity="0.5" />
+    </svg>
+  );
+}
+function TwelveStepIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 20l5-5 4 3 5-7 4 4" />
+      <path d="M3 20h18" opacity="0.5" />
     </svg>
   );
 }

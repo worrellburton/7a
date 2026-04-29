@@ -70,7 +70,7 @@ const HERO_POSTER = '/images/facility-exterior-mountains.jpg';
 const tickerItems = [
   { type: 'stat', text: '★ 4.9/5 Google Rating' },
   { type: 'divider' },
-  { type: 'stat', text: '1:1 Primary Clinician' },
+  { type: 'stat', text: 'Small Census · Every Name Known' },
   { type: 'divider' },
   { type: 'link', text: 'Read: When Drinking Stops Working →', href: '/who-we-are/blog/when-drinking-stops-working' },
   { type: 'divider' },

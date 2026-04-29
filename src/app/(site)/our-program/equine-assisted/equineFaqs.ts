@@ -18,7 +18,7 @@ export const equineFaqs: EquineFaq[] = [
   {
     id: 'rehabs-with-equine-therapy',
     q: 'Are there rehabs with equine therapy in Arizona?',
-    a: 'Yes. Seven Arrows Recovery is a JCAHO-accredited residential addiction treatment program in Cochise County, Arizona that includes equine-assisted psychotherapy (EAP) as a core modality — not an add-on. Sessions are co-led by an Arizona-licensed therapist and a dedicated equine specialist on a private 160-acre ranch with a full working herd.',
+    a: 'Yes. Seven Arrows Recovery is a JCAHO-accredited residential addiction treatment program in Cochise County, Arizona that includes equine-assisted psychotherapy (EAP) as a core modality — not an add-on. Sessions are led by an Arizona-licensed therapist trained in equine-facilitated practice, with the horses themselves as co-therapists, on a private 160-acre ranch.',
   },
   {
     id: 'drug-rehabs-with-horses',
@@ -28,7 +28,7 @@ export const equineFaqs: EquineFaq[] = [
   {
     id: 'what-is-eap',
     q: 'What is equine-assisted psychotherapy (EAP)?',
-    a: 'Equine-assisted psychotherapy is a licensed mental-health intervention delivered by a clinician in partnership with trained horses. At Seven Arrows, sessions are co-led by an Arizona-licensed therapist and a dedicated equine specialist and draw on attachment theory, somatic experiencing, and Internal Family Systems (IFS).',
+    a: 'Equine-assisted psychotherapy is a licensed mental-health intervention delivered by a clinician in partnership with trained horses. At Seven Arrows, sessions are led by an Arizona-licensed therapist trained in equine-facilitated practice, with the horses themselves as co-therapists, drawing on attachment theory, somatic experiences, and Internal Family Systems (IFS).',
   },
   {
     id: 'eap-vs-riding',
@@ -48,7 +48,7 @@ export const equineFaqs: EquineFaq[] = [
   {
     id: 'is-it-safe',
     q: 'Is working with horses safe?',
-    a: 'Yes. Every session is co-led by a licensed clinician and a dedicated equine specialist, with a documented safety protocol, helmets when mounted, and horses whose temperament and training are specifically matched to this work. A horse who is off, in season, or recovering is rotated out rather than pushed.',
+    a: 'Yes. Every session is led by a licensed therapist trained in equine-facilitated practice, with a documented safety protocol, helmets when mounted, and horses whose temperament and training are specifically matched to this work. A horse who is off, in season, or recovering is rotated out rather than pushed.',
   },
   {
     id: 'session-length',

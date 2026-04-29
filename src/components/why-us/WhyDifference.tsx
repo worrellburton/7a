@@ -24,7 +24,7 @@ type Diff = {
 const diffs: Diff[] = [
   {
     title: 'Evidence-Based & Medical Care',
-    body: 'Multidisciplinary clinical care grounded in CBT, DBT, EMDR, and Motivational Interviewing, with medication management and integrated dual-diagnosis protocols for anxiety, depression, PTSD, and co-occurring conditions.',
+    body: 'Multidisciplinary clinical care grounded in evidence-based models including Somatic Cognitive Behavioral Therapy (CBT), Dialectical Behavioral Therapy (DBT), Eye Movement Desensitization and Reprocessing (EMDR), Internal Family Systems (IFS), and Equine-Assisted Psychotherapy. Medication management and integrated dual-diagnosis strategies for anxiety, depression, PTSD, CPTSD, and other co-occurring conditions.',
     href: '/our-program/evidence-based',
     cta: 'Explore our evidence-based methods',
     Icon: ({ className }) => (
@@ -36,7 +36,7 @@ const diffs: Diff[] = [
   },
   {
     title: 'Equine-Assisted Psychotherapy',
-    body: 'Licensed clinicians co-lead every session with a dedicated equine specialist. Clients work with multiple horses across their stay — each matched to the week\'s work based on history, presentation, and what the nervous system is asking for. One-on-one time in the open desert builds trust, emotional regulation, and the kind of nonverbal honesty that accelerates breakthroughs.',
+    body: 'Licensed therapists lead every session, with horses as co-therapists. Clients work with multiple horses across their stay — each matched to the week\'s work based on history, presentation, and what the nervous system is asking for. One-on-one time in the open desert builds trust, emotional regulation, and the kind of nonverbal honesty that accelerates breakthroughs.',
     href: '/our-program/equine-assisted',
     cta: 'Discover our equine-assisted psychotherapy program',
     Icon: ({ className }) => (
@@ -154,15 +154,26 @@ export default function WhyDifference() {
                 Holistic &amp; Indigenous Healing
               </h3>
               <p
-                className="text-white/85 leading-relaxed text-[15.5px] mb-5"
+                className="text-white/85 leading-relaxed text-[15.5px] mb-3"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                Breathwork, yoga, expressive arts and music for healing, and mindfulness alongside sweat lodge
-                ceremonies, smudging rituals, talking circles, and land-based therapies
-                rooted in centuries of earth-based wisdom. A full-spectrum holistic
-                practice that complements clinical treatment and offers a spiritual
-                dimension of healing conventional programs rarely provide.
+                A full-spectrum practice that complements clinical treatment and offers
+                a spiritual dimension of healing conventional programs rarely provide.
+                Two threads, woven together:
               </p>
+              <ul
+                className="text-white/85 leading-relaxed text-[15.5px] mb-5 space-y-2 pl-4"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                <li className="relative pl-4">
+                  <span aria-hidden="true" className="absolute left-0 top-2 w-1.5 h-1.5 rounded-full bg-accent" />
+                  <strong className="text-white">Body and breath:</strong> breathwork, yoga, expressive arts, music for healing, and mindfulness.
+                </li>
+                <li className="relative pl-4">
+                  <span aria-hidden="true" className="absolute left-0 top-2 w-1.5 h-1.5 rounded-full bg-accent" />
+                  <strong className="text-white">Land and lineage:</strong> sweat lodge ceremonies, smudging rituals, talking circles, and land-based therapies rooted in centuries of earth-based wisdom.
+                </li>
+              </ul>
               <Link
                 href="/our-program/holistic-approaches"
                 className="inline-flex items-center gap-2 text-accent font-semibold border-b border-accent/60 hover:border-accent pb-1 tracking-[0.1em] uppercase text-[12px] transition-colors"

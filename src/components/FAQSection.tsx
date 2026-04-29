@@ -49,7 +49,7 @@ const faqs: Faq[] = [
   {
     question: 'What should I bring — and what should I leave home?',
     answer:
-      'Comfortable clothes for a range of weather, toiletries, any prescribed medications in original bottles, a journal, and a photo or two. Phones are limited during the first stabilization stretch by design, not as punishment — the goal is to give your attention a place to land. Admissions sends a full packing list once your intake date is set.',
+      'Comfortable clothes for a range of weather, toiletries, any prescribed medications in original bottles, a journal, and a photo or two. Clients can have their phones with them, and we offer dedicated phone windows of about an hour, three to four times a week, plus phone access during case management — so attention can land on recovery without losing touch with the people who matter. We are flexible and happy to make accommodations for any urgent matter that comes up. Admissions sends a full packing list once your intake date is set.',
     persona: 'self',
   },
 
@@ -83,13 +83,13 @@ const faqs: Faq[] = [
   {
     question: 'What types of addiction does Seven Arrows Recovery treat?',
     answer:
-      'Alcohol addiction, drug addiction (including opioids, methamphetamine, cocaine, and prescription drugs), dual diagnosis (co-occurring mental-health and substance-use disorders), and trauma-related conditions through our TraumAddiction™ approach.',
+      'Alcohol addiction, drug addiction (including opioids, methamphetamine, cocaine, and prescription drugs), dual diagnosis (co-occurring mental-health and substance-use disorders), and trauma-related conditions through our proprietary Forward-Facing TraumAddiction® model.',
     persona: 'both',
   },
   {
     question: 'Does Seven Arrows accept insurance?',
     answer:
-      'Yes — most major plans including Aetna, Blue Cross Blue Shield, Cigna, Humana, UnitedHealthcare, and TRICARE. Verification is free and takes about 15 minutes; you’ll know your benefits before you commit to anything.',
+      'We are out of network with all carriers. We can create a single case agreement (SCA) or bill out of network with most major plans, including Aetna, Blue Cross Blue Shield, Cigna, Humana, UnitedHealthcare, and TRICARE. We also offer flexible payment plans and scholarship options for those who qualify. Verification is free and takes about 15 minutes; you’ll know exactly what your plan will cover and what the path forward looks like before you commit to anything.',
     persona: 'both',
     insurance: true,
   },
@@ -102,7 +102,7 @@ const faqs: Faq[] = [
   {
     question: 'What makes Seven Arrows different from other rehab centers?',
     answer:
-      'A boutique facility at the base of the Swisshelm Mountains with a deliberately small census, 1:1 primary-clinician care, and a combination of evidence-based clinical work and holistic modalities. Our TraumAddiction™ framework treats trauma and substance use as one clinical problem rather than two separate tracks.',
+      'A boutique facility at the base of the Swisshelm Mountains with a deliberately small census, a highly skilled and credentialed clinical team, and a combination of evidence-based clinical work and holistic modalities. Our proprietary Forward-Facing TraumAddiction® model — developed by Dr. J. Eric Gentry and Lindsay Rothschild, LCSW — treats trauma and substance use as one clinical problem rather than two separate tracks.',
     persona: 'both',
   },
 ];

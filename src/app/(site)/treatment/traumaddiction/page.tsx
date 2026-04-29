@@ -202,7 +202,7 @@ export default function TraumAddictionPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
             <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-white/50 mb-4" style={{ fontFamily: 'var(--font-body)' }}>
-              Forward-Facing Freedom®
+              Forward-Facing TraumAddiction® (FFTA)
             </p>
             <h2 className="text-3xl lg:text-4xl font-bold mb-6">
               Stabilize. Understand. Grow.
@@ -211,10 +211,15 @@ export default function TraumAddictionPage() {
               className="text-white/70 leading-relaxed text-lg"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Forward-Facing Freedom is a present-focused model developed by J. Eric Gentry, PhD
-              and Lindsay Rothschild, LCSW. Rather than beginning with retrospective trauma
-              processing, FFF builds capacity first — creating the neurological foundation needed
-              for deep, lasting change.
+              The Forward-Facing TraumAddiction® (FFTA) model — developed by
+              Dr. J. Eric Gentry and Lindsay Rothschild, LCSW — offers an
+              integrative, salutogenic approach to treating trauma and
+              addiction simultaneously. Addiction is understood as a
+              post-traumatic adaptive capacity rather than a pathology to be
+              eliminated. Rather than relying on intensive memory processing
+              early in recovery, FFTA emphasizes neuroception, interoceptive
+              awareness, and the gradual expansion of capacity as foundational
+              to healing and relapse prevention.
             </p>
           </div>
 
@@ -271,8 +276,9 @@ export default function TraumAddictionPage() {
             className="text-white/80 text-lg leading-relaxed mb-8"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            You don&apos;t have to carry the weight of trauma alone. Our TraumAddiction® approach,
-            grounded in Forward-Facing Freedom, offers a practical and compassionate path forward.
+            You don&apos;t have to carry the weight of trauma alone. Our
+            Forward-Facing TraumAddiction® (FFTA) model offers a practical
+            and compassionate path forward.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a href="tel:8669964308" className="btn-primary">

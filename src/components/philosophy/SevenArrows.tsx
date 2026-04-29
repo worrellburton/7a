@@ -11,13 +11,14 @@ import { useEffect, useRef, useState } from 'react';
  */
 
 const principles = [
-  { n: 1, title: 'Treat the whole person', body: 'Addiction is never just about the substance. We address trauma, dysregulation, mental health, and spiritual disconnection — together.' },
+  { n: 1, title: 'Treat the whole person', body: 'Addiction is never just about the substance. We address trauma, dysregulation, dis-ease, and spiritual disconnection — together.' },
   { n: 2, title: 'Honor individual stories', body: 'No two paths to addiction are the same. Every plan is built around the individual — their history, their nervous system, their path.' },
   { n: 3, title: 'Heal through connection', body: 'Isolation is a hallmark of addiction. Recovery happens in relationship — with staff, peers, family, and the land.' },
-  { n: 4, title: 'Regulate before processing', body: 'Drawing from Forward-Facing Freedom, we prioritize nervous-system stabilization before deeper trauma work.' },
+  { n: 4, title: 'Regulate before processing', body: 'Drawing from Forward-Facing TraumAddiction®, we prioritize nervous-system stabilization before any trauma memory processing.' },
   { n: 5, title: 'Reframe addiction as adaptation', body: 'Substance use is a post-traumatic adaptive capacity. Reframing the behavior removes shame and makes healing possible.' },
-  { n: 6, title: 'Build for the long term', body: 'Treatment is the beginning, not the end. Clients leave with self-regulation skills, a code of honor, and a durable support network.' },
-  { n: 7, title: 'Let the land heal', body: 'The Swisshelm Mountains, the open desert, the quiet — not backdrop. Nature is an active part of the therapeutic process.' },
+  { n: 6, title: 'Restore the sense of self', body: 'Recovery is a return — clients rebuild a coherent sense of who they are beneath the survival adaptations, the diagnoses, and the story they were handed.' },
+  { n: 7, title: 'Build for the long term', body: 'Treatment is the beginning, not the end. Clients leave with self-regulation skills, a code of honor, and a durable support network.' },
+  { n: 8, title: 'Let the land heal', body: 'The Swisshelm Mountains, the open desert, the quiet — not backdrop. Nature is an active part of the therapeutic process.' },
 ];
 
 export default function SevenArrows() {

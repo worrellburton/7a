@@ -106,9 +106,9 @@ export default function RanchIntro() {
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Every corner was chosen for a reason. Quiet rooms to think, a
-            working ranch that lets equine therapy happen every day, direct
-            mountain views from nearly every window, and covered porches
-            where the hardest conversations finally happen.
+            ranch that lets equine therapy happen every day, direct mountain
+            views from nearly every window, and covered porches where the
+            hardest conversations finally happen.
           </p>
         </div>
       </div>

@@ -12,11 +12,14 @@ import { useEffect, useRef, useState } from 'react';
  * so the visitor's first scroll gets a confidence anchor.
  */
 
+// Client-to-staff ratio was here as 6:1 — leadership flagged it as
+// misleading because the actual number varies by census, so it's
+// gone. "Years" was 10+; the truthful figure is 6 years of continuous
+// residential treatment.
 const stats = [
   { value: 160, suffix: '', unit: 'acres', label: 'Private ranch campus at the base of the Swisshelm Mountains' },
-  { value: 6, suffix: ':1', unit: 'ratio', label: 'Client-to-staff — every person is known by name' },
   { value: 4.9, suffix: '', unit: 'Google rating', label: 'From verified alumni and family reviews' },
-  { value: 10, suffix: '+', unit: 'years', label: 'Continuous residential treatment in Arizona' },
+  { value: 6, suffix: '', unit: 'years', label: 'Continuous residential treatment in Arizona' },
 ];
 
 export default function WhyStats() {
@@ -44,7 +47,7 @@ export default function WhyStats() {
   return (
     <section ref={ref} className="relative bg-warm-bg py-16 lg:py-20" aria-label="By the numbers">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 lg:gap-6">
           {stats.map((s, i) => (
             <div
               key={s.label}
