@@ -208,6 +208,60 @@ export function formatTime(dateStr: string): string {
   } catch { return ''; }
 }
 
+// Relative-time formatter for the mobile call list. Reads as
+// "Just now / 12m / 2h / Yesterday 3:14p / Apr 24 · 9:08a" so a
+// teammate scrolling the list can place the call without doing
+// arithmetic. Falls back to the absolute formatTime when the input
+// can't be parsed (rather than the bare em-dash the old layout
+// rendered, which made the row look broken).
+export function formatRelativeTime(dateStr: string): string {
+  const d = parseDate(dateStr);
+  if (!d) return '';
+  const now = Date.now();
+  const diffMs = now - d.getTime();
+  const diffSec = Math.round(diffMs / 1000);
+  if (diffSec < 0 && diffSec > -60) return 'In a moment';
+  if (diffSec < 60) return 'Just now';
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  // Phoenix-local "today" comparison so 11pm-yesterday doesn't read
+  // "Today" the next morning.
+  const phoenixToday = new Date(now).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+  const phoenixThen = d.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+  const diffDays = Math.floor((new Date(phoenixToday).getTime() - new Date(phoenixThen).getTime()) / 86400000);
+  const timePart = (() => {
+    try {
+      return d
+        .toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZone: 'America/Phoenix',
+        })
+        .replace(' AM', 'a')
+        .replace(' PM', 'p');
+    } catch {
+      return '';
+    }
+  })();
+  if (diffDays === 1) return `Yesterday ${timePart}`.trim();
+  if (diffDays < 7) {
+    try {
+      const day = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/Phoenix' });
+      return `${day} ${timePart}`.trim();
+    } catch {
+      return timePart;
+    }
+  }
+  try {
+    const md = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Phoenix' });
+    return `${md} · ${timePart}`.trim();
+  } catch {
+    return timePart;
+  }
+}
+
 export function clientTypeBg(type: string): string {
   switch (type) {
     case 'Insurance': return 'bg-blue-50 text-blue-700';
