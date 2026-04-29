@@ -579,38 +579,108 @@ function Composer({
       </div>
 
       <div className="mt-4">
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55 block mb-2">Platforms</label>
-        <div className="flex flex-wrap gap-2">
-          {PLATFORMS.map((p) => {
-            const checked = selected.has(p.id);
-            const isConnected = connected.includes(p.id);
-            // When the pill is "checked" (active selection) we render
-            // it filled in the app's primary color, so the brand glyph
-            // gets recolored white to stay legible against that fill.
-            const iconColor = checked ? '#ffffff' : !isConnected ? 'rgba(0,0,0,0.25)' : undefined;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => togglePlatform(p.id)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  checked
-                    ? 'border-primary bg-primary text-white'
-                    : isConnected
-                    ? 'border-foreground/20 bg-white text-foreground/70 hover:border-primary/50'
-                    : 'border-dashed border-foreground/15 bg-warm-bg/40 text-foreground/35'
-                }`}
-                title={isConnected ? p.label : `${p.label} — not connected`}
-              >
-                <PlatformIcon platform={p.id as PlatformId} size={12} color={iconColor} />
-                {p.label}
-                {!isConnected && <span className="text-[9px] uppercase">offline</span>}
-              </button>
-            );
-          })}
+        {/* Header row — picker label on the left, summary count +
+            select-all / clear shortcuts on the right. Makes the
+            picker read as a deliberate decision the admin makes per
+            post, not a passive status display. */}
+        <div className="flex items-baseline justify-between mb-2 gap-3 flex-wrap">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55">
+            Post to
+          </label>
+          <div className="flex items-center gap-3 text-[11px] text-foreground/55">
+            <span>
+              <span className="font-semibold text-foreground/80">{selected.size}</span>
+              {' '}of{' '}
+              <span>{connected.length}</span>
+              {' '}selected
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const all = connected.filter((c): c is Platform => PLATFORMS.some((x) => x.id === c));
+                setSelected(new Set(all));
+              }}
+              disabled={connected.length === 0 || selected.size === connected.length}
+              className="text-primary font-semibold hover:underline disabled:opacity-40 disabled:no-underline"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              disabled={selected.size === 0}
+              className="text-foreground/55 font-semibold hover:text-foreground hover:underline disabled:opacity-40 disabled:no-underline"
+            >
+              Clear
+            </button>
+          </div>
         </div>
+
+        {/* Connected platforms — clickable pills with explicit
+            checkbox-style affordance so the on/off intent is
+            unambiguous. A green check fills when selected. */}
+        {connected.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {PLATFORMS.filter((p) => connected.includes(p.id)).map((p) => {
+              const checked = selected.has(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => togglePlatform(p.id)}
+                  aria-pressed={checked}
+                  className={`group inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    checked
+                      ? 'border-primary bg-primary/10 text-primary hover:bg-primary/15'
+                      : 'border-foreground/20 bg-white text-foreground/70 hover:border-primary/50 hover:text-primary'
+                  }`}
+                >
+                  {/* Checkbox-style indicator. Filled circle with a
+                      check when selected; hollow ring when not. Sits
+                      to the LEFT of the brand glyph so the row reads
+                      [check][logo][label]. */}
+                  <span
+                    className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full transition-colors ${
+                      checked ? 'bg-primary text-white' : 'bg-white border border-foreground/25 text-transparent group-hover:border-primary/50'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    <svg className="w-2 h-2" fill="none" stroke="currentColor" strokeWidth="3.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </span>
+                  <PlatformIcon platform={p.id as PlatformId} size={12} />
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {/* Offline platforms — rendered separately as a quiet
+            "available once you connect" reference list so the admin
+            can still see what they could be posting to without those
+            options being mistakable for selectable picker items. */}
+        {PLATFORMS.filter((p) => !connected.includes(p.id)).length > 0 && (
+          <div className="mt-3 pt-3 border-t border-black/5">
+            <p className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1.5">Not connected</p>
+            <div className="flex flex-wrap gap-1.5">
+              {PLATFORMS.filter((p) => !connected.includes(p.id)).map((p) => (
+                <span
+                  key={p.id}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-foreground/15 bg-warm-bg/40 px-2.5 py-1 text-[11px] font-medium text-foreground/40"
+                  title={`${p.label} — connect in Ayrshare to post here`}
+                >
+                  <PlatformIcon platform={p.id as PlatformId} size={11} color="rgba(0,0,0,0.3)" />
+                  {p.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {connected.length === 0 && (
-          <p className="mt-2 text-[11px] text-foreground/50">
+          <p className="mt-3 text-[11px] text-foreground/50">
             Connect at least one account above before posting.
           </p>
         )}
