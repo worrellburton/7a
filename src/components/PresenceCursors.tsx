@@ -31,6 +31,19 @@ interface CursorPayload {
 interface RemoteCursor extends CursorPayload {
   // Stable hue derived from id hash, used when no explicit color is set.
   hue: number;
+  // Velocity bookkeeping — populated locally on every broadcast we
+  // receive. The fire trail orientation + length are computed from
+  // these. Only the latest (vx, vy, speed) values are read by
+  // render; prevX/prevY/prevTs are bookkeeping for the next delta.
+  prevX?: number;
+  prevY?: number;
+  prevTs?: number;
+  /** Smoothed velocity in px/sec along x/y. Smoothed via EMA so the
+   *  trail direction doesn't flicker between every two frames. */
+  vx?: number;
+  vy?: number;
+  /** Smoothed speed magnitude in px/sec. Drives flame length. */
+  speed?: number;
 }
 
 const CHANNEL = 'presence-cursors';
@@ -112,10 +125,47 @@ export function PresenceCursors() {
     ch.on('broadcast', { event: 'cursor' }, (msg) => {
       const c = msg.payload as CursorPayload;
       if (!c || c.user_id === user.id) return;
-      setCursors((prev) => ({
-        ...prev,
-        [c.user_id]: { ...c, ts: Date.now(), hue: hueFromId(c.user_id) },
-      }));
+      const arrivedAt = Date.now();
+      setCursors((prev) => {
+        const previous = prev[c.user_id];
+        // Compute instantaneous velocity from the last known
+        // position. Skip when there's no prior point or the path
+        // changed (cursor jumped to another page — that's not real
+        // movement, don't infer a 5000px/s spike from it).
+        let prevX: number | undefined = previous?.x;
+        let prevY: number | undefined = previous?.y;
+        let prevTs: number | undefined = previous?.ts;
+        if (previous && previous.path !== c.path) {
+          prevX = undefined;
+          prevY = undefined;
+          prevTs = undefined;
+        }
+
+        let instVx = 0;
+        let instVy = 0;
+        if (prevX != null && prevY != null && prevTs != null) {
+          const dtSec = Math.max(0.001, (arrivedAt - prevTs) / 1000);
+          instVx = (c.x - prevX) / dtSec;
+          instVy = (c.y - prevY) / dtSec;
+        }
+
+        // Phase 2 (next commit) layers EMA smoothing on top — for
+        // now the values we store are the raw instantaneous deltas.
+        return {
+          ...prev,
+          [c.user_id]: {
+            ...c,
+            ts: arrivedAt,
+            hue: hueFromId(c.user_id),
+            prevX: c.x,
+            prevY: c.y,
+            prevTs: arrivedAt,
+            vx: instVx,
+            vy: instVy,
+            speed: Math.hypot(instVx, instVy),
+          },
+        };
+      });
     });
 
     ch.on('broadcast', { event: 'leave' }, (msg) => {
