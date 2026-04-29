@@ -199,6 +199,27 @@ export function PresenceCursors() {
 
   return (
     <div className="hidden lg:block fixed inset-0 pointer-events-none z-[200] overflow-hidden">
+      {/* Local keyframes for the cursor flame trail. Two complementary
+          loops on the flame element: a vertical "flicker" (scaleY +
+          slight rotate) and a horizontal "wave" (skewX + translate),
+          phased so the flame never freezes into a static blob. */}
+      <style jsx>{`
+        @keyframes presence-flame-flicker {
+          0%, 100% { transform: scaleY(1) scaleX(0.95); opacity: 0.85; }
+          25% { transform: scaleY(1.15) scaleX(0.9); opacity: 1; }
+          50% { transform: scaleY(0.92) scaleX(1.05); opacity: 0.7; }
+          75% { transform: scaleY(1.08) scaleX(0.93); opacity: 0.95; }
+        }
+        @keyframes presence-flame-sway {
+          0%, 100% { transform: translateX(-50%) skewX(-4deg); }
+          50% { transform: translateX(-50%) skewX(4deg); }
+        }
+        @keyframes presence-glow-pulse {
+          0%, 100% { opacity: 0.55; }
+          50% { opacity: 0.9; }
+        }
+      `}</style>
+
       {visible.map((c) => {
         // Rescale to current viewport so cursors land in roughly the same
         // visual location even when viewport sizes differ between clients.
@@ -212,13 +233,70 @@ export function PresenceCursors() {
             className="absolute top-0 left-0 will-change-transform transition-transform duration-75 ease-linear"
             style={{ transform: `translate(${x}px, ${y}px)` }}
           >
-            {/* Cursor arrow */}
+            {/* Fire trail — sits BEHIND the cursor arrow. A radial
+                glow sets the heat halo, then a flame teardrop
+                streams downward from the cursor tip with a flicker
+                + sway loop. The flame's gradient runs from the
+                cursor's color at the tip → orange in the middle →
+                bright yellow at the base, so even when the user's
+                color is purple/blue, the trail still reads as "fire". */}
+            <div
+              aria-hidden="true"
+              className="absolute pointer-events-none"
+              style={{
+                top: 14,
+                left: 8,
+                width: 28,
+                height: 60,
+                transform: 'translateX(-50%)',
+                animation: 'presence-flame-sway 1.4s ease-in-out infinite',
+                filter: 'blur(0.4px)',
+              }}
+            >
+              {/* Outer glow halo — pulses gently so the cursor reads
+                  as alive even when the user is idle. */}
+              <span
+                className="absolute inset-0"
+                style={{
+                  background: `radial-gradient(closest-side, ${color}aa 0%, ${color}66 35%, transparent 75%)`,
+                  filter: 'blur(8px)',
+                  animation: 'presence-glow-pulse 1.8s ease-in-out infinite',
+                }}
+              />
+              {/* Flame body — teardrop with a fire gradient. The
+                  flicker loop scales it up/down so it dances. */}
+              <span
+                className="absolute"
+                style={{
+                  left: '50%',
+                  top: 6,
+                  width: 20,
+                  height: 50,
+                  marginLeft: -10,
+                  borderRadius: '50% 50% 50% 50% / 35% 35% 65% 65%',
+                  background: `linear-gradient(to bottom, ${color} 0%, #f97316 38%, #fbbf24 78%, #fde68a 100%)`,
+                  transformOrigin: '50% 0%',
+                  animation: 'presence-flame-flicker 0.85s ease-in-out infinite',
+                  filter: 'blur(0.6px)',
+                  mixBlendMode: 'screen',
+                }}
+              />
+            </div>
+
+            {/* Cursor arrow — sits above the flame so the pointer
+                tip is always crisp. drop-shadow keeps it readable
+                on light backgrounds; the wider colored shadow adds
+                a subtle outer halo so the cursor glows even before
+                the flame catches up. */}
             <svg
               width="20"
               height="20"
               viewBox="0 0 20 20"
-              className="drop-shadow-md"
-              style={{ color }}
+              className="relative drop-shadow-md"
+              style={{
+                color,
+                filter: `drop-shadow(0 0 6px ${color}) drop-shadow(0 0 12px ${color}88)`,
+              }}
             >
               <path
                 d="M3 2 L17 9 L10 11 L8 17 Z"
@@ -229,19 +307,38 @@ export function PresenceCursors() {
               />
             </svg>
 
-            {/* Avatar only */}
+            {/* Avatar — explicit width/height + aspect-square + the
+                inline w/h attributes guarantee a perfect circle even
+                when the source image is non-square (the old version
+                rendered as an oval whenever a portrait avatar landed
+                here because object-fit was unset). The colored
+                box-shadow wraps the disc with the user's cursor
+                color so each teammate's avatar is identifiable at a
+                glance, plus a soft outer glow that ties into the
+                flame. */}
             {c.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={c.avatar_url}
                 alt=""
-                className="absolute top-4 left-4 w-6 h-6 rounded-full shadow-md ring-2"
-                style={{ borderColor: color, boxShadow: `0 0 0 2px ${color}` }}
+                width={24}
+                height={24}
+                className="absolute top-4 left-4 rounded-full object-cover aspect-square"
+                style={{
+                  width: 24,
+                  height: 24,
+                  boxShadow: `0 0 0 2px ${color}, 0 0 10px ${color}aa`,
+                }}
               />
             ) : (
               <div
-                className="absolute top-4 left-4 w-6 h-6 rounded-full text-white text-[10px] font-bold flex items-center justify-center shadow-md ring-2 ring-white"
-                style={{ backgroundColor: color }}
+                className="absolute top-4 left-4 rounded-full text-white text-[10px] font-bold flex items-center justify-center aspect-square"
+                style={{
+                  width: 24,
+                  height: 24,
+                  backgroundColor: color,
+                  boxShadow: `0 0 0 2px #ffffff, 0 0 10px ${color}aa`,
+                }}
               >
                 {initial}
               </div>
