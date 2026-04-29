@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
+import { PlatformIcon, type PlatformId } from './PlatformIcon';
 
 // Marketing → Social Media. v1 wraps Ayrshare's API:
 //   * Connected accounts strip (one button per platform → JWT popup)
@@ -209,7 +210,14 @@ function ConnectedAccountsStrip({
                 ? `Connected${display ? ` as ${display}` : ''} — click to manage`
                 : `Connect ${p.label}`}
             >
-              <span className={`inline-block w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-foreground/25'}`} />
+              <PlatformIcon
+                platform={p.id as PlatformId}
+                size={14}
+                // Mute the brand color when not yet connected so the
+                // dashed-border pill reads as "available" rather than
+                // a live channel.
+                color={isActive ? undefined : 'rgba(0,0,0,0.3)'}
+              />
               <span>{p.label}</span>
               {isActive && display && (
                 <span className="text-[10px] text-emerald-700/70 font-normal">@{display.replace(/^@/, '')}</span>
