@@ -124,12 +124,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Auto-spam keysmash submissions like "BuMundgALtGcMETfBlB". The
-  // row still gets inserted (so admins can audit what bots are
-  // posting), but spam_at is pre-stamped so unread-count filters and
-  // the Forms tab hide it by default. spam_by stays null because
-  // there's no admin user — the system did it.
-  const autoSpam = looksLikeGibberish(message);
+  // Auto-spam keysmash submissions like "BuMundgALtGcMETfBlB". Bots
+  // often fill the name fields with the same keysmash too, so we
+  // OR the check across first_name + last_name + message — any one
+  // looking like gibberish is enough. The row still gets inserted
+  // (so admins can audit what bots are posting), but spam_at is
+  // pre-stamped so unread-count filters and the Forms tab hide it
+  // by default. spam_by stays null because there's no admin user —
+  // the system did it.
+  const autoSpam =
+    looksLikeGibberish(message) ||
+    looksLikeGibberish(firstName) ||
+    looksLikeGibberish(lastName) ||
+    // Also catch the case where the FIRST + LAST together form a
+    // keysmash even if neither alone is long enough to flag — bots
+    // sometimes split a single random string across both fields.
+    looksLikeGibberish(`${firstName} ${lastName}`.trim());
 
   try {
     const supabase = getPublicSupabase();

@@ -453,15 +453,27 @@ function extractStats(platform: PlatformId, raw: Record<string, unknown> | null)
     }
   };
 
+  // Field paths verified against actual /analytics/social raw blobs
+  // returned for the Seven Arrows account (camelCase throughout —
+  // earlier snake_case attempts were Ayrshare's older shape and
+  // never matched). When Ayrshare adds a field we want to surface,
+  // append a path tuple to the relevant push() call; the helper
+  // walks the list and uses the first path that resolves to a number.
   if (platform === 'facebook') {
-    push('Followers', [['analytics', 'followers_count'], ['fan_count'], ['followers_count']]);
-    push('Page likes', [['analytics', 'page_fans'], ['analytics', 'fan_count']]);
-    push('Engagements', [['analytics', 'page_post_engagements']]);
-    push('Impressions', [['analytics', 'page_impressions']]);
+    // Facebook page: fanCount and followersCount usually mirror but
+    // surface both with sensible labels. About / phone / website
+    // are present in the blob but aren't numbers, so they'd fall
+    // through to the raw-response details panel naturally.
+    push('Followers', [['analytics', 'followersCount'], ['analytics', 'fanCount'], ['fan_count']]);
+    push('Page likes', [['analytics', 'fanCount']]);
+    push('Posts', [['analytics', 'postCount'], ['analytics', 'mediaCount']]);
+    push('Quarters tracked', [['quarters']]);
   } else if (platform === 'instagram') {
-    push('Followers', [['followers'], ['analytics', 'followers_count']]);
-    push('Following', [['follows'], ['analytics', 'follows_count']]);
-    push('Posts', [['mediaCountTotal'], ['analytics', 'media_count']]);
+    push('Followers', [['analytics', 'followersCount'], ['followers']]);
+    push('Following', [['analytics', 'followsCount'], ['follows']]);
+    push('Posts', [['analytics', 'mediaCount'], ['mediaCountTotal']]);
+    push('Likes', [['analytics', 'likeCount']]);
+    push('Comments', [['analytics', 'commentsCount']]);
     push('Reach', [['analytics', 'reach']]);
   } else if (platform === 'linkedin') {
     push('Followers', [['analytics', 'followerCount'], ['followerCount']]);
@@ -469,24 +481,31 @@ function extractStats(platform: PlatformId, raw: Record<string, unknown> | null)
     push('Clicks', [['analytics', 'clickCount']]);
     push('Reactions', [['analytics', 'likeCount']]);
   } else if (platform === 'twitter') {
-    push('Followers', [['analytics', 'followers_count'], ['public_metrics', 'followers_count']]);
-    push('Following', [['analytics', 'following_count'], ['public_metrics', 'following_count']]);
-    push('Tweets', [['analytics', 'tweet_count'], ['public_metrics', 'tweet_count']]);
-    push('Listed', [['analytics', 'listed_count']]);
+    push('Followers', [['analytics', 'followersCount'], ['analytics', 'followers_count'], ['public_metrics', 'followers_count']]);
+    push('Following', [['analytics', 'followingCount'], ['analytics', 'following_count'], ['public_metrics', 'following_count']]);
+    push('Tweets', [['analytics', 'tweetCount'], ['analytics', 'tweet_count'], ['public_metrics', 'tweet_count']]);
+    push('Listed', [['analytics', 'listedCount'], ['analytics', 'listed_count']]);
   } else if (platform === 'tiktok') {
-    push('Followers', [['analytics', 'follower_count']]);
-    push('Following', [['analytics', 'following_count']]);
-    push('Videos', [['analytics', 'video_count']]);
-    push('Likes', [['analytics', 'likes_count']]);
+    // TikTok's /analytics/social returns engagement counters per
+    // 60-day rolling window (commentCountPeriod, etc.) plus the
+    // standard profile counters. Surface the headline profile
+    // numbers here; the period counters land in the raw blob.
+    push('Followers', [['analytics', 'followerCount'], ['analytics', 'followers_count']]);
+    push('Following', [['analytics', 'followingCount']]);
+    push('Videos', [['analytics', 'videoCount'], ['analytics', 'videoCountPeriod']]);
+    push('Likes', [['analytics', 'likesCount'], ['analytics', 'totalLikesPeriod']]);
+    push('Profile views', [['analytics', 'profileViews'], ['analytics', 'profileViewCountPeriod']]);
+    push('Bio link clicks', [['analytics', 'bioLinkClicks']]);
+    push('Comments (60d)', [['analytics', 'commentCountPeriod']]);
   } else if (platform === 'youtube') {
     push('Subscribers', [['analytics', 'subscriberCount'], ['subscriberCount']]);
     push('Views', [['analytics', 'viewCount'], ['viewCount']]);
     push('Videos', [['analytics', 'videoCount'], ['videoCount']]);
   } else if (platform === 'pinterest') {
-    push('Followers', [['analytics', 'follower_count']]);
-    push('Pins', [['analytics', 'pin_count']]);
-    push('Boards', [['analytics', 'board_count']]);
-    push('Monthly views', [['analytics', 'monthly_views']]);
+    push('Followers', [['analytics', 'followerCount'], ['analytics', 'follower_count']]);
+    push('Pins', [['analytics', 'pinCount'], ['analytics', 'pin_count']]);
+    push('Boards', [['analytics', 'boardCount'], ['analytics', 'board_count']]);
+    push('Monthly views', [['analytics', 'monthlyViews'], ['analytics', 'monthly_views']]);
   } else if (platform === 'gmb') {
     push('Views', [['analytics', 'queriesDirect'], ['analytics', 'totalImpressions']]);
     push('Searches', [['analytics', 'queriesIndirect']]);
@@ -497,9 +516,9 @@ function extractStats(platform: PlatformId, raw: Record<string, unknown> | null)
     push('Link karma', [['analytics', 'linkKarma']]);
     push('Comment karma', [['analytics', 'commentKarma']]);
   } else if (platform === 'threads' || platform === 'bluesky') {
-    push('Followers', [['analytics', 'followers_count'], ['followers_count']]);
-    push('Following', [['analytics', 'follows_count'], ['follows_count']]);
-    push('Posts', [['analytics', 'media_count'], ['posts_count']]);
+    push('Followers', [['analytics', 'followersCount'], ['analytics', 'followers_count'], ['followers_count']]);
+    push('Following', [['analytics', 'followsCount'], ['analytics', 'follows_count'], ['follows_count']]);
+    push('Posts', [['analytics', 'mediaCount'], ['analytics', 'media_count'], ['posts_count']]);
   }
   return out;
 }
