@@ -324,13 +324,21 @@ export function PresenceCursors() {
         // when stationary and as a comet when moving.
         const speed = c.speed ?? 0;
         const IDLE_SPEED = 25; // px/sec; below this, treat as idle
-        // CSS rotate() takes 0deg = pointing-up. atan2 returns the
-        // signed angle from the +x axis with +y down (browser
-        // convention), so we offset by +90deg to align "the flame
-        // points along this vector" with CSS's rotation frame.
+        // Trail orientation. The flame's base orientation is "pointing
+        // straight DOWN from the cursor tip". After CSS rotation θ,
+        // the flame's tip-to-base direction becomes (sin θ, cos θ).
+        // We want that to match the OPPOSITE of velocity — the flame
+        // drags behind, so it points toward (-vx, -vy). Solving
+        // (sin θ, cos θ) = (-vx, -vy)/|v| gives θ = atan2(-vx, -vy).
+        //
+        // Earlier versions used atan2(-vy, -vx)+90, which had the
+        // arguments transposed and produced the bug where the trail
+        // appeared in FRONT of the cursor on vertical motion. Fixed
+        // by swapping the args to atan2's expected (y, x) order
+        // applied to the negated vector.
         const trailAngleDeg = speed >= IDLE_SPEED
-          ? (Math.atan2(-(c.vy ?? 0), -(c.vx ?? 0)) * 180) / Math.PI + 90
-          : 180; // idle = points straight down (away from cursor up)
+          ? (Math.atan2(-(c.vx ?? 0), -(c.vy ?? 0)) * 180) / Math.PI
+          : 0; // idle = base orientation, flame points straight down
 
         // Phase 5: scale the flame by speed. The mapping is two
         // logistic curves so the response feels natural across the
