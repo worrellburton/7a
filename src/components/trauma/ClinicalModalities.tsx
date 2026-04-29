@@ -22,8 +22,8 @@ type Modality = {
 
 const modalities: Modality[] = [
   {
-    title: 'Somatic Experiencing',
-    body: 'Trauma lives in the body as much as in the mind. Somatic Experiencing tunes the nervous system back into its own capacity for self-regulation — especially effective for complex trauma.',
+    title: 'Somatic Experiences',
+    body: 'Trauma lives in the body as much as in the mind. Somatic experiences tune the nervous system back into its own capacity for self-regulation — especially effective for complex trauma.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 12c2.5-4 4-4 6 0s3.5 4 6 0 3-4 6 0" />
@@ -53,7 +53,7 @@ const modalities: Modality[] = [
   },
   {
     title: 'Experiential & Community Groups',
-    body: 'FFF is delivered through psychoeducation, experiential groups, and community engagement. Shared experience builds the relational connection required for healing.',
+    body: 'FFTA is delivered through psychoeducation, experiential groups, and community engagement. Shared experience builds the relational connection required for healing.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="9" cy="8" r="3" />
@@ -128,8 +128,8 @@ export default function ClinicalModalities() {
           >
             In our residential setting, treatment is delivered through an
             integrated combination of clinical modalities — all aligned with
-            the Forward-Facing Freedom framework and trauma-informed
-            principles of safety, empowerment, and collaboration.
+            the Forward-Facing TraumAddiction&reg; framework and trauma-
+            informed principles of safety, empowerment, and collaboration.
           </p>
         </div>
 
@@ -163,7 +163,7 @@ export default function ClinicalModalities() {
                 className="font-bold tracking-tight mb-4"
                 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.6rem, 2.4vw, 2.1rem)', lineHeight: 1.1 }}
               >
-                Forward-Facing Freedom<span className="align-super text-[0.55em]">®</span>
+                Forward-Facing TraumAddiction<span className="align-super text-[0.55em]">®</span> Treatment
               </h3>
               <p className="text-white/85 leading-relaxed text-[15.5px]" style={{ fontFamily: 'var(--font-body)' }}>
                 Our primary therapeutic framework — a present-focused, salutogenic

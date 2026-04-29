@@ -118,11 +118,14 @@ export default function SocDomains() {
               transition: 'opacity 0.9s ease 0.35s',
             }}
           >
-            Developed by J. Eric Gentry, PhD, Forward-Facing Freedom
-            is a present-focused, salutogenic model. Rather than
-            beginning with retrospective trauma processing, it builds
-            capacity first — creating the neurological foundation
-            needed for deep, lasting change.
+            Salutogenesis, introduced by Aaron Antonovsky in 1979,
+            provides an evolutional paradigm shift from a traditional
+            focus on pathology to the active creation of health.
+            Central to this model is the concept of a Sense of
+            Coherence (SOC). Forward-Facing TraumAddiction&reg; (FFTA)
+            operationalizes these salutogenic principles in a treatment
+            structure — creating the neurological foundation needed
+            for deep, lasting change.
           </p>
           <p
             className="text-white/45 text-[11px] mt-4 italic"
