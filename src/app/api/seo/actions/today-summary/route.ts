@@ -78,13 +78,13 @@ async function callClaudeForSummary(actions: ActionRow[]): Promise<string | null
 ACTIONS:
 ${formatted}
 
-Write a 3-5 sentence summary of TODAY's actions for the team's home dashboard. Specifically:
-- Lead with what was done (concrete: meta descriptions, redirects, listings claimed, etc.).
-- Then tie those actions to SEO health — explain WHY each kind of action helps the site (rankings, crawl budget, citation authority, on-page signals, technical health, etc.).
-- Be specific, not generic. If 3 of 5 actions were directory listings, name that and explain how it builds local citation authority.
-- Speak in plain English, not jargon. The reader is the operator who picked these tasks up — they don't need an SEO 101.
+Write a 2-sentence summary of TODAY's actions for the team's home dashboard. Specifically:
+- One sentence on what was done (the most consequential actions, named concretely — directory listings, redirects, meta descriptions, etc.).
+- One sentence tying that work to SEO health (what it actually buys us — local citation authority, on-page signals, technical health, etc.).
+- Be specific, not generic. If 3 of 5 actions were directory listings, name that.
+- Speak in plain English, not jargon. The reader is the operator who picked these tasks up.
 - Don't repeat the bullet list. Synthesize it.
-- Return ONLY the summary prose. No headings, no markdown, no bullets, no preamble. 3-5 sentences total.`;
+- Return ONLY the summary prose. No headings, no markdown, no bullets, no preamble. 2 sentences max — keep each tight.`;
 
   try {
     const res = await fetch(API_URL, {
