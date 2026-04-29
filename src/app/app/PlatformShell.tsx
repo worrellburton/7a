@@ -156,6 +156,18 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M10 11.5l4 2.5-4 2.5z" fill="currentColor" stroke="none" />
     </svg>
   ),
+  // Social Media — three nodes connected to a center hub reads as
+  // "compose once, broadcast to every channel," matching what the
+  // page actually does (one Ayrshare post → multiple platforms).
+  '/app/social-media': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="5" r="2.25" />
+      <circle cx="6" cy="12" r="2.25" />
+      <circle cx="18" cy="19" r="2.25" />
+      <path d="M8.05 11.05 15.95 6.45" />
+      <path d="M8.05 12.95 15.95 17.55" />
+    </svg>
+  ),
   '/app/team': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
