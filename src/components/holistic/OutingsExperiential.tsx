@@ -1,68 +1,47 @@
 import Link from 'next/link';
+import { OUTINGS } from '@/lib/outings';
+import { getServerSupabase } from '@/lib/supabase-server';
 
-// Experiential therapy outings — replaces the older "A Day of Practice"
-// fictional schedule and the "Credentialed practitioners, not adjunct
-// staff" tile. Both surfaces were flagged by leadership: the schedule
-// described practices we don't run, and the credentialed-staff card
-// duplicated language we already carry on the team page. This block
-// names the actual off-site programming clients participate in, with
-// links to the public pages for each location so visitors can keep
-// exploring without leaving our site.
+// Experiential-therapy outings — catalog presentation. Replaces the
+// older "A Day of Practice" fictional schedule and the "Credentialed
+// practitioners" tile. Each card is image-led: the photographic
+// illustration generated from /lib/outings.ts is the canvas; the
+// region eyebrow + name + link sit on top, with the body copy
+// rising on hover.
+//
+// Image URLs are read server-side from public.outings_images (cache
+// populated by /api/outings/preheat). Cards without a generated
+// image fall back to a textured warm-bg surface so the catalog
+// stays presentable while the cache is being warmed.
 
-interface Outing {
-  name: string;
-  body: string;
-  href: string;
+interface Cached {
+  slug: string;
+  image_url: string;
 }
 
-const OUTINGS: Outing[] = [
-  {
-    name: 'Chiricahua National Monument',
-    body: 'Towering rhyolite pinnacles and shaded canyon trails — a full-day hike that pairs movement with awe.',
-    href: 'https://www.nps.gov/chir/index.htm',
-  },
-  {
-    name: 'Amerind Museum & Trails',
-    body: 'A small, world-class museum of Indigenous art and archaeology with quiet desert trails out the back door.',
-    href: 'https://amerind.org/',
-  },
-  {
-    name: 'Bisbee Mine Tour',
-    body: 'Underground at the historic Queen Mine — narrow lights, bracing temperatures, and the long shadow of Arizona industry.',
-    href: 'https://queenminetour.com/',
-  },
-  {
-    name: 'Tombstone',
-    body: 'A walking afternoon in the Old West — frontier streets, courthouse, and the boardwalk.',
-    href: 'https://tombstonechamber.com/',
-  },
-  {
-    name: 'Sandhill Cranes at Whitewater Draw',
-    body: 'Tens of thousands of cranes wintering in the Sulphur Springs Valley — a quiet pre-dawn outing with a long view.',
-    href: 'https://www.azgfd.com/recreation/wildlife-viewing/whitewater-draw/',
-  },
-  {
-    name: 'Stargazing at Kartchner Caverns',
-    body: 'Dark-sky observation in a state park renowned for both its underground formations and its night sky.',
-    href: 'https://azstateparks.com/kartchner/',
-  },
-  {
-    name: 'Hiking Turkey Creek',
-    body: 'Cottonwood-lined canyon hikes east of the Chiricahuas — water year-round, bird-rich, low-traffic.',
-    href: 'https://www.fs.usda.gov/coronado',
-  },
-  {
-    name: 'Cochise Stronghold & Campground',
-    body: 'Granite domes and the protected canyon Cochise himself called home — day hikes, picnic lunches, and a real history walk.',
-    href: 'https://www.fs.usda.gov/recarea/coronado/recreation/recarea/?recid=25502',
-  },
-];
+async function loadOutingImages(): Promise<Map<string, string>> {
+  try {
+    const supabase = await getServerSupabase();
+    const { data } = await supabase
+      .from('outings_images')
+      .select('slug, image_url');
+    const map = new Map<string, string>();
+    for (const row of (data ?? []) as Cached[]) {
+      if (row.slug && row.image_url) map.set(row.slug, row.image_url);
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
 
-export default function OutingsExperiential() {
+export default async function OutingsExperiential() {
+  const images = await loadOutingImages();
+
   return (
     <section className="bg-white py-20 lg:py-28" aria-labelledby="outings-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mb-12">
+        <div className="max-w-3xl mb-12 lg:mb-14">
           <p
             className="text-[11px] font-semibold tracking-[0.22em] uppercase text-primary mb-4"
             style={{ fontFamily: 'var(--font-body)' }}
@@ -92,44 +71,113 @@ export default function OutingsExperiential() {
           </p>
         </div>
 
-        <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
-          {OUTINGS.map((o) => (
-            <li
-              key={o.name}
-              className="group/outing relative rounded-2xl border border-black/10 bg-warm-bg/40 p-5 hover:bg-warm-bg/70 transition-colors"
-            >
-              <Link
-                href={o.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="absolute inset-0 rounded-2xl focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none"
-                aria-label={`${o.name} — visit official site`}
-              />
-              <h3
-                className="text-foreground font-semibold tracking-tight mb-2 flex items-center gap-2"
-                style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', lineHeight: 1.15 }}
+        <ul
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 lg:gap-6"
+          role="list"
+        >
+          {OUTINGS.map((outing) => {
+            const imageUrl = images.get(outing.slug);
+            return (
+              <li
+                key={outing.slug}
+                className="group/outing relative isolate overflow-hidden rounded-2xl bg-warm-bg/40 ring-1 ring-black/5 shadow-sm hover:shadow-xl transition-all duration-500 ease-out hover:-translate-y-1"
               >
-                {o.name}
-                <svg
-                  className="w-3.5 h-3.5 text-foreground/35 group-hover/outing:text-primary transition-colors"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
+                <Link
+                  href={outing.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-2xl"
+                  aria-label={`${outing.name} — visit official site`}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 3h7v7m0-7L10 14m-3-7H4a1 1 0 00-1 1v13a1 1 0 001 1h13a1 1 0 001-1v-3" />
-                </svg>
-              </h3>
-              <p
-                className="text-foreground/70 text-sm leading-relaxed"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                {o.body}
-              </p>
-            </li>
-          ))}
+                  <div className="relative aspect-[4/5] w-full">
+                    {imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={imageUrl}
+                        alt={`${outing.name}, ${outing.region}`}
+                        loading="lazy"
+                        decoding="async"
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover/outing:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover/outing:scale-100"
+                      />
+                    ) : (
+                      <div
+                        aria-hidden="true"
+                        className="absolute inset-0 bg-gradient-to-br from-warm-bg via-warm-bg/70 to-primary/10"
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <svg
+                            className="w-12 h-12 text-foreground/15"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7l4-3 4 4 4-3 6 5v11H3V7Z" />
+                            <circle cx="9" cy="9" r="1" fill="currentColor" />
+                          </svg>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Soft scrim that anchors caption legibility but
+                        only deepens at the bottom — keeps the upper
+                        two-thirds of the photograph visually clean. */}
+                    <div
+                      aria-hidden="true"
+                      className="absolute inset-x-0 bottom-0 h-3/5 pointer-events-none"
+                      style={{
+                        background:
+                          'linear-gradient(180deg, rgba(20,10,6,0) 0%, rgba(20,10,6,0.45) 55%, rgba(20,10,6,0.92) 100%)',
+                      }}
+                    />
+
+                    {/* Top-left external-link affordance — quiet at
+                        rest, accent on hover. */}
+                    <span
+                      aria-hidden="true"
+                      className="absolute top-3 right-3 inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/85 supports-[backdrop-filter]:bg-white/55 backdrop-blur text-foreground/65 group-hover/outing:text-primary transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14 3h7v7m0-7L10 14m-3-7H4a1 1 0 00-1 1v13a1 1 0 001 1h13a1 1 0 001-1v-3" />
+                      </svg>
+                    </span>
+
+                    {/* Caption stack — region eyebrow + name + body
+                        reveal. Body slides in on hover. */}
+                    <div className="absolute inset-x-0 bottom-0 p-5">
+                      <p
+                        className="text-[10px] font-semibold tracking-[0.22em] uppercase text-accent mb-2"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {outing.region}
+                      </p>
+                      <h3
+                        className="text-white font-bold tracking-tight leading-[1.1]"
+                        style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem' }}
+                      >
+                        {outing.name}
+                      </h3>
+                      <p
+                        className="mt-2 text-white/85 text-[13px] leading-snug max-h-0 opacity-0 group-hover/outing:max-h-32 group-hover/outing:opacity-100 transition-all duration-500 ease-out overflow-hidden motion-reduce:max-h-32 motion-reduce:opacity-100 motion-reduce:transition-none"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        {outing.body}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
+
+        <p
+          className="mt-8 text-center text-[12px] text-foreground/45"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          Outings vary with weather, season, and clinical pacing. Every trip
+          is staffed by trauma-informed clinicians.
+        </p>
       </div>
     </section>
   );
