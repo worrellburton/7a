@@ -24,7 +24,6 @@ interface Horse {
   works_in: string;
   rideable: string;
   shoe_schedule: string;
-  behavior: string;
   needs_next_steps: string;
   internal_info: string;
   ownership_papers: string;
@@ -85,30 +84,29 @@ const defaultColumnOrder: ColDef[] = [
   { key: 'works_in', label: 'Works In' },
   { key: 'rideable', label: 'Rideable' },
   { key: 'shoe_schedule', label: 'Shoes' },
-  { key: 'behavior', label: 'Behavior', hidden: 'hidden lg:table-cell' },
-  // 'owner' column removed — every row read "GOD" so the column was
-  // visual noise. The field stays on the Horse type and the row data
-  // for the detail drawer / edit form.
+  // 'behavior' + 'owner' columns removed — Owner read "GOD" on every
+  // row, and the short Behavior tags weren't actionable on the
+  // roster (clinicians keep the nuance in notes / internal_info).
   { key: 'last_vet', label: 'Last Vet' },
   { key: 'docs', label: 'Docs', hidden: 'hidden xl:table-cell' },
 ];
 
 const defaultHorses: Omit<Horse, 'id' | 'created_at' | 'image_url'>[] = [
-  { name: 'Arrow', age: 10, body_score: 5, weight: '1015 lbs', works_in: 'EAP only / Not broken', rideable: 'No', shoe_schedule: '16 weeks', behavior: 'Less spooky / Good', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Boots off, doing good, no noticeable pain', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Chika', age: 6, body_score: 5, weight: '865 lbs', works_in: 'EAP only / Not broken', rideable: 'No', shoe_schedule: '16 weeks', behavior: 'Good', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Check scab, is dried and closed, starting to peel. Slight limp', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Wanda', age: 12, body_score: 5, weight: '835 lbs', works_in: 'EAP / TR', rideable: 'Yes', shoe_schedule: '8 weeks', behavior: 'Tight Lead for Cinch / Good', needs_next_steps: 'Lunge', internal_info: 'Healthier weight. Can go on rides', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Kate', age: 21, body_score: 5, weight: '927 lbs', works_in: 'EAP / TR', rideable: 'Yes', shoe_schedule: '8 weeks', behavior: 'Tight Lead for Cinch / Good', needs_next_steps: 'Vertebrae and hips - gain weight / muscle', internal_info: 'Looks good, better weight. Topline needs more muscle but overall healthy', ownership_papers: 'Kate_Ownership_Paper.pdf', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Jack', age: 9, body_score: 5.5, weight: '969 lbs', works_in: 'EAP', rideable: 'No', shoe_schedule: '16 weeks', behavior: 'Good', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Good boy, covered in fly bites but overall healthy', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Miklo', age: 15, body_score: 3, weight: '1075 lbs', works_in: 'FR / EAP with 2 staff', rideable: 'No', shoe_schedule: '8 weeks', behavior: 'Moody sensitive', needs_next_steps: 'For advanced riders', internal_info: 'Vet came out 1/21/26. Has sand and suspected ulcers. Feed schedule has been changed to try to get him eating more. No riding / NO EAP.', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Red Feather', age: 26, body_score: 5, weight: '969 lbs', works_in: 'EAP with 2 staff / TF', rideable: 'Yes', shoe_schedule: '8 weeks', behavior: 'Sensitive', needs_next_steps: 'Lunging', internal_info: '1/21 Lunged, was checked out at first but after some changes of direction did amazing. Much less testing and attitude than there was.', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Dandy', age: 22, body_score: 5, weight: '938 lbs', works_in: 'TR', rideable: 'No', shoe_schedule: '8 weeks', behavior: 'Good', needs_next_steps: 'Lunging', internal_info: 'Lairus rode on monday ride, said he did good. Can go on rides with smaller riders. Max weight 160lbs (estimate)', ownership_papers: 'Dandy_Ownership_Paper.pdf', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Wellbriety (Wally)', age: 21, body_score: 6, weight: '1132 lbs', works_in: 'TR', rideable: 'Yes', shoe_schedule: '8 weeks', behavior: 'Hard to Catch / Good / Sensitive', needs_next_steps: 'Lunging', internal_info: '12/31 Lunged. Untrusting and seemed uncomfortable. Couldn\'t keep him at a walk', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Cowboy', age: 26, body_score: 5, weight: '965 lbs', works_in: 'EAP only', rideable: 'No', shoe_schedule: '16 weeks', behavior: 'Good / Spunky', needs_next_steps: 'Gain weight', internal_info: 'Farrier found an abscess in each front foot. Moved to drier pen. Still limping and has scabs on hocks', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'RW', age: 5, body_score: 5.5, weight: '923 lbs', works_in: 'Not broken', rideable: 'No', shoe_schedule: '16 weeks', behavior: 'Sensitive / Nips', needs_next_steps: 'Breaking', internal_info: 'Plan to break / been working on halter lead commands and touching', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Clyde', age: 21, body_score: 6, weight: '1001 lbs', works_in: 'TR', rideable: 'Yes', shoe_schedule: '8 weeks', behavior: 'Good', needs_next_steps: '', internal_info: 'Overall healthy, no concerns', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Scout', age: 19, body_score: 6, weight: '1150 lbs', works_in: 'TR', rideable: 'Yes', shoe_schedule: '8 weeks', behavior: 'Good', needs_next_steps: 'Pain meds as needed', internal_info: 'Mostly used for beginners and light riders, steady weight', ownership_papers: 'Scout', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Authentic Self', age: 11, body_score: 5.5, weight: '1065 lbs', works_in: 'TR', rideable: 'Yes', shoe_schedule: '8 weeks', behavior: 'Sensitive / Spooky / Good', needs_next_steps: 'Ground work / Lunging', internal_info: 'Ground work needed. Working on leading, standing beside him without him backing up, picking feet', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
-  { name: 'Murphy', age: 11, body_score: 5, weight: '1035 lbs', works_in: 'In work TR', rideable: 'For staff', shoe_schedule: '8 weeks', behavior: 'Sensitive', needs_next_steps: 'Ground work / Lunging', internal_info: 'Hard to catch. Checks in more than he checks out. High energy but comes back down pretty easy', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Arrow', age: 10, body_score: 5, weight: '1015 lbs', works_in: 'EAP only / Not broken', rideable: 'No', shoe_schedule: '16 weeks', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Boots off, doing good, no noticeable pain', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Chika', age: 6, body_score: 5, weight: '865 lbs', works_in: 'EAP only / Not broken', rideable: 'No', shoe_schedule: '16 weeks', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Check scab, is dried and closed, starting to peel. Slight limp', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Wanda', age: 12, body_score: 5, weight: '835 lbs', works_in: 'EAP / TR', rideable: 'Yes', shoe_schedule: '8 weeks', needs_next_steps: 'Lunge', internal_info: 'Healthier weight. Can go on rides', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Kate', age: 21, body_score: 5, weight: '927 lbs', works_in: 'EAP / TR', rideable: 'Yes', shoe_schedule: '8 weeks', needs_next_steps: 'Vertebrae and hips - gain weight / muscle', internal_info: 'Looks good, better weight. Topline needs more muscle but overall healthy', ownership_papers: 'Kate_Ownership_Paper.pdf', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Jack', age: 9, body_score: 5.5, weight: '969 lbs', works_in: 'EAP', rideable: 'No', shoe_schedule: '16 weeks', needs_next_steps: 'Ground work / Picking feet', internal_info: 'Good boy, covered in fly bites but overall healthy', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Miklo', age: 15, body_score: 3, weight: '1075 lbs', works_in: 'FR / EAP with 2 staff', rideable: 'No', shoe_schedule: '8 weeks', needs_next_steps: 'For advanced riders', internal_info: 'Vet came out 1/21/26. Has sand and suspected ulcers. Feed schedule has been changed to try to get him eating more. No riding / NO EAP.', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Red Feather', age: 26, body_score: 5, weight: '969 lbs', works_in: 'EAP with 2 staff / TF', rideable: 'Yes', shoe_schedule: '8 weeks', needs_next_steps: 'Lunging', internal_info: '1/21 Lunged, was checked out at first but after some changes of direction did amazing. Much less testing and attitude than there was.', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Dandy', age: 22, body_score: 5, weight: '938 lbs', works_in: 'TR', rideable: 'No', shoe_schedule: '8 weeks', needs_next_steps: 'Lunging', internal_info: 'Lairus rode on monday ride, said he did good. Can go on rides with smaller riders. Max weight 160lbs (estimate)', ownership_papers: 'Dandy_Ownership_Paper.pdf', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Wellbriety (Wally)', age: 21, body_score: 6, weight: '1132 lbs', works_in: 'TR', rideable: 'Yes', shoe_schedule: '8 weeks', needs_next_steps: 'Lunging', internal_info: '12/31 Lunged. Untrusting and seemed uncomfortable. Couldn\'t keep him at a walk', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Cowboy', age: 26, body_score: 5, weight: '965 lbs', works_in: 'EAP only', rideable: 'No', shoe_schedule: '16 weeks', needs_next_steps: 'Gain weight', internal_info: 'Farrier found an abscess in each front foot. Moved to drier pen. Still limping and has scabs on hocks', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'RW', age: 5, body_score: 5.5, weight: '923 lbs', works_in: 'Not broken', rideable: 'No', shoe_schedule: '16 weeks', needs_next_steps: 'Breaking', internal_info: 'Plan to break / been working on halter lead commands and touching', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Clyde', age: 21, body_score: 6, weight: '1001 lbs', works_in: 'TR', rideable: 'Yes', shoe_schedule: '8 weeks', needs_next_steps: '', internal_info: 'Overall healthy, no concerns', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Scout', age: 19, body_score: 6, weight: '1150 lbs', works_in: 'TR', rideable: 'Yes', shoe_schedule: '8 weeks', needs_next_steps: 'Pain meds as needed', internal_info: 'Mostly used for beginners and light riders, steady weight', ownership_papers: 'Scout', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Authentic Self', age: 11, body_score: 5.5, weight: '1065 lbs', works_in: 'TR', rideable: 'Yes', shoe_schedule: '8 weeks', needs_next_steps: 'Ground work / Lunging', internal_info: 'Ground work needed. Working on leading, standing beside him without him backing up, picking feet', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
+  { name: 'Murphy', age: 11, body_score: 5, weight: '1035 lbs', works_in: 'In work TR', rideable: 'For staff', shoe_schedule: '8 weeks', needs_next_steps: 'Ground work / Lunging', internal_info: 'Hard to catch. Checks in more than he checks out. High energy but comes back down pretty easy', ownership_papers: '', owner: 'GOD', notes: '', vet_visits: [], document_urls: [] },
 ];
 
 export default function EquineContent() {
@@ -147,7 +145,7 @@ export default function EquineContent() {
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
   // List vs grid layout for the roster. Defaults to grid because the
   // tile view reads as the canonical Horses screen on first paint
-  // (photo dominant, behavior + rideable as quick callouts) and the
+  // (photo dominant, rideable + shoes as quick callouts) and the
   // table is reserved for power editing. Persisted in localStorage so
   // a teammate's preference sticks across sessions.
   const [view, setView] = useState<'list' | 'grid'>(() => {
@@ -349,7 +347,6 @@ export default function EquineContent() {
         const n = parseFloat((horse.shoe_schedule || '').replace(/[^0-9.]/g, ''));
         return isNaN(n) ? -Infinity : n;
       }
-      case 'behavior': return (horse.behavior || '').toLowerCase();
       case 'owner': return (horse.owner || '').toLowerCase();
       case 'last_vet': {
         const last = (horse.vet_visits || []).slice().sort((a, b) => b.date.localeCompare(a.date))[0];
@@ -415,8 +412,6 @@ export default function EquineContent() {
         return <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${rideableColor(horse.rideable)}`}>{horse.rideable === 'Yes' ? 'Yes' : horse.rideable === 'No' ? 'No' : horse.rideable}</span>;
       case 'shoe_schedule':
         return <EditableCell {...ecProps} horseId={horse.id} field="shoe_schedule" value={horse.shoe_schedule} />;
-      case 'behavior':
-        return <EditableCell {...ecProps} horseId={horse.id} field="behavior" value={horse.behavior} />;
       case 'owner':
         return <EditableCell {...ecProps} horseId={horse.id} field="owner" value={horse.owner} />;
       case 'last_vet': {
@@ -572,15 +567,6 @@ export default function EquineContent() {
                       </span>
                     )}
                   </div>
-                  {horse.behavior && (
-                    <p
-                      className="text-[12px] text-foreground/70 leading-snug line-clamp-2"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                      title={horse.behavior}
-                    >
-                      {horse.behavior}
-                    </p>
-                  )}
                   {horse.works_in && (
                     <p
                       className="text-[11px] text-foreground/45 leading-snug line-clamp-1"
@@ -644,7 +630,7 @@ export default function EquineContent() {
                       className="border-b border-gray-50 hover:bg-warm-bg/20 transition-colors cursor-pointer"
                     >
                       {columns.map(col => (
-                        <td key={col.key} className={`px-4 py-3 text-sm text-foreground/60 whitespace-nowrap ${col.hidden || ''} ${col.key === 'works_in' ? 'max-w-[160px] truncate' : ''} ${col.key === 'behavior' ? 'max-w-[180px] truncate' : ''}`} style={{ fontFamily: 'var(--font-body)' }}>
+                        <td key={col.key} className={`px-4 py-3 text-sm text-foreground/60 whitespace-nowrap ${col.hidden || ''} ${col.key === 'works_in' ? 'max-w-[160px] truncate' : ''}`} style={{ fontFamily: 'var(--font-body)' }}>
                           {renderCell(horse, col)}
                         </td>
                       ))}
