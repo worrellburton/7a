@@ -86,7 +86,9 @@ const defaultColumnOrder: ColDef[] = [
   { key: 'rideable', label: 'Rideable' },
   { key: 'shoe_schedule', label: 'Shoes' },
   { key: 'behavior', label: 'Behavior', hidden: 'hidden lg:table-cell' },
-  { key: 'owner', label: 'Owner' },
+  // 'owner' column removed — every row read "GOD" so the column was
+  // visual noise. The field stays on the Horse type and the row data
+  // for the detail drawer / edit form.
   { key: 'last_vet', label: 'Last Vet' },
   { key: 'docs', label: 'Docs', hidden: 'hidden xl:table-cell' },
 ];
