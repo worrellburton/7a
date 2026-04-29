@@ -143,28 +143,12 @@ function ConnectedAccountsStrip({
   onChanged: () => void;
 }) {
   const active = new Set(accounts?.activeSocialAccounts ?? []);
-  const [busyPlatform, setBusyPlatform] = useState<Platform | null>(null);
-
-  const connect = async (platform: Platform) => {
-    setBusyPlatform(platform);
-    try {
-      // Ayrshare's /profiles/generateJWT JWT-signed-link flow needs a
-      // white-label domain + RSA private key + per-user email — set
-      // up for multi-tenant SaaS, overkill for a single account.
-      // For now we just open Ayrshare's own dashboard in a new tab;
-      // the admin links the account there, comes back, and the
-      // Connected Accounts strip refreshes via the focus listener
-      // below.
-      void platform;
-      window.open('https://app.ayrshare.com/social-accounts', 'ayrshare_dashboard');
-    } finally {
-      setBusyPlatform(null);
-    }
-  };
 
   // Refresh the connected-accounts list when the user returns to
-  // this tab — covers the "linked an account on Ayrshare's dashboard
-  // and came back" flow above.
+  // this tab — covers the "linked an account on Ayrshare's
+  // dashboard and came back" flow. (Account linking happens in
+  // Ayrshare's own UI; the strip here is a status indicator
+  // only — it stays in sync without a click handler.)
   useEffect(() => {
     const onFocus = () => onChanged();
     window.addEventListener('focus', onFocus);
