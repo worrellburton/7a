@@ -2849,7 +2849,7 @@ export const DIRECTORIES: Directory[] = [
 
 // ── Status tracking ────────────────────────────────────────────────
 
-type Status = 'todo' | 'pending' | 'listed' | 'skip' | 'need_credentials';
+type Status = 'todo' | 'pending' | 'listed' | 'skip' | 'need_credentials' | 'claim_in_process';
 
 const STATUS_KEY = 'sa-seo-directories:status';
 
@@ -2859,6 +2859,7 @@ const STATUS_LABELS: Record<Status, string> = {
   listed: 'Listed',
   skip: 'Skip',
   need_credentials: 'Need credentials',
+  claim_in_process: 'Claim in process',
 };
 
 const STATUS_TONE: Record<Status, string> = {
@@ -2867,17 +2868,18 @@ const STATUS_TONE: Record<Status, string> = {
   listed: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100',
   skip: 'bg-foreground/5 text-foreground/40 border-black/10 line-through hover:bg-foreground/10',
   need_credentials: 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100',
+  claim_in_process: 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100',
 };
 
 // Order the dropdown so the most-actioned states sit at the top.
-// "Need credentials" lands above Skip because it's a real workflow
-// blocker (the row has work to do, just waiting on a login) — Skip
-// at the bottom is the de-facto "we're not pursuing this" terminal.
-const STATUS_ORDER: Status[] = ['todo', 'need_credentials', 'pending', 'listed', 'skip'];
+// Workflow reads: nothing-yet → blocked → mid-flow → submitted →
+// live → not-pursuing.
+const STATUS_ORDER: Status[] = ['todo', 'need_credentials', 'claim_in_process', 'pending', 'listed', 'skip'];
 
 const STATUS_CYCLE: Record<Status, Status> = {
   todo: 'need_credentials',
-  need_credentials: 'pending',
+  need_credentials: 'claim_in_process',
+  claim_in_process: 'pending',
   pending: 'listed',
   listed: 'skip',
   skip: 'todo',
@@ -3287,12 +3289,14 @@ function describeDirectoryActivity(row: ActivityRow): { verb: string; accent: st
         : to === 'pending' ? 'marked as Submitted'
         : to === 'skip' ? 'marked as Skip'
         : to === 'need_credentials' ? 'flagged Need credentials'
+        : to === 'claim_in_process' ? 'started Claim in process'
         : to === 'todo' ? 'reset to To do'
         : 'updated status of';
       const accent =
         to === 'listed' ? 'text-emerald-700'
         : to === 'pending' ? 'text-amber-700'
         : to === 'need_credentials' ? 'text-rose-700'
+        : to === 'claim_in_process' ? 'text-blue-700'
         : to === 'skip' ? 'text-foreground/55'
         : 'text-foreground/70';
       return { verb: label, accent };
