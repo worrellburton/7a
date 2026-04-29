@@ -2849,7 +2849,7 @@ export const DIRECTORIES: Directory[] = [
 
 // ── Status tracking ────────────────────────────────────────────────
 
-type Status = 'todo' | 'pending' | 'listed' | 'skip';
+type Status = 'todo' | 'pending' | 'listed' | 'skip' | 'need_credentials';
 
 const STATUS_KEY = 'sa-seo-directories:status';
 
@@ -2858,6 +2858,7 @@ const STATUS_LABELS: Record<Status, string> = {
   pending: 'Submitted',
   listed: 'Listed',
   skip: 'Skip',
+  need_credentials: 'Need credentials',
 };
 
 const STATUS_TONE: Record<Status, string> = {
@@ -2865,10 +2866,18 @@ const STATUS_TONE: Record<Status, string> = {
   pending: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100',
   listed: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100',
   skip: 'bg-foreground/5 text-foreground/40 border-black/10 line-through hover:bg-foreground/10',
+  need_credentials: 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100',
 };
 
+// Order the dropdown so the most-actioned states sit at the top.
+// "Need credentials" lands above Skip because it's a real workflow
+// blocker (the row has work to do, just waiting on a login) — Skip
+// at the bottom is the de-facto "we're not pursuing this" terminal.
+const STATUS_ORDER: Status[] = ['todo', 'need_credentials', 'pending', 'listed', 'skip'];
+
 const STATUS_CYCLE: Record<Status, Status> = {
-  todo: 'pending',
+  todo: 'need_credentials',
+  need_credentials: 'pending',
   pending: 'listed',
   listed: 'skip',
   skip: 'todo',
@@ -3277,11 +3286,13 @@ function describeDirectoryActivity(row: ActivityRow): { verb: string; accent: st
         to === 'listed' ? 'marked as Listed'
         : to === 'pending' ? 'marked as Submitted'
         : to === 'skip' ? 'marked as Skip'
+        : to === 'need_credentials' ? 'flagged Need credentials'
         : to === 'todo' ? 'reset to To do'
         : 'updated status of';
       const accent =
         to === 'listed' ? 'text-emerald-700'
         : to === 'pending' ? 'text-amber-700'
+        : to === 'need_credentials' ? 'text-rose-700'
         : to === 'skip' ? 'text-foreground/55'
         : 'text-foreground/70';
       return { verb: label, accent };
@@ -4089,14 +4100,40 @@ export default function DirectoriesContent() {
                           </button>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => cycleStatus(d.id)}
-                            title="Cycle status"
-                            className={`inline-flex items-center px-2.5 py-1 rounded-md border text-[11px] font-semibold transition-colors ${STATUS_TONE[status]}`}
-                          >
-                            {STATUS_LABELS[status]}
-                          </button>
+                          {/* Status dropdown — replaces the older
+                              click-to-cycle pill so a teammate can
+                              jump straight to "Listed" or
+                              "Need credentials" without rotating
+                              through the other states. The native
+                              <select> inherits the row's tone via
+                              STATUS_TONE so each option renders in
+                              the right color even when collapsed.
+                              The row click handler stops propagation
+                              so picking a status doesn't navigate
+                              the directory link in the same row. */}
+                          <span className={`inline-flex items-center rounded-md border ${STATUS_TONE[status]}`}>
+                            <select
+                              value={status}
+                              onChange={(e) => setStatus(d.id, e.target.value as Status)}
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label="Change directory status"
+                              className="appearance-none bg-transparent pl-2.5 pr-6 py-1 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+                            >
+                              {STATUS_ORDER.map((s) => (
+                                <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                              ))}
+                            </select>
+                            <svg
+                              aria-hidden="true"
+                              className="pointer-events-none -ml-5 mr-1.5 w-2.5 h-2.5 opacity-60"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </span>
                         </td>
                       </tr>
                     );
