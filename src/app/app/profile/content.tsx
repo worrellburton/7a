@@ -787,7 +787,58 @@ export default function ProfileContent() {
                       style={{ backgroundColor: c.value }}
                     />
                   ))}
+                  {/* Free-form picker — preset swatches cover the
+                      common cases, but this lets the user dial in
+                      any hex via the OS-native color UI. We render
+                      a circular preview that mirrors the current
+                      color with a small "+" affordance, and the
+                      hidden native input opens its picker on click.
+                      Custom-color rows that don't match a preset
+                      land here as "selected" automatically. */}
+                  <label
+                    className={`relative w-7 h-7 rounded-full border-2 cursor-pointer transition-transform hover:scale-110 inline-flex items-center justify-center ${
+                      cursorColor && !CURSOR_COLORS.some((c) => c.value === cursorColor)
+                        ? 'border-foreground'
+                        : 'border-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]'
+                    }`}
+                    style={{
+                      background: cursorColor && !CURSOR_COLORS.some((c) => c.value === cursorColor)
+                        ? cursorColor
+                        : 'conic-gradient(from 90deg, #f87171, #fbbf24, #34d399, #60a5fa, #a78bfa, #f472b6, #f87171)',
+                    }}
+                    title="Pick any color"
+                    aria-label="Pick any color"
+                  >
+                    <input
+                      type="color"
+                      value={cursorColor && /^#[0-9a-fA-F]{6}$/.test(cursorColor) ? cursorColor : '#bc6b4a'}
+                      onChange={(e) => pickCursorColor(e.target.value)}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                    {/* Plus glyph centered — only shows when the
+                        custom slot isn't the active selection so
+                        the swatch preview itself stays clean once
+                        a custom color is set. */}
+                    {!(cursorColor && !CURSOR_COLORS.some((c) => c.value === cursorColor)) && (
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        className="w-3 h-3 text-white drop-shadow"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                      >
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                    )}
+                  </label>
                 </div>
+                {cursorColor && !CURSOR_COLORS.some((c) => c.value === cursorColor) && (
+                  <p className="text-[11px] text-foreground/45 mt-1.5 font-mono">
+                    {cursorColor}
+                  </p>
+                )}
               </div>
 
               {/* Public team toggle */}
