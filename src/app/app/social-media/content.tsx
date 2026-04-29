@@ -51,7 +51,7 @@ interface HistoryPost {
 }
 
 export default function SocialMediaContent() {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const [accounts, setAccounts] = useState<AccountsResponse | null>(null);
   const [accountsErr, setAccountsErr] = useState<string | null>(null);
   const [accountsLoading, setAccountsLoading] = useState(true);
@@ -95,6 +95,30 @@ export default function SocialMediaContent() {
   }, [refreshAccounts, refreshHistory]);
 
   if (!user) return null;
+
+  // Super-admin gate. The page is wired through PageGuard's
+  // adminOnly flag, but Social Media specifically requires super
+  // admin. A regular admin who lands here from a deep link sees
+  // the locked state instead of the composer; the API routes
+  // enforce the same on the server.
+  if (!isSuperAdmin) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center" style={{ fontFamily: 'var(--font-body)' }}>
+        <p className="text-xs uppercase tracking-[0.22em] text-foreground/45 mb-2">Marketing &amp; Admissions</p>
+        <h1 className="text-2xl font-bold text-foreground mb-3" style={{ fontFamily: 'var(--font-display)' }}>
+          Social Media
+        </h1>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 text-sm text-amber-900 leading-relaxed">
+          <p className="font-semibold mb-1">Super-admin only.</p>
+          <p>
+            Posting on the Seven Arrows social accounts is restricted to
+            super admins. If you need access, ask one of them to grant
+            super-admin in <span className="font-mono text-[12px]">/app/user-permissions</span>.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ fontFamily: 'var(--font-body)' }}>
