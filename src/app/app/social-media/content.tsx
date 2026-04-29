@@ -114,6 +114,8 @@ export default function SocialMediaContent() {
         onChanged={refreshAccounts}
       />
 
+      <AnalyticsPanel connected={accounts?.activeSocialAccounts ?? []} />
+
       <Composer
         connected={accounts?.activeSocialAccounts ?? []}
         onPosted={() => { refreshHistory(); }}
@@ -220,6 +222,218 @@ function ConnectedAccountsStrip({
       </div>
     </section>
   );
+}
+
+// ── Analytics ─────────────────────────────────────────────────────
+
+interface AnalyticsBlob {
+  // Ayrshare returns a top-level object keyed by platform name. Each
+  // platform's value is wildly inconsistent (Facebook nests under
+  // `analytics`, Instagram exposes `mediaCountTotal` + `followers`,
+  // YouTube uses `subscribersCount`, etc.). Renderer pulls the
+  // fields it knows about and falls back to "—" for unknowns.
+  [platform: string]: Record<string, unknown>;
+}
+
+function AnalyticsPanel({ connected }: { connected: string[] }) {
+  const [data, setData] = useState<AnalyticsBlob | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string>('');
+
+  const platformsKey = useMemo(() => connected.slice().sort().join(','), [connected]);
+
+  const refresh = useCallback(async () => {
+    if (connected.length === 0) {
+      setData(null);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/social-media/analytics', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ platforms: connected }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setData(json.analytics ?? null);
+      setError(null);
+      setLoadedFor(platformsKey);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [connected, platformsKey]);
+
+  // Auto-load on mount + whenever the connected set changes. The
+  // sorted join keeps the dep array stable across re-renders that
+  // pass an equivalent-but-new array.
+  useEffect(() => {
+    if (connected.length > 0 && loadedFor !== platformsKey) {
+      refresh();
+    }
+  }, [connected.length, loadedFor, platformsKey, refresh]);
+
+  if (connected.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="mb-6 rounded-2xl border border-black/10 bg-white p-5">
+      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Analytics</h2>
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={loading}
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-foreground/55 hover:text-primary disabled:opacity-50"
+        >
+          <svg className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {loading ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+      {error && (
+        <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 mb-3">
+          {error}
+        </p>
+      )}
+      {!data && !error && !loading && (
+        <p className="text-xs text-foreground/45 italic">Loading…</p>
+      )}
+      {data && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {connected.map((p) => (
+            <AnalyticsCard
+              key={p}
+              platform={p as PlatformId}
+              raw={data[p] ?? null}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AnalyticsCard({ platform, raw }: { platform: PlatformId; raw: Record<string, unknown> | null }) {
+  const stats = useMemo(() => extractStats(platform, raw), [platform, raw]);
+  return (
+    <div className="rounded-xl border border-black/10 bg-warm-bg/30 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <PlatformIcon platform={platform} size={16} />
+        <p className="text-[11px] font-bold uppercase tracking-wider text-foreground/65">
+          {platform.toUpperCase().replace('GMB', 'Google Biz')}
+        </p>
+      </div>
+      {!raw ? (
+        <p className="text-[11px] italic text-foreground/40">No data returned.</p>
+      ) : stats.length === 0 ? (
+        <details className="text-[11px] text-foreground/55">
+          <summary className="cursor-pointer hover:text-foreground">Raw response</summary>
+          <pre className="mt-2 max-h-48 overflow-auto text-[10px] text-foreground/55 bg-white rounded border border-black/5 p-2">
+            {JSON.stringify(raw, null, 2)}
+          </pre>
+        </details>
+      ) : (
+        <dl className="grid grid-cols-2 gap-2">
+          {stats.map((s) => (
+            <div key={s.label}>
+              <dt className="text-[10px] uppercase tracking-wider text-foreground/45">{s.label}</dt>
+              <dd className="text-base font-bold text-foreground">{s.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+interface Stat { label: string; value: string }
+
+/** Walk a raw Ayrshare /analytics/social blob for a platform and pull
+ *  the most-useful headline numbers. The blob shapes are platform-
+ *  specific; this helper has a per-platform pattern that knows the
+ *  field names. Anything we don't know about falls through to the
+ *  raw-JSON details panel inside AnalyticsCard. */
+function extractStats(platform: PlatformId, raw: Record<string, unknown> | null): Stat[] {
+  if (!raw) return [];
+  const out: Stat[] = [];
+  const num = (v: unknown): string | null => {
+    if (typeof v === 'number' && Number.isFinite(v)) return v.toLocaleString();
+    if (typeof v === 'string' && /^\d+(\.\d+)?$/.test(v)) return Number(v).toLocaleString();
+    return null;
+  };
+  const get = (path: string[]): unknown => {
+    let cur: unknown = raw;
+    for (const k of path) {
+      if (cur && typeof cur === 'object' && k in (cur as Record<string, unknown>)) {
+        cur = (cur as Record<string, unknown>)[k];
+      } else return undefined;
+    }
+    return cur;
+  };
+  const push = (label: string, paths: string[][]) => {
+    for (const p of paths) {
+      const v = num(get(p));
+      if (v !== null) { out.push({ label, value: v }); return; }
+    }
+  };
+
+  if (platform === 'facebook') {
+    push('Followers', [['analytics', 'followers_count'], ['fan_count'], ['followers_count']]);
+    push('Page likes', [['analytics', 'page_fans'], ['analytics', 'fan_count']]);
+    push('Engagements', [['analytics', 'page_post_engagements']]);
+    push('Impressions', [['analytics', 'page_impressions']]);
+  } else if (platform === 'instagram') {
+    push('Followers', [['followers'], ['analytics', 'followers_count']]);
+    push('Following', [['follows'], ['analytics', 'follows_count']]);
+    push('Posts', [['mediaCountTotal'], ['analytics', 'media_count']]);
+    push('Reach', [['analytics', 'reach']]);
+  } else if (platform === 'linkedin') {
+    push('Followers', [['analytics', 'followerCount'], ['followerCount']]);
+    push('Impressions', [['analytics', 'impressionCount']]);
+    push('Clicks', [['analytics', 'clickCount']]);
+    push('Reactions', [['analytics', 'likeCount']]);
+  } else if (platform === 'twitter') {
+    push('Followers', [['analytics', 'followers_count'], ['public_metrics', 'followers_count']]);
+    push('Following', [['analytics', 'following_count'], ['public_metrics', 'following_count']]);
+    push('Tweets', [['analytics', 'tweet_count'], ['public_metrics', 'tweet_count']]);
+    push('Listed', [['analytics', 'listed_count']]);
+  } else if (platform === 'tiktok') {
+    push('Followers', [['analytics', 'follower_count']]);
+    push('Following', [['analytics', 'following_count']]);
+    push('Videos', [['analytics', 'video_count']]);
+    push('Likes', [['analytics', 'likes_count']]);
+  } else if (platform === 'youtube') {
+    push('Subscribers', [['analytics', 'subscriberCount'], ['subscriberCount']]);
+    push('Views', [['analytics', 'viewCount'], ['viewCount']]);
+    push('Videos', [['analytics', 'videoCount'], ['videoCount']]);
+  } else if (platform === 'pinterest') {
+    push('Followers', [['analytics', 'follower_count']]);
+    push('Pins', [['analytics', 'pin_count']]);
+    push('Boards', [['analytics', 'board_count']]);
+    push('Monthly views', [['analytics', 'monthly_views']]);
+  } else if (platform === 'gmb') {
+    push('Views', [['analytics', 'queriesDirect'], ['analytics', 'totalImpressions']]);
+    push('Searches', [['analytics', 'queriesIndirect']]);
+    push('Calls', [['analytics', 'callClicks']]);
+    push('Directions', [['analytics', 'directionsRequests']]);
+  } else if (platform === 'reddit') {
+    push('Karma', [['analytics', 'totalKarma'], ['totalKarma']]);
+    push('Link karma', [['analytics', 'linkKarma']]);
+    push('Comment karma', [['analytics', 'commentKarma']]);
+  } else if (platform === 'threads' || platform === 'bluesky') {
+    push('Followers', [['analytics', 'followers_count'], ['followers_count']]);
+    push('Following', [['analytics', 'follows_count'], ['follows_count']]);
+    push('Posts', [['analytics', 'media_count'], ['posts_count']]);
+  }
+  return out;
 }
 
 // ── Composer ──────────────────────────────────────────────────────
