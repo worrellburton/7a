@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { PlatformIcon, type PlatformId } from './PlatformIcon';
+import { MediaPicker, type PickedMedia } from './MediaPicker';
 
 // Marketing → Social Media. v1 wraps Ayrshare's API:
 //   * Connected accounts strip (one button per platform → JWT popup)
@@ -503,7 +504,7 @@ function Composer({
   onPosted: () => void;
 }) {
   const [text, setText] = useState('');
-  const [mediaUrlsInput, setMediaUrlsInput] = useState('');
+  const [picked, setPicked] = useState<PickedMedia[]>([]);
   const [selected, setSelected] = useState<Set<Platform>>(() => new Set());
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState('');
@@ -547,10 +548,11 @@ function Composer({
     setPosting(true);
     setResultMsg(null);
     try {
-      const mediaUrls = mediaUrlsInput
-        .split(/[\n,]/)
-        .map((v) => v.trim())
-        .filter(Boolean);
+      // Flatten the picker's selections into the simple
+      // mediaUrls[] payload Ayrshare expects. Order is preserved
+      // — first selected = first in the array, which controls the
+      // primary thumbnail on multi-asset posts.
+      const mediaUrls = picked.map((p) => p.url);
       const body: Record<string, unknown> = {
         post: text.trim(),
         platforms: Array.from(selected),
@@ -583,7 +585,7 @@ function Composer({
           : 'Posted.',
       });
       setText('');
-      setMediaUrlsInput('');
+      setPicked([]);
       setScheduleDate('');
       setScheduleEnabled(false);
       onPosted();
@@ -737,20 +739,13 @@ function Composer({
         </div>
       </div>
 
-      {/* Media URLs textarea — phase 9 replaces this with a media
-          picker that pulls from public.site_images / public.site_videos.
-          Until then, paste public URLs one per line. */}
+      {/* Media picker — pulls from public.site_images +
+          public.site_videos. Replaces the legacy "paste URLs one
+          per line" textarea so the admin attaches assets that
+          already live in the 7A media library instead of guessing
+          public URLs. */}
       <div className="mt-4">
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55 block mb-1">
-          Image / video URLs (optional, one per line)
-        </label>
-        <textarea
-          value={mediaUrlsInput}
-          onChange={(e) => setMediaUrlsInput(e.target.value)}
-          placeholder="https://example.com/photo.jpg"
-          rows={2}
-          className="w-full rounded-lg border border-black/10 px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y font-mono"
-        />
+        <MediaPicker value={picked} onChange={setPicked} />
       </div>
 
       <div className="mt-4 flex items-center gap-3">
