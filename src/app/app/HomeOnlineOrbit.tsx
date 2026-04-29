@@ -64,7 +64,7 @@ export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
 
   return (
     <section
-      className="relative flex flex-col items-center justify-center w-full"
+      className="relative z-40 flex flex-col items-center justify-center w-full"
       aria-label="Online today"
     >
       <div className="text-center mb-3">
@@ -192,7 +192,7 @@ export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
                         {/* Tooltip — same counter-rotating layer so
                             it reads upright regardless of which side
                             of the orbit the avatar currently sits on. */}
-                        <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-30 text-left shadow-lg">
+                        <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-[60] text-left shadow-lg">
                           <span className="block font-semibold text-white">
                             {u.full_name || 'User'}
                           </span>

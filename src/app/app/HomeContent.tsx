@@ -410,7 +410,7 @@ export default function HomeContent() {
             that used to sit in the hero footer — see
             HomeOnlineOrbit.tsx for the anatomy + animation. */}
         {recentUsers.length > 0 && (
-          <section className="w-full max-w-4xl mx-auto py-2">
+          <section className="relative z-50 w-full max-w-4xl mx-auto py-2">
             <HomeOnlineOrbit users={recentUsers} pathLabelFor={pathLabel} />
           </section>
         )}
