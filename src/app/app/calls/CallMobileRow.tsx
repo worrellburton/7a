@@ -167,26 +167,15 @@ export function CallMobileRow(props: CallMobileRowProps) {
             height, motion-reduce friendly because it's pure layout. */}
         <div className={`w-1 shrink-0 ${accent.bar}`} aria-hidden="true" />
 
-        {/* Selection checkbox — big tap target, isolated from the
-            row click handler. */}
-        <label
-          className="shrink-0 flex items-center justify-center w-10 sm:w-9"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={onToggleSelect}
-            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
-            aria-label={`Select call ${call.id}`}
-          />
-        </label>
-
-        {/* Tappable body — opens / closes the expanded view. */}
+        {/* Tappable body — opens / closes the expanded view.
+            Selection checkbox is intentionally absent on mobile;
+            it lives on the desktop table where multi-select is
+            actually useful. Long-press / future swipe-action could
+            re-introduce it without giving up the row width. */}
         <button
           type="button"
           onClick={onToggleExpand}
-          className="flex-1 min-w-0 flex items-center gap-3 px-2 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-r-xl"
+          className="flex-1 min-w-0 flex items-center gap-3 pl-3 pr-2 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-r-xl"
         >
           {/* Direction / status icon — replaces the old red square
               fit-score chip. Square shrinks to 38x38 to give the
@@ -419,10 +408,7 @@ export function CallMobileRowSkeleton() {
     <div className="bg-white animate-pulse motion-reduce:animate-none">
       <div className="flex items-stretch min-h-[64px]">
         <div className="w-1 shrink-0 bg-gray-100" aria-hidden="true" />
-        <div className="shrink-0 flex items-center justify-center w-10">
-          <div className="w-4 h-4 rounded bg-gray-100" />
-        </div>
-        <div className="flex-1 min-w-0 flex items-center gap-3 px-2 py-3">
+        <div className="flex-1 min-w-0 flex items-center gap-3 pl-3 pr-2 py-3">
           <div className="shrink-0 w-9 h-9 rounded-xl bg-gray-100" />
           <div className="min-w-0 flex-1 space-y-2">
             <div className="h-3 w-32 rounded bg-gray-100" />
