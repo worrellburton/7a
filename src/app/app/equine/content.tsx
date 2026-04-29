@@ -158,6 +158,87 @@ export default function EquineContent() {
     localStorage.setItem('equine_view', view);
   }, [view]);
 
+  // Bling mode — runs each horse's photo through Gemini's nano-banana
+  // image-editing model with the prompt "give all these horses bling
+  // and sunglasses" and swaps the tile portrait for the result. Cached
+  // server-side in equine_bling_images so subsequent toggles are
+  // instant and don't re-bill the API. blingUrls is the per-horse
+  // resolved cache; blingLoading tracks in-flight requests so the
+  // tile can show a spinner while Gemini is rendering.
+  const [blingMode, setBlingMode] = useState(false);
+  const [blingUrls, setBlingUrls] = useState<Record<string, string>>({});
+  const [blingLoading, setBlingLoading] = useState<Set<string>>(new Set());
+  const [blingError, setBlingError] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem('equine_bling_mode');
+    if (saved === 'on') setBlingMode(true);
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('equine_bling_mode', blingMode ? 'on' : 'off');
+  }, [blingMode]);
+
+  // When bling mode flips on, kick off a request per horse with a
+  // photo — each request hits the cache first server-side, so the
+  // first toggle is the only "slow" one. Subsequent loads are
+  // instant. Errors land in blingError as a single banner so we
+  // don't spam the team if the API key is missing.
+  useEffect(() => {
+    if (!blingMode || !session?.access_token) return;
+    let cancelled = false;
+    setBlingError(null);
+    horses.forEach((horse) => {
+      if (!horse.image_url) return;
+      if (blingUrls[horse.id]) return;
+      if (blingLoading.has(horse.id)) return;
+      setBlingLoading((prev) => {
+        const next = new Set(prev);
+        next.add(horse.id);
+        return next;
+      });
+      fetch(`/api/equine/bling/${horse.id}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({}),
+      })
+        .then(async (res) => {
+          const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+          if (cancelled) return;
+          if (!res.ok || !json.url) {
+            setBlingError(json.error || `Bling generation failed (HTTP ${res.status})`);
+            return;
+          }
+          setBlingUrls((prev) => ({ ...prev, [horse.id]: json.url! }));
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setBlingError(err instanceof Error ? err.message : String(err));
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setBlingLoading((prev) => {
+            const next = new Set(prev);
+            next.delete(horse.id);
+            return next;
+          });
+        });
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blingMode, horses, session?.access_token]);
+
+  // Resolve the right photo URL for a horse based on bling state.
+  // Falls back to the original image while the bling result is
+  // generating so we never leave the tile blank.
+  const photoFor = (horse: Horse): string | null => {
+    if (blingMode && blingUrls[horse.id]) return blingUrls[horse.id];
+    return horse.image_url;
+  };
+
   useEffect(() => {
     if (!session?.access_token) return;
     async function load() {
@@ -386,9 +467,9 @@ export default function EquineContent() {
           >
             {isUploading ? (
               <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            ) : horse.image_url ? (
+            ) : photoFor(horse) ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={horse.image_url} alt="" className="w-full h-full object-cover" />
+              <img src={photoFor(horse) || ''} alt="" className="w-full h-full object-cover" />
             ) : (
               <span className="text-xs font-bold text-foreground/40">{initial}</span>
             )}
@@ -451,6 +532,27 @@ export default function EquineContent() {
             </p>
           )}
         </div>
+        <div className="flex items-center gap-2 flex-wrap">
+        {/* Bling mode — sends every horse photo through Gemini's
+            nano-banana image-editing model with a "bling and
+            sunglasses" prompt. Toggle persists in localStorage; the
+            generated images are cached server-side. */}
+        <button
+          type="button"
+          onClick={() => setBlingMode((v) => !v)}
+          aria-pressed={blingMode}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+            blingMode
+              ? 'bg-amber-400 text-foreground border-amber-500 shadow-sm hover:bg-amber-300'
+              : 'bg-white text-foreground/55 border-black/10 hover:text-foreground hover:border-black/20'
+          }`}
+          style={{ fontFamily: 'var(--font-body)' }}
+          title={blingMode ? 'Bling mode is ON — click to revert to original photos' : 'Show every horse with bling + sunglasses (AI-generated)'}
+        >
+          <span aria-hidden="true">{blingMode ? '✨' : '😎'}</span>
+          {blingMode ? 'Bling: On' : 'Bling mode'}
+        </button>
+
         {/* View toggle — segmented control. Grid is default; list
             preserves the existing power-editing table. */}
         <div
@@ -494,7 +596,13 @@ export default function EquineContent() {
             List
           </button>
         </div>
+        </div>
       </div>
+      {blingError && blingMode && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" style={{ fontFamily: 'var(--font-body)' }}>
+          Bling mode is on but at least one horse couldn&rsquo;t be transformed: <span className="font-mono">{blingError}</span>. Originals are shown in place.
+        </div>
+      )}
 
       {view === 'grid' ? (
         // Grid view — photo-dominant tiles, optimized for "skim the
@@ -513,10 +621,10 @@ export default function EquineContent() {
                 className="group relative text-left bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
                 <div className="relative aspect-[4/5] bg-warm-bg">
-                  {horse.image_url ? (
+                  {photoFor(horse) ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={horse.image_url}
+                      src={photoFor(horse) || ''}
                       alt={horse.name}
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                       loading="lazy"
@@ -535,6 +643,24 @@ export default function EquineContent() {
                       title={`Body condition ${horse.body_score}`}
                     >
                       {horse.body_score}
+                    </span>
+                  )}
+                  {blingMode && blingUrls[horse.id] && (
+                    <span
+                      className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 rounded-full bg-amber-400/95 text-foreground text-[10px] font-bold px-2 py-0.5 shadow-sm tracking-[0.08em] uppercase"
+                      title="Generated by Gemini nano-banana"
+                    >
+                      <span aria-hidden="true">✨</span>
+                      Bling
+                    </span>
+                  )}
+                  {blingMode && blingLoading.has(horse.id) && !blingUrls[horse.id] && (
+                    <span
+                      className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 shadow-sm"
+                      title="Generating bling…"
+                    >
+                      <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                      Adding bling…
                     </span>
                   )}
                   {/* Bottom scrim → name + age. */}
