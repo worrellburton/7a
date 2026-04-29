@@ -305,6 +305,20 @@ export function PresenceCursors() {
         const trailAngleDeg = speed >= IDLE_SPEED
           ? (Math.atan2(-(c.vy ?? 0), -(c.vx ?? 0)) * 180) / Math.PI + 90
           : 180; // idle = points straight down (away from cursor up)
+
+        // Phase 5: scale the flame by speed. The mapping is two
+        // logistic curves so the response feels natural across the
+        // full range:
+        //   * lengthScale 0.45 → 2.6  (idle ember → comet tail)
+        //   * widthScale  0.85 → 1.25 (fat candle → narrow streak)
+        // Slower cursors get a stout, candle-shaped flame; fast
+        // ones stretch into a long, narrow comet tail. Width
+        // narrows under speed because real flames stretch thinner
+        // when they trail.
+        const SPEED_REF = 1400; // px/sec where the flame is "long"
+        const speedNorm = Math.min(1, speed / SPEED_REF);
+        const lengthScale = 0.45 + speedNorm * 2.15;
+        const widthScale = 0.85 + speedNorm * 0.40;
         return (
           <div
             key={c.user_id}
@@ -352,7 +366,11 @@ export function PresenceCursors() {
                 }}
               />
               {/* Flame body — teardrop with a fire gradient. The
-                  flicker loop scales it up/down so it dances. */}
+                  flicker loop scales it up/down so it dances.
+                  --flame-length / --flame-width CSS variables come
+                  from the speed-driven lengthScale / widthScale
+                  computed above, so the body literally stretches
+                  when the cursor sprints. */}
               <span
                 className="absolute"
                 style={{
@@ -364,6 +382,13 @@ export function PresenceCursors() {
                   borderRadius: '50% 50% 50% 50% / 35% 35% 65% 65%',
                   background: `linear-gradient(to bottom, ${color} 0%, #f97316 38%, #fbbf24 78%, #fde68a 100%)`,
                   transformOrigin: '50% 0%',
+                  // Compose the flicker animation with a base
+                  // scale that varies with speed. The animation
+                  // multiplies onto this via its own scaleX/Y
+                  // transform, so we get "dances at a longer
+                  // length" rather than fighting the keyframes.
+                  scale: `${widthScale} ${lengthScale}`,
+                  transition: 'scale 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
                   animation: 'presence-flame-flicker 0.85s ease-in-out infinite',
                   filter: 'blur(0.6px)',
                   mixBlendMode: 'screen',
