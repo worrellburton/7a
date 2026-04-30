@@ -1457,7 +1457,7 @@ export default function CallsContent() {
                       const cellPad = isMeaningfulRow ? 'py-5' : 'py-2';
                       return (
                         <Fragment key={call.id}>
-                          <tr data-call-id={call.id} onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${selectedIds.has(String(call.id)) ? 'bg-primary/5' : ''} ${isSpamCall(call) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isSpamCall(call) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
+                          <tr data-call-id={call.id} onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${selectedIds.has(String(call.id)) ? 'bg-primary/5' : ''} ${isSpamCall(call) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-primary/20'}`} style={isSpamCall(call) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : { boxShadow: '0 2px 8px -4px rgba(188, 107, 74, 0.18), 0 1px 0 rgba(188, 107, 74, 0.08)' }}>
                             <td className={`w-9 px-3 ${cellPad} align-top`} onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
