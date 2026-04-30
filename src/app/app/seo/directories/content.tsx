@@ -4100,9 +4100,12 @@ export default function DirectoriesContent() {
 
       {/* Single flat table — was per-category sections. Category is
           now a column on each row so the team can scan the whole
-          workflow in one list and let sort/filter do the work. */}
+          workflow in one list and let sort/filter do the work.
+          Hidden on mobile (md:block) — the mobile experience uses
+          the stacked-card list below so the 10-column row doesn't
+          overflow off-screen. */}
       {flatRows.length === 0 ? null : (
-        <div className="mb-8 overflow-hidden border border-black/10 rounded-xl bg-white">
+        <div className="hidden md:block mb-8 overflow-hidden border border-black/10 rounded-xl bg-white">
           <table className="w-full text-sm">
             <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
               <tr>
@@ -4292,6 +4295,183 @@ export default function DirectoriesContent() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Mobile-only stacked card list. Mirrors the desktop table's
+          fields but stacks them vertically so nothing scrolls off
+          the right edge on a 390px viewport. Each tappable region
+          stops propagation so the row's outer click (open detail)
+          and the inline editors (status select, paid toggle, link
+          editor) don't fight each other. */}
+      {flatRows.length === 0 ? null : (
+        <div className="md:hidden mb-8 space-y-2">
+          {flatRows.map((d) => {
+            const status = statusMap[d.id] ?? 'todo';
+            const link = linkMap[d.id] ?? '';
+            const tintClass = STATUS_ROW_TINT[status];
+            const isHidden = !!directoryStates[d.id]?.hidden;
+            const paid = directoryStates[d.id]?.paid ?? false;
+            const paidAmt = directoryStates[d.id]?.paid_amount ?? null;
+            return (
+              <article
+                key={d.id}
+                className={`relative rounded-xl border border-black/10 bg-white p-3 transition-colors ${tintClass} ${isHidden ? 'opacity-50' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <a
+                      href={d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block font-semibold text-primary hover:underline text-[14px] leading-tight"
+                    >
+                      {d.name}
+                    </a>
+                    <p className="mt-0.5 text-[10px] font-semibold tracking-[0.16em] uppercase text-foreground/45">
+                      {CATEGORY_LABELS[d.category]}
+                      {customIds.has(d.id) && (
+                        <span className="ml-1.5 px-1 py-px rounded text-[8px] tracking-wider border border-primary/30 bg-primary/10 text-primary normal-case">
+                          Custom
+                        </span>
+                      )}
+                      {isHidden && (
+                        <span className="ml-1.5 px-1 py-px rounded text-[8px] tracking-wider border border-foreground/20 bg-foreground/5 text-foreground/55 normal-case">
+                          Hidden
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-[10.5px] text-foreground/45 truncate">
+                      {d.url.replace(/^https?:\/\//, '')}
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-1">
+                    {d.why && (
+                      <button
+                        type="button"
+                        aria-label={`Insights for ${d.name}`}
+                        title={d.why}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-amber-300/60 bg-amber-50 text-amber-700"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6m-5 3h4m-2-17a7 7 0 00-4 12.74V17a1 1 0 001 1h6a1 1 0 001-1v-.26A7 7 0 0012 4z" />
+                        </svg>
+                      </button>
+                    )}
+                    {isHidden ? (
+                      <button
+                        type="button"
+                        onClick={() => setHidden(d.id, false)}
+                        title="Restore directory"
+                        aria-label="Restore directory"
+                        className="inline-flex items-center justify-center w-7 h-7 rounded text-foreground/45 hover:text-emerald-600 hover:bg-emerald-50"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h13a5 5 0 010 10h-3m0 0l3-3m-3 3l3 3" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => removeDirectory(d.id)}
+                        title={customIds.has(d.id) ? 'Remove custom directory' : 'Hide this directory'}
+                        aria-label={customIds.has(d.id) ? 'Remove custom directory' : 'Hide this directory'}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded text-foreground/35 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center flex-wrap gap-1.5 mb-2">
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border ${PRIORITY_TONE[d.priority]}`}>
+                    {d.priority}
+                  </span>
+                  <FitChip score={d.fit} />
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${
+                      paid ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-foreground/5 border-black/10 text-foreground/55'
+                    }`}
+                    title={paid ? `Paid${paidAmt != null ? ` · $${paidAmt.toLocaleString()}` : ''}` : 'Not paid'}
+                  >
+                    {paid ? (
+                      <>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        {paidAmt != null ? `$${paidAmt.toLocaleString()}` : 'Paid'}
+                      </>
+                    ) : (
+                      'Not paid'
+                    )}
+                  </span>
+                  <span className={`inline-flex items-center rounded-md border ${STATUS_TONE[status]}`}>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(d.id, e.target.value as Status)}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Change directory status"
+                      className="appearance-none bg-transparent pl-2 pr-5 py-0.5 text-[10px] font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+                    >
+                      {STATUS_ORDER.map((s) => (
+                        <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                      ))}
+                    </select>
+                    <svg
+                      aria-hidden="true"
+                      className="pointer-events-none -ml-4 mr-1 w-2.5 h-2.5 opacity-60"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </span>
+                </div>
+
+                <div className="mb-2">
+                  <p className="text-[9px] font-semibold tracking-[0.18em] uppercase text-foreground/40 mb-1">
+                    Live link
+                  </p>
+                  <LinkCell
+                    value={link}
+                    onSave={(v) => saveLink(d.id, v)}
+                    setBy={directoryStates[d.id]?.link_set_by
+                      ? (directoryStateUsers[directoryStates[d.id].link_set_by!]?.full_name ?? null)
+                      : null}
+                    setAt={directoryStates[d.id]?.link_set_at ?? null}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-black/5">
+                  <PaidCell
+                    paid={paid}
+                    amount={paidAmt}
+                    onChange={(p, amt) => setPaid(d.id, p, amt)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => openComments(d)}
+                    title={chatCounts[d.id] ? `${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}` : 'Add a comment'}
+                    aria-label={`Comments for ${d.name}`}
+                    className="relative inline-flex items-center gap-1.5 text-[11px] font-semibold text-foreground/65 hover:text-primary px-2 py-1 rounded-lg hover:bg-primary/5"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                    </svg>
+                    {chatCounts[d.id] ? `${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}` : 'Comment'}
+                    {isUnread(d.id) && (
+                      <span aria-label="Unread" className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
+                    )}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
 
