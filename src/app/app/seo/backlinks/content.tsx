@@ -114,6 +114,12 @@ export default function BacklinksContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  // Manually-entered backlinks live in seo_manual_backlinks (a
+  // separate table from the Semrush snapshot blob) and are merged
+  // into the displayed rows. addingOpen toggles the inline form.
+  const [manualRows, setManualRows] = useState<BacklinkRow[]>([]);
+  const [manualByKey, setManualByKey] = useState<Record<string, { id: string; addedByName: string | null }>>({});
+  const [addingOpen, setAddingOpen] = useState(false);
   // Per-row chat metadata: latest message timestamp + total count per
   // source_url, plus a localStorage read map so the unread dot only
   // lights up for messages this user hasn't seen.
@@ -239,10 +245,101 @@ export default function BacklinksContent() {
     return (overview.follows_num / overview.total) * 100;
   }, [overview]);
 
+  // Manual-row state derives from /api/seo/backlinks/manual scoped
+  // to the snapshot's target. We refetch when the target changes
+  // (rare — it's the org's canonical domain) and on every realtime
+  // INSERT/DELETE to seo_manual_backlinks.
+  const target = snapshot?.target ?? null;
+  useEffect(() => {
+    if (!session?.access_token || !target) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const res = await fetch(`/api/seo/backlinks/manual?target=${encodeURIComponent(target)}`, { cache: 'no-store' });
+        const json = await res.json().catch(() => ({}));
+        if (cancelled || !res.ok) return;
+        const rows = (json.rows ?? []) as Array<{
+          id: string;
+          source_url: string;
+          source_title: string | null;
+          anchor: string | null;
+          target_url: string | null;
+          is_follow: boolean;
+          is_nofollow: boolean;
+          is_ugc: boolean;
+          is_sponsored: boolean;
+          page_score: number | null;
+          added_by_name: string | null;
+          created_at: string;
+        }>;
+        const mapped: BacklinkRow[] = rows.map((r) => ({
+          source_url: r.source_url,
+          source_title: r.source_title ?? '',
+          target_url: r.target_url ?? target,
+          anchor: r.anchor ?? '',
+          external_num: 0,
+          internal_num: 0,
+          first_seen: r.created_at,
+          last_seen: r.created_at,
+          is_follow: r.is_follow,
+          is_nofollow: r.is_nofollow,
+          is_ugc: r.is_ugc,
+          is_sponsored: r.is_sponsored,
+          response_code: 200,
+          page_score: r.page_score ?? 0,
+        }));
+        const meta: Record<string, { id: string; addedByName: string | null }> = {};
+        for (const r of rows) {
+          meta[r.source_url] = { id: r.id, addedByName: r.added_by_name ?? null };
+        }
+        setManualRows(mapped);
+        setManualByKey(meta);
+      } catch {
+        // non-fatal — manual rows just won't show
+      }
+    };
+    void refresh();
+
+    const channel = supabase
+      .channel(`seo_manual_backlinks_${Math.random().toString(36).slice(2, 8)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'seo_manual_backlinks' }, () => {
+        void refresh();
+      })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      void supabase.removeChannel(channel);
+    };
+  }, [session?.access_token, target]);
+
   const visibleRows = useMemo(() => {
     if (!snapshot) return [];
-    return applyFilter(snapshot.rows ?? [], filter);
-  }, [snapshot, filter]);
+    // Manual rows go first so a fresh add lands at the top of the
+    // list, regardless of current filter / Semrush score order.
+    const merged = [...manualRows, ...(snapshot.rows ?? [])];
+    return applyFilter(merged, filter);
+  }, [snapshot, filter, manualRows]);
+
+  // Helper for the Add form's POST.
+  const addManual = useCallback(async (input: {
+    source_url: string;
+    source_title: string;
+    anchor: string;
+    target_url: string;
+    rel: 'follow' | 'nofollow' | 'ugc' | 'sponsored';
+    page_score: number | null;
+    notes: string;
+  }) => {
+    if (!target) return { ok: false, error: 'No snapshot target loaded yet.' };
+    const res = await fetch('/api/seo/backlinks/manual', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...input, target }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: json?.error ?? `HTTP ${res.status}` };
+    return { ok: true } as const;
+  }, [target]);
 
   return (
     <div className="p-8 max-w-7xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
@@ -268,23 +365,36 @@ export default function BacklinksContent() {
         </div>
 
         <div className="flex flex-col items-end gap-1">
-          <button
-            type="button"
-            onClick={sync}
-            disabled={syncing}
-            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition ${
-              syncing
-                ? 'bg-foreground/40 text-white cursor-wait'
-                : 'bg-primary text-white hover:bg-primary/90'
-            }`}
-            title="Pull a fresh snapshot from Semrush. Each sync uses Semrush API units, so don't hammer the button."
-          >
-            <svg className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12a9 9 0 1 1-3-6.7" />
-              <path d="M21 4v5h-5" />
-            </svg>
-            {syncing ? 'Syncing…' : 'Sync from Semrush'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAddingOpen((v) => !v)}
+              className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-white px-3 py-2 text-sm font-semibold text-primary hover:bg-primary hover:text-white transition-colors"
+              title="Manually record a backlink that Semrush hasn't seen yet (or that you want pinned regardless of sync)."
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              {addingOpen ? 'Close' : 'Add backlink'}
+            </button>
+            <button
+              type="button"
+              onClick={sync}
+              disabled={syncing}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition ${
+                syncing
+                  ? 'bg-foreground/40 text-white cursor-wait'
+                  : 'bg-primary text-white hover:bg-primary/90'
+              }`}
+              title="Pull a fresh snapshot from Semrush. Each sync uses Semrush API units, so don't hammer the button."
+            >
+              <svg className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a9 9 0 1 1-3-6.7" />
+                <path d="M21 4v5h-5" />
+              </svg>
+              {syncing ? 'Syncing…' : 'Sync from Semrush'}
+            </button>
+          </div>
           <p className="text-[11px] text-foreground/50 tabular-nums">
             Last updated{' '}
             <span className="font-medium text-foreground/70">
@@ -299,6 +409,13 @@ export default function BacklinksContent() {
 
       <SeoSubNav />
       <LinksSubNav />
+
+      {addingOpen && target && (
+        <AddBacklinkForm
+          onClose={() => setAddingOpen(false)}
+          onSubmit={addManual}
+        />
+      )}
 
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 mb-5">
@@ -547,4 +664,191 @@ function Td({ children, className = '' }: { children: React.ReactNode; className
 
 function domainOf(url: string): string | null {
   try { return new URL(url).host; } catch { return null; }
+}
+
+// Inline form for adding a backlink that Semrush hasn't seen yet
+// (e.g. a press placement, a partner site, a directory we just got
+// listed on). Sits between the header and the metric strip when
+// open; collapses on save / cancel.
+function AddBacklinkForm({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (input: {
+    source_url: string;
+    source_title: string;
+    anchor: string;
+    target_url: string;
+    rel: 'follow' | 'nofollow' | 'ugc' | 'sponsored';
+    page_score: number | null;
+    notes: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
+}) {
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [sourceTitle, setSourceTitle] = useState('');
+  const [anchor, setAnchor] = useState('');
+  const [targetUrl, setTargetUrl] = useState('');
+  const [rel, setRel] = useState<'follow' | 'nofollow' | 'ugc' | 'sponsored'>('follow');
+  const [score, setScore] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    const parsedScore = (() => {
+      const t = score.trim();
+      if (!t) return null;
+      const n = Number(t);
+      if (!Number.isFinite(n)) return null;
+      return Math.max(0, Math.min(100, Math.round(n)));
+    })();
+    const result = await onSubmit({
+      source_url: sourceUrl,
+      source_title: sourceTitle,
+      anchor,
+      target_url: targetUrl,
+      rel,
+      page_score: parsedScore,
+      notes,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      setError(result.error ?? 'Failed to add');
+      return;
+    }
+    onClose();
+  };
+
+  return (
+    <form
+      onSubmit={submit}
+      className="mb-5 rounded-2xl border border-primary/20 bg-white p-5 shadow-sm"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">
+          Add backlink — manual entry
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="text-foreground/45 hover:text-foreground/85 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="sm:col-span-2 block">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 mb-1 block">
+            Source URL <span className="text-rose-700">*</span>
+          </span>
+          <input
+            type="text"
+            required
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
+            placeholder="https://example.com/article-with-our-link"
+            className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 mb-1 block">
+            Page title
+          </span>
+          <input
+            type="text"
+            value={sourceTitle}
+            onChange={(e) => setSourceTitle(e.target.value)}
+            placeholder="Optional — what the page is called"
+            className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 mb-1 block">
+            Anchor text
+          </span>
+          <input
+            type="text"
+            value={anchor}
+            onChange={(e) => setAnchor(e.target.value)}
+            placeholder="The clickable text on their page"
+            className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 mb-1 block">
+            Target URL on our site
+          </span>
+          <input
+            type="text"
+            value={targetUrl}
+            onChange={(e) => setTargetUrl(e.target.value)}
+            placeholder="Defaults to the canonical domain"
+            className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 mb-1 block">
+            Link type
+          </span>
+          <div className="flex gap-1">
+            {(['follow', 'nofollow', 'ugc', 'sponsored'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setRel(v)}
+                className={`text-xs px-2.5 py-1.5 rounded-md border capitalize transition-colors ${
+                  rel === v
+                    ? 'bg-foreground text-white border-foreground'
+                    : 'bg-white text-foreground/65 border-black/10 hover:border-primary/40 hover:text-primary'
+                }`}
+              >
+                {v === 'follow' ? 'Dofollow' : v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55 mb-1 block">
+            Page score (0-100, optional)
+          </span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={score}
+            onChange={(e) => setScore(e.target.value)}
+            placeholder="Leave blank if you don't have a Semrush/Ahrefs score handy"
+            className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </label>
+      </div>
+      {error && (
+        <p className="mt-3 text-xs text-rose-700">{error}</p>
+      )}
+      <div className="mt-4 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-foreground/70 hover:border-black/20"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={saving || !sourceUrl.trim()}
+          className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
+        >
+          {saving ? 'Saving…' : 'Add backlink'}
+        </button>
+      </div>
+    </form>
+  );
 }
