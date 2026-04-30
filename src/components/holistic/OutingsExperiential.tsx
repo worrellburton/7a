@@ -17,17 +17,34 @@ import { getServerSupabase } from '@/lib/supabase-server';
 interface Cached {
   slug: string;
   image_url: string;
+  credit: string | null;
+  license: string | null;
+  license_url: string | null;
 }
 
-async function loadOutingImages(): Promise<Map<string, string>> {
+interface CachedAttribution {
+  imageUrl: string;
+  credit: string | null;
+  license: string | null;
+  licenseUrl: string | null;
+}
+
+async function loadOutingImages(): Promise<Map<string, CachedAttribution>> {
   try {
     const supabase = await getServerSupabase();
     const { data } = await supabase
       .from('outings_images')
-      .select('slug, image_url');
-    const map = new Map<string, string>();
+      .select('slug, image_url, credit, license, license_url');
+    const map = new Map<string, CachedAttribution>();
     for (const row of (data ?? []) as Cached[]) {
-      if (row.slug && row.image_url) map.set(row.slug, row.image_url);
+      if (row.slug && row.image_url) {
+        map.set(row.slug, {
+          imageUrl: row.image_url,
+          credit: row.credit,
+          license: row.license,
+          licenseUrl: row.license_url,
+        });
+      }
     }
     return map;
   } catch {
@@ -76,7 +93,8 @@ export default async function OutingsExperiential() {
           role="list"
         >
           {OUTINGS.map((outing) => {
-            const imageUrl = images.get(outing.slug);
+            const cached = images.get(outing.slug);
+            const imageUrl = cached?.imageUrl;
             return (
               <li
                 key={outing.slug}
@@ -164,6 +182,22 @@ export default async function OutingsExperiential() {
                         {outing.body}
                       </p>
                     </div>
+
+                    {/* Photo credit. Free-license images need
+                        attribution; we keep it small and only
+                        surface it on hover so it doesn't compete
+                        with the caption stack at rest. The license
+                        text links to the license page when the
+                        license_url column is populated. */}
+                    {cached?.credit && (
+                      <p
+                        className="absolute bottom-2 right-3 text-[9px] tracking-wide text-white/55 opacity-0 group-hover/outing:opacity-100 transition-opacity duration-500 motion-reduce:opacity-100"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        Photo: {cached.credit}
+                        {cached.license ? ` · ${cached.license}` : ''}
+                      </p>
+                    )}
                   </div>
                 </Link>
               </li>
