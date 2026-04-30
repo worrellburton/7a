@@ -463,12 +463,30 @@ export default function BacklinksContent() {
         {loading && !snapshot ? (
           <div className="p-10 text-center text-sm text-foreground/50">Loading…</div>
         ) : !snapshot || visibleRows.length === 0 ? (
-          <div className="p-10 text-center text-sm text-foreground/50">
-            {snapshot?.empty
-              ? 'Sync to see backlinks.'
-              : (snapshot?.total_in_snapshot ?? 0) === 0
-                ? 'No backlinks in the latest snapshot — Semrush may not have indexed any yet.'
-                : `No ${filter === 'all' ? '' : filter} backlinks in the snapshot. Try a different filter or run Sync to refresh.`}
+          <div className="p-10 text-center">
+            <p className="text-sm text-foreground/50">
+              {snapshot?.empty
+                ? 'No backlinks yet. Sync from Semrush to pull existing links, or add one manually.'
+                : (snapshot?.total_in_snapshot ?? 0) === 0
+                  ? 'No backlinks in the latest snapshot — Semrush may not have indexed any yet. You can add a backlink manually below.'
+                  : `No ${filter === 'all' ? '' : filter} backlinks in the snapshot. Try a different filter or run Sync to refresh.`}
+            </p>
+            {/* Inline primary-CTA so the empty state is actionable
+                without the admin scrolling back up to the header
+                buttons. Only appears when there's nothing to show
+                yet — the header button stays visible regardless. */}
+            {(filter === 'all' || filter === 'follow') && !addingOpen && (
+              <button
+                type="button"
+                onClick={() => setAddingOpen(true)}
+                className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Add backlink
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
