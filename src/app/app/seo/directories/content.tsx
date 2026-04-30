@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
+import LinksSubNav from '../LinksSubNav';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
@@ -4020,6 +4021,7 @@ export default function DirectoriesContent() {
       </header>
 
       <SeoSubNav />
+      <LinksSubNav />
 
       {/* Semrush integration is paused — the column was removed from
           the table per product feedback (the data wasn't actionable
