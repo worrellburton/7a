@@ -4507,7 +4507,7 @@ export default function DirectoriesContent() {
                   </tr>
                   {chatOpen && (
                     <tr className={`${tintClass}`}>
-                      <td colSpan={10} className="px-0 py-0 border-t border-primary/15">
+                      <td colSpan={11} className="px-0 py-0 border-t border-primary/15">
                         <div className="bg-white border-y border-primary/10">
                           <header className="flex items-center justify-between px-4 py-2 bg-warm-bg/40 border-b border-black/5">
                             <div className="flex items-baseline gap-2 min-w-0">
