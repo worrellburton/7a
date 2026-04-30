@@ -16,8 +16,11 @@ interface InnerTab {
 }
 
 const INNER_TABS: InnerTab[] = [
-  { href: '/app/seo/backlinks', label: 'Backlinks', hint: 'Semrush link profile' },
+  // Directories first — that's where day-to-day work happens
+  // (claiming + tracking citations); Backlinks is a quieter
+  // Semrush snapshot that admins glance at less often.
   { href: '/app/seo/directories', label: 'Directories', hint: 'Off-site listings to claim' },
+  { href: '/app/seo/backlinks', label: 'Backlinks', hint: 'Semrush link profile' },
 ];
 
 export default function LinksSubNav() {
