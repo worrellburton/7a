@@ -156,26 +156,30 @@ export function CallMobileRow(props: CallMobileRowProps) {
   const absTime = `${formatTime(call.called_at)}`;
   const duration = call.duration != null ? formatDuration(call.duration) : null;
 
+  // Meaningfulness threshold mirrors the page-level constant
+  // (fit_score >= 60). Meaningful rows expand vertically and surface
+  // the AI summary inline so the team can scan substance without
+  // opening every call. Non-meaningful rows compact down — less
+  // padding, smaller chip — so the inbox skims fast.
+  const isMeaningful = !isSpam && !isMissed && (score?.fit_score ?? 0) >= 60;
+
   return (
     <div
       className={`group/row ${accent.rowBg} transition-colors active:bg-warm-bg/40 ${
         selected ? 'bg-primary/5' : ''
       }`}
     >
-      <div className="flex items-stretch min-h-[64px]">
+      <div className={`flex items-stretch ${isMeaningful ? 'min-h-[96px]' : 'min-h-[52px]'}`}>
         {/* Status accent edge — colored stripe spanning the full row
             height, motion-reduce friendly because it's pure layout. */}
         <div className={`w-1 shrink-0 ${accent.bar}`} aria-hidden="true" />
 
-        {/* Tappable body — opens / closes the expanded view.
-            Selection checkbox is intentionally absent on mobile;
-            it lives on the desktop table where multi-select is
-            actually useful. Long-press / future swipe-action could
-            re-introduce it without giving up the row width. */}
         <button
           type="button"
           onClick={onToggleExpand}
-          className="flex-1 min-w-0 flex items-center gap-3 pl-3 pr-2 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-r-xl"
+          className={`flex-1 min-w-0 flex items-start gap-3 pl-3 pr-2 ${
+            isMeaningful ? 'py-3.5' : 'py-2'
+          } text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-r-xl`}
         >
           {/* Far-left column: prominent fit-score chip when scored.
               Spam / missed / unanalyzed rows keep an icon stand-in
@@ -186,7 +190,9 @@ export function CallMobileRow(props: CallMobileRowProps) {
               direction arrow sits in the bottom-right corner of
               the chip so we don't lose the inbound/outbound bit. */}
           <span
-            className={`shrink-0 relative inline-flex items-center justify-center w-10 h-10 rounded-xl font-bold tabular-nums text-[14px] ${
+            className={`shrink-0 relative inline-flex items-center justify-center rounded-xl font-bold tabular-nums ${
+              isMeaningful ? 'w-11 h-11 text-[15px] mt-0.5' : 'w-8 h-8 text-[12px]'
+            } ${
               isSpam
                 ? 'bg-amber-50 text-amber-700'
                 : isMissed
@@ -302,6 +308,17 @@ export function CallMobileRow(props: CallMobileRowProps) {
                 </>
               )}
             </p>
+            {/* Inline AI summary on meaningful rows so the team can
+                read substance without expanding every call. Hidden
+                on non-meaningful rows so the inbox stays scannable. */}
+            {isMeaningful && score?.summary && (
+              <p
+                className="mt-1.5 text-[12.5px] text-foreground/75 leading-snug"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {score.summary}
+              </p>
+            )}
           </div>
 
           {/* Time + chevron stack — time always renders even if the

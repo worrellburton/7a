@@ -1444,10 +1444,21 @@ export default function CallsContent() {
                       return 0;
                     }).map(call => {
                       const expanded = expandedId === call.id;
+                      const callScore = scores[String(call.id)];
+                      // Density tiers: meaningful (fit_score >= 60)
+                      // rows breathe and show the AI summary inline;
+                      // every other row collapses to a compact strip
+                      // so the inbox stays scannable. Spam + missed
+                      // are always compact regardless of score.
+                      const isMeaningfulRow =
+                        !isSpamCall(call) &&
+                        !isMissedCall(call) &&
+                        (callScore?.fit_score ?? 0) >= MEANINGFUL_THRESHOLD;
+                      const cellPad = isMeaningfulRow ? 'py-5' : 'py-2';
                       return (
                         <Fragment key={call.id}>
                           <tr data-call-id={call.id} onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${selectedIds.has(String(call.id)) ? 'bg-primary/5' : ''} ${isSpamCall(call) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-gray-50'}`} style={isSpamCall(call) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : undefined}>
-                            <td className="w-9 px-3 py-3.5 align-top" onClick={(e) => e.stopPropagation()}>
+                            <td className={`w-9 px-3 ${cellPad} align-top`} onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
                                 checked={selectedIds.has(String(call.id))}
@@ -1456,7 +1467,7 @@ export default function CallsContent() {
                                 aria-label={`Select call ${call.id}`}
                               />
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                            <td className={`px-3 sm:px-5 ${cellPad}`} onClick={(e) => e.stopPropagation()}>
                               <div className="flex flex-col items-start gap-1.5">
                                 <button
                                   type="button"
@@ -1483,7 +1494,7 @@ export default function CallsContent() {
                                 </div>
                               </div>
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                            <td className={`px-3 sm:px-5 ${cellPad} text-sm whitespace-nowrap`} style={{ fontFamily: 'var(--font-body)' }}>
                               {scores[String(call.id)]?.fit_score != null ? (
                                 <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold text-white ${fitScoreBg(scores[String(call.id)].fit_score!)}`}>
                                   {scores[String(call.id)].fit_score}
@@ -1492,18 +1503,34 @@ export default function CallsContent() {
                                 <span className="text-foreground/20">—</span>
                               )}
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/80 max-w-[180px]" style={{ fontFamily: 'var(--font-body)' }}>
-                              {scores[String(call.id)]?.call_name ? (
-                                <span className="font-medium">{scores[String(call.id)].call_name}</span>
+                            <td
+                              className={`px-3 sm:px-5 ${cellPad} text-sm text-foreground/80 ${
+                                isMeaningfulRow ? 'max-w-[420px] min-w-[260px]' : 'max-w-[180px]'
+                              }`}
+                              style={{ fontFamily: 'var(--font-body)' }}
+                            >
+                              {callScore?.call_name ? (
+                                <div className="flex flex-col gap-1.5">
+                                  <span className="font-semibold leading-tight">{callScore.call_name}</span>
+                                  {/* Inline AI summary on meaningful
+                                      rows. Wraps to multi-line so the
+                                      operator can read substance
+                                      without expanding the row. */}
+                                  {isMeaningfulRow && callScore.summary && (
+                                    <p className="text-[12.5px] text-foreground/65 leading-snug whitespace-normal">
+                                      {callScore.summary}
+                                    </p>
+                                  )}
+                                </div>
                               ) : (
                                 <span className="text-foreground/20">—</span>
                               )}
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5">
+                            <td className={`px-3 sm:px-5 ${cellPad}`}>
                               <div className="text-sm font-medium text-foreground whitespace-nowrap">{formatDate(call.called_at)}</div>
                               <div className="text-xs text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{formatTime(call.called_at)}</div>
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                            <td className={`px-3 sm:px-5 ${cellPad}`} onClick={(e) => e.stopPropagation()}>
                               <div
                                 className="min-w-0 relative inline-block"
                                 onMouseEnter={() => setReportingSpam(String(call.id))}
@@ -1540,17 +1567,17 @@ export default function CallsContent() {
                                 )}
                               </div>
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm font-mono text-foreground whitespace-nowrap">
+                            <td className={`px-3 sm:px-5 ${cellPad} text-sm font-mono text-foreground whitespace-nowrap`}>
                               {formatDuration(call.duration)}
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                            <td className={`px-3 sm:px-5 ${cellPad} text-sm text-foreground/70 whitespace-nowrap`} style={{ fontFamily: 'var(--font-body)' }}>
                               {scores[String(call.id)]?.caller_name ? (
                                 <span className="font-medium">{scores[String(call.id)].caller_name}</span>
                               ) : (
                                 <span className="text-foreground/20">—</span>
                               )}
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/70 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
+                            <td className={`px-3 sm:px-5 ${cellPad} text-sm text-foreground/70 whitespace-nowrap`} style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
                               {isSpamCall(call) ? (
                                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">
                                   Spam
@@ -1585,7 +1612,7 @@ export default function CallsContent() {
                                 </div>
                               )}
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5 text-sm whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
+                            <td className={`px-3 sm:px-5 ${cellPad} text-sm whitespace-nowrap`} style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
                               {isSpamCall(call) ? (
                                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">
                                   Spam
