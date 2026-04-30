@@ -99,6 +99,57 @@ function MetricTile({ metric, value }: { metric: MetricKey; value: number | null
   );
 }
 
+// Tiny sparkline. Takes a series of (x: index, y: number|null) and
+// renders a polyline scaled to fit a 100x24 viewBox. Null gaps are
+// dropped (the line jumps over them); a single-point series renders
+// a dot. Tone follows the latest non-null value so the chart matches
+// the badge next to it. Pure SVG, no chart library.
+function Sparkline({
+  values,
+  tone = 'good',
+  width = 96,
+  height = 24,
+}: {
+  values: Array<number | null>;
+  tone?: 'good' | 'ni' | 'poor' | 'unknown';
+  width?: number;
+  height?: number;
+}) {
+  const points: Array<{ x: number; y: number }> = [];
+  const valid: number[] = [];
+  for (const v of values) if (v != null) valid.push(v);
+  if (valid.length === 0) {
+    return (
+      <div className="text-[10px] text-neutral-600" style={{ width, height }}>
+        no history
+      </div>
+    );
+  }
+  const min = Math.min(...valid);
+  const max = Math.max(...valid);
+  const span = Math.max(1, max - min);
+  const padX = 2;
+  const padY = 2;
+  values.forEach((v, i) => {
+    if (v == null) return;
+    const x = padX + (values.length === 1 ? (width - padX * 2) / 2 : (i / (values.length - 1)) * (width - padX * 2));
+    const y = padY + (1 - (v - min) / span) * (height - padY * 2);
+    points.push({ x, y });
+  });
+  const stroke =
+    tone === 'good' ? '#34d399' : tone === 'ni' ? '#fbbf24' : tone === 'poor' ? '#f87171' : '#6b7280';
+  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      {points.length === 1 ? (
+        <circle cx={points[0].x} cy={points[0].y} r={2} fill={stroke} />
+      ) : (
+        <path d={path} fill="none" stroke={stroke} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      )}
+    </svg>
+  );
+}
+
 function StrategyPanel({ snap, strategy }: { snap: SpeedSnapshotRow | null; strategy: 'mobile' | 'desktop' }) {
   return (
     <div className="rounded-md border border-neutral-800 bg-neutral-900/40 p-3 space-y-2">
