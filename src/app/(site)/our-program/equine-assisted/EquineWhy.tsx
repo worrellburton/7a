@@ -26,7 +26,7 @@ const dials: Dial[] = [
     suffix: 'lbs',
     label: 'Average herd member',
     note:
-      'Horses weigh ten times what a person weighs. Every shared decision matters.',
+      'In equine-assisted psychotherapy, the horse’s size and strength require intentional, shared decision-making, as every interaction carries weight and impact.',
   },
   {
     value: 4,
