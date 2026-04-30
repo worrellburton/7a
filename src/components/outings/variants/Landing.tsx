@@ -60,12 +60,15 @@ export default function Landing({ outings }: { outings: OutingWithImage[] }) {
       {/* Edge-bleed scroll container — cards continue off the right
           edge of the screen so it reads as a horizontal stream rather
           than a contained grid. snap-x snap-mandatory keeps each card
-          centered on flick. */}
+          centered on flick. The native scrollbar is hidden across
+          all engines (Firefox via scrollbar-width:none, WebKit via
+          the pseudo-element rule) so the section reads as a film
+          strip — touch / trackpad / wheel scrolling still work. */}
       <div className="relative">
         <ul
           role="list"
-          className="flex gap-5 lg:gap-7 overflow-x-auto snap-x snap-mandatory scroll-smooth pl-4 pr-4 sm:pl-6 lg:pl-[max(1.5rem,calc((100vw-80rem)/2))] pb-2"
-          style={{ scrollbarWidth: 'thin' }}
+          className="flex gap-5 lg:gap-7 overflow-x-auto snap-x snap-mandatory scroll-smooth pl-4 pr-4 sm:pl-6 lg:pl-[max(1.5rem,calc((100vw-80rem)/2))] pb-2 [&::-webkit-scrollbar]:hidden"
+          style={{ scrollbarWidth: 'none' }}
         >
           {outings.map((outing) => {
             const cached = outing.image;
