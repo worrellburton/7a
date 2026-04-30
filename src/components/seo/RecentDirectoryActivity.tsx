@@ -5,10 +5,14 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 
-// Live feed of seo.directory_* events from public.activity_log.
-// Originally rendered on /app/seo/directories above the table; now
-// it lives on the Activities page (/app/seo/actions) so directory
-// edits show up alongside other SEO activity.
+// Live feed of every seo.* event from public.activity_log — the
+// single feed for the whole SEO area. Renders on /app/seo/actions
+// (the Activities tab) and surfaces directory edits, backlink
+// adds/removes/comments, Speed audit runs, outing-photo loads,
+// and anything else that writes to activity_log under the seo.
+// prefix in the future. Component name kept as
+// RecentDirectoryActivity so existing imports don't churn; scope
+// is the broader SEO feed.
 
 interface ActivityRow {
   id: string;
@@ -28,13 +32,13 @@ interface ActivityUser {
 }
 
 // Which activity_log rows belong on this feed. Originally just
-// directory edits; now also includes manual-backlink add / remove
-// so /app/seo/actions surfaces every link-building event in one
-// place. Easy to extend with more prefixes (e.g. 'seo.serp_' or
-// 'seo.media_') when those start writing to activity_log too.
+// directory edits; now broadened to every seo.* event so the
+// Activities tab is the single feed for the whole SEO area —
+// directories, backlinks, speed runs, outing-photo loads, and
+// anything else that writes to activity_log under that prefix.
 function isFeedEvent(type: string | null | undefined): boolean {
   if (!type) return false;
-  return type.startsWith('seo.directory_') || type.startsWith('seo.backlink_');
+  return type.startsWith('seo.');
 }
 
 function activityTimeAgo(iso: string): string {
@@ -87,6 +91,14 @@ function describeDirectoryActivity(row: ActivityRow): { verb: string; accent: st
       return { verb: 'added a backlink for', accent: 'text-emerald-700' };
     case 'seo.backlink_removed':
       return { verb: 'removed a backlink for', accent: 'text-rose-700' };
+    case 'seo.backlink_chat_message':
+      return { verb: 'commented on a backlink for', accent: 'text-primary' };
+    case 'seo.backlink_chat_message_deleted':
+      return { verb: 'deleted a backlink comment for', accent: 'text-rose-700' };
+    case 'seo.speed_run_completed':
+      return { verb: 'ran a Speed audit on', accent: 'text-blue-700' };
+    case 'seo.outing_photos_loaded':
+      return { verb: 'loaded outing photos —', accent: 'text-emerald-700' };
     default:
       return { verb: row.type.replace(/[._]/g, ' '), accent: 'text-foreground/70' };
   }
@@ -179,7 +191,7 @@ export default function RecentDirectoryActivity() {
         <div className="max-h-72 overflow-y-auto">
           {rows.length === 0 ? (
             <p className="px-4 py-6 text-xs text-foreground/45 text-center">
-              No directory edits yet — status changes and live links you save will appear here.
+              No SEO activity yet — directory edits, backlink adds, Speed runs, and other SEO actions will appear here as they happen.
             </p>
           ) : (
             <ol className="divide-y divide-black/5">
