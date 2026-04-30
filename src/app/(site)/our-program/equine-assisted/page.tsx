@@ -148,11 +148,11 @@ export default function EquineAssistedPage() {
           { label: 'Equine-assisted' },
         ]}
         title={[
-          "The horses don't care about your ",
-          { text: 'story', accent: true },
-          '.',
+          'Equine-assisted psychotherapy restores regulation and drives ',
+          { text: 'deep healing', accent: true },
+          ' through connection with horses.',
         ]}
-        description="Seven Arrows Recovery runs equine-assisted psychotherapy on a private 160-acre ranch at the base of the Swisshelm Mountains. The horses respond to what's true right now — and that is what makes the modality work."
+        description="Seven Arrows Recovery runs equine-assisted psychotherapy on a private 160-acre ranch at the base of the Swisshelm Mountains. The herd works alongside licensed trauma therapists in sessions that access material talk-therapy alone rarely reaches."
       />
       <GeoAnswer
         id="rehabs-with-equine-therapy"
