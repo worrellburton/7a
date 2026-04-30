@@ -161,7 +161,20 @@ export function RowChat({
       data: { [keyColumn]: keyValue, user_id: user.id, body },
     });
     if (inserted && (inserted as Message).id) {
-      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? (inserted as Message) : m)));
+      const real = inserted as Message;
+      // Two paths can introduce the real row into state: (a) this
+      // map call replacing the optimistic placeholder, and (b) the
+      // realtime INSERT subscription firing. If the realtime
+      // payload landed first, the real id is already in the array
+      // — drop the optimistic instead of replacing, so we don't
+      // end up with the same message twice.
+      setMessages((prev) => {
+        const alreadyHasReal = prev.some((m) => m.id === real.id);
+        if (alreadyHasReal) {
+          return prev.filter((m) => m.id !== optimistic.id);
+        }
+        return prev.map((m) => (m.id === optimistic.id ? real : m));
+      });
       logActivity({
         userId: user.id,
         type: activityType,
