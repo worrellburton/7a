@@ -12,6 +12,7 @@ import PageViewers from './PageViewers';
 import { PresenceCursors } from '@/components/PresenceCursors';
 import FlowBackground from './FlowBackground';
 import LoginScreen, { HeroGallery } from './LoginScreen';
+import LeverPullListener from '@/components/LeverPullListener';
 
 interface NavDepartment {
   id: string;
@@ -138,6 +139,18 @@ const pageIcons: Record<string, React.ReactNode> = {
   '/app/reviews': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  ),
+  // Levers icon — slider/lever motif so the metaphor reads at a
+  // glance even before hovering the label.
+  '/app/levers': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="18" x2="20" y2="18" />
+      <circle cx="14" cy="6" r="2" fill="currentColor" />
+      <circle cx="8" cy="12" r="2" fill="currentColor" />
+      <circle cx="17" cy="18" r="2" fill="currentColor" />
     </svg>
   ),
   '/app/website-requests': (
@@ -695,6 +708,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     <div className="flex min-h-screen app-shell relative">
       <FlowBackground />
       <PresenceCursors />
+      <LeverPullListener />
       {/* Left Sidebar — outer aside fills the parent's full height so
           the white bg never reveals the warm-bg behind it on tall
           pages. The inner div is `sticky top-0 h-screen` so the

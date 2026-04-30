@@ -61,6 +61,11 @@ const defaultPages: PageConfig[] = [
   { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/reviews', label: 'Reviews', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },
+  // Levers — super-admin-only broadcast tools (e.g. JD reminder
+  // popup). Like Social Media, the page is gated by adminOnly here
+  // AND a runtime is_super_admin check inside so non-super admins
+  // see it surface but bounce to the app root if they navigate in.
+  { path: '/app/levers', label: 'Levers', adminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
   { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
   { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [], departmentId: null },
