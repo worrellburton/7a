@@ -161,6 +161,45 @@ function Sparkline({
   );
 }
 
+// Top-N Lighthouse opportunities. The route caps at 8 with a 50ms
+// floor; we show the top 3 in the card and tuck the rest behind a
+// "+ N more" disclosure so a single bad page doesn't dominate the
+// vertical real estate.
+function OpportunityList({ items }: { items: SpeedSnapshotRow['opportunities'] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!items || items.length === 0) return null;
+  const head = expanded ? items : items.slice(0, 3);
+  const rest = items.length - head.length;
+  return (
+    <div className="space-y-1.5 border-t border-neutral-900 pt-2">
+      <div className="text-[10px] uppercase tracking-wide text-neutral-500">Opportunities</div>
+      <ul className="space-y-1">
+        {head.map((op) => (
+          <li
+            key={op.id}
+            className="flex items-center justify-between gap-2 rounded bg-neutral-900/50 px-2 py-1 text-[11px] text-neutral-300"
+            title={op.id}
+          >
+            <span className="truncate">{op.title}</span>
+            <span className="font-mono tabular-nums text-neutral-400">
+              −{op.savingsMs >= 1000 ? `${(op.savingsMs / 1000).toFixed(1)}s` : `${op.savingsMs}ms`}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {rest > 0 && !expanded && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="text-[10px] text-neutral-500 hover:text-neutral-300"
+        >
+          + {rest} more
+        </button>
+      )}
+    </div>
+  );
+}
+
 function StrategyPanel({
   snap,
   strategy,
@@ -187,6 +226,7 @@ function StrategyPanel({
           <div className="text-[10px] text-neutral-600">
             {snap.ok ? new Date(snap.ran_at).toLocaleString() : (snap.error ?? 'failed')}
           </div>
+          <OpportunityList items={snap.opportunities} />
         </>
       ) : (
         <div className="py-3 text-center text-[11px] text-neutral-600">Not yet scored</div>
