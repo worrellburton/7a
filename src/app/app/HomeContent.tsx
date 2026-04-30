@@ -270,7 +270,7 @@ export default function HomeContent() {
   }
 
   return (
-    <div className="relative flex flex-col min-h-full overflow-hidden">
+    <div className="relative flex flex-col min-h-full overflow-x-clip">
       {/* Phase 3: ambient backdrop. Three soft warm orbs sit behind
           everything so the glass surfaces have something colorful to
           refract. Pointer-events off so they never trap clicks. */}

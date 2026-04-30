@@ -1041,7 +1041,7 @@ export default function CallsContent() {
   })();
 
   return (
-    <div className="relative min-h-full overflow-hidden p-2.5 sm:p-6 lg:p-10">
+    <div className="relative min-h-full overflow-x-clip p-2.5 sm:p-6 lg:p-10">
       {/* Ambient backdrop — three soft warm orbs behind everything so
           the glass surfaces have something colorful to refract.
           Pointer-events off so they never trap clicks. Same pattern
