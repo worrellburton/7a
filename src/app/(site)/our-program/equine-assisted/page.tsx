@@ -156,21 +156,33 @@ export default function EquineAssistedPage() {
       />
       <GeoAnswer
         id="rehabs-with-equine-therapy"
-        question="Rehabs with equine therapy in Arizona"
+        question="Rehabs with equine-assisted psychotherapy in Arizona"
         answer={
-          <p>
-            Seven Arrows Recovery is a JCAHO-accredited residential drug and alcohol rehab in
-            Arizona that runs equine-assisted psychotherapy (EAP) as a core weekly modality —
-            not an add-on. Sessions are co-led by an Arizona-licensed therapist and a dedicated
-            equine specialist on a private 160-acre ranch in Cochise County, with a full herd
-            managed specifically for therapeutic partnership.
-          </p>
+          <>
+            <p>
+              Seven Arrows Recovery is a trauma-informed addiction treatment center in
+              Arizona, where equine-assisted psychotherapy (EAP) is fully integrated into
+              the core clinical program, not offered as an add-on. Grounded in safety,
+              attunement, and relational healing, sessions take place on a private 160-acre
+              ranch in Cochise County with a herd intentionally cared for as therapeutic
+              partners.
+            </p>
+            <p className="mt-3">
+              EAP group sessions are facilitated by an Arizona-licensed therapist alongside
+              an equine specialist, supporting structured, experiential group work.
+              Individual EAP sessions are offered as clinically appropriate and are often
+              co-facilitated with the therapist and equine partner, creating a more
+              intimate space that supports vulnerability, emotional processing, and deeper
+              healing.
+            </p>
+          </>
         }
         bullets={[
-          { label: 'Ground-based work', body: 'Most of the clinical work happens on the ground — attunement, leading, groundwork, grooming. No riding required.' },
-          { label: 'Integrated, not elective', body: 'EAP sessions are scheduled into the core weekly plan alongside individual therapy, group, and somatic work.' },
-          { label: 'Evidence-informed', body: 'Draws on attachment theory, somatic experiencing, and Internal Family Systems (IFS); used as an adjunct to CBT, DBT, EMDR, ART.' },
-          { label: 'Who it helps most', body: 'Complex trauma, PTSD, attachment injury, moral injury, and clients who haven’t responded to talk therapy alone.' },
+          { label: 'Ground-based work', body: 'Most of the clinical work happens on the ground — attunement, leading, groundwork, grooming. No riding required for therapeutic work.' },
+          { label: 'Integrated, Not Elective', body: 'Equine-assisted psychotherapy (EAP) is embedded into the core weekly treatment schedule. Clients participate in a weekly EAP group session, with individual EAP sessions offered as clinically indicated, integrated alongside individual therapy, group therapy, and somatic-based work.' },
+          { label: 'Evidence-Informed', body: 'Draws on attachment theory, somatic awareness/experiencing, and Internal Family Systems (IFS); integrates experiential and relational interventions; and is used as an adjunct to CBT, EMDR, mindfulness-based practices, psychoeducation, nervous system regulation (ANS-informed work), and trauma-informed care principles within equine-assisted psychotherapy.' },
+          { label: 'For who it helps most', body: 'Clients presenting with complex trauma, Post-Traumatic Stress Disorder, attachment disruptions, and moral wounds, particularly those who have demonstrated limited response to traditional talk-based interventions and may benefit from experiential, somatic, and relationally focused approaches.' },
+          { label: 'Trail riding twice a week', body: 'Beyond the clinical EAP work, scheduled trail rides twice a week give clients time outdoors with the herd in a low-stakes, regulating context — separate from the structured therapy sessions.' },
         ]}
       />
       <EquineWhy />
