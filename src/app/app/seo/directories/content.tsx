@@ -3305,8 +3305,25 @@ interface CanonicalNap {
   /** One-line address, joined from the address fields in business_info. */
   address: string | null;
   phone: string | null;
+  /** Canonical URL — normalized to no-scheme, no-www, no-trailing-slash so
+   *  what the team copies into directory listings matches the agreed
+   *  canonical (sevenarrowsrecoveryarizona.com, not www. or https://www.). */
+  url: string | null;
   /** True once the singleton row has been read (success or empty). */
   loaded: boolean;
+}
+
+// Strip scheme, leading "www.", and trailing slash so the displayed
+// canonical URL is the bare host the team should paste into listing
+// forms. Returns null for empty/invalid input.
+function normalizeCanonicalUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let s = raw.trim();
+  if (!s) return null;
+  s = s.replace(/^https?:\/\//i, '');
+  s = s.replace(/^www\./i, '');
+  s = s.replace(/\/+$/, '');
+  return s || null;
 }
 
 function joinAddress(row: {
@@ -3329,6 +3346,7 @@ function useCanonicalNap(): CanonicalNap {
     name: null,
     address: null,
     phone: null,
+    url: null,
     loaded: false,
   });
 
@@ -3339,7 +3357,7 @@ function useCanonicalNap(): CanonicalNap {
       const rows = await db({
         action: 'select',
         table: 'business_info',
-        select: 'business_name, address_line1, address_line2, city, state, postal_code, phone',
+        select: 'business_name, address_line1, address_line2, city, state, postal_code, phone, website_url',
       }).catch(() => null);
       if (cancelled) return;
       const row = Array.isArray(rows) && rows.length > 0
@@ -3351,12 +3369,14 @@ function useCanonicalNap(): CanonicalNap {
             state: string | null;
             postal_code: string | null;
             phone: string | null;
+            website_url: string | null;
           })
         : null;
       setNap({
         name: row?.business_name ?? null,
         address: row ? joinAddress(row) : null,
         phone: row?.phone ?? null,
+        url: normalizeCanonicalUrl(row?.website_url),
         loaded: true,
       });
     })();
@@ -3375,12 +3395,14 @@ function useCanonicalNap(): CanonicalNap {
           state: string | null;
           postal_code: string | null;
           phone: string | null;
+          website_url: string | null;
         } | null;
         if (!row) return;
         setNap({
           name: row.business_name ?? null,
           address: joinAddress(row),
           phone: row.phone ?? null,
+          url: normalizeCanonicalUrl(row.website_url),
           loaded: true,
         });
       })
@@ -5135,7 +5157,7 @@ function CanonicalNapBanner({ nap }: { nap: CanonicalNap }) {
       </div>
     );
   }
-  const incomplete = !nap.name || !nap.address || !nap.phone;
+  const incomplete = !nap.name || !nap.address || !nap.phone || !nap.url;
   return (
     <div
       className={`mb-5 rounded-xl border px-4 py-3 ${
@@ -5149,10 +5171,11 @@ function CanonicalNapBanner({ nap }: { nap: CanonicalNap }) {
           <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55">
             Canonical NAP — copy this verbatim into every listing
           </p>
-          <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-3 sm:gap-4">
+          <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
             <NapField label="Name" value={nap.name} />
             <NapField label="Address" value={nap.address} />
             <NapField label="Phone" value={nap.phone} />
+            <NapField label="URL" value={nap.url} />
           </div>
         </div>
         {incomplete && (
