@@ -1,8 +1,19 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import type { PsiSnapshot } from '@/lib/seo/psi';
+
+// Single point on the per-URL timeline (returned by
+// /api/seo/speed/history). Performance + LCP + CLS is enough to draw
+// the sparkline next to the score badge.
+export interface SpeedHistoryPoint {
+  ran_at: string;
+  strategy: 'mobile' | 'desktop';
+  performance: number | null;
+  lcp: number | null;
+  cls: number | null;
+}
 
 // Snapshot row shape returned by /api/seo/speed/latest. Mirrors the
 // public.seo_speed_runs columns with `opportunities` already parsed
@@ -150,12 +161,25 @@ function Sparkline({
   );
 }
 
-function StrategyPanel({ snap, strategy }: { snap: SpeedSnapshotRow | null; strategy: 'mobile' | 'desktop' }) {
+function StrategyPanel({
+  snap,
+  strategy,
+  history,
+}: {
+  snap: SpeedSnapshotRow | null;
+  strategy: 'mobile' | 'desktop';
+  history: SpeedHistoryPoint[] | null;
+}) {
+  const tone = scoreTone(snap?.performance ?? null);
+  const series = (history ?? []).map((p) => p.performance);
   return (
     <div className="rounded-md border border-neutral-800 bg-neutral-900/40 p-3 space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] uppercase tracking-wide text-neutral-500">{strategy}</span>
-        <ScoreBadge score={snap?.performance ?? null} />
+        <div className="flex items-center gap-2">
+          <Sparkline values={series} tone={tone} />
+          <ScoreBadge score={snap?.performance ?? null} />
+        </div>
       </div>
       {snap ? (
         <>
@@ -168,6 +192,38 @@ function StrategyPanel({ snap, strategy }: { snap: SpeedSnapshotRow | null; stra
         <div className="py-3 text-center text-[11px] text-neutral-600">Not yet scored</div>
       )}
     </div>
+  );
+}
+
+function UrlCard({
+  url,
+  mobile,
+  desktop,
+  history,
+  onMount,
+}: {
+  url: string;
+  mobile: SpeedSnapshotRow | null;
+  desktop: SpeedSnapshotRow | null;
+  history: { mobile: SpeedHistoryPoint[]; desktop: SpeedHistoryPoint[] } | null;
+  onMount: () => void;
+}) {
+  // Trigger the lazy history fetch on mount (and again whenever the
+  // url changes, though in practice URLs are stable per row key).
+  useEffect(() => {
+    onMount();
+  }, [onMount, url]);
+
+  return (
+    <li className="rounded-lg border border-neutral-800 bg-neutral-950 p-4 space-y-3">
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium text-neutral-100">{url}</div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <StrategyPanel snap={mobile} strategy="mobile" history={history?.mobile ?? null} />
+        <StrategyPanel snap={desktop} strategy="desktop" history={history?.desktop ?? null} />
+      </div>
+    </li>
   );
 }
 
@@ -254,6 +310,14 @@ export default function SpeedContent() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  // Lazy per-URL history cache. Populated when a card is rendered.
+  // Keyed by URL, with named arrays for each strategy.
+  const [history, setHistory] = useState<
+    Record<string, { mobile: SpeedHistoryPoint[]; desktop: SpeedHistoryPoint[] }>
+  >({});
+  // Tracks in-flight history fetches so we don't double-load on
+  // re-renders. Ref because we don't need re-renders to react to it.
+  const historyLoadingRef = useRef<Set<string>>(new Set());
 
   // Hydrate URL list from localStorage on mount. Defaults stay if the
   // key is missing or unparseable.
@@ -326,6 +390,31 @@ export default function SpeedContent() {
     setUrlsDraft(DEFAULT_URLS.join('\n'));
   }
 
+  // Lazy history fetcher. Called once per URL the first time its card
+  // mounts. The /history route is cheap (single indexed select), so
+  // we don't bother batching — each URL's request is independent.
+  const ensureHistory = useCallback(async (url: string) => {
+    if (historyLoadingRef.current.has(url)) return;
+    historyLoadingRef.current.add(url);
+    try {
+      const res = await fetch(`/api/seo/speed/history?url=${encodeURIComponent(url)}`, {
+        cache: 'no-store',
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        mobile?: SpeedHistoryPoint[];
+        desktop?: SpeedHistoryPoint[];
+      };
+      if (Array.isArray(json.mobile) && Array.isArray(json.desktop)) {
+        setHistory((prev) => ({
+          ...prev,
+          [url]: { mobile: json.mobile ?? [], desktop: json.desktop ?? [] },
+        }));
+      }
+    } catch {
+      // network issue — leave history unset; sparkline shows "no history"
+    }
+  }, []);
+
   // Run All — POSTs to /api/seo/speed/run which scores every URL on
   // mobile + desktop in parallel. Each PSI call is 10-25s and we run
   // 2N in parallel, so a 3-URL run takes roughly the slowest single
@@ -376,6 +465,17 @@ export default function SpeedContent() {
         error: s.error,
       }));
       setSnapshots((prev) => mergeSnapshots(prev, fresh));
+      // Invalidate the history cache for any URL we just re-scored;
+      // the next render of its card will refetch and pick up the new
+      // datapoint.
+      const ranUrls = new Set(fresh.map((s) => s.url));
+      for (const u of ranUrls) historyLoadingRef.current.delete(u);
+      setHistory((prev) => {
+        if (ranUrls.size === 0) return prev;
+        const next = { ...prev };
+        for (const u of ranUrls) delete next[u];
+        return next;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Run failed');
     } finally {
@@ -495,18 +595,14 @@ export default function SpeedContent() {
       ) : (
         <ul className="space-y-3">
           {groupedByUrl.map((row) => (
-            <li
+            <UrlCard
               key={row.url}
-              className="rounded-lg border border-neutral-800 bg-neutral-950 p-4 space-y-3"
-            >
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-neutral-100">{row.url}</div>
-              </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <StrategyPanel snap={row.mobile} strategy="mobile" />
-                <StrategyPanel snap={row.desktop} strategy="desktop" />
-              </div>
-            </li>
+              url={row.url}
+              mobile={row.mobile}
+              desktop={row.desktop}
+              history={history[row.url] ?? null}
+              onMount={() => void ensureHistory(row.url)}
+            />
           ))}
         </ul>
       )}
