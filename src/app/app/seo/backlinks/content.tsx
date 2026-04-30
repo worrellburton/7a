@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
+import LinksSubNav from '../LinksSubNav';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
@@ -297,6 +298,7 @@ export default function BacklinksContent() {
       </header>
 
       <SeoSubNav />
+      <LinksSubNav />
 
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 mb-5">

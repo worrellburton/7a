@@ -21,7 +21,11 @@ interface Tab {
 
 const PRIMARY_TABS: Tab[] = [
   { href: '/app/seo/actions', label: 'Activities', hint: 'Submit + track SEO activities', flair: 'fire' },
-  { href: '/app/seo/directories', label: 'Directories', hint: 'Off-site listings to claim' },
+  // "Backlinks" is the parent tab for both the Semrush link profile
+  // (/app/seo/backlinks) and the directory tracker
+  // (/app/seo/directories). Inner sub-tabs on each page let admins
+  // toggle between the two without leaving the primary tab.
+  { href: '/app/seo/backlinks', label: 'Backlinks', hint: 'Link profile + directory tracker' },
   { href: '/app/seo/audit', label: 'Site audit', hint: 'On-page issues' },
   { href: '/app/seo/serp-audit', label: 'SERP Audit', hint: 'Off-site brand mentions on the open web' },
   { href: '/app/seo/media', label: 'Media', hint: 'Images + videos with optimize batch' },
@@ -30,7 +34,6 @@ const PRIMARY_TABS: Tab[] = [
 
 const WIP_TABS: Tab[] = [
   { href: '/app/seo', label: 'Overview', hint: 'Search Console summary' },
-  { href: '/app/seo/backlinks', label: 'Backlinks', hint: 'Semrush link profile' },
   { href: '/app/seo/refdomains', label: 'Ref. domains', hint: 'Authority Score histogram' },
   { href: '/app/seo/local', label: 'Local pack', hint: 'Map-pack rank across markets' },
   { href: '/app/seo/questions', label: 'Questions', hint: 'PAA content backlog' },
@@ -42,6 +45,17 @@ const WIP_TABS: Tab[] = [
 
 function isTabActive(pathname: string, href: string): boolean {
   if (href === '/app/seo') return pathname === '/app/seo';
+  // The Backlinks primary tab covers both the Semrush link profile
+  // and the directory tracker — Directories is one of its inner
+  // sub-tabs, so the parent stays highlighted there too.
+  if (href === '/app/seo/backlinks') {
+    return (
+      pathname === '/app/seo/backlinks'
+      || pathname.startsWith('/app/seo/backlinks/')
+      || pathname === '/app/seo/directories'
+      || pathname.startsWith('/app/seo/directories/')
+    );
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
