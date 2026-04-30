@@ -4833,8 +4833,13 @@ function PaidCell({
   onChange: (paid: boolean, amount: number | null) => void;
 }) {
   if (paid) {
+    // When an amount IS set, render it inline (real data — show
+    // it). When no amount yet, hide the "add $" affordance until
+    // hover so the cell stays clean by default; on hover the
+    // amount-entry button slides in next to "Yes".
+    const hasAmount = amount != null;
     return (
-      <div className="flex items-center gap-1.5">
+      <div className="group/paid flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => onChange(false, null)}
@@ -4863,8 +4868,14 @@ function PaidCell({
             if (!Number.isFinite(parsed) || parsed < 0) return;
             onChange(true, parsed);
           }}
-          className="text-[11px] tabular-nums font-semibold text-emerald-800 hover:underline"
+          className={`text-[11px] tabular-nums font-semibold text-emerald-800 hover:underline transition-opacity ${
+            hasAmount
+              ? 'opacity-100'
+              : 'opacity-0 group-hover/paid:opacity-100 focus:opacity-100'
+          }`}
           title={amount != null ? 'Edit amount' : 'Add amount'}
+          tabIndex={hasAmount ? 0 : -1}
+          aria-hidden={hasAmount ? undefined : 'true'}
         >
           {amount != null ? `$${amount.toLocaleString()}` : 'add $'}
         </button>
