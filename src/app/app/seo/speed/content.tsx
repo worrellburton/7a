@@ -41,6 +41,76 @@ const SCORE_TONE_CLASS: Record<'good' | 'ni' | 'poor' | 'unknown', string> = {
   unknown: 'border-neutral-800 bg-neutral-900 text-neutral-500',
 };
 
+// Core Web Vitals + lab-metric thresholds (lab-mode, mobile-first —
+// these are Google's published "good / needs improvement / poor"
+// boundaries from web.dev). Lower is better for every metric here.
+const METRIC_THRESHOLDS: Record<MetricKey, { good: number; ni: number; unit: 'ms' | 'cls' }> = {
+  lcp: { good: 2500, ni: 4000, unit: 'ms' },
+  cls: { good: 0.1, ni: 0.25, unit: 'cls' },
+  tbt: { good: 200, ni: 600, unit: 'ms' },
+  fcp: { good: 1800, ni: 3000, unit: 'ms' },
+  si: { good: 3400, ni: 5800, unit: 'ms' },
+};
+
+type MetricKey = 'lcp' | 'cls' | 'tbt' | 'fcp' | 'si';
+
+const METRIC_LABEL: Record<MetricKey, string> = {
+  lcp: 'LCP',
+  cls: 'CLS',
+  tbt: 'TBT',
+  fcp: 'FCP',
+  si: 'SI',
+};
+
+function metricTone(key: MetricKey, value: number | null): 'good' | 'ni' | 'poor' | 'unknown' {
+  if (value == null) return 'unknown';
+  const t = METRIC_THRESHOLDS[key];
+  if (value <= t.good) return 'good';
+  if (value <= t.ni) return 'ni';
+  return 'poor';
+}
+
+const METRIC_TONE_CLASS: Record<'good' | 'ni' | 'poor' | 'unknown', string> = {
+  good: 'border-emerald-900/60 bg-emerald-950/40 text-emerald-200',
+  ni: 'border-amber-900/60 bg-amber-950/40 text-amber-200',
+  poor: 'border-red-900/60 bg-red-950/40 text-red-200',
+  unknown: 'border-neutral-900 bg-neutral-950 text-neutral-500',
+};
+
+function formatMetric(key: MetricKey, value: number | null): string {
+  if (value == null) return '—';
+  const unit = METRIC_THRESHOLDS[key].unit;
+  if (unit === 'cls') return value.toFixed(3);
+  // ms — show seconds for anything >= 1s, ms otherwise
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}s`;
+  return `${Math.round(value)}ms`;
+}
+
+function MetricTile({ metric, value }: { metric: MetricKey; value: number | null }) {
+  const tone = metricTone(metric, value);
+  return (
+    <div
+      className={`rounded-md border px-2 py-1.5 text-center ${METRIC_TONE_CLASS[tone]}`}
+      title={`${METRIC_LABEL[metric]} — good ≤ ${METRIC_THRESHOLDS[metric].good}${METRIC_THRESHOLDS[metric].unit === 'cls' ? '' : 'ms'}, poor > ${METRIC_THRESHOLDS[metric].ni}${METRIC_THRESHOLDS[metric].unit === 'cls' ? '' : 'ms'}`}
+    >
+      <div className="text-[10px] uppercase tracking-wide opacity-70">{METRIC_LABEL[metric]}</div>
+      <div className="font-mono text-xs tabular-nums">{formatMetric(metric, value)}</div>
+    </div>
+  );
+}
+
+function MetricRow({ snap }: { snap: SpeedSnapshotRow }) {
+  return (
+    <div className="grid grid-cols-5 gap-2">
+      <MetricTile metric="lcp" value={snap.lcp} />
+      <MetricTile metric="cls" value={snap.cls} />
+      <MetricTile metric="tbt" value={snap.tbt} />
+      <MetricTile metric="fcp" value={snap.fcp} />
+      <MetricTile metric="si" value={snap.si} />
+    </div>
+  );
+}
+
 function ScoreBadge({ score, label }: { score: number | null; label?: string }) {
   const tone = scoreTone(score);
   return (
@@ -336,16 +406,22 @@ export default function SpeedContent() {
           No results yet. Hit Run All to score every URL.
         </div>
       ) : (
-        <ul className="divide-y divide-neutral-900 rounded-lg border border-neutral-800 bg-neutral-950">
+        <ul className="space-y-2">
           {snapshots.map((s) => (
-            <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm text-neutral-200">{s.url}</div>
-                <div className="text-[11px] uppercase tracking-wide text-neutral-500">
-                  {s.strategy} · {new Date(s.ran_at).toLocaleString()}
+            <li
+              key={s.id}
+              className="rounded-lg border border-neutral-800 bg-neutral-950 px-4 py-3 space-y-2"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm text-neutral-200">{s.url}</div>
+                  <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+                    {s.strategy} · {new Date(s.ran_at).toLocaleString()}
+                  </div>
                 </div>
+                <ScoreBadge score={s.performance} label={s.strategy} />
               </div>
-              <ScoreBadge score={s.performance} label={s.strategy} />
+              <MetricRow snap={s} />
             </li>
           ))}
         </ul>
