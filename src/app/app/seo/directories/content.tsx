@@ -2855,13 +2855,14 @@ export const DIRECTORIES: Directory[] = [
 
 // ── Status tracking ────────────────────────────────────────────────
 
-type Status = 'todo' | 'pending' | 'listed' | 'live' | 'skip' | 'need_credentials' | 'claim_in_process';
+type Status = 'todo' | 'pending' | 'pending_review' | 'listed' | 'live' | 'skip' | 'need_credentials' | 'claim_in_process';
 
 const STATUS_KEY = 'sa-seo-directories:status';
 
 const STATUS_LABELS: Record<Status, string> = {
   todo: 'To do',
   pending: 'Submitted',
+  pending_review: 'Pending',
   listed: 'Listed',
   live: 'Live',
   skip: 'Skip',
@@ -2872,6 +2873,7 @@ const STATUS_LABELS: Record<Status, string> = {
 const STATUS_TONE: Record<Status, string> = {
   todo: 'bg-warm-bg/60 text-foreground/65 border-black/10 hover:bg-warm-bg',
   pending: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100',
+  pending_review: 'bg-yellow-50 text-yellow-800 border-yellow-200 hover:bg-yellow-100',
   listed: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100',
   live: 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100',
   skip: 'bg-foreground/5 text-foreground/40 border-black/10 line-through hover:bg-foreground/10',
@@ -2880,7 +2882,7 @@ const STATUS_TONE: Record<Status, string> = {
 };
 
 // Row-level tint applied to the whole <tr> so each row reads at a
-// glance as belonging to one of the six workflow buckets. Lighter
+// glance as belonging to one of the seven workflow buckets. Lighter
 // alpha than the chip itself (the chip pulls 100% of the bg color,
 // the row pulls ~40%) so per-cell text + buttons stay legible
 // against the tint. todo deliberately keeps a near-white tint so
@@ -2890,24 +2892,26 @@ const STATUS_ROW_TINT: Record<Status, string> = {
   need_credentials: 'bg-rose-50/55 hover:bg-rose-50',
   claim_in_process: 'bg-blue-50/55 hover:bg-blue-50',
   pending: 'bg-amber-50/55 hover:bg-amber-50',
+  pending_review: 'bg-yellow-50/55 hover:bg-yellow-50',
   listed: 'bg-emerald-50/55 hover:bg-emerald-50',
   live: 'bg-teal-50/55 hover:bg-teal-50',
   skip: 'bg-foreground/[0.03] hover:bg-foreground/[0.06] text-foreground/55',
 };
 
 // Workflow order — chronological from a teammate's perspective:
-// pick it up → start working → get unblocked / submit → confirmed
-// listed → confirmed publicly live → terminal "skip" at the end.
-// "Claim in process" sits before "Need credentials" because the
-// usual sequence is "I started claiming this … oh wait, I need
-// creds" rather than the other way around.
-const STATUS_ORDER: Status[] = ['todo', 'claim_in_process', 'need_credentials', 'pending', 'listed', 'live', 'skip'];
+// pick it up → start working → get unblocked / submit → wait for
+// the directory to approve → confirmed listed → confirmed publicly
+// live → terminal "skip" at the end. "Pending" sits between
+// "Submitted" and "Listed" because most directory sites take days
+// or weeks between accepting a submission and actually publishing it.
+const STATUS_ORDER: Status[] = ['todo', 'claim_in_process', 'need_credentials', 'pending', 'pending_review', 'listed', 'live', 'skip'];
 
 const STATUS_CYCLE: Record<Status, Status> = {
   todo: 'claim_in_process',
   claim_in_process: 'need_credentials',
   need_credentials: 'pending',
-  pending: 'listed',
+  pending: 'pending_review',
+  pending_review: 'listed',
   listed: 'live',
   live: 'skip',
   skip: 'todo',
@@ -3970,6 +3974,7 @@ export default function DirectoriesContent() {
       claim_in_process: 0,
       need_credentials: 0,
       pending: 0,
+      pending_review: 0,
       listed: 0,
       live: 0,
       skip: 0,
@@ -3987,6 +3992,11 @@ export default function DirectoriesContent() {
     claim_in_process: 'blue',
     need_credentials: 'rose',
     pending: 'amber',
+    // Pending-review uses the same amber bucket since the
+    // ProgressCard accent palette doesn't have a yellow option;
+    // the chip + row tint stay distinct (yellow vs amber) so admins
+    // can still tell them apart at a glance.
+    pending_review: 'amber',
     listed: 'emerald',
     live: 'teal',
     skip: 'foreground',
