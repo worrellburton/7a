@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
+import { logActivity } from '@/lib/activity';
 import type { PsiSnapshot } from '@/lib/seo/psi';
 
 // Single point on the per-URL timeline (returned by
@@ -460,7 +461,7 @@ export default function SpeedContent() {
   // 2N in parallel, so a 3-URL run takes roughly the slowest single
   // call (~25s). The route persists every snapshot before responding.
   async function runAll() {
-    if (running || urls.length === 0) return;
+    if (running || urls.length === 0 || !user) return;
     setRunning(true);
     setError(null);
     try {
@@ -515,6 +516,35 @@ export default function SpeedContent() {
         const next = { ...prev };
         for (const u of ranUrls) delete next[u];
         return next;
+      });
+      // Cloud-backed activity feed. Mirrors the pattern used by SEO
+      // directories — every meaningful change writes a row to
+      // public.activity_log so the global /app/activity feed and the
+      // page's own Recent Activity panel both pick it up. Fire-and-
+      // forget; failures never block the UI.
+      const okCount = fresh.filter((s) => s.ok).length;
+      const failCount = fresh.length - okCount;
+      const avgPerformance = (() => {
+        const scores = fresh
+          .map((s) => s.performance)
+          .filter((v): v is number => typeof v === 'number');
+        if (scores.length === 0) return null;
+        return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+      })();
+      void logActivity({
+        userId: user.id,
+        type: 'seo.speed_run_completed',
+        targetKind: 'seo_speed',
+        targetId: 'speed-run',
+        targetLabel: `${ranUrls.size} URL${ranUrls.size === 1 ? '' : 's'} scored`,
+        targetPath: '/app/seo/speed',
+        metadata: {
+          urls: ranUrls.size,
+          checks: fresh.length,
+          ok: okCount,
+          failed: failCount,
+          avgPerformance,
+        },
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Run failed');
