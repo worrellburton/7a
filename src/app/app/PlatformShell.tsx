@@ -13,6 +13,7 @@ import { PresenceCursors } from '@/components/PresenceCursors';
 import FlowBackground from './FlowBackground';
 import LoginScreen, { HeroGallery } from './LoginScreen';
 import LeverPullListener from '@/components/LeverPullListener';
+import ContactSubmissionToasts from '@/components/ContactSubmissionToasts';
 
 interface NavDepartment {
   id: string;
@@ -709,6 +710,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       <FlowBackground />
       <PresenceCursors />
       <LeverPullListener />
+      <ContactSubmissionToasts />
       {/* Left Sidebar — outer aside fills the parent's full height so
           the white bg never reveals the warm-bg behind it on tall
           pages. The inner div is `sticky top-0 h-screen` so the
