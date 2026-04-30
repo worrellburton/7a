@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
+import RecentDirectoryActivity from '@/components/seo/RecentDirectoryActivity';
 import { uploadActionScreenshot } from '@/lib/seo/actionScreenshots';
 import { useAuth } from '@/lib/AuthProvider';
 
@@ -443,6 +444,12 @@ export default function ActionsContent() {
       </header>
 
       <SeoSubNav />
+
+      {/* Directory edits feed — moved here from /app/seo/directories.
+          Shows status changes, link adds, NAP edits, comments, etc.
+          for every directory in real time. Sits above the submit
+          form so the team sees recent activity before adding new. */}
+      <RecentDirectoryActivity />
 
       {/* Submit form — bordered with a soft amber→rose glow so it
           reads as the "input" area and ties to the fire-glow tab.
