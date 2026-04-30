@@ -4327,7 +4327,7 @@ export default function DirectoriesContent() {
           the stacked-card list below so the 10-column row doesn't
           overflow off-screen. */}
       {flatRows.length === 0 ? null : (
-        <div className="hidden md:block mb-8 overflow-x-auto border border-black/10 rounded-xl bg-white">
+        <div className="hidden md:block mb-8 overflow-hidden border border-black/10 rounded-xl bg-white">
           <table className="w-full text-sm">
             <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
               <tr>
