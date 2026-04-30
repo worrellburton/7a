@@ -17,6 +17,7 @@ import NightSky from '@/components/tour/NightSky';
 import LiveReviewsBand from '@/components/LiveReviewsBand';
 import { RanchAddress, RanchMap } from '@/components/RanchAddress';
 import TourCTA from '@/components/tour/TourCTA';
+import OutingsSection from '@/components/outings/OutingsSection';
 
 export default function TourPage() {
   return (
@@ -85,6 +86,8 @@ export default function TourPage() {
         headlineAccent="the program"
         headlineTail={'. They talk about the land.'}
       />
+
+      <OutingsSection variant="tour" />
 
       {/* Phase 10 — closing cinematic CTA */}
       <TourCTA />

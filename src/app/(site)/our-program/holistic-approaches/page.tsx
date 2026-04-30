@@ -13,7 +13,7 @@ import FourDimensions from '@/components/holistic/FourDimensions';
 import ModalitiesBento from '@/components/holistic/ModalitiesBento';
 import IndigenousFeature from '@/components/holistic/IndigenousFeature';
 import EvidenceStats from '@/components/holistic/EvidenceStats';
-import OutingsExperiential from '@/components/holistic/OutingsExperiential';
+import OutingsSection from '@/components/outings/OutingsSection';
 import AlumniVoices from '@/components/holistic/AlumniVoices';
 import HolisticCTA from '@/components/holistic/HolisticCTA';
 
@@ -60,7 +60,7 @@ export default function HolisticApproachesPage() {
       <ModalitiesBento />
       <IndigenousFeature />
       <EvidenceStats />
-      <OutingsExperiential />
+      <OutingsSection variant="experiential" />
       <AlumniVoices />
       <HolisticCTA />
     </main>
