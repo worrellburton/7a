@@ -21,12 +21,13 @@ interface IntegrationStatus {
   id: string;
   name: string;
   description: string;
-  category: 'auth' | 'database' | 'finance' | 'calls' | 'claims' | 'storage';
+  category: 'auth' | 'database' | 'finance' | 'calls' | 'claims' | 'storage' | 'ai' | 'seo' | 'social' | 'reviews';
   configured: boolean;
   connected: boolean;
   detail: string | null;
   error: string | null;
   docsUrl?: string;
+  manageUrl?: string;
 }
 
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -293,6 +294,131 @@ async function probeStedi(): Promise<IntegrationStatus> {
     detail: key ? 'Key present (no live probe — send-only API)' : null,
     error: key ? null : 'Missing STEDI_API_KEY',
     docsUrl: 'https://www.stedi.com/app',
+    manageUrl: '/app/billing',
+  };
+}
+
+// -- Anthropic (Claude) -------------------------------------------------
+// Used for: call scoring summaries, daily SEO summaries, outings
+// research prompts, ask-policies, and a handful of one-shot rewrites.
+// No cheap probe — every Anthropic call costs tokens. Configured ⇒
+// connected; live errors will surface in the dependent feature
+// (e.g. the call-scoring banner).
+async function probeAnthropic(): Promise<IntegrationStatus> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  return {
+    id: 'anthropic',
+    name: 'Anthropic (Claude)',
+    description: 'Call summaries, ask-policies answers, SEO daily summary, outings research.',
+    category: 'ai',
+    configured: !!key,
+    connected: !!key,
+    detail: key ? 'Key present' : null,
+    error: key ? null : 'Missing ANTHROPIC_API_KEY',
+    docsUrl: 'https://console.anthropic.com',
+  };
+}
+
+// -- Google Gemini ------------------------------------------------------
+// Used for: call audio analysis (gemini-2.5-pro), bling-mode image
+// edits + outing image generation (gemini-3-pro-image-preview /
+// nano-banana). Token-billed; no cheap probe. Configured ⇒ connected.
+async function probeGemini(): Promise<IntegrationStatus> {
+  const key = process.env.GEMINI_API_KEY;
+  const imageModel = process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image-preview';
+  return {
+    id: 'gemini',
+    name: 'Google Gemini',
+    description: 'Audio analysis on calls, image generation for outings + equine bling mode.',
+    category: 'ai',
+    configured: !!key,
+    connected: !!key,
+    detail: key ? `Image model · ${imageModel}` : null,
+    error: key ? null : 'Missing GEMINI_API_KEY',
+    docsUrl: 'https://aistudio.google.com/',
+  };
+}
+
+// -- Google Places -------------------------------------------------------
+// Used for: live Google review fetch on the home + landing pages.
+// Configured = key present. We don't ping Places here because the
+// per-place lookup costs a billable read; the home review section
+// will surface failures.
+async function probePlaces(): Promise<IntegrationStatus> {
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  return {
+    id: 'places',
+    name: 'Google Places',
+    description: 'Live Google Business Profile reviews + ratings.',
+    category: 'reviews',
+    configured: !!key,
+    connected: !!key,
+    detail: key ? 'Key present' : null,
+    error: key ? null : 'Missing GOOGLE_PLACES_API_KEY',
+    docsUrl: 'https://console.cloud.google.com/google/maps-apis',
+  };
+}
+
+// -- Ayrshare ------------------------------------------------------------
+// Used for: cross-posting to Facebook + Instagram via /app/social-media.
+async function probeAyrshare(): Promise<IntegrationStatus> {
+  const key = process.env.AYRSHARE_API_KEY;
+  const profile = process.env.AYRSHARE_PROFILE_KEY;
+  const configured = !!key && !!profile;
+  return {
+    id: 'ayrshare',
+    name: 'Ayrshare',
+    description: 'Cross-platform social posting (Facebook, Instagram).',
+    category: 'social',
+    configured,
+    connected: configured,
+    detail: configured ? 'API + profile key present' : null,
+    error: configured
+      ? null
+      : !key
+      ? 'Missing AYRSHARE_API_KEY'
+      : 'Missing AYRSHARE_PROFILE_KEY',
+    docsUrl: 'https://app.ayrshare.com/dashboard',
+    manageUrl: '/app/social-media',
+  };
+}
+
+// -- SerpAPI -------------------------------------------------------------
+// Used for: SERP audit + GEO engine probes. Daily cap configurable
+// via SERPAPI_DAILY_CAP.
+async function probeSerpApi(): Promise<IntegrationStatus> {
+  const key = process.env.SERPAPI_KEY;
+  const cap = process.env.SERPAPI_DAILY_CAP;
+  return {
+    id: 'serpapi',
+    name: 'SerpAPI',
+    description: 'Google SERP audit + Google AIO probes for SEO/GEO.',
+    category: 'seo',
+    configured: !!key,
+    connected: !!key,
+    detail: key ? (cap ? `Daily cap · ${cap}` : 'Key present') : null,
+    error: key ? null : 'Missing SERPAPI_KEY',
+    docsUrl: 'https://serpapi.com/manage-api-key',
+    manageUrl: '/app/seo',
+  };
+}
+
+// -- Semrush -------------------------------------------------------------
+// Used for: backlinks snapshot + referring-domain tracking.
+async function probeSemrush(): Promise<IntegrationStatus> {
+  const key = process.env.SEMRUSH_API_KEY;
+  const target = process.env.SEMRUSH_TARGET_DOMAIN;
+  return {
+    id: 'semrush',
+    name: 'Semrush',
+    description: 'Backlinks snapshot + referring-domain tracking.',
+    category: 'seo',
+    configured: !!key,
+    connected: !!key,
+    detail: key ? (target ? `Target · ${target}` : 'Key present') : null,
+    error: key ? null : 'Missing SEMRUSH_API_KEY',
+    docsUrl: 'https://www.semrush.com/api/',
+    manageUrl: '/app/seo',
   };
 }
 
@@ -312,6 +438,12 @@ export async function GET() {
     probeQuickBooks(),
     probeCTM(),
     probeStedi(),
+    probeAnthropic(),
+    probeGemini(),
+    probePlaces(),
+    probeAyrshare(),
+    probeSerpApi(),
+    probeSemrush(),
   ]);
 
   return NextResponse.json({ integrations, checked_at: new Date().toISOString() });

@@ -4,20 +4,50 @@ import { useAuth } from '@/lib/AuthProvider';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-interface Integration {
+// Live-probe payload as returned by /api/integrations. The shape
+// mirrors the IntegrationStatus interface in that route handler;
+// keeping them in sync is the contract.
+interface ProbedIntegration {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  configured: boolean;
+  connected: boolean;
+  detail: string | null;
+  error: string | null;
+  docsUrl?: string;
+  manageUrl?: string;
+}
+
+interface DisplayRow {
+  id: string;
   name: string;
   description: string;
   status: 'connected' | 'disconnected' | 'coming-soon';
   details?: string;
   manageUrl?: string;
+  docsUrl?: string;
+  error?: string | null;
+  category?: string;
 }
+
+// Kept as a minimal hardcoded list — only services that don't have a
+// real env / probe yet. Anything we actually integrate with should
+// land in /api/integrations as a probe and be rendered automatically.
+const COMING_SOON: DisplayRow[] = [
+  {
+    id: 'gusto',
+    name: 'Gusto',
+    description: 'Payroll, benefits, HR, and team management',
+    status: 'coming-soon',
+  },
+];
 
 export default function APIsContent() {
   const { user, session, isAdmin } = useAuth();
   const router = useRouter();
-  const [qbCompanies, setQbCompanies] = useState<number>(0);
-  const [ctmOk, setCtmOk] = useState(false);
-  const [stediOk, setStediOk] = useState(false);
+  const [rows, setRows] = useState<DisplayRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,71 +60,33 @@ export default function APIsContent() {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         if (res.ok) {
-          const body = await res.json();
-          const list: { id: string; connected: boolean; detail?: string }[] = body.integrations || [];
-          const qb = list.find(i => i.id === 'quickbooks');
-          const ctm = list.find(i => i.id === 'ctm');
-          const stedi = list.find(i => i.id === 'stedi');
-          if (qb?.connected) {
-            const match = (qb.detail || '').match(/(\d+)/);
-            setQbCompanies(match ? parseInt(match[1], 10) : 1);
-          }
-          if (ctm?.connected) setCtmOk(true);
-          if (stedi?.connected) setStediOk(true);
+          const body = (await res.json()) as { integrations?: ProbedIntegration[] };
+          const live = (body.integrations ?? []).map<DisplayRow>((i) => ({
+            id: i.id,
+            name: i.name,
+            description: i.description,
+            status: i.connected ? 'connected' : 'disconnected',
+            details: i.detail ?? undefined,
+            manageUrl: i.manageUrl,
+            docsUrl: i.docsUrl,
+            error: i.error,
+            category: i.category,
+          }));
+          setRows([...live, ...COMING_SOON]);
         }
-      } catch { /* ignore */ }
+      } catch {
+        // Network failure — render nothing rather than stale local
+        // hardcoded entries. Page header still says "—/— services
+        // connected" while the user retries.
+      }
       setLoading(false);
     })();
   }, [session, isAdmin, router]);
 
   if (!user || !isAdmin) return null;
 
-  const integrations: Integration[] = [
-    {
-      name: 'Supabase',
-      description: 'Database, authentication, and file storage',
-      status: 'connected',
-      details: 'PostgreSQL + Auth + Storage',
-    },
-    {
-      name: 'Google OAuth',
-      description: 'Single sign-on for all users',
-      status: 'connected',
-      details: 'Via Supabase Auth',
-    },
-    {
-      name: 'QuickBooks Online',
-      description: 'Financial reporting, P&L, balance sheet, budgets',
-      status: qbCompanies > 0 ? 'connected' : 'disconnected',
-      details: qbCompanies > 0 ? `${qbCompanies} ${qbCompanies === 1 ? 'company' : 'companies'} connected` : undefined,
-      manageUrl: '/app/finance',
-    },
-    {
-      name: 'CallTrackingMetrics',
-      description: 'Call tracking, source attribution, and analytics',
-      status: ctmOk ? 'connected' : 'disconnected',
-      manageUrl: '/app/calls',
-    },
-    {
-      name: 'Stedi',
-      description: 'X12 EDI professional claims submission',
-      status: stediOk ? 'connected' : 'disconnected',
-      manageUrl: '/app/billing',
-    },
-    {
-      name: 'Gusto',
-      description: 'Payroll, benefits, HR, and team management',
-      status: 'coming-soon',
-    },
-    {
-      name: 'Kipu',
-      description: 'Electronic health records and clinical documentation',
-      status: 'coming-soon',
-    },
-  ];
-
-  const connected = integrations.filter(i => i.status === 'connected').length;
-  const total = integrations.filter(i => i.status !== 'coming-soon').length;
+  const connected = rows.filter((i) => i.status === 'connected').length;
+  const total = rows.filter((i) => i.status !== 'coming-soon').length;
 
   return (
     <div className="p-4 sm:p-6 lg:p-10">
@@ -111,12 +103,11 @@ export default function APIsContent() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-2xl">
-          {integrations.map((api, idx) => (
+          {rows.map((api, idx) => (
             <div
-              key={api.name}
-              className={`flex items-center gap-4 px-5 py-4 ${idx < integrations.length - 1 ? 'border-b border-gray-100' : ''} hover:bg-warm-bg/20 transition-colors`}
+              key={api.id}
+              className={`flex items-center gap-4 px-5 py-4 ${idx < rows.length - 1 ? 'border-b border-gray-100' : ''} hover:bg-warm-bg/20 transition-colors`}
             >
-              {/* Status indicator */}
               <div className="shrink-0">
                 {api.status === 'connected' ? (
                   <span className="block w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" title="Connected" />
@@ -127,7 +118,6 @@ export default function APIsContent() {
                 )}
               </div>
 
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-foreground">{api.name}</p>
@@ -143,9 +133,13 @@ export default function APIsContent() {
                     {api.details}
                   </p>
                 )}
+                {api.status === 'disconnected' && api.error && (
+                  <p className="text-[11px] text-red-500/80 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                    {api.error}
+                  </p>
+                )}
               </div>
 
-              {/* Action */}
               {api.status === 'connected' && api.manageUrl && (
                 <button
                   onClick={() => router.push(api.manageUrl!)}
@@ -163,6 +157,17 @@ export default function APIsContent() {
                 >
                   Connect
                 </button>
+              )}
+              {api.status === 'disconnected' && !api.manageUrl && api.docsUrl && (
+                <a
+                  href={api.docsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-xs font-medium text-foreground/55 hover:text-foreground transition-colors"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Console ↗
+                </a>
               )}
             </div>
           ))}
