@@ -38,6 +38,17 @@ const DEFAULT_URLS: string[] = [
   'https://7thanchor.com/programs',
 ];
 
+// Merge fresh snapshots into the existing list, replacing any prior
+// row for the same (url, strategy) and keeping everything else. This
+// lets a partial run (one URL re-scored) update only its tile without
+// blowing away other URLs' results.
+function mergeSnapshots(prev: SpeedSnapshotRow[], fresh: SpeedSnapshotRow[]): SpeedSnapshotRow[] {
+  const keyed = new Map<string, SpeedSnapshotRow>();
+  for (const s of prev) keyed.set(`${s.url}|${s.strategy}`, s);
+  for (const s of fresh) keyed.set(`${s.url}|${s.strategy}`, s);
+  return Array.from(keyed.values());
+}
+
 function parseUrlList(raw: string): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
@@ -111,17 +122,69 @@ export default function SpeedContent() {
     setUrlsDraft(DEFAULT_URLS.join('\n'));
   }
 
+  // Run All — POSTs to /api/seo/speed/run which scores every URL on
+  // mobile + desktop in parallel. Each PSI call is 10-25s and we run
+  // 2N in parallel, so a 3-URL run takes roughly the slowest single
+  // call (~25s). The route persists every snapshot before responding.
+  async function runAll() {
+    if (running || urls.length === 0) return;
+    setRunning(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/seo/speed/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ urls }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        snapshots?: PsiSnapshot[];
+        error?: string;
+        persisted?: boolean;
+        persistError?: string | null;
+      };
+      if (!res.ok) {
+        setError(json.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      if (json.persisted === false) {
+        // The PSI calls succeeded but the DB write didn't — surface
+        // the issue so the admin knows the timeline won't update.
+        setError(`Saved-to-DB failed: ${json.persistError ?? 'unknown'}`);
+      }
+      // Map the raw PsiSnapshot[] returned by /run into the row shape
+      // the UI consumes. Server `id` / `ran_at` aren't echoed back, so
+      // we fabricate placeholders; the next /latest hydrate (phase 13)
+      // will replace them with the real persisted rows.
+      const fresh: SpeedSnapshotRow[] = (json.snapshots ?? []).map((s, i) => ({
+        id: `local-${Date.now()}-${i}`,
+        ran_at: s.fetchedAt,
+        url: s.url,
+        strategy: s.strategy,
+        performance: s.performance,
+        fcp: s.metrics.fcp,
+        lcp: s.metrics.lcp,
+        cls: s.metrics.cls,
+        tbt: s.metrics.tbt,
+        si: s.metrics.si,
+        opportunities: s.opportunities,
+        fetch_ms: s.fetchMs,
+        ok: s.ok,
+        error: s.error,
+      }));
+      setSnapshots((prev) => mergeSnapshots(prev, fresh));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Run failed');
+    } finally {
+      setRunning(false);
+    }
+  }
+
   // Suppress "unused" noise until later phases consume these.
   useEffect(() => {
     void snapshots;
-    void running;
-    void error;
     void hydrated;
-    void setSnapshots;
-    void setRunning;
-    void setError;
     void setHydrated;
-  }, [snapshots, running, error, hydrated]);
+  }, [snapshots, hydrated]);
 
   const draftDirty = useMemo(
     () => urlsDraft.trim() !== urls.join('\n').trim(),
@@ -184,8 +247,30 @@ export default function SpeedContent() {
         </div>
       </section>
 
+      <section className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void runAll()}
+          disabled={running || urls.length === 0}
+          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {running ? `Running ${urls.length * 2} PSI checks…` : `Run All (×${urls.length * 2})`}
+        </button>
+        <span className="text-xs text-neutral-500">
+          Mobile + desktop per URL. Each PSI call takes 10-25s; runs in parallel.
+        </span>
+      </section>
+
+      {error && (
+        <div className="rounded-md border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-red-200">
+          {error}
+        </div>
+      )}
+
       <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-500">
-        Run button + result cards arrive in the next phases.
+        {snapshots.length === 0
+          ? 'No results yet. Hit Run All to score every URL.'
+          : `${snapshots.length} snapshot${snapshots.length === 1 ? '' : 's'} loaded. Result cards arrive in the next phases.`}
       </div>
     </div>
   );
