@@ -2,23 +2,25 @@
 
 import { useEffect, useState } from 'react';
 
-// Single lever in the console row. Pure-CSS animation: the shaft
-// pivots from upright to "engaged" (rotated forward ~30°) when the
-// admin clicks it, lingers in the engaged position long enough for
-// the eye to register the action, then snaps back. The actual
-// onPull side-effect fires as soon as the engaged class lands so
-// the underlying API call and the visual feel simultaneous.
+// Single lever in the console row. Pure-CSS animation: the
+// shaft+grip slide DOWN the track when the admin clicks ("pulling
+// it down" — slot-machine / circuit-breaker metaphor), linger at
+// the bottom long enough for the eye to register, then snap back
+// up to ready. The actual onPull side-effect fires as soon as the
+// pulled class lands so the underlying API call and the visual
+// feel simultaneous.
 //
 // Visual anatomy (top to bottom):
-//   - faceplate plate: the dark warm-charcoal panel the lever
-//     sits in, with subtle inset shadow so it reads as recessed
-//     into the console
-//   - pivot cap: brass disk at the top where the shaft pivots
-//   - shaft: brass-copper rod that rotates around its top
-//   - grip: copper ball at the bottom of the shaft (the "handle"
-//     a real hand would grab)
+//   - faceplate: dark warm-charcoal panel the lever sits in, with
+//     inset shadow so it reads as recessed into the console
+//   - top cap: brass slot at the top where the shaft enters from;
+//     stays fixed while the shaft moves below it
+//   - track: thin vertical channel running down the bay with
+//     position ticks on either side
+//   - shaft+grip: the moving group. Translates Y from 0 (idle,
+//     grip near the top) to ~80px (engaged, grip near the bottom)
 //   - label slot: name + cohort count, set into the faceplate
-//     below the lever so the lever's full motion isn't blocked
+//     below the bay so the lever's full motion isn't blocked
 
 interface LeverProps {
   /** Short label, e.g. "JD REMINDER". Rendered uppercase. */
@@ -120,17 +122,20 @@ export default function Lever({
           />
         </div>
 
-        {/* Shaft + grip. Pivot at top via transform-origin. */}
+        {/* Shaft + grip group. Translates down when engaged so the
+            grip slides toward the bottom of the bay — vertical
+            "pulling it down" motion (slot-machine / breaker
+            metaphor) instead of a sideways tilt. The shaft itself
+            stays oriented vertically; only its Y offset changes. */}
         <div
           aria-hidden="true"
           className="absolute left-1/2 -translate-x-1/2"
           style={{
             top: 28,
             width: 12,
-            height: 150,
-            transformOrigin: 'top center',
-            transform: engaged ? 'rotate(34deg)' : 'rotate(-3deg)',
-            transition: 'transform 380ms cubic-bezier(0.5, 1.6, 0.4, 1)',
+            height: 110,
+            transform: engaged ? 'translateY(60px)' : 'translateY(0)',
+            transition: 'transform 360ms cubic-bezier(0.5, 1.6, 0.4, 1)',
             background:
               'linear-gradient(90deg, #6b4a1a 0%, #c08e3c 35%, #f5d27e 50%, #c08e3c 65%, #6b4a1a 100%)',
             borderRadius: 6,
@@ -138,7 +143,9 @@ export default function Lever({
               '0 2px 6px rgba(0,0,0,0.5), inset 0 0 1px rgba(255,255,255,0.25)',
           }}
         >
-          {/* Grip ball at the bottom of the shaft. */}
+          {/* Grip ball at the bottom of the shaft. Squashes
+              vertically a touch when engaged so the pull lands
+              with a tactile beat. */}
           <div
             className="absolute left-1/2 -translate-x-1/2 rounded-full"
             style={{
@@ -148,7 +155,8 @@ export default function Lever({
               background: TONE_GRIP[tone],
               boxShadow:
                 '0 4px 8px rgba(0,0,0,0.55), inset 0 2px 2px rgba(255,255,255,0.5), inset 0 -2px 3px rgba(0,0,0,0.4)',
-              transition: 'box-shadow 300ms ease',
+              transition: 'transform 360ms cubic-bezier(0.5, 1.6, 0.4, 1), box-shadow 300ms ease, filter 300ms ease',
+              transform: engaged ? 'scaleY(0.9) scaleX(1.05)' : 'scale(1)',
               filter: pulling ? 'brightness(1.15)' : 'brightness(1)',
             }}
           />
