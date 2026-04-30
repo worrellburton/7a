@@ -211,6 +211,7 @@ export default function MediaContent() {
               <ZoomIcon />
               Optimize videos
             </Link>
+            <LoadOutingPhotosButton />
           </div>
           <p className="text-[11px] text-foreground/45">
             {counts.missing} of {counts.all} items missing SEO
@@ -424,5 +425,103 @@ function ZoomIcon() {
       <line x1="11" y1="8" x2="11" y2="14" />
       <line x1="8" y1="11" x2="14" y2="11" />
     </svg>
+  );
+}
+
+// Trigger for /api/outings/load-photos. Pulls real public-domain
+// images from Wikipedia/Commons for every outing on the holistic
+// page, uploads them to the public-images bucket, and writes
+// attribution rows. Each Wikipedia summary lookup is ~200ms; the
+// download + upload step adds ~1-2s per image. With 8 outings the
+// whole pass typically finishes in 15-25s.
+function LoadOutingPhotosButton() {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<null | {
+    loaded: number;
+    skipped: number;
+    errors: number;
+    detail: Array<{ slug: string; status: string; error?: string }>;
+  }>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async (force: boolean) => {
+    if (running) return;
+    setRunning(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch('/api/outings/load-photos', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ force }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json?.error ?? `HTTP ${res.status}`);
+      } else {
+        setResult({
+          loaded: json.loaded ?? 0,
+          skipped: json.skipped ?? 0,
+          errors: json.errors ?? 0,
+          detail: json.results ?? [],
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Request failed');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => void run(false)}
+        disabled={running}
+        title="Pull real public-domain images for the outings page"
+        className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50 transition disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3 7l4-3 4 4 4-3 6 5v11H3V7Z" />
+          <circle cx="9" cy="9" r="1" fill="currentColor" />
+        </svg>
+        {running ? 'Loading photos…' : 'Load outing photos'}
+      </button>
+      {(result || error) && (
+        <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-black/10 bg-white p-3 shadow-lg z-20">
+          {error && <p className="text-xs text-rose-700">{error}</p>}
+          {result && (
+            <>
+              <p className="text-xs text-foreground/70">
+                <span className="font-semibold text-emerald-700">{result.loaded} loaded</span>
+                {result.skipped > 0 && <> · {result.skipped} skipped</>}
+                {result.errors > 0 && <> · <span className="text-rose-700">{result.errors} errors</span></>}
+              </p>
+              <ul className="mt-2 space-y-1 text-[11px] text-foreground/65 max-h-48 overflow-y-auto">
+                {result.detail.map((d) => (
+                  <li key={d.slug} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{d.slug}</span>
+                    <span className={d.status === 'error' ? 'text-rose-700' : d.status === 'loaded' ? 'text-emerald-700' : 'text-foreground/45'}>
+                      {d.status}
+                      {d.error ? ` — ${d.error}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {result.skipped > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void run(true)}
+                  className="mt-2 text-[11px] text-primary hover:underline"
+                >
+                  Force-refresh skipped rows →
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
