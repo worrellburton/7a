@@ -2,17 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import JdReminderModalPreview from './JdReminderModalPreview';
+import Lever from './Lever';
 
-// JD reminder lever — the first lever on the page. Three columns of
-// content collapse into a vertical stack on small screens:
-//
-//  1. Live cohort — fetched on mount via /preview, refreshes after
-//     a pull. Shows name + JD title + how stale the request is.
-//  2. Preview tab — toggle to render the actual modal users will
-//     see, in a contained scaled-down frame so the admin can read
-//     the copy before pulling.
-//  3. Pull button + result panel — POSTs to /pull, returns the
-//     authoritative recipient list, then renders confirmation.
+// JD reminder lever — controlled visual lever wired to the cohort
+// preview + pull endpoints. The Lever component is the click target;
+// this wrapper owns the data fetching, draws the cohort detail panel
+// below the row, and surfaces the pull-result + popup-preview as
+// expandable disclosures so the console row stays the hero.
 
 interface PendingItem {
   jd_signature_id: string;
@@ -30,8 +26,6 @@ interface PullRecipient {
   jd_title: string | null;
 }
 
-type Tab = 'cohort' | 'preview';
-
 function relativeTime(iso: string | null): string {
   if (!iso) return '—';
   const ms = Date.now() - new Date(iso).getTime();
@@ -47,11 +41,12 @@ function relativeTime(iso: string | null): string {
 }
 
 export default function JdReminderLever() {
-  const [tab, setTab] = useState<Tab>('cohort');
   const [items, setItems] = useState<PendingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [pulling, setPulling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCohort, setShowCohort] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [lastResult, setLastResult] = useState<null | {
     sent: number;
     recipients: PullRecipient[];
@@ -100,10 +95,6 @@ export default function JdReminderLever() {
         recipients: Array.isArray(json.recipients) ? json.recipients : [],
         pulledAt: new Date().toISOString(),
       });
-      // Refresh cohort — the popup is now in their browser, but the
-      // /preview endpoint is the source of truth on which JDs are
-      // still pending. Same list until they actually sign, but the
-      // refresh confirms the broadcast didn't side-effect.
       void refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Pull failed');
@@ -112,161 +103,138 @@ export default function JdReminderLever() {
     }
   };
 
+  const hint = loading
+    ? 'loading…'
+    : items.length === 0
+      ? 'no pending JDs'
+      : `${items.length} ready`;
+
   return (
-    <section className="rounded-2xl border border-black/10 bg-white shadow-sm overflow-hidden">
-      <header className="px-6 py-5 border-b border-black/5 bg-warm-bg/30">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary mb-1">
-              Lever · JD reminder
-            </p>
-            <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-              Job description reminder
-            </h2>
-            <p className="mt-1 text-sm text-foreground/65 max-w-xl">
-              Pushes a full-screen popup to every teammate with an unsigned
-              job description. The popup blocks until they open and sign it.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setTab('cohort')}
-              className={`text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-md transition-colors ${
-                tab === 'cohort' ? 'bg-foreground text-white' : 'bg-white border border-black/10 text-foreground/65 hover:text-foreground'
-              }`}
-            >
-              Live cohort {loading ? '' : `· ${items.length}`}
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('preview')}
-              className={`text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-md transition-colors ${
-                tab === 'preview' ? 'bg-foreground text-white' : 'bg-white border border-black/10 text-foreground/65 hover:text-foreground'
-              }`}
-            >
-              Preview popup
-            </button>
-          </div>
+    <div className="flex flex-col items-center">
+      <Lever
+        name="JD reminder"
+        count={items.length}
+        pulling={pulling}
+        disabled={loading || items.length === 0}
+        onPull={() => void pull()}
+        hint={hint}
+        tone="copper"
+      />
+
+      {/* Disclosure controls — placed under the lever bay so they
+          don't compete with the visual on first read. */}
+      <div className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/55">
+        <button
+          type="button"
+          onClick={() => {
+            setShowCohort((v) => !v);
+            setShowPreview(false);
+          }}
+          className={`px-2 py-1 rounded transition-colors ${
+            showCohort ? 'bg-white/10 text-white' : 'hover:text-white/85'
+          }`}
+        >
+          Who
+        </button>
+        <span className="text-white/20">·</span>
+        <button
+          type="button"
+          onClick={() => {
+            setShowPreview((v) => !v);
+            setShowCohort(false);
+          }}
+          className={`px-2 py-1 rounded transition-colors ${
+            showPreview ? 'bg-white/10 text-white' : 'hover:text-white/85'
+          }`}
+        >
+          Preview popup
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-3 rounded-lg border border-rose-400/30 bg-rose-950/40 px-3 py-2 text-xs text-rose-200">
+          {error}
         </div>
-      </header>
+      )}
 
-      <div className="px-6 py-5">
-        {error && (
-          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
-            {error}
-          </div>
-        )}
+      {/* Cohort table — collapsed by default. The visual lever stays
+          the hero; admins drill in only when they need names. */}
+      {showCohort && (
+        <div className="mt-4 w-full max-w-2xl overflow-hidden rounded-lg border border-white/10 bg-black/30 backdrop-blur">
+          <table className="w-full text-sm">
+            <thead className="bg-white/[0.03] text-[10px] uppercase tracking-wider text-white/45">
+              <tr>
+                <th className="text-left px-3 py-2 font-semibold">Teammate</th>
+                <th className="text-left px-3 py-2 font-semibold">JD</th>
+                <th className="text-right px-3 py-2 font-semibold">Pending</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {loading ? (
+                <tr>
+                  <td colSpan={3} className="px-3 py-3 text-white/45 text-center text-xs">
+                    Loading cohort…
+                  </td>
+                </tr>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-3 py-3 text-white/55 text-center text-xs">
+                    Every teammate has signed their JD. Nothing to pull.
+                  </td>
+                </tr>
+              ) : (
+                items.map((it) => (
+                  <tr key={it.jd_signature_id}>
+                    <td className="px-3 py-2.5">
+                      <div className="font-medium text-white">{it.signer_name ?? '—'}</div>
+                      <div className="text-[11px] text-white/40 truncate max-w-[260px]">{it.signer_email ?? ''}</div>
+                    </td>
+                    <td className="px-3 py-2.5 text-white/70">{it.jd_title ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-white/55">
+                      {relativeTime(it.sent_at)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-        {tab === 'cohort' && (
-          <CohortPanel items={items} loading={loading} />
-        )}
-        {tab === 'preview' && (
-          <PreviewPanel />
-        )}
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-black/5 pt-4">
-          <p className="text-xs text-foreground/55">
-            Pulling sends the popup right now to{' '}
-            <span className="font-semibold text-foreground">
-              {items.length} teammate{items.length === 1 ? '' : 's'}
-            </span>
-            . Activity log records who pulled and who received.
+      {showPreview && (
+        <div className="mt-4 w-full max-w-2xl">
+          <p className="mb-2 text-[11px] text-white/55">
+            Recipients see this full-screen, blocking, when the lever fires.
           </p>
-          <button
-            type="button"
-            onClick={() => void pull()}
-            disabled={pulling || items.length === 0 || loading}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
+          <div
+            className="relative overflow-hidden rounded-xl border border-white/10 bg-neutral-900"
+            style={{ aspectRatio: '16/9' }}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            {pulling ? 'Pulling…' : items.length === 0 ? 'No pending JDs' : `Pull lever (×${items.length})`}
-          </button>
+            <div className="absolute inset-0">
+              <JdReminderModalPreview previewMode />
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {lastResult && <PullResultPanel result={lastResult} />}
-    </section>
-  );
-}
-
-function CohortPanel({ items, loading }: { items: PendingItem[]; loading: boolean }) {
-  if (loading) {
-    return <p className="text-sm text-foreground/45">Loading cohort…</p>;
-  }
-  if (items.length === 0) {
-    return (
-      <p className="text-sm text-foreground/55">
-        No pending signatures right now — every teammate has signed their JD.
-      </p>
-    );
-  }
-  return (
-    <div className="overflow-hidden rounded-lg border border-black/5">
-      <table className="w-full text-sm">
-        <thead className="bg-warm-bg/40 text-[10px] uppercase tracking-wider text-foreground/55">
-          <tr>
-            <th className="text-left px-3 py-2 font-semibold">Teammate</th>
-            <th className="text-left px-3 py-2 font-semibold">Job description</th>
-            <th className="text-right px-3 py-2 font-semibold">Pending</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-black/5">
-          {items.map((it) => (
-            <tr key={it.jd_signature_id}>
-              <td className="px-3 py-2.5">
-                <div className="font-medium text-foreground">{it.signer_name ?? '—'}</div>
-                <div className="text-[11px] text-foreground/45 truncate max-w-[260px]">{it.signer_email ?? ''}</div>
-              </td>
-              <td className="px-3 py-2.5 text-foreground/75">{it.jd_title ?? '—'}</td>
-              <td className="px-3 py-2.5 text-right tabular-nums text-foreground/65">
-                {relativeTime(it.sent_at)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function PreviewPanel() {
-  return (
-    <div>
-      <p className="mb-3 text-xs text-foreground/55">
-        This is exactly what the recipient sees — full-screen, blocking,
-        with a single CTA to open + sign.
-      </p>
-      <div className="relative overflow-hidden rounded-xl border border-black/10 bg-neutral-900" style={{ aspectRatio: '16/9' }}>
-        <div className="absolute inset-0">
-          <JdReminderModalPreview previewMode />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PullResultPanel({ result }: { result: { sent: number; recipients: PullRecipient[]; pulledAt: string } }) {
-  return (
-    <footer className="border-t border-emerald-200 bg-emerald-50/70 px-6 py-4">
-      <p className="text-sm font-semibold text-emerald-900 mb-2">
-        ✓ Sent to {result.sent} teammate{result.sent === 1 ? '' : 's'} ·{' '}
-        <span className="font-normal text-emerald-800/80">
-          {new Date(result.pulledAt).toLocaleTimeString()}
-        </span>
-      </p>
-      <ul className="text-[12px] text-emerald-900/85 space-y-0.5">
-        {result.recipients.map((r) => (
-          <li key={r.signer_user_id} className="flex items-center justify-between gap-3">
-            <span className="truncate">
-              <span className="font-medium">{r.signer_name ?? r.signer_email ?? '—'}</span>
-              {r.jd_title && <span className="text-emerald-800/65"> · {r.jd_title}</span>}
+      {lastResult && (
+        <div className="mt-4 w-full max-w-2xl rounded-lg border border-emerald-400/40 bg-emerald-950/40 px-4 py-3 text-emerald-100">
+          <p className="text-sm font-semibold mb-1">
+            ✓ Sent to {lastResult.sent} teammate{lastResult.sent === 1 ? '' : 's'}
+            <span className="ml-2 font-normal text-emerald-200/65 text-xs">
+              {new Date(lastResult.pulledAt).toLocaleTimeString()}
             </span>
-          </li>
-        ))}
-      </ul>
-    </footer>
+          </p>
+          <ul className="text-[12px] text-emerald-100/80 space-y-0.5">
+            {lastResult.recipients.map((r) => (
+              <li key={r.signer_user_id}>
+                <span className="font-medium">{r.signer_name ?? r.signer_email ?? '—'}</span>
+                {r.jd_title && <span className="text-emerald-200/55"> · {r.jd_title}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
