@@ -24,6 +24,38 @@ export interface SpeedSnapshotRow {
   error: string | null;
 }
 
+// Lighthouse performance-score thresholds. Mirrors the Google bands:
+// 0-49 poor, 50-89 needs improvement, 90+ good. Anything else (null /
+// failed) renders as a neutral dash.
+function scoreTone(score: number | null): 'good' | 'ni' | 'poor' | 'unknown' {
+  if (score == null) return 'unknown';
+  if (score >= 90) return 'good';
+  if (score >= 50) return 'ni';
+  return 'poor';
+}
+
+const SCORE_TONE_CLASS: Record<'good' | 'ni' | 'poor' | 'unknown', string> = {
+  good: 'border-emerald-700 bg-emerald-950 text-emerald-200',
+  ni: 'border-amber-700 bg-amber-950 text-amber-200',
+  poor: 'border-red-800 bg-red-950 text-red-200',
+  unknown: 'border-neutral-800 bg-neutral-900 text-neutral-500',
+};
+
+function ScoreBadge({ score, label }: { score: number | null; label?: string }) {
+  const tone = scoreTone(score);
+  return (
+    <div
+      className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium ${SCORE_TONE_CLASS[tone]}`}
+      title={label ? `${label} performance` : 'Performance score'}
+    >
+      <span className="font-mono text-sm tabular-nums">
+        {score == null ? '—' : score}
+      </span>
+      {label && <span className="uppercase tracking-wide text-[10px] opacity-80">{label}</span>}
+    </div>
+  );
+}
+
 // LocalStorage key for the admin's URL list. Keyed under `seo.speed`
 // so it doesn't collide with anything else stored by the app.
 const URLS_LS_KEY = 'seo.speed.urls.v1';
@@ -295,13 +327,29 @@ export default function SpeedContent() {
         </div>
       )}
 
-      <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-500">
-        {!hydrated
-          ? 'Loading prior runs…'
-          : snapshots.length === 0
-            ? 'No results yet. Hit Run All to score every URL.'
-            : `${snapshots.length} snapshot${snapshots.length === 1 ? '' : 's'} loaded. Result cards arrive in the next phases.`}
-      </div>
+      {!hydrated ? (
+        <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-500">
+          Loading prior runs…
+        </div>
+      ) : snapshots.length === 0 ? (
+        <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-500">
+          No results yet. Hit Run All to score every URL.
+        </div>
+      ) : (
+        <ul className="divide-y divide-neutral-900 rounded-lg border border-neutral-800 bg-neutral-950">
+          {snapshots.map((s) => (
+            <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm text-neutral-200">{s.url}</div>
+                <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+                  {s.strategy} · {new Date(s.ran_at).toLocaleString()}
+                </div>
+              </div>
+              <ScoreBadge score={s.performance} label={s.strategy} />
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
