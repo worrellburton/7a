@@ -1,62 +1,15 @@
 import Link from 'next/link';
-import { OUTINGS } from '@/lib/outings';
-import { getServerSupabase } from '@/lib/supabase-server';
+import type { OutingWithImage } from '@/lib/outings-data';
 
-// Experiential-therapy outings — catalog presentation. Replaces the
-// older "A Day of Practice" fictional schedule and the "Credentialed
-// practitioners" tile. Each card is image-led: the photographic
-// illustration generated from /lib/outings.ts is the canvas; the
-// region eyebrow + name + link sit on top, with the body copy
-// rising on hover.
-//
-// Image URLs are read server-side from public.outings_images (cache
-// populated by /api/outings/preheat). Cards without a generated
-// image fall back to a textured warm-bg surface so the catalog
-// stays presentable while the cache is being warmed.
+// Experiential variant — dark-scrim caption reveal on hover. Each
+// card is image-led with the region eyebrow + name pinned over the
+// scrim and the body text rising on hover. Used by the holistic
+// page, where the section sits between the alumni-voices block and
+// the closing CTA.
 
-interface Cached {
-  slug: string;
-  image_url: string;
-  credit: string | null;
-  license: string | null;
-  license_url: string | null;
-}
-
-interface CachedAttribution {
-  imageUrl: string;
-  credit: string | null;
-  license: string | null;
-  licenseUrl: string | null;
-}
-
-async function loadOutingImages(): Promise<Map<string, CachedAttribution>> {
-  try {
-    const supabase = await getServerSupabase();
-    const { data } = await supabase
-      .from('outings_images')
-      .select('slug, image_url, credit, license, license_url');
-    const map = new Map<string, CachedAttribution>();
-    for (const row of (data ?? []) as Cached[]) {
-      if (row.slug && row.image_url) {
-        map.set(row.slug, {
-          imageUrl: row.image_url,
-          credit: row.credit,
-          license: row.license,
-          licenseUrl: row.license_url,
-        });
-      }
-    }
-    return map;
-  } catch {
-    return new Map();
-  }
-}
-
-export default async function OutingsExperiential() {
-  const images = await loadOutingImages();
-
+export default function Experiential({ outings }: { outings: OutingWithImage[] }) {
   return (
-    <section className="bg-white py-20 lg:py-28" aria-labelledby="outings-heading">
+    <section className="bg-white py-20 lg:py-28" aria-labelledby="outings-heading-experiential">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mb-12 lg:mb-14">
           <p
@@ -66,7 +19,7 @@ export default async function OutingsExperiential() {
             Experiential therapy · off-site
           </p>
           <h2
-            id="outings-heading"
+            id="outings-heading-experiential"
             className="text-foreground font-bold tracking-tight mb-5"
             style={{
               fontFamily: 'var(--font-display)',
@@ -92,9 +45,8 @@ export default async function OutingsExperiential() {
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 lg:gap-6"
           role="list"
         >
-          {OUTINGS.map((outing) => {
-            const cached = images.get(outing.slug);
-            const imageUrl = cached?.imageUrl;
+          {outings.map((outing) => {
+            const cached = outing.image;
             return (
               <li
                 key={outing.slug}
@@ -108,10 +60,10 @@ export default async function OutingsExperiential() {
                   aria-label={`${outing.name} — visit official site`}
                 >
                   <div className="relative aspect-[4/5] w-full">
-                    {imageUrl ? (
+                    {cached ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={imageUrl}
+                        src={cached.imageUrl}
                         alt={`${outing.name}, ${outing.region}`}
                         loading="lazy"
                         decoding="async"
@@ -137,9 +89,6 @@ export default async function OutingsExperiential() {
                       </div>
                     )}
 
-                    {/* Soft scrim that anchors caption legibility but
-                        only deepens at the bottom — keeps the upper
-                        two-thirds of the photograph visually clean. */}
                     <div
                       aria-hidden="true"
                       className="absolute inset-x-0 bottom-0 h-3/5 pointer-events-none"
@@ -149,8 +98,6 @@ export default async function OutingsExperiential() {
                       }}
                     />
 
-                    {/* Top-left external-link affordance — quiet at
-                        rest, accent on hover. */}
                     <span
                       aria-hidden="true"
                       className="absolute top-3 right-3 inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/85 supports-[backdrop-filter]:bg-white/55 backdrop-blur text-foreground/65 group-hover/outing:text-primary transition-colors"
@@ -160,8 +107,6 @@ export default async function OutingsExperiential() {
                       </svg>
                     </span>
 
-                    {/* Caption stack — region eyebrow + name + body
-                        reveal. Body slides in on hover. */}
                     <div className="absolute inset-x-0 bottom-0 p-5">
                       <p
                         className="text-[10px] font-semibold tracking-[0.22em] uppercase text-accent mb-2"
@@ -183,12 +128,6 @@ export default async function OutingsExperiential() {
                       </p>
                     </div>
 
-                    {/* Photo credit. Free-license images need
-                        attribution; we keep it small and only
-                        surface it on hover so it doesn't compete
-                        with the caption stack at rest. The license
-                        text links to the license page when the
-                        license_url column is populated. */}
                     {cached?.credit && (
                       <p
                         className="absolute bottom-2 right-3 text-[9px] tracking-wide text-white/55 opacity-0 group-hover/outing:opacity-100 transition-opacity duration-500 motion-reduce:opacity-100"
