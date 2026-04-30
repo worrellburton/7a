@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 import { listStoredTokens } from '@/lib/quickbooks';
 import { ga4Run, gscSearchAnalytics, hasGoogleOAuth } from '@/lib/google';
+import { hasPsiKey } from '@/lib/seo/psi';
 
 // GET /api/integrations
 // Admin-only snapshot of every third-party integration the app talks to.
@@ -403,6 +404,28 @@ async function probeSerpApi(): Promise<IntegrationStatus> {
   };
 }
 
+// -- PageSpeed Insights --------------------------------------------------
+// Used for: SEO audit (Lighthouse-as-a-service). The API works without a
+// key but is rate-limited and will 503 under load — we report "connected"
+// only when PAGESPEED_API_KEY is set, which gives us the full per-project
+// quota. A real Lighthouse run takes 10-25s, so we skip the live probe
+// and trust the key's presence; the audit page surfaces real errors.
+async function probePsi(): Promise<IntegrationStatus> {
+  const configured = hasPsiKey();
+  return {
+    id: 'pagespeed',
+    name: 'PageSpeed Insights',
+    description: 'Lighthouse Core Web Vitals (performance score + LCP/CLS/TBT) for the SEO audit.',
+    category: 'seo',
+    configured,
+    connected: configured,
+    detail: configured ? 'Key present · full quota' : null,
+    error: configured ? null : 'Missing PAGESPEED_API_KEY (PSI falls back to throttled, keyless access)',
+    docsUrl: 'https://developers.google.com/speed/docs/insights/v5/get-started',
+    manageUrl: '/app/seo/audit',
+  };
+}
+
 // -- Semrush -------------------------------------------------------------
 // Used for: backlinks snapshot + referring-domain tracking.
 async function probeSemrush(): Promise<IntegrationStatus> {
@@ -444,6 +467,7 @@ export async function GET() {
     probeAyrshare(),
     probeSerpApi(),
     probeSemrush(),
+    probePsi(),
   ]);
 
   return NextResponse.json({ integrations, checked_at: new Date().toISOString() });
