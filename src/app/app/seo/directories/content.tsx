@@ -4331,17 +4331,17 @@ export default function DirectoriesContent() {
           <table className="w-full text-sm">
             <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
               <tr>
-                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10">Directory</th>
-                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-44">Category</th>
-                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-16">Insights</th>
-                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-24">Priority</th>
-                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-20">Fit</th>
-                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-28">Paid</th>
-                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-32">Live link</th>
-                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-24">NAP</th>
-                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
-                <th className="text-center px-4 py-2.5 font-semibold border-b border-black/10 w-16">Notes</th>
-                <th className="text-right px-4 py-2.5 font-semibold border-b border-black/10 w-12" aria-label="Delete" />
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-52">Directory</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-32">Category</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-12">Insights</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-20">Priority</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-14">Fit</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-24">Paid</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-28">Live link</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-20">NAP</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-28">Status</th>
+                <th className="text-center px-3 py-2.5 font-semibold border-b border-black/10 w-12">Notes</th>
+                <th className="text-right px-2 py-2.5 font-semibold border-b border-black/10 w-10" aria-label="Delete" />
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
@@ -4354,7 +4354,7 @@ export default function DirectoriesContent() {
                 return (
                   <Fragment key={d.id}>
                   <tr className={`align-top transition-colors ${tintClass} ${isHidden ? 'opacity-50' : ''} ${chatOpen ? 'ring-1 ring-primary/20' : ''}`}>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <div className="min-w-0">
                         <a
                           href={d.url}
@@ -4379,12 +4379,12 @@ export default function DirectoriesContent() {
                         </p>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <span className="inline-block text-[11px] text-foreground/65 leading-snug">
                         {CATEGORY_LABELS[d.category]}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       {d.why ? (
                         <span className="relative inline-block group/why">
                           <button
@@ -4412,22 +4412,22 @@ export default function DirectoriesContent() {
                         <span className="text-foreground/30 text-xs">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border ${PRIORITY_TONE[d.priority]}`}>
                         {d.priority}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <FitChip score={d.fit} />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <PaidCell
                         paid={directoryStates[d.id]?.paid ?? false}
                         amount={directoryStates[d.id]?.paid_amount ?? null}
                         onChange={(p, amt) => setPaid(d.id, p, amt)}
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <LinkCell
                         value={link}
                         onSave={(v) => saveLink(d.id, v)}
@@ -4437,7 +4437,7 @@ export default function DirectoriesContent() {
                         setAt={directoryStates[d.id]?.link_set_at ?? null}
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <NapCell
                         state={directoryStates[d.id] ?? null}
                         canonical={canonicalNap}
@@ -4447,7 +4447,7 @@ export default function DirectoriesContent() {
                           : null}
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <span className={`inline-flex items-center rounded-md border ${STATUS_TONE[status]}`}>
                         <select
                           value={status}
@@ -4472,7 +4472,7 @@ export default function DirectoriesContent() {
                         </svg>
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 py-3 text-center">
                       <button
                         type="button"
                         onClick={() => openComments(d)}
