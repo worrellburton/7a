@@ -3102,8 +3102,14 @@ function useDirectoryStates() {
     }
     load();
 
+    // Channel name is uniqued per session so two browser tabs (or
+    // a teammate joining while you're already subscribed) never
+    // share one subscription handle — supabase-js v2 silently
+    // treats duplicate channel names as the same channel, so
+    // event delivery to the second subscriber can race or drop.
+    const channelKey = `directory-states-${user?.id ?? 'anon'}-${Math.random().toString(36).slice(2, 8)}`;
     const channel = supabase
-      .channel('directory-states')
+      .channel(channelKey)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'directory_states' }, (payload) => {
         if (payload.eventType === 'DELETE') {
           const old = payload.old as { directory_id: string };
@@ -3175,7 +3181,37 @@ function useDirectoryStates() {
       hidden_set_at: hiddenChanged ? new Date().toISOString() : (existing?.hidden_set_at ?? null),
     };
     setById((prev) => ({ ...prev, [id]: next }));
-    await db({ action: 'upsert', table: 'directory_states', data: [next as unknown as Record<string, unknown>], onConflict: 'directory_id' }).catch(() => null);
+    // Surface upsert errors instead of silently swallowing them.
+    // The earlier `.catch(() => null)` hid genuine RLS / network
+    // failures, so a teammate's optimistic toggle would persist
+    // locally while the DB stayed cold — and since no row was
+    // written, no realtime event ever fired, so other admins
+    // never saw the change. Errors now log with enough context to
+    // diagnose without spamming the UI; the local optimistic state
+    // rolls back to the previous row so the visual stays honest.
+    try {
+      const result = await db({
+        action: 'upsert',
+        table: 'directory_states',
+        data: [next as unknown as Record<string, unknown>],
+        onConflict: 'directory_id',
+      });
+      if (result && (result as { error?: string }).error) {
+        throw new Error((result as { error?: string }).error);
+      }
+    } catch (err) {
+      console.error('[directory_states] upsert failed', { id, patch, err });
+      if (existing) {
+        setById((prev) => ({ ...prev, [id]: existing }));
+      } else {
+        setById((prev) => {
+          const copy = { ...prev };
+          delete copy[id];
+          return copy;
+        });
+      }
+      return;
+    }
 
     // Cloud-backed activity feed. Each meaningful change (status flip
     // or link add/remove) writes a row to public.activity_log so the
