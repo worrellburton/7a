@@ -16,6 +16,15 @@ const FETCH_TIMEOUT_MS = 35_000;
 
 export type PsiStrategy = 'mobile' | 'desktop';
 
+export interface PsiOpportunity {
+  /** Audit id, e.g. "unused-javascript". */
+  id: string;
+  /** Lighthouse-provided friendly title. */
+  title: string;
+  /** Estimated savings in ms (Lighthouse `numericValue` for opportunity audits). */
+  savingsMs: number;
+}
+
 export interface PsiSnapshot {
   url: string;
   strategy: PsiStrategy;
@@ -35,13 +44,18 @@ export interface PsiSnapshot {
     /** Speed Index, ms. */
     si: number | null;
   };
+  /** Top Lighthouse opportunity audits (sorted by estimated savings desc). */
+  opportunities: PsiOpportunity[];
   fetchedAt: string;
   fetchMs: number;
   error: string | null;
 }
 
 interface PsiAudit {
+  id?: string;
+  title?: string;
   numericValue?: number;
+  details?: { type?: string; overallSavingsMs?: number };
 }
 
 interface PsiCategory {
@@ -69,6 +83,7 @@ export async function runPsi(url: string, strategy: PsiStrategy): Promise<PsiSna
     ok: false,
     performance: null,
     metrics: { fcp: null, lcp: null, cls: null, tbt: null, si: null },
+    opportunities: [],
     fetchedAt: new Date().toISOString(),
     fetchMs: 0,
     error: null,
@@ -108,6 +123,7 @@ export async function runPsi(url: string, strategy: PsiStrategy): Promise<PsiSna
       tbt: numeric(audits['total-blocking-time']),
       si: numeric(audits['speed-index']),
     };
+    out.opportunities = extractOpportunities(audits);
     out.ok = out.performance != null;
   } catch (err) {
     out.error = err instanceof Error ? err.message : String(err);
@@ -121,4 +137,24 @@ export async function runPsi(url: string, strategy: PsiStrategy): Promise<PsiSna
 function numeric(audit: PsiAudit | undefined): number | null {
   if (!audit || typeof audit.numericValue !== 'number') return null;
   return Math.round(audit.numericValue);
+}
+
+// Lighthouse marks "opportunity" audits with details.type === 'opportunity'.
+// Each surfaces an `overallSavingsMs` — how much the page would speed up if
+// the issue were fixed. We pull every opportunity with non-trivial savings,
+// sort by impact desc, and cap at 8 so the UI stays digestible.
+function extractOpportunities(audits: Record<string, PsiAudit>): PsiOpportunity[] {
+  const out: PsiOpportunity[] = [];
+  for (const [id, audit] of Object.entries(audits)) {
+    if (audit?.details?.type !== 'opportunity') continue;
+    const savings = audit.details?.overallSavingsMs ?? audit.numericValue ?? 0;
+    if (typeof savings !== 'number' || savings < 50) continue;
+    out.push({
+      id,
+      title: audit.title || id,
+      savingsMs: Math.round(savings),
+    });
+  }
+  out.sort((a, b) => b.savingsMs - a.savingsMs);
+  return out.slice(0, 8);
 }
