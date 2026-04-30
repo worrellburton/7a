@@ -112,6 +112,30 @@ export async function POST(req: Request) {
   if (error || !row) {
     return NextResponse.json({ error: error?.message ?? 'Insert failed' }, { status: 500 });
   }
+
+  // Activity feed — directory edits and backlink edits both flow
+  // through public.activity_log so the feed on /app/seo/actions
+  // shows them side by side. target_label is the source domain so
+  // the feed reads "Bobby added a backlink for example.com".
+  let label = source_url;
+  try {
+    label = new URL(source_url).host.replace(/^www\./, '');
+  } catch { /* keep raw */ }
+  await gate.admin.from('activity_log').insert({
+    user_id: gate.user.id,
+    type: 'seo.backlink_added',
+    target_kind: 'seo_backlink',
+    target_id: (row as { id: string }).id,
+    target_label: label,
+    target_path: '/app/seo/backlinks',
+    metadata: {
+      source_url,
+      anchor: body.anchor ?? null,
+      rel,
+      target,
+    },
+  });
+
   return NextResponse.json({ row });
 }
 
@@ -120,10 +144,35 @@ export async function DELETE(req: Request) {
   if ('error' in gate) return gate.error;
   const id = new URL(req.url).searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+
+  // Look up the row first so the activity-log entry has a label.
+  const { data: existing } = await gate.admin
+    .from('seo_manual_backlinks')
+    .select('source_url')
+    .eq('id', id)
+    .maybeSingle();
+
   const { error } = await gate.admin
     .from('seo_manual_backlinks')
     .delete()
     .eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (existing?.source_url) {
+    let label = existing.source_url as string;
+    try {
+      label = new URL(label).host.replace(/^www\./, '');
+    } catch { /* keep raw */ }
+    await gate.admin.from('activity_log').insert({
+      user_id: gate.user.id,
+      type: 'seo.backlink_removed',
+      target_kind: 'seo_backlink',
+      target_id: id,
+      target_label: label,
+      target_path: '/app/seo/backlinks',
+      metadata: { source_url: existing.source_url },
+    });
+  }
+
   return NextResponse.json({ ok: true });
 }

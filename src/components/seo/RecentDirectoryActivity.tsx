@@ -27,6 +27,16 @@ interface ActivityUser {
   email: string | null;
 }
 
+// Which activity_log rows belong on this feed. Originally just
+// directory edits; now also includes manual-backlink add / remove
+// so /app/seo/actions surfaces every link-building event in one
+// place. Easy to extend with more prefixes (e.g. 'seo.serp_' or
+// 'seo.media_') when those start writing to activity_log too.
+function isFeedEvent(type: string | null | undefined): boolean {
+  if (!type) return false;
+  return type.startsWith('seo.directory_') || type.startsWith('seo.backlink_');
+}
+
 function activityTimeAgo(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
   if (mins < 1) return 'just now';
@@ -73,6 +83,10 @@ function describeDirectoryActivity(row: ActivityRow): { verb: string; accent: st
       return { verb: 'updated NAP for', accent: 'text-amber-700' };
     case 'seo.directory_nap_cleared':
       return { verb: 'cleared NAP for', accent: 'text-rose-700' };
+    case 'seo.backlink_added':
+      return { verb: 'added a backlink for', accent: 'text-emerald-700' };
+    case 'seo.backlink_removed':
+      return { verb: 'removed a backlink for', accent: 'text-rose-700' };
     default:
       return { verb: row.type.replace(/[._]/g, ' '), accent: 'text-foreground/70' };
   }
@@ -100,7 +114,7 @@ export default function RecentDirectoryActivity() {
         return;
       }
       const directoryRows = (data as ActivityRow[])
-        .filter((r) => r.type.startsWith('seo.directory_'))
+        .filter((r) => isFeedEvent(r.type))
         .slice(0, 25);
       setRows(directoryRows);
       setLoading(false);
@@ -125,7 +139,7 @@ export default function RecentDirectoryActivity() {
       .channel(`directory-recent-activity-${Math.random().toString(36).slice(2, 8)}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_log' }, (payload) => {
         const row = payload.new as ActivityRow;
-        if (!row.type?.startsWith('seo.directory_')) return;
+        if (!isFeedEvent(row.type)) return;
         setRows((prev) => [row, ...prev].slice(0, 25));
       })
       .subscribe();
