@@ -5,22 +5,22 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 // Top-of-page tab strip for the SEO area. Three "live" tabs at the
-// top — Actions, Directories, Site audit — plus a WIP dropdown that
-// hides every other sub-page so admins still have a way to reach
-// the in-progress views without flooding the visual nav.
+// top — Activities, Directories, Site audit — plus a WIP dropdown
+// that hides every other sub-page so admins still have a way to
+// reach the in-progress views without flooding the visual nav.
 
 interface Tab {
   href: string;
   label: string;
   hint?: string;
   /** When set to "fire", the tab gets an animated ember glow. Used to
-   *  pull the eye to the Actions list — that's where new SEO work
+   *  pull the eye to the Activities list — that's where new SEO work
    *  enters the system, so it benefits from being visually loud. */
   flair?: 'fire';
 }
 
 const PRIMARY_TABS: Tab[] = [
-  { href: '/app/seo/actions', label: 'Actions', hint: 'Submit + track SEO action items', flair: 'fire' },
+  { href: '/app/seo/actions', label: 'Activities', hint: 'Submit + track SEO activities', flair: 'fire' },
   { href: '/app/seo/directories', label: 'Directories', hint: 'Off-site listings to claim' },
   { href: '/app/seo/audit', label: 'Site audit', hint: 'On-page issues' },
   { href: '/app/seo/serp-audit', label: 'SERP Audit', hint: 'Off-site brand mentions on the open web' },
