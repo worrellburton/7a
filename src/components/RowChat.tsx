@@ -97,8 +97,16 @@ export function RowChat({
     }
     load();
 
+    // Unique suffix per mount. supabase-js v2 returns an existing
+    // channel handle if you re-use a name that's already registered
+    // (e.g. after the user closes + re-opens this chat, or has the
+    // same chat open in a second tab) — and calling .on() on a
+    // channel that's already subscribed throws "cannot add
+    // postgres_changes callbacks ... after subscribe()". A random
+    // suffix guarantees a fresh handle on every mount; cleanup still
+    // calls removeChannel so we don't leak.
     const channel = supabase
-      .channel(`row-chat-${table}-${keyValue}`)
+      .channel(`row-chat-${table}-${keyValue}-${Math.random().toString(36).slice(2, 8)}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table, filter: `${keyColumn}=eq.${keyValue}` },
