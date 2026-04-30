@@ -1,10 +1,10 @@
-import type { Metadata } from 'next';
-import SeoContent from './content';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'SEO - Patient Portal',
-};
-
+// /app/seo redirects straight to the Activities tab — that's the
+// landing surface admins want by default (live feed of every SEO
+// edit across the team). The standalone Search-Console summary
+// content used to render here; it's still reachable from the WIP
+// dropdown if anyone needs to revive it.
 export default function SeoPage() {
-  return <SeoContent />;
+  redirect('/app/seo/actions');
 }

@@ -200,23 +200,28 @@ export default function RecentDirectoryActivity() {
                 const { verb, accent } = describeDirectoryActivity(row);
                 const initial = (u?.full_name || u?.email || '?').charAt(0).toUpperCase();
                 return (
-                  <li key={row.id} className="flex items-center gap-2.5 px-4 py-2">
+                  <li key={row.id} className="flex items-start gap-2.5 px-4 py-2">
                     {u?.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-black/5" />
+                      <img src={u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-black/5 mt-0.5" />
                     ) : (
-                      <span className="w-6 h-6 rounded-full shrink-0 bg-primary text-white flex items-center justify-center text-[10px] font-bold">
+                      <span className="w-6 h-6 rounded-full shrink-0 bg-primary text-white flex items-center justify-center text-[10px] font-bold mt-0.5">
                         {initial}
                       </span>
                     )}
-                    <p className="text-xs text-foreground/85 flex-1 min-w-0 truncate">
+                    {/* break-words + no truncate so long target_label
+                        values wrap to a second line on mobile instead
+                        of getting cut off mid-phrase. leading-snug
+                        keeps the wrap tight so the row doesn't grow
+                        too tall. */}
+                    <p className="text-xs text-foreground/85 flex-1 min-w-0 break-words leading-snug">
                       <span className="font-semibold">{u?.full_name || u?.email || 'Someone'}</span>
                       <span className={`ml-1 ${accent}`}>{verb}</span>
                       {row.target_label && (
                         <span className="ml-1 text-foreground/80">&quot;{row.target_label}&quot;</span>
                       )}
                     </p>
-                    <span className="shrink-0 text-[10px] text-foreground/40 whitespace-nowrap">
+                    <span className="shrink-0 text-[10px] text-foreground/40 whitespace-nowrap mt-0.5">
                       {activityTimeAgo(row.created_at)}
                     </span>
                   </li>
