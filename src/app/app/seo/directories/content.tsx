@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
@@ -3863,21 +3863,22 @@ export default function DirectoriesContent() {
   };
 
   const openComments = (d: Directory) => {
+    if (openChat?.id === d.id) {
+      setOpenChat(null);
+      return;
+    }
     setOpenChat(d);
     markChatRead(d.id);
   };
 
-  // Lock body scroll + close on Escape while drawer is open.
+  // Close on Escape. The thread now expands inline beneath the row
+  // it belongs to instead of taking over the viewport, so we no
+  // longer lock body scroll.
   useEffect(() => {
     if (!openChat) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenChat(null); };
     window.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [openChat]);
 
   // Saving a live URL implies "we got listed there" — flip the
@@ -4163,8 +4164,10 @@ export default function DirectoriesContent() {
                 const link = linkMap[d.id] ?? '';
                 const tintClass = STATUS_ROW_TINT[status];
                 const isHidden = !!directoryStates[d.id]?.hidden;
+                const chatOpen = openChat?.id === d.id;
                 return (
-                  <tr key={d.id} className={`align-top transition-colors ${tintClass} ${isHidden ? 'opacity-50' : ''}`}>
+                  <Fragment key={d.id}>
+                  <tr className={`align-top transition-colors ${tintClass} ${isHidden ? 'opacity-50' : ''} ${chatOpen ? 'ring-1 ring-primary/20' : ''}`}>
                     <td className="px-4 py-3">
                       <div className="min-w-0">
                         <a
@@ -4277,9 +4280,10 @@ export default function DirectoriesContent() {
                       <button
                         type="button"
                         onClick={() => openComments(d)}
-                        title={chatCounts[d.id] ? `${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}` : 'Add a comment'}
+                        title={chatOpen ? 'Hide comments' : (chatCounts[d.id] ? `${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}` : 'Add a comment')}
                         aria-label={`Comments for ${d.name}`}
-                        className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/5 transition-colors"
+                        aria-expanded={chatOpen}
+                        className={`relative inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${chatOpen ? 'text-primary bg-primary/10' : 'text-foreground/45 hover:text-primary hover:bg-primary/5'}`}
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
@@ -4327,6 +4331,46 @@ export default function DirectoriesContent() {
                       )}
                     </td>
                   </tr>
+                  {chatOpen && (
+                    <tr className={`${tintClass}`}>
+                      <td colSpan={10} className="px-0 py-0 border-t border-primary/15">
+                        <div className="bg-white border-y border-primary/10">
+                          <header className="flex items-center justify-between px-4 py-2 bg-warm-bg/40 border-b border-black/5">
+                            <div className="flex items-baseline gap-2 min-w-0">
+                              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/55">
+                                Comments
+                              </span>
+                              <span className="text-[12px] text-foreground/65 truncate" title={d.name}>
+                                {d.name}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setOpenChat(null)}
+                              aria-label="Close comments"
+                              className="p-1 rounded text-foreground/45 hover:text-foreground/80 hover:bg-black/5"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </header>
+                          <div className="h-[420px]">
+                            <RowChat
+                              table="seo_directory_messages"
+                              keyColumn="directory_id"
+                              keyValue={d.id}
+                              label={d.name}
+                              targetPath="/app/seo/directories"
+                              activityType="seo.directory_chat_message"
+                              activityKind="seo_directory"
+                            />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -4349,10 +4393,11 @@ export default function DirectoriesContent() {
             const isHidden = !!directoryStates[d.id]?.hidden;
             const paid = directoryStates[d.id]?.paid ?? false;
             const paidAmt = directoryStates[d.id]?.paid_amount ?? null;
+            const chatOpen = openChat?.id === d.id;
             return (
               <article
                 key={d.id}
-                className={`relative rounded-xl border border-black/10 bg-white p-3 transition-colors ${tintClass} ${isHidden ? 'opacity-50' : ''}`}
+                className={`relative rounded-xl border border-black/10 bg-white p-3 transition-colors ${tintClass} ${isHidden ? 'opacity-50' : ''} ${chatOpen ? 'ring-1 ring-primary/30' : ''}`}
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0 flex-1">
@@ -4492,9 +4537,10 @@ export default function DirectoriesContent() {
                   <button
                     type="button"
                     onClick={() => openComments(d)}
-                    title={chatCounts[d.id] ? `${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}` : 'Add a comment'}
+                    title={chatOpen ? 'Hide comments' : (chatCounts[d.id] ? `${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}` : 'Add a comment')}
                     aria-label={`Comments for ${d.name}`}
-                    className="relative inline-flex items-center gap-1.5 text-[11px] font-semibold text-foreground/65 hover:text-primary px-2 py-1 rounded-lg hover:bg-primary/5"
+                    aria-expanded={chatOpen}
+                    className={`relative inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-lg transition-colors ${chatOpen ? 'text-primary bg-primary/10' : 'text-foreground/65 hover:text-primary hover:bg-primary/5'}`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
@@ -4505,69 +4551,42 @@ export default function DirectoriesContent() {
                     )}
                   </button>
                 </div>
+                {chatOpen && (
+                  <div className="mt-3 -mx-3 -mb-3 border-t border-primary/15 bg-white rounded-b-xl overflow-hidden">
+                    <header className="flex items-center justify-between px-3 py-2 bg-warm-bg/40 border-b border-black/5">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/55">
+                        Comments
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setOpenChat(null)}
+                        aria-label="Close comments"
+                        className="p-1 rounded text-foreground/45 hover:text-foreground/80 hover:bg-black/5"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </header>
+                    <div className="h-[380px]">
+                      <RowChat
+                        table="seo_directory_messages"
+                        keyColumn="directory_id"
+                        keyValue={d.id}
+                        label={d.name}
+                        targetPath="/app/seo/directories"
+                        activityType="seo.directory_chat_message"
+                        activityKind="seo_directory"
+                      />
+                    </div>
+                  </div>
+                )}
               </article>
             );
           })}
         </div>
       )}
 
-      {openChat && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Comments for ${openChat.name}`}
-          className="fixed inset-0 z-[100] flex justify-end"
-          onClick={() => setOpenChat(null)}
-        >
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-          <aside
-            className="relative bg-white w-full sm:max-w-md h-full shadow-2xl flex flex-col animate-drawer-slide"
-            onClick={(e) => e.stopPropagation()}
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            <header className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">
-                  Directory comments
-                </p>
-                <p className="text-sm font-medium text-foreground truncate mt-0.5" title={openChat.name}>
-                  {openChat.name}
-                </p>
-                <a
-                  href={openChat.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] text-primary/70 hover:text-primary hover:underline truncate block max-w-full"
-                  title={openChat.url}
-                >
-                  {openChat.url.replace(/^https?:\/\//, '')}
-                </a>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOpenChat(null)}
-                aria-label="Close"
-                className="shrink-0 p-1.5 rounded-lg text-foreground/45 hover:bg-warm-bg hover:text-foreground/80 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </header>
-            <div className="flex-1 min-h-0">
-              <RowChat
-                table="seo_directory_messages"
-                keyColumn="directory_id"
-                keyValue={openChat.id}
-                label={openChat.name}
-                targetPath="/app/seo/directories"
-                activityType="seo.directory_chat_message"
-                activityKind="seo_directory"
-              />
-            </div>
-          </aside>
-        </div>
-      )}
     </div>
   );
 }
