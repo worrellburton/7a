@@ -45,6 +45,7 @@ function describeDirectoryActivity(row: ActivityRow): { verb: string; accent: st
       const label =
         to === 'listed' ? 'marked as Listed'
         : to === 'pending' ? 'marked as Submitted'
+        : to === 'pending_review' ? 'marked as Pending'
         : to === 'skip' ? 'marked as Skip'
         : to === 'need_credentials' ? 'flagged Need credentials'
         : to === 'claim_in_process' ? 'started Claim in process'
@@ -53,6 +54,7 @@ function describeDirectoryActivity(row: ActivityRow): { verb: string; accent: st
       const accent =
         to === 'listed' ? 'text-emerald-700'
         : to === 'pending' ? 'text-amber-700'
+        : to === 'pending_review' ? 'text-yellow-700'
         : to === 'need_credentials' ? 'text-rose-700'
         : to === 'claim_in_process' ? 'text-blue-700'
         : to === 'skip' ? 'text-foreground/55'
