@@ -14,16 +14,23 @@ import { useAuth } from '@/lib/AuthProvider';
 // Each tab does its own data fetch on activation; the lists are
 // small enough that there's no value in pre-fetching all four.
 
-type Tab = 'overview' | 'vobs' | 'forms' | 'careers';
+type Tab = 'overview' | 'vobs' | 'forms' | 'careers' | 'spam';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'vobs', label: 'VOBs' },
   { id: 'forms', label: 'Forms' },
   { id: 'careers', label: 'Careers' },
+  { id: 'spam', label: 'Spam' },
 ];
 
 function isTab(v: string | null): v is Tab {
-  return v === 'overview' || v === 'vobs' || v === 'forms' || v === 'careers';
+  return (
+    v === 'overview'
+    || v === 'vobs'
+    || v === 'forms'
+    || v === 'careers'
+    || v === 'spam'
+  );
 }
 
 export default function WebsiteRequestsContent() {
@@ -79,8 +86,9 @@ export default function WebsiteRequestsContent() {
 
       {tab === 'overview' && <OverviewPanel onJump={selectTab} />}
       {tab === 'vobs' && <VobsPanel />}
-      {tab === 'forms' && <FormsPanel />}
+      {tab === 'forms' && <FormsPanel mode="forms" />}
       {tab === 'careers' && <CareersPanel />}
+      {tab === 'spam' && <FormsPanel mode="spam" />}
     </div>
   );
 }
@@ -1337,12 +1345,16 @@ const FORM_SOURCE_LABELS: Record<Exclude<FormSourceFilter, 'all'>, string> = {
   other: 'Other',
 };
 
-function FormsPanel() {
+function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
   const [rows, setRows] = useState<FormRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FormSourceFilter>('all');
+  // showSpam toggle is only meaningful on the Forms tab. The Spam
+  // tab is itself the spam-only view, so we ignore the toggle there
+  // and force-show.
   const [showSpam, setShowSpam] = useState(false);
+  const isSpamView = mode === 'spam';
   const { respond, busyId } = useRespond('contact');
   const { remove, busyId: deletingId } = useDelete('contact');
   const { markSpam, busyId: spamId } = useMarkSpam();
@@ -1370,10 +1382,14 @@ function FormsPanel() {
 
   const visible = useMemo(() => {
     let out = rows;
-    if (!showSpam) out = out.filter((r) => !r.is_spam);
+    if (isSpamView) {
+      out = out.filter((r) => r.is_spam);
+    } else if (!showSpam) {
+      out = out.filter((r) => !r.is_spam);
+    }
     if (filter !== 'all') out = out.filter((r) => r.source === filter);
     return out;
-  }, [rows, filter, showSpam]);
+  }, [rows, filter, showSpam, isSpamView]);
 
   async function handleMarkResponded(id: string, note: string) {
     const result = await respond(id, { note });
@@ -1416,7 +1432,9 @@ function FormsPanel() {
           </button>
         ))}
         <span className="ml-auto" />
-        {spamCount > 0 && (
+        {/* Show/Hide spam toggle is only useful on the Forms tab —
+            the Spam tab itself is the spam-only view. */}
+        {!isSpamView && spamCount > 0 && (
           <button
             type="button"
             onClick={() => setShowSpam((v) => !v)}
@@ -1430,10 +1448,21 @@ function FormsPanel() {
             {showSpam ? 'Hide' : 'Show'} spam ({spamCount})
           </button>
         )}
+        {isSpamView && (
+          <span className="text-xs text-amber-800 font-semibold">
+            {spamCount} flagged spam
+          </span>
+        )}
       </div>
 
-      {visible.length === 0 && filter !== 'all' && (
-        <p className="text-sm text-foreground/50">No submissions match the current filter.</p>
+      {visible.length === 0 && (
+        <p className="text-sm text-foreground/50">
+          {isSpamView
+            ? 'No spam — every submission so far passed the gibberish filter.'
+            : filter !== 'all'
+              ? 'No submissions match the current filter.'
+              : 'No submissions yet.'}
+        </p>
       )}
 
       {visible.length > 0 && (
