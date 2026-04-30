@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
@@ -3021,6 +3021,15 @@ interface DirectoryStateRow {
   hidden: boolean;
   hidden_set_by: string | null;
   hidden_set_at: string | null;
+  // NAP (Name / Address / Phone) actually deployed at the listing
+  // site. Compared against the canonical NAP in `business_info` to
+  // surface mismatches, which are a documented local-SEO penalty.
+  // All three nullable; null means "not audited yet."
+  nap_name: string | null;
+  nap_address: string | null;
+  nap_phone: string | null;
+  nap_set_by: string | null;
+  nap_set_at: string | null;
 }
 
 interface UserLite {
@@ -3041,7 +3050,7 @@ function useDirectoryStates() {
       const rows = await db({
         action: 'select',
         table: 'directory_states',
-        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at',
+        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at',
       }).catch(() => null);
       if (cancelled) return;
       const map: Record<string, DirectoryStateRow> = {};
@@ -3090,7 +3099,7 @@ function useDirectoryStates() {
           const fresh = await db({
             action: 'select',
             table: 'directory_states',
-            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at',
+            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at',
           }).catch(() => null);
           if (!cancelled && Array.isArray(fresh)) {
             const next: Record<string, DirectoryStateRow> = {};
@@ -3160,6 +3169,8 @@ function useDirectoryStates() {
     const existing = byId[id];
     const paidChanged = patch.paid !== undefined || patch.paid_amount !== undefined;
     const hiddenChanged = patch.hidden !== undefined;
+    const napChanged =
+      patch.nap_name !== undefined || patch.nap_address !== undefined || patch.nap_phone !== undefined;
     const next: DirectoryStateRow = {
       directory_id: id,
       status: patch.status ?? existing?.status ?? 'todo',
@@ -3179,6 +3190,11 @@ function useDirectoryStates() {
       hidden: patch.hidden !== undefined ? patch.hidden : (existing?.hidden ?? false),
       hidden_set_by: hiddenChanged ? user.id : (existing?.hidden_set_by ?? null),
       hidden_set_at: hiddenChanged ? new Date().toISOString() : (existing?.hidden_set_at ?? null),
+      nap_name: patch.nap_name !== undefined ? patch.nap_name : (existing?.nap_name ?? null),
+      nap_address: patch.nap_address !== undefined ? patch.nap_address : (existing?.nap_address ?? null),
+      nap_phone: patch.nap_phone !== undefined ? patch.nap_phone : (existing?.nap_phone ?? null),
+      nap_set_by: napChanged ? user.id : (existing?.nap_set_by ?? null),
+      nap_set_at: napChanged ? new Date().toISOString() : (existing?.nap_set_at ?? null),
     };
     setById((prev) => ({ ...prev, [id]: next }));
     // Surface upsert errors instead of silently swallowing them.
@@ -3247,9 +3263,146 @@ function useDirectoryStates() {
           : { previousUrl: existing?.link ?? null },
       });
     }
+    if (napChanged) {
+      const wasSet = !!(existing?.nap_name || existing?.nap_address || existing?.nap_phone);
+      const isSet = !!(next.nap_name || next.nap_address || next.nap_phone);
+      void logActivity({
+        userId: user.id,
+        type:
+          !wasSet && isSet
+            ? 'seo.directory_nap_added'
+            : wasSet && !isSet
+              ? 'seo.directory_nap_cleared'
+              : 'seo.directory_nap_updated',
+        targetKind: 'seo_directory',
+        targetId: id,
+        targetLabel: label,
+        targetPath: '/app/seo/directories',
+        metadata: {
+          name: next.nap_name,
+          address: next.nap_address,
+          phone: next.nap_phone,
+        },
+      });
+    }
   };
 
   return { byId, users, upsert };
+}
+
+// ── Canonical NAP (Name / Address / Phone) ─────────────────────────
+//
+// Single source of truth for the business's NAP, kept in
+// public.business_info (singleton row, edited on /app/seo/information).
+// Every directory listing the team submits should match this NAP
+// exactly — mismatched NAP across citations is a documented local-SEO
+// ranking penalty. We surface the canonical here at the top of the
+// page (so admins copy from one place) and also use it to flag
+// per-directory NAPs that drift.
+
+interface CanonicalNap {
+  name: string | null;
+  /** One-line address, joined from the address fields in business_info. */
+  address: string | null;
+  phone: string | null;
+  /** True once the singleton row has been read (success or empty). */
+  loaded: boolean;
+}
+
+function joinAddress(row: {
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+}): string | null {
+  const street = [row.address_line1, row.address_line2].filter(Boolean).join(', ');
+  const cityState = [row.city, row.state].filter(Boolean).join(', ');
+  const tail = [cityState, row.postal_code].filter(Boolean).join(' ');
+  const full = [street, tail].filter(Boolean).join(', ');
+  return full || null;
+}
+
+function useCanonicalNap(): CanonicalNap {
+  const { session } = useAuth();
+  const [nap, setNap] = useState<CanonicalNap>({
+    name: null,
+    address: null,
+    phone: null,
+    loaded: false,
+  });
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let cancelled = false;
+    (async () => {
+      const rows = await db({
+        action: 'select',
+        table: 'business_info',
+        select: 'business_name, address_line1, address_line2, city, state, postal_code, phone',
+      }).catch(() => null);
+      if (cancelled) return;
+      const row = Array.isArray(rows) && rows.length > 0
+        ? (rows[0] as {
+            business_name: string | null;
+            address_line1: string | null;
+            address_line2: string | null;
+            city: string | null;
+            state: string | null;
+            postal_code: string | null;
+            phone: string | null;
+          })
+        : null;
+      setNap({
+        name: row?.business_name ?? null,
+        address: row ? joinAddress(row) : null,
+        phone: row?.phone ?? null,
+        loaded: true,
+      });
+    })();
+
+    // Realtime: if a super admin edits /app/seo/information we want
+    // the banner here to update immediately, since the team's
+    // copy-paste flow depends on it being current.
+    const channel = supabase
+      .channel(`business_info_directories_${Math.random().toString(36).slice(2, 8)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'business_info' }, (payload) => {
+        const row = (payload.new ?? payload.old) as {
+          business_name: string | null;
+          address_line1: string | null;
+          address_line2: string | null;
+          city: string | null;
+          state: string | null;
+          postal_code: string | null;
+          phone: string | null;
+        } | null;
+        if (!row) return;
+        setNap({
+          name: row.business_name ?? null,
+          address: joinAddress(row),
+          phone: row.phone ?? null,
+          loaded: true,
+        });
+      })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      void supabase.removeChannel(channel);
+    };
+  }, [session?.access_token]);
+
+  return nap;
+}
+
+// Loose equality for NAP comparison: lowercased + non-alphanum
+// stripped. This means "(866) 996-4308" matches "8669964308" and
+// "2491 W. Jefferson Rd." matches "2491 W Jefferson Rd" — both real
+// variations directories produce. Any null/empty side returns false
+// (we don't claim a match when we don't know).
+function napFieldMatches(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false;
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return norm(a) === norm(b);
 }
 
 // ── Semrush referring-domain match ─────────────────────────────────
@@ -3729,6 +3882,7 @@ export default function DirectoriesContent() {
   // useDirectoryStates — every read/write below now goes through the
   // server table directly.
   const { byId: directoryStates, users: directoryStateUsers, upsert: upsertDirectoryState } = useDirectoryStates();
+  const canonicalNap = useCanonicalNap();
   const statusMap = useMemo(() => {
     const out: Record<string, Status> = {};
     for (const [id, row] of Object.entries(directoryStates)) {
@@ -4076,6 +4230,8 @@ export default function DirectoriesContent() {
         ))}
       </div>
 
+      <CanonicalNapBanner nap={canonicalNap} />
+
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <input
@@ -4153,6 +4309,7 @@ export default function DirectoriesContent() {
                 <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-20">Fit</th>
                 <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-28">Paid</th>
                 <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-64">Live link</th>
+                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-28">NAP</th>
                 <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
                 <th className="text-center px-4 py-2.5 font-semibold border-b border-black/10 w-16">Notes</th>
                 <th className="text-right px-4 py-2.5 font-semibold border-b border-black/10 w-12" aria-label="Delete" />
@@ -4249,6 +4406,16 @@ export default function DirectoriesContent() {
                           ? (directoryStateUsers[directoryStates[d.id].link_set_by!]?.full_name ?? null)
                           : null}
                         setAt={directoryStates[d.id]?.link_set_at ?? null}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <NapCell
+                        state={directoryStates[d.id] ?? null}
+                        canonical={canonicalNap}
+                        onSave={(patch) => upsertDirectoryState(d.id, patch)}
+                        setBy={directoryStates[d.id]?.nap_set_by
+                          ? (directoryStateUsers[directoryStates[d.id].nap_set_by!]?.full_name ?? null)
+                          : null}
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -4926,5 +5093,362 @@ function ProgressCard({
       <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/50">{label}</p>
       <p className={`text-2xl font-bold tabular-nums mt-1 ${color}`}>{value}</p>
     </div>
+  );
+}
+
+// ── Canonical NAP banner ───────────────────────────────────────────
+//
+// The team submits dozens of directory listings; every one needs the
+// same Name / Address / Phone, so we surface the canonical at the top
+// of the page with one-click Copy buttons. Single source of truth is
+// public.business_info (edited on /app/seo/information). If that row
+// is missing, we tell admins to fill it in.
+
+function CanonicalNapBanner({ nap }: { nap: CanonicalNap }) {
+  if (!nap.loaded) {
+    return (
+      <div className="mb-5 rounded-xl border border-black/10 bg-white px-4 py-3 text-xs text-foreground/45">
+        Loading canonical NAP…
+      </div>
+    );
+  }
+  const incomplete = !nap.name || !nap.address || !nap.phone;
+  return (
+    <div
+      className={`mb-5 rounded-xl border px-4 py-3 ${
+        incomplete
+          ? 'border-amber-300/70 bg-amber-50/60'
+          : 'border-emerald-200 bg-emerald-50/40'
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55">
+            Canonical NAP — copy this verbatim into every listing
+          </p>
+          <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-3 sm:gap-4">
+            <NapField label="Name" value={nap.name} />
+            <NapField label="Address" value={nap.address} />
+            <NapField label="Phone" value={nap.phone} />
+          </div>
+        </div>
+        {incomplete && (
+          <Link
+            href="/app/seo/information"
+            className="text-[11px] font-semibold text-amber-800 underline-offset-2 hover:underline whitespace-nowrap"
+          >
+            Fill in →
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NapField({ label, value }: { label: string; value: string | null }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // clipboard denied — non-fatal, the value is still visible
+    }
+  };
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] uppercase tracking-wider text-foreground/45">{label}</p>
+      <div className="flex items-center gap-1.5">
+        <p className="truncate text-[13px] font-medium text-foreground" title={value ?? undefined}>
+          {value ?? <span className="text-amber-700">Not set</span>}
+        </p>
+        {value && (
+          <button
+            type="button"
+            onClick={onCopy}
+            title={copied ? 'Copied' : `Copy ${label.toLowerCase()}`}
+            aria-label={`Copy ${label}`}
+            className="inline-flex items-center justify-center w-5 h-5 rounded text-foreground/40 hover:text-primary hover:bg-primary/5 transition-colors"
+          >
+            {copied ? (
+              <svg className="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Per-directory NAP cell ─────────────────────────────────────────
+//
+// Two-state cell: closed shows a compact "+ NAP" or status pill; open
+// shows an inline editor with three inputs. Closed-state pill colors
+// signal whether the deployed NAP matches the canonical:
+//   green = all three fields normalized-equal to canonical
+//   amber = partial match (one or two fields differ)
+//   rose  = nothing matches
+//   gray  = nothing recorded yet
+// Hover the pill to see the full N/A/P in a tooltip.
+
+function NapCell({
+  state,
+  canonical,
+  onSave,
+  setBy,
+}: {
+  state: DirectoryStateRow | null;
+  canonical: CanonicalNap;
+  onSave: (patch: Partial<DirectoryStateRow>) => Promise<void> | void;
+  setBy: string | null;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(state?.nap_name ?? '');
+  const [draftAddress, setDraftAddress] = useState(state?.nap_address ?? '');
+  const [draftPhone, setDraftPhone] = useState(state?.nap_phone ?? '');
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  // Re-seed drafts whenever the upstream state changes (e.g. a
+  // teammate's edit lands via realtime while this cell is closed).
+  useEffect(() => {
+    if (editing) return;
+    setDraftName(state?.nap_name ?? '');
+    setDraftAddress(state?.nap_address ?? '');
+    setDraftPhone(state?.nap_phone ?? '');
+  }, [state?.nap_name, state?.nap_address, state?.nap_phone, editing]);
+
+  // Outside-click and Escape both dismiss the editor without saving.
+  useEffect(() => {
+    if (!editing) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (popoverRef.current?.contains(t)) return;
+      if (triggerRef.current?.contains(t)) return;
+      setEditing(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEditing(false);
+    };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [editing]);
+
+  const hasAny = !!(state?.nap_name || state?.nap_address || state?.nap_phone);
+
+  // Match score against canonical (if any). Each field that's set on
+  // both sides and matches counts as 1.
+  const compared: Array<'match' | 'differ' | 'missing'> = (() => {
+    const fields: Array<[string | null | undefined, string | null]> = [
+      [state?.nap_name, canonical.name],
+      [state?.nap_address, canonical.address],
+      [state?.nap_phone, canonical.phone],
+    ];
+    return fields.map(([a, b]) => {
+      if (!a) return 'missing';
+      if (!b) return 'missing';
+      return napFieldMatches(a, b) ? 'match' : 'differ';
+    });
+  })();
+  const matchCount = compared.filter((v) => v === 'match').length;
+  const differCount = compared.filter((v) => v === 'differ').length;
+  const tone: 'gray' | 'green' | 'amber' | 'rose' =
+    !hasAny ? 'gray'
+    : differCount === 0 && matchCount > 0 ? 'green'
+    : matchCount > 0 ? 'amber'
+    : 'rose';
+
+  const TONE_CLASS = {
+    gray: 'border-black/15 bg-white text-foreground/55 hover:border-primary/40 hover:text-primary',
+    green: 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-400',
+    amber: 'border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-400',
+    rose: 'border-rose-300 bg-rose-50 text-rose-800 hover:border-rose-400',
+  } as const;
+
+  const tooltip = hasAny
+    ? `${state?.nap_name ?? '—'}\n${state?.nap_address ?? '—'}\n${state?.nap_phone ?? '—'}`
+    : 'Click to record the NAP deployed at this listing';
+
+  const save = async () => {
+    await onSave({
+      nap_name: draftName.trim() || null,
+      nap_address: draftAddress.trim() || null,
+      nap_phone: draftPhone.trim() || null,
+    });
+    setEditing(false);
+  };
+  const clear = async () => {
+    await onSave({ nap_name: null, nap_address: null, nap_phone: null });
+    setDraftName('');
+    setDraftAddress('');
+    setDraftPhone('');
+    setEditing(false);
+  };
+  const fillFromCanonical = () => {
+    setDraftName(canonical.name ?? '');
+    setDraftAddress(canonical.address ?? '');
+    setDraftPhone(canonical.phone ?? '');
+  };
+
+  return (
+    <div className="group relative inline-block">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setEditing((v) => !v)}
+        title={tooltip}
+        aria-label={hasAny ? 'Edit NAP' : 'Add NAP'}
+        aria-expanded={editing}
+        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${TONE_CLASS[tone]}`}
+      >
+        {hasAny ? (
+          <>
+            <span className="font-mono tabular-nums text-[10px] opacity-80">{matchCount}/3</span>
+            <span>NAP</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>NAP</span>
+          </>
+        )}
+      </button>
+
+      {/* Hover preview — pure CSS, no JS state. Renders only when
+          something is recorded; the empty state's tooltip already
+          covers the empty case via the title attribute. */}
+      {hasAny && !editing && (
+        <div className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden w-64 rounded-lg border border-black/10 bg-white p-3 text-[11px] shadow-lg group-hover:block">
+          <NapPreviewLine label="Name" value={state?.nap_name ?? null} match={compared[0]} />
+          <NapPreviewLine label="Address" value={state?.nap_address ?? null} match={compared[1]} />
+          <NapPreviewLine label="Phone" value={state?.nap_phone ?? null} match={compared[2]} />
+        </div>
+      )}
+
+      {editing && (
+        <div
+          ref={popoverRef}
+          role="dialog"
+          aria-label="Edit NAP"
+          className="absolute left-0 top-full z-40 mt-1 w-80 rounded-xl border border-black/10 bg-white p-3 shadow-xl"
+        >
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55">
+              Listing NAP
+            </p>
+            {(canonical.name || canonical.address || canonical.phone) && (
+              <button
+                type="button"
+                onClick={fillFromCanonical}
+                className="text-[10px] font-semibold text-primary hover:underline"
+              >
+                Fill from canonical
+              </button>
+            )}
+          </div>
+          <div className="space-y-2">
+            <NapInput label="Name" value={draftName} onChange={setDraftName} canonical={canonical.name} placeholder="Seven Arrows Recovery" />
+            <NapInput label="Address" value={draftAddress} onChange={setDraftAddress} canonical={canonical.address} placeholder="2491 W Jefferson Rd, Elfrida, AZ 85610" />
+            <NapInput label="Phone" value={draftPhone} onChange={setDraftPhone} canonical={canonical.phone} placeholder="(866) 996-4308" />
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            {hasAny ? (
+              <button
+                type="button"
+                onClick={clear}
+                className="text-[11px] text-rose-700 hover:underline"
+              >
+                Clear
+              </button>
+            ) : <span />}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="rounded-md border border-black/10 bg-white px-2.5 py-1 text-[11px] text-foreground/70 hover:border-black/20"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void save()}
+                className="rounded-md bg-primary px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-primary-dark"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+          {setBy && state?.nap_set_at && (
+            <p className="mt-2 text-[10px] text-foreground/40">
+              Last set by {setBy} · {new Date(state.nap_set_at).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NapPreviewLine({ label, value, match }: { label: string; value: string | null; match: 'match' | 'differ' | 'missing' }) {
+  const dot =
+    match === 'match' ? 'bg-emerald-500'
+    : match === 'differ' ? 'bg-amber-500'
+    : 'bg-foreground/20';
+  return (
+    <div className="mb-1 flex items-start gap-2">
+      <span className={`mt-1 h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[9px] uppercase tracking-wider text-foreground/45">{label}</p>
+        <p className="break-words text-foreground/80">{value ?? <span className="text-foreground/35">—</span>}</p>
+      </div>
+    </div>
+  );
+}
+
+function NapInput({
+  label, value, onChange, canonical, placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  canonical: string | null;
+  placeholder: string;
+}) {
+  const matches = napFieldMatches(value, canonical);
+  const hasValue = value.trim().length > 0;
+  return (
+    <label className="block">
+      <div className="mb-0.5 flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55">{label}</span>
+        {hasValue && canonical && (
+          <span className={`text-[10px] ${matches ? 'text-emerald-700' : 'text-amber-700'}`}>
+            {matches ? '✓ matches canonical' : '≠ differs from canonical'}
+          </span>
+        )}
+      </div>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        spellCheck={false}
+        className="w-full rounded-md border border-black/10 bg-white px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary/50"
+      />
+    </label>
   );
 }
