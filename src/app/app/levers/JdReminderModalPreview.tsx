@@ -43,10 +43,14 @@ export default function JdReminderModalPreview({
   const displayPuller = pulledByName ?? 'Bobby';
 
   // Wrapper: fixed full-screen for live; absolute fill for preview
-  // so it stays inside the bordered preview container.
+  // so it stays inside the bordered preview container. Both modes
+  // allow vertical scroll so a short viewport (phone in landscape,
+  // small laptop) can still reach the buttons if the card is taller
+  // than the screen. py-* gives breathing room when the card hits
+  // the viewport edges.
   const wrapperClass = previewMode
-    ? 'absolute inset-0 flex items-center justify-center'
-    : 'fixed inset-0 z-[100] flex items-center justify-center';
+    ? 'absolute inset-0 flex items-center justify-center overflow-y-auto py-4'
+    : 'fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto py-6 sm:py-10';
 
   return (
     <div
@@ -72,7 +76,7 @@ export default function JdReminderModalPreview({
 
       {/* Card */}
       <div
-        className={`relative ${previewMode ? 'max-w-[80%] scale-[0.85]' : 'max-w-2xl mx-4'} w-full rounded-3xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden`}
+        className={`relative ${previewMode ? 'max-w-[80%] scale-[0.85]' : 'max-w-2xl mx-4 my-auto'} w-full rounded-2xl sm:rounded-3xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden`}
       >
         <div
           aria-hidden="true"
@@ -82,8 +86,8 @@ export default function JdReminderModalPreview({
               'linear-gradient(90deg, #d4794a 0%, #bc6b4a 50%, #a45a3d 100%)',
           }}
         />
-        <div className="px-8 py-9 lg:px-10 lg:py-10">
-          <p className="text-[11px] font-semibold tracking-[0.22em] uppercase text-primary mb-3">
+        <div className="px-5 py-6 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
+          <p className="text-[10px] sm:text-[11px] font-semibold tracking-[0.22em] uppercase text-primary mb-3">
             One thing on your plate
           </p>
           <h1
@@ -91,22 +95,26 @@ export default function JdReminderModalPreview({
             className="text-foreground font-bold tracking-tight"
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 'clamp(1.75rem, 3vw, 2.4rem)',
-              lineHeight: 1.05,
+              fontSize: 'clamp(1.5rem, 5vw, 2.4rem)',
+              lineHeight: 1.08,
             }}
           >
             {greeting}, your job description is ready to sign.
           </h1>
-          <p className="mt-5 text-foreground/75 text-base leading-relaxed">
+          <p className="mt-4 sm:mt-5 text-foreground/75 text-[15px] sm:text-base leading-relaxed">
             <span className="font-semibold text-foreground">{displayPuller}</span>{' '}
             sent it your way. Take two minutes to read{' '}
             <span className="italic">{displayJdTitle}</span> and add your
             signature — it&rsquo;s the source of truth for what you own and
             what you&rsquo;re accountable for.
           </p>
-          <div className="mt-7 flex flex-wrap items-center gap-3">
+          {/* Action stack — primary CTA stretches full-width on
+              mobile so the tap target is unmissable; on tablet+ it
+              shrinks to its content and sits inline with the
+              secondary "continue without signing" link. */}
+          <div className="mt-6 sm:mt-7 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
             {previewMode ? (
-              <span className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm">
+              <span className="inline-flex w-full sm:w-auto items-center justify-center sm:justify-start gap-2 rounded-lg bg-primary px-5 py-3 sm:py-2.5 text-sm font-semibold text-white shadow-sm">
                 Open &amp; sign now
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
@@ -116,7 +124,7 @@ export default function JdReminderModalPreview({
               <Link
                 href="/app/job-descriptions"
                 onClick={onAcknowledge}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark transition"
+                className="inline-flex w-full sm:w-auto items-center justify-center sm:justify-start gap-2 rounded-lg bg-primary px-5 py-3 sm:py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark transition"
               >
                 Open &amp; sign now
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" aria-hidden="true">
@@ -124,13 +132,22 @@ export default function JdReminderModalPreview({
                 </svg>
               </Link>
             )}
-            {!previewMode && (
+            {/* "Continue without signing" — always visible (admin
+                preview + live). In preview it's a non-clickable span
+                so the layout matches; live wires onDismiss which
+                marks the lever_pulls row dismissed and closes. min
+                height keeps the tap target ≥44px on mobile per WCAG. */}
+            {previewMode ? (
+              <span className="block sm:inline text-center sm:text-left text-[13px] sm:text-xs text-foreground/55 px-2 py-3 sm:py-2 underline-offset-2 underline decoration-foreground/20">
+                Continue without signing
+              </span>
+            ) : (
               <button
                 type="button"
                 onClick={onDismiss}
-                className="text-xs text-foreground/55 hover:text-foreground/85 transition-colors px-2 py-2"
+                className="block sm:inline w-full sm:w-auto text-center sm:text-left text-[13px] sm:text-xs text-foreground/55 hover:text-foreground/85 transition-colors px-2 py-3 sm:py-2 underline-offset-2 underline decoration-foreground/20 hover:decoration-foreground/40 min-h-[44px] sm:min-h-0"
               >
-                Remind me later
+                Continue without signing
               </button>
             )}
           </div>
