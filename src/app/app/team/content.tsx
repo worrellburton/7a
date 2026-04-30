@@ -110,7 +110,7 @@ function presenceLabel(lastSeenAt: string | null): { online: boolean; text: stri
 }
 
 export default function UsersContent() {
-  const { user, session, isAdmin } = useAuth();
+  const { user, session, isAdmin, isSuperAdmin } = useAuth();
   const router = useRouter();
   const { confirm } = useModal();
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -377,10 +377,17 @@ export default function UsersContent() {
 
       <TeamPageOrderModal open={orderModalOpen} onClose={() => setOrderModalOpen(false)} />
 
-      {isAdmin && (() => {
+      {isSuperAdmin && (() => {
+        // Super-admin-only block. Pending = on_hold (genuinely
+        // waiting on a decision). Denied users are intentionally
+        // NOT rendered here — once a super admin denies someone we
+        // hide them from this list so the pile stays clean. The
+        // user_status_change_to_on_hold trigger flips them back to
+        // on_hold the next time they sign in, which is when we want
+        // a fresh re-decision, so they re-enter the list at that
+        // moment rather than living in a perpetual "Denied" row.
         const pending = users.filter((u) => u.status === 'on_hold');
-        const denied = users.filter((u) => u.status === 'denied');
-        if (pending.length === 0 && denied.length === 0) return null;
+        if (pending.length === 0) return null;
         return (
           <div className="mb-8 bg-white rounded-2xl shadow-sm border border-amber-100 overflow-hidden">
             <div className="px-5 py-3 border-b border-amber-50 flex items-center justify-between gap-3 bg-amber-50/40">
@@ -395,7 +402,7 @@ export default function UsersContent() {
               </span>
             </div>
             <div className="divide-y divide-gray-50">
-              {[...pending, ...denied].map((u) => (
+              {pending.map((u) => (
                 <div key={u.id} className="px-5 py-3 flex items-center gap-4 flex-wrap">
                   <div className="flex items-center gap-3 flex-1 min-w-[220px]">
                     {u.avatar_url ? (
@@ -411,28 +418,24 @@ export default function UsersContent() {
                       <p className="text-xs text-foreground/50 truncate" style={{ fontFamily: 'var(--font-body)' }}>{u.email}</p>
                     </div>
                   </div>
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${u.status === 'denied' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`} style={{ fontFamily: 'var(--font-body)' }}>
-                    {u.status === 'denied' ? 'Denied' : 'On Hold'}
+                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-50 text-amber-700" style={{ fontFamily: 'var(--font-body)' }}>
+                    On Hold
                   </span>
                   <div className="flex items-center gap-2">
-                    {u.status !== 'active' && (
-                      <button
-                        onClick={() => setUserStatus(u.id, 'active')}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        Approve
-                      </button>
-                    )}
-                    {u.status !== 'denied' && (
-                      <button
-                        onClick={() => setUserStatus(u.id, 'denied')}
-                        className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-foreground/70 text-xs font-semibold hover:border-red-300 hover:text-red-600 transition-colors"
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        Deny
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setUserStatus(u.id, 'active')}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => setUserStatus(u.id, 'denied')}
+                      className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-foreground/70 text-xs font-semibold hover:border-red-300 hover:text-red-600 transition-colors"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Deny
+                    </button>
                   </div>
                 </div>
               ))}
