@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthProvider';
+import { logActivity } from '@/lib/activity';
 import SeoSubNav from '../SeoSubNav';
 
 // SEO Media — single inventory of every image + video on the site
@@ -435,6 +437,7 @@ function ZoomIcon() {
 // download + upload step adds ~1-2s per image. With 8 outings the
 // whole pass typically finishes in 15-25s.
 function LoadOutingPhotosButton() {
+  const { user } = useAuth();
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<null | {
     loaded: number;
@@ -465,6 +468,26 @@ function LoadOutingPhotosButton() {
           errors: json.errors ?? 0,
           detail: json.results ?? [],
         });
+        // Cloud-backed activity feed: every meaningful change to
+        // public site assets writes a row to activity_log so the
+        // global feed picks it up. Fire-and-forget; failures don't
+        // affect the load itself.
+        if (user && (json.loaded > 0 || json.errors > 0)) {
+          void logActivity({
+            userId: user.id,
+            type: 'seo.outing_photos_loaded',
+            targetKind: 'outings',
+            targetId: 'outings-photo-load',
+            targetLabel: `${json.loaded} loaded · ${json.skipped ?? 0} skipped · ${json.errors ?? 0} errors`,
+            targetPath: '/our-program/holistic',
+            metadata: {
+              loaded: json.loaded,
+              skipped: json.skipped,
+              errors: json.errors,
+              forced: force,
+            },
+          });
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');

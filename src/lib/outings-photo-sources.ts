@@ -41,6 +41,34 @@ const CC_BY_SA_4 = {
   fallbackLicenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
 };
 
+// Per-outing provenance notes:
+//
+// - chiricahua-national-monument → Wikipedia article, lead image is
+//   typically NPS work (public domain).
+// - amerind-museum-trails → Texas Canyon article (the museum sits
+//   in Texas Canyon and the canyon's lead image shows the boulder
+//   landscape better than any Amerind-Museum-specific free image).
+// - bisbee-mine-tour → Bisbee, Arizona article. Mine-tour-specific
+//   images are scarce; the town overview gives the historic-mining
+//   feel for the card.
+// - tombstone → Tombstone, Arizona article (Allen Street streetscape
+//   is almost always the lead).
+// - sandhill-cranes-whitewater-draw → Sandhill_crane article. The
+//   Whitewater Draw article exists but rarely has a lead image; the
+//   species article reliably has one.
+// - kartchner-stargazing → Kartchner Caverns State Park article.
+//   Cavern interior photography is often restricted; the article's
+//   lead is exterior / dark-sky-friendly.
+// - turkey-creek → Coronado National Forest article. Turkey Creek
+//   itself doesn't have its own page; the parent forest's lead photo
+//   matches the hiking / canyon feel.
+// - cochise-stronghold → Cochise Stronghold article (granite-dome
+//   lead is exactly what we want).
+//
+// All entries fall back to either USFS/NPS public-domain or Wikipedia
+// CC BY-SA 4.0 — both legally fine to display with credit. The loader
+// route hits Commons API for each file's actual license + artist and
+// overrides these fallbacks when it succeeds.
 export const OUTING_PHOTO_SOURCES: OutingPhotoSource[] = [
   {
     outingSlug: 'chiricahua-national-monument',
