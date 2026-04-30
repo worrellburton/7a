@@ -4044,7 +4044,14 @@ export default function DirectoriesContent() {
   // source_directory_id, so re-saving an entry just refreshes the
   // existing action row instead of piling up duplicates.
   const saveLink = (id: string, value: string) => {
-    const trimmed = value.trim();
+    // Normalize naked domains. Without a protocol, browsers treat
+    // href="recovery.com/foo" as a path relative to the current page,
+    // so clicking the saved link sends the admin to
+    // /app/seo/directories/recovery.com/foo (404). Prepend https://
+    // unless the value is empty, already protocoled, or a tel:/mailto:.
+    const raw = value.trim();
+    const trimmed =
+      raw === '' || /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
     setLink(id, trimmed);
     if (trimmed) {
       setStatus(id, 'listed');
@@ -4920,17 +4927,28 @@ function LinkCell({
     const fullTimestamp = setAt
       ? new Date(setAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
       : null;
+    // Normalize at render too, so any rows that were saved before
+    // the protocol-prefix fix still navigate to a real URL instead
+    // of resolving relative to /app/seo/directories.
+    const href = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
     return (
       <div className="flex flex-col gap-0.5 max-w-full">
-        <div className="flex items-center gap-2 max-w-full">
+        <div className="group/link relative flex items-center gap-1.5">
+          {/* Open the live listing in a new tab. Just an icon, since
+              the truncated URL was misleading (looked like a partial
+              link). The full address shows in the hover popover
+              below. */}
           <a
-            href={value}
+            href={href}
             target="_blank"
             rel="noopener noreferrer"
-            title={value}
-            className="text-[12px] font-medium text-emerald-700 hover:text-emerald-800 truncate max-w-[180px]"
+            title={href}
+            aria-label={`Open live listing — ${href}`}
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 transition-colors"
           >
-            {value.replace(/^https?:\/\//, '')}
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+            </svg>
           </a>
           <button
             type="button"
@@ -4943,6 +4961,11 @@ function LinkCell({
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 5h-7a2 2 0 00-2 2v13a2 2 0 002 2h13a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
           </button>
+          {/* Hover preview: full URL, no truncation. Pure CSS via
+              the parent's group/link, so no JS state to maintain. */}
+          <div className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden max-w-md rounded-md border border-black/10 bg-white px-2.5 py-1.5 text-[11px] text-foreground/80 shadow-lg group-hover/link:block">
+            <span className="break-all font-mono">{href}</span>
+          </div>
         </div>
         {(setBy || dateLabel) && (
           <p
