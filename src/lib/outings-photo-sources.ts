@@ -62,8 +62,10 @@ const CC_BY_SA_4 = {
 // - turkey-creek → Coronado National Forest article. Turkey Creek
 //   itself doesn't have its own page; the parent forest's lead photo
 //   matches the hiking / canyon feel.
-// - cochise-stronghold → Cochise Stronghold article (granite-dome
-//   lead is exactly what we want).
+// - cochise-stronghold → Dragoon Mountains article. The dedicated
+//   "Cochise Stronghold" article isn't on en.wikipedia.org (404 on
+//   the summary API); the parent range's article has a strong lead
+//   shot of the granite domes that matches the outing description.
 //
 // All entries fall back to either USFS/NPS public-domain or Wikipedia
 // CC BY-SA 4.0 — both legally fine to display with credit. The loader
@@ -109,7 +111,7 @@ export const OUTING_PHOTO_SOURCES: OutingPhotoSource[] = [
   },
   {
     outingSlug: 'cochise-stronghold',
-    wikipediaSlug: 'Cochise_Stronghold',
+    wikipediaSlug: 'Dragoon_Mountains',
     ...PD_NPS_USFS,
   },
 ];
