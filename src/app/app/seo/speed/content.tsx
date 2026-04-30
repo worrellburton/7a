@@ -296,17 +296,21 @@ function ScoreBadge({ score, label }: { score: number | null; label?: string }) 
 }
 
 // LocalStorage key for the admin's URL list. Keyed under `seo.speed`
-// so it doesn't collide with anything else stored by the app.
-const URLS_LS_KEY = 'seo.speed.urls.v1';
+// so it doesn't collide with anything else stored by the app. Bumped
+// to v2 alongside the canonical-domain switch so any device that
+// already cached the old 7thanchor.com defaults picks up the new
+// sevenarrowsrecoveryarizona.com defaults automatically.
+const URLS_LS_KEY = 'seo.speed.urls.v2';
 
 // Default URLs to score on first load — homepage + the two highest-
-// intent landing pages. The admin can edit this list freely; their
-// edits persist in localStorage on this device only (no server sync,
-// since URL preference is per-admin-per-machine).
+// intent landing pages on the canonical domain. The admin can edit
+// this list freely; their edits persist in localStorage on this
+// device only (no server sync, since URL preference is per-admin-
+// per-machine).
 const DEFAULT_URLS: string[] = [
-  'https://7thanchor.com/',
-  'https://7thanchor.com/admissions',
-  'https://7thanchor.com/programs',
+  'https://sevenarrowsrecoveryarizona.com/',
+  'https://sevenarrowsrecoveryarizona.com/admissions',
+  'https://sevenarrowsrecoveryarizona.com/programs',
 ];
 
 // Merge fresh snapshots into the existing list, replacing any prior
