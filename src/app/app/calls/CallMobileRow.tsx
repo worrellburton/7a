@@ -244,6 +244,21 @@ export function CallMobileRow(props: CallMobileRowProps) {
                 </svg>
               </span>
             )}
+            {/* Operator (call-handling) score — small white bubble in
+                the top-right corner of the fit chip. Distinct from
+                the fit number in the centre so the two metrics never
+                read as the same thing. Hidden when there's nothing
+                to show or when the row already carries spam/missed
+                iconography. */}
+            {!isSpam && !isMissed && score?.score != null && (
+              <span
+                className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-white text-foreground text-[10px] font-bold tabular-nums shadow-sm border border-black/10"
+                title={`Operator call score ${score.score}/100`}
+                aria-label={`Operator call score ${score.score}`}
+              >
+                {score.score}
+              </span>
+            )}
           </span>
 
           {/* Identity stack — caller name dominates if known, else
