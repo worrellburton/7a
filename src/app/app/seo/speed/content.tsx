@@ -110,6 +110,36 @@ export default function SpeedContent() {
     }
   }, [urls]);
 
+  // Hydrate snapshots from the most-recent persisted runs so admins
+  // see prior results without re-running PSI (each call is 10-25s,
+  // and there's no point re-paying that cost on every page mount).
+  // Re-runs are explicit via the Run All button.
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/seo/speed/latest', { cache: 'no-store' });
+        const json = (await res.json().catch(() => ({}))) as {
+          snapshots?: SpeedSnapshotRow[];
+          error?: string;
+        };
+        if (cancelled) return;
+        if (Array.isArray(json.snapshots)) {
+          setSnapshots(json.snapshots);
+        }
+      } catch {
+        // network issue — leave snapshots empty; the empty-state copy
+        // tells the admin to hit Run All
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
+
   function commitDraft() {
     const next = parseUrlList(urlsDraft);
     if (next.length === 0) return;
@@ -182,9 +212,7 @@ export default function SpeedContent() {
   // Suppress "unused" noise until later phases consume these.
   useEffect(() => {
     void snapshots;
-    void hydrated;
-    void setHydrated;
-  }, [snapshots, hydrated]);
+  }, [snapshots]);
 
   const draftDirty = useMemo(
     () => urlsDraft.trim() !== urls.join('\n').trim(),
@@ -268,9 +296,11 @@ export default function SpeedContent() {
       )}
 
       <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-500">
-        {snapshots.length === 0
-          ? 'No results yet. Hit Run All to score every URL.'
-          : `${snapshots.length} snapshot${snapshots.length === 1 ? '' : 's'} loaded. Result cards arrive in the next phases.`}
+        {!hydrated
+          ? 'Loading prior runs…'
+          : snapshots.length === 0
+            ? 'No results yet. Hit Run All to score every URL.'
+            : `${snapshots.length} snapshot${snapshots.length === 1 ? '' : 's'} loaded. Result cards arrive in the next phases.`}
       </div>
     </div>
   );
