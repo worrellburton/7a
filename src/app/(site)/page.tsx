@@ -27,6 +27,7 @@ import AboutSection from "@/components/AboutSection";
 import FAQSection from "@/components/FAQSection";
 import GoogleReviewsCinema from "@/components/GoogleReviewsCinema";
 import BlogPreview from "@/components/BlogPreview";
+import OutingsSection from "@/components/outings/OutingsSection";
 
 const structuredData = {
   "@context": "https://schema.org",
@@ -215,6 +216,7 @@ export default async function Home() {
       <DailyLifeSection />
       <BlogPreview />
       <FAQSection />
+      <OutingsSection variant="landing" />
     </>
   );
 }
