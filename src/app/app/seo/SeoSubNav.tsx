@@ -21,11 +21,12 @@ interface Tab {
 
 const PRIMARY_TABS: Tab[] = [
   { href: '/app/seo/actions', label: 'Activities', hint: 'Submit + track SEO activities', flair: 'fire' },
-  // "Backlinks" is the parent tab for both the Semrush link profile
-  // (/app/seo/backlinks) and the directory tracker
-  // (/app/seo/directories). Inner sub-tabs on each page let admins
-  // toggle between the two without leaving the primary tab.
-  { href: '/app/seo/backlinks', label: 'Backlinks', hint: 'Link profile + directory tracker' },
+  // "Backlinks" is the parent tab for both the directory tracker
+  // (/app/seo/directories) and the Semrush link profile
+  // (/app/seo/backlinks). Default landing goes to Directories
+  // because that's where the team works day-to-day; the inner
+  // sub-tabs let admins jump to Backlinks when they need it.
+  { href: '/app/seo/directories', label: 'Backlinks', hint: 'Directory tracker + Semrush link profile' },
   { href: '/app/seo/audit', label: 'Site audit', hint: 'On-page issues' },
   { href: '/app/seo/serp-audit', label: 'SERP Audit', hint: 'Off-site brand mentions on the open web' },
   { href: '/app/seo/media', label: 'Media', hint: 'Images + videos with optimize batch' },
