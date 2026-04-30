@@ -145,7 +145,10 @@ export default function EquineSessions() {
             Every session is co-led by a licensed clinician and an equine
             specialist. The structure stays consistent so the nervous system
             knows what&rsquo;s coming; the content flexes to the client and to
-            whatever the herd brings on a given day.
+            whatever the herd brings on a given day. The client and I might
+            walk in planning to work on one thing, but if the horses pick up
+            on something greater, we follow that — the session shifts in the
+            moment.
           </p>
         </div>
 
