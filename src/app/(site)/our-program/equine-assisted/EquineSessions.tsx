@@ -72,10 +72,10 @@ const stages: Stage[] = [
   },
   {
     number: '03',
-    title: 'Integration & processing',
+    title: 'Trauma-Informed Integration & Processing Phase',
     duration: '~15 min',
     body:
-      'Back to the ring&rsquo;s edge. We translate what just happened into the story the client arrived with. What did the horse show you that people have tried to show you and you couldn&rsquo;t hear yet? This is where the session meets the treatment plan.',
+      'The client returns to a grounded space at the edge of the arena to support stabilization and reflection. The clinician facilitates gentle meaning-making of the experiential work, linking present-moment observations to the client&rsquo;s presenting concerns and treatment goals in a paced, consent-based manner.',
     bullets: [
       'IFS parts-based framing',
       'Somatic felt-sense mapping',
