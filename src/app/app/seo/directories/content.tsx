@@ -8,6 +8,11 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 import { RowChat } from '@/components/RowChat';
 import { logActivity } from '@/lib/activity';
+import {
+  useDirectoryScreenshots,
+  DirectoryRowDropZone,
+  DirectoryScreenshotStrip,
+} from './screenshots';
 
 // localStorage for per-user "last read" timestamps so the unread dot
 // only lights up when there's a directory comment the current user
@@ -3905,6 +3910,7 @@ export default function DirectoriesContent() {
   // server table directly.
   const { byId: directoryStates, users: directoryStateUsers, upsert: upsertDirectoryState } = useDirectoryStates();
   const canonicalNap = useCanonicalNap();
+  const { byDirectory: screenshotsByDirectory } = useDirectoryScreenshots();
   const statusMap = useMemo(() => {
     const out: Record<string, Status> = {};
     for (const [id, row] of Object.entries(directoryStates)) {
@@ -4330,29 +4336,40 @@ export default function DirectoriesContent() {
                   <Fragment key={d.id}>
                   <tr className={`align-top transition-colors ${tintClass} ${isHidden ? 'opacity-50' : ''} ${chatOpen ? 'ring-1 ring-primary/20' : ''}`}>
                     <td className="px-3 py-3">
-                      <div className="min-w-0">
-                        <a
-                          href={d.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-primary hover:underline"
-                        >
-                          {d.name}
-                        </a>
-                        {customIds.has(d.id) && (
-                          <span className="ml-2 inline-block px-1.5 py-0 rounded text-[9px] uppercase tracking-wider border border-primary/30 bg-primary/10 text-primary align-middle">
-                            Custom
-                          </span>
-                        )}
-                        {isHidden && (
-                          <span className="ml-2 inline-block px-1.5 py-0 rounded text-[9px] uppercase tracking-wider border border-foreground/20 bg-foreground/5 text-foreground/55 align-middle">
-                            Hidden
-                          </span>
-                        )}
-                        <p className="text-[11px] text-foreground/40 truncate max-w-[280px]" title={d.url}>
-                          {d.url.replace(/^https?:\/\//, '')}
-                        </p>
-                      </div>
+                      {/* Drop zone wraps the directory cell so a
+                          dragged image anywhere on this column
+                          counts as an attach to this directory_id.
+                          The cell visually highlights on dragover
+                          and shows "Drop image to attach". */}
+                      <DirectoryRowDropZone directoryId={d.id}>
+                        <div className="min-w-0">
+                          <a
+                            href={d.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-primary hover:underline"
+                          >
+                            {d.name}
+                          </a>
+                          {customIds.has(d.id) && (
+                            <span className="ml-2 inline-block px-1.5 py-0 rounded text-[9px] uppercase tracking-wider border border-primary/30 bg-primary/10 text-primary align-middle">
+                              Custom
+                            </span>
+                          )}
+                          {isHidden && (
+                            <span className="ml-2 inline-block px-1.5 py-0 rounded text-[9px] uppercase tracking-wider border border-foreground/20 bg-foreground/5 text-foreground/55 align-middle">
+                              Hidden
+                            </span>
+                          )}
+                          <p className="text-[11px] text-foreground/40 truncate max-w-[280px]" title={d.url}>
+                            {d.url.replace(/^https?:\/\//, '')}
+                          </p>
+                          <DirectoryScreenshotStrip
+                            directoryId={d.id}
+                            rows={screenshotsByDirectory.get(d.id) ?? []}
+                          />
+                        </div>
+                      </DirectoryRowDropZone>
                     </td>
                     <td className="px-3 py-3">
                       <span className="inline-block text-[11px] text-foreground/65 leading-snug">
