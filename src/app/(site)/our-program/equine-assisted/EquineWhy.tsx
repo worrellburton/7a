@@ -33,7 +33,7 @@ const dials: Dial[] = [
     suffix: 'Hz',
     label: 'Coherent heart field',
     note:
-      'A horse’s heart generates an electromagnetic field five times stronger than a human’s — clients can feel regulation before they can name it.',
+      'Through their sensitivity to nonverbal and physiological states, horses can support nervous system regulation in real time, allowing clients to feel safety and connection before they can cognitively name it.',
   },
   {
     value: 10,
