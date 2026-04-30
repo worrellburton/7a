@@ -4305,7 +4305,7 @@ export default function DirectoriesContent() {
           the stacked-card list below so the 10-column row doesn't
           overflow off-screen. */}
       {flatRows.length === 0 ? null : (
-        <div className="hidden md:block mb-8 overflow-hidden border border-black/10 rounded-xl bg-white">
+        <div className="hidden md:block mb-8 overflow-x-auto border border-black/10 rounded-xl bg-white">
           <table className="w-full text-sm">
             <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
               <tr>
@@ -4315,8 +4315,8 @@ export default function DirectoriesContent() {
                 <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-24">Priority</th>
                 <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-20">Fit</th>
                 <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-28">Paid</th>
-                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-64">Live link</th>
-                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-28">NAP</th>
+                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-32">Live link</th>
+                <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-24">NAP</th>
                 <th className="text-left px-4 py-2.5 font-semibold border-b border-black/10 w-32">Status</th>
                 <th className="text-center px-4 py-2.5 font-semibold border-b border-black/10 w-16">Notes</th>
                 <th className="text-right px-4 py-2.5 font-semibold border-b border-black/10 w-12" aria-label="Delete" />
@@ -5163,31 +5163,6 @@ function CanonicalNapBanner({ nap }: { nap: CanonicalNap }) {
             Fill in →
           </Link>
         )}
-      </div>
-
-      {/* Canonical-domain reminder. We've had two domains in play —
-          sevenarrowsrecoveryarizona.com is the current canonical and
-          the older sevenarrowsrecovery.com only forwards. Listings
-          submitted with the old domain hurt the consolidation we're
-          trying to build, so this note keeps the team aligned on
-          which one to paste. */}
-      <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-[12px] text-amber-900">
-        <svg
-          className="mt-0.5 w-3.5 h-3.5 shrink-0 text-amber-600"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6m-5 3h4m-2-17a7 7 0 00-4 12.74V17a1 1 0 001 1h6a1 1 0 001-1v-.26A7 7 0 0012 4z" />
-        </svg>
-        <p className="leading-snug">
-          <span className="font-semibold">Quick note: use this exact URL on submissions.</span>{' '}
-          Use <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-[11px]">sevenarrowsrecoveryarizona.com</code> (no www).
-          Skip the older <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-[11px] line-through">sevenarrowsrecovery.com</code>{' '}
-          so all our listings point to the same place.
-        </p>
       </div>
     </div>
   );
