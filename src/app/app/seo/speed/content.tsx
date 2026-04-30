@@ -99,6 +99,27 @@ function MetricTile({ metric, value }: { metric: MetricKey; value: number | null
   );
 }
 
+function StrategyPanel({ snap, strategy }: { snap: SpeedSnapshotRow | null; strategy: 'mobile' | 'desktop' }) {
+  return (
+    <div className="rounded-md border border-neutral-800 bg-neutral-900/40 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">{strategy}</span>
+        <ScoreBadge score={snap?.performance ?? null} />
+      </div>
+      {snap ? (
+        <>
+          <MetricRow snap={snap} />
+          <div className="text-[10px] text-neutral-600">
+            {snap.ok ? new Date(snap.ran_at).toLocaleString() : (snap.error ?? 'failed')}
+          </div>
+        </>
+      ) : (
+        <div className="py-3 text-center text-[11px] text-neutral-600">Not yet scored</div>
+      )}
+    </div>
+  );
+}
+
 function MetricRow({ snap }: { snap: SpeedSnapshotRow }) {
   return (
     <div className="grid grid-cols-5 gap-2">
@@ -321,6 +342,21 @@ export default function SpeedContent() {
     [urlsDraft, urls],
   );
 
+  // Group snapshots by URL with named slots for each strategy. Seeded
+  // with the editable URL list so cards appear for URLs that haven't
+  // been scored yet (empty state per card encourages a Run All).
+  const groupedByUrl = useMemo(() => {
+    type Slot = { mobile: SpeedSnapshotRow | null; desktop: SpeedSnapshotRow | null };
+    const m = new Map<string, Slot>();
+    for (const u of urls) m.set(u, { mobile: null, desktop: null });
+    for (const s of snapshots) {
+      const slot = m.get(s.url) ?? { mobile: null, desktop: null };
+      slot[s.strategy] = s;
+      m.set(s.url, slot);
+    }
+    return Array.from(m.entries()).map(([url, slot]) => ({ url, ...slot }));
+  }, [snapshots, urls]);
+
   if (authLoading) return null;
   if (!user || !isAdmin) {
     return (
@@ -401,27 +437,24 @@ export default function SpeedContent() {
         <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-500">
           Loading prior runs…
         </div>
-      ) : snapshots.length === 0 ? (
+      ) : urls.length === 0 ? (
         <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-6 text-sm text-neutral-500">
-          No results yet. Hit Run All to score every URL.
+          Add at least one URL above to start scoring.
         </div>
       ) : (
-        <ul className="space-y-2">
-          {snapshots.map((s) => (
+        <ul className="space-y-3">
+          {groupedByUrl.map((row) => (
             <li
-              key={s.id}
-              className="rounded-lg border border-neutral-800 bg-neutral-950 px-4 py-3 space-y-2"
+              key={row.url}
+              className="rounded-lg border border-neutral-800 bg-neutral-950 p-4 space-y-3"
             >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm text-neutral-200">{s.url}</div>
-                  <div className="text-[11px] uppercase tracking-wide text-neutral-500">
-                    {s.strategy} · {new Date(s.ran_at).toLocaleString()}
-                  </div>
-                </div>
-                <ScoreBadge score={s.performance} label={s.strategy} />
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-neutral-100">{row.url}</div>
               </div>
-              <MetricRow snap={s} />
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <StrategyPanel snap={row.mobile} strategy="mobile" />
+                <StrategyPanel snap={row.desktop} strategy="desktop" />
+              </div>
             </li>
           ))}
         </ul>
