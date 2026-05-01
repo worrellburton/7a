@@ -236,6 +236,29 @@ interface RespondedFields {
   responder_avatar_url: string | null;
 }
 
+// Render an ISO YYYY-MM-DD date as a US-style M/D/YYYY string + a
+// parenthetical "(NNyrs)" age. We treat the value as a calendar date
+// rather than an instant — the column is `date` in Postgres, so
+// using a UTC parse avoids local-tz drift that would otherwise show
+// "Apr 30, 1990" as "Apr 29".
+function formatDob(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  const [, y, mo, d] = m;
+  const year = Number(y);
+  const month = Number(mo);
+  const day = Number(d);
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  if (
+    today.getMonth() + 1 < month ||
+    (today.getMonth() + 1 === month && today.getDate() < day)
+  ) {
+    age -= 1;
+  }
+  return `${month}/${day}/${year} (${age}yr)`;
+}
+
 function formatRespondedAt(iso: string) {
   return new Date(iso).toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -1138,6 +1161,7 @@ interface VobRow extends RespondedFields {
   full_name: string;
   phone: string | null;
   email: string | null;
+  date_of_birth: string | null;
   insurance_provider: string | null;
   status: string;
   notes: string | null;
@@ -1238,6 +1262,7 @@ function VobsPanel() {
             <tr>
               <Th>Name</Th>
               <Th>Contact</Th>
+              <Th>DOB</Th>
               <Th>Insurance</Th>
               <Th>Cards</Th>
               <Th>Notes</Th>
@@ -1258,6 +1283,15 @@ function VobsPanel() {
                     {r.phone && <p>{r.phone}</p>}
                     {r.email && <p className="truncate max-w-[220px]">{r.email}</p>}
                   </div>
+                </Td>
+                <Td>
+                  {r.date_of_birth ? (
+                    <span className="text-xs text-foreground/70 whitespace-nowrap tabular-nums">
+                      {formatDob(r.date_of_birth)}
+                    </span>
+                  ) : (
+                    <span className="text-foreground/40">—</span>
+                  )}
                 </Td>
                 <Td>{r.insurance_provider ?? <span className="text-foreground/40">—</span>}</Td>
                 <Td>
