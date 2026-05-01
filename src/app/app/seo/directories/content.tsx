@@ -2855,56 +2855,82 @@ export const DIRECTORIES: Directory[] = [
 
 // ── Status tracking ────────────────────────────────────────────────
 
-type Status = 'todo' | 'pending' | 'pending_review' | 'listed' | 'live' | 'skip' | 'need_credentials' | 'claim_in_process';
+type Status =
+  | 'todo'
+  | 'claim_in_process'
+  | 'claimed'
+  | 'submitted'
+  | 'pending'
+  | 'live'
+  | 'paid_list'
+  | 'no_option'
+  | 'requires_official_docs'
+  | 'skip';
 
 const STATUS_KEY = 'sa-seo-directories:status';
 
 const STATUS_LABELS: Record<Status, string> = {
   todo: 'To do',
-  pending: 'Submitted',
-  pending_review: 'Pending',
-  listed: 'Listed',
+  claim_in_process: 'Claim in Process',
+  claimed: 'Claimed',
+  submitted: 'Submitted',
+  pending: 'Pending',
   live: 'Live',
+  paid_list: 'Paid List',
+  no_option: 'No option',
+  requires_official_docs: 'Requires official Docs',
   skip: 'Skip',
-  need_credentials: 'Need credentials',
-  claim_in_process: 'Claim in process',
 };
 
 const STATUS_TONE: Record<Status, string> = {
   todo: 'bg-warm-bg/60 text-foreground/65 border-black/10 hover:bg-warm-bg',
-  pending: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100',
-  pending_review: 'bg-yellow-50 text-yellow-800 border-yellow-200 hover:bg-yellow-100',
-  listed: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100',
-  live: 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100',
-  skip: 'bg-foreground/5 text-foreground/40 border-black/10 line-through hover:bg-foreground/10',
-  need_credentials: 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100',
   claim_in_process: 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100',
+  claimed: 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100',
+  submitted: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100',
+  pending: 'bg-yellow-50 text-yellow-800 border-yellow-200 hover:bg-yellow-100',
+  live: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100',
+  paid_list: 'bg-violet-50 text-violet-800 border-violet-200 hover:bg-violet-100',
+  no_option: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100',
+  requires_official_docs: 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100',
+  skip: 'bg-foreground/5 text-foreground/40 border-black/10 line-through hover:bg-foreground/10',
 };
 
 // Row-level tint applied to the whole <tr> so each row reads at a
-// glance as belonging to one of the seven workflow buckets. Lighter
-// alpha than the chip itself (the chip pulls 100% of the bg color,
-// the row pulls ~40%) so per-cell text + buttons stay legible
-// against the tint. todo deliberately keeps a near-white tint so
-// the default-state rows don't dominate visually.
+// glance as belonging to one of the workflow buckets. Lighter alpha
+// than the chip itself (the chip pulls 100% of the bg color, the row
+// pulls ~40-55%) so per-cell text + buttons stay legible against the
+// tint. todo deliberately keeps a near-white tint so default-state
+// rows don't dominate visually.
 const STATUS_ROW_TINT: Record<Status, string> = {
   todo: 'bg-warm-bg/30 hover:bg-warm-bg/50',
-  need_credentials: 'bg-rose-50/55 hover:bg-rose-50',
   claim_in_process: 'bg-blue-50/55 hover:bg-blue-50',
-  pending: 'bg-amber-50/55 hover:bg-amber-50',
-  pending_review: 'bg-yellow-50/55 hover:bg-yellow-50',
-  listed: 'bg-emerald-50/55 hover:bg-emerald-50',
-  live: 'bg-teal-50/55 hover:bg-teal-50',
+  claimed: 'bg-indigo-50/55 hover:bg-indigo-50',
+  submitted: 'bg-amber-50/55 hover:bg-amber-50',
+  pending: 'bg-yellow-50/55 hover:bg-yellow-50',
+  live: 'bg-emerald-50/55 hover:bg-emerald-50',
+  paid_list: 'bg-violet-50/55 hover:bg-violet-50',
+  no_option: 'bg-slate-50/55 hover:bg-slate-50',
+  requires_official_docs: 'bg-rose-50/55 hover:bg-rose-50',
   skip: 'bg-foreground/[0.03] hover:bg-foreground/[0.06] text-foreground/55',
 };
 
 // Workflow order — chronological from a teammate's perspective:
-// pick it up → start working → get unblocked / submit → wait for
-// the directory to approve → confirmed listed → confirmed publicly
-// live → terminal "skip" at the end. "Pending" sits between
-// "Submitted" and "Listed" because most directory sites take days
-// or weeks between accepting a submission and actually publishing it.
-const STATUS_ORDER: Status[] = ['todo', 'claim_in_process', 'need_credentials', 'pending', 'pending_review', 'listed', 'live', 'skip'];
+// pick it up → claim it → submit → wait for the directory to approve
+// → confirmed live → paid placement → no listing option / blocked on
+// docs → terminal "skip". `todo` is hidden from the picker (it's the
+// implicit default for never-touched rows) but kept in the type so
+// legacy rows still render with a label.
+const STATUS_ORDER: Status[] = [
+  'claim_in_process',
+  'claimed',
+  'submitted',
+  'pending',
+  'live',
+  'paid_list',
+  'no_option',
+  'requires_official_docs',
+  'skip',
+];
 
 // Sortable columns. 'default' is the curated linked-first /
 // category-grouped order that ships before any header is clicked.
@@ -2983,13 +3009,15 @@ function sortComparator(
 
 const STATUS_CYCLE: Record<Status, Status> = {
   todo: 'claim_in_process',
-  claim_in_process: 'need_credentials',
-  need_credentials: 'pending',
-  pending: 'pending_review',
-  pending_review: 'listed',
-  listed: 'live',
-  live: 'skip',
-  skip: 'todo',
+  claim_in_process: 'claimed',
+  claimed: 'submitted',
+  submitted: 'pending',
+  pending: 'live',
+  live: 'paid_list',
+  paid_list: 'no_option',
+  no_option: 'requires_official_docs',
+  requires_official_docs: 'skip',
+  skip: 'claim_in_process',
 };
 
 function useStatusMap(): [Record<string, Status>, (id: string) => void, (id: string, value: Status) => void] {
@@ -3948,7 +3976,7 @@ export default function DirectoriesContent() {
   }, [openChat]);
 
   // Saving a live URL implies "we got listed there" — flip the
-  // status to listed automatically. Clearing the URL backs the
+  // status to live automatically. Clearing the URL backs the
   // status down to "to do" so red/empty rows stay honest.
   // Side effect on save: fire a fire-and-forget POST to
   // /api/seo/actions so the team's central Actions page reflects
@@ -3966,7 +3994,7 @@ export default function DirectoriesContent() {
       raw === '' || /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
     setLink(id, trimmed);
     if (trimmed) {
-      setStatus(id, 'listed');
+      setStatus(id, 'live');
       const d = allDirectories.find((x) => x.id === id);
       if (d) {
         const title = `Listed in ${d.name}`;
@@ -3990,7 +4018,7 @@ export default function DirectoriesContent() {
           // an alert here — the local listing save still succeeded.
         });
       }
-    } else if (statusMap[id] === 'listed') {
+    } else if (statusMap[id] === 'live') {
       setStatus(id, 'todo');
     }
   };
@@ -4001,7 +4029,7 @@ export default function DirectoriesContent() {
       const isHidden = !!directoryStates[d.id]?.hidden;
       if (isHidden && !showHidden) return false;
       if (activeCategory !== 'all' && d.category !== activeCategory) return false;
-      if (hideListed && (statusMap[d.id] === 'listed' || statusMap[d.id] === 'skip')) return false;
+      if (hideListed && (statusMap[d.id] === 'live' || statusMap[d.id] === 'skip')) return false;
       if (!q) return true;
       return (
         d.name.toLowerCase().includes(q) ||
@@ -4079,11 +4107,13 @@ export default function DirectoriesContent() {
     const out: Record<Status, number> = {
       todo: 0,
       claim_in_process: 0,
-      need_credentials: 0,
+      claimed: 0,
+      submitted: 0,
       pending: 0,
-      pending_review: 0,
-      listed: 0,
       live: 0,
+      paid_list: 0,
+      no_option: 0,
+      requires_official_docs: 0,
       skip: 0,
     };
     for (const d of allDirectories) {
@@ -4093,19 +4123,21 @@ export default function DirectoriesContent() {
     return out;
   }, [allDirectories, statusMap]);
   // Card accent per status — mirrors the row tint so the strip and
-  // the table read as the same color language.
+  // the table read as the same color language. The ProgressCard
+  // palette is constrained to a fixed set of tones, so a couple of
+  // statuses share an accent (paid_list / no_option / claimed /
+  // submitted / pending) — the chip + row tint stay distinct so
+  // admins can still tell them apart at a glance.
   const STATUS_ACCENT: Record<Status, 'foreground' | 'rose' | 'blue' | 'amber' | 'emerald' | 'teal'> = {
     todo: 'foreground',
     claim_in_process: 'blue',
-    need_credentials: 'rose',
+    claimed: 'blue',
+    submitted: 'amber',
     pending: 'amber',
-    // Pending-review uses the same amber bucket since the
-    // ProgressCard accent palette doesn't have a yellow option;
-    // the chip + row tint stay distinct (yellow vs amber) so admins
-    // can still tell them apart at a glance.
-    pending_review: 'amber',
-    listed: 'emerald',
-    live: 'teal',
+    live: 'emerald',
+    paid_list: 'teal',
+    no_option: 'foreground',
+    requires_official_docs: 'rose',
     skip: 'foreground',
   };
 
