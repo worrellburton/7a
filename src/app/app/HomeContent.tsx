@@ -315,15 +315,17 @@ export default function HomeContent() {
         <div className="absolute bottom-0 left-1/3 w-[480px] h-[480px] rounded-full bg-amber-200/35 blur-[130px]" />
       </div>
 
-      <div className="px-4 sm:px-6 lg:px-10 pt-4 lg:pt-6 pb-10 space-y-5 lg:space-y-6">
+      <div className="relative flex-1 flex flex-col min-h-[calc(100vh-1px)] px-4 sm:px-6 lg:px-10 pt-4 lg:pt-6 pb-10">
 
-        {/* Phase 4: hero — no glass card here, the avatar/greeting
-            and the create-menu button just float on the page background.
-            Removing the glass plank lets the horses + presence orbit
-            below it breathe without competing with the heaviest visual
-            block on the page. */}
+        {/* Phase 4: hero — no glass card; the avatar/greeting and the
+            create-menu button float on the page background. The hero
+            is absolutely positioned so the centerpiece (orbit + ask
+            policies) can use the full vertical space below — that's
+            what gets the spinning circle to the dead-center of the
+            console rather than offset toward the top by the welcome
+            row's height. */}
         <header
-          className={`relative z-30 transition-all duration-500 ease-out ${
+          className={`absolute top-4 lg:top-6 left-4 sm:left-6 lg:left-10 right-4 sm:right-6 lg:right-10 z-30 transition-all duration-500 ease-out ${
             loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
           }`}
         >
@@ -450,6 +452,12 @@ export default function HomeContent() {
           </div>
         </header>
 
+        {/* Centerpiece — flex-1 so it eats the leftover vertical space
+            between the absolutely-positioned hero (top) and the WIP
+            footer pill (bottom), and `justify-center` parks the orbit
+            + Ask Policies stack at the dead center of that space. */}
+        <div className="relative flex-1 flex flex-col items-stretch justify-center gap-5 lg:gap-6">
+
         {/* Centered, slowly-rotating ring of teammates active in the
             last 24 hours, with the horse roster orbiting in the inner
             ring. See HomeOnlineOrbit.tsx for the anatomy + animation. */}
@@ -561,10 +569,12 @@ export default function HomeContent() {
           </div>
         </section>
 
+        </div> {/* end centerpiece */}
+
         {/* Phase 8: footer status pill — small glass capsule so the
             WIP notice has the same visual language as everything
             above. */}
-        <div className="flex justify-center pt-2">
+        <div className="flex justify-center pt-4">
           <p
             className="inline-flex items-center gap-2 text-[10.5px] text-amber-700/85 rounded-full border border-white/60 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-xl px-3 py-1 shadow-sm"
             role="status"
