@@ -711,20 +711,26 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       <PresenceCursors />
       <LeverPullListener />
       <ContactSubmissionToasts />
-      {/* Left Sidebar — outer aside fills the parent's full height so
-          the white bg never reveals the warm-bg behind it on tall
-          pages. The inner div is `sticky top-0 h-screen` so the
-          actual sidebar UI stays pinned to the viewport while the
-          rest of the page scrolls — keeping the user card + user
-          menu permanently at the lower-left. */}
-      <aside className="w-64 shrink-0 hidden lg:block bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-2xl border-r border-white/60 relative">
+      {/* Left Sidebar — collapsed-by-default rail that expands on
+          hover. The aside reserves a narrow `w-16` column so the
+          main content's layout never reflows; the inner panel is
+          absolutely positioned and slides out to `w-64` over the
+          page on group-hover, restoring labels + section headers
+          via an opacity fade. Click-away or unhover collapses back. */}
+      <aside className="group/sidebar w-16 shrink-0 hidden lg:block relative z-30">
+        {/* Sticky sized to the real viewport; `app-shell` applies
+            zoom: 0.82 at lg+, so a plain h-screen renders at only
+            82% of the real height. */}
+        <div className="sticky top-0 h-[calc(100vh/0.82)]">
+        {/* Inner glass panel — overlay layer that grows from w-16
+            (collapsed) to w-64 (expanded) on hover. Glass treatment
+            lives here now so the column-only collapsed state still
+            shows the frosted background behind the icons. */}
+        <div className="absolute inset-y-0 left-0 w-16 group-hover/sidebar:w-64 transition-[width] duration-200 ease-out overflow-hidden bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-2xl border-r border-white/60 flex flex-col shadow-[0_0_0_0_rgba(0,0,0,0)] group-hover/sidebar:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)]">
         {/* Glass treatment — semi-transparent white, heavy backdrop
             blur, an inner specular sheen line at the top and a
             subtle vertical gradient that fades down so the panel
-            reads as a frosted-glass layer over the warm background.
-            The accent line is hairline-fine and uses the brand
-            color at low alpha so the sidebar still feels like a
-            Seven Arrows surface, not a generic glass panel. */}
+            reads as a frosted-glass layer over the warm background. */}
         <span
           aria-hidden="true"
           className="pointer-events-none absolute inset-y-0 right-0 w-px"
@@ -734,13 +740,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent"
         />
-        {/* `app-shell` applies zoom: 0.82 at lg+, so a plain h-screen
-            renders at only 82% of the real viewport — that's why the
-            user card used to float ~120px above the bottom edge.
-            Mirroring the outer `min-height: calc(100vh / 0.82)` here
-            puts the bottom of the sidebar exactly on the viewport
-            edge so the user card pins to the actual lower-left. */}
-        <div className="sticky top-0 h-[calc(100vh/0.82)] flex flex-col">
+        <div className="flex flex-col h-full w-64">
         {/* Logo / Brand */}
         <div className="p-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
@@ -825,12 +825,15 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     {getPageIcon(item.path)}
                   </span>
                   {/* Phase 5: text translateX nudge — 2px right shift
-                      so the label "leans into" the cursor on hover. */}
-                  <span className="flex-1 transition-transform duration-300 ease-out group-hover/nav:translate-x-0.5">{item.label}</span>
+                      so the label "leans into" the cursor on hover.
+                      whitespace-nowrap + opacity fade so the label
+                      doesn't wrap or peek out while the rail is in
+                      its collapsed (icon-only) state. */}
+                  <span className="flex-1 whitespace-nowrap transition-[opacity,transform] duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 group-hover/nav:translate-x-0.5">{item.label}</span>
                   {(navBadges[item.path] ?? 0) > 0 && (
                     <span
                       aria-label={`${navBadges[item.path]} new`}
-                      className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums"
+                      className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"
                     >
                       {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
                     </span>
@@ -864,7 +867,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   return (
                     <div key={`nav-group-${label}`}>
                       <p
-                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
+                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-all duration-500 ease-out whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 ${navMounted ? 'translate-x-0' : '-translate-x-3'}`}
                         style={{ fontFamily: 'var(--font-body)', transitionDelay: `${hdrIdx * 50}ms` }}
                       >
                         {label}
@@ -886,7 +889,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   return (
                     <div key={dept.id}>
                       <p
-                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
+                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-all duration-500 ease-out whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 ${navMounted ? 'translate-x-0' : '-translate-x-3'}`}
                         style={{ fontFamily: 'var(--font-body)', transitionDelay: `${hdrIdx * 50}ms` }}
                       >
                         {dept.name}
@@ -909,8 +912,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                               <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
                             </svg>
                           </span>
-                          <span className="flex-1">Website</span>
-                          <svg className="w-3.5 h-3.5 text-foreground/35" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <span className="flex-1 whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">Website</span>
+                          <svg className="w-3.5 h-3.5 text-foreground/35 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <path d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-6H18m0 0v4.5m0-4.5L10.5 13.5" />
                           </svg>
                         </a>
@@ -986,7 +989,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             </Link>
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex-1 min-w-0 flex items-center gap-3 text-left"
+              className="flex-1 min-w-0 flex items-center gap-3 text-left opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"
               aria-label="Account menu"
               aria-expanded={userMenuOpen}
             >
@@ -1008,7 +1011,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             </button>
           </div>
         </div>
-        </div>
+        </div> {/* end inner column (w-64) */}
+        </div> {/* end overlay panel */}
+        </div> {/* end sticky wrapper */}
       </aside>
 
       {/* Main content area */}
