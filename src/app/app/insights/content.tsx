@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
-import HomeSeoActionsRow from '../HomeSeoActionsRow';
+import RecentDirectoryActivity from '@/components/seo/RecentDirectoryActivity';
 
 // Insights — visual rollup of call volume over time. Reuses the
 // existing /api/calls/insights endpoint (Phoenix-day buckets,
@@ -150,11 +150,13 @@ export default function InsightsContent() {
         </div>
       )}
 
-      {/* SEO actions today — relocated from the home dashboard's
-          Marketing at a Glance card. Same row component so the count +
-          Claude-generated summary look identical to before. */}
-      <section className="mt-8 rounded-xl border border-black/10 bg-white p-5">
-        <HomeSeoActionsRow />
+      {/* SEO activity feed — drop-in of the same RECENT ACTIVITY
+          stream that lives on /app/seo/actions, so this page is now
+          the canonical home for the live SEO event log. The Actions
+          tab no longer has a submit form, so a static "today count"
+          card would be misleading. */}
+      <section className="mt-8">
+        <RecentDirectoryActivity />
       </section>
     </div>
   );
