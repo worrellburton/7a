@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { useModal } from '@/lib/ModalProvider';
 import { logActivity } from '@/lib/activity';
 import { useEffect, useMemo, useState } from 'react';
+import AskPolicies from '../AskPolicies';
 
 /* ── Types ─────────────────────────────────────────────────────── */
 
@@ -1132,6 +1133,22 @@ export default function PoliciesContent() {
       {/* ── LIST VIEW ──────────────────────────────────────────── */}
       {view === 'list' && (
         <>
+          {/* Ask Policies — relocated from the home dashboard. Lives
+              at the top of the policies list so the team's most-used
+              policy lookup is the first thing they see when they open
+              the page. AskPolicies handles its own internal layout;
+              the wrapper just sets a max width + matches the warm
+              glass tone the home page used to use. */}
+          <section className="w-full max-w-2xl mx-auto mb-6">
+            <div className="relative rounded-3xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-2xl shadow-[0_14px_40px_-18px_rgba(60,48,42,0.28)] p-2 sm:p-3">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
+              />
+              <AskPolicies />
+            </div>
+          </section>
+
           {/* Filters */}
           <div className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap">
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search policies..." className="flex-1 min-w-[160px] max-w-sm px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none" />
