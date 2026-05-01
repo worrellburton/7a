@@ -114,7 +114,7 @@ export default function AdmissionsPage() {
           <p>
             Seven Arrows Recovery is a JCAHO-accredited residential drug and alcohol rehab
             in Cochise County, Arizona. The program offers 30, 60, and 90-day residential
-            stays grounded in the TraumAddiction&reg; model, with equine-assisted
+            stays grounded in the Forward-Facing Accelerated Recovery&reg; model, with equine-assisted
             psychotherapy, somatic experiencing, and evidence-based individual and group work.
             Out-of-pocket cost depends on insurance (most major carriers accepted); private
             pay is available. Admissions team runs free benefits verification: (866) 996-4308.
@@ -122,7 +122,7 @@ export default function AdmissionsPage() {
         }
         bullets={[
           { label: 'Programs', body: '30-, 60-, and 90-day residential treatment; detox coordinated at partner facilities; aftercare and alumni support.' },
-          { label: 'Modalities', body: 'TraumAddiction®, Forward-Facing Freedom®, somatic experiencing, equine-assisted psychotherapy, IFS, CBT/DBT, EMDR.' },
+          { label: 'Modalities', body: 'Forward-Facing Accelerated Recovery®, Forward-Facing Accelerated Recovery®, somatic experiencing, equine-assisted psychotherapy, IFS, CBT/DBT, EMDR.' },
           { label: 'Accreditation', body: 'JCAHO-accredited, LegitScript-certified, HIPAA compliant.' },
           { label: 'Cost with insurance', body: 'Most Aetna, BCBS, Cigna, UHC, Humana, and TRICARE members pay a fraction of billed rates — free verification before commitment.' },
           { label: 'Private pay', body: 'Available. Admissions will walk through typical ranges on the phone; we do not publish figures online because actual cost depends on level of care and length of stay.' },

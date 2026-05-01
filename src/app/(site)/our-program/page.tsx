@@ -15,7 +15,7 @@ const programs = [
     title: 'Trauma Treatment',
     href: '/our-program/trauma-treatment',
     description:
-      'Our TraumAddiction\u2122 specialty combines EMDR, somatic experiencing, and body-based interventions to address the root causes of addiction.',
+      'Our Forward-Facing Accelerated Recovery\u2122 specialty combines EMDR, somatic experiencing, and body-based interventions to address the root causes of addiction.',
   },
   {
     title: 'Indigenous Approach',

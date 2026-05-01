@@ -139,7 +139,7 @@ export const methContent: SubstanceContent = {
       {
         label: 'The trauma survivor',
         headline: 'A drug that outran the inside.',
-        body: 'Meth kept the nervous system busy enough to outrun trauma. When the drug stops, the trauma arrives. Forward-Facing Freedom® is built for exactly this landing.',
+        body: 'Meth kept the nervous system busy enough to outrun trauma. When the drug stops, the trauma arrives. Forward-Facing Accelerated Recovery® is built for exactly this landing.',
       },
       {
         label: 'The relapse',
@@ -174,7 +174,7 @@ export const methContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing Freedom®, EMDR, ART, and IFS — sequenced after sleep and mood have stabilized enough to hold the work.',
+        body: 'Forward-Facing Accelerated Recovery®, EMDR, ART, and IFS — sequenced after sleep and mood have stabilized enough to hold the work.',
         iconId: 'spiral',
       },
       {

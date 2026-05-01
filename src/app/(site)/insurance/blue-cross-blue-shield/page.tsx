@@ -27,7 +27,7 @@ const faqJsonLd = faqPageSchema([
   },
   {
     q: 'Does BCBS cover dual-diagnosis treatment?',
-    a: 'Yes. BCBS plans cover integrated treatment for co-occurring mental health conditions (depression, anxiety, PTSD, bipolar) alongside substance use disorder — exactly the model Seven Arrows delivers through its TraumAddiction® program.',
+    a: 'Yes. BCBS plans cover integrated treatment for co-occurring mental health conditions (depression, anxiety, PTSD, bipolar) alongside substance use disorder — exactly the model Seven Arrows delivers through its Forward-Facing Accelerated Recovery® program.',
   },
   {
     q: 'Does BCBS require pre-authorization for residential rehab?',

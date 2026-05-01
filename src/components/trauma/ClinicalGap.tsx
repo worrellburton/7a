@@ -236,7 +236,7 @@ function GapGlyph({ visible }: { visible: boolean }) {
             fill="#1a1a1aaa"
             style={{ textTransform: 'uppercase' }}
           >
-            TraumAddiction
+            Accelerated Recovery
           </text>
         </g>
 

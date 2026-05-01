@@ -102,7 +102,7 @@ export default function WhoWeArePage() {
               style={{ fontFamily: 'var(--font-body)' }}
             >
               With intentionally small group sizes, a world-class clinical team, and our proprietary
-              TraumAddiction&#8482; approach, we offer a level of individualized care that larger
+              Accelerated Recovery&#8482; approach, we offer a level of individualized care that larger
               facilities simply cannot match. Here, every client is known by name, and every
               treatment plan is built from the ground up.
             </p>

@@ -139,7 +139,7 @@ export const marijuanaContent: SubstanceContent = {
       {
         label: 'The trauma survivor',
         headline: 'A smoother that kept working.',
-        body: 'Acute or complex trauma underneath. Cannabis did for you what alcohol does for others. Forward-Facing Freedom® is built for this landing.',
+        body: 'Acute or complex trauma underneath. Cannabis did for you what alcohol does for others. Forward-Facing Accelerated Recovery® is built for this landing.',
       },
       {
         label: 'The poly-substance pattern',
@@ -175,7 +175,7 @@ export const marijuanaContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing Freedom®, EMDR, ART, and IFS — sequenced after the first few weeks, when the nervous system has quieted enough to do the work.',
+        body: 'Forward-Facing Accelerated Recovery®, EMDR, ART, and IFS — sequenced after the first few weeks, when the nervous system has quieted enough to do the work.',
         iconId: 'spiral',
       },
       {

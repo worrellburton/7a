@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
  * Six modalities. Instead of the flat 3-col card grid the page used
  * to ship, we use an asymmetric bento:
  *   - one tall hero card (photo, no text) anchors the bottom-left
- *   - the flagship Forward-Facing Freedom® card takes the first
+ *   - the flagship Forward-Facing Accelerated Recovery® card takes the first
  *     full-width row with a richer color treatment
  *   - the other five modalities are icon+copy tiles around it
  * Tiles fade in with a gentle stagger on scroll-in.
@@ -53,7 +53,7 @@ const modalities: Modality[] = [
   },
   {
     title: 'Experiential & Community Groups',
-    body: 'FFTA is delivered through psychoeducation, experiential groups, and community engagement. Shared experience builds the relational connection required for healing.',
+    body: 'FF-AR is delivered through psychoeducation, experiential groups, and community engagement. Shared experience builds the relational connection required for healing.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="9" cy="8" r="3" />
@@ -120,7 +120,7 @@ export default function ClinicalModalities() {
               lineHeight: 1.05,
             }}
           >
-            How we deliver TraumAddiction<span className="align-super text-[0.55em]">®</span> care.
+            How we deliver Forward-Facing Accelerated Recovery<span className="align-super text-[0.55em]">®</span> care.
           </h2>
           <p
             className="text-foreground/70 text-lg leading-relaxed"
@@ -128,14 +128,14 @@ export default function ClinicalModalities() {
           >
             In our residential setting, treatment is delivered through an
             integrated combination of clinical modalities — all aligned with
-            the Forward-Facing TraumAddiction&reg; framework and trauma-
+            the Forward-Facing Accelerated Recovery&reg; framework and trauma-
             informed principles of safety, empowerment, and collaboration.
           </p>
         </div>
 
         {/* Bento grid */}
         <div className="grid gap-4 lg:gap-5 lg:grid-cols-12 lg:auto-rows-[minmax(180px,auto)]">
-          {/* Flagship FFF tile — spans the full top row */}
+          {/* Flagship FF-AR tile — spans the full top row */}
           <article
             className="lg:col-span-12 p-8 lg:p-10 rounded-2xl text-white relative overflow-hidden"
             style={{
@@ -163,7 +163,7 @@ export default function ClinicalModalities() {
                 className="font-bold tracking-tight mb-4"
                 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.6rem, 2.4vw, 2.1rem)', lineHeight: 1.1 }}
               >
-                Forward-Facing TraumAddiction<span className="align-super text-[0.55em]">®</span> Treatment
+                Forward-Facing Accelerated Recovery<span className="align-super text-[0.55em]">®</span> Treatment
               </h3>
               <p className="text-white/85 leading-relaxed text-[15.5px]" style={{ fontFamily: 'var(--font-body)' }}>
                 Our primary therapeutic framework — a present-focused, salutogenic

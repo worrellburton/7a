@@ -384,7 +384,7 @@ export default function PageContent() {
               The psychological transition can be just as real as the physical one. Daily medication often becomes a small loop in the day — a moment of attention to recovery. When that loop disappears, some people feel unmoored at first. The work in early Sublocade often involves replacing that loop with intentional check-ins of a different kind: a morning walk, a brief journaling prompt, a recovery meeting, a call to a sponsor.
             </p>
             <p className="text-foreground/80 leading-relaxed mb-10">
-              At Seven Arrows Recovery, our TraumAddiction&trade; approach treats the medication change as one thread in a larger weave. We are looking at sleep, nervous system regulation, relationships, and the underlying experiences that drove use in the first place. The medication holds the floor steady; the rest of the work happens on top of it.
+              At Seven Arrows Recovery, our Forward-Facing Accelerated Recovery&trade; approach treats the medication change as one thread in a larger weave. We are looking at sleep, nervous system regulation, relationships, and the underlying experiences that drove use in the first place. The medication holds the floor steady; the rest of the work happens on top of it.
             </p>
 
             {/* Section: Why us */}
