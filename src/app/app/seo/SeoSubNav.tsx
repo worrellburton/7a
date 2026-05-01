@@ -31,6 +31,7 @@ const PRIMARY_TABS: Tab[] = [
   { href: '/app/seo/serp-audit', label: 'SERP Audit', hint: 'Off-site brand mentions on the open web' },
   { href: '/app/seo/media', label: 'Media', hint: 'Images + videos with optimize batch' },
   { href: '/app/seo/speed', label: 'Speed', hint: 'Core Web Vitals via PageSpeed Insights' },
+  { href: '/app/seo/sitemap', label: 'Sitemap', hint: 'Crawl + download the live site map' },
 ];
 
 const WIP_TABS: Tab[] = [
