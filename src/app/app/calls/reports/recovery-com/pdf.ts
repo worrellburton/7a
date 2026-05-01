@@ -59,11 +59,11 @@ function drawHeader(ctx: PageContext) {
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(8);
   pdf.setTextColor(COLOR.primary);
-  pdf.text('SEVEN ARROWS RECOVERY', MARGIN_X, 32);
+  pdf.text(asciiSafe('SEVEN ARROWS RECOVERY'), MARGIN_X, 32);
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(7);
   pdf.setTextColor(COLOR.faint);
-  pdf.text('Recovery.com performance report', MARGIN_X + 150, 32);
+  pdf.text(asciiSafe('Recovery.com performance report'), MARGIN_X + 150, 32);
 
   pdf.setDrawColor(COLOR.hairline);
   pdf.setLineWidth(0.5);
@@ -78,8 +78,8 @@ function drawFooter(ctx: PageContext) {
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
   pdf.setTextColor(COLOR.faint);
-  pdf.text('sevenarrowsrecoveryarizona.com', MARGIN_X, PAGE_H - MARGIN_BOTTOM + 30);
-  pdf.text(`Page ${ctx.pageNumber}`, PAGE_W - MARGIN_X, PAGE_H - MARGIN_BOTTOM + 30, { align: 'right' });
+  pdf.text(asciiSafe('sevenarrowsrecoveryarizona.com'), MARGIN_X, PAGE_H - MARGIN_BOTTOM + 30);
+  pdf.text(asciiSafe(`Page ${ctx.pageNumber}`), PAGE_W - MARGIN_X, PAGE_H - MARGIN_BOTTOM + 30, { align: 'right' });
 }
 
 function fmtDate(iso: string): string {
@@ -97,6 +97,42 @@ function fmtDuration(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
+// Helvetica's WinAnsi encoding (jsPDF's default) doesn't include
+// the unicode glyphs we lean on in the on-screen UI (≥, →, •, em
+// dash, curly quotes). When we feed those characters in raw, jsPDF
+// either drops them or substitutes look-alikes that throw off line
+// widths — that's what produced the spaced-out "FIT  "e 60" garble
+// on the cover page. Anywhere we hand a string to pdf.text we route
+// it through asciiSafe first so the printed copy stays clean.
+function asciiSafe(input: string): string {
+  return input
+    .replace(/≥/g, '>=')
+    .replace(/≤/g, '<=')
+    .replace(/→/g, '->')
+    .replace(/←/g, '<-')
+    .replace(/—|–/g, '-')
+    .replace(/•/g, '-')
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/…/g, '...');
+}
+
+// PII redaction for the printed report. The PDF is intended to be
+// shared with marketing partners + executives, so we keep the data
+// useful (last-4 phone digits, location, AI summary) but strip the
+// pieces that directly identify the caller.
+function redactName(name: string | null | undefined): string {
+  if (!name || !name.trim()) return '—';
+  return '***';
+}
+
+function redactPhone(phone: string | null | undefined): string {
+  if (!phone) return '—';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 4) return '***';
+  return `(***) ***-${digits.slice(-4)}`;
+}
+
 // ─── Cover page ─────────────────────────────────────────────────
 
 function drawCoverPage(ctx: PageContext, data: RecoveryReportPayload) {
@@ -109,27 +145,29 @@ function drawCoverPage(ctx: PageContext, data: RecoveryReportPayload) {
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(9);
   pdf.setTextColor(COLOR.primary);
-  pdf.text('SEVEN ARROWS RECOVERY', MARGIN_X, 56);
+  pdf.text(asciiSafe('SEVEN ARROWS RECOVERY'), MARGIN_X, 56);
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
   pdf.setTextColor(COLOR.faint);
-  pdf.text('Patient portal · sevenarrowsrecoveryarizona.com', MARGIN_X, 70);
+  pdf.text(asciiSafe('Patient portal - sevenarrowsrecoveryarizona.com'), MARGIN_X, 70);
 
   // Title block.
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(28);
   pdf.setTextColor(COLOR.text);
-  pdf.text('Recovery.com', MARGIN_X, 200);
+  pdf.text(asciiSafe('Recovery.com'), MARGIN_X, 200);
   pdf.setFontSize(28);
   pdf.setTextColor(COLOR.primary);
-  pdf.text('call performance', MARGIN_X, 232);
+  pdf.text(asciiSafe('call performance'), MARGIN_X, 232);
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(10);
   pdf.setTextColor(COLOR.muted);
   const blurb = pdf.splitTextToSize(
-    'Every call CTM attributes to the Recovery.com listing — volume, lead quality, operator handling, and conversion likelihood — for the window below.',
+    asciiSafe(
+      'Every call CTM attributes to the Recovery.com listing — volume, lead quality, and conversion likelihood — for the window below.',
+    ),
     PAGE_W - MARGIN_X * 2,
   );
   pdf.text(blurb, MARGIN_X, 260);
@@ -142,7 +180,7 @@ function drawCoverPage(ctx: PageContext, data: RecoveryReportPayload) {
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(11);
   pdf.setTextColor(COLOR.text);
-  pdf.text(`${fmtDate(data.range.from)}  →  ${fmtDate(data.range.to)}`, MARGIN_X, 340);
+  pdf.text(asciiSafe(`${fmtDate(data.range.from)}  ->  ${fmtDate(data.range.to)}`), MARGIN_X, 340);
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(8);
@@ -151,11 +189,19 @@ function drawCoverPage(ctx: PageContext, data: RecoveryReportPayload) {
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(11);
   pdf.setTextColor(COLOR.text);
-  pdf.text(new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }), MARGIN_X + 260, 340);
+  pdf.text(
+    asciiSafe(
+      new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+    ),
+    MARGIN_X + 260,
+    340,
+  );
 
-  // Hero KPI tiles.
+  // Hero KPI tiles — 4 across so Missed sits on the cover next to
+  // the volume + lead-quality numbers.
   const tileY = 380;
-  const tileW = (PAGE_W - MARGIN_X * 2 - 12 * 2) / 3;
+  const tileGap = 10;
+  const tileW = (PAGE_W - MARGIN_X * 2 - tileGap * 3) / 4;
   const tileH = 90;
   const tiles: { label: string; value: string; sub?: string }[] = [
     {
@@ -164,36 +210,41 @@ function drawCoverPage(ctx: PageContext, data: RecoveryReportPayload) {
       sub: `${data.overview.uniqueCallers} unique callers`,
     },
     {
-      label: 'Meaningful (fit ≥ 60)',
+      label: 'Meaningful (fit >= 60)',
       value: data.overview.meaningful.toLocaleString(),
       sub: `${Math.round(data.overview.meaningfulPct * 100)}% of all calls`,
     },
     {
-      label: 'High fit (≥ 75)',
+      label: 'High fit (>= 75)',
       value: data.overview.highFit.toLocaleString(),
       sub:
         data.overview.scoredCount > 0
           ? `${Math.round((data.overview.highFit / data.overview.scoredCount) * 100)}% of scored`
-          : '—',
+          : '-',
+    },
+    {
+      label: 'Missed inbound',
+      value: data.overview.missed.toLocaleString(),
+      sub: 'Voicemail + < 3s talk',
     },
   ];
   tiles.forEach((t, i) => {
-    const x = MARGIN_X + i * (tileW + 12);
+    const x = MARGIN_X + i * (tileW + tileGap);
     pdf.setFillColor(COLOR.card);
     pdf.roundedRect(x, tileY, tileW, tileH, 6, 6, 'F');
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(7);
     pdf.setTextColor(COLOR.faint);
-    pdf.text(t.label.toUpperCase(), x + 14, tileY + 22);
+    pdf.text(asciiSafe(t.label.toUpperCase()), x + 12, tileY + 22);
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(28);
+    pdf.setFontSize(t.value.length > 4 ? 22 : 26);
     pdf.setTextColor(COLOR.primary);
-    pdf.text(t.value, x + 14, tileY + 56);
+    pdf.text(asciiSafe(t.value), x + 12, tileY + 56);
     if (t.sub) {
       pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8);
+      pdf.setFontSize(7.5);
       pdf.setTextColor(COLOR.muted);
-      pdf.text(t.sub, x + 14, tileY + 74);
+      pdf.text(asciiSafe(t.sub), x + 12, tileY + 74);
     }
   });
 
@@ -219,17 +270,15 @@ function drawTakeaways(ctx: PageContext, data: RecoveryReportPayload, startY: nu
   const topClientCount = data.clientTypes[0]?.count ?? 0;
   const topOperator = data.operators[0] ?? null;
 
-  const lines = [
-    `${data.overview.total.toLocaleString()} calls landed via Recovery.com in this window — ${meaningfulPct}% of them met the meaningful threshold (fit ≥ 60).`,
+  const rawLines = [
+    `${data.overview.total.toLocaleString()} calls landed via Recovery.com in this window — ${meaningfulPct}% of them met the meaningful threshold (fit >= 60).`,
     data.overview.scoredCount > 0
-      ? `Of the calls our AI was able to score, ${conversionPct}% landed in the high-fit bucket (≥ 75) — the strongest indicator of admit-readiness.`
+      ? `${conversionPct}% of scored calls landed in the high-fit bucket (>= 75) — the strongest indicator of admit-readiness.`
       : `AI scoring hasn't run on this window yet, so lead-quality stats aren't available.`,
     topClient
       ? `The dominant caller profile was "${topClient}" (${topClientCount} of ${data.overview.scoredCount} scored calls).`
       : '',
-    topOperator
-      ? `${topOperator.name} fielded the most Recovery.com calls (${topOperator.count})${topOperator.avgScore != null ? ` with an average AI handling score of ${topOperator.avgScore.toFixed(1)}/100` : ''}.`
-      : '',
+    topOperator ? `${topOperator.name} fielded the most Recovery.com calls (${topOperator.count}).` : '',
     data.overview.missed > 0
       ? `${data.overview.missed} inbound call${data.overview.missed === 1 ? '' : 's'} went to voicemail or hung up before a 3-second talk window — review the call log on the last pages for callbacks.`
       : 'Every inbound call in this window cleared the 3-second talk threshold.',
@@ -239,9 +288,14 @@ function drawTakeaways(ctx: PageContext, data: RecoveryReportPayload, startY: nu
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(10);
   pdf.setTextColor(COLOR.text);
-  for (const line of lines) {
-    const wrapped = pdf.splitTextToSize(`• ${line}`, PAGE_W - MARGIN_X * 2);
-    pdf.text(wrapped, MARGIN_X, y);
+  // Bullet column: indent the wrapped text so the second line of a
+  // long bullet aligns under the first letter, not the bullet glyph.
+  const bulletGutter = 12;
+  const bodyW = PAGE_W - MARGIN_X * 2 - bulletGutter;
+  for (const line of rawLines) {
+    const wrapped = pdf.splitTextToSize(asciiSafe(line), bodyW);
+    pdf.text('-', MARGIN_X, y);
+    pdf.text(wrapped, MARGIN_X + bulletGutter, y);
     y += wrapped.length * 14 + 4;
   }
 }
@@ -259,13 +313,16 @@ function drawStatsPage(ctx: PageContext, data: RecoveryReportPayload) {
 
   const fmtPct = (n: number) => `${Math.round(n * 100)}%`;
   const conversionPct = data.overview.scoredCount > 0 ? data.overview.highFit / data.overview.scoredCount : 0;
+  // Note: no per-call AI handling score on this page. Lead-quality
+  // metrics (fit) describe the caller, not the operator's handling,
+  // so they stay.
   const tiles: { label: string; value: string; sub?: string }[] = [
     { label: 'Total calls', value: data.overview.total.toLocaleString() },
     { label: 'Inbound', value: data.overview.inbound.toLocaleString(), sub: `${data.overview.outbound} outbound` },
+    { label: 'Unique callers', value: data.overview.uniqueCallers.toLocaleString(), sub: 'Distinct phone numbers' },
     { label: 'Meaningful', value: data.overview.meaningful.toLocaleString(), sub: fmtPct(data.overview.meaningfulPct) },
-    { label: 'High fit (≥ 75)', value: data.overview.highFit.toLocaleString(), sub: `${fmtPct(conversionPct)} of scored` },
-    { label: 'Avg call score', value: data.overview.avgCallScore ? data.overview.avgCallScore.toFixed(1) : '—', sub: 'AI handling 0–100' },
-    { label: 'Avg fit score', value: data.overview.avgFitScore ? data.overview.avgFitScore.toFixed(1) : '—', sub: 'Lead quality 0–100' },
+    { label: 'High fit (>= 75)', value: data.overview.highFit.toLocaleString(), sub: `${fmtPct(conversionPct)} of scored` },
+    { label: 'Avg fit score', value: data.overview.avgFitScore ? data.overview.avgFitScore.toFixed(1) : '-', sub: 'Lead quality 0-100' },
     { label: 'Avg duration', value: fmtDuration(data.overview.avgDuration), sub: `${fmtDuration(data.overview.avgTalkTime)} talk` },
     { label: 'Missed inbound', value: data.overview.missed.toLocaleString(), sub: 'VM + < 3s talk' },
   ];
@@ -283,16 +340,16 @@ function drawStatsPage(ctx: PageContext, data: RecoveryReportPayload) {
     ctx.pdf.setFont('helvetica', 'bold');
     ctx.pdf.setFontSize(6.5);
     ctx.pdf.setTextColor(COLOR.faint);
-    ctx.pdf.text(t.label.toUpperCase(), x + 10, y + 16);
+    ctx.pdf.text(asciiSafe(t.label.toUpperCase()), x + 10, y + 16);
     ctx.pdf.setFont('helvetica', 'bold');
     ctx.pdf.setFontSize(20);
     ctx.pdf.setTextColor(COLOR.primary);
-    ctx.pdf.text(t.value, x + 10, y + 44);
+    ctx.pdf.text(asciiSafe(t.value), x + 10, y + 44);
     if (t.sub) {
       ctx.pdf.setFont('helvetica', 'normal');
       ctx.pdf.setFontSize(7);
       ctx.pdf.setTextColor(COLOR.muted);
-      ctx.pdf.text(t.sub, x + 10, y + 60);
+      ctx.pdf.text(asciiSafe(t.sub), x + 10, y + 60);
     }
     col++;
     if (col >= cols) {
@@ -377,10 +434,10 @@ function drawDailyVolumeChart(ctx: PageContext, daily: RecoveryReportPayload['da
   ctx.pdf.setFont('helvetica', 'normal');
   ctx.pdf.setFontSize(8);
   ctx.pdf.setTextColor(COLOR.muted);
-  ctx.pdf.text('All calls', innerLeft + 14, legendY + 7);
+  ctx.pdf.text(asciiSafe('All calls'), innerLeft + 14, legendY + 7);
   ctx.pdf.setFillColor('#10b981');
   ctx.pdf.rect(innerLeft + 80, legendY, 8, 8, 'F');
-  ctx.pdf.text('Meaningful (fit ≥ 60)', innerLeft + 94, legendY + 7);
+  ctx.pdf.text(asciiSafe('Meaningful (fit >= 60)'), innerLeft + 94, legendY + 7);
 
   ctx.cursorY = legendY + 22;
 }
@@ -479,7 +536,7 @@ function drawHorizontalBars(ctx: PageContext, rows: HBar[]) {
     ctx.pdf.setFont('helvetica', 'normal');
     ctx.pdf.setFontSize(9);
     ctx.pdf.setTextColor(COLOR.text);
-    ctx.pdf.text(r.label, MARGIN_X, y + 11);
+    ctx.pdf.text(asciiSafe(r.label), MARGIN_X, y + 11);
 
     // Track + filled bar.
     ctx.pdf.setFillColor(COLOR.card);
@@ -492,8 +549,8 @@ function drawHorizontalBars(ctx: PageContext, rows: HBar[]) {
     ctx.pdf.setFont('helvetica', 'bold');
     ctx.pdf.setFontSize(9);
     ctx.pdf.setTextColor(COLOR.text);
-    const valueLabel = r.suffix ? `${r.value} · ${r.suffix}` : String(r.value);
-    ctx.pdf.text(valueLabel, PAGE_W - MARGIN_X, y + 11, { align: 'right' });
+    const valueLabel = r.suffix ? `${r.value}  ${r.suffix}` : String(r.value);
+    ctx.pdf.text(asciiSafe(valueLabel), PAGE_W - MARGIN_X, y + 11, { align: 'right' });
     ctx.cursorY += rowH;
   }
 }
@@ -511,11 +568,13 @@ function drawOperatorPage(ctx: PageContext, data: RecoveryReportPayload) {
   drawSectionHeading(ctx, 'TEAM', 'Operator handling');
   ctx.cursorY += 6;
 
+  // Per-operator AI handling score is intentionally omitted —
+  // operator performance is reviewed in the calls UI, not surfaced
+  // on the printable report.
   const cols = [
     { label: 'Operator', x: MARGIN_X },
-    { label: 'Calls', x: MARGIN_X + 240, align: 'right' as const },
-    { label: 'Avg score', x: MARGIN_X + 300, align: 'right' as const },
-    { label: 'Meaningful', x: MARGIN_X + 380, align: 'right' as const },
+    { label: 'Calls', x: MARGIN_X + 280, align: 'right' as const },
+    { label: 'Meaningful', x: MARGIN_X + 400, align: 'right' as const },
     { label: 'High fit', x: PAGE_W - MARGIN_X, align: 'right' as const },
   ];
   drawTableHeader(ctx, cols);
@@ -526,14 +585,14 @@ function drawOperatorPage(ctx: PageContext, data: RecoveryReportPayload) {
     ctx.pdf.setFont('helvetica', 'bold');
     ctx.pdf.setFontSize(9);
     ctx.pdf.setTextColor(COLOR.text);
-    ctx.pdf.text(r.name, cols[0].x, y);
+    ctx.pdf.text(asciiSafe(r.name), cols[0].x, y);
     ctx.pdf.setFont('helvetica', 'normal');
+    ctx.pdf.setTextColor(COLOR.text);
     ctx.pdf.text(String(r.count), cols[1].x, y, { align: 'right' });
-    ctx.pdf.text(r.avgScore != null ? r.avgScore.toFixed(1) : '—', cols[2].x, y, { align: 'right' });
     ctx.pdf.setTextColor(COLOR.emerald);
-    ctx.pdf.text(String(r.meaningful), cols[3].x, y, { align: 'right' });
+    ctx.pdf.text(String(r.meaningful), cols[2].x, y, { align: 'right' });
     ctx.pdf.setTextColor(COLOR.primary);
-    ctx.pdf.text(String(r.highFit), cols[4].x, y, { align: 'right' });
+    ctx.pdf.text(String(r.highFit), cols[3].x, y, { align: 'right' });
     ctx.pdf.setDrawColor(COLOR.hairline);
     ctx.pdf.line(MARGIN_X, ctx.cursorY + 18, PAGE_W - MARGIN_X, ctx.cursorY + 18);
     ctx.cursorY += 18;
@@ -560,15 +619,15 @@ function drawOperatorPage(ctx: PageContext, data: RecoveryReportPayload) {
       ctx.pdf.setFont('helvetica', 'bold');
       ctx.pdf.setFontSize(9);
       ctx.pdf.setTextColor(COLOR.text);
-      ctx.pdf.text(r.phone, rcCols[0].x, y);
+      ctx.pdf.text(redactPhone(r.phone), rcCols[0].x, y);
       ctx.pdf.setFont('helvetica', 'normal');
       ctx.pdf.setTextColor(COLOR.muted);
-      ctx.pdf.text([r.city, r.state].filter(Boolean).join(', ') || '—', rcCols[1].x, y);
+      ctx.pdf.text(asciiSafe([r.city, r.state].filter(Boolean).join(', ') || '-'), rcCols[1].x, y);
       ctx.pdf.setTextColor(COLOR.primary);
       ctx.pdf.text(String(r.calls), rcCols[2].x, y, { align: 'right' });
       ctx.pdf.setTextColor(COLOR.muted);
-      ctx.pdf.text(fmtDateTime(r.firstAt), rcCols[3].x, y);
-      ctx.pdf.text(fmtDateTime(r.lastAt), rcCols[4].x, y, { align: 'right' });
+      ctx.pdf.text(asciiSafe(fmtDateTime(r.firstAt)), rcCols[3].x, y);
+      ctx.pdf.text(asciiSafe(fmtDateTime(r.lastAt)), rcCols[4].x, y, { align: 'right' });
       ctx.pdf.setDrawColor(COLOR.hairline);
       ctx.pdf.line(MARGIN_X, ctx.cursorY + 18, PAGE_W - MARGIN_X, ctx.cursorY + 18);
       ctx.cursorY += 18;
@@ -591,8 +650,14 @@ function drawCallLogPages(ctx: PageContext, calls: CallLogRow[]) {
   ctx.pdf.setFont('helvetica', 'normal');
   ctx.pdf.setFontSize(9);
   ctx.pdf.setTextColor(COLOR.muted);
-  ctx.pdf.text(`${calls.length.toLocaleString()} calls in this window.`, MARGIN_X, ctx.cursorY + 18);
-  ctx.cursorY += 28;
+  ctx.pdf.text(
+    asciiSafe(
+      `${calls.length.toLocaleString()} calls in this window. Caller names + phone numbers are redacted; only the last four digits of each number are shown.`,
+    ),
+    MARGIN_X,
+    ctx.cursorY + 18,
+  );
+  ctx.cursorY += 36;
 
   for (const c of calls) {
     drawCallEntry(ctx, c);
@@ -602,30 +667,35 @@ function drawCallLogPages(ctx: PageContext, calls: CallLogRow[]) {
 
 function drawCallEntry(ctx: PageContext, c: CallLogRow) {
   // Estimate row height up-front so we can decide whether to break.
-  const summaryWrapped = c.summary
-    ? ctx.pdf.splitTextToSize(c.summary, PAGE_W - MARGIN_X * 2 - 6)
+  const summaryText = c.summary ? asciiSafe(c.summary) : '';
+  const summaryWrapped = summaryText
+    ? ctx.pdf.splitTextToSize(summaryText, PAGE_W - MARGIN_X * 2 - 6)
     : [];
-  const blockH = 18 + 12 + summaryWrapped.length * 11 + (c.next_steps ? 12 : 0) + 10;
+  const nextStepsText = c.next_steps ? asciiSafe(c.next_steps) : '';
+  const blockH = 18 + 12 + summaryWrapped.length * 11 + (nextStepsText ? 12 : 0) + 10;
   ensureRoom(ctx, blockH);
 
   const startY = ctx.cursorY;
-  // Top metadata line.
+  // Top metadata line — caller is always redacted (PHI).
   ctx.pdf.setFont('helvetica', 'bold');
   ctx.pdf.setFontSize(10);
   ctx.pdf.setTextColor(COLOR.text);
-  const headline = c.caller_name || c.caller_number || 'Unknown caller';
-  ctx.pdf.text(headline, MARGIN_X, startY + 12);
+  const headlineParts: string[] = [];
+  // Names always blanked. Phone shown as last-4 only.
+  headlineParts.push(redactName(c.caller_name));
+  headlineParts.push(redactPhone(c.caller_number));
+  ctx.pdf.text(asciiSafe(headlineParts.join('  ')), MARGIN_X, startY + 12);
 
-  // Right-side score chips.
+  // Right-side fit chip only — per-call AI handling score (which
+  // doubles as an operator-quality signal) is intentionally omitted
+  // from the printed report.
   let chipX = PAGE_W - MARGIN_X;
   if (c.fit_score != null) {
-    chipX = drawChip(ctx, chipX, startY + 4, `Fit ${c.fit_score}`, fitColor(c.fit_score));
+    chipX = drawChip(ctx, chipX, startY + 4, asciiSafe(`Fit ${c.fit_score}`), fitColor(c.fit_score));
   }
-  if (c.score != null) {
-    chipX = drawChip(ctx, chipX, startY + 4, `Score ${c.score}`, scoreColor(c.score));
-  }
+  void chipX;
 
-  // Sub-line: time · duration · location · operator · client type.
+  // Sub-line: time, duration, location, operator name, client type.
   const subParts: string[] = [];
   subParts.push(fmtDateTime(c.called_at));
   subParts.push(fmtDuration(c.duration));
@@ -637,7 +707,7 @@ function drawCallEntry(ctx: PageContext, c: CallLogRow) {
   ctx.pdf.setFont('helvetica', 'normal');
   ctx.pdf.setFontSize(8);
   ctx.pdf.setTextColor(COLOR.muted);
-  ctx.pdf.text(subParts.join('  ·  '), MARGIN_X, startY + 26);
+  ctx.pdf.text(asciiSafe(subParts.join('  -  ')), MARGIN_X, startY + 26);
 
   // Summary.
   let y = startY + 40;
@@ -648,11 +718,11 @@ function drawCallEntry(ctx: PageContext, c: CallLogRow) {
     ctx.pdf.text(summaryWrapped, MARGIN_X, y);
     y += summaryWrapped.length * 11;
   }
-  if (c.next_steps) {
+  if (nextStepsText) {
     ctx.pdf.setFont('helvetica', 'bold');
     ctx.pdf.setFontSize(8);
     ctx.pdf.setTextColor(COLOR.primary);
-    ctx.pdf.text(`→ ${c.next_steps}`, MARGIN_X, y + 4);
+    ctx.pdf.text(asciiSafe(`-> ${nextStepsText}`), MARGIN_X, y + 4);
     y += 12;
   }
 
@@ -667,12 +737,13 @@ function drawChip(ctx: PageContext, anchorRight: number, y: number, text: string
   const padX = 6;
   ctx.pdf.setFont('helvetica', 'bold');
   ctx.pdf.setFontSize(8);
-  const w = ctx.pdf.getTextWidth(text) + padX * 2;
+  const safe = asciiSafe(text);
+  const w = ctx.pdf.getTextWidth(safe) + padX * 2;
   const x = anchorRight - w;
   ctx.pdf.setFillColor(color);
   ctx.pdf.roundedRect(x, y, w, 12, 3, 3, 'F');
   ctx.pdf.setTextColor('#ffffff');
-  ctx.pdf.text(text, x + padX, y + 8.5);
+  ctx.pdf.text(safe, x + padX, y + 8.5);
   return x - 4;
 }
 
@@ -683,23 +754,16 @@ function fitColor(v: number): string {
   return '#dc2626';
 }
 
-function scoreColor(v: number): string {
-  if (v >= 80) return '#059669';
-  if (v >= 60) return '#3b82f6';
-  if (v >= 40) return '#d97706';
-  return '#dc2626';
-}
-
 // ─── Common helpers ─────────────────────────────────────────────
 
 function drawSectionHeading(ctx: PageContext, eyebrow: string, title: string) {
   ctx.pdf.setFont('helvetica', 'bold');
   ctx.pdf.setFontSize(7);
   ctx.pdf.setTextColor(COLOR.primary);
-  ctx.pdf.text(eyebrow, MARGIN_X, ctx.cursorY);
+  ctx.pdf.text(asciiSafe(eyebrow), MARGIN_X, ctx.cursorY);
   ctx.pdf.setFontSize(15);
   ctx.pdf.setTextColor(COLOR.text);
-  ctx.pdf.text(title, MARGIN_X, ctx.cursorY + 18);
+  ctx.pdf.text(asciiSafe(title), MARGIN_X, ctx.cursorY + 18);
   ctx.cursorY += 28;
 }
 
@@ -708,7 +772,7 @@ function drawTableHeader(ctx: PageContext, cols: { label: string; x: number; ali
   ctx.pdf.setFontSize(7);
   ctx.pdf.setTextColor(COLOR.faint);
   for (const c of cols) {
-    ctx.pdf.text(c.label.toUpperCase(), c.x, ctx.cursorY + 10, { align: c.align });
+    ctx.pdf.text(asciiSafe(c.label.toUpperCase()), c.x, ctx.cursorY + 10, { align: c.align });
   }
   ctx.pdf.setDrawColor(COLOR.hairline);
   ctx.pdf.setLineWidth(0.5);

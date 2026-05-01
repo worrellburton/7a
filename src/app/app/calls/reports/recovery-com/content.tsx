@@ -365,12 +365,16 @@ function KpiBand({
   };
   const conversionPct = overview.scoredCount > 0 ? overview.highFit / overview.scoredCount : 0;
 
+  // Per-call AI handling score is intentionally omitted from this
+  // report — operator scoring is reviewed in the calls UI, not on
+  // the printable rollup. Lead-quality (fit) numbers describe the
+  // caller, not the operator's handling, so they stay.
   const kpis: { label: string; value: string; hint?: string; tone: 'primary' | 'emerald' | 'foreground' | 'amber' | 'red' }[] = [
     { label: 'Total calls', value: fmtNum(overview.total), tone: 'foreground' },
     { label: 'Inbound', value: fmtNum(overview.inbound), hint: `${fmtNum(overview.outbound)} outbound`, tone: 'foreground' },
+    { label: 'Unique callers', value: fmtNum(overview.uniqueCallers), hint: 'Distinct phone numbers', tone: 'foreground' },
     { label: 'Meaningful (fit ≥ 60)', value: fmtNum(overview.meaningful), hint: fmtPct(overview.meaningfulPct), tone: 'emerald' },
     { label: 'High fit (≥ 75)', value: fmtNum(overview.highFit), hint: `${fmtPct(conversionPct)} of scored`, tone: 'primary' },
-    { label: 'Avg call score', value: overview.avgCallScore ? overview.avgCallScore.toFixed(1) : '—', hint: 'AI handling 0–100', tone: 'primary' },
     { label: 'Avg fit score', value: overview.avgFitScore ? overview.avgFitScore.toFixed(1) : '—', hint: 'Lead-quality 0–100', tone: 'emerald' },
     { label: 'Avg duration', value: fmtDuration(overview.avgDuration), hint: `${fmtDuration(overview.avgTalkTime)} talk`, tone: 'foreground' },
     { label: 'Missed inbound', value: fmtNum(overview.missed), hint: 'Voicemail + < 3s talk', tone: 'red' },
@@ -667,14 +671,13 @@ function OperatorScoreboard({ rows }: { rows: RecoveryReportPayload['operators']
   if (rows.length === 0) return null;
   return (
     <section className="report-section mt-8 rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
-      <SectionTitle eyebrow="Team" title="Operator handling" subtitle="Who answered Recovery.com calls, how they performed, and how often the call landed in the meaningful bucket." />
+      <SectionTitle eyebrow="Team" title="Operator handling" subtitle="Who answered Recovery.com calls and how often the call landed in the meaningful or high-fit bucket." />
       <div className="overflow-x-auto -mx-1">
         <table className="w-full text-sm">
           <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
             <tr>
               <th className="px-3 py-2 rounded-l-lg">Operator</th>
               <th className="px-3 py-2 text-right">Calls</th>
-              <th className="px-3 py-2 text-right">Avg score</th>
               <th className="px-3 py-2 text-right">Meaningful</th>
               <th className="px-3 py-2 text-right rounded-r-lg">High fit</th>
             </tr>
@@ -684,9 +687,6 @@ function OperatorScoreboard({ rows }: { rows: RecoveryReportPayload['operators']
               <tr key={r.name} className="align-middle">
                 <td className="px-3 py-2.5 font-semibold text-foreground">{r.name}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{r.count}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">
-                  {r.avgScore != null ? r.avgScore.toFixed(1) : <span className="text-foreground/40">—</span>}
-                </td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700 font-semibold">
                   {r.meaningful}
                 </td>
@@ -797,7 +797,6 @@ function CallLogSection({ rows }: { rows: CallLogRow[] }) {
               <th className="px-3 py-2">Caller</th>
               <th className="px-3 py-2">Location</th>
               <th className="px-3 py-2 text-right">Duration</th>
-              <th className="px-3 py-2 text-right">Score</th>
               <th className="px-3 py-2 text-right">Fit</th>
               <th className="px-3 py-2">Operator</th>
               <th className="px-3 py-2">Client type</th>
@@ -825,9 +824,6 @@ function CallLogSection({ rows }: { rows: CallLogRow[] }) {
                   {fmtDuration(r.duration)}
                 </td>
                 <td className="px-3 py-2.5 text-right">
-                  <ScoreCell value={r.score} />
-                </td>
-                <td className="px-3 py-2.5 text-right">
                   <FitCell value={r.fit_score} />
                 </td>
                 <td className="px-3 py-2.5 text-foreground/65 whitespace-nowrap">
@@ -850,7 +846,7 @@ function CallLogSection({ rows }: { rows: CallLogRow[] }) {
             ))}
             {pageRows.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-10 text-center text-foreground/45 text-sm">
+                <td colSpan={8} className="px-3 py-10 text-center text-foreground/45 text-sm">
                   No matching calls.
                 </td>
               </tr>
@@ -885,17 +881,6 @@ function CallLogSection({ rows }: { rows: CallLogRow[] }) {
         </div>
       )}
     </section>
-  );
-}
-
-function ScoreCell({ value }: { value: number | null }) {
-  if (value == null) return <span className="text-foreground/35">—</span>;
-  const tone =
-    value >= 80 ? 'text-emerald-700 bg-emerald-50' : value >= 60 ? 'text-blue-700 bg-blue-50' : value >= 40 ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50';
-  return (
-    <span className={`inline-flex items-center justify-center min-w-[2.25rem] px-2 py-0.5 rounded-md text-[11px] font-bold tabular-nums ${tone}`}>
-      {value}
-    </span>
   );
 }
 
