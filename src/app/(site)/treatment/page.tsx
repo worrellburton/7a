@@ -119,7 +119,7 @@ export default function TreatmentPage() {
               },
               {
                 heading: "Evidence-Based Methods",
-                text: "Our clinicians integrate proven therapeutic modalities, including our proprietary TraumAddiction\u2122 approach, to address the root causes of addiction.",
+                text: "Our clinicians integrate proven therapeutic modalities, including our proprietary Forward-Facing Accelerated Recovery\u2122 approach, to address the root causes of addiction.",
               },
               {
                 heading: "Seamless Transitions",

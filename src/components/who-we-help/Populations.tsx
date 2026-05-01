@@ -46,7 +46,7 @@ const personas: Persona[] = [
     title: 'First responders & veterans',
     subtitle: 'Police, fire, EMS, active-duty and vets',
     body:
-      'Trauma-informed care for clients whose exposure to critical incidents, moral injury, or combat has driven substance use. In-network with TRICARE. Our TraumAddiction™ approach is built for this population.',
+      'Trauma-informed care for clients whose exposure to critical incidents, moral injury, or combat has driven substance use. In-network with TRICARE. Our Forward-Facing Accelerated Recovery™ approach is built for this population.',
     glyph: (
       <svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}>
         <path d="M16 5l9 3v8c0 6-4 10-9 11-5-1-9-5-9-11V8l9-3z" />

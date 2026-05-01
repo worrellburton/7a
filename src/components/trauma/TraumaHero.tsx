@@ -15,7 +15,7 @@ import WebGLAurora from './WebGLAurora';
  *     paragraph lede, CTA pair, and an overlay pull-quote ribbon.
  *
  * Intent: communicate the clinical-yet-human tone we use for
- * TraumAddiction® care, and give the rest of the page a visual voice
+ * Forward-Facing Accelerated Recovery® care, and give the rest of the page a visual voice
  * to match.
  */
 export default function TraumaHero() {
@@ -106,7 +106,7 @@ export default function TraumaHero() {
             }}
           >
             <span className="block w-10 h-px bg-white/70" aria-hidden="true" />
-            TraumAddiction<span className="align-super text-[9px]">®</span> Treatment
+            Accelerated Recovery<span className="align-super text-[9px]">®</span> Treatment
           </p>
 
           <h1
@@ -139,9 +139,9 @@ export default function TraumaHero() {
               transition: 'all 0.9s cubic-bezier(0.16,1,0.3,1) 0.45s',
             }}
           >
-            Addiction rarely exists in isolation. Our TraumAddiction<span className="align-super text-[10px]">®</span>{' '}
+            Addiction rarely exists in isolation. Our Forward-Facing Accelerated Recovery<span className="align-super text-[10px]">®</span>{' '}
             approach treats trauma and substance use as one integrated
-            condition through the Forward-Facing Freedom<span className="align-super text-[10px]">®</span> model —
+            condition through the Forward-Facing Accelerated Recovery<span className="align-super text-[10px]">®</span> model —
             unlocking deeper and more lasting healing.
           </p>
 
@@ -169,7 +169,7 @@ export default function TraumaHero() {
               className="inline-flex items-center gap-2 text-white/85 font-semibold border-b border-white/40 pb-1 tracking-[0.1em] uppercase text-[12px] hover:text-white hover:border-white transition-colors"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              What Forward-Facing Freedom Looks Like
+              What Forward-Facing Accelerated Recovery Looks Like
             </a>
           </div>
         </div>

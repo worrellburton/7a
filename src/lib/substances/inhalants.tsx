@@ -139,7 +139,7 @@ export const inhalantsContent: SubstanceContent = {
       {
         label: 'The trauma self-medicator',
         headline: 'A drug that made the mind go elsewhere.',
-        body: 'Acute or complex trauma underneath. Inhalants provided rapid dissociation. Forward-Facing Freedom® treats the underlying need directly.',
+        body: 'Acute or complex trauma underneath. Inhalants provided rapid dissociation. Forward-Facing Accelerated Recovery® treats the underlying need directly.',
       },
       {
         label: 'The poly-substance pattern',
@@ -174,7 +174,7 @@ export const inhalantsContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing Freedom®, EMDR, ART, and IFS — sequenced after the early medical and cognitive picture is stable.',
+        body: 'Forward-Facing Accelerated Recovery®, EMDR, ART, and IFS — sequenced after the early medical and cognitive picture is stable.',
         iconId: 'spiral',
       },
       {

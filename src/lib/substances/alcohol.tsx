@@ -140,7 +140,7 @@ export const alcoholContent: SubstanceContent = {
       {
         label: 'The trauma self-medicator',
         headline: 'A drink to take the edge off a body that never got to come down.',
-        body: 'Acute or complex trauma sits underneath. The alcohol was an anaesthetic for a nervous system in chronic sympathetic activation. Forward-Facing Freedom® is built for this exact presentation.',
+        body: 'Acute or complex trauma sits underneath. The alcohol was an anaesthetic for a nervous system in chronic sympathetic activation. Forward-Facing Accelerated Recovery® is built for this exact presentation.',
       },
       {
         label: 'The poly-substance pattern',
@@ -177,7 +177,7 @@ export const alcoholContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing Freedom®, EMDR, ART, and IFS — sequenced after the body is stable so processing supports regulation rather than unsettling it.',
+        body: 'Forward-Facing Accelerated Recovery®, EMDR, ART, and IFS — sequenced after the body is stable so processing supports regulation rather than unsettling it.',
         iconId: 'spiral',
       },
       {

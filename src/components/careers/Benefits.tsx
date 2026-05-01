@@ -9,7 +9,7 @@ interface Benefit {
 }
 
 const benefits: Benefit[] = [
-  { tag: 'Signature', title: 'Paid FFTA training', body: 'Every staff member is paid to train in the Forward-Facing TraumAddiction Model (FFTA) — we are the only residential program in the world offering it right now.' },
+  { tag: 'Signature', title: 'Paid FF-AR training', body: 'Every staff member is paid to train in the Forward-Facing Accelerated Recovery Model (FF-AR) — we are the only residential program in the world offering it right now.' },
   { tag: 'Health', title: 'Medical, dental, vision', body: 'Comprehensive coverage begins two months after hire. Low-premium options available.' },
   { tag: 'Time off', title: 'PTO + sick time', body: 'PTO that accrues from day one, plus a separate sick-time bank.' },
   { tag: 'Licensure', title: 'Licensure supervision', body: 'Clinical supervision toward independent licensure available on-site for associate-level clinicians on staff.' },

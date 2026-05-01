@@ -369,7 +369,7 @@ export default function PageContent() {
               This is why telling someone with an addiction to &ldquo;just stop&rdquo; is like telling someone with a broken leg to &ldquo;just walk.&rdquo; The machinery is compromised. Recovery requires professional support — medical, therapeutic, and often spiritual — to help the brain and body heal.
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              At Seven Arrows Recovery, our TraumAddiction&trade; approach recognizes that addiction almost always has deeper roots: unresolved trauma, untreated mental health conditions, chronic stress, or a combination of all three. We do not just treat the symptoms of substance use — we help our clients understand and heal the underlying pain that drove them to use in the first place.
+              At Seven Arrows Recovery, our Forward-Facing Accelerated Recovery&trade; approach recognizes that addiction almost always has deeper roots: unresolved trauma, untreated mental health conditions, chronic stress, or a combination of all three. We do not just treat the symptoms of substance use — we help our clients understand and heal the underlying pain that drove them to use in the first place.
             </p>
             <p className="text-foreground/80 leading-relaxed mb-10">
               Understanding that addiction is a disease — not a defect of character — can be one of the most liberating realizations in early recovery. It means that what you are experiencing is not your fault, but what you do next is within your power.

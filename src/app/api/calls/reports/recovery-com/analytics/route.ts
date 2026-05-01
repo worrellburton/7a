@@ -34,24 +34,28 @@ export const dynamic = 'force-dynamic';
 
 // "Recovery.com network" sources as GA reports them. Both are
 // directory placements that send traffic to sevenarrowsrecovery
-// arizona.com and should be reported together. We match the
-// sessionSource case-insensitively against a regex so any spelling
-// variation GA may emit (recoverycom, recovery.com, recovery-com,
-// rehabpath, rehab.com, etc.) is captured. The previous in-list
-// filter required exact strings and silently missed everything
-// when the casing or punctuation drifted.
+// arizona.com and should be reported together. The previous
+// inListFilter and PARTIAL_REGEXP attempts both came back empty
+// even when the unfiltered query clearly contained these values
+// (recoverycom: 137 sessions, rehabpath: 241), so we now build
+// an explicit orGroup of EXACT, case-insensitive filters — the
+// most unambiguous filter shape GA4 supports. Add another value
+// to RECOVERY_SOURCES to widen the report; the filter expression
+// auto-rebuilds.
 const RECOVERY_SOURCES = ['recoverycom', 'rehabpath'];
 
-const RECOVERY_REGEX = '^(recovery[-._]?com|rehab[-._]?path|recovery|rehabpath)$';
-
 const RECOVERY_FILTER = {
-  filter: {
-    fieldName: 'sessionSource',
-    stringFilter: {
-      matchType: 'PARTIAL_REGEXP' as const,
-      value: RECOVERY_REGEX,
-      caseSensitive: false,
-    },
+  orGroup: {
+    expressions: RECOVERY_SOURCES.map((value) => ({
+      filter: {
+        fieldName: 'sessionSource',
+        stringFilter: {
+          value,
+          matchType: 'EXACT' as const,
+          caseSensitive: false,
+        },
+      },
+    })),
   },
 };
 

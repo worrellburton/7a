@@ -33,9 +33,9 @@ const stops = [
   },
   {
     week: 'Weeks 5–8',
-    focus: 'TraumAddiction processing',
+    focus: 'Forward-Facing Accelerated Recovery processing',
     body:
-      'With capacity in place, clients engage present-focused trauma processing inside the Forward-Facing Freedom model.',
+      'With capacity in place, clients engage present-focused trauma processing inside the Forward-Facing Accelerated Recovery model.',
   },
   {
     week: 'Weeks 8–10',

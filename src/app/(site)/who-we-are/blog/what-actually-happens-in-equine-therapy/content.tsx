@@ -411,7 +411,7 @@ export default function PageContent() {
               Why It Works for Trauma and Addiction
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Most of our clients are not dealing with &ldquo;just&rdquo; a substance. Underneath the drinking, the pills, the stimulants, there is almost always unprocessed trauma — and trauma lives in the body long after the mind has built its stories around it. That&apos;s the premise of our TraumAddiction&trade; model, and it&apos;s why body-based modalities matter in recovery.
+              Most of our clients are not dealing with &ldquo;just&rdquo; a substance. Underneath the drinking, the pills, the stimulants, there is almost always unprocessed trauma — and trauma lives in the body long after the mind has built its stories around it. That&apos;s the premise of our Forward-Facing Accelerated Recovery&trade; model, and it&apos;s why body-based modalities matter in recovery.
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
               Talk therapy gives you language. Equine therapy gives you feedback from outside your own head — an immediate, non-judgmental response to the state your nervous system is actually in. For people whose trauma taught them to override their body&apos;s signals, that feedback can be the first time in years they&apos;ve felt accurate.

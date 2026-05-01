@@ -35,7 +35,7 @@ const structuredData = {
   "@id": "https://sevenarrowsrecoveryarizona.com/#organization",
   name: "Seven Arrows Recovery",
   description:
-    "A boutique drug and alcohol rehab center in Arizona offering clinical and residential treatment with a TraumAddiction\u2122 specialty approach.",
+    "A boutique drug and alcohol rehab center in Arizona offering clinical and residential treatment with a Forward-Facing Accelerated Recovery\u2122 specialty approach.",
   url: "https://sevenarrowsrecoveryarizona.com",
   telephone: "+1-866-996-4308",
   address: {
@@ -82,7 +82,7 @@ const structuredData = {
     },
     {
       "@type": "MedicalTherapy",
-      name: "TraumAddiction Treatment",
+      name: "Forward-Facing Accelerated Recovery Treatment",
       description:
         "Specialty treatment combining body-based interventions with traditional psychotherapy for trauma and addiction",
     },
@@ -125,7 +125,7 @@ const faqSchema = {
       name: "What types of addiction does Seven Arrows Recovery treat?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Seven Arrows Recovery treats alcohol addiction, drug addiction (including opioids, methamphetamine, cocaine, and prescription drugs), dual diagnosis (co-occurring mental health and substance use disorders), and trauma-related conditions through our proprietary TraumAddiction\u2122 approach.",
+        text: "Seven Arrows Recovery treats alcohol addiction, drug addiction (including opioids, methamphetamine, cocaine, and prescription drugs), dual diagnosis (co-occurring mental health and substance use disorders), and trauma-related conditions through our proprietary Forward-Facing Accelerated Recovery\u2122 approach.",
       },
     },
     {
@@ -149,7 +149,7 @@ const faqSchema = {
       name: "What makes Seven Arrows different from other rehab centers?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Seven Arrows Recovery is a boutique facility with small group sizes, nestled at the base of the Swisshelm Mountains in Arizona. We offer a unique combination of evidence-based clinical treatment, holistic therapies, and our specialty TraumAddiction\u2122 approach that addresses trauma and addiction simultaneously.",
+        text: "Seven Arrows Recovery is a boutique facility with small group sizes, nestled at the base of the Swisshelm Mountains in Arizona. We offer a unique combination of evidence-based clinical treatment, holistic therapies, and our specialty Forward-Facing Accelerated Recovery\u2122 approach that addresses trauma and addiction simultaneously.",
       },
     },
     {

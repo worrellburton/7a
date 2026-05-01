@@ -8,7 +8,7 @@ const highlights = [
   'Small group setting — deliberately low client-to-staff ratio, 1:1 primary clinician',
   '24/7 on-site clinical and residential support',
   'Evidence-based individual and group therapy',
-  'Proprietary TraumAddiction® approach',
+  'Proprietary Forward-Facing Accelerated Recovery® approach',
   'Holistic and experiential therapies',
   'Comfortable, home-like living environment',
   'Structured daily schedule with purposeful downtime',

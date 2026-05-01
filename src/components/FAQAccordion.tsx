@@ -31,9 +31,9 @@ const faqs = [
       'Seven Arrows Recovery treats a wide range of substance use disorders including alcohol addiction, opioid and heroin addiction, prescription drug dependency, methamphetamine and stimulant abuse, benzodiazepine dependency, and co-occurring mental health disorders (dual diagnosis).',
   },
   {
-    question: 'What is the Forward-Facing TraumAddiction\u00ae approach?',
+    question: 'What is the Forward-Facing Accelerated Recovery\u00ae approach?',
     answer:
-      'Forward-Facing TraumAddiction\u00ae is our proprietary clinical framework \u2014 developed by Dr. J. Eric Gentry and Lindsay Rothschild, LCSW \u2014 that recognizes the deep connection between unresolved trauma and addictive behavior. It integrates body-based interventions like somatic experiences and EMDR with traditional psychotherapy to treat the root causes of addiction, not just the symptoms.',
+      'Forward-Facing Accelerated Recovery\u00ae is our proprietary clinical framework \u2014 developed by Dr. J. Eric Gentry and Lindsay Rothschild, LCSW \u2014 that recognizes the deep connection between unresolved trauma and addictive behavior. It integrates body-based interventions like somatic experiences and EMDR with traditional psychotherapy to treat the root causes of addiction, not just the symptoms.',
   },
   {
     question: 'What does a typical day look like?',

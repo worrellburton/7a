@@ -360,7 +360,7 @@ const navLinks: NavItem[] = [
     dropdown: [
       { label: 'Meet Our Team', href: '/who-we-are/meet-our-team', description: 'Experienced clinicians & compassionate staff', group: 'The Team' },
       { label: 'Why Us?', href: '/who-we-are/why-us', description: 'What sets Seven Arrows apart', group: 'The Approach' },
-      { label: 'Our Philosophy', href: '/who-we-are/our-philosophy', description: 'Forward-Facing TraumAddiction\u00ae & holistic healing', group: 'The Approach' },
+      { label: 'Our Philosophy', href: '/who-we-are/our-philosophy', description: 'Forward-Facing Accelerated Recovery\u00ae & holistic healing', group: 'The Approach' },
       { label: 'FAQs', href: '/who-we-are/faqs', description: 'Common questions answered', group: 'Resources' },
       { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap', description: 'Our investigative series on addiction & healing', group: 'Resources' },
       { label: 'Careers', href: '/who-we-are/careers', description: 'Join our healing community', group: 'The Team' },

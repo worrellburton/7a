@@ -42,7 +42,7 @@ const items: Item[] = [
   },
   {
     title: 'Trauma-informed everything',
-    body: 'Our TraumAddiction® approach holds trauma as the common thread between the mental-health condition and the substance use — and treats that thread directly.',
+    body: 'Our Forward-Facing Accelerated Recovery® approach holds trauma as the common thread between the mental-health condition and the substance use — and treats that thread directly.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l9 4v6c0 5-4 7-9 8-5-1-9-3-9-8V7z" /><path d="M9 12l2 2 4-4" /></svg>
     ),

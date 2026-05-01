@@ -83,7 +83,7 @@ const faqs: Faq[] = [
   {
     question: 'What types of addiction does Seven Arrows Recovery treat?',
     answer:
-      'Alcohol addiction, drug addiction (including opioids, methamphetamine, cocaine, and prescription drugs), dual diagnosis (co-occurring mental-health and substance-use disorders), and trauma-related conditions through our proprietary Forward-Facing TraumAddiction® model.',
+      'Alcohol addiction, drug addiction (including opioids, methamphetamine, cocaine, and prescription drugs), dual diagnosis (co-occurring mental-health and substance-use disorders), and trauma-related conditions through our proprietary Forward-Facing Accelerated Recovery® model.',
     persona: 'both',
   },
   {
@@ -102,7 +102,7 @@ const faqs: Faq[] = [
   {
     question: 'What makes Seven Arrows different from other rehab centers?',
     answer:
-      'A boutique facility at the base of the Swisshelm Mountains with a deliberately small census, a highly skilled and credentialed clinical team, and a combination of evidence-based clinical work and holistic modalities. Our proprietary Forward-Facing TraumAddiction® model — developed by Dr. J. Eric Gentry and Lindsay Rothschild, LCSW — treats trauma and substance use as one clinical problem rather than two separate tracks.',
+      'A boutique facility at the base of the Swisshelm Mountains with a deliberately small census, a highly skilled and credentialed clinical team, and a combination of evidence-based clinical work and holistic modalities. Our proprietary Forward-Facing Accelerated Recovery® model — developed by Dr. J. Eric Gentry and Lindsay Rothschild, LCSW — treats trauma and substance use as one clinical problem rather than two separate tracks.',
     persona: 'both',
   },
 ];
