@@ -717,7 +717,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           absolutely positioned and slides out to `w-64` over the
           page on group-hover, restoring labels + section headers
           via an opacity fade. Click-away or unhover collapses back. */}
-      <aside className="group/sidebar w-16 shrink-0 hidden lg:block relative z-30">
+      <aside data-sidebar-rail className="group/sidebar w-16 shrink-0 hidden lg:block relative z-30">
         {/* Sticky sized to the real viewport; `app-shell` applies
             zoom: 0.82 at lg+, so a plain h-screen renders at only
             82% of the real height. */}
