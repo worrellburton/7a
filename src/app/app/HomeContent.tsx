@@ -19,7 +19,6 @@ import HomeOnlineOrbit from './HomeOnlineOrbit';
 import HomeMeaningfulCallsRow from './HomeMeaningfulCallsRow';
 import HomeWebsiteVisitsRow from './HomeWebsiteVisitsRow';
 import HomeWebsiteRequestsRow from './HomeWebsiteRequestsRow';
-import HomeSeoActionsRow from './HomeSeoActionsRow';
 
 interface RecentUser {
   id: string;
@@ -671,7 +670,7 @@ function AtAGlance() {
             >
               {expanded
                 ? 'Today / week / month'
-                : 'Calls · Website visits · Forms · SEO actions — tap to expand'}
+                : 'Calls · Website visits · Forms — tap to expand'}
             </p>
           </div>
           <span
@@ -705,9 +704,6 @@ function AtAGlance() {
                 </div>
                 <div className="py-2.5">
                   <HomeWebsiteRequestsRow />
-                </div>
-                <div className="py-2.5">
-                  <HomeSeoActionsRow />
                 </div>
               </div>
             )}
