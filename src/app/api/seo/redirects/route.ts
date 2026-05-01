@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
-// GET /api/seo/redirects  — admin-only full list for the admin UI.
-// POST /api/seo/redirects — create a new redirect.
+// GET /api/seo/redirects  — viewable by every signed-in user
+//   (rules + hit counts are useful read-only info for the team).
+// POST /api/seo/redirects — create a new redirect (admin only).
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +17,15 @@ async function guardAdmin() {
   return { ok: true as const };
 }
 
+async function guardAuthed() {
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+  return { ok: true as const };
+}
+
 export async function GET() {
-  const guard = await guardAdmin();
+  const guard = await guardAuthed();
   if ('error' in guard) return guard.error;
 
   const admin = getAdminSupabase();
