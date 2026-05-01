@@ -38,6 +38,7 @@ import {
   formatTime,
   isMissedCall,
   isPaidSource,
+  unscoreableReason,
 } from './_shared';
 
 export interface CallMobileRowProps {
@@ -256,15 +257,29 @@ export function CallMobileRow(props: CallMobileRowProps) {
                 read as the same thing. Hidden when there's nothing
                 to show or when the row already carries spam/missed
                 iconography. */}
-            {!isSpam && !isMissed && score?.score != null && (
-              <span
-                className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-white text-foreground text-[10px] font-bold tabular-nums shadow-sm border border-black/10"
-                title={`Operator call score ${score.score}/100`}
-                aria-label={`Operator call score ${score.score}`}
-              >
-                {score.score}
-              </span>
-            )}
+            {!isSpam && !isMissed && score?.score != null && (() => {
+              const naReason = unscoreableReason(score);
+              if (naReason) {
+                return (
+                  <span
+                    className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[22px] h-[18px] px-1 rounded-full bg-white text-foreground/55 text-[9px] font-bold uppercase tracking-wider shadow-sm border border-dashed border-black/15 cursor-help"
+                    title={`N/A — ${naReason}`}
+                    aria-label={`Operator score N/A — ${naReason}`}
+                  >
+                    N/A
+                  </span>
+                );
+              }
+              return (
+                <span
+                  className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-white text-foreground text-[10px] font-bold tabular-nums shadow-sm border border-black/10"
+                  title={`Operator call score ${score.score}/100`}
+                  aria-label={`Operator call score ${score.score}`}
+                >
+                  {score.score}
+                </span>
+              );
+            })()}
           </span>
 
           {/* Identity stack — caller name dominates if known, else

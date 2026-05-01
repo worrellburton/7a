@@ -287,6 +287,20 @@ export function scoreColorHex(s: number): string {
   return '#ef4444';
 }
 
+// Some calls (dropped, poor connection, audio too garbled) can't
+// fairly be assigned an operator score — surfacing a low number for
+// them unfairly drags the operator's average. We detect those cases
+// from the AI-generated call_name + summary and let the UI render
+// "N/A" with a tooltip instead.
+export function unscoreableReason(score: ScoreRow | null): string | null {
+  if (!score) return null;
+  const haystack = `${score.call_name ?? ''} ${score.summary ?? ''}`.toLowerCase();
+  if (/dropped\s*call|poor\s*(connection|audio)|audio\s*(quality)?[^.]{0,30}too\s*poor|couldn'?t\s*(hear|understand|make\s*out)/i.test(haystack)) {
+    return 'Audio was too poor or the call dropped — operator can’t be fairly scored.';
+  }
+  return null;
+}
+
 export function sentimentStyle(s: string | null): string {
   if (s === 'positive') return 'text-emerald-700 bg-emerald-50 border-emerald-200';
   if (s === 'negative') return 'text-red-700 bg-red-50 border-red-200';
