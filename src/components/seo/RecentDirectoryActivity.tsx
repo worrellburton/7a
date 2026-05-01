@@ -56,22 +56,39 @@ function describeDirectoryActivity(row: ActivityRow): { verb: string; accent: st
     case 'seo.directory_status_changed': {
       const meta = row.metadata as { from?: string; to?: string } | null;
       const to = meta?.to ?? '';
+      // New canonical statuses + legacy keys (kept so historic
+      // activity rows from before the enum rename still render
+      // sensibly).
       const label =
-        to === 'listed' ? 'marked as Listed'
-        : to === 'pending' ? 'marked as Submitted'
-        : to === 'pending_review' ? 'marked as Pending'
+        to === 'claim_in_process' ? 'started Claim in Process'
+        : to === 'claimed' ? 'marked as Claimed'
+        : to === 'submitted' ? 'marked as Submitted'
+        : to === 'pending' ? 'marked as Pending'
+        : to === 'live' ? 'marked as Live'
+        : to === 'paid_list' ? 'marked as Paid List'
+        : to === 'no_option' ? 'marked as No option'
+        : to === 'requires_official_docs' ? 'flagged Requires official Docs'
         : to === 'skip' ? 'marked as Skip'
-        : to === 'need_credentials' ? 'flagged Need credentials'
-        : to === 'claim_in_process' ? 'started Claim in process'
         : to === 'todo' ? 'reset to To do'
+        // legacy
+        : to === 'listed' ? 'marked as Listed'
+        : to === 'pending_review' ? 'marked as Pending'
+        : to === 'need_credentials' ? 'flagged Need credentials'
         : 'updated status of';
       const accent =
-        to === 'listed' ? 'text-emerald-700'
-        : to === 'pending' ? 'text-amber-700'
+        to === 'claim_in_process' ? 'text-blue-700'
+        : to === 'claimed' ? 'text-indigo-700'
+        : to === 'submitted' ? 'text-amber-700'
+        : to === 'pending' ? 'text-yellow-700'
+        : to === 'live' ? 'text-emerald-700'
+        : to === 'paid_list' ? 'text-violet-700'
+        : to === 'no_option' ? 'text-slate-600'
+        : to === 'requires_official_docs' ? 'text-rose-700'
+        : to === 'skip' ? 'text-foreground/55'
+        // legacy
+        : to === 'listed' ? 'text-emerald-700'
         : to === 'pending_review' ? 'text-yellow-700'
         : to === 'need_credentials' ? 'text-rose-700'
-        : to === 'claim_in_process' ? 'text-blue-700'
-        : to === 'skip' ? 'text-foreground/55'
         : 'text-foreground/70';
       return { verb: label, accent };
     }
