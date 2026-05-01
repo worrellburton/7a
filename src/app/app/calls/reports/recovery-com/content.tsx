@@ -105,6 +105,7 @@ export interface RecoveryReportPayload {
 export interface AnalyticsPayload {
   configured: boolean;
   range?: { startDate: string; endDate: string; prevStart: string | null; prevEnd: string | null };
+  sourceFilter?: string[];
   summary?: AnalyticsSummary;
   previous?: AnalyticsSummary | null;
   daily?: { date: string; sessions: number; activeUsers: number; pageViews: number }[];
@@ -117,7 +118,36 @@ export interface AnalyticsPayload {
     bounceRate: number;
   }[];
   countries?: { country: string; sessions: number; activeUsers: number }[];
+  cities?: {
+    city: string;
+    region: string | null;
+    country: string | null;
+    sessions: number;
+    activeUsers: number;
+    engagementRate: number;
+  }[];
   devices?: { device: string; sessions: number; activeUsers: number; engagementRate: number }[];
+  browsers?: { name: string; sessions: number; engagementRate: number }[];
+  operatingSystems?: { name: string; sessions: number; engagementRate: number }[];
+  sources?: {
+    source: string;
+    sessions: number;
+    activeUsers: number;
+    engagementRate: number;
+    avgSessionDurationSec: number;
+    bounceRate: number;
+  }[];
+  sourceMedium?: {
+    source: string;
+    medium: string;
+    sessions: number;
+    activeUsers: number;
+    engagementRate: number;
+  }[];
+  campaigns?: { name: string; sessions: number; activeUsers: number; engagementRate: number }[];
+  hourly?: { hour: number; sessions: number }[];
+  dayOfWeek?: { day: number; label: string; sessions: number }[];
+  newVsReturning?: { label: string; sessions: number; activeUsers: number }[];
   events?: { name: string; count: number; users: number }[];
   error?: string;
 }
@@ -1007,14 +1037,369 @@ function AnalyticsSection({ analytics }: { analytics: AnalyticsPayload | null })
   return (
     <section className="report-section mt-8 space-y-4">
       <AnalyticsKpiBand summary={analytics.summary} previous={analytics.previous ?? null} />
+      <AnalyticsSourcesSplit
+        sources={analytics.sources ?? []}
+        sourceMedium={analytics.sourceMedium ?? []}
+        sourceFilter={analytics.sourceFilter ?? []}
+        newVsReturning={analytics.newVsReturning ?? []}
+      />
       <AnalyticsDailyChart daily={analytics.daily ?? []} />
+      <AnalyticsTimePatterns hourly={analytics.hourly ?? []} dayOfWeek={analytics.dayOfWeek ?? []} />
       <AnalyticsLandingPages rows={analytics.landing ?? []} />
+      <AnalyticsGeoTable cities={analytics.cities ?? []} countries={analytics.countries ?? []} />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        <AnalyticsCountries rows={analytics.countries ?? []} />
         <AnalyticsDevices rows={analytics.devices ?? []} />
+        <AnalyticsBrowserOs browsers={analytics.browsers ?? []} operatingSystems={analytics.operatingSystems ?? []} />
         <AnalyticsEvents rows={analytics.events ?? []} />
       </div>
+      {analytics.campaigns && analytics.campaigns.length > 0 && (
+        <AnalyticsCampaigns rows={analytics.campaigns} />
+      )}
     </section>
+  );
+}
+
+// ─── Per-source split (recoverycom vs rehabpath) + medium pairs ─
+
+function AnalyticsSourcesSplit({
+  sources,
+  sourceMedium,
+  sourceFilter,
+  newVsReturning,
+}: {
+  sources: NonNullable<AnalyticsPayload['sources']>;
+  sourceMedium: NonNullable<AnalyticsPayload['sourceMedium']>;
+  sourceFilter: string[];
+  newVsReturning: NonNullable<AnalyticsPayload['newVsReturning']>;
+}) {
+  if (sources.length === 0) return null;
+  const total = sources.reduce((s, r) => s + r.sessions, 0) || 1;
+  const nvrTotal = newVsReturning.reduce((s, r) => s + r.sessions, 0) || 1;
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+      <SectionTitle
+        eyebrow="Sources"
+        title="Recovery.com network split"
+        subtitle={`Both ${sourceFilter.join(' and ')} feed traffic into the report — here's how the two sources compare side by side.`}
+      />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50 mb-2">By source</p>
+          <table className="w-full text-sm">
+            <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
+              <tr>
+                <th className="px-3 py-2 rounded-l-lg">Source</th>
+                <th className="px-3 py-2 text-right">Sessions</th>
+                <th className="px-3 py-2 text-right">Users</th>
+                <th className="px-3 py-2 text-right">Avg session</th>
+                <th className="px-3 py-2 text-right rounded-r-lg">Engagement</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {sources.map((r) => {
+                const pct = (r.sessions / total) * 100;
+                return (
+                  <tr key={r.source}>
+                    <td className="px-3 py-2.5">
+                      <div className="font-mono text-[12.5px] font-semibold text-foreground">{r.source}</div>
+                      <div className="mt-1 h-1.5 bg-warm-bg rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-primary">{r.sessions}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-foreground/65">{r.activeUsers}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-foreground/65">{fmtSecs(r.avgSessionDurationSec)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700 font-semibold">{(r.engagementRate * 100).toFixed(0)}%</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {newVsReturning.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50 mb-2">New vs returning</p>
+              <ul className="space-y-1.5">
+                {newVsReturning.map((r) => {
+                  const pct = (r.sessions / nvrTotal) * 100;
+                  return (
+                    <li key={r.label} className="text-[12px]">
+                      <div className="flex items-center justify-between">
+                        <span className="capitalize text-foreground/75">{r.label || 'unknown'}</span>
+                        <span className="text-foreground/55 tabular-nums">
+                          {r.sessions} <span className="text-foreground/35">· {pct.toFixed(0)}%</span>
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1.5 bg-warm-bg rounded-full overflow-hidden">
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50 mb-2">By source / medium</p>
+          <ul className="space-y-1.5">
+            {sourceMedium.slice(0, 12).map((r, i) => (
+              <li key={`${r.source}-${r.medium}-${i}`} className="text-[12px] flex items-center justify-between">
+                <span className="font-mono text-[11px] text-foreground/70 truncate">
+                  {r.source} <span className="text-foreground/35">/ {r.medium}</span>
+                </span>
+                <span className="text-foreground/55 tabular-nums">
+                  {r.sessions}
+                  <span className="text-foreground/35"> · {(r.engagementRate * 100).toFixed(0)}%</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Hour-of-day + day-of-week ─────────────────────────────────
+
+function AnalyticsTimePatterns({
+  hourly,
+  dayOfWeek,
+}: {
+  hourly: NonNullable<AnalyticsPayload['hourly']>;
+  dayOfWeek: NonNullable<AnalyticsPayload['dayOfWeek']>;
+}) {
+  if (hourly.every((h) => h.sessions === 0) && dayOfWeek.every((d) => d.sessions === 0)) {
+    return null;
+  }
+  const maxHourly = Math.max(1, ...hourly.map((h) => h.sessions));
+  const maxDay = Math.max(1, ...dayOfWeek.map((d) => d.sessions));
+  const peakHour = hourly.reduce((best, h) => (h.sessions > best.sessions ? h : best), hourly[0]);
+  const peakDay = dayOfWeek.reduce((best, d) => (d.sessions > best.sessions ? d : best), dayOfWeek[0]);
+  const fmtHour = (h: number) => {
+    if (h === 0) return '12am';
+    if (h < 12) return `${h}am`;
+    if (h === 12) return '12pm';
+    return `${h - 12}pm`;
+  };
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+      <SectionTitle
+        eyebrow="Timing"
+        title="When traffic arrives"
+        subtitle="Helps admissions staff their shifts — peak hour and peak day of the week for Recovery.com referrals."
+      />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50">By hour (Phoenix time)</p>
+            {peakHour && peakHour.sessions > 0 && (
+              <p className="text-[11px] text-foreground/55">
+                Peak: <span className="font-semibold text-primary">{fmtHour(peakHour.hour)}</span> · {peakHour.sessions}
+              </p>
+            )}
+          </div>
+          <div className="flex items-end gap-0.5 h-28">
+            {hourly.map((h) => {
+              const pct = (h.sessions / maxHourly) * 100;
+              const isPeak = peakHour && h.hour === peakHour.hour && h.sessions > 0;
+              return (
+                <div key={h.hour} className="flex-1 flex flex-col items-center gap-1 group">
+                  <div
+                    className={`w-full rounded-t-sm transition-all ${isPeak ? 'bg-primary' : 'bg-blue-400/70'} group-hover:bg-primary`}
+                    style={{ height: `${pct}%`, minHeight: h.sessions > 0 ? 2 : 0 }}
+                    title={`${fmtHour(h.hour)} · ${h.sessions} sessions`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-12 mt-1 text-[9px] text-foreground/45 text-center">
+            <span className="col-span-3">12am</span>
+            <span className="col-span-3">6am</span>
+            <span className="col-span-3">noon</span>
+            <span className="col-span-3">6pm</span>
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50">By day of week</p>
+            {peakDay && peakDay.sessions > 0 && (
+              <p className="text-[11px] text-foreground/55">
+                Peak: <span className="font-semibold text-primary">{peakDay.label}</span> · {peakDay.sessions}
+              </p>
+            )}
+          </div>
+          <ul className="space-y-1.5">
+            {dayOfWeek.map((d) => {
+              const pct = maxDay > 0 ? (d.sessions / maxDay) * 100 : 0;
+              return (
+                <li key={d.day} className="text-[12px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-foreground/75 font-semibold">{d.label}</span>
+                    <span className="text-foreground/55 tabular-nums">{d.sessions}</span>
+                  </div>
+                  <div className="mt-1 h-2 bg-warm-bg rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Geo table (cities + countries) ────────────────────────────
+
+function AnalyticsGeoTable({
+  cities,
+  countries,
+}: {
+  cities: NonNullable<AnalyticsPayload['cities']>;
+  countries: NonNullable<AnalyticsPayload['countries']>;
+}) {
+  if (cities.length === 0 && countries.length === 0) return null;
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+      <SectionTitle eyebrow="Geo" title="Where they're browsing from" subtitle="Top cities (richer than country alone for an admissions team) plus a country fallback." />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50 mb-2">Top cities</p>
+          <table className="w-full text-sm">
+            <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
+              <tr>
+                <th className="px-3 py-2 rounded-l-lg">City</th>
+                <th className="px-3 py-2">Region / country</th>
+                <th className="px-3 py-2 text-right">Sessions</th>
+                <th className="px-3 py-2 text-right">Users</th>
+                <th className="px-3 py-2 text-right rounded-r-lg">Eng.</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {cities.slice(0, 12).map((r, i) => (
+                <tr key={`${r.city}-${i}`}>
+                  <td className="px-3 py-2.5 font-semibold text-foreground">{r.city || '(unknown)'}</td>
+                  <td className="px-3 py-2.5 text-foreground/65">
+                    {[r.region, r.country].filter(Boolean).join(' · ') || '—'}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-primary">{r.sessions}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-foreground/65">{r.activeUsers}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700 font-semibold">
+                    {(r.engagementRate * 100).toFixed(0)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50 mb-2">Top countries</p>
+          <ul className="space-y-1.5">
+            {countries.slice(0, 8).map((r) => {
+              const total = countries.reduce((s, x) => s + x.sessions, 0) || 1;
+              const pct = (r.sessions / total) * 100;
+              return (
+                <li key={r.country} className="text-[12px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-foreground/75">{r.country || '(unknown)'}</span>
+                    <span className="text-foreground/55 tabular-nums">
+                      {r.sessions} <span className="text-foreground/35">· {pct.toFixed(0)}%</span>
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1.5 bg-warm-bg rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Browser + OS ─────────────────────────────────────────────
+
+function AnalyticsBrowserOs({
+  browsers,
+  operatingSystems,
+}: {
+  browsers: NonNullable<AnalyticsPayload['browsers']>;
+  operatingSystems: NonNullable<AnalyticsPayload['operatingSystems']>;
+}) {
+  if (browsers.length === 0 && operatingSystems.length === 0) return null;
+  const renderBars = (rows: { name: string; sessions: number }[]) => {
+    const total = rows.reduce((s, r) => s + r.sessions, 0) || 1;
+    return (
+      <ul className="space-y-1.5">
+        {rows.slice(0, 5).map((r) => {
+          const pct = (r.sessions / total) * 100;
+          return (
+            <li key={r.name} className="text-[12px]">
+              <div className="flex items-center justify-between">
+                <span className="text-foreground/75 truncate">{r.name || '(unknown)'}</span>
+                <span className="text-foreground/55 tabular-nums">
+                  {r.sessions} <span className="text-foreground/35">· {pct.toFixed(0)}%</span>
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 bg-warm-bg rounded-full overflow-hidden">
+                <div className="h-full bg-foreground/45 rounded-full" style={{ width: `${pct}%` }} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  };
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+      <SectionTitle eyebrow="Tech" title="Browser & OS" />
+      <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50 mb-1.5">Browser</p>
+      {renderBars(browsers)}
+      <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50 mt-3 mb-1.5">Operating system</p>
+      {renderBars(operatingSystems)}
+    </div>
+  );
+}
+
+// ─── UTM campaigns ─────────────────────────────────────────────
+
+function AnalyticsCampaigns({
+  rows,
+}: {
+  rows: NonNullable<AnalyticsPayload['campaigns']>;
+}) {
+  // Filter the noise rows GA always returns.
+  const meaningful = rows.filter((r) => r.name && !/^\(not set\)|^\(direct\)$/i.test(r.name));
+  if (meaningful.length === 0) return null;
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+      <SectionTitle eyebrow="Campaigns" title="UTM campaigns in play" subtitle="Named campaigns Recovery.com / Rehabpath are pushing toward us." />
+      <table className="w-full text-sm">
+        <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
+          <tr>
+            <th className="px-3 py-2 rounded-l-lg">Campaign</th>
+            <th className="px-3 py-2 text-right">Sessions</th>
+            <th className="px-3 py-2 text-right">Users</th>
+            <th className="px-3 py-2 text-right rounded-r-lg">Engagement</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-black/5">
+          {meaningful.slice(0, 10).map((r) => (
+            <tr key={r.name}>
+              <td className="px-3 py-2.5 font-mono text-[12px] text-foreground/85">{r.name}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-primary">{r.sessions}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-foreground/65">{r.activeUsers}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700 font-semibold">{(r.engagementRate * 100).toFixed(0)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

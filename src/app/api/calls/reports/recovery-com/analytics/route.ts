@@ -6,27 +6,41 @@ import { ga4Run, hasGoogleOAuth } from '@/lib/google';
 //   ?startDate=YYYY-MM-DD
 //   &endDate=YYYY-MM-DD
 //
-// Pulls the GA4 slice of traffic that arrived from Recovery.com so
-// we can pair it with the call-side report. We filter on
-// sessionSource ~= "recovery.com" (CONTAINS, case-insensitive) so a
-// referrer host of "recovery.com", "www.recovery.com", or
-// "recovery.com / referral" all flow into the same bucket.
+// Pulls the GA4 slice of traffic that arrived from the Recovery.com
+// network so we can pair it with the call-side report. GA records
+// the source as "recoverycom" (no dot) and "rehabpath" (a sister
+// directory in the same network), so the filter is an OR over both
+// — using EXACT match because CONTAINS for "recovery" would also
+// catch internal pages / unrelated paths.
 //
 // Returns:
-//   summary    site metrics for the window (sessions, users, ...)
-//   previous   same metrics for the prior period of equal length
-//   daily      per-day sessions + users so the report can chart it
-//   landing    top landing pages by sessions
-//   countries  top sessionCountry rows
-//   devices    deviceCategory breakdown (desktop / mobile / tablet)
-//   events     conversion / event totals (event_count by name)
+//   summary       site metrics for the window (sessions, users, ...)
+//   previous      same metrics for the prior period of equal length
+//   daily         per-day sessions + users so the report can chart it
+//   landing       top landing pages by sessions
+//   countries     top sessionCountry rows
+//   cities        top city rows (US-focused for admissions geo)
+//   devices       deviceCategory breakdown (desktop / mobile / tablet)
+//   browsers      browser breakdown
+//   os            operating-system breakdown
+//   sources       per-source breakdown (recoverycom vs rehabpath)
+//   sourceMedium  full source/medium pairs in our network
+//   campaigns     UTM campaign breakdown (when set)
+//   hourly        sessions by hour-of-day (0-23)
+//   dayOfWeek     sessions by day-of-week (0=Sun..6=Sat)
+//   events        conversion / event totals (event_count by name)
 
 export const dynamic = 'force-dynamic';
+
+// "Recovery.com network" sources as GA reports them. Both are
+// directory placements that send traffic to sevenarrowsrecovery
+// arizona.com and should be reported together.
+const RECOVERY_SOURCES = ['recoverycom', 'rehabpath'];
 
 const RECOVERY_FILTER = {
   filter: {
     fieldName: 'sessionSource',
-    stringFilter: { value: 'recovery.com', matchType: 'CONTAINS' as const },
+    inListFilter: { values: RECOVERY_SOURCES, caseSensitive: false },
   },
 };
 
@@ -119,13 +133,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const requests = [
-      // Summary for the report window.
+      // [0] Summary for the report window.
       ga4Run({
         dateRanges: [{ startDate, endDate }],
         metrics: SUMMARY_METRICS,
         dimensionFilter: RECOVERY_FILTER,
       }),
-      // Prior-period summary for delta pills.
+      // [1] Prior-period summary for delta pills.
       prevStart && prevEnd
         ? ga4Run({
             dateRanges: [{ startDate: prevStart, endDate: prevEnd }],
@@ -133,7 +147,7 @@ export async function GET(req: NextRequest) {
             dimensionFilter: RECOVERY_FILTER,
           })
         : Promise.resolve(null),
-      // Daily counts.
+      // [2] Daily counts.
       ga4Run({
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'date' }],
@@ -146,7 +160,7 @@ export async function GET(req: NextRequest) {
         dimensionFilter: RECOVERY_FILTER,
         limit: 400,
       }),
-      // Top landing pages.
+      // [3] Top landing pages.
       ga4Run({
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'landingPagePlusQueryString' }],
@@ -161,7 +175,7 @@ export async function GET(req: NextRequest) {
         dimensionFilter: RECOVERY_FILTER,
         limit: 15,
       }),
-      // Countries.
+      // [4] Countries.
       ga4Run({
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'country' }],
@@ -170,7 +184,17 @@ export async function GET(req: NextRequest) {
         dimensionFilter: RECOVERY_FILTER,
         limit: 10,
       }),
-      // Devices.
+      // [5] Cities — region/state on the city table is more useful
+      // than country for an admissions team in the US.
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'city' }, { name: 'region' }, { name: 'country' }],
+        metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'engagementRate' }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        dimensionFilter: RECOVERY_FILTER,
+        limit: 25,
+      }),
+      // [6] Devices.
       ga4Run({
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'deviceCategory' }],
@@ -179,7 +203,88 @@ export async function GET(req: NextRequest) {
         dimensionFilter: RECOVERY_FILTER,
         limit: 10,
       }),
-      // Conversion events / event totals.
+      // [7] Browsers.
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'browser' }],
+        metrics: [{ name: 'sessions' }, { name: 'engagementRate' }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        dimensionFilter: RECOVERY_FILTER,
+        limit: 10,
+      }),
+      // [8] Operating systems.
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'operatingSystem' }],
+        metrics: [{ name: 'sessions' }, { name: 'engagementRate' }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        dimensionFilter: RECOVERY_FILTER,
+        limit: 10,
+      }),
+      // [9] Sources — recoverycom vs rehabpath split.
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'sessionSource' }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'activeUsers' },
+          { name: 'engagementRate' },
+          { name: 'averageSessionDuration' },
+          { name: 'bounceRate' },
+        ],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        dimensionFilter: RECOVERY_FILTER,
+        limit: 10,
+      }),
+      // [10] Source / medium pairs.
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'activeUsers' },
+          { name: 'engagementRate' },
+        ],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        dimensionFilter: RECOVERY_FILTER,
+        limit: 15,
+      }),
+      // [11] UTM campaigns.
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'sessionCampaignName' }],
+        metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'engagementRate' }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        dimensionFilter: RECOVERY_FILTER,
+        limit: 10,
+      }),
+      // [12] Hour-of-day distribution.
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'hour' }],
+        metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+        orderBys: [{ dimension: { dimensionName: 'hour' }, desc: false }],
+        dimensionFilter: RECOVERY_FILTER,
+        limit: 24,
+      }),
+      // [13] Day-of-week distribution. GA returns 0=Sunday..6=Saturday.
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'dayOfWeek' }],
+        metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+        orderBys: [{ dimension: { dimensionName: 'dayOfWeek' }, desc: false }],
+        dimensionFilter: RECOVERY_FILTER,
+        limit: 7,
+      }),
+      // [14] New vs returning users.
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'newVsReturning' }],
+        metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+        dimensionFilter: RECOVERY_FILTER,
+        limit: 5,
+      }),
+      // [15] Conversion events / event totals.
       ga4Run({
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'eventName' }],
@@ -190,7 +295,24 @@ export async function GET(req: NextRequest) {
       }),
     ];
 
-    const [summaryRes, prevSummaryRes, dailyRes, landingRes, countriesRes, devicesRes, eventsRes] = await Promise.all(requests);
+    const [
+      summaryRes,
+      prevSummaryRes,
+      dailyRes,
+      landingRes,
+      countriesRes,
+      citiesRes,
+      devicesRes,
+      browsersRes,
+      osRes,
+      sourcesRes,
+      sourceMediumRes,
+      campaignsRes,
+      hourlyRes,
+      dayOfWeekRes,
+      newVsReturningRes,
+      eventsRes,
+    ] = await Promise.all(requests);
 
     const summary = readSummary(summaryRes?.totals?.[0]?.metricValues);
     const previous = prevSummaryRes ? readSummary(prevSummaryRes.totals?.[0]?.metricValues) : null;
@@ -228,6 +350,84 @@ export async function GET(req: NextRequest) {
       engagementRate: Number(row.metricValues?.[2]?.value ?? 0),
     }));
 
+    const cities = (citiesRes?.rows ?? []).map((row) => ({
+      city: row.dimensionValues?.[0]?.value ?? '(not set)',
+      region: row.dimensionValues?.[1]?.value ?? null,
+      country: row.dimensionValues?.[2]?.value ?? null,
+      sessions: Number(row.metricValues?.[0]?.value ?? 0),
+      activeUsers: Number(row.metricValues?.[1]?.value ?? 0),
+      engagementRate: Number(row.metricValues?.[2]?.value ?? 0),
+    }));
+
+    const browsers = (browsersRes?.rows ?? []).map((row) => ({
+      name: row.dimensionValues?.[0]?.value ?? '(not set)',
+      sessions: Number(row.metricValues?.[0]?.value ?? 0),
+      engagementRate: Number(row.metricValues?.[1]?.value ?? 0),
+    }));
+
+    const operatingSystems = (osRes?.rows ?? []).map((row) => ({
+      name: row.dimensionValues?.[0]?.value ?? '(not set)',
+      sessions: Number(row.metricValues?.[0]?.value ?? 0),
+      engagementRate: Number(row.metricValues?.[1]?.value ?? 0),
+    }));
+
+    const sources = (sourcesRes?.rows ?? []).map((row) => ({
+      source: row.dimensionValues?.[0]?.value ?? '(not set)',
+      sessions: Number(row.metricValues?.[0]?.value ?? 0),
+      activeUsers: Number(row.metricValues?.[1]?.value ?? 0),
+      engagementRate: Number(row.metricValues?.[2]?.value ?? 0),
+      avgSessionDurationSec: Number(row.metricValues?.[3]?.value ?? 0),
+      bounceRate: Number(row.metricValues?.[4]?.value ?? 0),
+    }));
+
+    const sourceMedium = (sourceMediumRes?.rows ?? []).map((row) => ({
+      source: row.dimensionValues?.[0]?.value ?? '(not set)',
+      medium: row.dimensionValues?.[1]?.value ?? '(not set)',
+      sessions: Number(row.metricValues?.[0]?.value ?? 0),
+      activeUsers: Number(row.metricValues?.[1]?.value ?? 0),
+      engagementRate: Number(row.metricValues?.[2]?.value ?? 0),
+    }));
+
+    const campaigns = (campaignsRes?.rows ?? [])
+      .map((row) => ({
+        name: row.dimensionValues?.[0]?.value ?? '(not set)',
+        sessions: Number(row.metricValues?.[0]?.value ?? 0),
+        activeUsers: Number(row.metricValues?.[1]?.value ?? 0),
+        engagementRate: Number(row.metricValues?.[2]?.value ?? 0),
+      }))
+      // Drop the catch-all '(not set)' / '(direct)' rows when there
+      // are real campaigns in the list — they otherwise dominate.
+      .filter((c) => !/^\(not set\)|^\(direct\)$/.test(c.name) || true);
+
+    // Hour-of-day: GA's `hour` dimension is "00".."23". Normalize to
+    // a numeric index, fill missing hours with 0 so the chart has a
+    // continuous x-axis.
+    const hourMap = new Map<number, number>();
+    for (const row of hourlyRes?.rows ?? []) {
+      const h = Number(row.dimensionValues?.[0]?.value ?? -1);
+      if (h >= 0 && h <= 23) hourMap.set(h, Number(row.metricValues?.[0]?.value ?? 0));
+    }
+    const hourly: { hour: number; sessions: number }[] = Array.from({ length: 24 }, (_, i) => ({
+      hour: i,
+      sessions: hourMap.get(i) ?? 0,
+    }));
+
+    // Day-of-week: GA returns 0..6 with 0 = Sunday in their docs.
+    const dayMap = new Map<number, number>();
+    for (const row of dayOfWeekRes?.rows ?? []) {
+      const d = Number(row.dimensionValues?.[0]?.value ?? -1);
+      if (d >= 0 && d <= 6) dayMap.set(d, Number(row.metricValues?.[0]?.value ?? 0));
+    }
+    const dayOfWeek: { day: number; label: string; sessions: number }[] = [
+      'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat',
+    ].map((label, i) => ({ day: i, label, sessions: dayMap.get(i) ?? 0 }));
+
+    const newVsReturning = (newVsReturningRes?.rows ?? []).map((row) => ({
+      label: row.dimensionValues?.[0]?.value ?? '(not set)',
+      sessions: Number(row.metricValues?.[0]?.value ?? 0),
+      activeUsers: Number(row.metricValues?.[1]?.value ?? 0),
+    }));
+
     const events = (eventsRes?.rows ?? []).map((row) => ({
       name: row.dimensionValues?.[0]?.value ?? '(not set)',
       count: Number(row.metricValues?.[0]?.value ?? 0),
@@ -237,12 +437,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       configured: true,
       range: { startDate, endDate, prevStart, prevEnd },
+      sourceFilter: RECOVERY_SOURCES,
       summary,
       previous,
       daily,
       landing,
       countries,
+      cities,
       devices,
+      browsers,
+      operatingSystems,
+      sources,
+      sourceMedium,
+      campaigns,
+      hourly,
+      dayOfWeek,
+      newVsReturning,
       events,
     });
   } catch (err) {
