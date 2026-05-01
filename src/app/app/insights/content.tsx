@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
+import HomeSeoActionsRow from '../HomeSeoActionsRow';
 
 // Insights — visual rollup of call volume over time. Reuses the
 // existing /api/calls/insights endpoint (Phoenix-day buckets,
@@ -148,6 +149,13 @@ export default function InsightsContent() {
           <Stat label="Missed" value={data.missed} />
         </div>
       )}
+
+      {/* SEO actions today — relocated from the home dashboard's
+          Marketing at a Glance card. Same row component so the count +
+          Claude-generated summary look identical to before. */}
+      <section className="mt-8 rounded-xl border border-black/10 bg-white p-5">
+        <HomeSeoActionsRow />
+      </section>
     </div>
   );
 }
