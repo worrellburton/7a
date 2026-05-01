@@ -4,20 +4,17 @@ const nextConfig = {
     unoptimized: true,
   },
 
-  // Default — strip trailing slashes. Next.js's built-in handler
-  // does this with a 308. The custom redirects() below overrides
-  // that with an explicit 301 so SEO crawlers (Screaming Frog
-  // etc.) see consistent permanent redirects across the site
-  // instead of a 301/308 mix that gets flagged in audits.
-  trailingSlash: false,
+  // Tell Next.js NOT to auto-redirect trailing slashes (its default
+  // behavior is a 308 strip when trailingSlash: false). With this
+  // flag set, the redirects() rule below handles the strip with an
+  // explicit 301, which is what SEO crawlers expect.
+  skipTrailingSlashRedirect: true,
 
   async redirects() {
     return [
-      // Match any non-root path that ends with a trailing slash
-      // and 301-redirect to the same path without it. `:path+`
-      // requires at least one path segment so `/` itself isn't a
-      // self-redirect. Runs BEFORE Next.js's auto-308 normalize,
-      // so this is the version SEO tools see.
+      // 301-redirect any non-root path with a trailing slash to the
+      // canonical no-slash form. `:path+` requires at least one
+      // path segment so `/` itself isn't a self-redirect.
       {
         source: '/:path+/',
         destination: '/:path+',
