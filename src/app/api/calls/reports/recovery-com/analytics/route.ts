@@ -34,13 +34,24 @@ export const dynamic = 'force-dynamic';
 
 // "Recovery.com network" sources as GA reports them. Both are
 // directory placements that send traffic to sevenarrowsrecovery
-// arizona.com and should be reported together.
+// arizona.com and should be reported together. We match the
+// sessionSource case-insensitively against a regex so any spelling
+// variation GA may emit (recoverycom, recovery.com, recovery-com,
+// rehabpath, rehab.com, etc.) is captured. The previous in-list
+// filter required exact strings and silently missed everything
+// when the casing or punctuation drifted.
 const RECOVERY_SOURCES = ['recoverycom', 'rehabpath'];
+
+const RECOVERY_REGEX = '^(recovery[-._]?com|rehab[-._]?path|recovery|rehabpath)$';
 
 const RECOVERY_FILTER = {
   filter: {
     fieldName: 'sessionSource',
-    inListFilter: { values: RECOVERY_SOURCES, caseSensitive: false },
+    stringFilter: {
+      matchType: 'PARTIAL_REGEXP' as const,
+      value: RECOVERY_REGEX,
+      caseSensitive: false,
+    },
   },
 };
 
@@ -293,6 +304,17 @@ export async function GET(req: NextRequest) {
         dimensionFilter: RECOVERY_FILTER,
         limit: 25,
       }),
+      // [16] DIAGNOSTIC — top source/medium pairs UNFILTERED. Used
+      // only to populate `debug.allSources` when the filtered query
+      // returns zero rows, so we can verify what spellings GA is
+      // actually emitting. Cheap; no `dimensionFilter`.
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
+        metrics: [{ name: 'sessions' }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: 25,
+      }),
     ];
 
     const [
@@ -312,6 +334,7 @@ export async function GET(req: NextRequest) {
       dayOfWeekRes,
       newVsReturningRes,
       eventsRes,
+      allSourcesRes,
     ] = await Promise.all(requests);
 
     const summary = readSummary(summaryRes?.totals?.[0]?.metricValues);
@@ -434,6 +457,16 @@ export async function GET(req: NextRequest) {
       users: Number(row.metricValues?.[1]?.value ?? 0),
     }));
 
+    // Diagnostics — ALL source/medium pairs (unfiltered) so the
+    // report can surface a "GA emitted these source values" hint
+    // when our filter returns zero rows. Saves having to crack open
+    // GA Explorer to figure out what casing / spelling we missed.
+    const allSources = (allSourcesRes?.rows ?? []).map((row) => ({
+      source: row.dimensionValues?.[0]?.value ?? '(not set)',
+      medium: row.dimensionValues?.[1]?.value ?? '(not set)',
+      sessions: Number(row.metricValues?.[0]?.value ?? 0),
+    }));
+
     return NextResponse.json({
       configured: true,
       range: { startDate, endDate, prevStart, prevEnd },
@@ -454,6 +487,7 @@ export async function GET(req: NextRequest) {
       dayOfWeek,
       newVsReturning,
       events,
+      debug: { allSources },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
