@@ -161,18 +161,74 @@ export default function HomeContent() {
 
   // Horse roster — sits in the inner ring of the Online-today orbit
   // so the team's animals are always present alongside the people.
+  // Each horse is enriched with its most recent weight + feed log so
+  // the orbit's hover tooltip can show "Weight · Last fed · Weighed"
+  // without each tooltip having to query its own logs on hover.
   useEffect(() => {
     if (!session?.access_token) return;
     let cancelled = false;
     (async () => {
-      const rows = await db({
-        action: 'select',
-        table: 'equine',
-        select: 'id, name, image_url, age, works_in, rideable',
-        order: { column: 'name', ascending: true },
-      }).catch(() => []);
-      if (cancelled || !Array.isArray(rows)) return;
-      setHorses(rows as OrbitHorse[]);
+      const [hs, ws, fs] = await Promise.all([
+        db({
+          action: 'select',
+          table: 'equine',
+          select: 'id, name, image_url, age, weight, works_in, rideable',
+          order: { column: 'name', ascending: true },
+        }).catch(() => []),
+        db({
+          action: 'select',
+          table: 'equine_weight_logs',
+          select: 'horse_id, weight_lbs, logged_at',
+          order: { column: 'logged_at', ascending: false },
+        }).catch(() => []),
+        db({
+          action: 'select',
+          table: 'equine_feed_logs',
+          select: 'horse_id, feed_type, amount, unit, logged_at',
+          order: { column: 'logged_at', ascending: false },
+        }).catch(() => []),
+      ]);
+      if (cancelled || !Array.isArray(hs)) return;
+
+      // Build "latest by horse" maps from the already-newest-first
+      // ordered logs — first hit wins, so no need to sort.
+      const lastWeight = new Map<string, { weight_lbs: number | null; logged_at: string }>();
+      for (const w of (Array.isArray(ws) ? ws : []) as Array<{ horse_id: string; weight_lbs: number | null; logged_at: string }>) {
+        if (!lastWeight.has(w.horse_id)) lastWeight.set(w.horse_id, w);
+      }
+      const lastFeed = new Map<string, { feed_type: string | null; amount: number | null; unit: string | null; logged_at: string }>();
+      for (const f of (Array.isArray(fs) ? fs : []) as Array<{ horse_id: string; feed_type: string | null; amount: number | null; unit: string | null; logged_at: string }>) {
+        if (!lastFeed.has(f.horse_id)) lastFeed.set(f.horse_id, f);
+      }
+
+      const enriched: OrbitHorse[] = (hs as Array<{
+        id: string;
+        name: string;
+        image_url: string | null;
+        age: number | null;
+        weight: number | null;
+        works_in: string | null;
+        rideable: string | null;
+      }>).map((h) => {
+        const w = lastWeight.get(h.id) ?? null;
+        const f = lastFeed.get(h.id) ?? null;
+        return {
+          id: h.id,
+          name: h.name,
+          image_url: h.image_url,
+          age: h.age,
+          weight: h.weight,
+          works_in: h.works_in,
+          rideable: h.rideable,
+          last_weight_lbs: w?.weight_lbs ?? null,
+          last_weighed_at: w?.logged_at ?? null,
+          last_feed_amount: f?.amount ?? null,
+          last_feed_unit: f?.unit ?? null,
+          last_feed_type: f?.feed_type ?? null,
+          last_fed_at: f?.logged_at ?? null,
+        };
+      });
+      setHorses(enriched);
     })();
     return () => { cancelled = true; };
   }, [session]);
