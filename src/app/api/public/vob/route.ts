@@ -18,10 +18,29 @@ interface Body {
   name?: string;
   phone?: string;
   email?: string;
+  dateOfBirth?: string | null;
+  date_of_birth?: string | null;
   insuranceProvider?: string;
   insurance_provider?: string;
   cardFrontPath?: string | null;
   cardBackPath?: string | null;
+}
+
+// Accept YYYY-MM-DD only (the format the <input type="date"> emits in
+// every browser). Reject anything else so we never insert garbage
+// into a `date` column. Also reject future dates and anything before
+// 1900 — those are clearly typos rather than real birthdates.
+function parseDob(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const d = new Date(`${s}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  const year = Number(s.slice(0, 4));
+  if (year < 1900) return null;
+  if (d.getTime() > Date.now()) return null;
+  return s;
 }
 
 function trim(value: unknown, max = 500): string | null {
@@ -43,6 +62,7 @@ export async function POST(req: NextRequest) {
   const phone = trim(body.phone, 60);
   const email = trim(body.email, 200);
   const insurance_provider = trim(body.insuranceProvider ?? body.insurance_provider, 200);
+  const date_of_birth = parseDob(body.dateOfBirth ?? body.date_of_birth);
   // Storage paths are short and safe to trust at face value — they
   // come from a successful upload to a bucket that only allows the
   // anon role to INSERT, never to read or list. Still constrain to a
@@ -68,6 +88,7 @@ export async function POST(req: NextRequest) {
       full_name,
       phone,
       email,
+      date_of_birth,
       insurance_provider,
       card_front_path: safeFront,
       card_back_path: safeBack,
