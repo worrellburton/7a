@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import type { RecoveryReportPayload, CallLogRow } from './content';
+import type { RecoveryReportPayload, CallLogRow, AnalyticsPayload } from './content';
 
 // Multi-page branded PDF for the Recovery.com report. We render
 // every section in pure jsPDF primitives (no canvas snapshot) so
@@ -780,13 +780,270 @@ function drawTableHeader(ctx: PageContext, cols: { label: string; x: number; ali
   ctx.cursorY += 20;
 }
 
+// ─── Analytics page (GA4) ───────────────────────────────────────
+
+function drawAnalyticsPage(ctx: PageContext, analytics: AnalyticsPayload | null) {
+  // Skip entirely when there's nothing useful to print.
+  if (!analytics || !analytics.configured || analytics.error) return;
+  if (!analytics.summary || analytics.summary.sessions === 0) return;
+
+  ctx.pdf.addPage();
+  ctx.pageNumber++;
+  ctx.cursorY = MARGIN_TOP;
+  drawHeader(ctx);
+
+  drawSectionHeading(ctx, 'WEBSITE', 'Traffic via Recovery.com');
+  ctx.pdf.setFont('helvetica', 'normal');
+  ctx.pdf.setFontSize(9);
+  ctx.pdf.setTextColor(COLOR.muted);
+  const subtitle = analytics.range
+    ? `Sessions, users, and engagement attributed to Recovery.com referrals (Google Analytics 4) for ${analytics.range.startDate} through ${analytics.range.endDate}.`
+    : 'Sessions, users, and engagement attributed to Recovery.com referrals (Google Analytics 4).';
+  const wrappedSub = ctx.pdf.splitTextToSize(asciiSafe(subtitle), PAGE_W - MARGIN_X * 2);
+  ctx.pdf.text(wrappedSub, MARGIN_X, ctx.cursorY);
+  ctx.cursorY += wrappedSub.length * 12 + 8;
+
+  // KPI tiles — sessions, users, duration, engagement, bounce, etc.
+  const summary = analytics.summary;
+  const previous = analytics.previous ?? null;
+  const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
+  const fmtSecs = (s: number) => {
+    if (!Number.isFinite(s) || s <= 0) return '0s';
+    const m = Math.floor(s / 60);
+    const sec = Math.round(s % 60);
+    if (m === 0) return `${sec}s`;
+    return `${m}m ${sec}s`;
+  };
+  const tiles: { label: string; value: string; delta?: string }[] = [
+    { label: 'Sessions', value: summary.sessions.toLocaleString(), delta: deltaLabel(summary.sessions, previous?.sessions) },
+    { label: 'Active users', value: summary.activeUsers.toLocaleString(), delta: deltaLabel(summary.activeUsers, previous?.activeUsers) },
+    { label: 'New users', value: summary.newUsers.toLocaleString(), delta: deltaLabel(summary.newUsers, previous?.newUsers) },
+    { label: 'Pageviews', value: summary.pageViews.toLocaleString(), delta: deltaLabel(summary.pageViews, previous?.pageViews) },
+    { label: 'Avg session', value: fmtSecs(summary.avgSessionDurationSec), delta: deltaLabel(summary.avgSessionDurationSec, previous?.avgSessionDurationSec) },
+    { label: 'Pages / session', value: summary.pagesPerSession.toFixed(2), delta: deltaLabel(summary.pagesPerSession, previous?.pagesPerSession) },
+    { label: 'Engagement', value: fmtPct(summary.engagementRate), delta: deltaLabel(summary.engagementRate, previous?.engagementRate) },
+    { label: 'Bounce rate', value: fmtPct(summary.bounceRate), delta: deltaLabel(summary.bounceRate, previous?.bounceRate, true) },
+  ];
+  const cols = 4;
+  const tileW = (PAGE_W - MARGIN_X * 2 - 10 * (cols - 1)) / cols;
+  const tileH = 70;
+  let row = 0;
+  let col = 0;
+  for (const t of tiles) {
+    const x = MARGIN_X + col * (tileW + 10);
+    const y = ctx.cursorY + row * (tileH + 10);
+    ctx.pdf.setFillColor(COLOR.card);
+    ctx.pdf.roundedRect(x, y, tileW, tileH, 5, 5, 'F');
+    ctx.pdf.setFont('helvetica', 'bold');
+    ctx.pdf.setFontSize(6.5);
+    ctx.pdf.setTextColor(COLOR.faint);
+    ctx.pdf.text(asciiSafe(t.label.toUpperCase()), x + 10, y + 16);
+    ctx.pdf.setFont('helvetica', 'bold');
+    ctx.pdf.setFontSize(20);
+    ctx.pdf.setTextColor(COLOR.primary);
+    ctx.pdf.text(asciiSafe(t.value), x + 10, y + 44);
+    if (t.delta) {
+      ctx.pdf.setFont('helvetica', 'normal');
+      ctx.pdf.setFontSize(7);
+      ctx.pdf.setTextColor(COLOR.muted);
+      ctx.pdf.text(asciiSafe(t.delta), x + 10, y + 60);
+    }
+    col++;
+    if (col >= cols) {
+      col = 0;
+      row++;
+    }
+  }
+  ctx.cursorY += (row + 1) * (tileH + 10) + 16;
+
+  // Daily sessions chart.
+  drawAnalyticsDailyChart(ctx, analytics.daily ?? []);
+
+  // Geo + device + events — three small column lists.
+  if (
+    (analytics.countries && analytics.countries.length > 0) ||
+    (analytics.devices && analytics.devices.length > 0) ||
+    (analytics.events && analytics.events.length > 0)
+  ) {
+    ensureRoom(ctx, 200);
+    drawSectionHeading(ctx, 'BREAKDOWNS', 'Geography, devices, events');
+    ctx.cursorY += 4;
+    const colW = (PAGE_W - MARGIN_X * 2 - 16 * 2) / 3;
+    const headStartY = ctx.cursorY;
+    const colX = [MARGIN_X, MARGIN_X + colW + 16, MARGIN_X + (colW + 16) * 2];
+
+    const drawMiniList = (
+      x: number,
+      heading: string,
+      rows: { left: string; right: string }[],
+    ) => {
+      ctx.pdf.setFont('helvetica', 'bold');
+      ctx.pdf.setFontSize(7);
+      ctx.pdf.setTextColor(COLOR.faint);
+      ctx.pdf.text(asciiSafe(heading), x, headStartY);
+      ctx.pdf.setDrawColor(COLOR.hairline);
+      ctx.pdf.line(x, headStartY + 6, x + colW, headStartY + 6);
+      let y = headStartY + 18;
+      ctx.pdf.setFont('helvetica', 'normal');
+      ctx.pdf.setFontSize(9);
+      for (const r of rows) {
+        const left = ctx.pdf.splitTextToSize(asciiSafe(r.left), colW - 50)[0];
+        ctx.pdf.setTextColor(COLOR.text);
+        ctx.pdf.text(left, x, y);
+        ctx.pdf.setTextColor(COLOR.muted);
+        ctx.pdf.text(asciiSafe(r.right), x + colW, y, { align: 'right' });
+        y += 13;
+      }
+      return y;
+    };
+
+    let lowest = headStartY;
+
+    if (analytics.countries && analytics.countries.length > 0) {
+      const total = analytics.countries.reduce((s, r) => s + r.sessions, 0) || 1;
+      const lines = analytics.countries.slice(0, 7).map((r) => ({
+        left: r.country || '(unknown)',
+        right: `${r.sessions}  ${Math.round((r.sessions / total) * 100)}%`,
+      }));
+      lowest = Math.max(lowest, drawMiniList(colX[0], 'TOP COUNTRIES', lines));
+    }
+    if (analytics.devices && analytics.devices.length > 0) {
+      const total = analytics.devices.reduce((s, r) => s + r.sessions, 0) || 1;
+      const lines = analytics.devices.map((r) => ({
+        left: r.device.charAt(0).toUpperCase() + r.device.slice(1),
+        right: `${r.sessions}  ${Math.round((r.sessions / total) * 100)}%`,
+      }));
+      lowest = Math.max(lowest, drawMiniList(colX[1], 'DEVICES', lines));
+    }
+    if (analytics.events && analytics.events.length > 0) {
+      const interesting = analytics.events
+        .filter((r) =>
+          /click|submit|conversion|call|book|tour|verify|chat|signup|contact|cta|begin|purchase|download/i.test(r.name),
+        )
+        .slice(0, 7);
+      const display = interesting.length > 0 ? interesting : analytics.events.slice(0, 7);
+      const lines = display.map((r) => ({ left: r.name, right: r.count.toLocaleString() }));
+      lowest = Math.max(lowest, drawMiniList(colX[2], 'TOP EVENTS', lines));
+    }
+    ctx.cursorY = lowest + 12;
+  }
+
+  // Top landing pages table.
+  if (analytics.landing && analytics.landing.length > 0) {
+    ensureRoom(ctx, 80 + Math.min(analytics.landing.length, 10) * 18);
+    drawSectionHeading(ctx, 'PAGES', 'Top landing pages');
+    ctx.cursorY += 4;
+    const cols = [
+      { label: 'Path', x: MARGIN_X },
+      { label: 'Sessions', x: MARGIN_X + 280, align: 'right' as const },
+      { label: 'Users', x: MARGIN_X + 340, align: 'right' as const },
+      { label: 'Engagement', x: MARGIN_X + 410, align: 'right' as const },
+      { label: 'Bounce', x: PAGE_W - MARGIN_X, align: 'right' as const },
+    ];
+    drawTableHeader(ctx, cols);
+    for (const r of analytics.landing.slice(0, 10)) {
+      ensureRoom(ctx, 18);
+      const y = ctx.cursorY + 11;
+      ctx.pdf.setFont('helvetica', 'normal');
+      ctx.pdf.setFontSize(8);
+      ctx.pdf.setTextColor(COLOR.text);
+      const truncatedPath = ctx.pdf.splitTextToSize(asciiSafe(r.path || '/'), 270)[0];
+      ctx.pdf.text(truncatedPath, cols[0].x, y);
+      ctx.pdf.setFont('helvetica', 'bold');
+      ctx.pdf.setTextColor(COLOR.primary);
+      ctx.pdf.text(String(r.sessions), cols[1].x, y, { align: 'right' });
+      ctx.pdf.setFont('helvetica', 'normal');
+      ctx.pdf.setTextColor(COLOR.text);
+      ctx.pdf.text(String(r.activeUsers), cols[2].x, y, { align: 'right' });
+      ctx.pdf.setTextColor(COLOR.emerald);
+      ctx.pdf.text(`${(r.engagementRate * 100).toFixed(0)}%`, cols[3].x, y, { align: 'right' });
+      ctx.pdf.setTextColor(COLOR.muted);
+      ctx.pdf.text(`${(r.bounceRate * 100).toFixed(0)}%`, cols[4].x, y, { align: 'right' });
+      ctx.pdf.setDrawColor(COLOR.hairline);
+      ctx.pdf.line(MARGIN_X, ctx.cursorY + 18, PAGE_W - MARGIN_X, ctx.cursorY + 18);
+      ctx.cursorY += 18;
+    }
+  }
+
+  drawFooter(ctx);
+}
+
+function drawAnalyticsDailyChart(ctx: PageContext, daily: { date: string; sessions: number; activeUsers: number; pageViews: number }[]) {
+  if (daily.length === 0) return;
+  ensureRoom(ctx, 200);
+  drawSectionHeading(ctx, 'DAILY', 'Sessions over time');
+  ctx.cursorY += 4;
+  const startY = ctx.cursorY;
+  const chartH = 150;
+  const chartW = PAGE_W - MARGIN_X * 2;
+  const innerLeft = MARGIN_X + 30;
+  const innerRight = MARGIN_X + chartW - 8;
+  const innerTop = startY + 12;
+  const innerBottom = startY + chartH - 22;
+  const innerW = innerRight - innerLeft;
+  const innerH = innerBottom - innerTop;
+  const max = Math.max(1, ...daily.map((d) => d.sessions));
+  const slot = innerW / daily.length;
+  const barW = Math.max(1, slot * 0.7);
+  const tickStep = niceTickStep(max);
+  ctx.pdf.setDrawColor(COLOR.hairline);
+  ctx.pdf.setLineWidth(0.5);
+  for (let v = 0; v <= max; v += tickStep) {
+    const y = innerBottom - (innerH * v) / max;
+    ctx.pdf.line(innerLeft, y, innerRight, y);
+    ctx.pdf.setFont('helvetica', 'normal');
+    ctx.pdf.setFontSize(7);
+    ctx.pdf.setTextColor(COLOR.faint);
+    ctx.pdf.text(String(v), innerLeft - 4, y + 2, { align: 'right' });
+  }
+  daily.forEach((d, i) => {
+    const x = innerLeft + i * slot + (slot - barW) / 2;
+    const totalH = (innerH * d.sessions) / max;
+    ctx.pdf.setFillColor('#3b82f6');
+    ctx.pdf.rect(x, innerBottom - totalH, barW, totalH, 'F');
+  });
+  const stride = Math.max(1, Math.ceil(daily.length / 8));
+  ctx.pdf.setFont('helvetica', 'normal');
+  ctx.pdf.setFontSize(7);
+  ctx.pdf.setTextColor(COLOR.faint);
+  daily.forEach((d, i) => {
+    if (i % stride !== 0 && i !== daily.length - 1) return;
+    const x = innerLeft + i * slot + slot / 2;
+    const date = new Date(d.date + 'T00:00:00');
+    ctx.pdf.text(
+      date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      x,
+      innerBottom + 14,
+      { align: 'center' },
+    );
+  });
+  ctx.cursorY = innerBottom + 26;
+}
+
+function deltaLabel(next: number, prev: number | undefined, lowerIsBetter = false): string | undefined {
+  if (prev == null || prev === 0) return undefined;
+  const change = (next - prev) / prev;
+  const pct = Math.abs(change * 100).toFixed(0);
+  const arrow = change >= 0 ? 'up' : 'down';
+  // Indicate good/bad in plain text since we can't color-tune chips
+  // here easily; "Lower is better" handles the bounce-rate framing.
+  if (lowerIsBetter) {
+    return `${arrow} ${pct}% vs prior  (lower is better)`;
+  }
+  return `${arrow} ${pct}% vs prior`;
+}
+
 // ─── Public entry ───────────────────────────────────────────────
 
-export async function downloadRecoveryComPdf(data: RecoveryReportPayload): Promise<void> {
+export async function downloadRecoveryComPdf(
+  data: RecoveryReportPayload,
+  analytics: AnalyticsPayload | null = null,
+): Promise<void> {
   const ctx = newDoc();
   drawCoverPage(ctx, data);
   drawStatsPage(ctx, data);
   drawDistributionsPage(ctx, data);
+  drawAnalyticsPage(ctx, analytics);
   drawOperatorPage(ctx, data);
   drawCallLogPages(ctx, data.callLog);
 

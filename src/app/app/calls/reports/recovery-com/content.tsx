@@ -99,10 +99,45 @@ export interface RecoveryReportPayload {
   callLog: CallLogRow[];
 }
 
+// GA4 payload — pulled from /api/calls/reports/recovery-com/analytics.
+// Surfaces undefined when GA4 isn't wired up (configured=false) so
+// the section can collapse cleanly without lighting up an error.
+export interface AnalyticsPayload {
+  configured: boolean;
+  range?: { startDate: string; endDate: string; prevStart: string | null; prevEnd: string | null };
+  summary?: AnalyticsSummary;
+  previous?: AnalyticsSummary | null;
+  daily?: { date: string; sessions: number; activeUsers: number; pageViews: number }[];
+  landing?: {
+    path: string;
+    sessions: number;
+    activeUsers: number;
+    engagementRate: number;
+    avgSessionDurationSec: number;
+    bounceRate: number;
+  }[];
+  countries?: { country: string; sessions: number; activeUsers: number }[];
+  devices?: { device: string; sessions: number; activeUsers: number; engagementRate: number }[];
+  events?: { name: string; count: number; users: number }[];
+  error?: string;
+}
+
+export interface AnalyticsSummary {
+  sessions: number;
+  activeUsers: number;
+  newUsers: number;
+  pageViews: number;
+  avgSessionDurationSec: number;
+  bounceRate: number;
+  engagementRate: number;
+  pagesPerSession: number;
+}
+
 export default function RecoveryComReportContent() {
   const { session } = useAuth();
   const [range, setRange] = useState<RangeKey>(90);
   const [data, setData] = useState<RecoveryReportPayload | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -134,11 +169,37 @@ export default function RecoveryComReportContent() {
     };
   }, [range, session?.access_token]);
 
+  // GA4-backed website-traffic slice for the same window. Fires
+  // independently of the calls fetch so a slow GA call doesn't
+  // delay the call charts. Failure is non-fatal — the section
+  // renders an "analytics not available" banner instead.
+  useEffect(() => {
+    const token = session?.access_token;
+    if (!token) return;
+    const { from, to } = rangeWindow(range);
+    const startDate = from.toISOString().slice(0, 10);
+    const endDate = to.toISOString().slice(0, 10);
+    const url = `/api/calls/reports/recovery-com/analytics?startDate=${startDate}&endDate=${endDate}`;
+    let cancelled = false;
+    setAnalytics(null);
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (r) => (r.ok ? ((await r.json()) as AnalyticsPayload) : null))
+      .then((json) => {
+        if (!cancelled && json) setAnalytics(json);
+      })
+      .catch(() => {
+        if (!cancelled) setAnalytics({ configured: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [range, session?.access_token]);
+
   const handleDownload = async () => {
     if (!data) return;
     setDownloading(true);
     try {
-      await downloadRecoveryComPdf(data);
+      await downloadRecoveryComPdf(data, analytics);
     } finally {
       setDownloading(false);
     }
@@ -250,6 +311,7 @@ export default function RecoveryComReportContent() {
               sentiment={data.sentiment}
               clientTypes={data.clientTypes}
             />
+            <AnalyticsSection analytics={analytics} />
             <OperatorScoreboard rows={data.operators} />
             <RepeatCallersSection rows={data.repeatCallers} />
             <CallLogSection rows={data.callLog} />
@@ -900,6 +962,337 @@ function fmtDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.round(seconds % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// ─── Analytics (GA4) ────────────────────────────────────────────
+
+function AnalyticsSection({ analytics }: { analytics: AnalyticsPayload | null }) {
+  if (!analytics) {
+    return (
+      <section className="report-section mt-8 rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+        <SectionTitle eyebrow="Website" title="Traffic via Recovery.com" subtitle="Loading Google Analytics…" />
+        <div className="h-32 grid place-items-center text-xs text-foreground/40">Fetching GA4 data…</div>
+      </section>
+    );
+  }
+  if (!analytics.configured) {
+    return (
+      <section className="report-section mt-8 rounded-2xl border border-amber-200 bg-amber-50/60 p-5 sm:p-6">
+        <SectionTitle
+          eyebrow="Website"
+          title="Traffic via Recovery.com"
+          subtitle="GA4 isn't connected on this environment, so the website-traffic slice is unavailable. Add a service-account / OAuth token + GA4_PROPERTY_ID and the section fills in automatically."
+        />
+      </section>
+    );
+  }
+  if (analytics.error) {
+    return (
+      <section className="report-section mt-8 rounded-2xl border border-red-200 bg-red-50/60 p-5 sm:p-6">
+        <SectionTitle eyebrow="Website" title="Traffic via Recovery.com" subtitle={`GA4 error: ${analytics.error}`} />
+      </section>
+    );
+  }
+  if (!analytics.summary || analytics.summary.sessions === 0) {
+    return (
+      <section className="report-section mt-8 rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+        <SectionTitle
+          eyebrow="Website"
+          title="Traffic via Recovery.com"
+          subtitle="GA4 reported zero sessions whose source matches recovery.com in this window."
+        />
+      </section>
+    );
+  }
+  return (
+    <section className="report-section mt-8 space-y-4">
+      <AnalyticsKpiBand summary={analytics.summary} previous={analytics.previous ?? null} />
+      <AnalyticsDailyChart daily={analytics.daily ?? []} />
+      <AnalyticsLandingPages rows={analytics.landing ?? []} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <AnalyticsCountries rows={analytics.countries ?? []} />
+        <AnalyticsDevices rows={analytics.devices ?? []} />
+        <AnalyticsEvents rows={analytics.events ?? []} />
+      </div>
+    </section>
+  );
+}
+
+function AnalyticsKpiBand({
+  summary,
+  previous,
+}: {
+  summary: AnalyticsSummary;
+  previous: AnalyticsSummary | null;
+}) {
+  const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
+  const fmtSecs = (s: number) => {
+    if (!Number.isFinite(s) || s <= 0) return '0s';
+    const m = Math.floor(s / 60);
+    const sec = Math.round(s % 60);
+    if (m === 0) return `${sec}s`;
+    return `${m}m ${sec}s`;
+  };
+  const delta = (next: number, prev: number | undefined): { pct: number | null; up: boolean } => {
+    if (prev == null || prev === 0) return { pct: null, up: false };
+    const change = (next - prev) / prev;
+    return { pct: change, up: change >= 0 };
+  };
+  const tiles: { label: string; value: string; deltaSource?: { next: number; prev?: number }; tone: 'primary' | 'emerald' | 'foreground' | 'red' | 'amber'; hint?: string }[] = [
+    { label: 'Sessions', value: summary.sessions.toLocaleString(), deltaSource: { next: summary.sessions, prev: previous?.sessions }, tone: 'primary' },
+    { label: 'Active users', value: summary.activeUsers.toLocaleString(), deltaSource: { next: summary.activeUsers, prev: previous?.activeUsers }, tone: 'primary' },
+    { label: 'New users', value: summary.newUsers.toLocaleString(), deltaSource: { next: summary.newUsers, prev: previous?.newUsers }, tone: 'foreground' },
+    { label: 'Pageviews', value: summary.pageViews.toLocaleString(), deltaSource: { next: summary.pageViews, prev: previous?.pageViews }, tone: 'foreground' },
+    { label: 'Avg session', value: fmtSecs(summary.avgSessionDurationSec), deltaSource: { next: summary.avgSessionDurationSec, prev: previous?.avgSessionDurationSec }, tone: 'emerald' },
+    { label: 'Pages / session', value: summary.pagesPerSession.toFixed(2), deltaSource: { next: summary.pagesPerSession, prev: previous?.pagesPerSession }, tone: 'emerald' },
+    { label: 'Engagement', value: fmtPct(summary.engagementRate), deltaSource: { next: summary.engagementRate, prev: previous?.engagementRate }, tone: 'emerald' },
+    { label: 'Bounce rate', value: fmtPct(summary.bounceRate), deltaSource: { next: summary.bounceRate, prev: previous?.bounceRate }, tone: 'red', hint: 'Lower is better' },
+  ];
+  const toneClass = (t: string) =>
+    t === 'primary'
+      ? 'text-primary'
+      : t === 'emerald'
+        ? 'text-emerald-700'
+        : t === 'red'
+          ? 'text-red-700'
+          : t === 'amber'
+            ? 'text-amber-700'
+            : 'text-foreground';
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+      <SectionTitle
+        eyebrow="Website"
+        title="Traffic via Recovery.com"
+        subtitle="Sessions, users, and engagement attributed to Recovery.com referrals (GA4)."
+      />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        {tiles.map((t) => {
+          const d = t.deltaSource ? delta(t.deltaSource.next, t.deltaSource.prev) : { pct: null, up: false };
+          return (
+            <div
+              key={t.label}
+              className="rounded-xl border border-black/10 bg-warm-bg/40 px-4 py-4 sm:px-5 sm:py-5"
+            >
+              <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">{t.label}</p>
+              <p
+                className={`mt-1 text-2xl sm:text-3xl font-bold tabular-nums ${toneClass(t.tone)}`}
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
+                {t.value}
+              </p>
+              {d.pct != null ? (
+                <p className={`mt-0.5 text-[11px] font-semibold tabular-nums ${d.up ? 'text-emerald-700' : 'text-red-700'}`}>
+                  {d.up ? '↑' : '↓'} {Math.abs(d.pct * 100).toFixed(0)}% vs prior
+                </p>
+              ) : t.hint ? (
+                <p className="mt-0.5 text-[11px] text-foreground/45">{t.hint}</p>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsDailyChart({ daily }: { daily: { date: string; sessions: number; activeUsers: number; pageViews: number }[] }) {
+  if (daily.length === 0) return null;
+  const max = Math.max(1, ...daily.map((d) => d.sessions));
+  const W = 900;
+  const H = 220;
+  const PAD_T = 14;
+  const PAD_B = 28;
+  const PAD_L = 36;
+  const PAD_R = 12;
+  const innerW = W - PAD_L - PAD_R;
+  const innerH = H - PAD_T - PAD_B;
+  const slot = innerW / daily.length;
+  const barW = Math.max(2, slot * 0.7);
+  const tickStep = niceTickStep(max);
+  const ticks: number[] = [];
+  for (let v = 0; v <= max; v += tickStep) ticks.push(v);
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+      <SectionTitle eyebrow="Daily" title="Sessions over time" subtitle="GA4 sessions per day from Recovery.com referrals." />
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
+        {ticks.map((v) => {
+          const y = PAD_T + innerH - (innerH * v) / max;
+          return (
+            <g key={v}>
+              <line x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke="rgba(0,0,0,0.08)" strokeDasharray="3 3" />
+              <text x={PAD_L - 6} y={y + 3} fontSize="10" textAnchor="end" fill="rgba(0,0,0,0.45)">
+                {v}
+              </text>
+            </g>
+          );
+        })}
+        {daily.map((d, i) => {
+          const x = PAD_L + i * slot + (slot - barW) / 2;
+          const totalH = (innerH * d.sessions) / max;
+          const totalY = PAD_T + innerH - totalH;
+          return (
+            <rect
+              key={d.date}
+              x={x}
+              y={totalY}
+              width={barW}
+              height={Math.max(0, totalH)}
+              rx={2}
+              fill="rgba(59,130,246,0.6)"
+            />
+          );
+        })}
+        {daily
+          .filter((_, i) => i % Math.ceil(daily.length / 8) === 0 || i === daily.length - 1)
+          .map((d) => {
+            const idx = daily.indexOf(d);
+            const x = PAD_L + idx * slot + slot / 2;
+            const date = new Date(d.date + 'T00:00:00');
+            return (
+              <text key={d.date} x={x} y={H - 8} fontSize="10" textAnchor="middle" fill="rgba(0,0,0,0.5)">
+                {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </text>
+            );
+          })}
+      </svg>
+    </div>
+  );
+}
+
+function AnalyticsLandingPages({ rows }: { rows: AnalyticsPayload['landing'] }) {
+  if (!rows || rows.length === 0) return null;
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+      <SectionTitle eyebrow="Pages" title="Top landing pages" subtitle="Where Recovery.com traffic enters the site, ranked by sessions." />
+      <div className="overflow-x-auto -mx-1">
+        <table className="w-full text-sm">
+          <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
+            <tr>
+              <th className="px-3 py-2 rounded-l-lg">Path</th>
+              <th className="px-3 py-2 text-right">Sessions</th>
+              <th className="px-3 py-2 text-right">Users</th>
+              <th className="px-3 py-2 text-right">Avg session</th>
+              <th className="px-3 py-2 text-right">Engagement</th>
+              <th className="px-3 py-2 text-right rounded-r-lg">Bounce</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-black/5">
+            {rows.map((r) => (
+              <tr key={r.path}>
+                <td className="px-3 py-2.5 font-mono text-[12px] text-foreground/80 truncate max-w-[360px]">
+                  {r.path || '/'}
+                </td>
+                <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-primary">{r.sessions}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-foreground/65">{r.activeUsers}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-foreground/65">{fmtSecs(r.avgSessionDurationSec)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700 font-semibold">
+                  {(r.engagementRate * 100).toFixed(0)}%
+                </td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-foreground/65">
+                  {(r.bounceRate * 100).toFixed(0)}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsCountries({ rows }: { rows: AnalyticsPayload['countries'] }) {
+  if (!rows || rows.length === 0) return null;
+  const total = rows.reduce((s, r) => s + r.sessions, 0) || 1;
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+      <SectionTitle eyebrow="Geo" title="Top countries" />
+      <ul className="space-y-1.5">
+        {rows.slice(0, 8).map((r) => {
+          const pct = (r.sessions / total) * 100;
+          return (
+            <li key={r.country} className="text-[12px]">
+              <div className="flex items-center justify-between">
+                <span className="text-foreground/75 truncate">{r.country || '(unknown)'}</span>
+                <span className="text-foreground/55 tabular-nums">
+                  {r.sessions} <span className="text-foreground/35">· {pct.toFixed(0)}%</span>
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 bg-warm-bg rounded-full overflow-hidden">
+                <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function AnalyticsDevices({ rows }: { rows: AnalyticsPayload['devices'] }) {
+  if (!rows || rows.length === 0) return null;
+  const total = rows.reduce((s, r) => s + r.sessions, 0) || 1;
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+      <SectionTitle eyebrow="Device" title="Where they're browsing" />
+      <ul className="space-y-2">
+        {rows.map((r) => {
+          const pct = (r.sessions / total) * 100;
+          return (
+            <li key={r.device} className="text-[12px]">
+              <div className="flex items-center justify-between">
+                <span className="capitalize text-foreground/75">{r.device || 'unknown'}</span>
+                <span className="text-foreground/55 tabular-nums">
+                  {r.sessions} <span className="text-foreground/35">· {pct.toFixed(0)}%</span>
+                </span>
+              </div>
+              <div className="mt-1 h-2 bg-warm-bg rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${pct}%` }} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function AnalyticsEvents({ rows }: { rows: AnalyticsPayload['events'] }) {
+  if (!rows || rows.length === 0) return null;
+  // GA4 ships ambient events (page_view, session_start, etc.) that
+  // aren't actionable for a marketing report. Filter to the events
+  // most useful for an admissions team — conversions + interactions.
+  const interesting = rows
+    .filter((r) =>
+      /click|submit|conversion|call|book|tour|verify|chat|signup|contact|cta|begin|purchase|download/i.test(
+        r.name,
+      ),
+    )
+    .slice(0, 10);
+  const display = interesting.length > 0 ? interesting : rows.slice(0, 10);
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+      <SectionTitle eyebrow="Activity" title="Top events" />
+      <ul className="space-y-1.5">
+        {display.map((r) => (
+          <li key={r.name} className="text-[12px] flex items-center justify-between">
+            <span className="font-mono text-[11px] text-foreground/75 truncate">{r.name}</span>
+            <span className="tabular-nums text-foreground/55">
+              {r.count.toLocaleString()}
+              <span className="text-foreground/35"> · {r.users.toLocaleString()} users</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function fmtSecs(s: number): string {
+  if (!Number.isFinite(s) || s <= 0) return '0s';
+  const m = Math.floor(s / 60);
+  const sec = Math.round(s % 60);
+  if (m === 0) return `${sec}s`;
+  return `${m}m ${sec}s`;
 }
 
 // ─── Section title helper ───────────────────────────────────────
