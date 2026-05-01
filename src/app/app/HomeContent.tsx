@@ -391,8 +391,13 @@ export default function HomeContent() {
                 action button on the right. */}
             <div className="flex items-center justify-between gap-3">
 
-            {/* LEFT: avatar + greeting */}
-            <div className="flex items-center gap-3 lg:gap-4 min-w-0">
+            {/* LEFT: avatar + greeting. Tagged with
+                data-shift-on-sidebar so it slides 12rem to the right
+                while the sidebar rail is hovered (rail expands from
+                w-16 → w-64, exactly that delta) — keeps the welcome
+                from being covered by the expanded sidebar overlay.
+                The shift CSS lives in globals.css. */}
+            <div data-shift-on-sidebar className="flex items-center gap-3 lg:gap-4 min-w-0">
               <button
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
@@ -512,7 +517,7 @@ export default function HomeContent() {
             between the absolutely-positioned hero (top) and the WIP
             footer pill (bottom), and `justify-center` parks the orbit
             + Ask Policies stack at the dead center of that space. */}
-        <div className="relative flex-1 flex flex-col items-stretch justify-center gap-5 lg:gap-6">
+        <div className="relative flex-1 flex flex-col items-stretch justify-center gap-10 lg:gap-14">
 
         {/* Centered, slowly-rotating ring of teammates active in the
             last 24 hours, with the horse roster orbiting in the inner

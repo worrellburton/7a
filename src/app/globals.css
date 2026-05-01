@@ -334,6 +334,22 @@ html:has(:target) {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Slide-on-sidebar — anything tagged with [data-shift-on-sidebar]
+   slides 12rem to the right while the sidebar rail is being hovered
+   (rail expands from w-16 to w-64, a 12rem delta). The home hero's
+   "Welcome back / Bobby" greeting is the only consumer today; it
+   sits in the page's top-left corner and would otherwise be covered
+   by the expanded sidebar overlay. The selector is wrapped in `body
+   :has(...)` so the rule no-ops on browsers without :has() (transform
+   simply never applies) — the sidebar overlap is purely cosmetic, so
+   the graceful degradation is acceptable. */
+[data-shift-on-sidebar] {
+  transition: transform 200ms ease-out;
+}
+body:has([data-sidebar-rail]:hover) [data-shift-on-sidebar] {
+  transform: translateX(12rem);
+}
+
 /* Hide the floating mobile call pill while the mobile nav drawer is
    open — MobileMenu sets data-mobile-nav-open on <html> while it is
    visible, otherwise the pill overlaps the open menu. */
