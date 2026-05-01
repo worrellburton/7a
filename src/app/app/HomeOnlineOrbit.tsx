@@ -103,7 +103,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
       className="relative z-40 flex flex-col items-center justify-center w-full"
       aria-label="Online today"
     >
-      <div className="text-center mb-3">
+      <div className="text-center mb-10">
         <p
           className="text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/45"
           style={{ fontFamily: 'var(--font-body)' }}
@@ -345,13 +345,14 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
         }
         .orbit-spin { animation: orbit-spin-rot 60s linear infinite; }
 
-        /* Inner ring spins the opposite way at a slightly different
-           tempo so the two rings read as distinct motions. */
+        /* Inner ring spins the same direction as the outer ring but
+           on a slower loop, so the two rings read as one composed
+           motion with the horses gently trailing the team. */
         @keyframes orbit-spin-rev-rot {
           from { transform: rotate(0deg); }
-          to   { transform: rotate(-360deg); }
+          to   { transform: rotate(360deg); }
         }
-        .orbit-spin-rev { animation: orbit-spin-rev-rot 75s linear infinite; }
+        .orbit-spin-rev { animation: orbit-spin-rev-rot 90s linear infinite; }
 
         /* Counter-rotation so faces stay upright as the ring turns. */
         @keyframes orbit-counter-rot {
@@ -364,11 +365,11 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
         }
         @keyframes orbit-counter-rev-rot {
           from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
+          to   { transform: rotate(-360deg); }
         }
         .orbit-counter-rev {
           display: inline-block;
-          animation: orbit-counter-rev-rot 75s linear infinite;
+          animation: orbit-counter-rev-rot 90s linear infinite;
         }
 
         /* Slots fill the ring's bounding box. Each is rotated to its
