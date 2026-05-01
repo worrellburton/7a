@@ -1066,6 +1066,18 @@ export default function CallsContent() {
           </div>
           <div className="flex items-center gap-2">
             <a
+              href="/app/calls/reports"
+              className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-white/85 supports-[backdrop-filter]:bg-white/70 backdrop-blur text-foreground border border-white/70 rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-white transition-colors shadow-sm"
+              style={{ fontFamily: 'var(--font-body)' }}
+              aria-label="View Reports"
+            >
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6m3 6V7m3 10v-3M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              <span className="hidden sm:inline">Reports</span>
+              <span className="sm:hidden">Reports</span>
+            </a>
+            <a
               href="/app/calls/heatmap"
               className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-primary text-white rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors shadow-sm"
               style={{ fontFamily: 'var(--font-body)' }}
