@@ -17,6 +17,16 @@ interface SitemapEntry {
   lastmod: string | null;
 }
 
+interface CrawlSummary {
+  origin: string;
+  pages: string[];
+  unfetched: string[];
+  redirects: Array<{ from: string; to: string }>;
+  warnings: string[];
+  truncated: boolean;
+  durationMs: number;
+}
+
 interface RunResult {
   runAt: string;
   sitemapUrl: string;
@@ -26,6 +36,11 @@ interface RunResult {
   childSitemaps: string[];
   warnings: string[];
   rawXml: string | null;
+  crawl: CrawlSummary;
+  diff: {
+    onlyCrawled: string[];
+    onlyInSitemap: string[];
+  };
 }
 
 export default function SitemapContent() {
@@ -152,6 +167,76 @@ export default function SitemapContent() {
       </div>
 
       {result && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-5">
+          <SummaryCard
+            label="Pages crawled"
+            value={result.crawl.pages.length}
+            sub={`${(result.crawl.durationMs / 1000).toFixed(1)}s · ${result.crawl.truncated ? 'truncated' : 'complete'}`}
+            tone="emerald"
+          />
+          <SummaryCard
+            label="In sitemap"
+            value={result.urls.length}
+            sub={result.type}
+            tone="primary"
+          />
+          <SummaryCard
+            label="Diff"
+            value={result.diff.onlyCrawled.length + result.diff.onlyInSitemap.length}
+            sub={
+              result.diff.onlyCrawled.length === 0 && result.diff.onlyInSitemap.length === 0
+                ? 'crawl matches sitemap'
+                : `${result.diff.onlyCrawled.length} crawl-only · ${result.diff.onlyInSitemap.length} sitemap-only`
+            }
+            tone={
+              result.diff.onlyCrawled.length === 0 && result.diff.onlyInSitemap.length === 0
+                ? 'emerald'
+                : 'amber'
+            }
+          />
+        </div>
+      )}
+
+      {result && (result.diff.onlyCrawled.length > 0 || result.diff.onlyInSitemap.length > 0) && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 mb-5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-800 mb-2">
+            Sitemap ↔ crawl diff
+          </p>
+          {result.diff.onlyCrawled.length > 0 && (
+            <div className="mb-3">
+              <p className="text-[12px] font-semibold text-amber-900 mb-1">
+                Reachable via link but missing from sitemap ({result.diff.onlyCrawled.length})
+              </p>
+              <ul className="text-[11px] text-amber-800/85 space-y-0.5 max-h-40 overflow-y-auto">
+                {result.diff.onlyCrawled.map((u) => (
+                  <li key={u}>
+                    <a href={u} target="_blank" rel="noopener noreferrer" className="hover:underline break-all">{u}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {result.diff.onlyInSitemap.length > 0 && (
+            <div>
+              <p className="text-[12px] font-semibold text-amber-900 mb-1">
+                In sitemap but not reached during crawl ({result.diff.onlyInSitemap.length})
+              </p>
+              <p className="text-[10px] text-amber-700/80 mb-1">
+                Often orphans — pages with no internal links pointing at them.
+              </p>
+              <ul className="text-[11px] text-amber-800/85 space-y-0.5 max-h-40 overflow-y-auto">
+                {result.diff.onlyInSitemap.map((u) => (
+                  <li key={u}>
+                    <a href={u} target="_blank" rel="noopener noreferrer" className="hover:underline break-all">{u}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {result && (
         <div className="rounded-xl border border-black/10 bg-white overflow-hidden">
           <div className="px-4 py-3 flex items-center gap-3 border-b border-black/5">
             <input
@@ -216,6 +301,30 @@ export default function SitemapContent() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: number | string;
+  sub: string;
+  tone: 'emerald' | 'primary' | 'amber';
+}) {
+  const valueClass =
+    tone === 'emerald' ? 'text-emerald-700'
+    : tone === 'amber' ? 'text-amber-700'
+    : 'text-primary';
+  return (
+    <div className="rounded-xl border border-black/10 bg-white p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/55">{label}</p>
+      <p className={`text-2xl font-bold tabular-nums mt-1 ${valueClass}`}>{value}</p>
+      <p className="text-[11px] text-foreground/55 mt-0.5">{sub}</p>
     </div>
   );
 }

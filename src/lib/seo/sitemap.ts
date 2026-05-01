@@ -223,3 +223,163 @@ export const SITEMAP_LIMITS = {
   MAX_TOTAL_URLS,
   MAX_INDEX_DEPTH,
 };
+
+// ── Live-site crawler ─────────────────────────────────────────────
+//
+// BFS through every internal link starting at the origin. Follows
+// only same-host http(s) URLs, skips fragment-only links and
+// non-document file extensions, and caps total fetched pages so a
+// stuck loop can't run forever. Used by the Sitemap admin tool to
+// verify that the auto-generated /sitemap.xml matches the actual
+// reachable page graph on production.
+
+const CRAWL_FETCH_TIMEOUT_MS = 8_000;
+const CRAWL_MAX_PAGES = 250;
+const CRAWL_BUDGET_MS = 55_000; // leave headroom inside Vercel's 60s function cap
+
+const SKIP_EXTENSIONS = /\.(jpg|jpeg|png|gif|svg|webp|avif|ico|pdf|zip|mp4|mov|webm|mp3|wav|css|js|map|xml|json|txt)(?:[?#]|$)/i;
+
+const ANCHOR_RE = /<a\b[^>]*?\bhref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi;
+
+export interface CrawlResult {
+  origin: string;
+  /** Pages we successfully fetched a 2xx HTML response for. */
+  pages: string[];
+  /** URLs we discovered but didn't fetch (cap reached / budget out / non-2xx). */
+  unfetched: string[];
+  /** Internal redirects encountered (from → to), surfaced so admins can clean them up. */
+  redirects: Array<{ from: string; to: string }>;
+  /** Per-URL HTTP status (only present for fetched URLs). */
+  statuses: Record<string, number>;
+  warnings: string[];
+  /** True when we hit the page or time budget — list may be incomplete. */
+  truncated: boolean;
+  /** Wall-clock duration of the crawl in ms. */
+  durationMs: number;
+}
+
+function normalizeForCrawl(href: string, base: string, origin: string): string | null {
+  try {
+    const u = new URL(href, base);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    if (u.origin !== origin) return null;
+    if (SKIP_EXTENSIONS.test(u.pathname + u.search)) return null;
+    // Strip fragment — same page from a sitemap perspective.
+    u.hash = '';
+    // Normalize trailing slash on root only; keep the rest as-is so
+    // /a and /a/ don't collapse if the site cares about the
+    // distinction.
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractLinks(html: string): string[] {
+  const out: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = ANCHOR_RE.exec(html)) !== null) {
+    const raw = m[1] ?? m[2] ?? m[3];
+    if (!raw) continue;
+    out.push(raw.trim());
+  }
+  return out;
+}
+
+async function fetchHtml(url: string): Promise<{ status: number; finalUrl: string; html: string | null }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CRAWL_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'SevenArrowsAuditBot/1.0 (+https://sevenarrowsrecoveryarizona.com)',
+        Accept: 'text/html,application/xhtml+xml',
+      },
+      cache: 'no-store',
+    });
+    const finalUrl = res.url || url;
+    if (!res.ok) return { status: res.status, finalUrl, html: null };
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.toLowerCase().includes('html')) return { status: res.status, finalUrl, html: null };
+    const html = await res.text();
+    return { status: res.status, finalUrl, html };
+  } catch {
+    return { status: 0, finalUrl: url, html: null };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function crawlSite(rootUrl: string): Promise<CrawlResult> {
+  const startedAt = Date.now();
+  const root = new URL(rootUrl);
+  const origin = root.origin;
+  const start = root.toString();
+
+  const queue: string[] = [start];
+  const visited = new Set<string>([start]);
+  const pages = new Set<string>();
+  const unfetched = new Set<string>();
+  const redirects: Array<{ from: string; to: string }> = [];
+  const statuses: Record<string, number> = {};
+  const warnings: string[] = [];
+  let truncated = false;
+
+  while (queue.length > 0) {
+    if (Date.now() - startedAt > CRAWL_BUDGET_MS) {
+      truncated = true;
+      warnings.push(`Crawl time budget (${CRAWL_BUDGET_MS}ms) exceeded — list may be incomplete.`);
+      // Anything still queued counts as unfetched.
+      for (const q of queue) unfetched.add(q);
+      break;
+    }
+    if (pages.size >= CRAWL_MAX_PAGES) {
+      truncated = true;
+      warnings.push(`Page cap (${CRAWL_MAX_PAGES}) reached — list may be incomplete.`);
+      for (const q of queue) unfetched.add(q);
+      break;
+    }
+    const url = queue.shift()!;
+    const { status, finalUrl, html } = await fetchHtml(url);
+    statuses[url] = status;
+
+    if (finalUrl !== url) {
+      redirects.push({ from: url, to: finalUrl });
+      // Re-key status onto the canonical URL too.
+      statuses[finalUrl] = status;
+      if (!visited.has(finalUrl)) visited.add(finalUrl);
+    }
+
+    if (status === 0) {
+      warnings.push(`Fetch failed (timeout / network) for ${url}`);
+      unfetched.add(url);
+      continue;
+    }
+    if (status < 200 || status >= 300 || !html) {
+      unfetched.add(finalUrl);
+      continue;
+    }
+    pages.add(finalUrl);
+
+    for (const raw of extractLinks(html)) {
+      const next = normalizeForCrawl(raw, finalUrl, origin);
+      if (!next) continue;
+      if (visited.has(next)) continue;
+      visited.add(next);
+      queue.push(next);
+    }
+  }
+
+  return {
+    origin,
+    pages: Array.from(pages).sort(),
+    unfetched: Array.from(unfetched).sort(),
+    redirects,
+    statuses,
+    warnings,
+    truncated,
+    durationMs: Date.now() - startedAt,
+  };
+}

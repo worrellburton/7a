@@ -1,14 +1,23 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
-import { discoverSitemap } from '@/lib/seo/sitemap';
+import { crawlSite, discoverSitemap } from '@/lib/seo/sitemap';
 
 // POST /api/seo/sitemap/run
 //
-// Fetches the live sitemap from the canonical site, parses it, and
-// returns the URL list + raw XML in the response. Authed users only
-// (page is admin-area-gated by PageGuard already) — no admin
-// requirement, since the sitemap is public anyway and the team
-// wanted any signed-in user to be able to run it.
+// Runs in two stages:
+//   1. Crawl the live site (BFS through internal links) so the
+//      result reflects what's actually reachable on production —
+//      not just what the static or auto-generated sitemap.xml
+//      claims.
+//   2. Fetch the published /sitemap.xml so admins can see both at
+//      once, with a diff of what was crawled but not in the
+//      sitemap (orphaned-only-via-link) vs. in the sitemap but
+//      not crawled (orphaned-only-via-sitemap).
+//
+// The dynamic app/sitemap.ts auto-enumerates the (site) directory
+// at request time, so the published sitemap is always fresh — but
+// running a crawl confirms it matches the link graph the rest of
+// the world sees.
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -20,15 +29,20 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const result = await discoverSitemap(ORIGIN);
+  // Run the live crawl and the sitemap parse in parallel. Each is
+  // independent — crawl walks the link graph, sitemap parse is a
+  // single XML fetch — so doing them concurrently halves wall time.
+  const [crawl, sitemap] = await Promise.all([
+    crawlSite(`${ORIGIN}/`),
+    discoverSitemap(ORIGIN),
+  ]);
 
-  // Refetch the raw XML separately so the page can offer a clean
-  // download. discoverSitemap() returns parsed entries; the raw
-  // payload is what the team actually wants to send to Google
-  // Search Console / share with consultants.
+  // Refetch the raw sitemap XML so the page can offer a clean
+  // download. discoverSitemap returns parsed entries; this is the
+  // verbatim payload Search Console / consultants want.
   let rawXml: string | null = null;
   try {
-    const res = await fetch(result.url, {
+    const res = await fetch(sitemap.url, {
       headers: { 'user-agent': 'SevenArrowsAuditBot/1.0' },
       cache: 'no-store',
     });
@@ -37,14 +51,41 @@ export async function POST() {
     // best-effort
   }
 
+  // Compute the diff. Normalize trailing slashes on both sides so
+  // / and (site root) don't show as missing each other.
+  const norm = (u: string) => u.replace(/\/$/, '') || '/';
+  const sitemapSet = new Set(sitemap.urls.map(norm));
+  const crawlSet = new Set(crawl.pages.map(norm));
+  const onlyCrawled = crawl.pages.filter((u) => !sitemapSet.has(norm(u)));
+  const onlyInSitemap = sitemap.urls.filter((u) => !crawlSet.has(norm(u)));
+
   return NextResponse.json({
     runAt: new Date().toISOString(),
-    sitemapUrl: result.url,
-    type: result.type,
-    urls: result.urls,
-    entries: result.entries,
-    childSitemaps: result.childSitemaps,
-    warnings: result.warnings,
+
+    // Live crawl
+    crawl: {
+      origin: crawl.origin,
+      pages: crawl.pages,
+      unfetched: crawl.unfetched,
+      redirects: crawl.redirects,
+      warnings: crawl.warnings,
+      truncated: crawl.truncated,
+      durationMs: crawl.durationMs,
+    },
+
+    // Published sitemap (still surfaced so URLs/Download work as before)
+    sitemapUrl: sitemap.url,
+    type: sitemap.type,
+    urls: sitemap.urls,
+    entries: sitemap.entries,
+    childSitemaps: sitemap.childSitemaps,
+    warnings: sitemap.warnings,
     rawXml,
+
+    // Diff
+    diff: {
+      onlyCrawled,    // reachable via link but missing from sitemap
+      onlyInSitemap,  // in sitemap but didn't surface during crawl
+    },
   });
 }
