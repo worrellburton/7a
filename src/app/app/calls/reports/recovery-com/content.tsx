@@ -149,6 +149,9 @@ export interface AnalyticsPayload {
   dayOfWeek?: { day: number; label: string; sessions: number }[];
   newVsReturning?: { label: string; sessions: number; activeUsers: number }[];
   events?: { name: string; count: number; users: number }[];
+  debug?: {
+    allSources?: { source: string; medium: string; sessions: number }[];
+  };
   error?: string;
 }
 
@@ -1024,13 +1027,52 @@ function AnalyticsSection({ analytics }: { analytics: AnalyticsPayload | null })
     );
   }
   if (!analytics.summary || analytics.summary.sessions === 0) {
+    const allSources = analytics.debug?.allSources ?? [];
+    const recoveryHits = allSources.filter((r) =>
+      /recovery|rehab/i.test(r.source),
+    );
     return (
-      <section className="report-section mt-8 rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+      <section className="report-section mt-8 rounded-2xl border border-amber-200 bg-amber-50/60 p-5 sm:p-6">
         <SectionTitle
           eyebrow="Website"
           title="Traffic via Recovery.com"
-          subtitle="GA4 reported zero sessions whose source matches recovery.com in this window."
+          subtitle="GA4 returned zero sessions whose source matches our Recovery.com filter for this window. The source list below shows every source GA actually emitted — if you spot a match we should be including, tell us and we'll widen the filter."
         />
+        {recoveryHits.length > 0 && (
+          <div className="rounded-lg border border-amber-300 bg-white px-4 py-3 mb-4 text-[12px] text-amber-900">
+            <p className="font-semibold mb-1">Looks like we should be matching these — they contain &ldquo;recovery&rdquo; or &ldquo;rehab&rdquo;:</p>
+            <ul className="space-y-0.5 font-mono text-[11px]">
+              {recoveryHits.map((r) => (
+                <li key={`${r.source}-${r.medium}`}>
+                  {r.source} / {r.medium} <span className="text-amber-700">· {r.sessions} sessions</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {allSources.length > 0 && (
+          <div className="rounded-lg border border-black/10 bg-white px-4 py-3 text-[12px]">
+            <p className="font-semibold text-foreground/75 mb-1">Top {allSources.length} source / medium pairs GA reported (any source):</p>
+            <table className="w-full text-[11px]">
+              <thead className="text-foreground/50 text-left">
+                <tr>
+                  <th className="py-1 pr-3">Source</th>
+                  <th className="py-1 pr-3">Medium</th>
+                  <th className="py-1 text-right">Sessions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/5">
+                {allSources.map((r, i) => (
+                  <tr key={`${r.source}-${r.medium}-${i}`}>
+                    <td className="py-1 pr-3 font-mono text-foreground/85">{r.source}</td>
+                    <td className="py-1 pr-3 font-mono text-foreground/55">{r.medium}</td>
+                    <td className="py-1 text-right tabular-nums text-foreground/65">{r.sessions}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     );
   }
