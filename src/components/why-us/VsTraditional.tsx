@@ -24,7 +24,7 @@ const rows: { trait: string; us: string; them: string }[] = [
   },
   {
     trait: 'Trauma-informed primary model',
-    us: 'Forward-Facing Freedom® as the spine of care',
+    us: 'Forward-Facing Accelerated Recovery® as the spine of care',
     them: 'Trauma deferred until after "stabilization"',
   },
   {

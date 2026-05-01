@@ -117,7 +117,7 @@ export default function PostTraumaticGrowth() {
             transition: 'opacity 0.9s ease 0.35s',
           }}
         >
-          Forward-Facing Freedom does not stop at symptom reduction. The model
+          Forward-Facing Accelerated Recovery does not stop at symptom reduction. The model
           actively supports post-traumatic growth — increased resilience, deeper
           meaning, and strengthened relational connection. A paradigm shift from
           managing illness to actively creating health.

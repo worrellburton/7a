@@ -30,7 +30,7 @@ const faqs = [
   {
     question: 'How long is the residential program?',
     answer:
-      'Program lengths typically run 30, 60, or 90+ days depending on clinical need — not a fixed insurance window. Forward-Facing Freedom® is designed to build nervous-system capacity before deeper trauma work, which means longer stays are often more effective than shorter ones for clients with complex histories.',
+      'Program lengths typically run 30, 60, or 90+ days depending on clinical need — not a fixed insurance window. Forward-Facing Accelerated Recovery® is designed to build nervous-system capacity before deeper trauma work, which means longer stays are often more effective than shorter ones for clients with complex histories.',
   },
 ];
 

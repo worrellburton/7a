@@ -129,7 +129,7 @@ export const ketamineContent: SubstanceContent = {
       {
         label: 'The dissociative seeker',
         headline: 'A drug that let you leave.',
-        body: 'Trauma or chronic distress made the body feel unsafe. Ketamine provided distance. Forward-Facing Freedom® treats the underlying need directly.',
+        body: 'Trauma or chronic distress made the body feel unsafe. Ketamine provided distance. Forward-Facing Accelerated Recovery® treats the underlying need directly.',
       },
       {
         label: 'The party-and-nightlife user',
@@ -159,7 +159,7 @@ export const ketamineContent: SubstanceContent = {
     body: 'Ketamine recovery has a specific shape: reduce the dissociation, restore the body, treat the reason the body felt unsafe. Somatic and trauma-informed work are the main modalities here.',
     flagship: {
       title: 'Somatic-first trauma therapy for chronic dissociation',
-      body: 'Forward-Facing Freedom® combined with body-based interventions designed to rebuild felt-sense safety. The nervous system learns that the body is a place it can live in again, without needing chemical distance.',
+      body: 'Forward-Facing Accelerated Recovery® combined with body-based interventions designed to rebuild felt-sense safety. The nervous system learns that the body is a place it can live in again, without needing chemical distance.',
       iconId: 'spiral',
     },
     modalities: [
@@ -175,7 +175,7 @@ export const ketamineContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing Freedom®, EMDR, ART, and IFS — with careful attention to clients for whom ketamine-assisted therapy previously opened material without containment.',
+        body: 'Forward-Facing Accelerated Recovery®, EMDR, ART, and IFS — with careful attention to clients for whom ketamine-assisted therapy previously opened material without containment.',
         iconId: 'spiral',
       },
       {

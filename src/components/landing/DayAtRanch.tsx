@@ -49,7 +49,7 @@ const beats: Beat[] = [
   {
     time: '9:15 am',
     title: 'Primary-clinician session',
-    body: 'Individual therapy with your primary — EMDR, ART, IFS, or Forward-Facing Freedom® as clinically indicated. The hour that anchors the day.',
+    body: 'Individual therapy with your primary — EMDR, ART, IFS, or Forward-Facing Accelerated Recovery® as clinically indicated. The hour that anchors the day.',
     image: '/images/individual-therapy-session.jpg',
   },
   {

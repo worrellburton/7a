@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Forward-Facing TraumAddiction® Treatment | Seven Arrows Recovery',
+  title: 'Forward-Facing Accelerated Recovery® Treatment | Seven Arrows Recovery',
   description:
-    'Forward-Facing TraumAddiction® (FFTA) treatment in Arizona — trauma-informed residential care that addresses addiction at its root. Call (866) 996-4308.',
+    'Forward-Facing Accelerated Recovery® (FF-AR) treatment in Arizona — trauma-informed residential care that addresses addiction at its root. Call (866) 996-4308.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -22,7 +22,7 @@ export default function TraumaTreatmentPage() {
           every other inner page. The Swisshelm mp4 loops under the
           scrim on first paint. */}
       <PageHero
-        label="Forward-Facing TraumAddiction® Treatment"
+        label="Forward-Facing Accelerated Recovery® Treatment"
         title={[
           { text: 'Healing trauma at ' },
           { text: 'the root', accent: true },
@@ -33,7 +33,7 @@ export default function TraumaTreatmentPage() {
           { label: 'Our Program', href: '/our-program' },
           { label: 'Trauma Treatment' },
         ]}
-        description="The Forward-Facing TraumAddiction® (FFTA) model is an integrative, salutogenic approach to treating trauma and addiction simultaneously — grounded in the understanding that addiction is a post-traumatic adaptive capacity, not a pathology to be eliminated. FFTA addresses both at once without overwhelming the nervous system: rather than intensive memory processing early in recovery, it emphasizes neuroception, interoceptive awareness, and the gradual expansion of capacity as the foundation of healing and relapse prevention."
+        description="The Forward-Facing Accelerated Recovery® (FF-AR) model is an integrative, salutogenic approach to treating trauma and addiction simultaneously — grounded in the understanding that addiction is a post-traumatic adaptive capacity, not a pathology to be eliminated. FF-AR addresses both at once without overwhelming the nervous system: rather than intensive memory processing early in recovery, it emphasizes neuroception, interoceptive awareness, and the gradual expansion of capacity as the foundation of healing and relapse prevention."
         ctas={[
           {
             kind: 'phone',
@@ -148,7 +148,7 @@ export default function TraumaTreatmentPage() {
           overlay card + ACE stats that count up on scroll-in. */}
       <PostTraumaticAdaptation />
 
-      {/* Phase 4 — Forward-Facing Freedom three SOC domains with
+      {/* Phase 4 — Forward-Facing Accelerated Recovery three SOC domains with
           custom animated SVG diagrams per domain. */}
       <SocDomains />
 
@@ -157,7 +157,7 @@ export default function TraumaTreatmentPage() {
       <WisdomGallery />
 
       {/* Phase 6 — Clinical Modalities bento layout with photo anchor
-          and flagship Forward-Facing Freedom® feature tile. */}
+          and flagship Forward-Facing Accelerated Recovery® feature tile. */}
       <ClinicalModalities />
 
       {/* Phase 7 — Treatment timeline removed per leadership: the

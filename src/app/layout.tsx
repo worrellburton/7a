@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description:
     'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 996-4308.',
   keywords:
-    'drug rehab Arizona,alcohol rehab Arizona,addiction treatment center Arizona,substance abuse treatment,residential treatment Arizona,holistic rehab,trauma-focused treatment,TraumAddiction,boutique rehab,Swisshelm Mountains rehab,dual diagnosis treatment,Arizona drug treatment',
+    'drug rehab Arizona,alcohol rehab Arizona,addiction treatment center Arizona,substance abuse treatment,residential treatment Arizona,holistic rehab,trauma-focused treatment,Forward-Facing Accelerated Recovery,boutique rehab,Swisshelm Mountains rehab,dual diagnosis treatment,Arizona drug treatment',
   openGraph: {
     type: 'website',
     locale: 'en_US',

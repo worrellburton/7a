@@ -38,6 +38,6 @@ export const whoFaqs: WhoFaq[] = [
   },
   {
     q: 'Do you treat first responders and veterans?',
-    a: 'Yes. Seven Arrows regularly treats police, fire, EMS, active-duty military, and veterans. We work with TRICARE as an out-of-network provider, and our TraumAddiction™ approach is specifically designed for trauma-impacted populations including first responders.',
+    a: 'Yes. Seven Arrows regularly treats police, fire, EMS, active-duty military, and veterans. We work with TRICARE as an out-of-network provider, and our Forward-Facing Accelerated Recovery™ approach is specifically designed for trauma-impacted populations including first responders.',
   },
 ];

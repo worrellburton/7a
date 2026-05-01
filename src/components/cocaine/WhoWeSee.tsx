@@ -36,7 +36,7 @@ const personas: Persona[] = [
   {
     label: 'The trauma survivor',
     headline: 'Something the body wanted to outrun.',
-    body: 'Acute or complex trauma underneath the use. The stimulant was an anaesthetic for a nervous system that never got to come down. Forward-Facing Freedom® is built for exactly this.',
+    body: 'Acute or complex trauma underneath the use. The stimulant was an anaesthetic for a nervous system that never got to come down. Forward-Facing Accelerated Recovery® is built for exactly this.',
   },
   {
     label: 'The relapse',

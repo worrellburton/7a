@@ -180,7 +180,7 @@ export const prescriptionContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing Freedom®, EMDR, ART, IFS — sequenced after the body and medication picture have stabilized.',
+        body: 'Forward-Facing Accelerated Recovery®, EMDR, ART, IFS — sequenced after the body and medication picture have stabilized.',
         iconId: 'spiral',
       },
       {

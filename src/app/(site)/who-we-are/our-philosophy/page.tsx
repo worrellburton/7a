@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Our Philosophy | Seven Arrows Recovery',
   description:
-    'Seven Arrows Recovery\'s philosophy: a salutogenic, trauma-informed approach rooted in the TraumAddiction® model and Forward-Facing Freedom® framework.',
+    'Seven Arrows Recovery\'s philosophy: a salutogenic, trauma-informed approach rooted in the Forward-Facing Accelerated Recovery® model and Forward-Facing Accelerated Recovery® framework.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -11,7 +11,7 @@ import PathologyToSalutogenesis from '@/components/philosophy/PathologyToSalutog
 import TraumAddictionReframe from '@/components/philosophy/TraumAddictionReframe';
 import ACEChart from '@/components/philosophy/ACEChart';
 import SenseOfCoherence from '@/components/philosophy/SenseOfCoherence';
-import ForwardFacingFreedom from '@/components/philosophy/ForwardFacingFreedom';
+import ForwardFacingAcceleratedRecovery from '@/components/philosophy/ForwardFacingAcceleratedRecovery';
 import MindBodySpirit from '@/components/philosophy/MindBodySpirit';
 import SevenArrows from '@/components/philosophy/SevenArrows';
 import NervousSystemGrounding from '@/components/philosophy/NervousSystemGrounding';
@@ -33,7 +33,7 @@ export default function OurPhilosophyPage() {
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Our Philosophy' },
         ]}
-        description="Our philosophy is rooted in the science of health creation — addressing mind, body, and spirit through the TraumAddiction® model and Forward-Facing Freedom® framework."
+        description="Our philosophy is rooted in the science of health creation — addressing mind, body, and spirit through the Forward-Facing Accelerated Recovery® model and Forward-Facing Accelerated Recovery® framework."
         ctas={[
           {
             kind: 'phone',
@@ -47,7 +47,7 @@ export default function OurPhilosophyPage() {
       {/* Phase 2 — pathology → salutogenesis reframe */}
       <PathologyToSalutogenesis />
 
-      {/* Phase 3 — TraumAddiction® reframe (addiction as adaptation) */}
+      {/* Phase 3 — Forward-Facing Accelerated Recovery® reframe (addiction as adaptation) */}
       <TraumAddictionReframe />
 
       {/* Phase 4 — ACE study chart */}
@@ -56,8 +56,8 @@ export default function OurPhilosophyPage() {
       {/* Phase 5 — Sense of Coherence triple Venn */}
       <SenseOfCoherence />
 
-      {/* Phase 6 — Forward-Facing Freedom® three-phase path */}
-      <ForwardFacingFreedom />
+      {/* Phase 6 — Forward-Facing Accelerated Recovery® three-phase path */}
+      <ForwardFacingAcceleratedRecovery />
 
       {/* Phase 7 — Mind · Body · Spirit photo tiles */}
       <MindBodySpirit />
