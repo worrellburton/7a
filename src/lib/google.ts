@@ -244,12 +244,41 @@ interface Ga4OrderBy {
   desc?: boolean;
 }
 
+// Subset of GA4 FilterExpression — covers the filters we actually
+// build in code today (string match, in-list, single-field). Open
+// to extension when we need AND/OR groups.
+interface Ga4StringFilter {
+  matchType?: 'EXACT' | 'BEGINS_WITH' | 'ENDS_WITH' | 'CONTAINS' | 'FULL_REGEXP' | 'PARTIAL_REGEXP';
+  value: string;
+  caseSensitive?: boolean;
+}
+
+interface Ga4InListFilter {
+  values: string[];
+  caseSensitive?: boolean;
+}
+
+interface Ga4SingleFilter {
+  fieldName: string;
+  stringFilter?: Ga4StringFilter;
+  inListFilter?: Ga4InListFilter;
+}
+
+interface Ga4FilterExpression {
+  filter?: Ga4SingleFilter;
+  andGroup?: { expressions: Ga4FilterExpression[] };
+  orGroup?: { expressions: Ga4FilterExpression[] };
+  notExpression?: Ga4FilterExpression;
+}
+
 interface Ga4RunRequest {
   dateRanges: { startDate: string; endDate: string }[];
   metrics: { name: string }[];
   dimensions?: { name: string }[];
   limit?: number;
   orderBys?: Ga4OrderBy[];
+  dimensionFilter?: Ga4FilterExpression;
+  metricFilter?: Ga4FilterExpression;
 }
 
 export interface Ga4RunReportResponse {

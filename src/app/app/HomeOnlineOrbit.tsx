@@ -126,9 +126,14 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
         </p>
       </div>
 
-      <div
-        className="relative w-full mx-auto max-w-[300px] sm:max-w-[460px] aspect-square"
-      >
+      {/* Wrapper with `flex justify-center` is intentional belt-and-
+          braces: w-full + mx-auto on the orbit alone was leaving the
+          7A medallion ~13px left of the visual console center on
+          some viewport widths. The flex parent guarantees horizontal
+          centering of the inner aspect-square box regardless of any
+          width-resolution quirks above. */}
+      <div className="w-full flex justify-center">
+        <div className="relative w-full max-w-[300px] sm:max-w-[460px] aspect-square">
         {/* Decorative concentric rings + centre medallion. The
             outermost border is exactly where the avatars will land,
             so the eye reads the orbit as one composed shape. */}
@@ -344,6 +349,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
               </div>
             );
           })}
+        </div>
         </div>
       </div>
 
