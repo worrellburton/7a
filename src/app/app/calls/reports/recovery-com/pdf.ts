@@ -856,8 +856,17 @@ function drawAnalyticsPage(ctx: PageContext, analytics: AnalyticsPayload | null)
   }
   ctx.cursorY += (row + 1) * (tileH + 10) + 16;
 
+  // Per-source split (recoverycom vs rehabpath).
+  drawAnalyticsSources(ctx, analytics);
+
   // Daily sessions chart.
   drawAnalyticsDailyChart(ctx, analytics.daily ?? []);
+
+  // Hour-of-day + day-of-week distribution.
+  drawAnalyticsTimePatterns(ctx, analytics);
+
+  // Top cities table.
+  drawAnalyticsCities(ctx, analytics.cities ?? []);
 
   // Geo + device + events — three small column lists.
   if (
@@ -1018,6 +1027,180 @@ function drawAnalyticsDailyChart(ctx: PageContext, daily: { date: string; sessio
     );
   });
   ctx.cursorY = innerBottom + 26;
+}
+
+function drawAnalyticsSources(ctx: PageContext, analytics: AnalyticsPayload) {
+  const sources = analytics.sources ?? [];
+  if (sources.length === 0) return;
+  ensureRoom(ctx, 80 + sources.length * 18);
+  drawSectionHeading(
+    ctx,
+    'SOURCES',
+    `Recovery.com network split (${(analytics.sourceFilter ?? []).join(' / ')})`,
+  );
+  ctx.cursorY += 4;
+  const cols = [
+    { label: 'Source', x: MARGIN_X },
+    { label: 'Sessions', x: MARGIN_X + 200, align: 'right' as const },
+    { label: 'Users', x: MARGIN_X + 270, align: 'right' as const },
+    { label: 'Avg session', x: MARGIN_X + 360, align: 'right' as const },
+    { label: 'Engagement', x: MARGIN_X + 450, align: 'right' as const },
+    { label: 'Bounce', x: PAGE_W - MARGIN_X, align: 'right' as const },
+  ];
+  drawTableHeader(ctx, cols);
+  const fmtSecs = (s: number) => {
+    if (!Number.isFinite(s) || s <= 0) return '0s';
+    const m = Math.floor(s / 60);
+    const sec = Math.round(s % 60);
+    if (m === 0) return `${sec}s`;
+    return `${m}m ${sec}s`;
+  };
+  for (const r of sources) {
+    ensureRoom(ctx, 18);
+    const y = ctx.cursorY + 11;
+    ctx.pdf.setFont('helvetica', 'bold');
+    ctx.pdf.setFontSize(9);
+    ctx.pdf.setTextColor(COLOR.text);
+    ctx.pdf.text(asciiSafe(r.source), cols[0].x, y);
+    ctx.pdf.setFont('helvetica', 'bold');
+    ctx.pdf.setTextColor(COLOR.primary);
+    ctx.pdf.text(String(r.sessions), cols[1].x, y, { align: 'right' });
+    ctx.pdf.setFont('helvetica', 'normal');
+    ctx.pdf.setTextColor(COLOR.text);
+    ctx.pdf.text(String(r.activeUsers), cols[2].x, y, { align: 'right' });
+    ctx.pdf.setTextColor(COLOR.muted);
+    ctx.pdf.text(fmtSecs(r.avgSessionDurationSec), cols[3].x, y, { align: 'right' });
+    ctx.pdf.setTextColor(COLOR.emerald);
+    ctx.pdf.text(`${(r.engagementRate * 100).toFixed(0)}%`, cols[4].x, y, { align: 'right' });
+    ctx.pdf.setTextColor(COLOR.muted);
+    ctx.pdf.text(`${(r.bounceRate * 100).toFixed(0)}%`, cols[5].x, y, { align: 'right' });
+    ctx.pdf.setDrawColor(COLOR.hairline);
+    ctx.pdf.line(MARGIN_X, ctx.cursorY + 18, PAGE_W - MARGIN_X, ctx.cursorY + 18);
+    ctx.cursorY += 18;
+  }
+  ctx.cursorY += 14;
+}
+
+function drawAnalyticsTimePatterns(ctx: PageContext, analytics: AnalyticsPayload) {
+  const hourly = analytics.hourly ?? [];
+  const dayOfWeek = analytics.dayOfWeek ?? [];
+  const hourlyHasData = hourly.some((h) => h.sessions > 0);
+  const dayHasData = dayOfWeek.some((d) => d.sessions > 0);
+  if (!hourlyHasData && !dayHasData) return;
+
+  ensureRoom(ctx, 200);
+  drawSectionHeading(ctx, 'TIMING', 'When Recovery.com traffic arrives');
+  ctx.cursorY += 4;
+
+  const startY = ctx.cursorY;
+  const halfW = (PAGE_W - MARGIN_X * 2 - 16) / 2;
+  const chartH = 120;
+
+  // Hour-of-day chart (left).
+  if (hourlyHasData) {
+    const left = MARGIN_X;
+    const innerLeft = left + 28;
+    const innerRight = left + halfW - 4;
+    const innerTop = startY + 16;
+    const innerBottom = startY + chartH - 18;
+    const innerW = innerRight - innerLeft;
+    const innerH = innerBottom - innerTop;
+    const max = Math.max(1, ...hourly.map((h) => h.sessions));
+    const slot = innerW / 24;
+    const barW = slot * 0.7;
+    ctx.pdf.setFont('helvetica', 'bold');
+    ctx.pdf.setFontSize(7);
+    ctx.pdf.setTextColor(COLOR.faint);
+    ctx.pdf.text('BY HOUR (PHOENIX)', left, startY + 8);
+    hourly.forEach((h, i) => {
+      const x = innerLeft + i * slot + (slot - barW) / 2;
+      const totalH = (innerH * h.sessions) / max;
+      ctx.pdf.setFillColor('#3b82f6');
+      ctx.pdf.rect(x, innerBottom - totalH, barW, totalH, 'F');
+    });
+    // Axis labels: 12am / 6am / noon / 6pm.
+    ctx.pdf.setFont('helvetica', 'normal');
+    ctx.pdf.setFontSize(7);
+    ctx.pdf.setTextColor(COLOR.faint);
+    [
+      [0, '12am'],
+      [6, '6am'],
+      [12, 'noon'],
+      [18, '6pm'],
+    ].forEach(([h, label]) => {
+      const x = innerLeft + (h as number) * slot + slot / 2;
+      ctx.pdf.text(asciiSafe(label as string), x, innerBottom + 12, { align: 'center' });
+    });
+  }
+
+  // Day-of-week chart (right).
+  if (dayHasData) {
+    const left = MARGIN_X + halfW + 16;
+    const max = Math.max(1, ...dayOfWeek.map((d) => d.sessions));
+    ctx.pdf.setFont('helvetica', 'bold');
+    ctx.pdf.setFontSize(7);
+    ctx.pdf.setTextColor(COLOR.faint);
+    ctx.pdf.text('BY DAY OF WEEK', left, startY + 8);
+    let y = startY + 22;
+    for (const d of dayOfWeek) {
+      const pct = d.sessions / max;
+      ctx.pdf.setFont('helvetica', 'bold');
+      ctx.pdf.setFontSize(8);
+      ctx.pdf.setTextColor(COLOR.text);
+      ctx.pdf.text(asciiSafe(d.label), left, y + 7);
+      // Track + filled bar.
+      const trackLeft = left + 36;
+      const trackW = halfW - 36 - 50;
+      ctx.pdf.setFillColor(COLOR.card);
+      ctx.pdf.roundedRect(trackLeft, y + 1, trackW, 8, 2, 2, 'F');
+      ctx.pdf.setFillColor('#10b981');
+      ctx.pdf.roundedRect(trackLeft, y + 1, trackW * pct, 8, 2, 2, 'F');
+      ctx.pdf.setFont('helvetica', 'normal');
+      ctx.pdf.setFontSize(8);
+      ctx.pdf.setTextColor(COLOR.muted);
+      ctx.pdf.text(String(d.sessions), left + halfW - 8, y + 7, { align: 'right' });
+      y += 14;
+    }
+  }
+  ctx.cursorY = startY + chartH + 6;
+}
+
+function drawAnalyticsCities(ctx: PageContext, cities: NonNullable<AnalyticsPayload['cities']>) {
+  if (cities.length === 0) return;
+  ensureRoom(ctx, 80 + Math.min(cities.length, 12) * 16);
+  drawSectionHeading(ctx, 'GEO', 'Top cities');
+  ctx.cursorY += 4;
+  const cols = [
+    { label: 'City', x: MARGIN_X },
+    { label: 'Region / country', x: MARGIN_X + 180 },
+    { label: 'Sessions', x: MARGIN_X + 380, align: 'right' as const },
+    { label: 'Users', x: MARGIN_X + 440, align: 'right' as const },
+    { label: 'Engagement', x: PAGE_W - MARGIN_X, align: 'right' as const },
+  ];
+  drawTableHeader(ctx, cols);
+  for (const r of cities.slice(0, 12)) {
+    ensureRoom(ctx, 16);
+    const y = ctx.cursorY + 11;
+    ctx.pdf.setFont('helvetica', 'bold');
+    ctx.pdf.setFontSize(8);
+    ctx.pdf.setTextColor(COLOR.text);
+    ctx.pdf.text(asciiSafe(r.city || '(unknown)'), cols[0].x, y);
+    ctx.pdf.setFont('helvetica', 'normal');
+    ctx.pdf.setTextColor(COLOR.muted);
+    ctx.pdf.text(asciiSafe([r.region, r.country].filter(Boolean).join(' - ') || '-'), cols[1].x, y);
+    ctx.pdf.setFont('helvetica', 'bold');
+    ctx.pdf.setTextColor(COLOR.primary);
+    ctx.pdf.text(String(r.sessions), cols[2].x, y, { align: 'right' });
+    ctx.pdf.setFont('helvetica', 'normal');
+    ctx.pdf.setTextColor(COLOR.text);
+    ctx.pdf.text(String(r.activeUsers), cols[3].x, y, { align: 'right' });
+    ctx.pdf.setTextColor(COLOR.emerald);
+    ctx.pdf.text(`${(r.engagementRate * 100).toFixed(0)}%`, cols[4].x, y, { align: 'right' });
+    ctx.pdf.setDrawColor(COLOR.hairline);
+    ctx.pdf.line(MARGIN_X, ctx.cursorY + 16, PAGE_W - MARGIN_X, ctx.cursorY + 16);
+    ctx.cursorY += 16;
+  }
+  ctx.cursorY += 14;
 }
 
 function deltaLabel(next: number, prev: number | undefined, lowerIsBetter = false): string | undefined {
