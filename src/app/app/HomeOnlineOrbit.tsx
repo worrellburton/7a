@@ -36,8 +36,18 @@ interface OrbitHorse {
   name: string;
   image_url: string | null;
   age?: number | null;
+  weight?: number | null;
   works_in?: string | null;
   rideable?: string | null;
+  // Latest weight + feed log per horse, denormalised by HomeContent
+  // so the tooltip can render rich info without each tooltip having
+  // to query its own logs on hover.
+  last_weight_lbs?: number | null;
+  last_weighed_at?: string | null;
+  last_feed_amount?: number | null;
+  last_feed_unit?: string | null;
+  last_feed_type?: string | null;
+  last_fed_at?: string | null;
 }
 
 interface Props {
@@ -59,6 +69,20 @@ function timeAgo(dateStr: string | null): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
+}
+
+// Compact relative-time helper for the horse tooltip (matches the
+// previous HomeHorsesRow strip's formatting). Beyond two weeks we
+// fall back to a "Apr 30" calendar label so old logs read naturally.
+function fmtRelative(iso: string | null): string {
+  if (!iso) return 'never';
+  const ms = Date.now() - new Date(iso).getTime();
+  const hr = ms / 3600000;
+  if (hr < 1) return `${Math.max(1, Math.round(ms / 60000))}m ago`;
+  if (hr < 24) return `${Math.round(hr)}h ago`;
+  const d = hr / 24;
+  if (d < 14) return `${Math.round(d)}d ago`;
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Props) {
@@ -178,15 +202,32 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                               {h.name.charAt(0)}
                             </span>
                           )}
-                          <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-[60] text-left shadow-lg">
-                            <span className="block font-semibold text-white">{h.name}</span>
-                            {(h.age != null || h.works_in) && (
-                              <span className="block text-white/80">
-                                {h.age != null ? `${h.age} yrs` : ''}
-                                {h.age != null && h.works_in ? ' · ' : ''}
-                                {h.works_in ?? ''}
+                          <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 z-[60] text-left">
+                            <span className="block bg-white rounded-xl border border-gray-100 shadow-xl px-3 py-2 min-w-[220px] opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="block text-sm font-semibold text-foreground whitespace-nowrap">{h.name}</span>
+                              <span className="block text-[11px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                                {h.age != null ? `${h.age} years` : 'Age unknown'}
+                                {h.works_in ? ` · ${h.works_in}` : ''}
                               </span>
-                            )}
+                              <span className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
+                                <span className="text-foreground/40">Weight</span>
+                                <span className="text-foreground/80 text-right">
+                                  {h.last_weight_lbs ? `${h.last_weight_lbs} lbs` : h.weight ? `${h.weight} lbs` : '—'}
+                                </span>
+                                <span className="text-foreground/40">Last fed</span>
+                                <span className="text-foreground/80 text-right">
+                                  {h.last_fed_at
+                                    ? `${h.last_feed_amount ?? ''}${h.last_feed_unit ? ' ' + h.last_feed_unit : ''} ${h.last_feed_type ?? ''} · ${fmtRelative(h.last_fed_at)}`.trim()
+                                    : '—'}
+                                </span>
+                                {h.last_weighed_at && (
+                                  <>
+                                    <span className="text-foreground/40">Weighed</span>
+                                    <span className="text-foreground/80 text-right">{fmtRelative(h.last_weighed_at)}</span>
+                                  </>
+                                )}
+                              </span>
+                            </span>
                           </span>
                         </span>
                       </span>
