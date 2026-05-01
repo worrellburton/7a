@@ -375,13 +375,13 @@ export default function HomeContent() {
 
         {/* Phase 4: hero — no glass card; the avatar/greeting and the
             create-menu button float on the page background. The hero
-            is absolutely positioned so the centerpiece (orbit + ask
-            policies) can use the full vertical space below — that's
-            what gets the spinning circle to the dead-center of the
-            console rather than offset toward the top by the welcome
-            row's height. */}
+            is absolutely positioned at lg+ so the centerpiece (orbit
+            + ask policies) can use the full vertical space below for
+            true vertical centering. On mobile we drop back to normal
+            document flow so the welcome stacks above the orbit
+            instead of overlapping it. */}
         <header
-          className={`absolute top-4 lg:top-6 left-4 sm:left-6 lg:left-10 right-4 sm:right-6 lg:right-10 z-30 transition-all duration-500 ease-out ${
+          className={`relative lg:absolute lg:top-6 lg:left-10 lg:right-10 z-30 transition-all duration-500 ease-out ${
             loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
           }`}
         >
@@ -517,7 +517,7 @@ export default function HomeContent() {
             between the absolutely-positioned hero (top) and the WIP
             footer pill (bottom), and `justify-center` parks the orbit
             + Ask Policies stack at the dead center of that space. */}
-        <div className="relative flex-1 flex flex-col items-stretch justify-center gap-10 lg:gap-14">
+        <div className="relative flex-1 flex flex-col items-stretch justify-center gap-6 sm:gap-10 lg:gap-14 mt-2 lg:mt-0">
 
         {/* Centered, slowly-rotating ring of teammates active in the
             last 24 hours, with the horse roster orbiting in the inner

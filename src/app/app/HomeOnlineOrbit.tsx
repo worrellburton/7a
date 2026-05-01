@@ -103,7 +103,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
       className="relative z-40 flex flex-col items-center justify-center w-full"
       aria-label="Online today"
     >
-      <div className="text-center mb-10">
+      <div className="text-center mb-6 sm:mb-10">
         <p
           className="text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/45"
           style={{ fontFamily: 'var(--font-body)' }}
@@ -195,10 +195,10 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                               src={h.image_url}
                               alt={h.name}
                               referrerPolicy="no-referrer"
-                              className="block w-9 h-9 rounded-full object-cover border-2 border-white shadow-md transition-transform duration-300 group-hover:scale-110"
+                              className="block w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover border-2 border-white shadow-md transition-transform duration-300 group-hover:scale-110"
                             />
                           ) : (
-                            <span className="flex w-9 h-9 rounded-full items-center justify-center text-xs font-semibold border-2 border-white bg-warm-bg text-foreground/55 shadow-md transition-transform duration-300 group-hover:scale-110">
+                            <span className="flex w-7 h-7 sm:w-9 sm:h-9 rounded-full items-center justify-center text-xs font-semibold border-2 border-white bg-warm-bg text-foreground/55 shadow-md transition-transform duration-300 group-hover:scale-110">
                               {h.name.charAt(0)}
                             </span>
                           )}
@@ -241,9 +241,12 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
 
         {/* Outer ring — teammates online today. Avatars pinned to the
             top of each slot; since slots fill the ring + are rotated
-            to their angle, the avatars naturally sit on the outer edge. */}
+            to their angle, the avatars naturally sit on the outer edge.
+            On mobile the ring is inset 7% so avatars (which extend half
+            their height past the slot's top edge) sit fully inside the
+            container — otherwise they get clipped by the page padding. */}
         <div
-          className={`orbit-ring absolute inset-0 motion-reduce:!animate-none ${mounted ? 'orbit-spin' : ''}`}
+          className={`orbit-ring absolute inset-[7%] sm:inset-0 motion-reduce:!animate-none ${mounted ? 'orbit-spin' : ''}`}
         >
           {users.map((u, i) => {
             const angle = (i / users.length) * 360;
@@ -284,7 +287,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                             src={u.avatar_url}
                             alt={u.full_name || ''}
                             referrerPolicy="no-referrer"
-                            className={`block w-12 h-12 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
+                            className={`block w-9 h-9 sm:w-12 sm:h-12 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
                               online
                                 ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
                                 : 'border-white shadow-md'
@@ -292,7 +295,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                           />
                         ) : (
                           <span
-                            className={`flex w-12 h-12 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
+                            className={`flex w-9 h-9 sm:w-12 sm:h-12 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
                               online
                                 ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)] bg-primary text-white'
                                 : 'border-white bg-primary text-white shadow-md'
