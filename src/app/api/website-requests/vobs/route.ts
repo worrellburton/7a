@@ -49,10 +49,15 @@ export async function GET() {
   // Try the full select first. If newer columns aren't there yet
   // (attempts / admin_notes), fall back gracefully so the list
   // doesn't blank out (CLAUDE.md "make reads resilient").
-  const FULL = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note, attempts, admin_notes';
+  const FULL = 'id, full_name, phone, email, date_of_birth, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note, attempts, admin_notes';
+  const MID2 = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note, attempts, admin_notes';
   const MID  = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note';
   const MIN  = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path';
   let resp = await admin.from('vob_requests').select(FULL).order('received_at', { ascending: false });
+  if (resp.error && /date_of_birth/i.test(resp.error.message)) {
+    console.warn('[vobs] date_of_birth column missing, degrading read:', resp.error.message);
+    resp = await admin.from('vob_requests').select(MID2).order('received_at', { ascending: false }) as typeof resp;
+  }
   if (resp.error && /(attempts|admin_notes)/i.test(resp.error.message)) {
     console.warn('[vobs] attempts/admin_notes columns missing, degrading read:', resp.error.message);
     resp = await admin.from('vob_requests').select(MID).order('received_at', { ascending: false }) as typeof resp;
@@ -73,6 +78,7 @@ export async function GET() {
     full_name: string;
     phone: string | null;
     email: string | null;
+    date_of_birth?: string | null;
     insurance_provider: string | null;
     status: string;
     notes: string | null;
@@ -175,6 +181,7 @@ export async function GET() {
       full_name: r.full_name,
       phone: r.phone,
       email: r.email,
+      date_of_birth: r.date_of_birth ?? null,
       insurance_provider: r.insurance_provider,
       status: r.status,
       notes: r.notes,

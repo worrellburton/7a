@@ -37,6 +37,7 @@ interface FormState {
   name: string;
   phone: string;
   email: string;
+  dateOfBirth: string;
   insuranceProvider: string;
   cardFront: File | null;
   cardBack: File | null;
@@ -50,6 +51,7 @@ export default function AdmissionsForm() {
     name: '',
     phone: '',
     email: '',
+    dateOfBirth: '',
     insuranceProvider: '',
     cardFront: null,
     cardBack: null,
@@ -111,6 +113,7 @@ export default function AdmissionsForm() {
           name: formData.name,
           phone: formData.phone,
           email: formData.email,
+          dateOfBirth: formData.dateOfBirth || null,
           insuranceProvider: formData.insuranceProvider,
           cardFrontPath: front.path,
           cardBackPath: back.path,
@@ -230,6 +233,27 @@ export default function AdmissionsForm() {
           required
           value={formData.email}
           onChange={handleChange}
+          className="w-full rounded-lg border border-foreground/20 bg-white px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          style={{ fontFamily: 'var(--font-body)' }}
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="dateOfBirth"
+          className="block text-sm font-semibold text-foreground mb-1"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          Date of Birth
+        </label>
+        <input
+          type="date"
+          id="dateOfBirth"
+          name="dateOfBirth"
+          required
+          value={formData.dateOfBirth}
+          onChange={handleChange}
+          max={new Date().toISOString().slice(0, 10)}
           className="w-full rounded-lg border border-foreground/20 bg-white px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           style={{ fontFamily: 'var(--font-body)' }}
         />
