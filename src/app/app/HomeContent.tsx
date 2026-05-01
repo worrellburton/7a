@@ -16,9 +16,6 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // import HomeClientsRow from './HomeClientsRow';
 import HomeHorsesRow from './HomeHorsesRow';
 import HomeOnlineOrbit from './HomeOnlineOrbit';
-import HomeMeaningfulCallsRow from './HomeMeaningfulCallsRow';
-import HomeWebsiteVisitsRow from './HomeWebsiteVisitsRow';
-import HomeWebsiteRequestsRow from './HomeWebsiteRequestsRow';
 
 interface RecentUser {
   id: string;
@@ -465,11 +462,6 @@ export default function HomeContent() {
           </section>
         )}
 
-        {/* Phase 5: at-a-glance pulse — already a glass panel, lifted
-            with a deeper shadow + sheen so it reads as the primary
-            content area below the hero. */}
-        <AtAGlance />
-
         {/* Phase 6: action stack — pending signatures + signed JD,
             uniform glass cards. Renders only when there's something
             to show; otherwise the space below the pulse stays clean. */}
@@ -602,114 +594,3 @@ export default function HomeContent() {
   );
 }
 
-// "At a glance" — wraps the three numeric stat rows (Meaningful
-// calls, Website visits, Awaiting response) inside a single warm
-// card so they read as one organized panel instead of three
-// disconnected strips. Each child still renders its own small
-// section header, so labels stay legible. Sub-rows that have
-// nothing to show (e.g. Awaiting response when the inbox is
-// empty) self-hide; the wrapper still renders so the section
-// header stays consistent.
-//
-// Collapsed by default — the home page already has a lot going on
-// above (hero band, presence avatars, horses) and a fully-expanded
-// dashboard pushed AskPolicies / blog previews well below the fold.
-// User opens this when they want to dig into the numbers.
-function AtAGlance() {
-  // localStorage-backed collapsed state so the choice sticks across
-  // page loads. Default closed; reading 'open' explicitly opts in.
-  const [expanded, setExpanded] = useState(false);
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem('home-marketing-glance-state');
-      if (stored === 'open') setExpanded(true);
-    } catch { /* private mode / SSR */ }
-  }, []);
-  const toggle = () => {
-    setExpanded((v) => {
-      const next = !v;
-      try {
-        window.localStorage.setItem('home-marketing-glance-state', next ? 'open' : 'closed');
-      } catch { /* ignore */ }
-      return next;
-    });
-  };
-
-  return (
-    <section className="w-full max-w-4xl mx-auto">
-      {/* Liquid-glass treatment: heavy backdrop blur, semi-transparent
-          white tint, white-haze border, soft drop shadow, and a top
-          inner sheen line that catches as a specular highlight.
-          Solid-tone fallback for browsers without backdrop-filter. */}
-      <div className="relative rounded-3xl border border-white/70 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-2xl shadow-[0_14px_40px_-18px_rgba(60,48,42,0.28)]">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
-        />
-
-        {/* Header — full-width clickable button so the entire bar
-            toggles. Chevron rotates on open. Subtitle hints at what
-            the panel contains so the closed state still tells the
-            user this is "marketing performance" not generic stats. */}
-        <button
-          type="button"
-          onClick={toggle}
-          aria-expanded={expanded}
-          className="w-full px-5 sm:px-6 pt-3.5 pb-3 flex items-center justify-between gap-3 text-left rounded-3xl hover:bg-white/30 transition-colors"
-        >
-          <div className="min-w-0">
-            <p
-              className="text-[11px] font-bold tracking-[0.22em] uppercase text-foreground/55"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              Marketing at a Glance
-            </p>
-            <p
-              className="text-[11px] text-foreground/40 mt-0.5 truncate"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              {expanded
-                ? 'Today / week / month'
-                : 'Calls · Website visits · Forms — tap to expand'}
-            </p>
-          </div>
-          <span
-            aria-hidden="true"
-            className={`shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur border border-white/70 text-foreground/55 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </span>
-        </button>
-
-        {/* Expandable body. The grid-template-rows 0fr↔1fr trick
-            transitions intrinsic height without JS measurement; the
-            inner div with overflow-hidden clips content while the
-            row shrinks/grows. Rows mount lazily — when collapsed
-            we don't render the children, so each row's data fetches
-            (GA4, calls, SEO summary) only fire on first expand. */}
-        <div
-          className="grid transition-[grid-template-rows] duration-400 ease-out"
-          style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
-        >
-          <div className="overflow-hidden">
-            {expanded && (
-              <div className="divide-y divide-white/40 pb-1">
-                <div className="py-2.5">
-                  <HomeMeaningfulCallsRow />
-                </div>
-                <div className="py-2.5">
-                  <HomeWebsiteVisitsRow />
-                </div>
-                <div className="py-2.5">
-                  <HomeWebsiteRequestsRow />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
