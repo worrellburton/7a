@@ -127,8 +127,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
       </div>
 
       <div
-        className="relative w-full"
-        style={{ maxWidth: 460, aspectRatio: '1 / 1' }}
+        className="relative w-full mx-auto max-w-[300px] sm:max-w-[460px] aspect-square"
       >
         {/* Decorative concentric rings + centre medallion. The
             outermost border is exactly where the avatars will land,
@@ -158,12 +157,12 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
         </div>
 
         {/* Inner ring — horse roster. Pinned to the inset-[20%]
-            decorative ring so each horse avatar lands exactly on it,
-            and the ring spins counter-clockwise so the two motions
-            (people outside, horses inside) read as distinct. */}
+            decorative ring so each horse avatar lands exactly on it.
+            Static (no spin) to match the outer ring — easier to read
+            and to hover-target individual horses. */}
         {horses.length > 0 && (
           <div
-            className={`orbit-ring absolute inset-[20%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-rev' : ''}`}
+            className="orbit-ring absolute inset-[20%]"
           >
             {horses.map((h, i) => {
               const angle = (i / horses.length) * 360;
@@ -183,11 +182,10 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                     title={h.name}
                     aria-label={h.name}
                   >
-                    <span className="orbit-counter-rev motion-reduce:!animate-none">
-                      <span
-                        className="block"
-                        style={{ transform: `rotate(${-angle}deg)` }}
-                      >
+                    <span
+                      className="block"
+                      style={{ transform: `rotate(${-angle}deg)` }}
+                    >
                         <span className="relative block">
                           {h.image_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -231,8 +229,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                           </span>
                         </span>
                       </span>
-                    </span>
-                  </button>
+                    </button>
                 </div>
               );
             })}
@@ -244,9 +241,12 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             to their angle, the avatars naturally sit on the outer edge.
             On mobile the ring is inset 7% so avatars (which extend half
             their height past the slot's top edge) sit fully inside the
-            container — otherwise they get clipped by the page padding. */}
+            container — otherwise they get clipped by the page padding.
+            The ring is intentionally static (no orbit-spin) so faces
+            stay in place — the rotation made avatars feel like they
+            were drifting away mid-glance. */}
         <div
-          className={`orbit-ring absolute inset-[7%] sm:inset-0 motion-reduce:!animate-none ${mounted ? 'orbit-spin' : ''}`}
+          className="orbit-ring absolute inset-[7%] sm:inset-0"
         >
           {users.map((u, i) => {
             const angle = (i / users.length) * 360;
@@ -271,15 +271,13 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                   title={navTarget ? `Go to ${viewing}` : undefined}
                   aria-label={u.full_name || 'Teammate'}
                 >
-                  {/* Counter-rotating wrapper keeps the face upright
-                      while the parent ring spins. */}
-                  <span className="orbit-counter motion-reduce:!animate-none">
-                    {/* Slot-rotation undo so the avatar isn't tilted
-                        by the slot's static rotation. */}
-                    <span
-                      className="block"
-                      style={{ transform: `rotate(${-angle}deg)` }}
-                    >
+                  {/* The slot is rotated to its angle so the avatar
+                      lands on the rim; cancel that rotation on the
+                      avatar itself so the face reads upright. */}
+                  <span
+                    className="block"
+                    style={{ transform: `rotate(${-angle}deg)` }}
+                  >
                       <span className="relative block">
                         {u.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -332,7 +330,6 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                         </span>
                       </span>
                     </span>
-                  </span>
                 </Wrapper>
               </div>
             );
@@ -341,39 +338,12 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
       </div>
 
       <style jsx>{`
-        /* Outer rotation — the ring container spins. */
-        @keyframes orbit-spin-rot {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-        .orbit-spin { animation: orbit-spin-rot 60s linear infinite; }
-
-        /* Inner ring spins the same direction as the outer ring but
-           on a slower loop, so the two rings read as one composed
-           motion with the horses gently trailing the team. */
-        @keyframes orbit-spin-rev-rot {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-        .orbit-spin-rev { animation: orbit-spin-rev-rot 90s linear infinite; }
-
-        /* Counter-rotation so faces stay upright as the ring turns. */
-        @keyframes orbit-counter-rot {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(-360deg); }
-        }
-        .orbit-counter {
-          display: inline-block;
-          animation: orbit-counter-rot 60s linear infinite;
-        }
-        @keyframes orbit-counter-rev-rot {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(-360deg); }
-        }
-        .orbit-counter-rev {
-          display: inline-block;
-          animation: orbit-counter-rev-rot 90s linear infinite;
-        }
+        /* Both rings are intentionally static — no spin animation.
+           The previous design rotated the rings on a long loop with
+           counter-rotation on each avatar to keep faces upright; that
+           pattern made faces drift away mid-glance and made hover
+           targets feel slippery. Avatars now hold their initial
+           positions on the rim. */
 
         /* Slots fill the ring's bounding box. Each is rotated to its
            angle inline; the pin pinned at the top centre of the slot
@@ -431,11 +401,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
 
         @media (prefers-reduced-motion: reduce) {
           .orbit-pin-in,
-          .orbit-pin-pre,
-          .orbit-spin,
-          .orbit-spin-rev,
-          .orbit-counter,
-          .orbit-counter-rev {
+          .orbit-pin-pre {
             animation: none !important;
             opacity: 1 !important;
             top: 0 !important;
