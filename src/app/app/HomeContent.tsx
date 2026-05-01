@@ -14,8 +14,7 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // Temporarily not rendered — see HomeContent.tsx note. Keeping the
 // import in source so the re-enable diff is one line.
 // import HomeClientsRow from './HomeClientsRow';
-import HomeHorsesRow from './HomeHorsesRow';
-import HomeOnlineOrbit from './HomeOnlineOrbit';
+import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
 
 interface RecentUser {
   id: string;
@@ -55,6 +54,7 @@ export default function HomeContent() {
   const { pages } = usePagePermissions();
   const router = useRouter();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
+  const [horses, setHorses] = useState<OrbitHorse[]>([]);
   const [pendingSignatures, setPendingSignatures] = useState<PendingSignature[]>([]);
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string; pdfUrl: string | null } | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -158,6 +158,24 @@ export default function HomeContent() {
       return last.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     };
   }, [pages]);
+
+  // Horse roster — sits in the inner ring of the Online-today orbit
+  // so the team's animals are always present alongside the people.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let cancelled = false;
+    (async () => {
+      const rows = await db({
+        action: 'select',
+        table: 'equine',
+        select: 'id, name, image_url, age, works_in, rideable',
+        order: { column: 'name', ascending: true },
+      }).catch(() => []);
+      if (cancelled || !Array.isArray(rows)) return;
+      setHorses(rows as OrbitHorse[]);
+    })();
+    return () => { cancelled = true; };
+  }, [session]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -299,32 +317,20 @@ export default function HomeContent() {
 
       <div className="px-4 sm:px-6 lg:px-10 pt-4 lg:pt-6 pb-10 space-y-5 lg:space-y-6">
 
-        {/* Phase 4: hero band — one liquid-glass plank.
-            Identity (avatar + greeting) on the left, presence
-            (Online today + Horses) in the middle on desktop, and
-            the two action buttons on the right. The previous
-            absolute-positioned floating button cluster lived here
-            and overlapped the avatar strip on tight viewports —
-            folding it into the band fixes that. */}
+        {/* Phase 4: hero — no glass card here, the avatar/greeting
+            and the create-menu button just float on the page background.
+            Removing the glass plank lets the horses + presence orbit
+            below it breathe without competing with the heaviest visual
+            block on the page. */}
         <header
-          className={`relative z-30 rounded-3xl border border-white/70 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-2xl shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)] transition-all duration-500 ease-out ${
+          className={`relative z-30 transition-all duration-500 ease-out ${
             loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
           }`}
         >
-          {/* Top inner sheen — gives the glass a clean specular
-              edge without an extra wrapping element on each card. */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
-          />
-          <div className="px-4 sm:px-6 py-4 lg:py-5 space-y-3 lg:space-y-4">
+          <div className="px-4 sm:px-6 py-2 lg:py-3">
 
             {/* TOP ROW: identity (avatar + greeting) on the left,
-                action buttons on the right. The previous single-row
-                grid put the presence strip between identity and the
-                buttons, which let the horses scroll into the buttons
-                on tight viewports. Splitting into two rows gives the
-                horses unconstrained width below. */}
+                action button on the right. */}
             <div className="flex items-center justify-between gap-3">
 
             {/* LEFT: avatar + greeting */}
@@ -441,24 +447,15 @@ export default function HomeContent() {
 
             </div> {/* end TOP ROW */}
 
-            {/* BOTTOM ROW: horses on the team. The "Online today"
-                avatar strip used to sit alongside the horses here;
-                it now lives as a centerpiece spinning orbit between
-                the hero band and the at-a-glance pulse. */}
-            <div className="min-w-0">
-              <HomeHorsesRow />
-            </div>
-
           </div>
         </header>
 
         {/* Centered, slowly-rotating ring of teammates active in the
-            last 24 hours. Replaces the inline "Online today" strip
-            that used to sit in the hero footer — see
-            HomeOnlineOrbit.tsx for the anatomy + animation. */}
+            last 24 hours, with the horse roster orbiting in the inner
+            ring. See HomeOnlineOrbit.tsx for the anatomy + animation. */}
         {recentUsers.length > 0 && (
           <section className="relative z-50 w-full max-w-4xl mx-auto py-2">
-            <HomeOnlineOrbit users={recentUsers} pathLabelFor={pathLabel} />
+            <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} />
           </section>
         )}
 

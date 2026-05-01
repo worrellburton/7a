@@ -29,8 +29,20 @@ interface OrbitUser {
   job_title: string | null;
 }
 
+// Inner ring shows the horse roster, orbiting opposite-direction so
+// the two rings read as two distinct motions instead of one big drift.
+interface OrbitHorse {
+  id: string;
+  name: string;
+  image_url: string | null;
+  age?: number | null;
+  works_in?: string | null;
+  rideable?: string | null;
+}
+
 interface Props {
   users: OrbitUser[];
+  horses?: OrbitHorse[];
   pathLabelFor: (path: string | null) => string | null;
 }
 
@@ -49,7 +61,7 @@ function timeAgo(dateStr: string | null): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
+export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
@@ -121,9 +133,74 @@ export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
           </span>
         </div>
 
-        {/* Rotating ring. Avatars are pinned to the top of each slot;
-            since slots fill the ring + are rotated to their angle,
-            the avatars naturally sit on the outer edge. */}
+        {/* Inner ring — horse roster. Pinned to the inset-[20%]
+            decorative ring so each horse avatar lands exactly on it,
+            and the ring spins counter-clockwise so the two motions
+            (people outside, horses inside) read as distinct. */}
+        {horses.length > 0 && (
+          <div
+            className={`orbit-ring absolute inset-[20%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-rev' : ''}`}
+          >
+            {horses.map((h, i) => {
+              const angle = (i / horses.length) * 360;
+              const slotStyle: CSSProperties = {
+                transform: `rotate(${angle}deg)`,
+              };
+              const pinStyle: CSSProperties = {
+                ['--enter-delay' as string]: `${300 + i * 55}ms`,
+              };
+              return (
+                <div key={h.id} className="orbit-slot" style={slotStyle}>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/app/equine/${h.id}`)}
+                    className={`orbit-pin group orbit-pin-horse ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} cursor-pointer`}
+                    style={pinStyle}
+                    title={h.name}
+                    aria-label={h.name}
+                  >
+                    <span className="orbit-counter-rev motion-reduce:!animate-none">
+                      <span
+                        className="block"
+                        style={{ transform: `rotate(${-angle}deg)` }}
+                      >
+                        <span className="relative block">
+                          {h.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={h.image_url}
+                              alt={h.name}
+                              referrerPolicy="no-referrer"
+                              className="block w-9 h-9 rounded-full object-cover border-2 border-white shadow-md transition-transform duration-300 group-hover:scale-110"
+                            />
+                          ) : (
+                            <span className="flex w-9 h-9 rounded-full items-center justify-center text-xs font-semibold border-2 border-white bg-warm-bg text-foreground/55 shadow-md transition-transform duration-300 group-hover:scale-110">
+                              {h.name.charAt(0)}
+                            </span>
+                          )}
+                          <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-[60] text-left shadow-lg">
+                            <span className="block font-semibold text-white">{h.name}</span>
+                            {(h.age != null || h.works_in) && (
+                              <span className="block text-white/80">
+                                {h.age != null ? `${h.age} yrs` : ''}
+                                {h.age != null && h.works_in ? ' · ' : ''}
+                                {h.works_in ?? ''}
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Outer ring — teammates online today. Avatars pinned to the
+            top of each slot; since slots fill the ring + are rotated
+            to their angle, the avatars naturally sit on the outer edge. */}
         <div
           className={`orbit-ring absolute inset-0 motion-reduce:!animate-none ${mounted ? 'orbit-spin' : ''}`}
         >
@@ -227,6 +304,14 @@ export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
         }
         .orbit-spin { animation: orbit-spin-rot 60s linear infinite; }
 
+        /* Inner ring spins the opposite way at a slightly different
+           tempo so the two rings read as distinct motions. */
+        @keyframes orbit-spin-rev-rot {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(-360deg); }
+        }
+        .orbit-spin-rev { animation: orbit-spin-rev-rot 75s linear infinite; }
+
         /* Counter-rotation so faces stay upright as the ring turns. */
         @keyframes orbit-counter-rot {
           from { transform: rotate(0deg); }
@@ -235,6 +320,14 @@ export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
         .orbit-counter {
           display: inline-block;
           animation: orbit-counter-rot 60s linear infinite;
+        }
+        @keyframes orbit-counter-rev-rot {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+        .orbit-counter-rev {
+          display: inline-block;
+          animation: orbit-counter-rev-rot 75s linear infinite;
         }
 
         /* Slots fill the ring's bounding box. Each is rotated to its
@@ -295,7 +388,9 @@ export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
           .orbit-pin-in,
           .orbit-pin-pre,
           .orbit-spin,
-          .orbit-counter {
+          .orbit-spin-rev,
+          .orbit-counter,
+          .orbit-counter-rev {
             animation: none !important;
             opacity: 1 !important;
             top: 0 !important;
@@ -307,4 +402,4 @@ export default function HomeOnlineOrbit({ users, pathLabelFor }: Props) {
   );
 }
 
-export type { OrbitUser };
+export type { OrbitUser, OrbitHorse };
