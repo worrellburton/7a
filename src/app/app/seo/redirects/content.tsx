@@ -45,7 +45,7 @@ function normalisePath(raw: string): string {
 }
 
 export default function RedirectsContent() {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const [rows, setRows] = useState<Redirect[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +85,12 @@ export default function RedirectsContent() {
   const activeCount = rows.filter((r) => r.enabled).length;
   const totalHits = rows.reduce((acc, r) => acc + (r.hits || 0), 0);
 
-  if (!user || !isAdmin) return null;
+  // Page is now viewable by every signed-in user — non-admins see
+  // the rules + hit counts read-only. Edit/delete API routes still
+  // enforce is_admin server-side, so write buttons show a 403 if a
+  // non-admin clicks them; that's better than the page being a
+  // total dead-end for the team.
+  if (!user) return null;
 
   return (
     <div className="p-8 max-w-7xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
