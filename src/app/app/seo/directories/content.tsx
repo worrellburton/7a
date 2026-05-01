@@ -2906,6 +2906,81 @@ const STATUS_ROW_TINT: Record<Status, string> = {
 // or weeks between accepting a submission and actually publishing it.
 const STATUS_ORDER: Status[] = ['todo', 'claim_in_process', 'need_credentials', 'pending', 'pending_review', 'listed', 'live', 'skip'];
 
+// Sortable columns. 'default' is the curated linked-first /
+// category-grouped order that ships before any header is clicked.
+type SortKey =
+  | 'default'
+  | 'directory'
+  | 'category'
+  | 'priority'
+  | 'fit'
+  | 'paid'
+  | 'live'
+  | 'nap'
+  | 'status';
+
+interface SortContext {
+  linkMap: Record<string, string>;
+  statusMap: Record<string, Status>;
+  directoryStates: Record<string, DirectoryStateRow>;
+}
+
+const PRIORITY_RANK: Record<Directory['priority'], number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
+
+function sortComparator(
+  key: Exclude<SortKey, 'default'>,
+): (a: Directory, b: Directory, ctx: SortContext) => number {
+  switch (key) {
+    case 'directory':
+      return (a, b) => a.name.localeCompare(b.name);
+    case 'category':
+      return (a, b) => {
+        const ai = CATEGORY_ORDER.indexOf(a.category);
+        const bi = CATEGORY_ORDER.indexOf(b.category);
+        return ai - bi;
+      };
+    case 'priority':
+      return (a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+    case 'fit':
+      // Higher fit first when ascending — the column reads as a
+      // score, and admins expect "best first" by default.
+      return (a, b) => b.fit - a.fit;
+    case 'paid':
+      return (a, b, ctx) => {
+        const ap = ctx.directoryStates[a.id]?.paid ? 1 : 0;
+        const bp = ctx.directoryStates[b.id]?.paid ? 1 : 0;
+        if (ap !== bp) return bp - ap; // paid first
+        const aa = ctx.directoryStates[a.id]?.paid_amount ?? 0;
+        const bb = ctx.directoryStates[b.id]?.paid_amount ?? 0;
+        return bb - aa;
+      };
+    case 'live':
+      return (a, b, ctx) => {
+        const aHas = !!ctx.linkMap[a.id] ? 1 : 0;
+        const bHas = !!ctx.linkMap[b.id] ? 1 : 0;
+        return bHas - aHas; // rows with a link first
+      };
+    case 'nap':
+      return (a, b, ctx) => {
+        const an = ctx.directoryStates[a.id];
+        const bn = ctx.directoryStates[b.id];
+        const aSet = !!(an?.nap_name || an?.nap_address || an?.nap_phone) ? 1 : 0;
+        const bSet = !!(bn?.nap_name || bn?.nap_address || bn?.nap_phone) ? 1 : 0;
+        return bSet - aSet; // recorded NAP first
+      };
+    case 'status':
+      return (a, b, ctx) => {
+        const ai = STATUS_ORDER.indexOf(ctx.statusMap[a.id] ?? 'todo');
+        const bi = STATUS_ORDER.indexOf(ctx.statusMap[b.id] ?? 'todo');
+        return ai - bi;
+      };
+  }
+}
+
 const STATUS_CYCLE: Record<Status, Status> = {
   todo: 'claim_in_process',
   claim_in_process: 'need_credentials',
@@ -3942,26 +4017,58 @@ export default function DirectoriesContent() {
   );
 
   // Single flat list — replaces the old per-category section render.
+  // Sort key + direction for clickable column headers. Default
+  // ('default') keeps the curated linked-first / category-grouped
+  // ordering below; clicking a header swaps to that column's
+  // comparator. Clicking the same header twice flips asc ↔ desc;
+  // clicking a third time goes back to default.
+  const [sortKey, setSortKey] = useState<SortKey>('default');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const toggleSort = (next: Exclude<SortKey, 'default'>) => {
+    if (sortKey !== next) {
+      setSortKey(next);
+      setSortDir('asc');
+      return;
+    }
+    if (sortDir === 'asc') {
+      setSortDir('desc');
+      return;
+    }
+    setSortKey('default');
+    setSortDir('asc');
+  };
+
   // The user sees one master table now with Category as a column, so
   // sorting works across categories (linked rows bubble first regardless
   // of which category they're in). Stable within each tier preserves
   // the curated DIRECTORIES order.
   const flatRows = useMemo(() => {
-    return filtered
-      .map((d, i) => ({ d, i }))
+    const indexed = filtered.map((d, i) => ({ d, i }));
+    if (sortKey === 'default') {
+      return indexed
+        .sort((a, b) => {
+          const aLinked = !!linkMap[a.d.id] && statusMap[a.d.id] !== 'skip';
+          const bLinked = !!linkMap[b.d.id] && statusMap[b.d.id] !== 'skip';
+          if (aLinked !== bLinked) return aLinked ? -1 : 1;
+          const aCatIdx = CATEGORY_ORDER.indexOf(a.d.category);
+          const bCatIdx = CATEGORY_ORDER.indexOf(b.d.category);
+          if (aCatIdx !== bCatIdx) return aCatIdx - bCatIdx;
+          return a.i - b.i;
+        })
+        .map((x) => x.d);
+    }
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const cmp = sortComparator(sortKey);
+    return indexed
       .sort((a, b) => {
-        const aLinked = !!linkMap[a.d.id] && statusMap[a.d.id] !== 'skip';
-        const bLinked = !!linkMap[b.d.id] && statusMap[b.d.id] !== 'skip';
-        if (aLinked !== bLinked) return aLinked ? -1 : 1;
-        // Then keep curated category order so rows still cluster
-        // visually when no link/status differentiator separates them.
-        const aCatIdx = CATEGORY_ORDER.indexOf(a.d.category);
-        const bCatIdx = CATEGORY_ORDER.indexOf(b.d.category);
-        if (aCatIdx !== bCatIdx) return aCatIdx - bCatIdx;
+        const r = cmp(a.d, b.d, { linkMap, statusMap, directoryStates });
+        if (r !== 0) return r * dir;
+        // Stable secondary sort: original curated index keeps the
+        // ordering deterministic when the primary is a tie.
         return a.i - b.i;
       })
       .map((x) => x.d);
-  }, [filtered, linkMap, statusMap]);
+  }, [filtered, linkMap, statusMap, sortKey, sortDir, directoryStates]);
 
   // Counts for the progress strip — every status gets its own card.
   // 'todo' is the implicit default (no row in directory_states), so
@@ -4130,15 +4237,15 @@ export default function DirectoriesContent() {
           <table className="w-full text-sm">
             <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
               <tr>
-                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-64">Directory</th>
-                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-32">Category</th>
+                <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="directory" widthClass="w-64">Directory</SortableTh>
+                <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="category" widthClass="w-32">Category</SortableTh>
                 <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-12">Insights</th>
-                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-20">Priority</th>
-                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-14">Fit</th>
-                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-24">Paid</th>
-                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-28">Live link</th>
-                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-20">NAP</th>
-                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-28">Status</th>
+                <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="priority" widthClass="w-20">Priority</SortableTh>
+                <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="fit" widthClass="w-14">Fit</SortableTh>
+                <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="paid" widthClass="w-24">Paid</SortableTh>
+                <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="live" widthClass="w-28">Live link</SortableTh>
+                <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="nap" widthClass="w-20">NAP</SortableTh>
+                <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="status" widthClass="w-28">Status</SortableTh>
                 <th className="text-center px-3 py-2.5 font-semibold border-b border-black/10 w-12">Notes</th>
                 <th className="text-right px-2 py-2.5 font-semibold border-b border-black/10 w-10" aria-label="Delete" />
               </tr>
@@ -4940,6 +5047,65 @@ function FitChip({ score }: { score: number }) {
     >
       {clamped}
     </span>
+  );
+}
+
+// Clickable column header with active-sort indicator. Click cycles
+// through asc → desc → default for the column. Other columns auto-
+// reset when this one is clicked (handled by toggleSort in the
+// parent). Visual: chevron up / down on the active column; faint
+// neutral arrow on the rest to hint that they're clickable.
+function SortableTh({
+  children,
+  col,
+  widthClass,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  children: React.ReactNode;
+  col: Exclude<SortKey, 'default'>;
+  widthClass: string;
+  sortKey: SortKey;
+  sortDir: 'asc' | 'desc';
+  onSort: (col: Exclude<SortKey, 'default'>) => void;
+}) {
+  const active = sortKey === col;
+  return (
+    <th className={`text-left px-3 py-2.5 font-semibold border-b border-black/10 ${widthClass}`}>
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        className={`inline-flex items-center gap-1 hover:text-foreground/80 transition-colors ${
+          active ? 'text-foreground' : 'text-foreground/55'
+        }`}
+        title={active ? `Sorted ${sortDir} — click to ${sortDir === 'asc' ? 'reverse' : 'reset'}` : 'Sort by this column'}
+      >
+        <span>{children}</span>
+        <SortGlyph state={active ? sortDir : 'idle'} />
+      </button>
+    </th>
+  );
+}
+
+function SortGlyph({ state }: { state: 'asc' | 'desc' | 'idle' }) {
+  return (
+    <svg
+      className={`w-2.5 h-2.5 ${state === 'idle' ? 'text-foreground/25' : 'text-primary'}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      {state === 'asc' ? (
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+      ) : state === 'desc' ? (
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 9l7 7 7-7" />
+      ) : (
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4M8 15l4 4 4-4" />
+      )}
+    </svg>
   );
 }
 
