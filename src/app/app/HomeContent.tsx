@@ -8,7 +8,6 @@ import { uploadFile, compressImage } from '@/lib/upload';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
-import AskPolicies from './AskPolicies';
 import WhatsNewButton from './WhatsNewButton';
 import JdSignatureNagModal from './JdSignatureNagModal';
 // Temporarily not rendered — see HomeContent.tsx note. Keeping the
@@ -615,20 +614,6 @@ export default function HomeContent() {
             )}
           </section>
         )}
-
-        {/* Phase 7: Ask Policies — the most-used admin action gets
-            the headline glass treatment. AskPolicies handles its own
-            internal layout; we wrap it so the surface tone matches
-            the rest of the page. */}
-        <section className="w-full max-w-xl mx-auto">
-          <div className="relative rounded-3xl border border-white/70 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-2xl shadow-[0_14px_40px_-18px_rgba(60,48,42,0.28)] p-2 sm:p-3">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-3xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
-            />
-            <AskPolicies />
-          </div>
-        </section>
 
         </div> {/* end centerpiece */}
 
