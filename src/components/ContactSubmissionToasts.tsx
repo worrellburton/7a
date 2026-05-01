@@ -6,24 +6,30 @@ import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { MARKETING_ADMISSIONS_DEPT_ID } from '@/lib/website-requests-auth';
 
-// Bottom-right toast stack for new contact-form submissions. Mounted
-// globally in PlatformShell so it appears on every authed page.
+// Bottom-right toast stack for new website requests — both contact
+// forms (public.contact_submissions) and VOBs (public.vob_requests).
+// Mounted globally in PlatformShell so it appears on every authed
+// page.
 //
 // Audience: super admins + Marketing & Admissions dept members. The
 // component renders nothing for users outside that audience.
 //
 // Lifecycle:
 //   - On mount, fetches /api/contact-submissions/unseen so any
-//     submission that landed while the user was offline still
-//     surfaces.
-//   - Subscribes to public.contact_submissions INSERT — new rows
-//     pop a toast immediately for everyone in the audience.
+//     contact-form submission that landed while the user was offline
+//     still surfaces.
+//   - Subscribes to public.contact_submissions INSERT and
+//     public.vob_requests INSERT — new rows pop a toast immediately
+//     for everyone in the audience.
 //   - Subscribes to public.contact_submission_dismissals INSERT
-//     for the current user — dismissing on one tab clears the
-//     toast on all other tabs/browsers.
-//   - User clicks "Dismiss" → POST to /[id]/dismiss → row writes
-//     → realtime confirms and the toast leaves. (Optimistic
-//     remove for snappy UX; rollback on error.)
+//     for the current user — dismissing a contact toast on one tab
+//     clears it on all other tabs/browsers.
+//   - User clicks "Dismiss" on a contact toast → POST to
+//     /[id]/dismiss → row writes → realtime confirms and the toast
+//     leaves. (Optimistic remove for snappy UX; rollback on error.)
+//   - VOB toasts dismiss locally per-session — the component clears
+//     them on close and on subsequent UPDATE events that mark the
+//     VOB responded or spam upstream.
 
 interface Submission {
   id: string;
@@ -35,6 +41,15 @@ interface Submission {
   source: string | null;
   page_url: string | null;
   message: string | null;
+}
+
+interface VobToast {
+  id: string;
+  created_at: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  insurance_provider: string | null;
 }
 
 function fullName(s: Submission): string {
@@ -61,6 +76,7 @@ export default function ContactSubmissionToasts() {
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [items, setItems] = useState<Submission[]>([]);
+  const [vobs, setVobs] = useState<VobToast[]>([]);
 
   // Resolve audience status once we have a user. The check is also
   // done server-side on every API call; this is a client-side
@@ -165,6 +181,54 @@ export default function ContactSubmissionToasts() {
           }
         },
       )
+      // VOB INSERT — pop a separate toast variant so admissions can
+      // see a new verification request the moment it lands. Filter
+      // server-side eligibility (responded / spam) just like the
+      // contact path. No persisted "unseen" backfill: the inbox UI
+      // already surfaces those, so we only push live arrivals.
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'vob_requests' },
+        (payload) => {
+          const row = payload.new as {
+            id: string;
+            full_name: string;
+            email: string | null;
+            phone: string | null;
+            insurance_provider: string | null;
+            received_at: string;
+            responded_at?: string | null;
+            spam_at?: string | null;
+          };
+          if (row.responded_at || row.spam_at) return;
+          setVobs((prev) => {
+            if (prev.some((p) => p.id === row.id)) return prev;
+            return [
+              {
+                id: row.id,
+                created_at: row.received_at,
+                full_name: row.full_name,
+                email: row.email,
+                phone: row.phone,
+                insurance_provider: row.insurance_provider,
+              },
+              ...prev,
+            ];
+          });
+        },
+      )
+      // VOB UPDATE — clear the toast if the request was marked
+      // responded or spam upstream by another teammate.
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'vob_requests' },
+        (payload) => {
+          const row = payload.new as { id: string; responded_at?: string | null; spam_at?: string | null };
+          if (row.responded_at || row.spam_at) {
+            setVobs((prev) => prev.filter((p) => p.id !== row.id));
+          }
+        },
+      )
       .subscribe();
 
     return () => {
@@ -187,7 +251,7 @@ export default function ContactSubmissionToasts() {
     }
   }, [items]);
 
-  if (!user || !audience || items.length === 0) return null;
+  if (!user || !audience || (items.length === 0 && vobs.length === 0)) return null;
 
   // Suppress unused-var so the diff stays clean — we keep the
   // department + super-admin readouts for future ad-hoc filtering
@@ -195,12 +259,17 @@ export default function ContactSubmissionToasts() {
   void departmentId;
   void isSuperAdmin;
 
+  const dismissVob = (id: string) => setVobs((prev) => prev.filter((p) => p.id !== id));
+
   return (
     <div
       role="region"
-      aria-label="New contact-form notifications"
+      aria-label="New website-request notifications"
       className="fixed bottom-4 right-4 z-[80] flex flex-col items-end gap-3 max-w-[calc(100vw-2rem)] sm:max-w-sm"
     >
+      {vobs.map((v) => (
+        <VobToastCard key={v.id} vob={v} onDismiss={() => dismissVob(v.id)} />
+      ))}
       {items.map((s) => (
         <Toast key={s.id} submission={s} onDismiss={() => void dismiss(s.id)} />
       ))}
@@ -279,6 +348,77 @@ function Toast({ submission, onDismiss }: { submission: Submission; onDismiss: (
             className="text-[11px] font-semibold text-primary hover:text-primary-dark transition-colors"
           >
             Open inbox →
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VobToastCard({ vob, onDismiss }: { vob: VobToast; onDismiss: () => void }) {
+  const time = relativeTime(vob.created_at);
+  return (
+    <div
+      role="alert"
+      className="w-full sm:w-[360px] rounded-2xl border border-emerald-300/60 bg-white shadow-2xl ring-1 ring-black/5 overflow-hidden animate-[toast-in_300ms_ease-out]"
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      <style jsx>{`
+        @keyframes toast-in {
+          from { transform: translateY(20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
+      <div
+        aria-hidden="true"
+        className="h-1"
+        style={{
+          background:
+            'linear-gradient(90deg, #10b981 0%, #059669 50%, #047857 100%)',
+        }}
+      />
+      <div className="px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-700 mb-0.5">
+              New VOB request
+            </p>
+            <p className="text-sm font-semibold text-foreground truncate">
+              {vob.full_name}
+            </p>
+            <p className="text-[11px] text-foreground/55 truncate">
+              {vob.email ?? ''}
+              {vob.phone ? ` · ${vob.phone}` : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss notification"
+            title="Dismiss"
+            className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-foreground/85 hover:bg-black/5 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {vob.insurance_provider && (
+          <p className="mt-2 text-[12px] text-foreground/75 leading-snug">
+            Insurance: <span className="font-semibold">{vob.insurance_provider}</span>
+          </p>
+        )}
+
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-[10px] uppercase tracking-wider text-foreground/45">
+            {time}
+          </p>
+          <Link
+            href="/app/website-requests?tab=vobs"
+            className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 transition-colors"
+          >
+            Open VOBs →
           </Link>
         </div>
       </div>
