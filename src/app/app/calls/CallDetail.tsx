@@ -11,6 +11,7 @@ import {
   formatTime,
   scoreColorHex,
   sentimentStyle,
+  unscoreableReason,
 } from './_shared';
 import { DetailField } from './Pickers';
 
@@ -49,13 +50,29 @@ export function CallDetail({
           score and a low fit score). */}
       <div className="flex items-start gap-4 flex-wrap pb-4 border-b border-gray-100">
         <div className="shrink-0 flex flex-col items-center gap-1">
-          <div
-            className="w-14 h-14 rounded-xl flex items-center justify-center text-white text-lg font-bold tabular-nums"
-            style={{ backgroundColor: score ? scoreColorHex(score.score) : '#e5e7eb', color: score ? '#fff' : '#9ca3af' }}
-            title={score ? `AI Call Score ${score.score}/100 — overall handling + conversion quality` : 'Not scored yet'}
-          >
-            {score ? score.score : '—'}
-          </div>
+          {(() => {
+            const naReason = unscoreableReason(score);
+            if (score && naReason) {
+              return (
+                <div
+                  className="w-14 h-14 rounded-xl flex items-center justify-center text-foreground/55 text-sm font-bold tabular-nums bg-gray-100 border border-dashed border-gray-300 cursor-help"
+                  title={`N/A — ${naReason}`}
+                  aria-label={`N/A — ${naReason}`}
+                >
+                  N/A
+                </div>
+              );
+            }
+            return (
+              <div
+                className="w-14 h-14 rounded-xl flex items-center justify-center text-white text-lg font-bold tabular-nums"
+                style={{ backgroundColor: score ? scoreColorHex(score.score) : '#e5e7eb', color: score ? '#fff' : '#9ca3af' }}
+                title={score ? `AI Call Score ${score.score}/100 — overall handling + conversion quality` : 'Not scored yet'}
+              >
+                {score ? score.score : '—'}
+              </div>
+            );
+          })()}
           <span className="text-[9px] font-semibold tracking-[0.16em] uppercase text-foreground/45" style={{ fontFamily: 'var(--font-body)' }}>
             Call score
           </span>
