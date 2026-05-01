@@ -80,7 +80,21 @@ export async function middleware(req: NextRequest) {
 
   const map = await fetchRedirectMap(req.nextUrl.origin);
   const hit = lookup(map, pathname);
-  if (!hit) return passthrough();
+  if (!hit) {
+    // No DB match. Before falling through to Next.js (which would
+    // 308-redirect any trailing slash to the canonical no-slash
+    // form), do an explicit 301 here so Screaming Frog and other
+    // SEO tools don't flag a mix of 301/308 across the site. Both
+    // status codes are permanent + indexable, but consultants
+    // expect consistent 301s for legacy URLs.
+    if (pathname.length > 1 && pathname.endsWith('/')) {
+      const stripped = req.nextUrl.clone();
+      stripped.pathname = pathname.replace(/\/+$/, '');
+      stripped.search = search;
+      return NextResponse.redirect(stripped, 301);
+    }
+    return passthrough();
+  }
 
   // Build the destination. Relative `to` stays on the current host;
   // absolute URLs (http://…) pass through untouched.
