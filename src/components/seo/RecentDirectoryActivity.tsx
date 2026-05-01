@@ -187,8 +187,12 @@ export default function RecentDirectoryActivity() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
+      {/* Tall feed by default — fills most of the viewport on
+          desktop so admins can scan a week of activity without
+          scrolling inside a small window. Caps at ~75vh so it
+          never pushes the rest of the page off-screen. */}
       {!collapsed && (
-        <div className="max-h-72 overflow-y-auto">
+        <div className="max-h-[75vh] overflow-y-auto">
           {rows.length === 0 ? (
             <p className="px-4 py-6 text-xs text-foreground/45 text-center">
               No SEO activity yet — directory edits, backlink adds, Speed runs, and other SEO actions will appear here as they happen.
