@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import RecentDirectoryActivity from '@/components/seo/RecentDirectoryActivity';
+import HomeMeaningfulCallsRow from '../HomeMeaningfulCallsRow';
+import HomeWebsiteVisitsRow from '../HomeWebsiteVisitsRow';
+import HomeWebsiteRequestsRow from '../HomeWebsiteRequestsRow';
 
 // Insights — visual rollup of call volume over time. Reuses the
 // existing /api/calls/insights endpoint (Phoenix-day buckets,
@@ -106,6 +109,37 @@ export default function InsightsContent() {
           whether the lift in traffic is actually qualified.
         </p>
       </header>
+
+      {/* Marketing at a Glance — relocated from the home dashboard.
+          Three numeric strips (Meaningful calls, Website visits,
+          Awaiting response) so the day's pulse is the first thing
+          on the analytics page. Rows self-fetch their own data; the
+          Awaiting-response row hides itself when the inbox is empty. */}
+      <section className="mb-6 rounded-xl border border-black/10 bg-white p-5">
+        <p
+          className="text-[11px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-1"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          Marketing at a Glance
+        </p>
+        <p
+          className="text-[11px] text-foreground/40 mb-3"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          Today / week / month
+        </p>
+        <div className="divide-y divide-black/5">
+          <div className="py-2.5">
+            <HomeMeaningfulCallsRow />
+          </div>
+          <div className="py-2.5">
+            <HomeWebsiteVisitsRow />
+          </div>
+          <div className="py-2.5">
+            <HomeWebsiteRequestsRow />
+          </div>
+        </div>
+      </section>
 
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <SeriesToggle value={series} onChange={setSeries} />
