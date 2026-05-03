@@ -350,6 +350,21 @@ body:has([data-sidebar-rail]:hover) [data-shift-on-sidebar] {
   transform: translateX(12rem);
 }
 
+/* Home route — single-screen, no scroll. The home page presents a
+   complete dashboard at a glance (welcome + orbit + WIP footer) and
+   was designed to fit one viewport. Lock the scroll on the platform
+   shell's main content container while [data-home-no-scroll] is
+   present so a sub-pixel layout discrepancy can't introduce a
+   scrollbar. */
+[data-platform-main]:has([data-home-no-scroll]) {
+  overflow: hidden !important;
+}
+[data-home-no-scroll] {
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
 /* Hide the floating mobile call pill while the mobile nav drawer is
    open — MobileMenu sets data-mobile-nav-open on <html> while it is
    visible, otherwise the pill overlaps the open menu. */
