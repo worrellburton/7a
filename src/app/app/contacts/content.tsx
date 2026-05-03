@@ -118,6 +118,7 @@ export default function ContactsContent() {
   const [showCols, setShowCols] = useState(false);
   const [logTarget, setLogTarget] = useState<Contact | null>(null);
   const [upgradeTarget, setUpgradeTarget] = useState<Contact | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<Contact | null>(null);
   const [actionMenuFor, setActionMenuFor] = useState<{ id: string; rect: DOMRect } | null>(null);
 
   const [visibleCols, setVisibleCols] = useState<string[] | null>(null);
@@ -388,6 +389,7 @@ export default function ContactsContent() {
         onColDrop={onColDrop}
         onContact={(c) => setLogTarget(c)}
         onUpgrade={(c) => setUpgradeTarget(c)}
+        onHistory={(c) => setHistoryTarget(c)}
         actionMenuFor={actionMenuFor}
         setActionMenuFor={setActionMenuFor}
       />
@@ -409,6 +411,14 @@ export default function ContactsContent() {
           onSubmit={(payload) => handleUpgrade(upgradeTarget, payload)}
         />
       )}
+      {historyTarget && (
+        <ContactHistoryModal
+          contact={historyTarget}
+          accessToken={session?.access_token ?? null}
+          onClose={() => setHistoryTarget(null)}
+          onLogContact={() => { setLogTarget(historyTarget); setHistoryTarget(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -423,6 +433,7 @@ function ContactsGrid({
   onColDrop,
   onContact,
   onUpgrade,
+  onHistory,
   actionMenuFor,
   setActionMenuFor,
 }: {
@@ -433,6 +444,7 @@ function ContactsGrid({
   onColDrop: (k: string) => void;
   onContact: (c: Contact) => void;
   onUpgrade: (c: Contact) => void;
+  onHistory: (c: Contact) => void;
   actionMenuFor: { id: string; rect: DOMRect } | null;
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
 }) {
@@ -499,7 +511,14 @@ function ContactsGrid({
                   <LastContactedBy contact={c} />
                 </td>
                 <td className="px-3 py-2.5">
-                  <LastContactCell contact={c} />
+                  <button
+                    type="button"
+                    onClick={() => onHistory(c)}
+                    className="block w-full text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
+                    title="View contact history"
+                  >
+                    <LastContactCell contact={c} />
+                  </button>
                 </td>
                 <td className="px-2 py-2.5 text-right">
                   <button
@@ -522,6 +541,7 @@ function ContactsGrid({
                       onClose={() => setActionMenuFor(null)}
                       onContact={() => { setActionMenuFor(null); onContact(c); }}
                       onUpgrade={() => { setActionMenuFor(null); onUpgrade(c); }}
+                      onHistory={() => { setActionMenuFor(null); onHistory(c); }}
                     />
                   )}
                 </td>
@@ -539,11 +559,13 @@ function ActionMenuPortal({
   onClose,
   onContact,
   onUpgrade,
+  onHistory,
 }: {
   rect: DOMRect;
   onClose: () => void;
   onContact: () => void;
   onUpgrade: () => void;
+  onHistory: () => void;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -575,6 +597,13 @@ function ActionMenuPortal({
         className="block w-full text-left px-3 py-2 text-xs text-foreground/80 hover:bg-warm-bg/60"
       >
         Log a contact
+      </button>
+      <button
+        role="menuitem"
+        onClick={onHistory}
+        className="block w-full text-left px-3 py-2 text-xs text-foreground/80 hover:bg-warm-bg/60"
+      >
+        View contact history
       </button>
       <button
         role="menuitem"
@@ -890,6 +919,123 @@ function LogContactModal({
           onCancel={onClose}
         />
       </form>
+    </ModalShell>
+  );
+}
+
+// ─── Contact History modal ────────────────────────────────────
+
+interface ContactLog {
+  id: string;
+  method: ContactMethod;
+  comments: string | null;
+  contacted_by: string | null;
+  contacted_at: string;
+  contacted_by_name: string | null;
+  contacted_by_avatar_url: string | null;
+}
+
+function ContactHistoryModal({
+  contact,
+  accessToken,
+  onClose,
+  onLogContact,
+}: {
+  contact: Contact;
+  accessToken: string | null;
+  onClose: () => void;
+  onLogContact: () => void;
+}) {
+  const [logs, setLogs] = useState<ContactLog[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    fetch(`/api/contacts/${contact.id}/history`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then(async (r) => {
+        const json = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((json as { error?: string }).error || `HTTP ${r.status}`);
+        return json as { rows: ContactLog[] };
+      })
+      .then((j) => { if (!cancelled) setLogs(j.rows ?? []); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); });
+    return () => { cancelled = true; };
+  }, [accessToken, contact.id]);
+
+  return (
+    <ModalShell title={contact.name} eyebrow="Contact history" onClose={onClose}>
+      <div className="px-6 py-5">
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-xs text-foreground/55">
+            {logs == null
+              ? 'Loading…'
+              : logs.length === 0
+              ? 'No contact history yet.'
+              : `${logs.length} ${logs.length === 1 ? 'entry' : 'entries'}, newest first.`}
+          </p>
+          <button
+            type="button"
+            onClick={onLogContact}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[11px] font-semibold hover:bg-primary/90 transition-colors"
+          >
+            <PhoneIcon />
+            Log a contact
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        )}
+
+        {logs && logs.length > 0 && (
+          <ol className="relative border-l border-black/10 ml-3">
+            {logs.map((log, i) => (
+              <li key={log.id} className="relative pl-5 pb-5 last:pb-0">
+                <span
+                  className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                    i === 0 ? 'bg-primary' : 'bg-foreground/30'
+                  }`}
+                />
+                <div className="flex items-start gap-3">
+                  {log.contacted_by_avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={log.contacted_by_avatar_url}
+                      alt={log.contacted_by_name ?? 'User'}
+                      className="w-8 h-8 rounded-full object-cover bg-warm-bg"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-warm-bg flex items-center justify-center text-[11px] font-semibold text-foreground/55">
+                      {(log.contacted_by_name || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <p className="text-sm font-semibold text-foreground">
+                        {log.contacted_by_name || 'Unknown'}
+                      </p>
+                      <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[log.method]}`}>
+                        {log.method}
+                      </span>
+                      <span className="text-[11px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
+                        {fmtAgo(log.contacted_at)} · {fmtAbsolute(log.contacted_at)}
+                      </span>
+                    </div>
+                    {log.comments && (
+                      <p className="mt-1.5 text-sm text-foreground/75 whitespace-pre-wrap leading-relaxed">
+                        {log.comments}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
     </ModalShell>
   );
 }
