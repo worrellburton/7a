@@ -329,6 +329,22 @@ export default function ContactsContent() {
     setUpgradeTarget(null);
   }
 
+  async function handleDelete(target: Contact) {
+    if (!session?.access_token) return;
+    if (!confirm(`Delete ${target.name}? This can't be undone.`)) return;
+    // Optimistic — drop the row immediately; restore if the request fails.
+    setRows((prev) => prev.filter((r) => r.id !== target.id));
+    const res = await fetch(`/api/contacts/${target.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(`Couldn't delete: ${json.error ?? res.status}`);
+      setRows((prev) => (prev.find((r) => r.id === target.id) ? prev : [target, ...prev]));
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────
 
   if (!user) return null;
@@ -416,6 +432,7 @@ export default function ContactsContent() {
         onContact={(c) => setLogTarget(c)}
         onUpgrade={(c) => setUpgradeTarget(c)}
         onHistory={(c) => setHistoryTarget(c)}
+        onDelete={(c) => handleDelete(c)}
         actionMenuFor={actionMenuFor}
         setActionMenuFor={setActionMenuFor}
       />
@@ -460,6 +477,7 @@ function ContactsGrid({
   onContact,
   onUpgrade,
   onHistory,
+  onDelete,
   actionMenuFor,
   setActionMenuFor,
 }: {
@@ -471,6 +489,7 @@ function ContactsGrid({
   onContact: (c: Contact) => void;
   onUpgrade: (c: Contact) => void;
   onHistory: (c: Contact) => void;
+  onDelete: (c: Contact) => void;
   actionMenuFor: { id: string; rect: DOMRect } | null;
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
 }) {
@@ -497,7 +516,7 @@ function ContactsGrid({
                 so admissions sees them no matter how the grid is
                 customised. Order: Contact button, Last contact by,
                 Time since (colored pill), Last contact date, actions menu. */}
-            <th className="px-3 py-2 text-center whitespace-nowrap" style={{ width: 100 }}>Action</th>
+            <th className="px-3 py-2 whitespace-nowrap" style={{ width: 200 }}>Actions</th>
             <th className="px-3 py-2 whitespace-nowrap" style={{ width: 220 }}>Last contacted by</th>
             <th className="px-3 py-2 whitespace-nowrap" style={{ width: 150 }}>Time since</th>
             <th className="px-3 py-2 whitespace-nowrap" style={{ width: 160 }}>Last contact</th>
@@ -525,15 +544,25 @@ function ContactsGrid({
                     <ContactCell column={col} contact={c} />
                   </td>
                 ))}
-                <td className="px-3 py-2.5 text-center">
-                  <button
-                    type="button"
-                    onClick={() => onContact(c)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[11px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
-                  >
-                    <PhoneIcon />
-                    Contact
-                  </button>
+                <td className="px-3 py-2.5">
+                  <div className="inline-flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onContact(c)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[11px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
+                    >
+                      <PhoneIcon />
+                      Contact
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onHistory(c)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white text-foreground/70 text-[11px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
+                      title="View contact history"
+                    >
+                      History
+                    </button>
+                  </div>
                 </td>
                 <td className="px-3 py-2.5">
                   <LastContactedBy contact={c} />
@@ -573,6 +602,7 @@ function ContactsGrid({
                       onContact={() => { setActionMenuFor(null); onContact(c); }}
                       onUpgrade={() => { setActionMenuFor(null); onUpgrade(c); }}
                       onHistory={() => { setActionMenuFor(null); onHistory(c); }}
+                      onDelete={() => { setActionMenuFor(null); onDelete(c); }}
                     />
                   )}
                 </td>
@@ -603,6 +633,7 @@ function ContactsGrid({
               onContact={() => onContact(c)}
               onUpgrade={() => onUpgrade(c)}
               onHistory={() => onHistory(c)}
+              onDelete={() => onDelete(c)}
             />
           ))
         )}
@@ -617,12 +648,14 @@ function ActionMenuPortal({
   onContact,
   onUpgrade,
   onHistory,
+  onDelete,
 }: {
   rect: DOMRect;
   onClose: () => void;
   onContact: () => void;
   onUpgrade: () => void;
   onHistory: () => void;
+  onDelete: () => void;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -669,6 +702,14 @@ function ActionMenuPortal({
       >
         Upgrade to Partner
       </button>
+      <div className="border-t border-black/5" />
+      <button
+        role="menuitem"
+        onClick={onDelete}
+        className="block w-full text-left px-3 py-2 text-xs text-rose-700 hover:bg-rose-50"
+      >
+        Delete contact
+      </button>
     </div>,
     document.body,
   );
@@ -707,11 +748,13 @@ function ContactMobileCard({
   onContact,
   onUpgrade,
   onHistory,
+  onDelete,
 }: {
   contact: Contact;
   onContact: () => void;
   onUpgrade: () => void;
   onHistory: () => void;
+  onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -821,6 +864,14 @@ function ContactMobileCard({
                   className="block w-full text-left px-3 py-2 text-xs text-primary hover:bg-primary/5"
                 >
                   Upgrade to Partner
+                </button>
+                <div className="border-t border-black/5" />
+                <button
+                  role="menuitem"
+                  onClick={() => { setOpen(false); onDelete(); }}
+                  className="block w-full text-left px-3 py-2 text-xs text-rose-700 hover:bg-rose-50"
+                >
+                  Delete contact
                 </button>
               </div>
             </>

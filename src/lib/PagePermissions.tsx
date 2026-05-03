@@ -77,6 +77,12 @@ const defaultPages: PageConfig[] = [
   // /api/incoming-users/* route. adminOnly here keeps the link out
   // of regular admins' popup; the page bounces non-super admins to
   // /app on direct navigation.
+  // My Profile lives in the popup section so it's manageable from
+  // /app/pages alongside the other admin / utility links. The
+  // PlatformShell renders its dedicated My Profile button so we
+  // skip /app/profile in the popup rendering loops to avoid a
+  // duplicate entry in the user popup / mobile drawer.
+  { path: '/app/profile', label: 'My Profile', adminOnly: false, section: 'popup', sort_order: 0.1, allowedDepartments: [], departmentId: null },
   { path: '/app/incoming-users', label: 'Incoming Users', adminOnly: true, section: 'popup', sort_order: 0.5, allowedDepartments: [], departmentId: null },
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
   { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [], departmentId: null },

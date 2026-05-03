@@ -393,6 +393,17 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           pointer-events: none;
           transform-origin: center;
         }
+        /* When any pin inside a slot is hovered/focused, lift the
+           whole slot above its siblings so the tooltip + glow can
+           render on top of every other avatar in the orbit. Each
+           slot already creates its own stacking context (because of
+           the rotate transform), so a plain z-index on the inner
+           tooltip can't escape that context — only the slot itself
+           can be promoted. */
+        .orbit-slot:has(.orbit-pin:hover),
+        .orbit-slot:has(.orbit-pin:focus-visible) {
+          z-index: 50;
+        }
         .orbit-pin {
           position: absolute;
           left: 50%;
