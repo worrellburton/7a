@@ -403,7 +403,7 @@ export default function UsersContent() {
               </p>
             </div>
             <a
-              href="/app/incoming-users"
+              href="/app/admin/incoming-users"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-amber-700 transition-colors"
               style={{ fontFamily: 'var(--font-body)' }}
             >

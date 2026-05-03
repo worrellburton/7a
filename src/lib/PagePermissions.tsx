@@ -78,16 +78,15 @@ const defaultPages: PageConfig[] = [
   // of regular admins' popup; the page bounces non-super admins to
   // /app on direct navigation.
   // My Profile lives in the popup section so it's manageable from
-  // /app/pages alongside the other admin / utility links. The
+  // /app/admin/pages alongside the other admin / utility links. The
   // PlatformShell renders its dedicated My Profile button so we
   // skip /app/profile in the popup rendering loops to avoid a
   // duplicate entry in the user popup / mobile drawer.
   { path: '/app/profile', label: 'My Profile', adminOnly: false, section: 'popup', sort_order: 0.1, allowedDepartments: [], departmentId: null },
-  { path: '/app/incoming-users', label: 'Incoming Users', adminOnly: true, section: 'popup', sort_order: 0.5, allowedDepartments: [], departmentId: null },
-  { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
-  { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [], departmentId: null },
-  { path: '/app/apis', label: 'APIs', adminOnly: true, section: 'popup', sort_order: 3, allowedDepartments: [], departmentId: null },
-  { path: '/app/user-permissions', label: 'User Permissions', adminOnly: true, section: 'popup', sort_order: 4, allowedDepartments: [], departmentId: null },
+  // Pages / Incoming Users / Departments / APIs / User Permissions
+  // were previously five separate popup entries. They live under
+  // /app/admin now — the index there links out to all of them.
+  { path: '/app/admin', label: 'Admin', adminOnly: true, section: 'popup', sort_order: 0.5, allowedDepartments: [], departmentId: null },
   { path: '/app/activity', label: 'Activity', adminOnly: true, section: 'popup', sort_order: 5, allowedDepartments: [], departmentId: null },
 ];
 
@@ -253,7 +252,9 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   }, [session]);
 
   const setPageAdminOnly = async (path: string, adminOnly: boolean) => {
-    if (path === '/app/team' || path === '/app/pages') return;
+    // Team + Pages-admin must always stay admin-only — locking
+     // those out would brick the org chart + the pages registry.
+    if (path === '/app/team' || path === '/app/admin/pages') return;
 
     setPages((prev) => prev.map((p) => (p.path === path ? { ...p, adminOnly } : p)));
 
