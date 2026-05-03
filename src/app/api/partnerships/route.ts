@@ -79,7 +79,33 @@ export async function GET(req: NextRequest) {
     .order('specialty', { ascending: true, nullsFirst: false })
     .order('name', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ rows: data ?? [], total: data?.length ?? 0 });
+
+  // Resolve last-contacted-by display names + avatars so the grid
+  // can show them without a second round-trip — same pattern as
+  // /api/contacts.
+  const rows = (data ?? []) as Array<Record<string, unknown> & { last_contact_by?: string | null }>;
+  const userIds = Array.from(
+    new Set(rows.map((r) => r.last_contact_by).filter((v): v is string => !!v)),
+  );
+  const userMap = new Map<string, { full_name: string | null; avatar_url: string | null }>();
+  if (userIds.length > 0) {
+    const { data: users } = await admin
+      .from('users')
+      .select('id, full_name, avatar_url')
+      .in('id', userIds);
+    for (const u of (users ?? []) as Array<{ id: string; full_name: string | null; avatar_url: string | null }>) {
+      userMap.set(u.id, {
+        full_name: (u.full_name as string | null) ?? null,
+        avatar_url: (u.avatar_url as string | null) ?? null,
+      });
+    }
+  }
+  const enriched = rows.map((r) => ({
+    ...r,
+    last_contact_by_name: r.last_contact_by ? userMap.get(r.last_contact_by)?.full_name ?? null : null,
+    last_contact_by_avatar_url: r.last_contact_by ? userMap.get(r.last_contact_by)?.avatar_url ?? null : null,
+  }));
+  return NextResponse.json({ rows: enriched, total: enriched.length });
 }
 
 export async function POST(req: NextRequest) {

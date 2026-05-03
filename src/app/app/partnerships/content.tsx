@@ -27,6 +27,14 @@ type PartnerType = (typeof PARTNER_TYPES)[number];
 
 const FACILITY_TYPES: ReadonlySet<string> = new Set(['Detox', 'RTC', 'Outpatient', 'Extended Care']);
 
+type ContactMethod = 'Phone' | 'In Person' | 'Left Message';
+
+const METHOD_TONES: Record<ContactMethod, string> = {
+  Phone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'In Person': 'bg-blue-50 text-blue-700 border-blue-200',
+  'Left Message': 'bg-amber-50 text-amber-700 border-amber-200',
+};
+
 interface Partner {
   id: string;
   name: string;
@@ -43,6 +51,12 @@ interface Partner {
   notes: string | null;
   comments: string | null;
   rep: string | null;
+  last_contact_at: string | null;
+  last_contact_by: string | null;
+  last_contact_method: ContactMethod | null;
+  last_contact_comments: string | null;
+  last_contact_by_name?: string | null;
+  last_contact_by_avatar_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -124,6 +138,8 @@ export default function PartnershipsContent() {
   const [showCols, setShowCols] = useState(false);
   const [editing, setEditing] = useState<Partner | null>(null);
   const [downgradeTarget, setDowngradeTarget] = useState<Partner | null>(null);
+  const [logTarget, setLogTarget] = useState<Partner | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<Partner | null>(null);
   const [actionMenuFor, setActionMenuFor] = useState<string | null>(null);
 
   // Shared column prefs (visible + order). null until first load.
@@ -163,7 +179,9 @@ export default function PartnershipsContent() {
             const ix = prev.findIndex((p) => p.id === row.id);
             if (ix === -1) return [...prev, row];
             const copy = prev.slice();
-            copy[ix] = row;
+            // Preserve client-side joins (last_contact_by_name / avatar)
+            // — the realtime payload only carries raw partner columns.
+            copy[ix] = { ...copy[ix], ...row };
             return copy;
           });
         }
@@ -327,6 +345,44 @@ export default function PartnershipsContent() {
     setEditing(null);
   }
 
+  async function handleLogContact(target: Partner, method: ContactMethod, comments: string) {
+    if (!session?.access_token) return;
+    const optimisticAt = new Date().toISOString();
+    const trimmed = comments.trim() || null;
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === target.id
+          ? {
+              ...r,
+              last_contact_at: optimisticAt,
+              last_contact_by: user?.id ?? r.last_contact_by,
+              last_contact_method: method,
+              last_contact_comments: trimmed,
+              last_contact_by_name:
+                (user?.user_metadata?.full_name as string | undefined) ?? r.last_contact_by_name ?? null,
+              last_contact_by_avatar_url:
+                (user?.user_metadata?.avatar_url as string | undefined) ?? r.last_contact_by_avatar_url ?? null,
+            }
+          : r,
+      ),
+    );
+    setLogTarget(null);
+    const res = await fetch(`/api/partnerships/${target.id}/log-contact`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ method, comments: trimmed ?? '' }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(`Couldn't log contact: ${json.error ?? res.status}`);
+      return;
+    }
+    const updated = (await res.json()) as Partial<Partner>;
+    setRows((prev) =>
+      prev.map((r) => (r.id === target.id ? { ...r, ...updated } : r)),
+    );
+  }
+
   async function confirmDowngrade() {
     const target = downgradeTarget;
     if (!target || !session?.access_token) return;
@@ -441,6 +497,8 @@ export default function PartnershipsContent() {
           onColDrop={onColDrop}
           onEdit={(p) => setEditing(p)}
           onDowngrade={(p) => setDowngradeTarget(p)}
+          onLogContact={(p) => setLogTarget(p)}
+          onHistory={(p) => setHistoryTarget(p)}
           actionMenuFor={actionMenuFor}
           setActionMenuFor={setActionMenuFor}
         />
@@ -476,6 +534,21 @@ export default function PartnershipsContent() {
           onConfirm={confirmDowngrade}
         />
       )}
+      {logTarget && (
+        <LogContactModal
+          partner={logTarget}
+          onClose={() => setLogTarget(null)}
+          onSubmit={(method, comments) => handleLogContact(logTarget, method, comments)}
+        />
+      )}
+      {historyTarget && (
+        <PartnerHistoryModal
+          partner={historyTarget}
+          accessToken={session?.access_token ?? null}
+          onClose={() => setHistoryTarget(null)}
+          onLogContact={() => { setLogTarget(historyTarget); setHistoryTarget(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -490,6 +563,8 @@ function PartnersGrid({
   onColDrop,
   onEdit,
   onDowngrade,
+  onLogContact,
+  onHistory,
   actionMenuFor,
   setActionMenuFor,
 }: {
@@ -500,6 +575,8 @@ function PartnersGrid({
   onColDrop: (key: string) => void;
   onEdit: (p: Partner) => void;
   onDowngrade: (p: Partner) => void;
+  onLogContact: (p: Partner) => void;
+  onHistory: (p: Partner) => void;
   actionMenuFor: string | null;
   setActionMenuFor: (id: string | null) => void;
 }) {
@@ -567,6 +644,20 @@ function PartnersGrid({
                     >
                       <button
                         role="menuitem"
+                        onClick={() => { setActionMenuFor(null); onLogContact(row); }}
+                        className="block w-full text-left px-3 py-2 text-xs text-foreground/80 hover:bg-warm-bg/60"
+                      >
+                        Log a contact
+                      </button>
+                      <button
+                        role="menuitem"
+                        onClick={() => { setActionMenuFor(null); onHistory(row); }}
+                        className="block w-full text-left px-3 py-2 text-xs text-foreground/80 hover:bg-warm-bg/60"
+                      >
+                        View contact history
+                      </button>
+                      <button
+                        role="menuitem"
                         onClick={() => { setActionMenuFor(null); onEdit(row); }}
                         className="block w-full text-left px-3 py-2 text-xs text-foreground/80 hover:bg-warm-bg/60"
                       >
@@ -610,6 +701,8 @@ function PartnersGrid({
               isFirstOfGroup={isFirstOfGroup}
               onEdit={() => onEdit(row)}
               onDowngrade={() => onDowngrade(row)}
+              onLogContact={() => onLogContact(row)}
+              onHistory={() => onHistory(row)}
             />
           ))
         )}
@@ -710,12 +803,16 @@ function PartnerMobileCard({
   isFirstOfGroup,
   onEdit,
   onDowngrade,
+  onLogContact,
+  onHistory,
 }: {
   partner: Partner;
   priority: number;
   isFirstOfGroup: boolean;
   onEdit: () => void;
   onDowngrade: () => void;
+  onLogContact: () => void;
+  onHistory: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const isFacility = FACILITY_TYPES.has(partner.type);
@@ -786,7 +883,53 @@ function PartnerMobileCard({
         )}
       </dl>
 
+      {partner.last_contact_at && (
+        <button
+          type="button"
+          onClick={onHistory}
+          className="mt-3 pt-3 border-t border-black/5 flex items-center gap-2 w-full text-left rounded-md hover:bg-warm-bg/40 -mx-1 px-1 py-1 transition-colors"
+          title="View contact history"
+        >
+          {partner.last_contact_by_avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={partner.last_contact_by_avatar_url}
+              alt={partner.last_contact_by_name ?? 'User'}
+              className="w-7 h-7 rounded-full object-cover bg-warm-bg"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[11px] font-semibold text-foreground/55">
+              {(partner.last_contact_by_name || '?').charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="text-[12px] font-semibold text-foreground truncate">
+              {partner.last_contact_by_name || 'Unknown'}
+            </p>
+            <p className="text-[10.5px] text-foreground/45">
+              {partner.last_contact_method ? `${partner.last_contact_method} · ` : ''}
+              {new Date(partner.last_contact_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            </p>
+          </div>
+        </button>
+      )}
+
       <div className="mt-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onLogContact}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-white text-[12px] font-semibold hover:bg-primary/90 transition-colors"
+        >
+          <PhoneIcon />
+          Log
+        </button>
+        <button
+          type="button"
+          onClick={onHistory}
+          className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-md border border-black/10 text-[12px] font-semibold text-foreground/75 hover:bg-warm-bg/60 transition-colors"
+        >
+          History
+        </button>
         <button
           type="button"
           onClick={onEdit}
@@ -1241,6 +1384,226 @@ function PartnerForm({
   );
 }
 
+// ─── Log-contact modal ────────────────────────────────────────
+
+function LogContactModal({
+  partner,
+  onClose,
+  onSubmit,
+}: {
+  partner: Partner;
+  onClose: () => void;
+  onSubmit: (method: ContactMethod, comments: string) => Promise<void> | void;
+}) {
+  const [method, setMethod] = useState<ContactMethod>('Phone');
+  const [comments, setComments] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6" onClick={onClose}>
+      <form
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (submitting) return;
+          setSubmitting(true);
+          try { await onSubmit(method, comments); } finally { setSubmitting(false); }
+        }}
+        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 pb-[max(1rem,env(safe-area-inset-bottom))]"
+      >
+        <div className="sm:hidden pt-2 pb-1 flex justify-center">
+          <span className="block w-10 h-1 rounded-full bg-foreground/15" />
+        </div>
+        <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5">
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Log a contact</p>
+          <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{partner.name}</h2>
+        </header>
+        <div className="px-5 sm:px-6 py-5 space-y-4">
+          <div>
+            <label className="block text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">
+              Method <span className="text-primary">*</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {(['Phone', 'In Person', 'Left Message'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMethod(m)}
+                  className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                    method === m
+                      ? `${METHOD_TONES[m]} ring-2 ring-offset-1 ring-current/20`
+                      : 'bg-white text-foreground/65 border-black/10 hover:bg-warm-bg/60'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-1">
+              Notes
+            </label>
+            <textarea
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              rows={4}
+              placeholder="Anything worth remembering for next time…"
+              className="w-full px-3 py-2.5 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+            />
+          </div>
+        </div>
+        <footer className="px-5 sm:px-6 pt-1 pb-4 sm:pb-5 flex items-center justify-end gap-2 border-t border-black/5">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-semibold text-foreground/65 hover:bg-warm-bg/60">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
+          >
+            {submitting ? 'Saving…' : 'Save'}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
+// ─── Contact-history modal ────────────────────────────────────
+
+interface PartnerLog {
+  id: string;
+  method: ContactMethod;
+  comments: string | null;
+  contacted_by: string | null;
+  contacted_at: string;
+  contacted_by_name: string | null;
+  contacted_by_avatar_url: string | null;
+}
+
+function PartnerHistoryModal({
+  partner,
+  accessToken,
+  onClose,
+  onLogContact,
+}: {
+  partner: Partner;
+  accessToken: string | null;
+  onClose: () => void;
+  onLogContact: () => void;
+}) {
+  const [logs, setLogs] = useState<PartnerLog[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    fetch(`/api/partnerships/${partner.id}/history`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then(async (r) => {
+        const json = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((json as { error?: string }).error || `HTTP ${r.status}`);
+        return json as { rows: PartnerLog[] };
+      })
+      .then((j) => { if (!cancelled) setLogs(j.rows ?? []); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); });
+    return () => { cancelled = true; };
+  }, [accessToken, partner.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 pb-[env(safe-area-inset-bottom)]"
+      >
+        <div className="sm:hidden pt-2 pb-1 flex justify-center">
+          <span className="block w-10 h-1 rounded-full bg-foreground/15" />
+        </div>
+        <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
+          <div>
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Contact history</p>
+            <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{partner.name}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground p-2 -mr-2" aria-label="Close">
+            <CloseIcon />
+          </button>
+        </header>
+
+        <div className="px-5 sm:px-6 py-5">
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-xs text-foreground/55">
+              {logs == null
+                ? 'Loading…'
+                : logs.length === 0
+                ? 'No contact history yet.'
+                : `${logs.length} ${logs.length === 1 ? 'entry' : 'entries'}, newest first.`}
+            </p>
+            <button
+              type="button"
+              onClick={onLogContact}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[11px] font-semibold hover:bg-primary/90 transition-colors"
+            >
+              <PhoneIcon />
+              Log a contact
+            </button>
+          </div>
+
+          {error && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          )}
+
+          {logs && logs.length > 0 && (
+            <ol className="relative border-l border-black/10 ml-3">
+              {logs.map((log, i) => (
+                <li key={log.id} className="relative pl-5 pb-5 last:pb-0">
+                  <span
+                    className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                      i === 0 ? 'bg-primary' : 'bg-foreground/30'
+                    }`}
+                  />
+                  <div className="flex items-start gap-3">
+                    {log.contacted_by_avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={log.contacted_by_avatar_url}
+                        alt={log.contacted_by_name ?? 'User'}
+                        className="w-8 h-8 rounded-full object-cover bg-warm-bg"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-warm-bg flex items-center justify-center text-[11px] font-semibold text-foreground/55">
+                        {(log.contacted_by_name || '?').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          {log.contacted_by_name || 'Unknown'}
+                        </p>
+                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[log.method]}`}>
+                          {log.method}
+                        </span>
+                        <span className="text-[11px] text-foreground/45">
+                          {new Date(log.contacted_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      {log.comments && (
+                        <p className="mt-1.5 text-sm text-foreground/75 whitespace-pre-wrap leading-relaxed">
+                          {log.comments}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Field({
   label,
   required,
@@ -1641,6 +2004,9 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
 
 function PlusIcon() {
   return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>;
+}
+function PhoneIcon() {
+  return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.86 19.86 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.86 19.86 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>;
 }
 function UploadIcon() {
   return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>;
