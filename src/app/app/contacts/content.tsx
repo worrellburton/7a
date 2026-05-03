@@ -471,8 +471,9 @@ function ContactsGrid({
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-black/10 bg-white">
-      <table className="w-full text-sm">
+    <>
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
+        <table className="w-full text-sm">
         <thead className="bg-warm-bg/50 text-left text-[11px] uppercase tracking-wider text-foreground/55">
           <tr>
             {columns.map((c) => (
@@ -576,7 +577,33 @@ function ContactsGrid({
           )}
         </tbody>
       </table>
-    </div>
+      </div>
+
+      {/* Mobile card layout — table is hard to scan on phones, so
+          each contact gets its own stacked card with every field
+          inline + the same engagement actions. */}
+      <div className="md:hidden flex flex-col gap-3">
+        {loading ? (
+          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-sm text-foreground/45">
+            Loading contacts…
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-sm text-foreground/45">
+            No contacts yet. Tap <span className="font-semibold">Add contact</span> to start.
+          </div>
+        ) : (
+          rows.map((c) => (
+            <ContactMobileCard
+              key={c.id}
+              contact={c}
+              onContact={() => onContact(c)}
+              onUpgrade={() => onUpgrade(c)}
+              onHistory={() => onHistory(c)}
+            />
+          ))
+        )}
+      </div>
+    </>
   );
 }
 
@@ -669,6 +696,135 @@ function ContactCell({ column, contact }: { column: ColumnDef; contact: Contact 
     default:
       return null;
   }
+}
+
+function ContactMobileCard({
+  contact,
+  onContact,
+  onUpgrade,
+  onHistory,
+}: {
+  contact: Contact;
+  onContact: () => void;
+  onUpgrade: () => void;
+  onHistory: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-black/10 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-foreground text-base leading-tight">{contact.name}</p>
+          {contact.role && (
+            <p className="mt-0.5 text-[12px] text-foreground/60">{contact.role}</p>
+          )}
+          {contact.source === 'downgrade-from-partner' && (
+            <p className="mt-1 text-[10px] uppercase tracking-wider text-foreground/40">From partner</p>
+          )}
+        </div>
+        <TimeSinceCell contact={contact} />
+      </div>
+
+      <dl className="mt-3 space-y-1.5 text-[13px]">
+        {contact.phone && (
+          <div className="flex items-baseline gap-2">
+            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Phone</dt>
+            <dd className="min-w-0 flex-1"><CopyableCell value={contact.phone} mono /></dd>
+          </div>
+        )}
+        {contact.email && (
+          <div className="flex items-baseline gap-2">
+            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Email</dt>
+            <dd className="min-w-0 flex-1 break-all"><CopyableCell value={contact.email} /></dd>
+          </div>
+        )}
+        {contact.location && (
+          <div className="flex items-baseline gap-2">
+            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Location</dt>
+            <dd className="text-foreground/75">{contact.location}</dd>
+          </div>
+        )}
+        {contact.notes && (
+          <div className="flex items-baseline gap-2">
+            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Notes</dt>
+            <dd className="text-foreground/75 whitespace-pre-wrap">{contact.notes}</dd>
+          </div>
+        )}
+      </dl>
+
+      {contact.last_contact_at && (
+        <div className="mt-3 pt-3 border-t border-black/5 flex items-center gap-2">
+          {contact.last_contact_by_avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={contact.last_contact_by_avatar_url}
+              alt={contact.last_contact_by_name ?? 'User'}
+              className="w-7 h-7 rounded-full object-cover bg-warm-bg"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[11px] font-semibold text-foreground/55">
+              {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="text-[12px] font-semibold text-foreground truncate">
+              {contact.last_contact_by_name || 'Unknown'}
+            </p>
+            <p className="text-[10.5px] text-foreground/45">{fmtAbsolute(contact.last_contact_at)}</p>
+          </div>
+          {contact.last_contact_method && (
+            <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
+              {contact.last_contact_method}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onContact}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-white text-[12px] font-semibold hover:bg-primary/90 transition-colors"
+        >
+          <PhoneIcon />
+          Contact
+        </button>
+        <button
+          type="button"
+          onClick={onHistory}
+          className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-md border border-black/10 text-[12px] font-semibold text-foreground/75 hover:bg-warm-bg/60 transition-colors"
+        >
+          History
+        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-black/10 text-foreground/55 hover:bg-warm-bg/60"
+            aria-label="More"
+            aria-haspopup="menu"
+            aria-expanded={open}
+          >
+            <DotsIcon />
+          </button>
+          {open && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+              <div role="menu" className="absolute right-0 bottom-full mb-1 z-20 w-48 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden">
+                <button
+                  role="menuitem"
+                  onClick={() => { setOpen(false); onUpgrade(); }}
+                  className="block w-full text-left px-3 py-2 text-xs text-primary hover:bg-primary/5"
+                >
+                  Upgrade to Partner
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Em() { return <span className="text-foreground/30">—</span>; }
