@@ -23,8 +23,10 @@ const API_VERSION = '2023-06-01';
 
 const SCHEMA_PROMPT = `You are normalising a CSV of clinical-partner data for Seven Arrows
 Recovery's admissions team into the exact JSON shape their
-"partners" table accepts. Output ONLY a JSON object — no prose, no
-markdown — matching this TypeScript type:
+"partners" table accepts. Your entire response MUST be a single
+JSON object — no prose before or after, no markdown code fences,
+no explanation. Begin your response with the literal character {
+and end it with }. The object must match this TypeScript type:
 
   {
     "rows": Partner[],
@@ -96,11 +98,12 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       model,
       max_tokens: 8192,
-      // Encourage strict JSON output by asking the model to start
-      // its reply with a `{` (Anthropic's recommended prefill pattern).
+      // No assistant prefill — some models reject it ("This model
+      // does not support assistant message prefill"). Instead we
+      // tell Claude to emit JSON-only and strip any wrapping prose
+      // / code fences below before parsing.
       messages: [
         { role: 'user', content: `${SCHEMA_PROMPT}\n\nCSV:\n${csv}` },
-        { role: 'assistant', content: '{' },
       ],
     }),
   });
@@ -114,19 +117,35 @@ export async function POST(req: NextRequest) {
   }
 
   const text = json.content?.find((c) => c.type === 'text')?.text ?? '';
-  // We prefilled the assistant message with `{`, so the response
-  // starts after it. Reattach.
-  const completed = `{${text}`;
-  let parsed: { rows?: unknown; notes?: unknown } | null = null;
-  try {
-    parsed = JSON.parse(completed);
-  } catch {
-    // The model occasionally adds a trailing prose line. Try
-    // trimming everything after the last `}`.
-    const lastBrace = completed.lastIndexOf('}');
-    if (lastBrace !== -1) {
-      try { parsed = JSON.parse(completed.slice(0, lastBrace + 1)); } catch { /* fall through */ }
+  // Defensive parse — extract the JSON object even when Claude wraps
+  // it in ```json ... ``` fences or adds a trailing prose line. We
+  // walk to the first `{`, then track brace depth (skipping anything
+  // inside double-quoted strings) until depth returns to zero.
+  function extractJsonObject(raw: string): string | null {
+    const start = raw.indexOf('{');
+    if (start === -1) return null;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = start; i < raw.length; i++) {
+      const c = raw[i];
+      if (escape) { escape = false; continue; }
+      if (c === '\\') { escape = true; continue; }
+      if (c === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (c === '{') depth++;
+      else if (c === '}') {
+        depth--;
+        if (depth === 0) return raw.slice(start, i + 1);
+      }
     }
+    return null;
+  }
+
+  const candidate = extractJsonObject(text);
+  let parsed: { rows?: unknown; notes?: unknown } | null = null;
+  if (candidate) {
+    try { parsed = JSON.parse(candidate); } catch { /* ignore */ }
   }
   if (!parsed || !Array.isArray(parsed.rows)) {
     return NextResponse.json(
