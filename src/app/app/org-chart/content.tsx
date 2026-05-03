@@ -2,7 +2,15 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+interface OrgCardGroup {
+  id: string;
+  label: string;
+  org_x: number;
+  org_y: number;
+}
 
 interface OrgUser {
   id: string;
@@ -15,6 +23,10 @@ interface OrgUser {
   org_x: number | null;
   org_y: number | null;
   org_hidden: boolean | null;
+  // When set, the user is rendered as part of a combined card with
+  // the matching group; member-level org_x/org_y is ignored. The
+  // chart adds + dissolves groups via Combine drag-and-drop.
+  org_card_group_id?: string | null;
 }
 
 interface Department {
@@ -85,6 +97,7 @@ export default function OrgChartContent() {
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
+  const [orgGroups, setOrgGroups] = useState<OrgCardGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -103,6 +116,18 @@ export default function OrgChartContent() {
       }
     | null
   >(null);
+  // Inline connect — when a user clicks a hover-handle on a card, we
+  // remember which card they started from. The next card-click writes
+  // an edge. Replaces the old upper-right "Connect" button + banner.
+  const [connectFromHandle, setConnectFromHandle] = useState<
+    | { id: string; label: string; cursorX: number; cursorY: number }
+    | null
+  >(null);
+  // Combine mode — first card-click via the hover "Combine" button
+  // sets the source; the next card-click on a different individual
+  // card prompts for a group label and merges them.
+  const [combineFromId, setCombineFromId] = useState<string | null>(null);
+
   // Multi-selection state. Cards and edges can be selected independently
   // via click-drag box select, shift-click, or shift-click on edges.
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
@@ -130,10 +155,11 @@ export default function OrgChartContent() {
     if (!session?.access_token) return;
 
     async function load() {
-      const [userData, deptData, edgeData] = await Promise.all([
+      const [userData, deptData, edgeData, groupData] = await Promise.all([
         db({ action: 'select', table: 'users', order: { column: 'created_at', ascending: true } }),
         db({ action: 'select', table: 'departments', order: { column: 'name', ascending: true } }),
         db({ action: 'select', table: 'org_chart_edges' }),
+        db({ action: 'select', table: 'org_card_groups' }).catch(() => []),
       ]);
       if (Array.isArray(userData)) {
         // Hydrate default positions for users without saved coordinates
@@ -148,6 +174,7 @@ export default function OrgChartContent() {
       }
       if (Array.isArray(deptData)) setDepartments(deptData);
       if (Array.isArray(edgeData)) setEdges(edgeData);
+      if (Array.isArray(groupData)) setOrgGroups(groupData as OrgCardGroup[]);
       setLoading(false);
     }
     load();
@@ -266,6 +293,61 @@ export default function OrgChartContent() {
   const handleCardClick = useCallback(
     async (userId: string) => {
       if (!isAdmin) return;
+      // Inline connect (hover-handle) — completes a connection if
+      // we're mid-flow.
+      if (connectFromHandle) {
+        const fromId = connectFromHandle.id;
+        if (userId === fromId) { setConnectFromHandle(null); return; }
+        const exists = edges.some((e) =>
+          (e.from_user_id === fromId && e.to_user_id === userId) ||
+          (e.from_user_id === userId && e.to_user_id === fromId),
+        );
+        if (!exists) {
+          const result = await db({
+            action: 'insert',
+            table: 'org_chart_edges',
+            data: { from_user_id: fromId, to_user_id: userId },
+            select: 'id, from_user_id, to_user_id',
+          });
+          if (Array.isArray(result) && result[0]) {
+            setEdges((prev) => [...prev, result[0] as Edge]);
+          }
+        }
+        setConnectFromHandle(null);
+        return;
+      }
+      // Combine mode — pick the second card to merge with.
+      if (combineFromId) {
+        const fromId = combineFromId;
+        if (userId === fromId) { setCombineFromId(null); return; }
+        const a = users.find((u) => u.id === fromId);
+        const b = users.find((u) => u.id === userId);
+        if (!a || !b) { setCombineFromId(null); return; }
+        const aGroup = a.org_card_group_id;
+        const bGroup = b.org_card_group_id;
+        if (aGroup && bGroup && aGroup === bGroup) {
+          showToast('Already in the same group');
+        } else if (aGroup && !bGroup) {
+          await addUserToGroup(b.id, aGroup);
+        } else if (!aGroup && bGroup) {
+          await addUserToGroup(a.id, bGroup);
+        } else if (aGroup && bGroup && aGroup !== bGroup) {
+          showToast('Both already in different groups — leave one first.');
+        } else {
+          // Brand new group — default label from job_title overlap
+          // or "Group".
+          const suggestion =
+            (a.job_title && b.job_title && a.job_title.toLowerCase() === b.job_title.toLowerCase())
+              ? `${a.job_title}s`
+              : 'Group';
+          const label = window.prompt('Name for the combined card', suggestion);
+          if (label && label.trim()) {
+            await combineUsersIntoGroup(a.id, b.id, label.trim());
+          }
+        }
+        setCombineFromId(null);
+        return;
+      }
       if (connectMode.kind === 'off') return;
       if (connectMode.kind === 'pickingFrom') {
         setConnectMode({ kind: 'pickingTo', fromId: userId });
@@ -297,7 +379,8 @@ export default function OrgChartContent() {
         setConnectMode({ kind: 'pickingFrom' });
       }
     },
-    [isAdmin, connectMode, edges]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isAdmin, connectMode, edges, connectFromHandle, combineFromId, users]
   );
 
   // Start a box-select when the mousedown lands on empty canvas space
@@ -758,6 +841,182 @@ export default function OrgChartContent() {
     showToast('Layout reset');
   }
 
+  // "Clean up" — snap every visible card to the nearest grid cell
+  // so rows + columns line up cleanly. Doesn't reorder cards (that's
+  // what Reset Layout does); just nudges them onto a grid.
+  async function cleanUpLayout() {
+    if (!isAdmin) return;
+    const COL = 280; // matches the card width + gutter elsewhere in the file
+    const ROW = 200;
+    const PAD_X = 60;
+    const PAD_Y = 40;
+    const next = users.map((u) => {
+      if (u.org_x == null || u.org_y == null) return u;
+      const colIdx = Math.max(0, Math.round((u.org_x - PAD_X) / COL));
+      const rowIdx = Math.max(0, Math.round((u.org_y - PAD_Y) / ROW));
+      return { ...u, org_x: PAD_X + colIdx * COL, org_y: PAD_Y + rowIdx * ROW };
+    });
+    setUsers(next);
+    for (const u of next) {
+      if (u.org_x == null || u.org_y == null) continue;
+      await db({
+        action: 'update',
+        table: 'users',
+        data: { org_x: u.org_x, org_y: u.org_y },
+        match: { id: u.id },
+      });
+    }
+    showToast('Snapped to grid');
+  }
+
+  // Realtime — keep every open canvas in sync. A teammate moving a
+  // card or wiring up a connection lands here without a refresh.
+  useEffect(() => {
+    if (!session?.access_token || !user?.id) return;
+    const channel = supabase
+      .channel(`org-chart-${user.id}-${Math.random().toString(36).slice(2, 8)}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, (payload) => {
+        const row = payload.new as Partial<OrgUser> & { id: string };
+        setUsers((prev) => prev.map((u) => (u.id === row.id ? { ...u, ...row } : u)));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'org_chart_edges' }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          const old = payload.old as { id: string };
+          setEdges((prev) => prev.filter((e) => e.id !== old.id));
+        } else {
+          const row = payload.new as Edge;
+          setEdges((prev) => {
+            const ix = prev.findIndex((e) => e.id === row.id);
+            if (ix === -1) return [...prev, row];
+            const copy = prev.slice();
+            copy[ix] = row;
+            return copy;
+          });
+        }
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [session?.access_token, user?.id]);
+
+  // Escape cancels an in-flight connect-from-handle.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && connectFromHandle) setConnectFromHandle(null);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [connectFromHandle]);
+
+  // Inline-connect — used by the hover handles on each card. The
+  // first call sets the source; the second call writes the edge and
+  // clears state. If the same card is clicked twice, it's a no-op.
+  async function startConnectFrom(id: string) {
+    const u = users.find((x) => x.id === id);
+    if (!u) return;
+    setConnectFromHandle({ id, label: u.full_name || 'card', cursorX: u.org_x ?? 0, cursorY: u.org_y ?? 0 });
+  }
+  async function completeConnectTo(toId: string) {
+    if (!connectFromHandle) return;
+    const fromId = connectFromHandle.id;
+    if (fromId === toId) { setConnectFromHandle(null); return; }
+    // Don't duplicate.
+    const exists = edges.some((e) =>
+      (e.from_user_id === fromId && e.to_user_id === toId) ||
+      (e.from_user_id === toId && e.to_user_id === fromId),
+    );
+    if (exists) { setConnectFromHandle(null); return; }
+    const result = await db({
+      action: 'insert',
+      table: 'org_chart_edges',
+      data: { from_user_id: fromId, to_user_id: toId },
+      select: 'id, from_user_id, to_user_id',
+    });
+    if (Array.isArray(result) && result[0]) {
+      setEdges((prev) => [...prev, result[0] as Edge]);
+    }
+    setConnectFromHandle(null);
+  }
+
+  // Combine two cards into a single multi-person "group card". The
+  // group inherits the target card's position; both members get
+  // org_card_group_id = newGroup.id. Realtime broadcasts the change.
+  async function combineUsersIntoGroup(aId: string, bId: string, label: string) {
+    const a = users.find((u) => u.id === aId);
+    const b = users.find((u) => u.id === bId);
+    if (!a || !b) return;
+    const x = b.org_x ?? a.org_x ?? 0;
+    const y = b.org_y ?? a.org_y ?? 0;
+    const result = await db({
+      action: 'insert',
+      table: 'org_card_groups',
+      data: { label, org_x: x, org_y: y, created_by: user?.id ?? null },
+      select: 'id, label, org_x, org_y',
+    });
+    const newGroup = Array.isArray(result) && result[0] ? (result[0] as OrgCardGroup) : null;
+    if (!newGroup) return;
+    await Promise.all(
+      [aId, bId].map((id) =>
+        db({
+          action: 'update',
+          table: 'users',
+          data: { org_card_group_id: newGroup.id },
+          match: { id },
+        }),
+      ),
+    );
+    setOrgGroups((prev) => [...prev, newGroup]);
+    setUsers((prev) =>
+      prev.map((u) => (u.id === aId || u.id === bId ? { ...u, org_card_group_id: newGroup.id } : u)),
+    );
+    showToast(`Combined into "${label}"`);
+  }
+
+  async function addUserToGroup(userId: string, groupId: string) {
+    await db({
+      action: 'update',
+      table: 'users',
+      data: { org_card_group_id: groupId },
+      match: { id: userId },
+    });
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, org_card_group_id: groupId } : u)));
+  }
+
+  async function removeUserFromGroup(userId: string) {
+    const u = users.find((x) => x.id === userId);
+    if (!u || !u.org_card_group_id) return;
+    const groupId = u.org_card_group_id;
+    await db({
+      action: 'update',
+      table: 'users',
+      data: { org_card_group_id: null },
+      match: { id: userId },
+    });
+    setUsers((prev) => prev.map((x) => (x.id === userId ? { ...x, org_card_group_id: null } : x)));
+    // If the group has fewer than 2 members left, dissolve it.
+    const remaining = users.filter((x) => x.org_card_group_id === groupId && x.id !== userId);
+    if (remaining.length < 2) {
+      await db({ action: 'delete', table: 'org_card_groups', match: { id: groupId } });
+      setOrgGroups((prev) => prev.filter((g) => g.id !== groupId));
+      // The remaining single member also unhooks.
+      for (const m of remaining) {
+        await db({
+          action: 'update',
+          table: 'users',
+          data: { org_card_group_id: null },
+          match: { id: m.id },
+        });
+      }
+      setUsers((prev) =>
+        prev.map((x) => (x.org_card_group_id === groupId ? { ...x, org_card_group_id: null } : x)),
+      );
+    }
+  }
+  // Surface a few helpers we keep around for future menu-driven entry
+  // points (remove from group, dissolve, etc.) — referenced here to
+  // satisfy the linter without extra comments.
+  void addUserToGroup;
+  void removeUserFromGroup;
+
   if (!user) return null;
 
   return (
@@ -797,17 +1056,13 @@ export default function OrgChartContent() {
                 </button>
               )}
               <button
-                onClick={() =>
-                  setConnectMode((m) => (m.kind === 'off' ? { kind: 'pickingFrom' } : { kind: 'off' }))
-                }
-                className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors ${
-                  connectMode.kind === 'off'
-                    ? 'bg-primary text-white hover:bg-primary-dark'
-                    : 'bg-foreground text-white hover:bg-primary-dark'
-                }`}
+                onClick={cleanUpLayout}
+                className="px-4 py-2 bg-primary text-white rounded-full text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark transition-colors inline-flex items-center gap-1.5"
                 style={{ fontFamily: 'var(--font-body)' }}
+                title="Snap every card to the nearest grid cell so rows + columns line up"
               >
-                {connectMode.kind === 'off' ? 'Connect' : 'Done connecting'}
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                Clean up
               </button>
               <button
                 onClick={autoLayout}
@@ -821,12 +1076,10 @@ export default function OrgChartContent() {
         </div>
       </div>
 
-      {connectMode.kind !== 'off' && (
-        <div className="mb-4 p-4 rounded-xl bg-primary/10 border border-primary/20">
+      {connectFromHandle && (
+        <div className="mb-4 p-3 rounded-xl bg-primary/10 border border-primary/20">
           <p className="text-xs font-medium text-primary" style={{ fontFamily: 'var(--font-body)' }}>
-            {connectMode.kind === 'pickingFrom'
-              ? 'Click the card you want to connect FROM (e.g. the manager).'
-              : 'Now click the card you want to connect TO (e.g. the direct report). Click "Done connecting" when finished.'}
+            Connecting from <span className="font-bold">{connectFromHandle.label}</span> — click another card to draw the line, or press <kbd className="px-1.5 py-0.5 bg-white rounded border border-primary/30">Esc</kbd> to cancel.
           </p>
         </div>
       )}
@@ -1013,13 +1266,89 @@ export default function OrgChartContent() {
               })}
             </svg>
 
-            {displayedUsers.map((u) => {
+            {/* Combined-card render — one card per group with the
+                group label + every member's avatar stacked. The
+                group's own org_x / org_y is the position. Member
+                cards inside the same group are skipped from the
+                individual-card render below. */}
+            {orgGroups.map((g) => {
+              const members = displayedUsers.filter((u) => u.org_card_group_id === g.id);
+              if (members.length === 0) return null;
+              return (
+                <div
+                  key={`group-${g.id}`}
+                  className="absolute bg-white rounded-2xl border border-primary/30 shadow-sm hover:shadow-md transition-shadow cursor-default group"
+                  style={{
+                    left: g.org_x + 'px',
+                    top: g.org_y + 'px',
+                    width: CARD_WIDTH + 'px',
+                    height: CARD_HEIGHT + 'px',
+                  }}
+                  title={members.map((m) => m.full_name).filter(Boolean).join(', ')}
+                >
+                  <div className="p-3 h-full flex flex-col">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-primary">{g.label}</p>
+                      {isAdmin && (
+                        <button
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const next = window.prompt('Group label', g.label);
+                            if (!next || next.trim() === g.label) return;
+                            await db({ action: 'update', table: 'org_card_groups', data: { label: next.trim() }, match: { id: g.id } });
+                            setOrgGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, label: next.trim() } : x)));
+                          }}
+                          className="text-[10px] text-foreground/40 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          rename
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-2 flex-1 overflow-hidden content-start">
+                      {members.slice(0, 8).map((m) => (
+                        <div key={m.id} className="flex items-center gap-1.5 min-w-0">
+                          {m.avatar_url ? (
+                            <img src={m.avatar_url} alt="" className="w-7 h-7 rounded-full shrink-0 border border-white shadow-sm" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-white text-[10px] font-bold border border-white shadow-sm" style={{ backgroundColor: '#a0522d' }}>
+                              {(m.full_name || m.email || '?').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="text-[11px] text-foreground/75 truncate">{m.full_name?.split(' ')[0] ?? m.email}</span>
+                          {isAdmin && (
+                            <button
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => { e.stopPropagation(); void removeUserFromGroup(m.id); }}
+                              className="text-foreground/30 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                              aria-label="Remove from group"
+                              title="Remove from group"
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18"/></svg>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {members.length > 8 && (
+                        <span className="text-[11px] text-foreground/45">+{members.length - 8} more</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {displayedUsers.filter((u) => !u.org_card_group_id).map((u) => {
               const dept = u.department_id ? deptById.get(u.department_id) : null;
               const isDragging = draggingId === u.id;
               const isSelected = selectedUserIds.has(u.id);
               const isPickingFrom = connectMode.kind === 'pickingFrom';
               const isPickedSource = connectMode.kind === 'pickingTo' && connectMode.fromId === u.id;
               const isPickingTo = connectMode.kind === 'pickingTo' && connectMode.fromId !== u.id;
+              const isConnectingFromMe = connectFromHandle?.id === u.id;
+              const isAwaitingConnectTarget = connectFromHandle && connectFromHandle.id !== u.id;
+              const isCombiningFromMe = combineFromId === u.id;
+              const isAwaitingCombineTarget = combineFromId && combineFromId !== u.id;
               const isHiddenShown = !!u.org_hidden; // only true when showHidden is on
               const connectHighlight = isPickedSource
                 ? 'border-primary ring-2 ring-primary/30 shadow-lg z-20'
