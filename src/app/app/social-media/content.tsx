@@ -114,7 +114,7 @@ export default function SocialMediaContent() {
           <p>
             Posting on the Seven Arrows social accounts is restricted to
             super admins. If you need access, ask one of them to grant
-            super-admin in <span className="font-mono text-[12px]">/app/user-permissions</span>.
+            super-admin in <span className="font-mono text-[12px]">/app/admin/user-permissions</span>.
           </p>
         </div>
       </div>
