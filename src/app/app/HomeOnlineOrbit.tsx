@@ -88,6 +88,15 @@ function fmtRelative(iso: string | null): string {
 export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  // Per-avatar absolute tooltips were clipped by the home wrapper's
+  // overflow-hidden whenever a near-edge avatar was hovered. Using a
+  // single shared tooltip pinned just under the 7A medallion keeps
+  // it on-screen regardless of which avatar is active.
+  const [hovered, setHovered] = useState<
+    | { kind: 'user'; user: OrbitUser; viewing: string | null; navTarget: string | null; online: boolean }
+    | { kind: 'horse'; horse: OrbitHorse }
+    | null
+  >(null);
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 60);
@@ -192,6 +201,10 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                   <button
                     type="button"
                     onClick={() => router.push(`/app/equine/${h.id}`)}
+                    onMouseEnter={() => setHovered({ kind: 'horse', horse: h })}
+                    onMouseLeave={() => setHovered((prev) => (prev?.kind === 'horse' && prev.horse.id === h.id ? null : prev))}
+                    onFocus={() => setHovered({ kind: 'horse', horse: h })}
+                    onBlur={() => setHovered((prev) => (prev?.kind === 'horse' && prev.horse.id === h.id ? null : prev))}
                     className={`orbit-pin group orbit-pin-horse ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} cursor-pointer`}
                     style={pinStyle}
                     title={h.name}
@@ -220,33 +233,6 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                               {h.name.charAt(0)}
                             </span>
                           )}
-                          <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 z-[60] text-left">
-                            <span className="block bg-white rounded-xl border border-gray-100 shadow-xl px-3 py-2 min-w-[220px] opacity-0 group-hover:opacity-100 transition-opacity">
-                              <span className="block text-sm font-semibold text-foreground whitespace-nowrap">{h.name}</span>
-                              <span className="block text-[11px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-                                {h.age != null ? `${h.age} years` : 'Age unknown'}
-                                {h.works_in ? ` · ${h.works_in}` : ''}
-                              </span>
-                              <span className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
-                                <span className="text-foreground/40">Weight</span>
-                                <span className="text-foreground/80 text-right">
-                                  {h.last_weight_lbs ? `${h.last_weight_lbs} lbs` : h.weight ? `${h.weight} lbs` : '—'}
-                                </span>
-                                <span className="text-foreground/40">Last fed</span>
-                                <span className="text-foreground/80 text-right">
-                                  {h.last_fed_at
-                                    ? `${h.last_feed_amount ?? ''}${h.last_feed_unit ? ' ' + h.last_feed_unit : ''} ${h.last_feed_type ?? ''} · ${fmtRelative(h.last_fed_at)}`.trim()
-                                    : '—'}
-                                </span>
-                                {h.last_weighed_at && (
-                                  <>
-                                    <span className="text-foreground/40">Weighed</span>
-                                    <span className="text-foreground/80 text-right">{fmtRelative(h.last_weighed_at)}</span>
-                                  </>
-                                )}
-                              </span>
-                            </span>
-                          </span>
                         </span>
                       </span>
                     </span>
@@ -287,6 +273,10 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                 <Wrapper
                   type={navTarget ? 'button' : undefined}
                   onClick={navTarget ? () => router.push(navTarget) : undefined}
+                  onMouseEnter={() => setHovered({ kind: 'user', user: u, viewing, navTarget, online })}
+                  onMouseLeave={() => setHovered((h) => (h?.kind === 'user' && h.user.id === u.id ? null : h))}
+                  onFocus={() => setHovered({ kind: 'user', user: u, viewing, navTarget, online })}
+                  onBlur={() => setHovered((h) => (h?.kind === 'user' && h.user.id === u.id ? null : h))}
                   className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} ${navTarget ? 'cursor-pointer' : ''}`}
                   style={pinStyle}
                   title={navTarget ? `Go to ${viewing}` : undefined}
@@ -331,26 +321,11 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                             className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white"
                           />
                         )}
-                        {/* Tooltip — same counter-rotating layer so
-                            it reads upright regardless of which side
-                            of the orbit the avatar currently sits on. */}
-                        <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-[60] text-left shadow-lg">
-                          <span className="block font-semibold text-white">
-                            {u.full_name || 'User'}
-                          </span>
-                          {u.job_title && (
-                            <span className="block text-white/85">{u.job_title}</span>
-                          )}
-                          <span className="block text-white/75">
-                            {online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}
-                          </span>
-                          {viewing && (
-                            <span className="block text-emerald-300">
-                              Viewing {viewing}
-                              {navTarget ? ' — click to jump' : ''}
-                            </span>
-                          )}
-                        </span>
+                        {/* Per-avatar tooltips were clipped by the
+                            home wrapper's overflow-hidden whenever
+                            an edge avatar was hovered; the shared
+                            tooltip below the 7A medallion replaces
+                            them. */}
                       </span>
                     </span>
                   </span>
@@ -359,6 +334,58 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             );
           })}
         </div>
+
+        {/* Shared centre tooltip — pinned just below the 7A
+            medallion, slot-rotation-free so it can never be clipped
+            by the home wrapper's overflow-hidden no matter where the
+            hovered avatar sits in the orbit. */}
+        {hovered && (
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 mt-12 z-[60] pointer-events-none">
+            {hovered.kind === 'user' ? (
+              <div className="w-max max-w-[min(18rem,80vw)] px-3 py-2 bg-foreground text-white text-xs rounded-lg shadow-lg break-words text-center">
+                <p className="font-semibold leading-tight">{hovered.user.full_name || 'User'}</p>
+                {hovered.user.job_title && (
+                  <p className="text-white/85 leading-tight mt-0.5">{hovered.user.job_title}</p>
+                )}
+                <p className="text-white/75 leading-tight mt-0.5">
+                  {hovered.online ? 'Online now' : `Last active ${timeAgo(hovered.user.last_sign_in)}`}
+                </p>
+                {hovered.viewing && (
+                  <p className="text-emerald-300 leading-tight mt-0.5">
+                    Viewing {hovered.viewing}
+                    {hovered.navTarget ? ' — click to jump' : ''}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="w-max max-w-[min(18rem,80vw)] bg-white rounded-xl border border-gray-100 shadow-xl px-3 py-2">
+                <p className="text-sm font-semibold text-foreground">{hovered.horse.name}</p>
+                <p className="text-[11px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                  {hovered.horse.age != null ? `${hovered.horse.age} years` : 'Age unknown'}
+                  {hovered.horse.works_in ? ` · ${hovered.horse.works_in}` : ''}
+                </p>
+                <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span className="text-foreground/40">Weight</span>
+                  <span className="text-foreground/80 text-right">
+                    {hovered.horse.last_weight_lbs ? `${hovered.horse.last_weight_lbs} lbs` : hovered.horse.weight ? `${hovered.horse.weight} lbs` : '—'}
+                  </span>
+                  <span className="text-foreground/40">Last fed</span>
+                  <span className="text-foreground/80 text-right">
+                    {hovered.horse.last_fed_at
+                      ? `${hovered.horse.last_feed_amount ?? ''}${hovered.horse.last_feed_unit ? ' ' + hovered.horse.last_feed_unit : ''} ${hovered.horse.last_feed_type ?? ''} · ${fmtRelative(hovered.horse.last_fed_at)}`.trim()
+                      : '—'}
+                  </span>
+                  {hovered.horse.last_weighed_at && (
+                    <>
+                      <span className="text-foreground/40">Weighed</span>
+                      <span className="text-foreground/80 text-right">{fmtRelative(hovered.horse.last_weighed_at)}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         </div>
       </div>
 
