@@ -280,6 +280,12 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="12" cy="9" r="1.6" />
     </svg>
   ),
+  '/app/chat': (
+    // Speech bubble — alumni + team chat room.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+    </svg>
+  ),
   '/app/intake-paperwork': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 11.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V4.5A2.25 2.25 0 016 2.25h2.25m3.75 11.25v2.25m0 0l-3-3m3 3l3-3" />
@@ -452,6 +458,32 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       window.clearInterval(iv);
     };
   }, [canSeeWebsiteRequests]);
+
+  // Chat unread red dot — polls /api/chat/unread for the global
+  // room and stores the count under '/app/chat'. The nav row's
+  // existing badge renderer picks it up automatically. Cleared
+  // by the chat page on mount via /api/chat/unread POST.
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetch('/api/chat/unread?room=general', { cache: 'no-store', credentials: 'include' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json: { unread?: number } | null) => {
+          if (cancelled || !json) return;
+          setNavBadges((prev) => ({ ...prev, '/app/chat': json.unread ?? 0 }));
+        })
+        .catch(() => { /* non-fatal */ });
+    };
+    load();
+    const onVis = () => { if (!document.hidden) load(); };
+    document.addEventListener('visibilitychange', onVis);
+    const iv = window.setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVis);
+      window.clearInterval(iv);
+    };
+  }, []);
 
   // Sidebar/popup links are gated on three layers, in this order:
   //   1. Per-user override (set by a super admin via /app/user-permissions

@@ -49,7 +49,7 @@ function timeAgo(dateStr: string | null): string {
 }
 
 export default function HomeContent() {
-  const { user, session } = useAuth();
+  const { user, session, userKind } = useAuth();
   const { pages } = usePagePermissions();
   const router = useRouter();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
@@ -447,10 +447,11 @@ export default function HomeContent() {
             </div>
 
             {/* RIGHT (top row): single "+" button that opens a small
-                dropdown with the two creation entry points. Replaces
-                the prior side-by-side Feature-request + New-facilities
-                pills so the hero band stays compact. */}
-            <div ref={addMenuRef} className="relative shrink-0">
+                dropdown with the two creation entry points. Hidden
+                for alumni — Feature Request + New Facilities are
+                staff-only flows and don't apply to the alumni home
+                experience. */}
+            <div ref={addMenuRef} className={`relative shrink-0 ${userKind === 'alumni' ? 'hidden' : ''}`}>
               <button
                 type="button"
                 onClick={() => setAddMenuOpen((v) => !v)}
