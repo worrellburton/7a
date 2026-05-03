@@ -521,9 +521,14 @@ export default function HomeContent() {
 
         {/* Centered, slowly-rotating ring of teammates active in the
             last 24 hours, with the horse roster orbiting in the inner
-            ring. See HomeOnlineOrbit.tsx for the anatomy + animation. */}
+            ring. See HomeOnlineOrbit.tsx for the anatomy + animation.
+            Mobile: pinned to the dead centre of the viewport (the
+            home wrapper is h-[100vh]) so the 7A medallion is always
+            at the screen's bullseye regardless of welcome-header
+            height. sm+: returns to normal flex flow under the
+            centerpiece. */}
         {recentUsers.length > 0 && (
-          <section className="relative z-50 w-full max-w-4xl mx-auto py-2">
+          <section className="z-50 w-full max-w-4xl mx-auto py-2 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:relative sm:top-auto sm:left-auto sm:translate-x-0 sm:translate-y-0">
             <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} />
           </section>
         )}
