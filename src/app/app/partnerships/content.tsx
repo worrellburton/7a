@@ -532,17 +532,17 @@ function PartnersGrid({
             rows.map(({ row, priority, isFirstOfGroup }) => (
               <tr
                 key={row.id}
-                className={`align-top hover:bg-warm-bg/40 transition-colors ${isFirstOfGroup ? 'border-t-2 border-t-primary/15' : ''}`}
+                className={`align-middle h-12 hover:bg-warm-bg/40 transition-colors ${isFirstOfGroup ? 'border-t-2 border-t-primary/15' : ''}`}
               >
                 {columns.map((c) => (
                   <td
                     key={c.key}
-                    className={`px-3 py-2.5 ${c.align === 'right' ? 'text-right' : ''} ${c.key === 'priority' ? 'sticky left-0 bg-white z-[1] font-semibold tabular-nums text-foreground/55' : ''}`}
+                    className={`px-3 py-0 h-12 max-w-[260px] overflow-hidden whitespace-nowrap ${c.align === 'right' ? 'text-right' : ''} ${c.key === 'priority' ? 'sticky left-0 bg-white z-[1] font-semibold tabular-nums text-foreground/55' : ''}`}
                   >
                     <CellRenderer column={c} partner={row} priority={priority} onEdit={onEdit} />
                   </td>
                 ))}
-                <td className="px-2 py-2.5 text-right relative">
+                <td className="px-2 py-0 h-12 text-right relative align-middle">
                   <button
                     type="button"
                     onClick={() => setActionMenuFor(actionMenuFor === row.id ? null : row.id)}
@@ -605,7 +605,8 @@ function CellRenderer({
         <button
           type="button"
           onClick={() => onEdit(partner)}
-          className="text-left font-semibold text-foreground hover:text-primary transition-colors"
+          className="text-left font-semibold text-foreground hover:text-primary transition-colors truncate block max-w-full align-middle"
+          title={partner.name}
         >
           {partner.name}
         </button>
@@ -617,11 +618,11 @@ function CellRenderer({
         </span>
       );
     case 'specialty':
-      return <span className="text-foreground/75">{partner.specialty || <Em />}</span>;
+      return <span className="text-foreground/75 truncate block">{partner.specialty || <Em />}</span>;
     case 'location':
-      return <span className="text-foreground/65 whitespace-nowrap">{partner.location || <Em />}</span>;
+      return <span className="text-foreground/65 truncate block">{partner.location || <Em />}</span>;
     case 'poc':
-      return <span className="text-foreground/75">{partner.poc || <Em />}</span>;
+      return <span className="text-foreground/75 truncate block">{partner.poc || <Em />}</span>;
     case 'contact_info':
       return partner.contact_info
         ? <CopyableCell value={partner.contact_info} />
@@ -648,17 +649,17 @@ function CellRenderer({
         : <Em />;
     case 'website':
       return partner.website
-        ? <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate inline-block max-w-[220px]">{partner.website.replace(/^https?:\/\//, '')}</a>
+        ? <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate inline-block max-w-[220px] align-middle">{partner.website.replace(/^https?:\/\//, '')}</a>
         : <Em />;
     case 'rep':
-      return <span className="text-foreground/75">{partner.rep || <Em />}</span>;
+      return <span className="text-foreground/75 truncate block">{partner.rep || <Em />}</span>;
     case 'notes':
       return partner.notes
-        ? <span className="text-foreground/75 line-clamp-2 leading-snug max-w-[320px]">{partner.notes}</span>
+        ? <span className="text-foreground/75 truncate block max-w-[320px]" title={partner.notes}>{partner.notes}</span>
         : <Em />;
     case 'comments':
       return partner.comments
-        ? <span className="text-foreground/75 line-clamp-2 leading-snug max-w-[320px]">{partner.comments}</span>
+        ? <span className="text-foreground/75 truncate block max-w-[320px]" title={partner.comments}>{partner.comments}</span>
         : <Em />;
     default:
       return null;
@@ -669,14 +670,29 @@ function Em() {
   return <span className="text-foreground/30">—</span>;
 }
 
-function BadgeList({ values }: { values: string[] }) {
+// Compact, single-line badge stack used inside the row cells. Caps
+// at 2 visible badges + a "+N" overflow chip so the row never grows
+// beyond one line. Hover the cell to see the full list via the
+// title attribute on the wrapper.
+function BadgeList({ values, max = 2 }: { values: string[]; max?: number }) {
+  if (values.length === 0) return <Em />;
+  const shown = values.slice(0, max);
+  const hidden = values.length - shown.length;
   return (
-    <div className="flex flex-wrap gap-1">
-      {values.map((v) => (
-        <span key={v} className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10.5px] font-semibold border ${badgeClass(v)}`}>
+    <div className="inline-flex items-center gap-1 align-middle whitespace-nowrap" title={values.join(', ')}>
+      {shown.map((v) => (
+        <span
+          key={v}
+          className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10.5px] font-semibold border ${badgeClass(v)}`}
+        >
           {v}
         </span>
       ))}
+      {hidden > 0 && (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10.5px] font-semibold border bg-warm-bg/70 text-foreground/55 border-black/10">
+          +{hidden}
+        </span>
+      )}
     </div>
   );
 }
@@ -694,12 +710,12 @@ function CopyableCell({ value, mono }: { value: string; mono?: boolean }) {
     }
   };
   return (
-    <span className="inline-flex items-center gap-1 group/cp">
-      <span className={`text-foreground/80 ${mono ? 'tabular-nums' : ''}`}>{value}</span>
+    <span className="inline-flex items-center gap-1 group/cp align-middle max-w-full" title={value}>
+      <span className={`text-foreground/80 truncate ${mono ? 'tabular-nums' : ''}`}>{value}</span>
       <button
         type="button"
         onClick={handle}
-        className="opacity-0 group-hover/cp:opacity-100 transition-opacity text-foreground/40 hover:text-primary"
+        className="opacity-0 group-hover/cp:opacity-100 transition-opacity text-foreground/40 hover:text-primary shrink-0"
         aria-label="Copy"
         title={copied ? 'Copied!' : 'Copy'}
       >
