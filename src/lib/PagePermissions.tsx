@@ -69,6 +69,11 @@ const defaultPages: PageConfig[] = [
   // see it surface but bounce to the app root if they navigate in.
   { path: '/app/levers', label: 'Levers', adminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
   { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
+  // Super-admin gate is enforced inside the page itself + on every
+  // /api/incoming-users/* route. adminOnly here keeps the link out
+  // of regular admins' popup; the page bounces non-super admins to
+  // /app on direct navigation.
+  { path: '/app/incoming-users', label: 'Incoming Users', adminOnly: true, section: 'popup', sort_order: 0.5, allowedDepartments: [], departmentId: null },
   { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
   { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [], departmentId: null },
   { path: '/app/apis', label: 'APIs', adminOnly: true, section: 'popup', sort_order: 3, allowedDepartments: [], departmentId: null },

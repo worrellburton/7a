@@ -271,6 +271,15 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M2 7h2M2 12h2M2 17h2" />
     </svg>
   ),
+  '/app/incoming-users': (
+    // Inbox + person — incoming sign-ins waiting for triage.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 13l3-7h12l3 7" />
+      <path d="M3 13v6a2 2 0 002 2h14a2 2 0 002-2v-6" />
+      <path d="M3 13h4l1 2h8l1-2h4" />
+      <circle cx="12" cy="9" r="1.6" />
+    </svg>
+  ),
   '/app/intake-paperwork': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 11.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V4.5A2.25 2.25 0 016 2.25h2.25m3.75 11.25v2.25m0 0l-3-3m3 3l3-3" />
