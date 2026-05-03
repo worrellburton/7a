@@ -47,20 +47,30 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const { id } = await ctx.params;
 
   const admin = getAdminSupabase();
-  const { data: existing } = await admin
-    .from('chat_messages')
-    .select('user_id')
-    .eq('id', id)
-    .maybeSingle();
+  const [{ data: existing }, { data: meRow }] = await Promise.all([
+    admin.from('chat_messages').select('user_id').eq('id', id).maybeSingle(),
+    admin.from('users').select('is_super_admin').eq('id', user.id).maybeSingle(),
+  ]);
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  if ((existing as { user_id: string }).user_id !== user.id) {
+  const isSuperAdmin = (meRow as { is_super_admin?: boolean } | null)?.is_super_admin === true;
+  const isAuthor = (existing as { user_id: string }).user_id === user.id;
+  if (!isSuperAdmin && !isAuthor) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // Super admins HARD-delete (row removed, gone from history); the
+  // message author SOFT-deletes (row stays so the timeline doesn't
+  // gap; body blanked + deleted_at set so the UI renders an
+  // anonymous "(message deleted)" placeholder).
+  if (isSuperAdmin) {
+    const { error } = await admin.from('chat_messages').delete().eq('id', id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, mode: 'hard' });
+  }
   const { error } = await admin
     .from('chat_messages')
     .update({ body: '', deleted_at: new Date().toISOString() })
     .eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, mode: 'soft' });
 }
