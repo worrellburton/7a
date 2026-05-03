@@ -17,6 +17,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -117,7 +118,7 @@ export default function ContactsContent() {
   const [showCols, setShowCols] = useState(false);
   const [logTarget, setLogTarget] = useState<Contact | null>(null);
   const [upgradeTarget, setUpgradeTarget] = useState<Contact | null>(null);
-  const [actionMenuFor, setActionMenuFor] = useState<string | null>(null);
+  const [actionMenuFor, setActionMenuFor] = useState<{ id: string; rect: DOMRect } | null>(null);
 
   const [visibleCols, setVisibleCols] = useState<string[] | null>(null);
   const [columnOrder, setColumnOrder] = useState<string[] | null>(null);
@@ -432,8 +433,8 @@ function ContactsGrid({
   onColDrop: (k: string) => void;
   onContact: (c: Contact) => void;
   onUpgrade: (c: Contact) => void;
-  actionMenuFor: string | null;
-  setActionMenuFor: (id: string | null) => void;
+  actionMenuFor: { id: string; rect: DOMRect } | null;
+  setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-black/10 bg-white">
@@ -500,34 +501,28 @@ function ContactsGrid({
                 <td className="px-3 py-2.5">
                   <LastContactCell contact={c} />
                 </td>
-                <td className="px-2 py-2.5 text-right relative">
+                <td className="px-2 py-2.5 text-right">
                   <button
                     type="button"
-                    onClick={() => setActionMenuFor(actionMenuFor === c.id ? null : c.id)}
+                    onClick={(e) => {
+                      if (actionMenuFor?.id === c.id) { setActionMenuFor(null); return; }
+                      const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                      setActionMenuFor({ id: c.id, rect });
+                    }}
                     className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-foreground hover:bg-warm-bg"
                     aria-label="Actions"
                     aria-haspopup="menu"
-                    aria-expanded={actionMenuFor === c.id}
+                    aria-expanded={actionMenuFor?.id === c.id}
                   >
                     <DotsIcon />
                   </button>
-                  {actionMenuFor === c.id && (
-                    <div role="menu" className="absolute right-3 top-9 z-30 w-48 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden">
-                      <button
-                        role="menuitem"
-                        onClick={() => { setActionMenuFor(null); onContact(c); }}
-                        className="block w-full text-left px-3 py-2 text-xs text-foreground/80 hover:bg-warm-bg/60"
-                      >
-                        Log a contact
-                      </button>
-                      <button
-                        role="menuitem"
-                        onClick={() => { setActionMenuFor(null); onUpgrade(c); }}
-                        className="block w-full text-left px-3 py-2 text-xs text-primary hover:bg-primary/5"
-                      >
-                        Upgrade to Partner
-                      </button>
-                    </div>
+                  {actionMenuFor?.id === c.id && (
+                    <ActionMenuPortal
+                      rect={actionMenuFor.rect}
+                      onClose={() => setActionMenuFor(null)}
+                      onContact={() => { setActionMenuFor(null); onContact(c); }}
+                      onUpgrade={() => { setActionMenuFor(null); onUpgrade(c); }}
+                    />
                   )}
                 </td>
               </tr>
@@ -536,6 +531,60 @@ function ContactsGrid({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function ActionMenuPortal({
+  rect,
+  onClose,
+  onContact,
+  onUpgrade,
+}: {
+  rect: DOMRect;
+  onClose: () => void;
+  onContact: () => void;
+  onUpgrade: () => void;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    // Defer attach so the click that opened the menu doesn't immediately close it.
+    const t = setTimeout(() => document.addEventListener('mousedown', onDoc), 0);
+    document.addEventListener('keydown', onKey);
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+  if (typeof document === 'undefined') return null;
+  // Anchor the menu to the right edge of the trigger so it grows leftward
+  // (the trigger sits at the far-right of the table, so right-anchored
+  // is what keeps the menu fully on-screen).
+  const top = rect.bottom + 4;
+  const right = Math.max(8, window.innerWidth - rect.right);
+  return createPortal(
+    <div
+      ref={ref}
+      role="menu"
+      style={{ position: 'fixed', top, right, zIndex: 100 }}
+      className="w-48 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden"
+    >
+      <button
+        role="menuitem"
+        onClick={onContact}
+        className="block w-full text-left px-3 py-2 text-xs text-foreground/80 hover:bg-warm-bg/60"
+      >
+        Log a contact
+      </button>
+      <button
+        role="menuitem"
+        onClick={onUpgrade}
+        className="block w-full text-left px-3 py-2 text-xs text-primary hover:bg-primary/5"
+      >
+        Upgrade to Partner
+      </button>
+    </div>,
+    document.body,
   );
 }
 
