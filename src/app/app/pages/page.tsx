@@ -1,10 +1,8 @@
-import type { Metadata } from 'next';
-import PagesContent from './content';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'Pages - Patient Portal',
-};
-
-export default function PagesPage() {
-  return <PagesContent />;
+// Pages admin moved under /app/admin/pages alongside the rest of the
+// platform-config surfaces. This thin redirect keeps any deep-linked
+// bookmarks / nav badges working.
+export default function PagesRedirect() {
+  redirect('/app/admin/pages');
 }

@@ -280,6 +280,15 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="12" cy="9" r="1.6" />
     </svg>
   ),
+  '/app/admin': (
+    // Sliders — platform configuration hub.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6h16M4 12h16M4 18h16" />
+      <circle cx="8" cy="6" r="1.6" />
+      <circle cx="16" cy="12" r="1.6" />
+      <circle cx="8" cy="18" r="1.6" />
+    </svg>
+  ),
   '/app/chat': (
     // Speech bubble — alumni + team chat room.
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">

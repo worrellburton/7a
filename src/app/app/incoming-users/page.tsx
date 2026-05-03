@@ -1,10 +1,6 @@
-import type { Metadata } from 'next';
-import IncomingUsersContent from './content';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'Incoming Users',
-};
-
-export default function IncomingUsersPage() {
-  return <IncomingUsersContent />;
+// Moved under /app/admin/incoming-users.
+export default function IncomingUsersRedirect() {
+  redirect('/app/admin/incoming-users');
 }
