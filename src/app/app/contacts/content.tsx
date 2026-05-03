@@ -94,6 +94,28 @@ function fmtAbsolute(iso: string | null): string | null {
   });
 }
 
+// Long-form "x minutes / hours / days / weeks / months" — used in
+// the dedicated TIME SINCE column where readability matters more
+// than compactness. Pluralises on the unit and rounds down so the
+// value never overstates how recent the touch was.
+function fmtAgoLong(iso: string | null): string {
+  if (!iso) return '—';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60_000) return 'just now';
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins} ${mins === 1 ? 'minute' : 'minutes'}`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
+  const days = Math.floor(hrs / 24);
+  if (days < 14) return `${days} ${days === 1 ? 'day' : 'days'}`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 8) return `${weeks} ${weeks === 1 ? 'week' : 'weeks'}`;
+  const months = Math.floor(days / 30);
+  if (months < 18) return `${months} ${months === 1 ? 'month' : 'months'}`;
+  const years = Math.floor(days / 365);
+  return `${years} ${years === 1 ? 'year' : 'years'}`;
+}
+
 // "Stale" if last contact >14 days, or never. Drives the row tint
 // hint on the right-hand engagement column.
 function staleness(iso: string | null): 'fresh' | 'cooling' | 'stale' | 'never' {
@@ -469,9 +491,10 @@ function ContactsGrid({
             {/* Engagement / action columns — fixed at the far right
                 so admissions sees them no matter how the grid is
                 customised. Order: Contact button, Last contact by,
-                Last contact date, actions menu. */}
+                Time since (colored pill), Last contact date, actions menu. */}
             <th className="px-3 py-2 text-center whitespace-nowrap" style={{ width: 100 }}>Action</th>
             <th className="px-3 py-2 whitespace-nowrap" style={{ width: 220 }}>Last contacted by</th>
+            <th className="px-3 py-2 whitespace-nowrap" style={{ width: 150 }}>Time since</th>
             <th className="px-3 py-2 whitespace-nowrap" style={{ width: 160 }}>Last contact</th>
             <th className="px-3 py-2 w-10" />
           </tr>
@@ -479,13 +502,13 @@ function ContactsGrid({
         <tbody className="divide-y divide-black/5">
           {loading ? (
             <tr>
-              <td colSpan={columns.length + 4} className="px-3 py-12 text-center text-foreground/45">
+              <td colSpan={columns.length + 5} className="px-3 py-12 text-center text-foreground/45">
                 Loading contacts…
               </td>
             </tr>
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length + 4} className="px-3 py-12 text-center text-foreground/45">
+              <td colSpan={columns.length + 5} className="px-3 py-12 text-center text-foreground/45">
                 No contacts yet. Click <span className="font-semibold">Add contact</span> to start.
               </td>
             </tr>
@@ -509,6 +532,9 @@ function ContactsGrid({
                 </td>
                 <td className="px-3 py-2.5">
                   <LastContactedBy contact={c} />
+                </td>
+                <td className="px-3 py-2.5">
+                  <TimeSinceCell contact={c} />
                 </td>
                 <td className="px-3 py-2.5">
                   <button
@@ -700,6 +726,39 @@ function LastContactedBy({ contact }: { contact: Contact }) {
         )}
       </div>
     </div>
+  );
+}
+
+function TimeSinceCell({ contact }: { contact: Contact }) {
+  // Re-render every 30s so values like "2 minutes" → "3 minutes"
+  // tick forward without a page refresh. Cheap — just a counter
+  // bump that React diffs against a pure render.
+  const [, force] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => force((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!contact.last_contact_at) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/10">
+        Never
+      </span>
+    );
+  }
+  const s = staleness(contact.last_contact_at);
+  const tone =
+    s === 'fresh'
+      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      : s === 'cooling'
+        ? 'bg-amber-50 text-amber-700 border-amber-200'
+        : 'bg-rose-50 text-rose-700 border-rose-200';
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${tone}`}
+      title={fmtAbsolute(contact.last_contact_at) ?? ''}
+    >
+      {fmtAgoLong(contact.last_contact_at)}
+    </span>
   );
 }
 
