@@ -250,6 +250,27 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
     </svg>
   ),
+  '/app/partnerships': (
+    // Two interlocking handshake / network nodes — referral partners
+    // are people connected to other people, so the visual is two
+    // linked circles bridged by a path.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="7" cy="12" r="3" />
+      <circle cx="17" cy="12" r="3" />
+      <path d="M10 12h4" />
+      <path d="M5 7l-1.5-1.5M19 7l1.5-1.5M5 17l-1.5 1.5M19 17l1.5 1.5" />
+    </svg>
+  ),
+  '/app/contacts': (
+    // Address book / contact card — distinct from the team-people
+    // icon so the two surfaces don't read as duplicates.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <circle cx="12" cy="10" r="2.4" />
+      <path d="M8.5 17a3.5 3.5 0 017 0" />
+      <path d="M2 7h2M2 12h2M2 17h2" />
+    </svg>
+  ),
   '/app/intake-paperwork': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 11.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V4.5A2.25 2.25 0 016 2.25h2.25m3.75 11.25v2.25m0 0l-3-3m3 3l3-3" />
