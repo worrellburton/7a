@@ -334,8 +334,8 @@ export default function ContactsContent() {
   if (!user) return null;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10 max-w-[1600px] mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
-      <header className="mb-6 flex items-end justify-between flex-wrap gap-3">
+    <div className="p-4 sm:p-6 lg:p-10 max-w-[1600px] mx-auto pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
+      <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight">Contacts</h1>
           <p className="text-sm text-foreground/55 mt-0.5">
@@ -348,47 +348,51 @@ export default function ContactsContent() {
         <button
           type="button"
           onClick={() => setShowAdd(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
         >
           <PlusIcon />
           Add contact
         </button>
       </header>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
+      <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+        <div className="relative w-full sm:flex-1 sm:min-w-[220px] sm:max-w-md">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, phone, email, notes…"
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-black/10 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full pl-9 pr-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/35">
             <SearchIcon />
           </span>
         </div>
-        <select
-          value={filterMethod}
-          onChange={(e) => setFilterMethod(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-black/10 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-        >
-          <option value="">All methods</option>
-          <option value="Phone">Phone</option>
-          <option value="In Person">In Person</option>
-          <option value="Left Message">Left Message</option>
-        </select>
-        <select
-          value={filterStaleness}
-          onChange={(e) => setFilterStaleness(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-black/10 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-        >
-          <option value="">Any freshness</option>
-          <option value="fresh">Fresh (&lt; 7d)</option>
-          <option value="cooling">Cooling (7–21d)</option>
-          <option value="stale">Stale (&gt; 21d)</option>
-          <option value="never">Never contacted</option>
-        </select>
-        <div className="ml-auto">
+        <div className="flex items-center gap-2">
+          <select
+            value={filterMethod}
+            onChange={(e) => setFilterMethod(e.target.value)}
+            className="flex-1 sm:flex-none min-w-0 px-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+          >
+            <option value="">All methods</option>
+            <option value="Phone">Phone</option>
+            <option value="In Person">In Person</option>
+            <option value="Left Message">Left Message</option>
+          </select>
+          <select
+            value={filterStaleness}
+            onChange={(e) => setFilterStaleness(e.target.value)}
+            className="flex-1 sm:flex-none min-w-0 px-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+          >
+            <option value="">Any freshness</option>
+            <option value="fresh">Fresh (&lt; 7d)</option>
+            <option value="cooling">Cooling (7–21d)</option>
+            <option value="stale">Stale (&gt; 21d)</option>
+            <option value="never">Never contacted</option>
+          </select>
+        </div>
+        {/* Manage Columns only matters for the desktop table; on
+            mobile every field is visible inside each card. */}
+        <div className="hidden md:block ml-auto">
           <ManageColumnsButton
             open={showCols}
             onToggle={() => setShowCols((v) => !v)}
@@ -471,8 +475,9 @@ function ContactsGrid({
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-black/10 bg-white">
-      <table className="w-full text-sm">
+    <>
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
+        <table className="w-full text-sm">
         <thead className="bg-warm-bg/50 text-left text-[11px] uppercase tracking-wider text-foreground/55">
           <tr>
             {columns.map((c) => (
@@ -576,7 +581,33 @@ function ContactsGrid({
           )}
         </tbody>
       </table>
-    </div>
+      </div>
+
+      {/* Mobile card layout — table is hard to scan on phones, so
+          each contact gets its own stacked card with every field
+          inline + the same engagement actions. */}
+      <div className="md:hidden flex flex-col gap-3">
+        {loading ? (
+          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-sm text-foreground/45">
+            Loading contacts…
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-sm text-foreground/45">
+            No contacts yet. Tap <span className="font-semibold">Add contact</span> to start.
+          </div>
+        ) : (
+          rows.map((c) => (
+            <ContactMobileCard
+              key={c.id}
+              contact={c}
+              onContact={() => onContact(c)}
+              onUpgrade={() => onUpgrade(c)}
+              onHistory={() => onHistory(c)}
+            />
+          ))
+        )}
+      </div>
+    </>
   );
 }
 
@@ -669,6 +700,135 @@ function ContactCell({ column, contact }: { column: ColumnDef; contact: Contact 
     default:
       return null;
   }
+}
+
+function ContactMobileCard({
+  contact,
+  onContact,
+  onUpgrade,
+  onHistory,
+}: {
+  contact: Contact;
+  onContact: () => void;
+  onUpgrade: () => void;
+  onHistory: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-black/10 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-foreground text-base leading-tight">{contact.name}</p>
+          {contact.role && (
+            <p className="mt-0.5 text-[12px] text-foreground/60">{contact.role}</p>
+          )}
+          {contact.source === 'downgrade-from-partner' && (
+            <p className="mt-1 text-[10px] uppercase tracking-wider text-foreground/40">From partner</p>
+          )}
+        </div>
+        <TimeSinceCell contact={contact} />
+      </div>
+
+      <dl className="mt-3 space-y-1.5 text-[13px]">
+        {contact.phone && (
+          <div className="flex items-baseline gap-2">
+            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Phone</dt>
+            <dd className="min-w-0 flex-1"><CopyableCell value={contact.phone} mono /></dd>
+          </div>
+        )}
+        {contact.email && (
+          <div className="flex items-baseline gap-2">
+            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Email</dt>
+            <dd className="min-w-0 flex-1 break-all"><CopyableCell value={contact.email} /></dd>
+          </div>
+        )}
+        {contact.location && (
+          <div className="flex items-baseline gap-2">
+            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Location</dt>
+            <dd className="text-foreground/75">{contact.location}</dd>
+          </div>
+        )}
+        {contact.notes && (
+          <div className="flex items-baseline gap-2">
+            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Notes</dt>
+            <dd className="text-foreground/75 whitespace-pre-wrap">{contact.notes}</dd>
+          </div>
+        )}
+      </dl>
+
+      {contact.last_contact_at && (
+        <div className="mt-3 pt-3 border-t border-black/5 flex items-center gap-2">
+          {contact.last_contact_by_avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={contact.last_contact_by_avatar_url}
+              alt={contact.last_contact_by_name ?? 'User'}
+              className="w-7 h-7 rounded-full object-cover bg-warm-bg"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[11px] font-semibold text-foreground/55">
+              {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="text-[12px] font-semibold text-foreground truncate">
+              {contact.last_contact_by_name || 'Unknown'}
+            </p>
+            <p className="text-[10.5px] text-foreground/45">{fmtAbsolute(contact.last_contact_at)}</p>
+          </div>
+          {contact.last_contact_method && (
+            <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
+              {contact.last_contact_method}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onContact}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-white text-[12px] font-semibold hover:bg-primary/90 transition-colors"
+        >
+          <PhoneIcon />
+          Contact
+        </button>
+        <button
+          type="button"
+          onClick={onHistory}
+          className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-md border border-black/10 text-[12px] font-semibold text-foreground/75 hover:bg-warm-bg/60 transition-colors"
+        >
+          History
+        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-black/10 text-foreground/55 hover:bg-warm-bg/60"
+            aria-label="More"
+            aria-haspopup="menu"
+            aria-expanded={open}
+          >
+            <DotsIcon />
+          </button>
+          {open && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+              <div role="menu" className="absolute right-0 bottom-full mb-1 z-20 w-48 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden">
+                <button
+                  role="menuitem"
+                  onClick={() => { setOpen(false); onUpgrade(); }}
+                  className="block w-full text-left px-3 py-2 text-xs text-primary hover:bg-primary/5"
+                >
+                  Upgrade to Partner
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Em() { return <span className="text-foreground/30">—</span>; }
@@ -1287,14 +1447,21 @@ function ModalShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-3 sm:p-6" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">
-        <header className="px-6 py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 pb-[env(safe-area-inset-bottom)]"
+      >
+        {/* Drag handle hint — purely visual, signals 'this is a sheet'. */}
+        <div className="sm:hidden pt-2 pb-1 flex justify-center">
+          <span className="block w-10 h-1 rounded-full bg-foreground/15" />
+        </div>
+        <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
             <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">{eyebrow}</p>
             <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{title}</h2>
           </div>
-          <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground" aria-label="Close">
+          <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground p-2 -mr-2" aria-label="Close">
             <CloseIcon />
           </button>
         </header>
@@ -1302,17 +1469,20 @@ function ModalShell({
         <style jsx global>{`
           .modal-input {
             width: 100%;
-            padding: 0.5rem 0.75rem;
+            padding: 0.625rem 0.75rem;
             border-radius: 0.5rem;
             border: 1px solid rgba(0, 0, 0, 0.1);
             background: white;
-            font-size: 0.875rem;
+            font-size: 16px; /* 16px prevents iOS Safari from zooming the viewport on focus */
             color: var(--color-foreground);
           }
           .modal-input:focus {
             outline: none;
             border-color: var(--color-primary);
             box-shadow: 0 0 0 3px rgba(188, 107, 74, 0.15);
+          }
+          @media (min-width: 640px) {
+            .modal-input { font-size: 0.875rem; padding: 0.5rem 0.75rem; }
           }
         `}</style>
       </div>
