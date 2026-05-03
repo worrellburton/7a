@@ -3,7 +3,7 @@ import { getUserFromRequest } from '@/lib/supabase-server';
 
 // POST /api/partnerships/import/normalise
 //
-// Hands raw CSV text to Claude and asks for a clean array of partner
+// Hands the raw CSV to Claude and asks for a clean array of partner
 // records that match our canonical schema. Useful when the source
 // CSV has messy headers ("Phone #", "Cash rate / day", "What they
 // take" for insurance, etc.) — the prompt teaches Claude the exact
@@ -11,6 +11,11 @@ import { getUserFromRequest } from '@/lib/supabase-server';
 // returns the normalised records as JSON. The /import endpoint
 // re-validates everything before insert, so a bad answer here can't
 // bypass the constraint.
+//
+// Big CSVs would otherwise overflow Claude's max_tokens and come
+// back as a truncated, unparseable JSON object. We split the parsed
+// rows into chunks, send each chunk separately, and merge the
+// returned `rows[]` arrays.
 //
 // Body:  { csv: string, model?: string }
 // Returns: { rows: PartnerInput[], notes?: string }
@@ -20,6 +25,12 @@ export const dynamic = 'force-dynamic';
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
+
+// Tunable: rows per Claude call. Each row turns into ~120 tokens of
+// JSON output, so 30 rows ≈ 3.6K output tokens — well under the
+// 8K budget with headroom for the `notes` field. Chunking also
+// gives us per-chunk progress + retries later if we want.
+const CHUNK_SIZE = 30;
 
 const SCHEMA_PROMPT = `You are normalising a CSV of clinical-partner data for Seven Arrows
 Recovery's admissions team into the exact JSON shape their
@@ -65,7 +76,105 @@ The CSV follows after the next line. Output JSON only.`;
 
 interface ClaudeResponse {
   content?: Array<{ type: string; text?: string }>;
+  stop_reason?: string;
   error?: { message?: string };
+}
+
+// Naive but strict CSV parser — handles quoted fields with embedded
+// commas / quotes / newlines. Same logic as the client-side
+// parseCsv in content.tsx; lifted here so we can chunk before
+// calling Claude.
+function parseCsv(text: string): { header: string; lines: string[] } {
+  // Just split into the header line and the body so we can paste
+  // the header back onto every chunk. We don't need a structural
+  // parse — Claude reads the raw chunk.
+  const out: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      cur += c;
+      if (c === '"' && text[i + 1] !== '"') inQuotes = false;
+      else if (c === '"' && text[i + 1] === '"') { cur += '"'; i++; }
+      continue;
+    }
+    if (c === '"') { cur += c; inQuotes = true; continue; }
+    if (c === '\r') continue;
+    if (c === '\n') {
+      if (cur.length > 0 || out.length > 0) out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.length > 0) out.push(cur);
+  if (out.length === 0) return { header: '', lines: [] };
+  const [header, ...rest] = out;
+  return { header, lines: rest.filter((l) => l.trim().length > 0) };
+}
+
+function extractJsonObject(raw: string): string | null {
+  const start = raw.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < raw.length; i++) {
+    const c = raw[i];
+    if (escape) { escape = false; continue; }
+    if (c === '\\') { escape = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) return raw.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+async function callClaude(apiKey: string, model: string, csvChunk: string): Promise<{ rows: unknown[]; notes?: string; error?: string }> {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': API_VERSION,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 8192,
+      messages: [
+        { role: 'user', content: `${SCHEMA_PROMPT}\n\nCSV:\n${csvChunk}` },
+      ],
+    }),
+  });
+
+  const json = (await res.json().catch(() => ({}))) as ClaudeResponse;
+  if (!res.ok) {
+    return { rows: [], error: json.error?.message || `Claude returned ${res.status}` };
+  }
+
+  if (json.stop_reason === 'max_tokens') {
+    return { rows: [], error: 'Claude truncated mid-response — chunk smaller.' };
+  }
+
+  const text = json.content?.find((c) => c.type === 'text')?.text ?? '';
+  const candidate = extractJsonObject(text);
+  if (!candidate) {
+    return { rows: [], error: 'Claude returned no JSON object.' };
+  }
+  let parsed: { rows?: unknown; notes?: unknown } | null = null;
+  try { parsed = JSON.parse(candidate); } catch { /* ignore */ }
+  if (!parsed || !Array.isArray(parsed.rows)) {
+    return { rows: [], error: 'Claude JSON had no rows[] array.' };
+  }
+  return {
+    rows: parsed.rows,
+    notes: typeof parsed.notes === 'string' ? parsed.notes : undefined,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -81,81 +190,55 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { /* allow empty */ }
   const csv = typeof body.csv === 'string' ? body.csv : '';
   if (!csv.trim()) return NextResponse.json({ error: 'csv body is empty' }, { status: 400 });
-  // Cap at ~250KB so a runaway file doesn't tie up Claude / our budget.
-  if (csv.length > 250_000) {
-    return NextResponse.json({ error: 'CSV is too large for AI normalisation (>250KB) — split it.' }, { status: 413 });
+  if (csv.length > 600_000) {
+    return NextResponse.json({ error: 'CSV is too large for AI normalisation (>600KB) — split it.' }, { status: 413 });
   }
 
   const model = body.model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': API_VERSION,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 8192,
-      // No assistant prefill — some models reject it ("This model
-      // does not support assistant message prefill"). Instead we
-      // tell Claude to emit JSON-only and strip any wrapping prose
-      // / code fences below before parsing.
-      messages: [
-        { role: 'user', content: `${SCHEMA_PROMPT}\n\nCSV:\n${csv}` },
-      ],
-    }),
-  });
-
-  const json = (await res.json().catch(() => ({}))) as ClaudeResponse;
-  if (!res.ok) {
-    return NextResponse.json(
-      { error: json.error?.message || `Claude returned ${res.status}` },
-      { status: 500 },
-    );
+  // Parse + chunk. Each chunk = the header line + up to CHUNK_SIZE
+  // body lines so Claude always sees the column names with the data.
+  const { header, lines } = parseCsv(csv);
+  if (lines.length === 0) {
+    return NextResponse.json({ error: 'CSV had no data rows.' }, { status: 400 });
+  }
+  const chunks: string[] = [];
+  for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
+    chunks.push(`${header}\n${lines.slice(i, i + CHUNK_SIZE).join('\n')}`);
   }
 
-  const text = json.content?.find((c) => c.type === 'text')?.text ?? '';
-  // Defensive parse — extract the JSON object even when Claude wraps
-  // it in ```json ... ``` fences or adds a trailing prose line. We
-  // walk to the first `{`, then track brace depth (skipping anything
-  // inside double-quoted strings) until depth returns to zero.
-  function extractJsonObject(raw: string): string | null {
-    const start = raw.indexOf('{');
-    if (start === -1) return null;
-    let depth = 0;
-    let inString = false;
-    let escape = false;
-    for (let i = start; i < raw.length; i++) {
-      const c = raw[i];
-      if (escape) { escape = false; continue; }
-      if (c === '\\') { escape = true; continue; }
-      if (c === '"') { inString = !inString; continue; }
-      if (inString) continue;
-      if (c === '{') depth++;
-      else if (c === '}') {
-        depth--;
-        if (depth === 0) return raw.slice(start, i + 1);
+  // Run chunks with bounded concurrency so a 200-row CSV doesn't
+  // fan out into 7 simultaneous Claude calls (rate-limit risk).
+  const MAX_CONCURRENT = 3;
+  const allRows: unknown[] = [];
+  const allNotes: string[] = [];
+  const errors: string[] = [];
+  for (let i = 0; i < chunks.length; i += MAX_CONCURRENT) {
+    const slice = chunks.slice(i, i + MAX_CONCURRENT);
+    const results = await Promise.all(slice.map((c) => callClaude(apiKey, model, c)));
+    for (let j = 0; j < results.length; j++) {
+      const r = results[j];
+      const chunkNum = i + j + 1;
+      if (r.error) {
+        errors.push(`Chunk ${chunkNum}: ${r.error}`);
+        continue;
       }
+      allRows.push(...r.rows);
+      if (r.notes) allNotes.push(r.notes);
     }
-    return null;
   }
 
-  const candidate = extractJsonObject(text);
-  let parsed: { rows?: unknown; notes?: unknown } | null = null;
-  if (candidate) {
-    try { parsed = JSON.parse(candidate); } catch { /* ignore */ }
-  }
-  if (!parsed || !Array.isArray(parsed.rows)) {
+  if (allRows.length === 0) {
     return NextResponse.json(
-      { error: 'Claude returned an unparseable response; try a smaller / cleaner CSV.' },
+      { error: errors.length > 0 ? `Claude couldn't normalise the CSV. ${errors.slice(0, 3).join(' · ')}` : 'Claude returned no rows.' },
       { status: 502 },
     );
   }
 
   return NextResponse.json({
-    rows: parsed.rows,
-    notes: typeof parsed.notes === 'string' ? parsed.notes : undefined,
+    rows: allRows,
+    notes:
+      (allNotes.length > 0 ? allNotes[0] : undefined) +
+      (errors.length > 0 ? ` (${errors.length} of ${chunks.length} chunks failed — review manually)` : ''),
   });
 }
