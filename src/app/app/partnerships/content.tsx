@@ -348,8 +348,8 @@ export default function PartnershipsContent() {
   if (!user) return null;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10 max-w-[1600px] mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
-      <header className="mb-6 flex items-end justify-between flex-wrap gap-3">
+    <div className="p-4 sm:p-6 lg:p-10 max-w-[1600px] mx-auto pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
+      <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight">Partnerships &amp; Referrals</h1>
           <p className="text-sm text-foreground/55 mt-0.5">
@@ -363,7 +363,7 @@ export default function PartnershipsContent() {
           <button
             type="button"
             onClick={() => setShowImport(true)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-black/10 text-foreground/75 text-xs font-semibold uppercase tracking-wider hover:bg-warm-bg/60 transition-colors"
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-3 py-2.5 sm:py-2 rounded-lg bg-white border border-black/10 text-foreground/75 text-xs font-semibold uppercase tracking-wider hover:bg-warm-bg/60 transition-colors"
             title="Bulk import partners from a CSV file"
           >
             <UploadIcon />
@@ -372,7 +372,7 @@ export default function PartnershipsContent() {
           <button
             type="button"
             onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
           >
             <PlusIcon />
             New partner
@@ -381,44 +381,50 @@ export default function PartnershipsContent() {
       </header>
 
       {/* Toolbar */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
+      <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+        <div className="relative w-full sm:flex-1 sm:min-w-[220px] sm:max-w-md">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, location, notes…"
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-black/10 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full pl-9 pr-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/35">
             <SearchIcon />
           </span>
         </div>
-        <select
-          value={filterSpecialty}
-          onChange={(e) => setFilterSpecialty(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-black/10 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-        >
-          <option value="">All specialties</option>
-          {specialties.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select
-          value={filterInsurance}
-          onChange={(e) => setFilterInsurance(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-black/10 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-        >
-          <option value="">All insurance</option>
-          {insuranceList.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={filterSpecialty}
+            onChange={(e) => setFilterSpecialty(e.target.value)}
+            className="flex-1 sm:flex-none min-w-0 px-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+          >
+            <option value="">All specialties</option>
+            {specialties.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select
+            value={filterInsurance}
+            onChange={(e) => setFilterInsurance(e.target.value)}
+            className="flex-1 sm:flex-none min-w-0 px-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+          >
+            <option value="">All insurance</option>
+            {insuranceList.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="sm:ml-auto flex items-center gap-2">
           <ViewToggle value={view} onChange={setView} />
-          <ManageColumnsButton
-            open={showCols}
-            onToggle={() => setShowCols((v) => !v)}
-            visibleCols={visibleCols ?? DEFAULT_VISIBLE}
-            onToggleColumn={toggleVisible}
-            onClose={() => setShowCols(false)}
-          />
+          {/* Manage Columns is for the desktop table; on mobile every
+              field already shows in the per-partner card. */}
+          <div className="hidden md:block">
+            <ManageColumnsButton
+              open={showCols}
+              onToggle={() => setShowCols((v) => !v)}
+              visibleCols={visibleCols ?? DEFAULT_VISIBLE}
+              onToggleColumn={toggleVisible}
+              onClose={() => setShowCols(false)}
+            />
+          </div>
         </div>
       </div>
 
@@ -498,8 +504,9 @@ function PartnersGrid({
   setActionMenuFor: (id: string | null) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-black/10 bg-white">
-      <table className="w-full text-sm">
+    <>
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
+        <table className="w-full text-sm">
         <thead className="bg-warm-bg/50 text-left text-[11px] uppercase tracking-wider text-foreground/55">
           <tr>
             {columns.map((c) => {
@@ -580,7 +587,34 @@ function PartnersGrid({
           )}
         </tbody>
       </table>
-    </div>
+      </div>
+
+      {/* Mobile card layout — partners table is too wide for phones,
+          so each row collapses into a stacked card with the same
+          edit / downgrade actions. */}
+      <div className="md:hidden flex flex-col gap-3">
+        {loading ? (
+          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-sm text-foreground/45">
+            Loading partners…
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-sm text-foreground/45">
+            No partners yet. Tap <span className="font-semibold">New partner</span> to add one.
+          </div>
+        ) : (
+          rows.map(({ row, priority, isFirstOfGroup }) => (
+            <PartnerMobileCard
+              key={row.id}
+              partner={row}
+              priority={priority}
+              isFirstOfGroup={isFirstOfGroup}
+              onEdit={() => onEdit(row)}
+              onDowngrade={() => onDowngrade(row)}
+            />
+          ))
+        )}
+      </div>
+    </>
   );
 }
 
@@ -668,6 +702,136 @@ function CellRenderer({
 
 function Em() {
   return <span className="text-foreground/30">—</span>;
+}
+
+function PartnerMobileCard({
+  partner,
+  priority,
+  isFirstOfGroup,
+  onEdit,
+  onDowngrade,
+}: {
+  partner: Partner;
+  priority: number;
+  isFirstOfGroup: boolean;
+  onEdit: () => void;
+  onDowngrade: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const isFacility = FACILITY_TYPES.has(partner.type);
+  return (
+    <div className={`rounded-xl border bg-white p-4 ${isFirstOfGroup ? 'border-primary/30' : 'border-black/10'}`}>
+      {isFirstOfGroup && partner.specialty && (
+        <p className="-mt-1 mb-2 text-[10px] font-bold tracking-[0.18em] uppercase text-primary/85">
+          {partner.specialty}
+        </p>
+      )}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold tabular-nums text-foreground/45">#{priority}</span>
+            <button
+              type="button"
+              onClick={onEdit}
+              className="text-left font-semibold text-foreground hover:text-primary transition-colors min-w-0"
+            >
+              {partner.name}
+            </button>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-semibold border ${TYPE_TONES[partner.type] ?? 'bg-warm-bg text-foreground/65 border-black/10'}`}>
+              {partner.type}
+            </span>
+            {partner.location && (
+              <span className="text-[11.5px] text-foreground/55">{partner.location}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <dl className="mt-3 space-y-1.5 text-[13px]">
+        {partner.poc && (
+          <Row label="PoC">{partner.poc}</Row>
+        )}
+        {partner.contact_info && (
+          <Row label="Contact"><CopyableCell value={partner.contact_info} /></Row>
+        )}
+        {partner.admissions_line && (
+          <Row label="Admissions"><CopyableCell value={partner.admissions_line} mono /></Row>
+        )}
+        {partner.cash_pay_rate != null && (
+          <Row label="Cash rate"><span className="tabular-nums text-foreground/85">${partner.cash_pay_rate.toLocaleString()}/day</span></Row>
+        )}
+        {partner.insurance.length > 0 && (
+          <Row label="Insurance"><BadgeList values={partner.insurance} max={6} /></Row>
+        )}
+        {isFacility && partner.levels_of_care && partner.levels_of_care.length > 0 && (
+          <Row label="Levels"><BadgeList values={partner.levels_of_care} max={6} /></Row>
+        )}
+        {partner.website && (
+          <Row label="Website">
+            <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+              {partner.website.replace(/^https?:\/\//, '')}
+            </a>
+          </Row>
+        )}
+        {partner.rep && (
+          <Row label="Rep">{partner.rep}</Row>
+        )}
+        {partner.notes && (
+          <Row label="Notes"><span className="whitespace-pre-wrap">{partner.notes}</span></Row>
+        )}
+        {partner.comments && (
+          <Row label="Comments"><span className="whitespace-pre-wrap">{partner.comments}</span></Row>
+        )}
+      </dl>
+
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-md bg-foreground text-white text-[12px] font-semibold hover:bg-foreground/85 transition-colors"
+        >
+          Edit
+        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-black/10 text-foreground/55 hover:bg-warm-bg/60"
+            aria-label="More"
+            aria-haspopup="menu"
+            aria-expanded={open}
+          >
+            <DotsIcon />
+          </button>
+          {open && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+              <div role="menu" className="absolute right-0 bottom-full mb-1 z-20 w-48 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden">
+                <button
+                  role="menuitem"
+                  onClick={() => { setOpen(false); onDowngrade(); }}
+                  className="block w-full text-left px-3 py-2 text-xs text-rose-700 hover:bg-rose-50"
+                >
+                  Downgrade to Contact
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-20 shrink-0">{label}</dt>
+      <dd className="min-w-0 flex-1 text-foreground/80">{children}</dd>
+    </div>
+  );
 }
 
 // Compact, single-line badge stack used inside the row cells. Caps
@@ -942,13 +1106,16 @@ function PartnerForm({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-3 sm:p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6" onClick={onClose}>
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white shadow-2xl ring-1 ring-black/10"
+        className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 pb-[env(safe-area-inset-bottom)]"
       >
-        <header className="px-6 py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
+        <div className="sm:hidden pt-2 pb-1 flex justify-center">
+          <span className="block w-10 h-1 rounded-full bg-foreground/15" />
+        </div>
+        <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
             <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">
               {mode === 'create' ? 'New partner' : 'Edit partner'}
@@ -957,7 +1124,7 @@ function PartnerForm({
               {mode === 'create' ? 'Add a partner or referral source' : initial?.name}
             </h2>
           </div>
-          <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground" aria-label="Close">
+          <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground p-2 -mr-2" aria-label="Close">
             <CloseIcon />
           </button>
         </header>
@@ -1053,17 +1220,20 @@ function PartnerForm({
         <style jsx>{`
           .form-input {
             width: 100%;
-            padding: 0.5rem 0.75rem;
+            padding: 0.625rem 0.75rem;
             border-radius: 0.5rem;
             border: 1px solid rgba(0, 0, 0, 0.1);
             background: white;
-            font-size: 0.875rem;
+            font-size: 16px; /* avoids iOS focus-zoom */
             color: var(--color-foreground);
           }
           .form-input:focus {
             outline: none;
             border-color: var(--color-primary);
             box-shadow: 0 0 0 3px rgba(188, 107, 74, 0.15);
+          }
+          @media (min-width: 640px) {
+            .form-input { font-size: 0.875rem; padding: 0.5rem 0.75rem; }
           }
         `}</style>
       </form>
@@ -1110,8 +1280,11 @@ function DowngradeConfirm({
 }) {
   const [submitting, setSubmitting] = useState(false);
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-3 sm:p-6" onClick={onCancel}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-md rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 p-6">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6" onClick={onCancel}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <div className="sm:hidden -mt-2 mb-3 flex justify-center">
+          <span className="block w-10 h-1 rounded-full bg-foreground/15" />
+        </div>
         <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-rose-700 mb-1">Downgrade to contact</p>
         <h3 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{partner.name}</h3>
         <p className="mt-2 text-sm text-foreground/65 leading-snug">
@@ -1304,14 +1477,17 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-3 sm:p-6" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">
-        <header className="px-6 py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 pb-[env(safe-area-inset-bottom)]">
+        <div className="sm:hidden pt-2 pb-1 flex justify-center">
+          <span className="block w-10 h-1 rounded-full bg-foreground/15" />
+        </div>
+        <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
             <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Bulk import</p>
             <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Import partners from CSV</h2>
           </div>
-          <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground" aria-label="Close">
+          <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground p-2 -mr-2" aria-label="Close">
             <CloseIcon />
           </button>
         </header>
