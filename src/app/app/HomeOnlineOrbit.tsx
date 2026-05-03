@@ -131,9 +131,12 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           7A medallion ~13px left of the visual console center on
           some viewport widths. The flex parent guarantees horizontal
           centering of the inner aspect-square box regardless of any
-          width-resolution quirks above. */}
-      <div className="w-full flex justify-center">
-        <div className="relative w-full max-w-[300px] sm:max-w-[460px] aspect-square">
+          width-resolution quirks above. The mobile cap (260px) keeps
+          the avatars from being clipped at the viewport edges and
+          gives the bottom row breathing room above any browser
+          chrome / floating UI. */}
+      <div className="w-full flex justify-center px-4">
+        <div className="relative w-full max-w-[260px] sm:max-w-[460px] aspect-square">
         {/* Decorative concentric rings + centre medallion. The
             outermost border is exactly where the avatars will land,
             so the eye reads the orbit as one composed shape. */}
@@ -149,13 +152,16 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           aria-hidden="true"
           className="absolute inset-[36%] rounded-full bg-gradient-to-br from-primary/[0.07] via-accent/[0.05] to-transparent"
         />
+        {/* Centre 7A — sized + styled to match /public/favicon.svg
+            (orange-brown rounded square, white bold "7A"). Slightly
+            larger square than before so it reads at viewport scale. */}
         <div
           aria-hidden="true"
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/45 backdrop-blur-md border border-white/80 shadow-[0_8px_28px_-12px_rgba(60,48,42,0.35)] flex items-center justify-center"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#a0522d] flex items-center justify-center shadow-[0_8px_28px_-12px_rgba(60,48,42,0.45)] ring-1 ring-black/5"
         >
           <span
-            className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary"
-            style={{ fontFamily: 'var(--font-body)' }}
+            className="text-white font-black text-lg sm:text-xl leading-none tracking-tight"
+            style={{ fontFamily: 'Arial, Helvetica, sans-serif', letterSpacing: '-0.04em' }}
           >
             7A
           </span>
