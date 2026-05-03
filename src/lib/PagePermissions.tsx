@@ -69,6 +69,10 @@ const defaultPages: PageConfig[] = [
   // see it surface but bounce to the app root if they navigate in.
   { path: '/app/levers', label: 'Levers', adminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
   { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
+  // Chat — open to all staff + alumni. PageGuard's per-user override
+  // for guests still applies (a guest sees Chat only when a super
+  // admin grants /app/chat in their allow-list).
+  { path: '/app/chat', label: 'Chat', adminOnly: false, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
   // Super-admin gate is enforced inside the page itself + on every
   // /api/incoming-users/* route. adminOnly here keeps the link out
   // of regular admins' popup; the page bounces non-super admins to

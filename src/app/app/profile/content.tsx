@@ -162,7 +162,7 @@ function TeamCardPreview({
 }
 
 export default function ProfileContent() {
-  const { user, session } = useAuth();
+  const { user, session, userKind } = useAuth();
   const [fullName, setFullName] = useState('');
   const [credentials, setCredentials] = useState('');
   const [jobTitle, setJobTitle] = useState('');
@@ -841,35 +841,41 @@ export default function ProfileContent() {
                 )}
               </div>
 
-              {/* Public team toggle */}
-              <div className="pt-2 border-t border-gray-100">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      {publicTeam ? 'Visible on the team page' : 'Hidden from the team page'}
-                    </p>
-                    <p className="text-xs text-foreground/50 mt-0.5">
-                      {publicTeam
-                        ? 'You appear at /who-we-are/meet-our-team.'
-                        : "You won't appear on the public site."}
-                    </p>
+              {/* Public team toggle — staff-only. Alumni profiles
+                  don't show this control because they're never
+                  surfaced on the marketing /who-we-are/meet-our-team
+                  grid (the API forces public_team=false for non-
+                  staff classifications). */}
+              {userKind === 'staff' && (
+                <div className="pt-2 border-t border-gray-100">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {publicTeam ? 'Visible on the team page' : 'Hidden from the team page'}
+                      </p>
+                      <p className="text-xs text-foreground/50 mt-0.5">
+                        {publicTeam
+                          ? 'You appear at /who-we-are/meet-our-team.'
+                          : "You won't appear on the public site."}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={publicTeam}
+                      onClick={() => attemptHideToggle(!publicTeam)}
+                      className={`shrink-0 relative w-11 h-6 rounded-full transition-colors ${
+                        publicTeam ? 'bg-primary' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                        style={{ transform: publicTeam ? 'translateX(20px)' : 'translateX(0)' }}
+                      />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={publicTeam}
-                    onClick={() => attemptHideToggle(!publicTeam)}
-                    className={`shrink-0 relative w-11 h-6 rounded-full transition-colors ${
-                      publicTeam ? 'bg-primary' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
-                      style={{ transform: publicTeam ? 'translateX(20px)' : 'translateX(0)' }}
-                    />
-                  </button>
                 </div>
-              </div>
+              )}
 
               <button
                 onClick={saveProfile}

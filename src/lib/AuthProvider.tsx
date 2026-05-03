@@ -18,6 +18,12 @@ interface AuthContextType {
   departmentId: string | null;
   status: UserStatus;
   /**
+   * Classification a super admin set on /app/incoming-users — staff
+   * for everyone @sevenarrowsrecovery, guest or alumni for outside
+   * sign-ins. Defaults to 'staff' for any pre-classification row.
+   */
+  userKind: 'staff' | 'guest' | 'alumni';
+  /**
    * Canonical avatar URL for the signed-in user. Reads from the
    * `users.avatar_url` column (which the profile editor writes to) so
    * a member's custom upload sticks even when Google OAuth keeps
@@ -46,6 +52,7 @@ const AuthContext = createContext<AuthContextType>({
   isSuperAdmin: false,
   departmentId: null,
   status: 'active',
+  userKind: 'staff',
   avatarUrl: null,
   refreshAvatar: () => {},
   refreshProfile: async () => {},
@@ -77,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [status, setStatus] = useState<UserStatus>('active');
+  const [userKind, setUserKind] = useState<'staff' | 'guest' | 'alumni'>('staff');
   // Custom avatar from the users table — separate from
   // user_metadata.avatar_url so Google's OAuth re-sync can't clobber
   // a member's uploaded photo. `null` means use the OAuth fallback.
@@ -102,9 +110,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // never silently blanked out by an unrelated DB error. This exact bug
     // once hid Team + Super Admin from every admin's sidebar, so the
     // fallback is intentional belt-and-suspenders.
-    type ProfileRow = { is_admin?: boolean; is_super_admin?: boolean; department_id?: string | null; status?: UserStatus };
+    type ProfileRow = { is_admin?: boolean; is_super_admin?: boolean; department_id?: string | null; status?: UserStatus; user_kind?: 'staff' | 'guest' | 'alumni' };
     let row: ProfileRow | null = null;
-    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, is_super_admin, department_id, status' });
+    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, is_super_admin, department_id, status, user_kind' });
     if (Array.isArray(full) && full[0]) {
       row = full[0] as ProfileRow;
     } else {
@@ -125,6 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAdmin(row.is_admin === true);
     setIsSuperAdmin(row.is_super_admin === true);
     setDepartmentId(row.department_id ?? null);
+    setUserKind(row.user_kind ?? 'staff');
     // Trust the DB. The status column is set on insert by the
     // `users_set_initial_status` trigger, and admins flip it via the
     // Team page. Don't second-guess that here — an earlier client-side
@@ -283,6 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isSuperAdmin,
         departmentId,
         status,
+        userKind,
         avatarUrl,
         refreshAvatar,
         refreshProfile,
