@@ -536,6 +536,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     setUserMenuOpen(false);
   }, [pathname]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // The user-account block at the bottom of the mobile drawer
+  // (popup-only pages + My Profile + Sign Out) is collapsed by
+  // default — tapping the user card row expands it. Reset whenever
+  // the drawer closes so it's collapsed next time.
+  const [mobileAccountOpen, setMobileAccountOpen] = useState(false);
+  useEffect(() => {
+    if (!mobileMenuOpen) setMobileAccountOpen(false);
+  }, [mobileMenuOpen]);
   const [navMounted, setNavMounted] = useState(false);
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
 
@@ -1231,58 +1239,78 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
               </nav>
 
-              {/* Pinned popup section + My Profile — always visible at the
-                  bottom-left of the drawer so admin pages (Team, Pages,
-                  Super Admin, …) and Profile don't disappear below the
-                  scroll fold on tall nav lists. */}
-              {popupPages.filter(canSeePage).length > 0 && (
-                <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[30vh] overflow-y-auto shrink-0">
-                  {popupPages.filter(canSeePage).map((item) => {
-                    const isActive = pathname === item.path;
-                    return (
-                      <Link
-                        key={item.path}
-                        href={item.path}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                          isActive
-                            ? 'bg-primary/10 text-primary'
-                            : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                        }`}
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                          {getPageIcon(item.path)}
-                        </span>
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </div>
+              {/* Account section — collapsed by default. Tapping the
+                  user card at the bottom toggles it. Keeps the drawer
+                  short and on-task; My Profile / Sign Out / admin
+                  popup pages live one tap deeper. */}
+              {mobileAccountOpen && (
+                <>
+                  {popupPages.filter(canSeePage).length > 0 && (
+                    <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[30vh] overflow-y-auto shrink-0">
+                      {popupPages.filter(canSeePage).map((item) => {
+                        const isActive = pathname === item.path;
+                        return (
+                          <Link
+                            key={item.path}
+                            href={item.path}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                              isActive
+                                ? 'bg-primary/10 text-primary'
+                                : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                            }`}
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          >
+                            <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                              {getPageIcon(item.path)}
+                            </span>
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="p-3 border-t border-gray-100 space-y-0.5 shrink-0">
+                    <Link
+                      href="/app/profile"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        pathname === '/app/profile'
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                      }`}
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      <span className={pathname === '/app/profile' ? 'text-primary' : 'text-foreground/40'}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                      </span>
+                      My Profile
+                    </Link>
+                    <button
+                      onClick={() => { setMobileMenuOpen(false); signOut(); }}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                      </svg>
+                      Sign Out
+                    </button>
+                  </div>
+                </>
               )}
-              <div className="p-3 border-t border-gray-100 space-y-0.5 shrink-0">
-                <Link
-                  href="/app/profile"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                    pathname === '/app/profile'
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                  }`}
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  <span className={pathname === '/app/profile' ? 'text-primary' : 'text-foreground/40'}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                    </svg>
-                  </span>
-                  My Profile
-                </Link>
-              </div>
 
-              {/* User card + sign out */}
-              <div className="p-3 border-t border-gray-100 space-y-1 shrink-0">
-                <div className="flex items-center gap-3 px-3 py-2.5">
+              {/* User card — always visible. Tapping it expands /
+                  collapses the account section above. */}
+              <div className="p-3 border-t border-gray-100 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMobileAccountOpen((v) => !v)}
+                  aria-expanded={mobileAccountOpen}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-warm-bg/60 transition-colors"
+                >
                   {avatarUrl ? (
                     <img src={avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
@@ -1290,7 +1318,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 text-left">
                     <p className="text-sm font-medium text-foreground truncate">
                       {user.user_metadata?.full_name || 'User'}
                     </p>
@@ -1302,16 +1330,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       <p className="text-xs text-foreground/40 truncate">{user.email}</p>
                     )}
                   </div>
-                </div>
-                <button
-                  onClick={() => { setMobileMenuOpen(false); signOut(); }}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                  <svg
+                    className={`w-4 h-4 text-foreground/45 shrink-0 transition-transform ${mobileAccountOpen ? 'rotate-180' : ''}`}
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  >
+                    <path d="M18 15l-6-6-6 6" />
                   </svg>
-                  Sign Out
                 </button>
               </div>
             </aside>
