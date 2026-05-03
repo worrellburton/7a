@@ -39,7 +39,7 @@ interface TypingPresence {
 const ROOM = 'general';
 
 export default function ChatContent() {
-  const { user, session, userKind } = useAuth();
+  const { user, session, userKind, isSuperAdmin } = useAuth();
   const [rows, setRows] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
@@ -199,9 +199,12 @@ export default function ChatContent() {
     setEditDraft('');
   }
 
-  async function deleteMessage(messageId: string) {
+  async function deleteMessage(messageId: string, asSuperAdmin = false) {
     if (!session?.access_token) return;
-    if (!window.confirm('Delete this message?')) return;
+    const prompt = asSuperAdmin
+      ? 'Hard-delete this message? It will be removed from the database with no placeholder.'
+      : 'Delete this message?';
+    if (!window.confirm(prompt)) return;
     const res = await fetch(`/api/chat/messages/${messageId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${session.access_token}` },
@@ -213,15 +216,31 @@ export default function ChatContent() {
   }
 
   // Group messages by author + minute so multiple sends from the
-  // same person collapse into a single avatar block.
-  const groups = useMemo(() => {
-    const out: { authorId: string; firstAt: string; messages: Message[] }[] = [];
+  // same person collapse into a single avatar block. Soft-deleted
+  // messages are split out as their own anonymous entries — we
+  // never show whose message it was, just "(a user deleted a
+  // message)". Hard-deleted rows are dropped from the realtime
+  // feed entirely (super admin removal) so they don't appear here.
+  type GroupItem =
+    | { kind: 'group'; authorId: string; firstAt: string; messages: Message[] }
+    | { kind: 'deleted'; id: string; createdAt: string };
+  const groups = useMemo<GroupItem[]>(() => {
+    const out: GroupItem[] = [];
     for (const m of rows) {
+      if (m.deleted_at) {
+        out.push({ kind: 'deleted', id: m.id, createdAt: m.created_at });
+        continue;
+      }
       const last = out[out.length - 1];
-      if (last && last.authorId === m.user_id && Math.abs(new Date(m.created_at).getTime() - new Date(last.firstAt).getTime()) < 5 * 60 * 1000) {
+      if (
+        last &&
+        last.kind === 'group' &&
+        last.authorId === m.user_id &&
+        Math.abs(new Date(m.created_at).getTime() - new Date(last.firstAt).getTime()) < 5 * 60 * 1000
+      ) {
         last.messages.push(m);
       } else {
-        out.push({ authorId: m.user_id, firstAt: m.created_at, messages: [m] });
+        out.push({ kind: 'group', authorId: m.user_id, firstAt: m.created_at, messages: [m] });
       }
     }
     return out;
@@ -254,6 +273,19 @@ export default function ChatContent() {
             </div>
           ) : (
             groups.map((g) => {
+              if (g.kind === 'deleted') {
+                // Anonymous placeholder — no avatar, no name, no
+                // timestamp. Just a centered grey line so the
+                // viewer knows a message used to be here without
+                // learning who deleted it.
+                return (
+                  <div key={g.id} className="flex justify-center">
+                    <p className="px-3 py-1 rounded-full bg-warm-bg/60 text-[11.5px] italic text-foreground/45">
+                      A user deleted a message
+                    </p>
+                  </div>
+                );
+              }
               const head = g.messages[0];
               const isMine = g.authorId === user.id;
               return (
@@ -283,14 +315,9 @@ export default function ChatContent() {
                     <ul className={`mt-1 space-y-1 ${isMine ? 'items-end flex flex-col' : ''}`}>
                       {g.messages.map((m) => {
                         const isEditing = editingId === m.id;
-                        const isDeleted = !!m.deleted_at;
                         return (
                           <li key={m.id} className="group/msg max-w-full">
-                            {isDeleted ? (
-                              <p className={`px-3 py-1.5 rounded-2xl text-sm italic text-foreground/40 ${isMine ? 'bg-warm-bg/60' : 'bg-warm-bg/40'} inline-block`}>
-                                (message deleted)
-                              </p>
-                            ) : isEditing ? (
+                            {isEditing ? (
                               <div className={`inline-flex flex-col gap-1.5 ${isMine ? 'items-end' : ''}`}>
                                 <textarea
                                   value={editDraft}
@@ -328,23 +355,25 @@ export default function ChatContent() {
                                 {m.edited_at && (
                                   <span className="text-[10px] text-foreground/35 mt-1.5 italic">edited</span>
                                 )}
-                                {isMine && (
+                                {(isMine || isSuperAdmin) && (
                                   <span className="opacity-0 group-hover/msg:opacity-100 transition-opacity flex flex-col gap-1 self-start mt-1">
+                                    {isMine && (
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEditingId(m.id); setEditDraft(m.body); }}
+                                        className="text-foreground/40 hover:text-primary"
+                                        aria-label="Edit"
+                                        title="Edit"
+                                      >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
-                                      onClick={() => { setEditingId(m.id); setEditDraft(m.body); }}
-                                      className="text-foreground/40 hover:text-primary"
-                                      aria-label="Edit"
-                                      title="Edit"
-                                    >
-                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => deleteMessage(m.id)}
-                                      className="text-foreground/40 hover:text-rose-600"
-                                      aria-label="Delete"
-                                      title="Delete"
+                                      onClick={() => deleteMessage(m.id, !isMine && isSuperAdmin)}
+                                      className={`text-foreground/40 hover:text-rose-600 ${!isMine && isSuperAdmin ? 'hover:text-rose-700' : ''}`}
+                                      aria-label={!isMine && isSuperAdmin ? 'Hard delete (super admin)' : 'Delete'}
+                                      title={!isMine && isSuperAdmin ? 'Hard delete (super admin)' : 'Delete'}
                                     >
                                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg>
                                     </button>
