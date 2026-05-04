@@ -171,12 +171,13 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           7A medallion ~13px left of the visual console center on
           some viewport widths. The flex parent guarantees horizontal
           centering of the inner aspect-square box regardless of any
-          width-resolution quirks above. The mobile cap (260px) keeps
-          the avatars from being clipped at the viewport edges and
-          gives the bottom row breathing room above any browser
-          chrome / floating UI. */}
+          width-resolution quirks above. The mobile cap (320px) lets
+          the orbit breathe on phones without pushing avatars past
+          the page padding — the inset-[7%] on the outer ring keeps
+          edge avatars (which extend half their width past the
+          rotated slot) inside the box. */}
       <div className="w-full flex justify-center px-4">
-        <div className="relative w-full max-w-[260px] sm:max-w-[460px] aspect-square">
+        <div className="relative w-full max-w-[320px] sm:max-w-[460px] aspect-square">
         {/* Decorative concentric rings + centre medallion. The
             outermost border is exactly where the avatars will land,
             so the eye reads the orbit as one composed shape. */}
