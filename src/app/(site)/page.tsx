@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 // Re-render the homepage at most every 60s so a Set-live / timeline
-// edit on /app/landing propagates without the page going fully
+// edit on /feather/landing propagates without the page going fully
 // dynamic. The set-live + timeline-save API routes also call
 // revalidatePath('/') for instant invalidation when an admin acts.
 export const revalidate = 60;
@@ -186,7 +186,7 @@ const breadcrumbData = {
 
 export default async function Home() {
   // Read whichever landing_heros row is flagged is_live (curated by
-  // /app/landing) and shape its video_urls as HeroSource[]. Falls
+  // /feather/landing) and shape its video_urls as HeroSource[]. Falls
   // back to Hero's own hardcoded set if nothing is live or the
   // anon read fails.
   const heroSources = await fetchLiveHeroSources();

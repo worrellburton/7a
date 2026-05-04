@@ -46,7 +46,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     targetKind: 'contact_submission',
     targetId: id,
     targetLabel: 'Dismissed contact-form notification',
-    targetPath: '/app/website-requests',
+    targetPath: '/feather/website-requests',
     metadata: {},
   });
 

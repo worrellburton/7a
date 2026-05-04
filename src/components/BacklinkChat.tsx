@@ -148,7 +148,7 @@ export function BacklinkChat({
         targetKind: 'seo_backlink',
         targetId: sourceUrl,
         targetLabel: label || sourceUrl,
-        targetPath: '/app/seo/backlinks',
+        targetPath: '/feather/seo/backlinks',
         metadata: { preview: body.slice(0, 140) },
       });
     } else {
@@ -172,7 +172,7 @@ export function BacklinkChat({
         targetKind: 'seo_backlink',
         targetId: sourceUrl,
         targetLabel: label || sourceUrl,
-        targetPath: '/app/seo/backlinks',
+        targetPath: '/feather/seo/backlinks',
       });
     }
   };

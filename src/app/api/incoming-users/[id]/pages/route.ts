@@ -7,7 +7,7 @@ import { requireSuperAdmin } from '@/lib/social-media-auth';
 //   body: { paths: string[] }
 //
 // Super-admin only. For Guest users, the super admin picks which
-// /app/* pages they can view. We model that as positive-allow rows
+// /feather/* pages they can view. We model that as positive-allow rows
 // in user_page_permissions (can_view=true). Anything not on the
 // list is implicitly denied (PageGuard merges the override with the
 // page's adminOnly + dept rules — for guests we default-deny by
@@ -40,7 +40,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   let body: { paths?: string[] } = {};
   try { body = await req.json(); } catch { /* allow empty */ }
   const paths = Array.isArray(body.paths)
-    ? body.paths.filter((p): p is string => typeof p === 'string' && p.startsWith('/app'))
+    ? body.paths.filter((p): p is string => typeof p === 'string' && p.startsWith('/feather'))
     : [];
 
   const admin = getAdminSupabase();
