@@ -6,5 +6,5 @@ import { redirect } from 'next/navigation';
 // entries pointing at the old route still work.
 
 export default function LegacySuperAdminRedirect() {
-  redirect('/app/user-permissions');
+  redirect('/app/admin/user-permissions');
 }

@@ -250,6 +250,51 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
     </svg>
   ),
+  '/app/partnerships': (
+    // Two interlocking handshake / network nodes — referral partners
+    // are people connected to other people, so the visual is two
+    // linked circles bridged by a path.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="7" cy="12" r="3" />
+      <circle cx="17" cy="12" r="3" />
+      <path d="M10 12h4" />
+      <path d="M5 7l-1.5-1.5M19 7l1.5-1.5M5 17l-1.5 1.5M19 17l1.5 1.5" />
+    </svg>
+  ),
+  '/app/contacts': (
+    // Address book / contact card — distinct from the team-people
+    // icon so the two surfaces don't read as duplicates.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <circle cx="12" cy="10" r="2.4" />
+      <path d="M8.5 17a3.5 3.5 0 017 0" />
+      <path d="M2 7h2M2 12h2M2 17h2" />
+    </svg>
+  ),
+  '/app/incoming-users': (
+    // Inbox + person — incoming sign-ins waiting for triage.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 13l3-7h12l3 7" />
+      <path d="M3 13v6a2 2 0 002 2h14a2 2 0 002-2v-6" />
+      <path d="M3 13h4l1 2h8l1-2h4" />
+      <circle cx="12" cy="9" r="1.6" />
+    </svg>
+  ),
+  '/app/admin': (
+    // Sliders — platform configuration hub.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6h16M4 12h16M4 18h16" />
+      <circle cx="8" cy="6" r="1.6" />
+      <circle cx="16" cy="12" r="1.6" />
+      <circle cx="8" cy="18" r="1.6" />
+    </svg>
+  ),
+  '/app/chat': (
+    // Speech bubble — alumni + team chat room.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+    </svg>
+  ),
   '/app/intake-paperwork': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 11.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V4.5A2.25 2.25 0 016 2.25h2.25m3.75 11.25v2.25m0 0l-3-3m3 3l3-3" />
@@ -423,6 +468,32 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     };
   }, [canSeeWebsiteRequests]);
 
+  // Chat unread red dot — polls /api/chat/unread for the global
+  // room and stores the count under '/app/chat'. The nav row's
+  // existing badge renderer picks it up automatically. Cleared
+  // by the chat page on mount via /api/chat/unread POST.
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetch('/api/chat/unread?room=general', { cache: 'no-store', credentials: 'include' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json: { unread?: number } | null) => {
+          if (cancelled || !json) return;
+          setNavBadges((prev) => ({ ...prev, '/app/chat': json.unread ?? 0 }));
+        })
+        .catch(() => { /* non-fatal */ });
+    };
+    load();
+    const onVis = () => { if (!document.hidden) load(); };
+    document.addEventListener('visibilitychange', onVis);
+    const iv = window.setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVis);
+      window.clearInterval(iv);
+    };
+  }, []);
+
   // Sidebar/popup links are gated on three layers, in this order:
   //   1. Per-user override (set by a super admin via /app/user-permissions
   //      → user_page_permissions). Allow / Block beats everything else.
@@ -474,6 +545,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     setUserMenuOpen(false);
   }, [pathname]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // The user-account block at the bottom of the mobile drawer
+  // (popup-only pages + My Profile + Sign Out) is collapsed by
+  // default — tapping the user card row expands it. Reset whenever
+  // the drawer closes so it's collapsed next time.
+  const [mobileAccountOpen, setMobileAccountOpen] = useState(false);
+  useEffect(() => {
+    if (!mobileMenuOpen) setMobileAccountOpen(false);
+  }, [mobileMenuOpen]);
   const [navMounted, setNavMounted] = useState(false);
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
 
@@ -945,7 +1024,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </svg>
                 My Profile
               </Link>
-              {popupPages.filter(canSeePage).map((item) => (
+              {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile').map((item) => (
                 <Link
                   key={item.path}
                   href={item.path}
@@ -1017,7 +1096,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       </aside>
 
       {/* Main content area */}
-      <div className="flex-1 bg-warm-bg overflow-auto relative">
+      <div data-platform-main className="flex-1 bg-warm-bg overflow-auto relative">
         {/* Mobile top bar */}
         <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 backdrop-blur border-b border-gray-100">
           <button
@@ -1169,58 +1248,78 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
               </nav>
 
-              {/* Pinned popup section + My Profile — always visible at the
-                  bottom-left of the drawer so admin pages (Team, Pages,
-                  Super Admin, …) and Profile don't disappear below the
-                  scroll fold on tall nav lists. */}
-              {popupPages.filter(canSeePage).length > 0 && (
-                <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[30vh] overflow-y-auto shrink-0">
-                  {popupPages.filter(canSeePage).map((item) => {
-                    const isActive = pathname === item.path;
-                    return (
-                      <Link
-                        key={item.path}
-                        href={item.path}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                          isActive
-                            ? 'bg-primary/10 text-primary'
-                            : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                        }`}
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                          {getPageIcon(item.path)}
-                        </span>
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </div>
+              {/* Account section — collapsed by default. Tapping the
+                  user card at the bottom toggles it. Keeps the drawer
+                  short and on-task; My Profile / Sign Out / admin
+                  popup pages live one tap deeper. */}
+              {mobileAccountOpen && (
+                <>
+                  {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile').length > 0 && (
+                    <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[30vh] overflow-y-auto shrink-0">
+                      {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile').map((item) => {
+                        const isActive = pathname === item.path;
+                        return (
+                          <Link
+                            key={item.path}
+                            href={item.path}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                              isActive
+                                ? 'bg-primary/10 text-primary'
+                                : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                            }`}
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          >
+                            <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                              {getPageIcon(item.path)}
+                            </span>
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="p-3 border-t border-gray-100 space-y-0.5 shrink-0">
+                    <Link
+                      href="/app/profile"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        pathname === '/app/profile'
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                      }`}
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      <span className={pathname === '/app/profile' ? 'text-primary' : 'text-foreground/40'}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                      </span>
+                      My Profile
+                    </Link>
+                    <button
+                      onClick={() => { setMobileMenuOpen(false); signOut(); }}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                      </svg>
+                      Sign Out
+                    </button>
+                  </div>
+                </>
               )}
-              <div className="p-3 border-t border-gray-100 space-y-0.5 shrink-0">
-                <Link
-                  href="/app/profile"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                    pathname === '/app/profile'
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                  }`}
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  <span className={pathname === '/app/profile' ? 'text-primary' : 'text-foreground/40'}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                    </svg>
-                  </span>
-                  My Profile
-                </Link>
-              </div>
 
-              {/* User card + sign out */}
-              <div className="p-3 border-t border-gray-100 space-y-1 shrink-0">
-                <div className="flex items-center gap-3 px-3 py-2.5">
+              {/* User card — always visible. Tapping it expands /
+                  collapses the account section above. */}
+              <div className="p-3 border-t border-gray-100 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMobileAccountOpen((v) => !v)}
+                  aria-expanded={mobileAccountOpen}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-warm-bg/60 transition-colors"
+                >
                   {avatarUrl ? (
                     <img src={avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
@@ -1228,7 +1327,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       {(user.user_metadata?.full_name || user.email || '?').charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 text-left">
                     <p className="text-sm font-medium text-foreground truncate">
                       {user.user_metadata?.full_name || 'User'}
                     </p>
@@ -1240,16 +1339,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       <p className="text-xs text-foreground/40 truncate">{user.email}</p>
                     )}
                   </div>
-                </div>
-                <button
-                  onClick={() => { setMobileMenuOpen(false); signOut(); }}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                  <svg
+                    className={`w-4 h-4 text-foreground/45 shrink-0 transition-transform ${mobileAccountOpen ? 'rotate-180' : ''}`}
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  >
+                    <path d="M18 15l-6-6-6 6" />
                   </svg>
-                  Sign Out
                 </button>
               </div>
             </aside>

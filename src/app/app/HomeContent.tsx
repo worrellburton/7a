@@ -49,7 +49,7 @@ function timeAgo(dateStr: string | null): string {
 }
 
 export default function HomeContent() {
-  const { user, session } = useAuth();
+  const { user, session, userKind } = useAuth();
   const { pages } = usePagePermissions();
   const router = useRouter();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
@@ -360,7 +360,7 @@ export default function HomeContent() {
   }
 
   return (
-    <div className="relative flex flex-col min-h-full overflow-x-clip">
+    <div data-home-no-scroll className="relative flex flex-col min-h-full overflow-x-clip">
       {/* Phase 3: ambient backdrop. Three soft warm orbs sit behind
           everything so the glass surfaces have something colorful to
           refract. Pointer-events off so they never trap clicks. */}
@@ -370,7 +370,7 @@ export default function HomeContent() {
         <div className="absolute bottom-0 left-1/3 w-[480px] h-[480px] rounded-full bg-amber-200/35 blur-[130px]" />
       </div>
 
-      <div className="relative flex-1 flex flex-col min-h-[calc(100vh-1px)] px-4 sm:px-6 lg:px-10 pt-3 lg:pt-6 pb-4 lg:pb-10">
+      <div className="relative flex-1 flex flex-col h-[calc(100vh-1px)] max-h-[calc(100vh-1px)] overflow-hidden px-4 sm:px-6 lg:px-10 pt-3 lg:pt-6 pb-4 lg:pb-10">
 
         {/* Phase 4: hero — no glass card; the avatar/greeting and the
             create-menu button float on the page background. The hero
@@ -447,10 +447,11 @@ export default function HomeContent() {
             </div>
 
             {/* RIGHT (top row): single "+" button that opens a small
-                dropdown with the two creation entry points. Replaces
-                the prior side-by-side Feature-request + New-facilities
-                pills so the hero band stays compact. */}
-            <div ref={addMenuRef} className="relative shrink-0">
+                dropdown with the two creation entry points. Hidden
+                for alumni — Feature Request + New Facilities are
+                staff-only flows and don't apply to the alumni home
+                experience. */}
+            <div ref={addMenuRef} className={`relative shrink-0 ${userKind === 'alumni' ? 'hidden' : ''}`}>
               <button
                 type="button"
                 onClick={() => setAddMenuOpen((v) => !v)}
@@ -520,10 +521,17 @@ export default function HomeContent() {
 
         {/* Centered, slowly-rotating ring of teammates active in the
             last 24 hours, with the horse roster orbiting in the inner
-            ring. See HomeOnlineOrbit.tsx for the anatomy + animation. */}
+            ring. See HomeOnlineOrbit.tsx for the anatomy + animation.
+            Mobile: fixed-positioned so it pins to the visible
+            viewport's centre — using `absolute` would only centre it
+            inside the centerpiece flex column, which sits below the
+            welcome header and so isn't actually in the middle of the
+            screen. sm+: returns to normal flex flow. */}
         {recentUsers.length > 0 && (
-          <section className="relative z-50 w-full max-w-4xl mx-auto py-2">
-            <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} />
+          <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:relative sm:top-auto sm:left-auto sm:translate-x-0 sm:translate-y-0 pointer-events-none sm:pointer-events-auto">
+            <div className="pointer-events-auto">
+              <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} />
+            </div>
           </section>
         )}
 
