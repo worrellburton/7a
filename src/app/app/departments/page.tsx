@@ -1,10 +1,6 @@
-import type { Metadata } from 'next';
-import DepartmentsContent from './content';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'Departments - Patient Portal',
-};
-
-export default function DepartmentsPage() {
-  return <DepartmentsContent />;
+// Moved under /app/admin/departments.
+export default function DepartmentsRedirect() {
+  redirect('/app/admin/departments');
 }
