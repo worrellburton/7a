@@ -51,7 +51,7 @@ export type HeroSource =
 // Cloudflare Stream sources use HLS; plain mp4s play directly. This
 // is the *fallback* set used when no landing_heros row is marked
 // live or the live row has no playable clips. The live timeline
-// edited at /app/landing wins when present (passed in via props).
+// edited at /feather/landing wins when present (passed in via props).
 //
 // Keep the fallback list short — only working sources. Each extra
 // slide preloads in parallel and competes for bandwidth with the
@@ -270,7 +270,7 @@ function Mp4Slide({
 interface HeroProps {
   /** Override the fallback hero rotation. Wired by /(site)/page.tsx
    *  from the live landing_heros row so admins can curate the home
-   *  page from /app/landing. Empty/undefined falls back to the
+   *  page from /feather/landing. Empty/undefined falls back to the
    *  hardcoded set above. */
   sources?: HeroSource[];
 }
