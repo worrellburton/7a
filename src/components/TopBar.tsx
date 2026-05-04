@@ -29,7 +29,7 @@ export default function TopBar() {
           </a>
         </div>
         <Link
-          href="/app"
+          href="/feather"
           className="font-semibold tracking-widest text-xs hover:opacity-80 transition-opacity uppercase"
         >
           Sign In

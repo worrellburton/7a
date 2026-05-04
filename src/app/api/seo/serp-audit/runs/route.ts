@@ -5,7 +5,7 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 //
 // Returns the most recent SERP-audit runs (newest first), plus the
 // run_by display name + avatar resolved in a single batched users
-// SELECT. Admin-only. Used by /app/seo/serp-audit to show the
+// SELECT. Admin-only. Used by /feather/seo/serp-audit to show the
 // history strip and the latest run's result list.
 
 export const dynamic = 'force-dynamic';

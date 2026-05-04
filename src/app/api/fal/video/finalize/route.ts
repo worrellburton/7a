@@ -6,7 +6,7 @@ const ARCHIVE_BUCKET = 'public-images';
 // POST /api/fal/video/finalize
 //   body: { videoId: string, path: string }
 //
-// Called by /app/video after a direct-to-storage upload (via
+// Called by /feather/video after a direct-to-storage upload (via
 // /sign-upload + supabase.uploadToSignedUrl) lands. We verify the
 // caller actually started this row, confirm the object is in
 // storage, stamp the public URL onto the site_videos row, and
