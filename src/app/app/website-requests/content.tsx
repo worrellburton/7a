@@ -1254,6 +1254,20 @@ function VobsPanel() {
     if (ok) setRows((prev) => prev.filter((r) => r.id !== id));
   }
 
+  // Push closed VOBs to the bottom of the grid so the active queue is
+  // always at the top. Within each group (open / closed) we preserve
+  // the server's received_at ordering so the newest live VOB stays at
+  // the top.
+  const displayRows = useMemo(() => {
+    const open: VobRow[] = [];
+    const closed: VobRow[] = [];
+    for (const r of rows) {
+      if (r.status === 'closed') closed.push(r);
+      else open.push(r);
+    }
+    return [...open, ...closed];
+  }, [rows]);
+
   return (
     <Section count={rows.length} loading={loading} error={error} emptyText="No VOB requests yet.">
       <div className="overflow-x-auto border border-black/10 rounded-xl bg-white">
@@ -1273,7 +1287,7 @@ function VobsPanel() {
             </tr>
           </thead>
           <tbody className="divide-y divide-black/5">
-            {rows.map((r) => (
+            {displayRows.map((r) => (
               <tr key={r.id} className="align-top">
                 <Td>
                   <p className="font-semibold text-foreground">{r.full_name}</p>
