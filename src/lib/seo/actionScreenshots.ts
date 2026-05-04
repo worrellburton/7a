@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 
-// Screenshot upload helper for /feather/seo/actions. Pushes a single
+// Screenshot upload helper for /app/seo/actions. Pushes a single
 // File into the `public-images` bucket under seo-actions/<uuid>.<ext>
 // and returns the public URL the API caller can drop into
 // screenshot_urls.

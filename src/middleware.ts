@@ -54,14 +54,14 @@ export async function middleware(req: NextRequest) {
 
   // OAuth fallback: if Supabase's Site URL config ever drops a visitor
   // back at the root with ?code=... (instead of /auth/callback), funnel
-  // the code through our real callback route so they still land on /feather
+  // the code through our real callback route so they still land on /app
   // instead of stranding on the marketing homepage with a dangling code.
   const oauthCode = searchParams.get('code');
   if (oauthCode && !pathname.startsWith('/auth/')) {
     const callback = req.nextUrl.clone();
     callback.pathname = '/auth/callback';
     if (!callback.searchParams.get('next')) {
-      callback.searchParams.set('next', '/feather');
+      callback.searchParams.set('next', '/app');
     }
     return NextResponse.redirect(callback);
   }
@@ -70,7 +70,7 @@ export async function middleware(req: NextRequest) {
   // internals, or obvious static asset extensions.
   if (
     pathname.startsWith('/api') ||
-    pathname.startsWith('/feather') ||
+    pathname.startsWith('/app') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/_next') ||
     /\.[a-z0-9]{2,5}(?:\?|$)/i.test(pathname)
@@ -135,8 +135,8 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Run on every request except obvious non-HTML assets. The function
-  // itself also exits early on /api, /feather, /_next.
+  // itself also exits early on /api, /app, /_next.
   matcher: [
-    '/((?!api|feather|auth|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
+    '/((?!api|app|auth|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
   ],
 };

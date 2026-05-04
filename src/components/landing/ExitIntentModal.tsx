@@ -193,7 +193,7 @@ export default function ExitIntentModal() {
                   );
                 } catch {}
                 // Persist to public.form_submissions so exit-intent
-                // captures show up under /feather/website-requests/forms.
+                // captures show up under /app/website-requests/forms.
                 try {
                   await fetch('/api/public/contact', {
                     method: 'POST',

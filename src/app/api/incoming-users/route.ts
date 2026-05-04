@@ -13,7 +13,7 @@ import { requireSuperAdmin } from '@/lib/social-media-auth';
 //   - guests:         already-classified guests (with their page perms)
 //   - alumni:         already-classified alumni
 //
-// Lives in /feather/incoming-users (the popup-menu surface) and replaces
+// Lives in /app/incoming-users (the popup-menu surface) and replaces
 // the team-page "Pending Approval" strip for super admins.
 
 export const dynamic = 'force-dynamic';

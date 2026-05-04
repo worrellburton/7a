@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
-import JdReminderModalPreview from '@/app/feather/levers/JdReminderModalPreview';
+import JdReminderModalPreview from '@/app/app/levers/JdReminderModalPreview';
 
 // Global listener mounted once at the platform-shell level. Subscribes
 // to public.lever_pulls INSERTs filtered to the current user's id and

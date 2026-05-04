@@ -4,7 +4,7 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 // Website Requests is the Marketing & Admissions department's inbox
 // (VOBs, contact forms, careers). Access is granted to admins or to
 // any user assigned to the Marketing & Admissions department — kept
-// in sync with the page-level permission row at /feather/website-requests.
+// in sync with the page-level permission row at /app/website-requests.
 export const MARKETING_ADMISSIONS_DEPT_ID = 'dfde0b96-c605-40dd-84e5-281af2f6d8e9';
 
 type Allowed = { user: User; isAdmin: boolean; departmentId: string | null; response?: undefined };

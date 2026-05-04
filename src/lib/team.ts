@@ -1,7 +1,7 @@
 import { getPublicSupabase } from '@/lib/supabase-server';
 
 /** Interesting-fact prompt + member-authored answer. Mirrors the
- *  `interesting_facts` JSONB column written by the /feather/profile
+ *  `interesting_facts` JSONB column written by the /app/profile
  *  editor. Answers can be empty strings on entries the editor
  *  added but hasn't filled out; the public page filters those. */
 export interface PublicTeamFact {
@@ -194,7 +194,7 @@ export async function fetchPublicTeam(): Promise<PublicTeamMember[]> {  try {
     const rows = (data || [])
       .filter((row) => (row.full_name || '').trim().length > 0)
       .sort((a, b) => {
-        // Manual override from /feather/team "Team Page Order" wins when
+        // Manual override from /app/team "Team Page Order" wins when
         // present. Nulls sink to the bottom so pinning the first few
         // people doesn't rearrange the long tail of unordered rows.
         const oa = a.team_page_order;
