@@ -4171,10 +4171,10 @@ export default function DirectoriesContent() {
       .map((x) => x.d);
   }, [filtered, linkMap, statusMap, sortKey, sortDir, directoryStates, chatCounts]);
 
-  // Counts for the progress strip — every status gets its own card.
-  // 'todo' is the implicit default (no row in directory_states), so
-  // we count rows that don't appear in statusMap rather than ones
-  // that map to 'todo' explicitly.
+  // Counts for the progress card. 'todo' is the implicit default
+  // (no row in directory_states), so we count rows that don't
+  // appear in statusMap rather than ones that map to 'todo'
+  // explicitly.
   const total = allDirectories.length;
   const counts = useMemo(() => {
     const out: Record<Status, number> = {
@@ -4195,12 +4195,11 @@ export default function DirectoriesContent() {
     }
     return out;
   }, [allDirectories, statusMap]);
-  // Card accent per status — mirrors the row tint so the strip and
-  // the table read as the same color language. The ProgressCard
-  // palette is constrained to a fixed set of tones, so a couple of
-  // statuses share an accent (paid_list / no_option / claimed /
-  // submitted / pending) — the chip + row tint stay distinct so
-  // admins can still tell them apart at a glance.
+  // Per-status accent — mirrors the row tint so the progress card
+  // and the table read as the same colour language. A few statuses
+  // share an accent (paid_list / no_option / claimed / submitted /
+  // pending) because the palette is intentionally limited; the chip
+  // + row tint keep them distinguishable in context.
   const STATUS_ACCENT: Record<Status, 'foreground' | 'rose' | 'blue' | 'amber' | 'emerald' | 'teal'> = {
     todo: 'foreground',
     claim_in_process: 'blue',
@@ -4254,21 +4253,12 @@ export default function DirectoriesContent() {
           so directory edits show up alongside the rest of the SEO
           activity stream, not duplicated above the table. */}
 
-      {/* Progress strip — every status gets its own card now (was
-          just Total / Listed / Submitted / To do). Card order mirrors
-          STATUS_ORDER so the strip reads as the same workflow as the
-          status dropdown. Total goes first as the running denominator. */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-5">
-        <ProgressCard label="Total" value={total} />
-        {STATUS_ORDER.map((s) => (
-          <ProgressCard
-            key={s}
-            label={STATUS_LABELS[s]}
-            value={counts[s] ?? 0}
-            accent={STATUS_ACCENT[s]}
-          />
-        ))}
-      </div>
+      {/* Progress card — Total on the left as the running
+          denominator, every status laid out as inline stats to the
+          right. Order mirrors STATUS_ORDER so the breakdown reads
+          as the same workflow as the status dropdown. */}
+      <ProgressCard total={total} counts={counts} accents={STATUS_ACCENT} />
+      <div className="mb-5" />
 
       <CanonicalNapBanner nap={canonicalNap} />
 
@@ -5388,21 +5378,46 @@ function SortGlyph({ state }: { state: 'asc' | 'desc' | 'idle' }) {
   );
 }
 
+type ProgressAccent = 'emerald' | 'amber' | 'rose' | 'blue' | 'teal' | 'foreground';
+
 function ProgressCard({
-  label, value, accent,
-}: { label: string; value: number; accent?: 'emerald' | 'amber' | 'rose' | 'blue' | 'teal' | 'foreground' }) {
-  const color =
+  total,
+  counts,
+  accents,
+}: {
+  total: number;
+  counts: Record<Status, number>;
+  accents: Record<Status, ProgressAccent>;
+}) {
+  const colorFor = (accent: ProgressAccent) =>
     accent === 'emerald' ? 'text-emerald-600'
     : accent === 'amber' ? 'text-amber-600'
     : accent === 'rose' ? 'text-rose-600'
     : accent === 'blue' ? 'text-blue-600'
     : accent === 'teal' ? 'text-teal-600'
-    : accent === 'foreground' ? 'text-foreground/40'
-    : 'text-foreground';
+    : 'text-foreground/45';
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/50">{label}</p>
-      <p className={`text-2xl font-bold tabular-nums mt-1 ${color}`}>{value}</p>
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-4 flex items-stretch gap-5 flex-wrap">
+      <div className="flex flex-col justify-center pr-5 border-r border-black/5 min-w-[110px]">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/50">Total</p>
+        <p className="text-3xl font-bold tabular-nums mt-0.5 text-foreground">{total}</p>
+      </div>
+      <div className="flex flex-1 flex-wrap items-center gap-x-6 gap-y-2.5">
+        {STATUS_ORDER.map((s) => {
+          const value = counts[s] ?? 0;
+          const dim = value === 0;
+          return (
+            <div key={s} className="flex flex-col min-w-[88px]">
+              <p className={`text-[10px] font-semibold uppercase tracking-wider ${dim ? 'text-foreground/30' : 'text-foreground/55'}`}>
+                {STATUS_LABELS[s]}
+              </p>
+              <p className={`text-xl font-bold tabular-nums leading-tight ${dim ? 'text-foreground/25' : colorFor(accents[s])}`}>
+                {value}
+              </p>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
