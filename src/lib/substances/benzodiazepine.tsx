@@ -170,7 +170,7 @@ export const benzoContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing Accelerated Recovery®, EMDR, ART, and IFS — sequenced carefully so processing does not destabilize the taper. Often begins mid-taper or post-taper.',
+        body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS — sequenced carefully so processing does not destabilize the taper. Often begins mid-taper or post-taper.',
         iconId: 'spiral',
       },
       {

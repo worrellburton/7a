@@ -61,7 +61,7 @@ export default function AlcoholAddictionPage() {
         }
         bullets={[
           { label: 'Medical detox first', body: 'Alcohol withdrawal can be dangerous. Coordinated detox at a partner facility, then direct hand-off into residential.' },
-          { label: 'Trauma-informed', body: 'Forward-Facing Accelerated Recovery® framework treats alcohol use and underlying trauma concurrently — not sequentially.' },
+          { label: 'Trauma-informed', body: 'Forward-Facing® Accelerated Recovery framework treats alcohol use and underlying trauma concurrently — not sequentially.' },
           { label: 'Somatic + experiential', body: 'Somatic experiencing, breathwork, equine-assisted psychotherapy — body-based modalities alongside traditional talk therapy.' },
           { label: 'Insurance', body: 'Most major carriers accepted (Aetna, BCBS, Cigna, UHC, TRICARE). Free benefits verification: (866) 996-4308.' },
         ]}

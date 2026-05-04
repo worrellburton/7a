@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Forward-Facing Accelerated Recovery® | Seven Arrows Recovery',
+  title: 'Forward-Facing® Accelerated Recovery | Seven Arrows Recovery',
   description:
     'Seven Arrows Recovery',
 };
@@ -12,7 +12,7 @@ import Link from 'next/link';
 
 const clinicalApproaches = [
   {
-    title: 'Forward-Facing Accelerated Recovery®',
+    title: 'Forward-Facing® Accelerated Recovery',
     description:
       'Our primary therapeutic framework. FF-AR is a present-focused, salutogenic model that prioritizes nervous system regulation, meaning-making, and strengths-based care. Clients build capacity through breathwork, somatic awareness, and attentional practices before engaging in deeper trauma processing.',
   },
@@ -47,7 +47,7 @@ export default function TraumAddictionPage() {
   return (
     <>
       <PageHero
-        label="Forward-Facing Accelerated Recovery®"
+        label="Forward-Facing® Accelerated Recovery"
         title={[
           { text: 'Trauma & addiction are ' },
           { text: 'one condition', accent: true },
@@ -58,7 +58,7 @@ export default function TraumAddictionPage() {
           { label: 'Treatment', href: '/treatment' },
           { label: 'Forward-Facing Accelerated Recovery' },
         ]}
-        description="Forward-Facing Accelerated Recovery® is our integrated model for treating trauma and substance use together — not as separate conditions, but as deeply interconnected challenges that require a unified, salutogenic approach."
+        description="Forward-Facing® Accelerated Recovery is our integrated model for treating trauma and substance use together — not as separate conditions, but as deeply interconnected challenges that require a unified, salutogenic approach."
         image="/images/embrace-connection.jpg"
         ctas={[
           {
@@ -76,8 +76,8 @@ export default function TraumAddictionPage() {
         answer={
           <p>
             Seven Arrows Recovery treats trauma and addiction as one integrated condition
-            through its Forward-Facing Accelerated Recovery&reg; model — not as two parallel programs. Clinicians
-            use the Forward-Facing Accelerated Recovery&reg; framework, somatic experiencing, and
+            through its Forward-Facing&reg; Accelerated Recovery model — not as two parallel programs. Clinicians
+            use the Forward-Facing&reg; Accelerated Recovery framework, somatic experiencing, and
             polyvagal-informed care to regulate the nervous system first, then reframe
             substance use as a predictable response to dysregulation, rather than asking
             clients to stabilize from addiction before trauma work can begin.
@@ -85,7 +85,7 @@ export default function TraumAddictionPage() {
         }
         bullets={[
           { label: 'Integrated, not sequential', body: 'Trauma and SUD are treated concurrently, informed by the ACE study — no &ldquo;get clean first, then trauma later&rdquo; gap.' },
-          { label: 'Forward-Facing Accelerated Recovery&reg;', body: 'Present-focused, salutogenic model that builds nervous-system capacity before deeper trauma processing.' },
+          { label: 'Forward-Facing&reg; Accelerated Recovery', body: 'Present-focused, salutogenic model that builds nervous-system capacity before deeper trauma processing.' },
           { label: 'Body-based work', body: 'Somatic experiencing, breathwork, movement therapy, and equine-assisted sessions address what talk therapy alone can&rsquo;t reach.' },
           { label: 'Evidence-informed', body: 'Draws on polyvagal theory, attachment theory, IFS, and the ACE literature — real clinical frames, not branded slogans.' },
         ]}
@@ -202,7 +202,7 @@ export default function TraumAddictionPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
             <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-white/50 mb-4" style={{ fontFamily: 'var(--font-body)' }}>
-              Forward-Facing Accelerated Recovery® (FF-AR)
+              Forward-Facing® Accelerated Recovery (FF-AR)
             </p>
             <h2 className="text-3xl lg:text-4xl font-bold mb-6">
               Stabilize. Understand. Grow.
@@ -211,7 +211,7 @@ export default function TraumAddictionPage() {
               className="text-white/70 leading-relaxed text-lg"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              The Forward-Facing Accelerated Recovery® (FF-AR) model — developed by
+              The Forward-Facing® Accelerated Recovery (FF-AR) model — developed by
               Dr. J. Eric Gentry and Lindsay Rothschild, LCSW — offers an
               integrative, salutogenic approach to treating trauma and
               addiction simultaneously. Addiction is understood as a
@@ -249,7 +249,7 @@ export default function TraumAddictionPage() {
           <div className="max-w-3xl mx-auto text-center mb-16">
             <p className="section-label justify-center mb-4">Clinical Modalities</p>
             <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
-              How We Deliver Forward-Facing Accelerated Recovery® Care
+              How We Deliver Forward-Facing® Accelerated Recovery Care
             </h2>
           </div>
 
@@ -277,7 +277,7 @@ export default function TraumAddictionPage() {
             style={{ fontFamily: 'var(--font-body)' }}
           >
             You don&apos;t have to carry the weight of trauma alone. Our
-            Forward-Facing Accelerated Recovery® (FF-AR) model offers a practical
+            Forward-Facing® Accelerated Recovery (FF-AR) model offers a practical
             and compassionate path forward.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

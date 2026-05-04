@@ -97,7 +97,7 @@ export default function IndigenousApproachPage() {
             Seven Arrows Recovery is a JCAHO-accredited residential rehab in Arizona that
             integrates indigenous and holistic practices — sweat lodge ceremony, talking
             circles, smudging, drumming, storytelling, and land-based ceremony — directly into
-            a clinical program grounded in the Forward-Facing Accelerated Recovery&reg; model. Ceremonial work is
+            a clinical program grounded in the Forward-Facing&reg; Accelerated Recovery model. Ceremonial work is
             held by experienced practitioners and offered as invitation, not requirement,
             threaded respectfully through evidence-based individual and group therapy.
           </p>

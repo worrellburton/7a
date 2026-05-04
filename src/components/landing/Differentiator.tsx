@@ -40,7 +40,7 @@ function makeDims(persona: 'self' | 'loved_one' | null): Dim[] {
       right: {
         label: 'Seven Arrows',
         pct: 94,
-        note: `Forward-Facing Accelerated Recovery® approach — ${clinician} holds both the substance and the trauma arc from day one.`,
+        note: `Forward-Facing® Accelerated Recovery approach — ${clinician} holds both the substance and the trauma arc from day one.`,
       },
       note: 'This is the single biggest difference in how we sequence care.',
     },

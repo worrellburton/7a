@@ -63,7 +63,7 @@ export default function OpioidAddictionPage() {
         bullets={[
           { label: 'MAT supported', body: 'Buprenorphine (Suboxone) and naltrexone (Vivitrol) coordinated with partnered prescribers — the standard of care for OUD.' },
           { label: 'Medical detox first', body: 'Withdrawal managed at a trusted detox partner, then direct handoff into residential.' },
-          { label: 'Trauma + addiction together', body: 'Forward-Facing Accelerated Recovery® model — because most OUD presents with trauma drivers that talk therapy alone does not reach.' },
+          { label: 'Trauma + addiction together', body: 'Forward-Facing® Accelerated Recovery model — because most OUD presents with trauma drivers that talk therapy alone does not reach.' },
           { label: 'Naloxone on discharge', body: 'Clients leave with a naloxone (Narcan) plan and handoff to community-based MAT providers near home.' },
         ]}
         sources={[
