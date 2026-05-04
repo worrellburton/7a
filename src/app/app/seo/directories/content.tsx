@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
 import LinksSubNav from '../LinksSubNav';
 import { db } from '@/lib/db';
@@ -2932,6 +2932,26 @@ const STATUS_ORDER: Status[] = [
   'skip',
 ];
 
+// Default-view grouping order. Same statuses as STATUS_ORDER (which
+// drives the dropdown + counter card) but reordered for "what should
+// I look at first?" instead of "where does this fall in the
+// pipeline?": active work at the top, untouched queue next, wins,
+// blocked rows, then dead-ends. `skip` is still last and is also
+// independently sunk to the bottom of every sort by the flatRows
+// memo, so changing this list won't accidentally float Skip up.
+const DEFAULT_STATUS_GROUP_ORDER: Status[] = [
+  'claim_in_process',
+  'claimed',
+  'submitted',
+  'pending',
+  'todo',
+  'live',
+  'paid_list',
+  'requires_official_docs',
+  'no_option',
+  'skip',
+];
+
 // Sortable columns. 'default' is the curated linked-first /
 // category-grouped order that ships before any header is clicked.
 type SortKey =
@@ -4139,15 +4159,19 @@ export default function DirectoriesContent() {
     // dead-ends shouldn't take up real estate above live work even
     // when the column sort would otherwise interleave them.
     const isSkip = (id: string) => statusMap[id] === 'skip';
+    const statusOf = (id: string): Status => (statusMap[id] ?? 'todo') as Status;
     if (sortKey === 'default') {
+      // Group rows by status before falling back to category +
+      // curated index. Same status sits adjacent so admins can scan
+      // a whole status bucket without skipping past unrelated rows.
       return indexed
         .sort((a, b) => {
           const aSkip = isSkip(a.d.id);
           const bSkip = isSkip(b.d.id);
           if (aSkip !== bSkip) return aSkip ? 1 : -1;
-          const aLinked = !!linkMap[a.d.id];
-          const bLinked = !!linkMap[b.d.id];
-          if (aLinked !== bLinked) return aLinked ? -1 : 1;
+          const aGroup = DEFAULT_STATUS_GROUP_ORDER.indexOf(statusOf(a.d.id));
+          const bGroup = DEFAULT_STATUS_GROUP_ORDER.indexOf(statusOf(b.d.id));
+          if (aGroup !== bGroup) return aGroup - bGroup;
           const aCatIdx = CATEGORY_ORDER.indexOf(a.d.category);
           const bCatIdx = CATEGORY_ORDER.indexOf(b.d.category);
           if (aCatIdx !== bCatIdx) return aCatIdx - bCatIdx;
@@ -4170,6 +4194,39 @@ export default function DirectoriesContent() {
       })
       .map((x) => x.d);
   }, [filtered, linkMap, statusMap, sortKey, sortDir, directoryStates, chatCounts]);
+
+  // FLIP animation for row reordering. When a status flip moves a
+  // row to a new spot in the list, the row visually slides from its
+  // old position to its new one instead of teleporting — admins
+  // catch where it landed without needing to re-scan the table.
+  // Keyed by directory id so a row that's about to mount or unmount
+  // (filter / hide-listed toggle) doesn't get a phantom transform.
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  const prevRowTops = useRef<Map<string, number>>(new Map());
+  useLayoutEffect(() => {
+    const els = rowRefs.current;
+    const prev = prevRowTops.current;
+    const next = new Map<string, number>();
+    els.forEach((el, id) => {
+      next.set(id, el.getBoundingClientRect().top);
+    });
+    els.forEach((el, id) => {
+      const before = prev.get(id);
+      const after = next.get(id);
+      if (before === undefined || after === undefined) return;
+      const delta = before - after;
+      if (Math.abs(delta) < 1) return;
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${delta}px)`;
+      // Force a reflow so the transform applies before we clear it.
+      void el.getBoundingClientRect();
+      requestAnimationFrame(() => {
+        el.style.transition = 'transform 380ms cubic-bezier(0.22, 1, 0.36, 1)';
+        el.style.transform = '';
+      });
+    });
+    prevRowTops.current = next;
+  }, [flatRows]);
 
   // Counts for the progress card. 'todo' is the implicit default
   // (no row in directory_states), so we count rows that don't
@@ -4359,6 +4416,10 @@ export default function DirectoriesContent() {
                 return (
                   <Fragment key={d.id}>
                   <tr
+                    ref={(el) => {
+                      if (el) rowRefs.current.set(d.id, el);
+                      else rowRefs.current.delete(d.id);
+                    }}
                     className={`align-top transition-colors cursor-pointer ${tintClass} ${isHidden ? 'opacity-50' : ''} ${chatOpen ? 'ring-1 ring-primary/20' : 'hover:bg-warm-bg/40'}`}
                     onClick={(e) => {
                       // Don't hijack clicks on interactive cells
