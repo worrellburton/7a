@@ -4134,11 +4134,19 @@ export default function DirectoriesContent() {
   // the curated DIRECTORIES order.
   const flatRows = useMemo(() => {
     const indexed = filtered.map((d, i) => ({ d, i }));
+    // Skip rows always sink to the bottom — across every sort
+    // mode. The team scans top-to-bottom for actionable work, so
+    // dead-ends shouldn't take up real estate above live work even
+    // when the column sort would otherwise interleave them.
+    const isSkip = (id: string) => statusMap[id] === 'skip';
     if (sortKey === 'default') {
       return indexed
         .sort((a, b) => {
-          const aLinked = !!linkMap[a.d.id] && statusMap[a.d.id] !== 'skip';
-          const bLinked = !!linkMap[b.d.id] && statusMap[b.d.id] !== 'skip';
+          const aSkip = isSkip(a.d.id);
+          const bSkip = isSkip(b.d.id);
+          if (aSkip !== bSkip) return aSkip ? 1 : -1;
+          const aLinked = !!linkMap[a.d.id];
+          const bLinked = !!linkMap[b.d.id];
           if (aLinked !== bLinked) return aLinked ? -1 : 1;
           const aCatIdx = CATEGORY_ORDER.indexOf(a.d.category);
           const bCatIdx = CATEGORY_ORDER.indexOf(b.d.category);
@@ -4151,6 +4159,9 @@ export default function DirectoriesContent() {
     const cmp = sortComparator(sortKey);
     return indexed
       .sort((a, b) => {
+        const aSkip = isSkip(a.d.id);
+        const bSkip = isSkip(b.d.id);
+        if (aSkip !== bSkip) return aSkip ? 1 : -1;
         const r = cmp(a.d, b.d, { linkMap, statusMap, directoryStates, chatCounts });
         if (r !== 0) return r * dir;
         // Stable secondary sort: original curated index keeps the
