@@ -25,11 +25,13 @@ interface AuthContextType {
   userKind: 'staff' | 'guest' | 'alumni';
   /**
    * Canonical avatar URL for the signed-in user. Reads from the
-   * `users.avatar_url` column (which the profile editor writes to) so
-   * a member's custom upload sticks even when Google OAuth keeps
+   * `users.avatar_url` column (which the profile editor writes to)
+   * so a member's custom upload sticks even when Google OAuth keeps
    * overwriting `user_metadata.avatar_url` back to their Google photo
-   * on each sign-in. Falls back to the OAuth metadata avatar when no
-   * custom one has been saved.
+   * on each sign-in. On the very first sign-in we snapshot the
+   * Google photo URL into `users.avatar_url` so subsequent Google
+   * photo changes don't leak into the app — a user's app picture
+   * only changes when they explicitly upload a new one.
    */
   avatarUrl: string | null;
   /** Re-fetch the avatar from `users` (call after a save). */
@@ -90,17 +92,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // a member's uploaded photo. `null` means use the OAuth fallback.
   const [customAvatarUrl, setCustomAvatarUrl] = useState<string | null>(null);
 
-  async function loadAvatar(userId: string) {
+  async function loadAvatar(userId: string, oauthFallback: string | null = null) {
     const rows = await db({
       action: 'select',
       table: 'users',
       match: { id: userId },
       select: 'avatar_url',
     });
-    if (Array.isArray(rows) && rows[0]) {
-      const url = (rows[0] as { avatar_url: string | null }).avatar_url;
-      setCustomAvatarUrl(typeof url === 'string' && url.length > 0 ? url : null);
+    if (!Array.isArray(rows) || !rows[0]) return;
+    const url = (rows[0] as { avatar_url: string | null }).avatar_url;
+    if (typeof url === 'string' && url.length > 0) {
+      setCustomAvatarUrl(url);
+      return;
     }
+    // First sign-in / blank avatar: snapshot the current OAuth photo
+    // (e.g. Google's URL) into users.avatar_url so a later Google photo
+    // change can't reach back into the app. From then on the user's
+    // app picture only changes when they explicitly upload a new one.
+    if (oauthFallback && oauthFallback.length > 0) {
+      const writeRes = await db({
+        action: 'update',
+        table: 'users',
+        data: { avatar_url: oauthFallback },
+        match: { id: userId },
+      });
+      if (writeRes && typeof writeRes === 'object' && 'error' in writeRes) {
+        // Non-fatal: keep showing the OAuth fallback this session.
+        console.warn('[AuthProvider] Could not snapshot OAuth avatar:', (writeRes as { error: string }).error);
+      } else {
+        setCustomAvatarUrl(oauthFallback);
+        return;
+      }
+    }
+    setCustomAvatarUrl(null);
   }
 
   async function loadProfile(userId: string, email: string | null) {
@@ -150,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthToken(session?.access_token ?? null);
       if (session?.user) {
         loadProfile(session.user.id, session.user.email ?? null);
-        loadAvatar(session.user.id);
+        loadAvatar(session.user.id, (session.user.user_metadata?.avatar_url as string | undefined) ?? null);
       }
       setLoading(false);
     });
@@ -162,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthToken(session?.access_token ?? null);
         if (session?.user) {
           loadProfile(session.user.id, session.user.email ?? null);
-          loadAvatar(session.user.id);
+          loadAvatar(session.user.id, (session.user.user_metadata?.avatar_url as string | undefined) ?? null);
           // Supabase fires SIGNED_IN on every session restore (tab open,
           // reload, cross-tab sync) — not just real logins. Dedupe via
           // localStorage: only log once per user per hour.
@@ -202,7 +226,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // re-fetches as soon as the profile editor (or anywhere else) writes
     // a new URL into users.avatar_url.
     const onAvatarRefresh = () => {
-      // Read current user via a closure on the latest session.
+      // Read current user via a closure on the latest session. No
+      // OAuth fallback needed here — the refresh fires after the user
+      // saved a new avatar themselves, so users.avatar_url already
+      // has a value. Snapshotting only matters on first sign-in.
       supabase.auth.getUser().then(({ data: { user } }) => {
         if (user?.id) loadAvatar(user.id);
       });
