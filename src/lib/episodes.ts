@@ -114,6 +114,18 @@ export const EPISODES: Episode[] = [
     // article.
     href: '/transition-from-suboxone-to-sublocade',
   },
+  {
+    number: 8,
+    slug: 'signs-a-spouse-is-using-drugs',
+    title: '5 Signs a Spouse Is Using Drugs',
+    blurb:
+      'The behavioral, financial, and physical patterns that show up when a partner is using drugs — what they look like in real life, and what to do next when you start to see them.',
+    publishedAt: '2026-05-04',
+    publishedDisplay: 'May 4, 2026',
+    image: '/images/resident-reading-window.jpg',
+    imageAlt: 'A spouse looking out a window at dusk — when small changes start to add up',
+    href: '/signs-a-spouse-is-using-drugs',
+  },
 ];
 
 /** Newest-first — drives the landing page's "latest" surfacing. */
