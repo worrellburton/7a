@@ -607,11 +607,10 @@ export default function ProfileContent() {
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   rows={4}
-                  maxLength={600}
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none resize-y"
                   placeholder="A 2–3 sentence intro. Who you are, what you do at Seven Arrows, what draws you to this work."
                 />
-                <p className="text-[11px] text-foreground/40 mt-1">{bio.length}/600 — appears on your public team page.</p>
+                <p className="text-[11px] text-foreground/40 mt-1">Appears on your public team page.</p>
               </div>
 
               {/* Favorite Seven Arrows */}
