@@ -93,6 +93,11 @@ const modalities: Modality[] = [
     Icon: MIIcon,
   },
   {
+    title: 'Person-Centered Therapy',
+    body: 'Focuses on empathy, unconditional positive regard, and self-discovery.',
+    Icon: PersonCenteredIcon,
+  },
+  {
     title: 'SMART Recovery',
     body: 'Self-Management And Recovery Training — a science-based peer support framework using CBT and motivational tools alongside our clinical work.',
     Icon: SmartIcon,
@@ -404,6 +409,15 @@ function TwelveStepIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 20l5-5 4 3 5-7 4 4" />
       <path d="M3 20h18" opacity="0.5" />
+    </svg>
+  );
+}
+function PersonCenteredIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="3" />
+      <path d="M5 21c0-4 3-7 7-7s7 3 7 7" />
+      <path d="M12 11v3" />
     </svg>
   );
 }

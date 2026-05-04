@@ -5,8 +5,8 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 /**
  * Holistic & Indigenous — Phase 4. Holistic modalities bento.
  *
- * Eight practices in a 4×2 editorial grid: yoga, breathwork, sound,
- * art, music, nutrition, mindfulness, movement. Each tile carries a
+ * Nine practices in a 4×3 editorial grid: yoga, breathwork, sound,
+ * art, music, reiki, nutrition, mindfulness, movement. Each tile carries a
  * hand-drawn SVG glyph (no stock iconography), an uppercase category
  * tag, a serif title, and a short practice-first body copy.
  *
@@ -37,14 +37,20 @@ const modalities: Modality[] = [
   {
     tag: 'Creative',
     title: 'Expressive arts for healing',
-    body: 'Paint, clay, collage — non-clinical facilitation, not art therapy. A non-verbal route to what lives underneath the story we already know how to tell.',
+    body: 'Paint, clay, collage — non-clinical facilitation, not art therapy, offered by dedicated and skilled facilitators. A non-verbal route to what lives underneath the story we already know how to tell.',
     Icon: ArtIcon,
   },
   {
     tag: 'Creative',
     title: 'Music for healing',
-    body: 'Songwriting, guided listening, rhythm circles — a facilitated offering, not music therapy. Music reaches the limbic system before the mind has a word for it.',
+    body: 'Songwriting, guided listening, rhythm circles — a facilitated offering. Music reaches the limbic system before the mind has a word for it.',
     Icon: MusicIcon,
+  },
+  {
+    tag: 'Energy',
+    title: 'Individual reiki sessions',
+    body: 'One-on-one reiki sessions with a trained practitioner — a quiet, attuned modality for clients ready to settle the body without words.',
+    Icon: ReikiIcon,
   },
   {
     tag: 'Body',
@@ -116,7 +122,7 @@ export default function ModalitiesBento() {
               lineHeight: 1.04,
             }}
           >
-            Eight practices, <em className="not-italic" style={{ color: 'var(--color-accent)' }}>held together</em>.
+            Nine practices, <em className="not-italic" style={{ color: 'var(--color-accent)' }}>held together</em>.
           </h2>
           <p className="text-white/75 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             No single practice does all the work. Held together, they give the
@@ -270,6 +276,17 @@ function MovementIcon({ className }: { className?: string }) {
       <path d="M20 9.5l-5 5 3 4-2 7" />
       <path d="M15 14.5l-5-1-3 4" />
       <path d="M18 18.5l5-2" />
+    </svg>
+  );
+}
+
+function ReikiIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} aria-hidden="true" {...stroke()}>
+      <path d="M16 7c-2 3-2 6 0 9s2 6 0 9" />
+      <path d="M11 11c1 2 1 5-1 7" />
+      <path d="M21 11c-1 2-1 5 1 7" />
+      <circle cx="16" cy="16" r="1.5" fill="currentColor" />
     </svg>
   );
 }

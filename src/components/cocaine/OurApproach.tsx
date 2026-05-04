@@ -35,7 +35,7 @@ const modalities: Modality[] = [
   },
   {
     title: 'Trauma-informed therapy',
-    body: 'Forward-Facing Accelerated Recovery®, EMDR, ART, and IFS — sequenced so trauma work opens up only after nervous-system regulation has been rebuilt.',
+    body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS — sequenced so trauma work opens up only after nervous-system regulation has been rebuilt.',
     Icon: SpiralIcon,
   },
   {

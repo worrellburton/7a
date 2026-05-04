@@ -15,7 +15,7 @@ import WebGLAurora from './WebGLAurora';
  *     paragraph lede, CTA pair, and an overlay pull-quote ribbon.
  *
  * Intent: communicate the clinical-yet-human tone we use for
- * Forward-Facing Accelerated Recovery® care, and give the rest of the page a visual voice
+ * Forward-Facing® Accelerated Recovery care, and give the rest of the page a visual voice
  * to match.
  */
 export default function TraumaHero() {
@@ -139,9 +139,9 @@ export default function TraumaHero() {
               transition: 'all 0.9s cubic-bezier(0.16,1,0.3,1) 0.45s',
             }}
           >
-            Addiction rarely exists in isolation. Our Forward-Facing Accelerated Recovery<span className="align-super text-[10px]">®</span>{' '}
+            Addiction rarely exists in isolation. Our Forward-Facing<span className="align-super text-[10px]">®</span> Accelerated Recovery{' '}
             approach treats trauma and substance use as one integrated
-            condition through the Forward-Facing Accelerated Recovery<span className="align-super text-[10px]">®</span> model —
+            condition through the Forward-Facing<span className="align-super text-[10px]">®</span> Accelerated Recovery model —
             unlocking deeper and more lasting healing.
           </p>
 

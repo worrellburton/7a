@@ -5,7 +5,7 @@ export const alcoholContent: SubstanceContent = {
     label: 'Alcohol Addiction Treatment',
     title: 'Alcohol changes the brain. We help it change back.',
     description:
-      'At Seven Arrows Recovery, alcohol use disorder is treated as a whole-person condition: a neurochemical dependency, a trauma response, and a social pattern entwined at once. Our residential program in Arizona holds all three together — medically-supported detox, trauma-informed therapy, and a landscape that slows the nervous system down long enough for the work to land.',
+      'At Seven Arrows Recovery, alcohol use disorder is treated as a whole-person condition: a neurochemical dependency, a trauma response, and a social pattern entwined at once. Our residential program in Arizona holds all three together — medical detox coordination, trauma-informed therapy, and a landscape that slows the nervous system down long enough for the work to land.',
     breadcrumbs: [
       { label: 'Home', href: '/' },
       { label: 'What We Treat', href: '/what-we-treat' },
@@ -140,7 +140,7 @@ export const alcoholContent: SubstanceContent = {
       {
         label: 'The trauma self-medicator',
         headline: 'A drink to take the edge off a body that never got to come down.',
-        body: 'Acute or complex trauma sits underneath. The alcohol was an anaesthetic for a nervous system in chronic sympathetic activation. Forward-Facing Accelerated Recovery® is built for this exact presentation.',
+        body: 'Acute or complex trauma sits underneath. The alcohol was an anaesthetic for a nervous system in chronic sympathetic activation. Forward-Facing® Accelerated Recovery is built for this exact presentation.',
       },
       {
         label: 'The poly-substance pattern',
@@ -177,7 +177,7 @@ export const alcoholContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing Accelerated Recovery®, EMDR, ART, and IFS — sequenced after the body is stable so processing supports regulation rather than unsettling it.',
+        body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS — sequenced after the body is stable so processing supports regulation rather than unsettling it.',
         iconId: 'spiral',
       },
       {

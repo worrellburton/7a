@@ -10,15 +10,15 @@ export const familyFaqs: FamilyFaq[] = [
   },
   {
     q: 'Is there an additional cost for the family program?',
-    a: 'No. Family support sessions, education groups, visitation, and quarterly family weekends are included in your loved one\'s program of care at no additional charge.',
+    a: 'No. Family support sessions, education groups, and visitation are included in your loved one\'s program of care at no additional charge.',
   },
   {
     q: 'When do family support sessions start?',
-    a: 'Family support sessions typically begin in the second week of residential, after the client has had time to stabilize and our clinical team has built the initial treatment plan. Sessions are weekly by default.',
+    a: 'Family support sessions typically begin in the second week of residential, after the client has had time to stabilize and our clinical team has built the initial treatment plan.',
   },
   {
     q: 'Can I visit my loved one during treatment?',
-    a: 'Yes. Structured in-person visitation begins after the first two weeks. The clinical team schedules in-person visits, campus tours for loved ones, and family weekend logistics on a rhythm that supports the clinical work.',
+    a: 'Yes. Structured in-person visitation begins after the first two weeks. For loved ones who are out of state or unable to attend in person, virtual family visitation is available weekly. The clinical team schedules visits and campus tours on a rhythm that supports the clinical work.',
   },
   {
     q: 'How do I reach the clinical team with questions?',

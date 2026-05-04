@@ -42,7 +42,7 @@ export default function TraumaLayer() {
 
         <div className="space-y-5 text-foreground/75 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)', opacity: visible ? 1 : 0, transition: 'opacity 0.95s ease 0.55s' }}>
           <p>
-            Our Forward-Facing Accelerated Recovery<span className="align-super text-[11px]">®</span> approach holds trauma as the
+            Our Forward-Facing<span className="align-super text-[11px]">®</span> Accelerated Recovery approach holds trauma as the
             common substrate under most dual diagnoses. Anxiety gets louder
             after a hard session. Substance use quiets it again. The cycle is
             downstream of the same nervous-system injury.

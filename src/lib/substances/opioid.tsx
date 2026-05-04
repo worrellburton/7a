@@ -171,7 +171,7 @@ export const opioidContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing Accelerated Recovery®, EMDR, ART, and IFS — sequenced after the body is stable so processing supports regulation rather than unsettling it.',
+        body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS — sequenced after the body is stable so processing supports regulation rather than unsettling it.',
         iconId: 'spiral',
       },
       {

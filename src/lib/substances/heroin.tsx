@@ -176,7 +176,7 @@ export const heroinContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing Accelerated Recovery®, EMDR, ART, and IFS — sequenced after the body is stable and MAT is holding so processing supports regulation.',
+        body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS — sequenced after the body is stable and MAT is holding so processing supports regulation.',
         iconId: 'spiral',
       },
       {
