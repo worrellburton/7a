@@ -114,46 +114,6 @@ export const EPISODES: Episode[] = [
     // article.
     href: '/transition-from-suboxone-to-sublocade',
   },
-  {
-    number: 8,
-    slug: 'signs-a-spouse-is-using-drugs',
-    title: '5 Signs a Spouse Is Using Drugs',
-    blurb:
-      'The behavioral, financial, and physical patterns that show up when a partner is using drugs — what they look like in real life, and what to do next when you start to see them.',
-    publishedAt: '2026-05-04',
-    publishedDisplay: 'May 4, 2026',
-    image: '/images/resident-reading-window.jpg',
-    imageAlt: 'A spouse looking out a window at dusk — when small changes start to add up',
-    href: '/signs-a-spouse-is-using-drugs',
-  },
-  {
-    number: 9,
-    slug: 'drug-rehabs-with-horses',
-    title: 'Drug Rehabs with Horses',
-    blurb:
-      'How equine-assisted therapy supports recovery — what working with horses actually involves, the five core benefits, and how Seven Arrows builds equine work into our holistic program.',
-    publishedAt: '2026-05-04',
-    publishedDisplay: 'May 4, 2026',
-    image: '/images/equine-therapy-portrait.jpg',
-    imageAlt: 'A client and a horse in a quiet moment — reflective work in the arena',
-    href: '/drug-rehabs-with-horses',
-  },
-  {
-    number: 10,
-    slug: 'how-to-go-to-rehab-without-losing-your-job',
-    title: 'How to Go to Rehab Without Losing Your Job',
-    blurb:
-      'How the Family and Medical Leave Act (FMLA) protects your job while you go to rehab — eligibility, how leave for substance abuse treatment actually works, and what to do next.',
-    publishedAt: '2026-05-04',
-    publishedDisplay: 'May 4, 2026',
-    image: '/images/resident-reading-window.jpg',
-    imageAlt: 'A laptop on a desk closing for the day — protected leave, then treatment',
-    // URL preserves the misspelling from the legacy WordPress slug
-    // (`loosing` instead of `losing`) so existing inbound links land
-    // on the article. Slug above uses the correct spelling for any
-    // future references.
-    href: '/how-to-go-to-rehab-without-loosing-your-job',
-  },
 ];
 
 /** Newest-first — drives the landing page's "latest" surfacing. */
