@@ -298,7 +298,7 @@ export async function GET(req: NextRequest) {
     errorMsg = lastLog || errorMsg || 'fal.ai reported failure';
   }
 
-  // Always write the latest debug snapshot back so /feather/video can
+  // Always write the latest debug snapshot back so /app/video can
   // surface "what fal said on the last poll". When something else
   // changed too (status / urls), bundle it into the same UPDATE
   // so we don't make two roundtrips per poll.

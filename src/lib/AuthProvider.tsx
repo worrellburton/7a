@@ -18,7 +18,7 @@ interface AuthContextType {
   departmentId: string | null;
   status: UserStatus;
   /**
-   * Classification a super admin set on /feather/incoming-users — staff
+   * Classification a super admin set on /app/incoming-users — staff
    * for everyone @sevenarrowsrecovery, guest or alumni for outside
    * sign-ins. Defaults to 'staff' for any pre-classification row.
    */
@@ -162,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // `users_set_initial_status` trigger, and admins flip it via the
     // Team page. Don't second-guess that here — an earlier client-side
     // "auto-hold non-org email" backfill kept yanking approved users
-    // back to on_hold every time they hit /feather, so admin approvals
+    // back to on_hold every time they hit /app, so admin approvals
     // never stuck for Gmail/Yahoo accounts.
     setStatus(row.status ?? 'active');
   }
@@ -205,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 targetKind: 'user',
                 targetId: session.user.id,
                 targetLabel: name,
-                targetPath: '/feather',
+                targetPath: '/app',
               });
             } else {
               signInLoggedThisSession = true;
@@ -248,7 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Presence heartbeat: update last_sign_in + current page + last_seen_at.
   // Runs on mount, on every route change, and on a 60s interval so the
-  // Users page can show "viewing /feather/calendar • 12s ago".
+  // Users page can show "viewing /app/calendar • 12s ago".
   useEffect(() => {
     if (!user || !session?.access_token) return;
     const update = () => {
@@ -276,14 +276,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // domain in production (https://www.sevenarrowsrecoveryarizona.com);
     // falls back to the current origin in dev / previews if the env
     // var is missing. The path lands at a server-side callback route
-    // that exchanges the code for a session and forwards to /feather.
+    // that exchanges the code for a session and forwards to /app.
     const canonical =
       process.env.NEXT_PUBLIC_SITE_URL ||
       (typeof window !== 'undefined' ? window.location.origin : '');
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${canonical}/auth/callback?next=/feather`,
+        redirectTo: `${canonical}/auth/callback?next=/app`,
       },
     });
     if (error) {

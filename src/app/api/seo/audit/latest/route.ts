@@ -4,7 +4,7 @@ import { getAdminSupabase, getServerSupabase } from '@/lib/supabase-server';
 // GET /api/seo/audit/latest?origin=<optional>
 // Any signed-in user. Returns the most recent audit from
 // public.seo_audits, or { audit: null } if none exists yet. Powers
-// the hydrate-on-mount behavior of /feather/seo/audit so anyone landing
+// the hydrate-on-mount behavior of /app/seo/audit so anyone landing
 // on the page sees the last run an admin kicked off.
 //
 // Reads via the service-role client so the row is visible regardless

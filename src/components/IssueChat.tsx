@@ -143,7 +143,7 @@ export function IssueChat({ issueId, issueLabel }: { issueId: string; issueLabel
         targetKind: 'facilities_issue',
         targetId: issueId,
         targetLabel: issueLabel || 'facilities issue',
-        targetPath: '/feather/facilities',
+        targetPath: '/app/facilities',
         metadata: { preview: body.slice(0, 140) },
       });
     } else {
@@ -162,7 +162,7 @@ export function IssueChat({ issueId, issueLabel }: { issueId: string; issueLabel
     if (!res || (res as { ok?: boolean; error?: string }).error) {
       setMessages(prev);
     } else if (user?.id) {
-      logActivity({ userId: user.id, type: 'facilities.chat_message_deleted', targetKind: 'facilities_issue', targetId: issueId, targetLabel: issueLabel || 'facilities issue', targetPath: '/feather/facilities' });
+      logActivity({ userId: user.id, type: 'facilities.chat_message_deleted', targetKind: 'facilities_issue', targetId: issueId, targetLabel: issueLabel || 'facilities issue', targetPath: '/app/facilities' });
     }
   };
 

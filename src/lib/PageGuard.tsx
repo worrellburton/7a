@@ -14,7 +14,7 @@ export default function PageGuard({ children }: { children: React.ReactNode }) {
   // Per-user override beats every other rule. Allow grants access even
   // if dept rules / admin-only would deny it; Block denies even if
   // dept rules would allow. Department check uses the merged set
-  // (primary + extras granted via /feather/user-permissions).
+  // (primary + extras granted via /app/user-permissions).
   const override = userOverrides[pathname];
   const deniedAdmin = isPageAdminOnly(pathname) && !isAdmin;
   const deniedDept = !isAdmin && !isPageAllowedForDepartmentSet(pathname, [departmentId, ...userExtraDepartmentIds]);
@@ -23,7 +23,7 @@ export default function PageGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (authLoading || permLoading || !user) return;
     if (denied) {
-      router.replace('/feather');
+      router.replace('/app');
     }
   }, [authLoading, permLoading, user, denied, router]);
 

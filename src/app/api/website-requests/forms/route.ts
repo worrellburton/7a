@@ -17,7 +17,7 @@ export async function GET() {
 
   const admin = getAdminSupabase();
   // Careers submissions live in the same table but get their own
-  // /feather/website-requests/careers page; exclude them here so they
+  // /app/website-requests/careers page; exclude them here so they
   // don't double-up.
   //
   // Try the full select with responded_*; fall back if the columns

@@ -22,7 +22,7 @@ function originOf(req: Request): string {
   return `${u.protocol}//${u.host}`;
 }
 
-function fail(req: Request, reason: string, returnTo = '/feather/analytics'): NextResponse {
+function fail(req: Request, reason: string, returnTo = '/app/analytics'): NextResponse {
   const url = new URL(returnTo, originOf(req));
   url.searchParams.set('google_oauth', 'error');
   url.searchParams.set('reason', reason);
@@ -32,9 +32,9 @@ function fail(req: Request, reason: string, returnTo = '/feather/analytics'): Ne
 export async function GET(req: Request) {
   const supabase = await getServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.redirect(new URL('/feather', originOf(req)).toString(), { status: 302 });
+  if (!user) return NextResponse.redirect(new URL('/app', originOf(req)).toString(), { status: 302 });
   const { data: me } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!me?.is_admin) return NextResponse.redirect(new URL('/feather', originOf(req)).toString(), { status: 302 });
+  if (!me?.is_admin) return NextResponse.redirect(new URL('/app', originOf(req)).toString(), { status: 302 });
 
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
   const jar = await cookies();
   const stateCookie = jar.get(STATE_COOKIE)?.value ?? '';
   const [storedState, returnTo] = stateCookie.split('|');
-  const dest = returnTo || '/feather/analytics';
+  const dest = returnTo || '/app/analytics';
 
   // Always clear the cookie before responding.
   const clearCookie = (res: NextResponse) => {

@@ -82,7 +82,7 @@ ${fixes || '_(no per-page issues found — the audit is clean)_'}
 3. **Smallest change that fixes the issue.** Do not refactor surrounding code or rewrite components beyond what the audit calls out.
 4. **Preserve the strengths above.** A regression in a 90+ category that drops it below 90 is worse than leaving a low-impact issue alone.
 5. **One commit per category** when you finish all of that category's issues. Commit message: \`SEO: <category> -> 100\`.
-6. **Re-run the audit** at \`/feather/seo/audit\` after each commit and paste the new score in the next message.
+6. **Re-run the audit** at \`/app/seo/audit\` after each commit and paste the new score in the next message.
 7. **If a fix isn't possible from this codebase** (e.g. the marketing site is on a different platform / WordPress), say so explicitly and stop — do not invent file paths.
 
 ## Stop conditions
@@ -114,7 +114,7 @@ interface CategoryRecipe {
 // Each recipe is concrete enough that an agent can pattern-match it
 // to the codebase. Site is Next.js App Router with metadata exports
 // in src/app/(site)/**/page.tsx. Where a fix touches the public site
-// only, say so. /feather/* (the admin portal) is intentionally noindex
+// only, say so. /app/* (the admin portal) is intentionally noindex
 // and should not be hand-edited for SEO.
 const CATEGORY_RECIPES: CategoryRecipe[] = [
   {
