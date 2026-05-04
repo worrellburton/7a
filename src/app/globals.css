@@ -369,3 +369,23 @@ body:has([data-sidebar-rail]:hover) [data-shift-on-sidebar] {
    open — MobileMenu sets data-mobile-nav-open on <html> while it is
    visible, otherwise the pill overlaps the open menu. */
 html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
+
+/* Subtle pulse on rows whose status is "Claim in Process" in the
+   SEO Directories table. Slow blue halo so admins can spot in-flight
+   claims at a glance without the table feeling jittery. The inset
+   shadow stays inside the row's edges so it doesn't bleed into
+   adjacent rows, and the animation falls back to a static outline
+   for users with prefers-reduced-motion set. */
+@keyframes sa-claim-glow {
+  0%, 100% { box-shadow: inset 0 0 0 0 rgb(59 130 246 / 0); }
+  50% { box-shadow: inset 0 0 0 2px rgb(59 130 246 / 0.4); }
+}
+.sa-claim-glow {
+  animation: sa-claim-glow 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-claim-glow {
+    animation: none;
+    box-shadow: inset 0 0 0 2px rgb(59 130 246 / 0.35);
+  }
+}

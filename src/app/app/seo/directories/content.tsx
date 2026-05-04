@@ -2935,17 +2935,20 @@ const STATUS_ORDER: Status[] = [
 // Default-view grouping order. Same statuses as STATUS_ORDER (which
 // drives the dropdown + counter card) but reordered for "what should
 // I look at first?" instead of "where does this fall in the
-// pipeline?": active work at the top, untouched queue next, wins,
-// blocked rows, then dead-ends. `skip` is still last and is also
-// independently sunk to the bottom of every sort by the flatRows
-// memo, so changing this list won't accidentally float Skip up.
+// pipeline?": wins float to the top so the team sees what's already
+// done, then claim-in-process (the rows that are actively being
+// worked and visually glow in the table), then the rest of the
+// active queue, then untouched, then blocked / dead-ends. `skip` is
+// still last and is also independently sunk to the bottom of every
+// sort by the flatRows memo, so changing this list won't accidentally
+// float Skip up.
 const DEFAULT_STATUS_GROUP_ORDER: Status[] = [
+  'live',
   'claim_in_process',
   'claimed',
   'submitted',
   'pending',
   'todo',
-  'live',
   'paid_list',
   'requires_official_docs',
   'no_option',
@@ -4413,6 +4416,7 @@ export default function DirectoriesContent() {
                 const tintClass = STATUS_ROW_TINT[status];
                 const isHidden = !!directoryStates[d.id]?.hidden;
                 const chatOpen = openChat?.id === d.id;
+                const isClaimInProcess = status === 'claim_in_process';
                 return (
                   <Fragment key={d.id}>
                   <tr
@@ -4420,7 +4424,7 @@ export default function DirectoriesContent() {
                       if (el) rowRefs.current.set(d.id, el);
                       else rowRefs.current.delete(d.id);
                     }}
-                    className={`align-top transition-colors cursor-pointer ${tintClass} ${isHidden ? 'opacity-50' : ''} ${chatOpen ? 'ring-1 ring-primary/20' : 'hover:bg-warm-bg/40'}`}
+                    className={`align-top transition-colors cursor-pointer ${tintClass} ${isHidden ? 'opacity-50' : ''} ${chatOpen ? 'ring-1 ring-primary/20' : 'hover:bg-warm-bg/40'} ${isClaimInProcess && !isHidden ? 'sa-claim-glow' : ''}`}
                     onClick={(e) => {
                       // Don't hijack clicks on interactive cells
                       // (links, buttons, inputs, selects). They each
@@ -4684,10 +4688,11 @@ export default function DirectoriesContent() {
             const requires2fa = !!directoryStates[d.id]?.requires_2fa;
             const requiresEin = !!directoryStates[d.id]?.requires_ein;
             const chatOpen = openChat?.id === d.id;
+            const isClaimInProcess = status === 'claim_in_process';
             return (
               <article
                 key={d.id}
-                className={`relative rounded-xl border border-black/10 bg-white p-3 transition-colors ${tintClass} ${isHidden ? 'opacity-50' : ''} ${chatOpen ? 'ring-1 ring-primary/30' : ''}`}
+                className={`relative rounded-xl border border-black/10 bg-white p-3 transition-colors ${tintClass} ${isHidden ? 'opacity-50' : ''} ${chatOpen ? 'ring-1 ring-primary/30' : ''} ${isClaimInProcess && !isHidden ? 'sa-claim-glow' : ''}`}
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0 flex-1">
