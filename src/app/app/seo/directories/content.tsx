@@ -2943,12 +2943,15 @@ type SortKey =
   | 'paid'
   | 'live'
   | 'nap'
-  | 'status';
+  | 'status'
+  | 'comments'
+  | 'twofa';
 
 interface SortContext {
   linkMap: Record<string, string>;
   statusMap: Record<string, Status>;
   directoryStates: Record<string, DirectoryStateRow>;
+  chatCounts: Record<string, number>;
 }
 
 const PRIORITY_RANK: Record<Directory['priority'], number> = {
@@ -3003,6 +3006,16 @@ function sortComparator(
         const ai = STATUS_ORDER.indexOf(ctx.statusMap[a.id] ?? 'todo');
         const bi = STATUS_ORDER.indexOf(ctx.statusMap[b.id] ?? 'todo');
         return ai - bi;
+      };
+    case 'comments':
+      // Most-discussed first when ascending — admins almost always
+      // want to see active threads before empty ones.
+      return (a, b, ctx) => (ctx.chatCounts[b.id] ?? 0) - (ctx.chatCounts[a.id] ?? 0);
+    case 'twofa':
+      return (a, b, ctx) => {
+        const a2 = ctx.directoryStates[a.id]?.requires_2fa ? 1 : 0;
+        const b2 = ctx.directoryStates[b.id]?.requires_2fa ? 1 : 0;
+        return b2 - a2; // 2FA-required first
       };
   }
 }
@@ -3143,6 +3156,12 @@ interface DirectoryStateRow {
   nap_phone: string | null;
   nap_set_by: string | null;
   nap_set_at: string | null;
+  // Some directories gate logins behind 2FA codes sent to a single
+  // shared phone. Flag lets the team batch those rows when whoever
+  // holds the phone is available.
+  requires_2fa: boolean;
+  requires_2fa_set_by: string | null;
+  requires_2fa_set_at: string | null;
 }
 
 interface UserLite {
@@ -3163,7 +3182,7 @@ function useDirectoryStates() {
       const rows = await db({
         action: 'select',
         table: 'directory_states',
-        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at',
+        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at, requires_2fa, requires_2fa_set_by, requires_2fa_set_at',
       }).catch(() => null);
       if (cancelled) return;
       const map: Record<string, DirectoryStateRow> = {};
@@ -3212,7 +3231,7 @@ function useDirectoryStates() {
           const fresh = await db({
             action: 'select',
             table: 'directory_states',
-            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at',
+            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at, requires_2fa, requires_2fa_set_by, requires_2fa_set_at',
           }).catch(() => null);
           if (!cancelled && Array.isArray(fresh)) {
             const next: Record<string, DirectoryStateRow> = {};
@@ -3284,6 +3303,7 @@ function useDirectoryStates() {
     const hiddenChanged = patch.hidden !== undefined;
     const napChanged =
       patch.nap_name !== undefined || patch.nap_address !== undefined || patch.nap_phone !== undefined;
+    const twofaChanged = patch.requires_2fa !== undefined;
     const next: DirectoryStateRow = {
       directory_id: id,
       status: patch.status ?? existing?.status ?? 'todo',
@@ -3308,6 +3328,9 @@ function useDirectoryStates() {
       nap_phone: patch.nap_phone !== undefined ? patch.nap_phone : (existing?.nap_phone ?? null),
       nap_set_by: napChanged ? user.id : (existing?.nap_set_by ?? null),
       nap_set_at: napChanged ? new Date().toISOString() : (existing?.nap_set_at ?? null),
+      requires_2fa: patch.requires_2fa !== undefined ? patch.requires_2fa : (existing?.requires_2fa ?? false),
+      requires_2fa_set_by: twofaChanged ? user.id : (existing?.requires_2fa_set_by ?? null),
+      requires_2fa_set_at: twofaChanged ? new Date().toISOString() : (existing?.requires_2fa_set_at ?? null),
     };
     setById((prev) => ({ ...prev, [id]: next }));
     // Surface upsert errors instead of silently swallowing them.
@@ -3396,6 +3419,17 @@ function useDirectoryStates() {
           address: next.nap_address,
           phone: next.nap_phone,
         },
+      });
+    }
+    if (twofaChanged && (existing?.requires_2fa ?? false) !== next.requires_2fa) {
+      void logActivity({
+        userId: user.id,
+        type: 'seo.directory_2fa_toggled',
+        targetKind: 'seo_directory',
+        targetId: id,
+        targetLabel: label,
+        targetPath: '/app/seo/directories',
+        metadata: { requires_2fa: next.requires_2fa },
       });
     }
   };
@@ -4089,14 +4123,14 @@ export default function DirectoriesContent() {
     const cmp = sortComparator(sortKey);
     return indexed
       .sort((a, b) => {
-        const r = cmp(a.d, b.d, { linkMap, statusMap, directoryStates });
+        const r = cmp(a.d, b.d, { linkMap, statusMap, directoryStates, chatCounts });
         if (r !== 0) return r * dir;
         // Stable secondary sort: original curated index keeps the
         // ordering deterministic when the primary is a tie.
         return a.i - b.i;
       })
       .map((x) => x.d);
-  }, [filtered, linkMap, statusMap, sortKey, sortDir, directoryStates]);
+  }, [filtered, linkMap, statusMap, sortKey, sortDir, directoryStates, chatCounts]);
 
   // Counts for the progress strip — every status gets its own card.
   // 'todo' is the implicit default (no row in directory_states), so
@@ -4277,8 +4311,10 @@ export default function DirectoriesContent() {
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="priority" widthClass="w-20">Priority</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="fit" widthClass="w-14">Fit</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="paid" widthClass="w-24">Paid</SortableTh>
+                <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="twofa" widthClass="w-20">2FA</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="live" widthClass="w-28">Live link</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="nap" widthClass="w-20">NAP</SortableTh>
+                <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="comments" widthClass="w-20">Comments</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="status" widthClass="w-28">Status</SortableTh>
                 <th className="text-right px-2 py-2.5 font-semibold border-b border-black/10 w-10" aria-label="Delete" />
               </tr>
@@ -4332,17 +4368,6 @@ export default function DirectoriesContent() {
                               Hidden
                             </span>
                           )}
-                          {chatCounts[d.id] ? (
-                            <span
-                              className="ml-2 inline-flex items-center gap-1 px-1.5 py-0 rounded text-[9px] uppercase tracking-wider border border-primary/30 bg-primary/10 text-primary align-middle"
-                              title={`${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}`}
-                            >
-                              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                              </svg>
-                              {chatCounts[d.id] > 99 ? '99+' : chatCounts[d.id]}
-                            </span>
-                          ) : null}
                           {isUnread(d.id) && (
                             <span aria-label="Unread" className="ml-1.5 inline-block w-2 h-2 rounded-full bg-red-500 align-middle" />
                           )}
@@ -4405,6 +4430,12 @@ export default function DirectoriesContent() {
                       />
                     </td>
                     <td className="px-3 py-3">
+                      <TwoFaCell
+                        value={directoryStates[d.id]?.requires_2fa ?? false}
+                        onChange={(v) => upsertDirectoryState(d.id, { requires_2fa: v })}
+                      />
+                    </td>
+                    <td className="px-3 py-3">
                       <LinkCell
                         value={link}
                         onSave={(v) => saveLink(d.id, v)}
@@ -4422,6 +4453,15 @@ export default function DirectoriesContent() {
                         setBy={directoryStates[d.id]?.nap_set_by
                           ? (directoryStateUsers[directoryStates[d.id].nap_set_by!]?.full_name ?? null)
                           : null}
+                      />
+                    </td>
+                    <td className="px-3 py-3">
+                      <CommentsCell
+                        count={chatCounts[d.id] ?? 0}
+                        unread={isUnread(d.id)}
+                        open={chatOpen}
+                        onClick={() => openComments(d)}
+                        label={d.name}
                       />
                     </td>
                     <td className="px-3 py-3">
@@ -4484,7 +4524,7 @@ export default function DirectoriesContent() {
                   </tr>
                   {chatOpen && (
                     <tr className={`${tintClass}`}>
-                      <td colSpan={10} className="px-0 py-0 border-t border-primary/15">
+                      <td colSpan={12} className="px-0 py-0 border-t border-primary/15">
                         <div className="bg-white border-y border-primary/10">
                           <header className="flex items-center justify-between px-4 py-2 bg-warm-bg/40 border-b border-black/5">
                             <div className="flex items-baseline gap-2 min-w-0">
@@ -4544,6 +4584,7 @@ export default function DirectoriesContent() {
             const isHidden = !!directoryStates[d.id]?.hidden;
             const paid = directoryStates[d.id]?.paid ?? false;
             const paidAmt = directoryStates[d.id]?.paid_amount ?? null;
+            const requires2fa = !!directoryStates[d.id]?.requires_2fa;
             const chatOpen = openChat?.id === d.id;
             return (
               <article
@@ -4640,6 +4681,17 @@ export default function DirectoriesContent() {
                       'Not paid'
                     )}
                   </span>
+                  {requires2fa && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                      title="Submission portal requires 2FA"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.25" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c1.657 0 3-1.343 3-3V6a3 3 0 10-6 0v2c0 1.657 1.343 3 3 3zm-6 0h12v9a1 1 0 01-1 1H7a1 1 0 01-1-1v-9z" />
+                      </svg>
+                      2FA
+                    </span>
+                  )}
                   <span className={`inline-flex items-center rounded-md border ${STATUS_TONE[status]}`}>
                     <select
                       value={status}
@@ -4680,11 +4732,17 @@ export default function DirectoriesContent() {
                 </div>
 
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-black/5">
-                  <PaidCell
-                    paid={paid}
-                    amount={paidAmt}
-                    onChange={(p, amt) => setPaid(d.id, p, amt)}
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <PaidCell
+                      paid={paid}
+                      amount={paidAmt}
+                      onChange={(p, amt) => setPaid(d.id, p, amt)}
+                    />
+                    <TwoFaCell
+                      value={requires2fa}
+                      onChange={(v) => upsertDirectoryState(d.id, { requires_2fa: v })}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => openComments(d)}
@@ -5063,6 +5121,88 @@ function PaidCell({
       className="inline-flex items-center gap-1 rounded-md border border-black/10 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-foreground/55 hover:bg-foreground/5 transition-colors"
     >
       No
+    </button>
+  );
+}
+
+// Yes / no toggle for "this directory's submission portal requires
+// 2FA codes from a shared phone." Visual mirrors PaidCell so the row
+// reads consistently across the access-related columns.
+function TwoFaCell({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  if (value) {
+    return (
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        title="2FA required — click to clear"
+        aria-pressed="true"
+        className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.25" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c1.657 0 3-1.343 3-3V6a3 3 0 10-6 0v2c0 1.657 1.343 3 3 3zm-6 0h12v9a1 1 0 01-1 1H7a1 1 0 01-1-1v-9z" />
+        </svg>
+        Yes
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(true)}
+      title="Mark this directory as requiring 2FA"
+      aria-pressed="false"
+      className="inline-flex items-center gap-1 rounded-md border border-black/10 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-foreground/55 hover:bg-foreground/5 transition-colors"
+    >
+      No
+    </button>
+  );
+}
+
+// Chat-bubble + comment-count cell. Click expands the inline comments
+// thread under the row (handled by the parent's openComments). The
+// red dot lights up when there are unread messages from teammates.
+function CommentsCell({
+  count,
+  unread,
+  open,
+  onClick,
+  label,
+}: {
+  count: number;
+  unread: boolean;
+  open: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  const has = count > 0;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Comments for ${label}`}
+      aria-expanded={open}
+      title={open ? 'Hide comments' : (has ? `${count} comment${count === 1 ? '' : 's'}` : 'Add a comment')}
+      className={`relative inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold transition-colors ${
+        open
+          ? 'border-primary/30 bg-primary/10 text-primary'
+          : has
+            ? 'border-primary/20 bg-primary/5 text-primary hover:bg-primary/10'
+            : 'border-black/10 bg-white text-foreground/55 hover:bg-foreground/5'
+      }`}
+    >
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+      </svg>
+      <span className="tabular-nums">{count > 99 ? '99+' : count}</span>
+      {unread && (
+        <span aria-label="Unread" className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
+      )}
     </button>
   );
 }
