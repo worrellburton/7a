@@ -351,7 +351,7 @@ export default function ContactsContent() {
   if (!user) return null;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10 max-w-[1600px] mx-auto pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
+    <div className="p-4 sm:p-6 lg:p-8 w-full pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight">Contacts</h1>
@@ -753,7 +753,7 @@ function ContactCell({ column, contact }: { column: ColumnDef; contact: Contact 
       return <span className="text-foreground/65 whitespace-nowrap">{contact.location || <Em />}</span>;
     case 'notes':
       return contact.notes
-        ? <span className="text-foreground/75 line-clamp-2 leading-snug max-w-[320px]">{contact.notes}</span>
+        ? <span className="text-foreground/75 line-clamp-2 leading-snug max-w-[480px]">{contact.notes}</span>
         : <Em />;
     default:
       return null;
