@@ -126,6 +126,18 @@ export const EPISODES: Episode[] = [
     imageAlt: 'A spouse looking out a window at dusk — when small changes start to add up',
     href: '/signs-a-spouse-is-using-drugs',
   },
+  {
+    number: 9,
+    slug: 'drug-rehabs-with-horses',
+    title: 'Drug Rehabs with Horses',
+    blurb:
+      'How equine-assisted therapy supports recovery — what working with horses actually involves, the five core benefits, and how Seven Arrows builds equine work into our holistic program.',
+    publishedAt: '2026-05-04',
+    publishedDisplay: 'May 4, 2026',
+    image: '/images/equine-therapy-portrait.jpg',
+    imageAlt: 'A client and a horse in a quiet moment — reflective work in the arena',
+    href: '/drug-rehabs-with-horses',
+  },
 ];
 
 /** Newest-first — drives the landing page's "latest" surfacing. */
