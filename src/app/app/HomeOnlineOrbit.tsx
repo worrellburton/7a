@@ -27,6 +27,33 @@ interface OrbitUser {
   last_seen_at: string | null;
   last_path: string | null;
   job_title: string | null;
+  // Today's activity-log count + recent rows, joined in by
+  // HomeContent. > 10 actions flips the avatar into "on fire" mode:
+  // a flame badge in the corner + a warm halo glow. The hover
+  // tooltip surfaces the count and the most recent actions so the
+  // viewer can see *why* a teammate is highlighted.
+  actions_today?: number;
+  recent_actions?: Array<{
+    type: string;
+    target_label: string | null;
+    created_at: string;
+  }>;
+}
+
+const ON_FIRE_THRESHOLD = 10;
+
+// Activity-log type strings are dot.snake_case (e.g.
+// "seo.directory_status_changed"). For the on-fire tooltip we want
+// short, human-readable labels — strip the namespace, replace
+// underscores with spaces, sentence-case the result. Keeps the
+// component decoupled from any per-type label registry: a new
+// activity type added anywhere in the app shows up here without an
+// edit.
+function humanizeActivityType(type: string): string {
+  const tail = type.includes('.') ? type.slice(type.lastIndexOf('.') + 1) : type;
+  const spaced = tail.replace(/_/g, ' ').trim();
+  if (!spaced) return type;
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 // Inner ring shows the horse roster, orbiting opposite-direction so
@@ -260,6 +287,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             const online = isOnlineNow(u.last_seen_at);
             const viewing = online ? pathLabelFor(u.last_path) : null;
             const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
+            const onFire = (u.actions_today ?? 0) > ON_FIRE_THRESHOLD;
             const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
             const slotStyle: CSSProperties = {
               transform: `rotate(${angle}deg)`,
@@ -299,23 +327,36 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                             alt={u.full_name || ''}
                             referrerPolicy="no-referrer"
                             className={`block w-9 h-9 sm:w-12 sm:h-12 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
-                              online
-                                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
-                                : 'border-white shadow-md'
+                              onFire
+                                ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)]'
+                                : online
+                                  ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
+                                  : 'border-white shadow-md'
                             }`}
                           />
                         ) : (
                           <span
                             className={`flex w-9 h-9 sm:w-12 sm:h-12 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
-                              online
-                                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)] bg-primary text-white'
-                                : 'border-white bg-primary text-white shadow-md'
+                              onFire
+                                ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)] bg-primary text-white'
+                                : online
+                                  ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)] bg-primary text-white'
+                                  : 'border-white bg-primary text-white shadow-md'
                             }`}
                           >
                             {(u.full_name || '?').charAt(0).toUpperCase()}
                           </span>
                         )}
-                        {online && (
+                        {onFire && (
+                          <span
+                            aria-label="On a streak"
+                            className="orbit-fire absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-br from-amber-300 via-orange-500 to-rose-500 border-2 border-white shadow-md flex items-center justify-center text-[10px] leading-none"
+                            role="img"
+                          >
+                            <span aria-hidden="true">🔥</span>
+                          </span>
+                        )}
+                        {!onFire && online && (
                           <span
                             aria-hidden="true"
                             className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white"
@@ -342,21 +383,46 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
         {hovered && (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 mt-12 z-[60] pointer-events-none">
             {hovered.kind === 'user' ? (
-              <div className="w-max max-w-[min(18rem,80vw)] px-3 py-2 bg-foreground text-white text-xs rounded-lg shadow-lg break-words text-center">
-                <p className="font-semibold leading-tight">{hovered.user.full_name || 'User'}</p>
-                {hovered.user.job_title && (
-                  <p className="text-white/85 leading-tight mt-0.5">{hovered.user.job_title}</p>
-                )}
-                <p className="text-white/75 leading-tight mt-0.5">
-                  {hovered.online ? 'Online now' : `Last active ${timeAgo(hovered.user.last_sign_in)}`}
-                </p>
-                {hovered.viewing && (
-                  <p className="text-emerald-300 leading-tight mt-0.5">
-                    Viewing {hovered.viewing}
-                    {hovered.navTarget ? ' — click to jump' : ''}
-                  </p>
-                )}
-              </div>
+              (() => {
+                const actions = hovered.user.actions_today ?? 0;
+                const onFire = actions > ON_FIRE_THRESHOLD;
+                const recent = hovered.user.recent_actions ?? [];
+                return (
+                  <div className="w-max max-w-[min(20rem,82vw)] px-3 py-2 bg-foreground text-white text-xs rounded-lg shadow-lg break-words text-center">
+                    <p className="font-semibold leading-tight">{hovered.user.full_name || 'User'}</p>
+                    {hovered.user.job_title && (
+                      <p className="text-white/85 leading-tight mt-0.5">{hovered.user.job_title}</p>
+                    )}
+                    <p className="text-white/75 leading-tight mt-0.5">
+                      {hovered.online ? 'Online now' : `Last active ${timeAgo(hovered.user.last_sign_in)}`}
+                    </p>
+                    {hovered.viewing && (
+                      <p className="text-emerald-300 leading-tight mt-0.5">
+                        Viewing {hovered.viewing}
+                        {hovered.navTarget ? ' — click to jump' : ''}
+                      </p>
+                    )}
+                    {onFire && (
+                      <div className="mt-1.5 pt-1.5 border-t border-white/15 text-left">
+                        <p className="text-orange-300 font-semibold leading-tight">
+                          <span aria-hidden="true">🔥</span> On a streak — {actions} actions today
+                        </p>
+                        {recent.length > 0 && (
+                          <ul className="mt-1 space-y-0.5 text-white/80 leading-snug">
+                            {recent.slice(0, 4).map((a, idx) => (
+                              <li key={`${a.created_at}-${idx}`} className="truncate">
+                                <span className="text-white/55">{timeAgo(a.created_at)} · </span>
+                                {humanizeActivityType(a.type)}
+                                {a.target_label ? `: ${a.target_label}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
             ) : (
               <div className="w-max max-w-[min(18rem,80vw)] bg-white rounded-xl border border-gray-100 shadow-xl px-3 py-2">
                 <p className="text-sm font-semibold text-foreground">{hovered.horse.name}</p>
@@ -476,6 +542,24 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           animation-delay: var(--enter-delay);
         }
 
+        /* Flame badge gently breathes so the on-fire avatars draw the
+           eye without becoming distracting. Combines a slight scale
+           with a brighter shadow on the peak so the warmth reads on
+           pale backgrounds too. */
+        @keyframes orbit-fire-pulse {
+          0%, 100% {
+            transform: scale(1);
+            box-shadow: 0 0 6px rgba(251, 146, 60, 0.55);
+          }
+          50% {
+            transform: scale(1.15);
+            box-shadow: 0 0 12px rgba(251, 146, 60, 0.85);
+          }
+        }
+        .orbit-fire {
+          animation: orbit-fire-pulse 1.6s ease-in-out infinite;
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .orbit-pin-in,
           .orbit-pin-pre,
@@ -487,6 +571,14 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             opacity: 1 !important;
             top: 0 !important;
             transform: translate(-50%, -50%) !important;
+          }
+          /* Fire badge: keep its corner positioning, just kill the
+             pulse. Skipping the shared override above because it
+             would also force a centre-translate that fights with
+             the badge's Tailwind -top-1 / -right-1 placement. */
+          .orbit-fire {
+            animation: none !important;
+            transform: none !important;
           }
         }
       `}</style>
