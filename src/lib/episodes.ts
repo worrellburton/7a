@@ -21,6 +21,14 @@ export interface Episode {
   publishedDisplay: string;
   image: string;
   imageAlt: string;
+  /**
+   * Optional override for the episode's URL. Most episodes live
+   * under /who-we-are/blog/<slug> and use the default. A small set
+   * of legacy SEO URLs (e.g. /transition-from-suboxone-to-sublocade)
+   * are served at the top level instead — set `href` on those rows
+   * so the listings link to the right place.
+   */
+  href?: string;
 }
 
 export const EPISODES: Episode[] = [
@@ -95,11 +103,16 @@ export const EPISODES: Episode[] = [
     slug: 'transition-from-suboxone-to-sublocade',
     title: 'Transitioning from Suboxone to Sublocade',
     blurb:
-      'A clinical, plain-English guide to switching from daily Suboxone to a monthly Sublocade injection — eligibility, the 300/300/100 mg arc, and what the first month actually feels like when the morning film is gone.',
+      'What to expect when switching from daily Suboxone to a monthly Sublocade injection — the four-step transition, insurance coverage, and how Seven Arrows Recovery walks alongside you the whole way.',
     publishedAt: '2026-04-28',
     publishedDisplay: 'April 28, 2026',
     image: '/images/resident-reading-window.jpg',
     imageAlt: 'A resident sitting quietly by a window — recovery on a monthly rhythm instead of a daily one',
+    // Served at the top-level legacy URL instead of the standard
+    // /who-we-are/blog/<slug> path so existing inbound links and
+    // SEO equity from the WordPress era keep landing on the same
+    // article.
+    href: '/transition-from-suboxone-to-sublocade',
   },
 ];
 
@@ -115,5 +128,7 @@ export const EPISODES_BY_NUMBER: Episode[] = [...EPISODES].sort(
 );
 
 export function episodeHref(slug: string): string {
+  const ep = EPISODES.find((e) => e.slug === slug);
+  if (ep?.href) return ep.href;
   return `/who-we-are/blog/${slug}`;
 }
