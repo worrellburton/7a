@@ -4263,10 +4263,13 @@ export default function DirectoriesContent() {
           workflow in one list and let sort/filter do the work.
           Hidden on mobile (md:block) — the mobile experience uses
           the stacked-card list below so the 10-column row doesn't
-          overflow off-screen. */}
+          overflow off-screen. The wrapper allows horizontal scroll
+          when the viewport is narrower than the table's natural
+          width — otherwise rightmost columns (Notes / Delete) get
+          clipped on common laptop widths. */}
       {flatRows.length === 0 ? null : (
-        <div className="hidden md:block mb-8 overflow-hidden border border-black/10 rounded-xl bg-white">
-          <table className="w-full text-sm">
+        <div className="hidden md:block mb-8 overflow-x-auto border border-black/10 rounded-xl bg-white">
+          <table className="w-full text-sm min-w-[1200px]">
             <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
               <tr>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="directory" widthClass="w-64">Directory</SortableTh>
