@@ -96,7 +96,8 @@ const nextConfig = {
       { source: '/treatment-services/cbt', destination: '/our-program/evidence-based', statusCode: 301 },
       { source: '/treatment-services/equine-assisted', destination: '/our-program/equine-assisted', statusCode: 301 },
       { source: '/pets-role-in-addiction-recovery-unconditional-support-love', destination: '/our-program/equine-assisted', statusCode: 301 },
-      { source: '/drug-rehabs-with-horses', destination: '/our-program/equine-assisted', statusCode: 301 },
+      // /drug-rehabs-with-horses is now an actual article route
+      // (Recovery Roadmap Episode 9), not a redirect.
       { source: '/treatment-services/indigenous-program', destination: '/our-program/indigenous-approach', statusCode: 301 },
       { source: '/addiction-in-native-american-communities', destination: '/our-program/indigenous-approach', statusCode: 301 },
       { source: '/the-integration-of-cultural-and-holistic-healing-in-recovery', destination: '/our-program/indigenous-approach', statusCode: 301 },
