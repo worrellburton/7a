@@ -637,6 +637,7 @@ export default function PoliciesContent() {
 
   // Add modal state
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pasteStep, setPasteStep] = useState<'paste' | 'details'>('paste');
   const [pasteText, setPasteText] = useState('');
@@ -1120,6 +1121,10 @@ export default function PoliciesContent() {
               <button onClick={() => printAllPolicies(filtered)} disabled={filtered.length === 0} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-foreground/70 bg-white border border-gray-200 rounded-xl hover:bg-warm-bg transition-colors disabled:opacity-40" style={{ fontFamily: 'var(--font-body)' }}>
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829q-.528-.05-1.05-.122a2.625 2.625 0 0 1-2.175-2.98l.65-4.297A2.625 2.625 0 0 1 6.697 4.125h10.606a2.625 2.625 0 0 1 2.553 2.305l.65 4.298a2.625 2.625 0 0 1-2.175 2.98 49 49 0 0 1-1.051.122m-10.56 0a48.6 48.6 0 0 1 10.56 0m-10.56 0-.621 4.968a3 3 0 0 0 2.978 3.377h5.266a3 3 0 0 0 2.978-3.377l-.622-4.968" /></svg>
                 Export PDF
+              </button>
+              <button onClick={() => setImportOpen(true)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-foreground/70 bg-white border border-gray-200 rounded-xl hover:bg-warm-bg transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+                Upload CSV
               </button>
               <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
@@ -1631,6 +1636,341 @@ export default function PoliciesContent() {
           </div>
         </div>
       )}
+
+      {importOpen && (
+        <ImportCsvModal
+          token={session?.access_token ?? null}
+          onClose={() => setImportOpen(false)}
+          onImported={(rows) => setPolicies(rows)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── CSV import modal ─────────────────────────────────────────── */
+
+interface CsvPolicyRow {
+  section: string;
+  name: string;
+  policy_number: string | null;
+  content: string;
+  purpose: string | null;
+  scope: string | null;
+  department: string | null;
+  date_created: string | null;
+  date_reviewed: string | null;
+  date_revised: string | null;
+}
+
+function parseCsv(text: string): { header: string[]; rows: string[][] } {
+  const lines: string[][] = [];
+  let cur: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        field += c;
+      }
+      continue;
+    }
+    if (c === '"') { inQuotes = true; continue; }
+    if (c === ',') { cur.push(field); field = ''; continue; }
+    if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      cur.push(field); field = '';
+      if (cur.length === 1 && cur[0] === '') { cur = []; continue; }
+      lines.push(cur); cur = [];
+      continue;
+    }
+    field += c;
+  }
+  if (field.length > 0 || cur.length > 0) { cur.push(field); lines.push(cur); }
+  if (lines.length === 0) return { header: [], rows: [] };
+  const [header, ...rows] = lines;
+  return { header: header.map((h) => h.trim()), rows };
+}
+
+function ImportCsvModal({
+  token,
+  onClose,
+  onImported,
+}: {
+  token: string | null;
+  onClose: () => void;
+  onImported: (rows: Policy[]) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [rawText, setRawText] = useState('');
+  const [parsed, setParsed] = useState<{ header: string[]; rows: string[][] } | null>(null);
+  const [normalised, setNormalised] = useState<CsvPolicyRow[] | null>(null);
+  const [normalising, setNormalising] = useState(false);
+  const [aiNotes, setAiNotes] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<{ created: number; skipped: number; errors: { row: number; reason: string }[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function onFileChange(f: File | null) {
+    setError(null);
+    setResult(null);
+    setNormalised(null);
+    setAiNotes(null);
+    if (!f) {
+      setFile(null);
+      setParsed(null);
+      setRawText('');
+      return;
+    }
+    if (!/\.csv$|^text\/csv$/i.test(f.name) && !f.type.includes('csv') && !f.type.includes('text')) {
+      setError('Please pick a .csv file.');
+      return;
+    }
+    if (f.size > 1024 * 1024) {
+      setError('CSV is larger than 1MB — split it before uploading.');
+      return;
+    }
+    setFile(f);
+    f.text().then((t) => {
+      setRawText(t);
+      setParsed(parseCsv(t));
+    });
+  }
+
+  async function runAi() {
+    if (!rawText) return;
+    setNormalising(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/policies/import/normalise', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ csv: rawText }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json.error || `AI normalise failed (${res.status})`);
+        return;
+      }
+      setNormalised(Array.isArray(json.rows) ? json.rows : []);
+      setAiNotes(typeof json.notes === 'string' ? json.notes : null);
+    } finally {
+      setNormalising(false);
+    }
+  }
+
+  async function runImport() {
+    if (!normalised || normalised.length === 0) return;
+    setImporting(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/policies/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ rows: normalised }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok && !json?.created) {
+        setError(json.error || `Import failed (${res.status})`);
+        return;
+      }
+      setResult({
+        created: json.created ?? 0,
+        skipped: json.skipped ?? 0,
+        errors: Array.isArray(json.errors) ? json.errors : [],
+      });
+      // Refetch the list so the grid reflects the import — realtime
+      // isn't wired here, so a manual refetch is the simplest way to
+      // surface the new rows without a full page reload.
+      if ((json.created ?? 0) > 0) {
+        const data = await db({ action: 'select', table: 'policies', order: { column: 'section', ascending: true } });
+        if (Array.isArray(data)) onImported(data as Policy[]);
+      }
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function downloadTemplate() {
+    const headers = ['section', 'name', 'policy_number', 'department', 'purpose', 'scope', 'content'];
+    const sample = [
+      'Clinical', 'Telehealth Visit Documentation', 'CL-014', 'Clinical',
+      'Ensure clinical telehealth visits are documented to the same standard as in-person visits.',
+      'Applies to all licensed clinicians delivering services via telehealth.',
+      'All telehealth visits must be documented within 24 hours of session end. The note must include modality (video/audio), platform used, and patient consent reaffirmation.',
+    ];
+    const csv = `${headers.join(',')}\n${sample.map((c) => /[,"\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c).join(',')}\n`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'policies-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 pb-[env(safe-area-inset-bottom)]">
+        <div className="sm:hidden pt-2 pb-1 flex justify-center">
+          <span className="block w-10 h-1 rounded-full bg-foreground/15" />
+        </div>
+        <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
+          <div>
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Bulk import</p>
+            <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Import policies from CSV</h2>
+          </div>
+          <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground p-2 -mr-2" aria-label="Close">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </header>
+
+        <div className="px-6 py-5 space-y-4">
+          {/* Step 1: pick file */}
+          <div>
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">1 · Upload CSV</p>
+            <label className="block rounded-xl border-2 border-dashed border-black/15 bg-warm-bg/30 px-4 py-6 text-center cursor-pointer hover:border-primary/45 hover:bg-primary/5 transition-colors">
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="sr-only"
+                onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+              />
+              <p className="text-sm font-semibold text-foreground">{file ? file.name : 'Click to choose a .csv'}</p>
+              <p className="mt-1 text-[11.5px] text-foreground/55">
+                Up to 1MB. Headers like &quot;Policy No.&quot;, &quot;Body&quot;, or &quot;Dept&quot; are fine — Claude will map them.
+              </p>
+            </label>
+            <div className="mt-2 flex items-center justify-between text-[11px]">
+              <button type="button" onClick={downloadTemplate} className="text-primary hover:underline">
+                Download template CSV
+              </button>
+              {parsed && (
+                <span className="text-foreground/55">
+                  {parsed.rows.length} {parsed.rows.length === 1 ? 'row' : 'rows'} detected · {parsed.header.length} columns
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Step 2: AI normalise */}
+          {parsed && parsed.rows.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
+                2 · Let Claude normalise
+              </p>
+              <div className="rounded-xl border border-black/10 bg-white px-4 py-3">
+                <p className="text-[12.5px] text-foreground/65 leading-snug">
+                  Claude maps your headers to our schema, snaps section + department values onto the
+                  ones you have, and lifts embedded &quot;Purpose:&quot; / &quot;Scope:&quot; blocks out of the body. The
+                  server re-validates every row before insert.
+                </p>
+                <button
+                  type="button"
+                  onClick={runAi}
+                  disabled={normalising || !!normalised}
+                  className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {normalising ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-white/60 border-t-white rounded-full animate-spin" />
+                      Mapping…
+                    </>
+                  ) : normalised ? 'Mapped'
+                    : 'Normalise with Claude'}
+                </button>
+                {aiNotes && (
+                  <p className="mt-2 text-[11.5px] text-foreground/55 italic">{aiNotes}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: preview + import */}
+          {normalised && normalised.length > 0 && !result && (
+            <div>
+              <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">3 · Preview &amp; import</p>
+              <div className="overflow-x-auto rounded-xl border border-black/10 bg-white max-h-72">
+                <table className="w-full text-[12.5px]">
+                  <thead className="bg-warm-bg/60 text-left text-[10.5px] uppercase tracking-wider text-foreground/55 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2">Section</th>
+                      <th className="px-3 py-2">Policy #</th>
+                      <th className="px-3 py-2">Name</th>
+                      <th className="px-3 py-2">Department</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/5">
+                    {normalised.slice(0, 50).map((r, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-1.5 text-foreground/70">{r.section}</td>
+                        <td className="px-3 py-1.5 text-foreground/70">{r.policy_number || '—'}</td>
+                        <td className="px-3 py-1.5 font-semibold text-foreground">{r.name}</td>
+                        <td className="px-3 py-1.5 text-foreground/70">{r.department || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {normalised.length > 50 && (
+                <p className="mt-1 text-[11px] text-foreground/45">+ {normalised.length - 50} more not shown</p>
+              )}
+              <button
+                type="button"
+                onClick={runImport}
+                disabled={importing}
+                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85 disabled:opacity-50"
+              >
+                {importing ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-white/60 border-t-white rounded-full animate-spin" />
+                    Importing…
+                  </>
+                ) : `Import ${normalised.length} ${normalised.length === 1 ? 'policy' : 'policies'}`}
+              </button>
+            </div>
+          )}
+
+          {/* Done */}
+          {result && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
+              <p className="text-sm font-semibold text-emerald-900">
+                Created {result.created} {result.created === 1 ? 'policy' : 'policies'}
+                {result.skipped > 0 && <span className="text-foreground/55"> · {result.skipped} skipped</span>}
+              </p>
+              {result.errors.length > 0 && (
+                <ul className="mt-2 space-y-0.5 text-[12px] text-foreground/70 max-h-32 overflow-y-auto">
+                  {result.errors.slice(0, 20).map((e, i) => (
+                    <li key={i}><span className="text-foreground/45">Row {e.row}:</span> {e.reason}</li>
+                  ))}
+                  {result.errors.length > 20 && (
+                    <li className="text-foreground/40 italic">+ {result.errors.length - 20} more</li>
+                  )}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          )}
+        </div>
+
+        <footer className="px-6 py-4 border-t border-black/5 flex items-center justify-end gap-2 sticky bottom-0 bg-white">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-semibold text-foreground/65 hover:bg-warm-bg/60">
+            {result ? 'Done' : 'Cancel'}
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }
