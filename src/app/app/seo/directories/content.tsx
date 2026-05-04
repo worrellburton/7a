@@ -2945,7 +2945,8 @@ type SortKey =
   | 'nap'
   | 'status'
   | 'comments'
-  | 'twofa';
+  | 'twofa'
+  | 'ein';
 
 interface SortContext {
   linkMap: Record<string, string>;
@@ -3016,6 +3017,12 @@ function sortComparator(
         const a2 = ctx.directoryStates[a.id]?.requires_2fa ? 1 : 0;
         const b2 = ctx.directoryStates[b.id]?.requires_2fa ? 1 : 0;
         return b2 - a2; // 2FA-required first
+      };
+    case 'ein':
+      return (a, b, ctx) => {
+        const ae = ctx.directoryStates[a.id]?.requires_ein ? 1 : 0;
+        const be = ctx.directoryStates[b.id]?.requires_ein ? 1 : 0;
+        return be - ae; // EIN-required first
       };
   }
 }
@@ -3162,6 +3169,12 @@ interface DirectoryStateRow {
   requires_2fa: boolean;
   requires_2fa_set_by: string | null;
   requires_2fa_set_at: string | null;
+  // Some submission portals demand the business EIN. Same idea as
+  // requires_2fa — flag it so the team can grab the EIN from the
+  // safe once and clear those rows in a batch.
+  requires_ein: boolean;
+  requires_ein_set_by: string | null;
+  requires_ein_set_at: string | null;
 }
 
 interface UserLite {
@@ -3182,7 +3195,7 @@ function useDirectoryStates() {
       const rows = await db({
         action: 'select',
         table: 'directory_states',
-        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at, requires_2fa, requires_2fa_set_by, requires_2fa_set_at',
+        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at, requires_2fa, requires_2fa_set_by, requires_2fa_set_at, requires_ein, requires_ein_set_by, requires_ein_set_at',
       }).catch(() => null);
       if (cancelled) return;
       const map: Record<string, DirectoryStateRow> = {};
@@ -3231,7 +3244,7 @@ function useDirectoryStates() {
           const fresh = await db({
             action: 'select',
             table: 'directory_states',
-            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at, requires_2fa, requires_2fa_set_by, requires_2fa_set_at',
+            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at, requires_2fa, requires_2fa_set_by, requires_2fa_set_at, requires_ein, requires_ein_set_by, requires_ein_set_at',
           }).catch(() => null);
           if (!cancelled && Array.isArray(fresh)) {
             const next: Record<string, DirectoryStateRow> = {};
@@ -3304,6 +3317,7 @@ function useDirectoryStates() {
     const napChanged =
       patch.nap_name !== undefined || patch.nap_address !== undefined || patch.nap_phone !== undefined;
     const twofaChanged = patch.requires_2fa !== undefined;
+    const einChanged = patch.requires_ein !== undefined;
     const next: DirectoryStateRow = {
       directory_id: id,
       status: patch.status ?? existing?.status ?? 'todo',
@@ -3331,6 +3345,9 @@ function useDirectoryStates() {
       requires_2fa: patch.requires_2fa !== undefined ? patch.requires_2fa : (existing?.requires_2fa ?? false),
       requires_2fa_set_by: twofaChanged ? user.id : (existing?.requires_2fa_set_by ?? null),
       requires_2fa_set_at: twofaChanged ? new Date().toISOString() : (existing?.requires_2fa_set_at ?? null),
+      requires_ein: patch.requires_ein !== undefined ? patch.requires_ein : (existing?.requires_ein ?? false),
+      requires_ein_set_by: einChanged ? user.id : (existing?.requires_ein_set_by ?? null),
+      requires_ein_set_at: einChanged ? new Date().toISOString() : (existing?.requires_ein_set_at ?? null),
     };
     setById((prev) => ({ ...prev, [id]: next }));
     // Surface upsert errors instead of silently swallowing them.
@@ -3430,6 +3447,17 @@ function useDirectoryStates() {
         targetLabel: label,
         targetPath: '/app/seo/directories',
         metadata: { requires_2fa: next.requires_2fa },
+      });
+    }
+    if (einChanged && (existing?.requires_ein ?? false) !== next.requires_ein) {
+      void logActivity({
+        userId: user.id,
+        type: 'seo.directory_ein_toggled',
+        targetKind: 'seo_directory',
+        targetId: id,
+        targetLabel: label,
+        targetPath: '/app/seo/directories',
+        metadata: { requires_ein: next.requires_ein },
       });
     }
   };
@@ -4312,6 +4340,7 @@ export default function DirectoriesContent() {
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="fit" widthClass="w-14">Fit</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="paid" widthClass="w-24">Paid</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="twofa" widthClass="w-20">2FA</SortableTh>
+                <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="ein" widthClass="w-20">EIN</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="live" widthClass="w-28">Live link</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="nap" widthClass="w-20">NAP</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="comments" widthClass="w-20">Comments</SortableTh>
@@ -4436,6 +4465,12 @@ export default function DirectoriesContent() {
                       />
                     </td>
                     <td className="px-3 py-3">
+                      <EinCell
+                        value={directoryStates[d.id]?.requires_ein ?? false}
+                        onChange={(v) => upsertDirectoryState(d.id, { requires_ein: v })}
+                      />
+                    </td>
+                    <td className="px-3 py-3">
                       <LinkCell
                         value={link}
                         onSave={(v) => saveLink(d.id, v)}
@@ -4524,7 +4559,7 @@ export default function DirectoriesContent() {
                   </tr>
                   {chatOpen && (
                     <tr className={`${tintClass}`}>
-                      <td colSpan={12} className="px-0 py-0 border-t border-primary/15">
+                      <td colSpan={13} className="px-0 py-0 border-t border-primary/15">
                         <div className="bg-white border-y border-primary/10">
                           <header className="flex items-center justify-between px-4 py-2 bg-warm-bg/40 border-b border-black/5">
                             <div className="flex items-baseline gap-2 min-w-0">
@@ -4585,6 +4620,7 @@ export default function DirectoriesContent() {
             const paid = directoryStates[d.id]?.paid ?? false;
             const paidAmt = directoryStates[d.id]?.paid_amount ?? null;
             const requires2fa = !!directoryStates[d.id]?.requires_2fa;
+            const requiresEin = !!directoryStates[d.id]?.requires_ein;
             const chatOpen = openChat?.id === d.id;
             return (
               <article
@@ -4692,6 +4728,17 @@ export default function DirectoriesContent() {
                       2FA
                     </span>
                   )}
+                  {requiresEin && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800"
+                      title="Submission portal requires the business EIN"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.25" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18" />
+                      </svg>
+                      EIN
+                    </span>
+                  )}
                   <span className={`inline-flex items-center rounded-md border ${STATUS_TONE[status]}`}>
                     <select
                       value={status}
@@ -4741,6 +4788,10 @@ export default function DirectoriesContent() {
                     <TwoFaCell
                       value={requires2fa}
                       onChange={(v) => upsertDirectoryState(d.id, { requires_2fa: v })}
+                    />
+                    <EinCell
+                      value={requiresEin}
+                      onChange={(v) => upsertDirectoryState(d.id, { requires_ein: v })}
                     />
                   </div>
                   <button
@@ -5156,6 +5207,45 @@ function TwoFaCell({
       type="button"
       onClick={() => onChange(true)}
       title="Mark this directory as requiring 2FA"
+      aria-pressed="false"
+      className="inline-flex items-center gap-1 rounded-md border border-black/10 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-foreground/55 hover:bg-foreground/5 transition-colors"
+    >
+      No
+    </button>
+  );
+}
+
+// Yes / no toggle for "this directory's submission portal asks for
+// the business EIN." Same shape as TwoFaCell — slate tone instead
+// of amber so the row reads at a glance which gate is set.
+function EinCell({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  if (value) {
+    return (
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        title="EIN required — click to clear"
+        aria-pressed="true"
+        className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[11px] font-semibold text-sky-800 hover:bg-sky-100 transition-colors"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.25" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18" />
+        </svg>
+        Yes
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(true)}
+      title="Mark this directory as requiring the business EIN"
       aria-pressed="false"
       className="inline-flex items-center gap-1 rounded-md border border-black/10 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-foreground/55 hover:bg-foreground/5 transition-colors"
     >
