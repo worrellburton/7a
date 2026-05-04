@@ -53,6 +53,18 @@ type ConnectMode =
   | { kind: 'pickingFrom' }
   | { kind: 'pickingTo'; fromId: string };
 
+// Lightweight pluralisation for the auto-named group label when two
+// users with the same job title are combined via drag-and-drop. Just
+// avoids the "Therapistss" double-s footgun for titles already ending
+// in s; nothing fancier is warranted.
+function pluraliseTitle(title: string): string {
+  const t = title.trim();
+  if (!t) return 'Group';
+  if (/s$/i.test(t)) return t;
+  if (/y$/i.test(t) && !/[aeiou]y$/i.test(t)) return t.slice(0, -1) + 'ies';
+  return t + 's';
+}
+
 function defaultPosition(index: number): { x: number; y: number } {
   const COLS = 4;
   const col = index % COLS;
@@ -145,6 +157,54 @@ export default function OrgChartContent() {
   const dragStartPointer = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const dragMoved = useRef(false);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+
+  // Drop-to-combine target while a single user card is being dragged.
+  // `kind` distinguishes between dropping on another individual card
+  // (creates a new group) vs. an existing group card (adds the user
+  // to it). Cleared on mouseup or when the card leaves every target.
+  const [combineHover, setCombineHover] = useState<
+    | { kind: 'user'; id: string }
+    | { kind: 'group'; id: string }
+    | null
+  >(null);
+  // Mirror of combineHover that the mouseup handler can read without
+  // adding it to the effect dep array (which would re-bind listeners
+  // on every move).
+  const combineHoverRef = useRef<typeof combineHover>(null);
+  useEffect(() => {
+    combineHoverRef.current = combineHover;
+  }, [combineHover]);
+
+  // AABB hit-test the pointer against every other user card and group
+  // card on the canvas. Used during drag to highlight a combine
+  // target. Skips the dragged card itself, hidden cards (unless the
+  // user has explicitly toggled them on), and members already inside
+  // a group (their card isn't on the canvas at all).
+  const findCombineTargetAt = useCallback(
+    (
+      px: number,
+      py: number,
+      excludeUserId: string | null,
+    ): { kind: 'user'; id: string } | { kind: 'group'; id: string } | null => {
+      for (const u of users) {
+        if (u.id === excludeUserId) continue;
+        if (u.org_card_group_id) continue;
+        if (!showHidden && u.org_hidden) continue;
+        const x = u.org_x ?? 0;
+        const y = u.org_y ?? 0;
+        if (px >= x && px <= x + CARD_WIDTH && py >= y && py <= y + CARD_HEIGHT) {
+          return { kind: 'user', id: u.id };
+        }
+      }
+      for (const g of orgGroups) {
+        if (px >= g.org_x && px <= g.org_x + CARD_WIDTH && py >= g.org_y && py <= g.org_y + CARD_HEIGHT) {
+          return { kind: 'group', id: g.id };
+        }
+      }
+      return null;
+    },
+    [users, orgGroups, showHidden],
+  );
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -258,12 +318,65 @@ export default function OrgChartContent() {
           };
         })
       );
+
+      // While a single individual card is being dragged, light up any
+      // user/group card the pointer is currently hovering over so the
+      // user knows where the drop will combine.
+      if (dragStartPositions.current.size === 1 && draggingId) {
+        const dragged = users.find((u) => u.id === draggingId);
+        const draggedInGroup = !!dragged?.org_card_group_id;
+        if (draggedInGroup) {
+          setCombineHover((prev) => (prev ? null : prev));
+          return;
+        }
+        const hit = findCombineTargetAt(pointerX, pointerY, draggingId);
+        setCombineHover((prev) => {
+          if (!hit && !prev) return prev;
+          if (hit && prev && prev.kind === hit.kind && prev.id === hit.id) return prev;
+          return hit;
+        });
+      }
     };
 
     const handleMouseUp = async () => {
       const movedIds = Array.from(dragStartPositions.current.keys());
+      const hover = combineHoverRef.current;
       setDraggingId(null);
+      setCombineHover(null);
       if (!dragMoved.current) return;
+
+      // Drag-to-combine: a single-card drag dropped over another
+      // individual card (new group) or an existing group card (joins
+      // the group). Snap the dragged card back to its start position,
+      // then run the merge — combineUsersIntoGroup re-positions the
+      // resulting group card to the target's location.
+      if (hover && movedIds.length === 1) {
+        const draggedId = movedIds[0];
+        const dragged = users.find((u) => u.id === draggedId);
+        const start = dragStartPositions.current.get(draggedId);
+        if (dragged && start && !dragged.org_card_group_id) {
+          setUsers((prev) =>
+            prev.map((u) => (u.id === draggedId ? { ...u, org_x: start.x, org_y: start.y } : u)),
+          );
+          if (hover.kind === 'group') {
+            await addUserToGroup(draggedId, hover.id);
+            const g = orgGroups.find((x) => x.id === hover.id);
+            showToast(`Added to "${g?.label ?? 'Group'}"`);
+          } else {
+            const target = users.find((u) => u.id === hover.id);
+            if (target) {
+              const sharedTitle =
+                dragged.job_title &&
+                target.job_title &&
+                dragged.job_title.trim().toLowerCase() === target.job_title.trim().toLowerCase();
+              const label = sharedTitle ? `${pluraliseTitle(target.job_title!)}` : 'Group';
+              await combineUsersIntoGroup(dragged.id, target.id, label);
+            }
+          }
+          return;
+        }
+      }
+
       // Snapshot current positions and persist each moved card.
       for (const id of movedIds) {
         const u = users.find((x) => x.id === id);
@@ -287,7 +400,8 @@ export default function OrgChartContent() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [draggingId, users]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draggingId, users, orgGroups, showHidden]);
 
   // Click handler for connect-mode card picking
   const handleCardClick = useCallback(
@@ -1274,10 +1388,15 @@ export default function OrgChartContent() {
             {orgGroups.map((g) => {
               const members = displayedUsers.filter((u) => u.org_card_group_id === g.id);
               if (members.length === 0) return null;
+              const isCombineTarget = combineHover?.kind === 'group' && combineHover.id === g.id;
               return (
                 <div
                   key={`group-${g.id}`}
-                  className="absolute bg-white rounded-2xl border border-primary/30 shadow-sm hover:shadow-md transition-shadow cursor-default group"
+                  className={`absolute bg-white rounded-2xl border shadow-sm transition-all cursor-default group ${
+                    isCombineTarget
+                      ? 'border-emerald-500 ring-4 ring-emerald-400/30 shadow-xl scale-[1.02] z-20'
+                      : 'border-primary/30 hover:shadow-md'
+                  }`}
                   style={{
                     left: g.org_x + 'px',
                     top: g.org_y + 'px',
@@ -1350,6 +1469,7 @@ export default function OrgChartContent() {
               const isCombiningFromMe = combineFromId === u.id;
               const isAwaitingCombineTarget = combineFromId && combineFromId !== u.id;
               const isHiddenShown = !!u.org_hidden; // only true when showHidden is on
+              const isCombineTarget = combineHover?.kind === 'user' && combineHover.id === u.id;
               const connectHighlight = isPickedSource
                 ? 'border-primary ring-2 ring-primary/30 shadow-lg z-20'
                 : isPickingFrom || isPickingTo
@@ -1358,15 +1478,18 @@ export default function OrgChartContent() {
               const selectionHighlight = isSelected
                 ? 'border-blue-500 ring-2 ring-blue-400/40 shadow-lg z-20'
                 : '';
+              const combineTargetHighlight = isCombineTarget
+                ? 'border-emerald-500 ring-4 ring-emerald-400/30 shadow-xl scale-[1.03] z-20'
+                : '';
               return (
                 <div
                   key={u.id}
                   onMouseDown={(e) => handleMouseDown(e, u.id)}
                   onClick={() => handleCardClick(u.id)}
-                  className={`absolute bg-white rounded-2xl border transition-shadow ${
+                  className={`absolute bg-white rounded-2xl border transition-all ${
                     isDragging
                       ? 'border-primary shadow-2xl z-20 scale-[1.02]'
-                      : `${selectionHighlight || connectHighlight || 'border-gray-200 shadow-sm hover:shadow-md'} z-10`
+                      : `${combineTargetHighlight || selectionHighlight || connectHighlight || 'border-gray-200 shadow-sm hover:shadow-md'} z-10`
                   } ${
                     isAdmin
                       ? connectMode.kind !== 'off'
