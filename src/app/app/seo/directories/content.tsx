@@ -4263,13 +4263,12 @@ export default function DirectoriesContent() {
           workflow in one list and let sort/filter do the work.
           Hidden on mobile (md:block) — the mobile experience uses
           the stacked-card list below so the 10-column row doesn't
-          overflow off-screen. The wrapper allows horizontal scroll
-          when the viewport is narrower than the table's natural
-          width — otherwise rightmost columns (Notes / Delete) get
-          clipped on common laptop widths. */}
+          overflow off-screen. The whole row is the click target for
+          the comments panel — there's no dedicated Notes column
+          taking horizontal space. */}
       {flatRows.length === 0 ? null : (
-        <div className="hidden md:block mb-8 overflow-x-auto border border-black/10 rounded-xl bg-white">
-          <table className="w-full text-sm min-w-[1200px]">
+        <div className="hidden md:block mb-8 overflow-hidden border border-black/10 rounded-xl bg-white">
+          <table className="w-full text-sm">
             <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
               <tr>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="directory" widthClass="w-64">Directory</SortableTh>
@@ -4281,7 +4280,6 @@ export default function DirectoriesContent() {
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="live" widthClass="w-28">Live link</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="nap" widthClass="w-20">NAP</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="status" widthClass="w-28">Status</SortableTh>
-                <th className="text-center px-3 py-2.5 font-semibold border-b border-black/10 w-12">Notes</th>
                 <th className="text-right px-2 py-2.5 font-semibold border-b border-black/10 w-10" aria-label="Delete" />
               </tr>
             </thead>
@@ -4294,7 +4292,20 @@ export default function DirectoriesContent() {
                 const chatOpen = openChat?.id === d.id;
                 return (
                   <Fragment key={d.id}>
-                  <tr className={`align-top transition-colors ${tintClass} ${isHidden ? 'opacity-50' : ''} ${chatOpen ? 'ring-1 ring-primary/20' : ''}`}>
+                  <tr
+                    className={`align-top transition-colors cursor-pointer ${tintClass} ${isHidden ? 'opacity-50' : ''} ${chatOpen ? 'ring-1 ring-primary/20' : 'hover:bg-warm-bg/40'}`}
+                    onClick={(e) => {
+                      // Don't hijack clicks on interactive cells
+                      // (links, buttons, inputs, selects). They each
+                      // do their own thing; the row-click is a
+                      // fallback for the empty space between them.
+                      const t = e.target as HTMLElement;
+                      if (t.closest('a, button, input, textarea, select, label, [role="button"]')) return;
+                      openComments(d);
+                    }}
+                    title="Click row to view comments"
+                    aria-expanded={chatOpen}
+                  >
                     <td className="px-3 py-3">
                       {/* Drop zone wraps the directory cell so a
                           dragged image anywhere on this column
@@ -4320,6 +4331,20 @@ export default function DirectoriesContent() {
                             <span className="ml-2 inline-block px-1.5 py-0 rounded text-[9px] uppercase tracking-wider border border-foreground/20 bg-foreground/5 text-foreground/55 align-middle">
                               Hidden
                             </span>
+                          )}
+                          {chatCounts[d.id] ? (
+                            <span
+                              className="ml-2 inline-flex items-center gap-1 px-1.5 py-0 rounded text-[9px] uppercase tracking-wider border border-primary/30 bg-primary/10 text-primary align-middle"
+                              title={`${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}`}
+                            >
+                              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                              </svg>
+                              {chatCounts[d.id] > 99 ? '99+' : chatCounts[d.id]}
+                            </span>
+                          ) : null}
+                          {isUnread(d.id) && (
+                            <span aria-label="Unread" className="ml-1.5 inline-block w-2 h-2 rounded-full bg-red-500 align-middle" />
                           )}
                           <p className="text-[11px] text-foreground/40 truncate max-w-[280px]" title={d.url}>
                             {d.url.replace(/^https?:\/\//, '')}
@@ -4424,28 +4449,6 @@ export default function DirectoriesContent() {
                         </svg>
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => openComments(d)}
-                        title={chatOpen ? 'Hide comments' : (chatCounts[d.id] ? `${chatCounts[d.id]} comment${chatCounts[d.id] === 1 ? '' : 's'}` : 'Add a comment')}
-                        aria-label={`Comments for ${d.name}`}
-                        aria-expanded={chatOpen}
-                        className={`relative inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${chatOpen ? 'text-primary bg-primary/10' : 'text-foreground/45 hover:text-primary hover:bg-primary/5'}`}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                        </svg>
-                        {chatCounts[d.id] ? (
-                          <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold tabular-nums">
-                            {chatCounts[d.id] > 99 ? '99+' : chatCounts[d.id]}
-                          </span>
-                        ) : null}
-                        {isUnread(d.id) && (
-                          <span aria-label="Unread" className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
-                        )}
-                      </button>
-                    </td>
                     <td className="px-2 py-3 text-right">
                       {/* Delete on every row. Custom rows hard-delete
                           out of seo_custom_directories; curated rows
@@ -4481,7 +4484,7 @@ export default function DirectoriesContent() {
                   </tr>
                   {chatOpen && (
                     <tr className={`${tintClass}`}>
-                      <td colSpan={11} className="px-0 py-0 border-t border-primary/15">
+                      <td colSpan={10} className="px-0 py-0 border-t border-primary/15">
                         <div className="bg-white border-y border-primary/10">
                           <header className="flex items-center justify-between px-4 py-2 bg-warm-bg/40 border-b border-black/5">
                             <div className="flex items-baseline gap-2 min-w-0">
