@@ -24,6 +24,15 @@ interface RecentUser {
   last_path: string | null;
   last_seen_at: string | null;
   status: 'active' | 'on_hold' | 'denied' | null;
+  // Activity-feed counters, joined in client-side after the user
+  // list loads. > 10 today flips the avatar into "on fire" mode in
+  // the orbit; the tooltip shows the count + a few recent actions.
+  actions_today?: number;
+  recent_actions?: Array<{
+    type: string;
+    target_label: string | null;
+    created_at: string;
+  }>;
 }
 
 interface PendingSignature {
@@ -234,26 +243,68 @@ export default function HomeContent() {
 
   useEffect(() => {
     if (!session?.access_token) return;
+    let cancelled = false;
     async function fetchRecentUsers() {
       const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title, status', order: { column: 'last_sign_in', ascending: false } });
-      if (Array.isArray(data)) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        setRecentUsers(
-          data.filter(
-            (u: RecentUser) =>
-              // Hide users who aren't allowed in: on_hold or denied. Treat
-              // a missing status as active so older rows before the
-              // migration still render.
-              (u.status == null || u.status === 'active') &&
-              u.last_sign_in &&
-              new Date(u.last_sign_in) >= today,
-          ),
-        );
+      if (cancelled || !Array.isArray(data)) {
+        setTimeout(() => setLoaded(true), 100);
+        return;
       }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const filtered = (data as RecentUser[]).filter(
+        (u) =>
+          // Hide users who aren't allowed in: on_hold or denied. Treat
+          // a missing status as active so older rows before the
+          // migration still render.
+          (u.status == null || u.status === 'active') &&
+          u.last_sign_in &&
+          new Date(u.last_sign_in) >= today,
+      );
+      setRecentUsers(filtered);
       setTimeout(() => setLoaded(true), 100);
+
+      // Second pass: pull today's activity_log rows and join them
+      // onto the recent users. The orbit uses these counts to flip
+      // an avatar into "on fire" mode (> 10 actions today) and the
+      // shared tooltip lists the most recent ones so admins can see
+      // *why* a teammate is highlighted. Done as a separate fetch
+      // (and merged after) so the orbit renders immediately and the
+      // counts trickle in without blocking the avatars.
+      const { data: activityRows, error: activityErr } = await supabase
+        .from('activity_log')
+        .select('user_id, type, target_label, created_at')
+        .gte('created_at', today.toISOString())
+        .order('created_at', { ascending: false });
+      if (cancelled) return;
+      if (activityErr || !Array.isArray(activityRows)) return;
+      const counts: Record<string, number> = {};
+      const recents: Record<string, RecentUser['recent_actions']> = {};
+      for (const r of activityRows as Array<{
+        user_id: string | null;
+        type: string;
+        target_label: string | null;
+        created_at: string;
+      }>) {
+        if (!r.user_id) continue;
+        counts[r.user_id] = (counts[r.user_id] ?? 0) + 1;
+        const list = recents[r.user_id] ?? (recents[r.user_id] = []);
+        if (list.length < 5) {
+          list.push({ type: r.type, target_label: r.target_label, created_at: r.created_at });
+        }
+      }
+      setRecentUsers((prev) =>
+        prev.map((u) => ({
+          ...u,
+          actions_today: counts[u.id] ?? 0,
+          recent_actions: recents[u.id] ?? [],
+        })),
+      );
     }
     fetchRecentUsers();
+    return () => {
+      cancelled = true;
+    };
   }, [session]);
 
   useEffect(() => {
