@@ -441,7 +441,7 @@ export default function ProfileContent() {
   const headerAvatar = avatarUrl || user.user_metadata?.avatar_url;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10">
+    <div className="p-4 sm:p-6 lg:p-10 max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">My Profile</h1>
         <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
@@ -450,7 +450,7 @@ export default function ProfileContent() {
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_320px] gap-8 max-w-5xl">
+      <div className="grid lg:grid-cols-[1fr_320px] gap-8">
         {/* Left: form */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           {/* Avatar + email header */}
