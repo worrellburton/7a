@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
 import { useRouter } from 'next/navigation';
-import { pageIcons } from '../PlatformShell';
+import { pageIcons } from '../../PlatformShell';
 
 interface Department {
   id: string;
@@ -278,7 +278,7 @@ export default function PagesContent() {
   }
 
   function renderRow(page: PageConfig, indented = false) {
-    const locked = page.path === '/app/team' || page.path === '/app/pages';
+    const locked = page.path === '/app/team' || page.path === '/app/admin/pages';
     const restricted = page.allowedDepartments.length > 0;
     const grouped = Boolean(page.departmentId);
     return (
@@ -425,7 +425,7 @@ export default function PagesContent() {
           </p>
         </div>
         <button
-          onClick={() => router.push('/app/departments')}
+          onClick={() => router.push('/app/admin/departments')}
           className="px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider bg-foreground text-white hover:bg-foreground/80 transition-colors inline-flex items-center gap-1.5 shrink-0"
           style={{ fontFamily: 'var(--font-body)' }}
         >

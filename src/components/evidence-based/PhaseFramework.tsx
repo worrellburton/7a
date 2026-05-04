@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /**
  * Evidence-Based — Phase 5. The four-phase healing framework.
@@ -18,7 +18,15 @@ import { useEffect, useRef, useState } from 'react';
  *     timeline.
  */
 
-const phases = [
+type Phase = {
+  number: string;
+  title: string;
+  tagline: string;
+  body: ReactNode;
+  Icon: (props: { className?: string }) => ReactNode;
+};
+
+const phases: Phase[] = [
   {
     number: '01',
     title: 'Positive expectancy & rapport',
@@ -39,8 +47,11 @@ const phases = [
     number: '03',
     title: 'Desensitization & integration',
     tagline: 'Processing happens when the nervous system is ready.',
-    body:
-      'Once internal resources and regulation capacity are established, clients engage in in vivo (live-time) trauma healing methods so the nervous system is never overwhelmed. We emphasize forward-facing approaches — practiced in real life, in real relationships — so integration deepens capacity instead of re-traumatizing.',
+    body: (
+      <>
+        Once internal resources and regulation capacity are established, clients engage in <em>in vivo</em> (live-time) trauma healing methods so the nervous system is never overwhelmed. We emphasize forward-facing approaches — practiced in real life, in real relationships — so integration deepens capacity instead of re-traumatizing.
+      </>
+    ),
     Icon: WaveIcon,
   },
   {

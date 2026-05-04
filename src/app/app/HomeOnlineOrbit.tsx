@@ -27,6 +27,33 @@ interface OrbitUser {
   last_seen_at: string | null;
   last_path: string | null;
   job_title: string | null;
+  // Today's activity-log count + recent rows, joined in by
+  // HomeContent. > 10 actions flips the avatar into "on fire" mode:
+  // a flame badge in the corner + a warm halo glow. The hover
+  // tooltip surfaces the count and the most recent actions so the
+  // viewer can see *why* a teammate is highlighted.
+  actions_today?: number;
+  recent_actions?: Array<{
+    type: string;
+    target_label: string | null;
+    created_at: string;
+  }>;
+}
+
+const ON_FIRE_THRESHOLD = 10;
+
+// Activity-log type strings are dot.snake_case (e.g.
+// "seo.directory_status_changed"). For the on-fire tooltip we want
+// short, human-readable labels — strip the namespace, replace
+// underscores with spaces, sentence-case the result. Keeps the
+// component decoupled from any per-type label registry: a new
+// activity type added anywhere in the app shows up here without an
+// edit.
+function humanizeActivityType(type: string): string {
+  const tail = type.includes('.') ? type.slice(type.lastIndexOf('.') + 1) : type;
+  const spaced = tail.replace(/_/g, ' ').trim();
+  if (!spaced) return type;
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 // Inner ring shows the horse roster, orbiting opposite-direction so
@@ -88,6 +115,15 @@ function fmtRelative(iso: string | null): string {
 export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  // Per-avatar absolute tooltips were clipped by the home wrapper's
+  // overflow-hidden whenever a near-edge avatar was hovered. Using a
+  // single shared tooltip pinned just under the 7A medallion keeps
+  // it on-screen regardless of which avatar is active.
+  const [hovered, setHovered] = useState<
+    | { kind: 'user'; user: OrbitUser; viewing: string | null; navTarget: string | null; online: boolean }
+    | { kind: 'horse'; horse: OrbitHorse }
+    | null
+  >(null);
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 60);
@@ -103,7 +139,11 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
       className="relative z-40 flex flex-col items-center justify-center w-full"
       aria-label="Online today"
     >
-      <div className="text-center mb-6 sm:mb-10">
+      {/* Header — hidden on phones so the orbit's centre medallion
+          sits at the viewport's vertical centre (the parent absolute-
+          positions the orbit on mobile). Returns on sm+ where there's
+          plenty of vertical room. */}
+      <div className="hidden sm:block text-center mb-6 sm:mb-10">
         <p
           className="text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/45"
           style={{ fontFamily: 'var(--font-body)' }}
@@ -131,9 +171,13 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           7A medallion ~13px left of the visual console center on
           some viewport widths. The flex parent guarantees horizontal
           centering of the inner aspect-square box regardless of any
-          width-resolution quirks above. */}
-      <div className="w-full flex justify-center">
-        <div className="relative w-full max-w-[300px] sm:max-w-[460px] aspect-square">
+          width-resolution quirks above. The mobile cap (320px) lets
+          the orbit breathe on phones without pushing avatars past
+          the page padding — the inset-[7%] on the outer ring keeps
+          edge avatars (which extend half their width past the
+          rotated slot) inside the box. */}
+      <div className="w-full flex justify-center px-4">
+        <div className="relative w-full max-w-[320px] sm:max-w-[460px] aspect-square">
         {/* Decorative concentric rings + centre medallion. The
             outermost border is exactly where the avatars will land,
             so the eye reads the orbit as one composed shape. */}
@@ -149,6 +193,8 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           aria-hidden="true"
           className="absolute inset-[36%] rounded-full bg-gradient-to-br from-primary/[0.07] via-accent/[0.05] to-transparent"
         />
+        {/* Centre 7A — small glass pill, kept understated so the
+            orbiting team avatars stay the focus. */}
         <div
           aria-hidden="true"
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/45 backdrop-blur-md border border-white/80 shadow-[0_8px_28px_-12px_rgba(60,48,42,0.35)] flex items-center justify-center"
@@ -183,6 +229,10 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                   <button
                     type="button"
                     onClick={() => router.push(`/app/equine/${h.id}`)}
+                    onMouseEnter={() => setHovered({ kind: 'horse', horse: h })}
+                    onMouseLeave={() => setHovered((prev) => (prev?.kind === 'horse' && prev.horse.id === h.id ? null : prev))}
+                    onFocus={() => setHovered({ kind: 'horse', horse: h })}
+                    onBlur={() => setHovered((prev) => (prev?.kind === 'horse' && prev.horse.id === h.id ? null : prev))}
                     className={`orbit-pin group orbit-pin-horse ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} cursor-pointer`}
                     style={pinStyle}
                     title={h.name}
@@ -211,33 +261,6 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                               {h.name.charAt(0)}
                             </span>
                           )}
-                          <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 z-[60] text-left">
-                            <span className="block bg-white rounded-xl border border-gray-100 shadow-xl px-3 py-2 min-w-[220px] opacity-0 group-hover:opacity-100 transition-opacity">
-                              <span className="block text-sm font-semibold text-foreground whitespace-nowrap">{h.name}</span>
-                              <span className="block text-[11px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-                                {h.age != null ? `${h.age} years` : 'Age unknown'}
-                                {h.works_in ? ` · ${h.works_in}` : ''}
-                              </span>
-                              <span className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
-                                <span className="text-foreground/40">Weight</span>
-                                <span className="text-foreground/80 text-right">
-                                  {h.last_weight_lbs ? `${h.last_weight_lbs} lbs` : h.weight ? `${h.weight} lbs` : '—'}
-                                </span>
-                                <span className="text-foreground/40">Last fed</span>
-                                <span className="text-foreground/80 text-right">
-                                  {h.last_fed_at
-                                    ? `${h.last_feed_amount ?? ''}${h.last_feed_unit ? ' ' + h.last_feed_unit : ''} ${h.last_feed_type ?? ''} · ${fmtRelative(h.last_fed_at)}`.trim()
-                                    : '—'}
-                                </span>
-                                {h.last_weighed_at && (
-                                  <>
-                                    <span className="text-foreground/40">Weighed</span>
-                                    <span className="text-foreground/80 text-right">{fmtRelative(h.last_weighed_at)}</span>
-                                  </>
-                                )}
-                              </span>
-                            </span>
-                          </span>
                         </span>
                       </span>
                     </span>
@@ -265,6 +288,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             const online = isOnlineNow(u.last_seen_at);
             const viewing = online ? pathLabelFor(u.last_path) : null;
             const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
+            const onFire = (u.actions_today ?? 0) > ON_FIRE_THRESHOLD;
             const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
             const slotStyle: CSSProperties = {
               transform: `rotate(${angle}deg)`,
@@ -278,6 +302,10 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                 <Wrapper
                   type={navTarget ? 'button' : undefined}
                   onClick={navTarget ? () => router.push(navTarget) : undefined}
+                  onMouseEnter={() => setHovered({ kind: 'user', user: u, viewing, navTarget, online })}
+                  onMouseLeave={() => setHovered((h) => (h?.kind === 'user' && h.user.id === u.id ? null : h))}
+                  onFocus={() => setHovered({ kind: 'user', user: u, viewing, navTarget, online })}
+                  onBlur={() => setHovered((h) => (h?.kind === 'user' && h.user.id === u.id ? null : h))}
                   className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} ${navTarget ? 'cursor-pointer' : ''}`}
                   style={pinStyle}
                   title={navTarget ? `Go to ${viewing}` : undefined}
@@ -300,48 +328,46 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                             alt={u.full_name || ''}
                             referrerPolicy="no-referrer"
                             className={`block w-9 h-9 sm:w-12 sm:h-12 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
-                              online
-                                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
-                                : 'border-white shadow-md'
+                              onFire
+                                ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)]'
+                                : online
+                                  ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
+                                  : 'border-white shadow-md'
                             }`}
                           />
                         ) : (
                           <span
                             className={`flex w-9 h-9 sm:w-12 sm:h-12 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
-                              online
-                                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)] bg-primary text-white'
-                                : 'border-white bg-primary text-white shadow-md'
+                              onFire
+                                ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)] bg-primary text-white'
+                                : online
+                                  ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)] bg-primary text-white'
+                                  : 'border-white bg-primary text-white shadow-md'
                             }`}
                           >
                             {(u.full_name || '?').charAt(0).toUpperCase()}
                           </span>
                         )}
-                        {online && (
+                        {onFire && (
+                          <span
+                            aria-label="On a streak"
+                            className="orbit-fire absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-br from-amber-300 via-orange-500 to-rose-500 border-2 border-white shadow-md flex items-center justify-center text-[10px] leading-none"
+                            role="img"
+                          >
+                            <span aria-hidden="true">🔥</span>
+                          </span>
+                        )}
+                        {!onFire && online && (
                           <span
                             aria-hidden="true"
                             className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white"
                           />
                         )}
-                        {/* Tooltip — same counter-rotating layer so
-                            it reads upright regardless of which side
-                            of the orbit the avatar currently sits on. */}
-                        <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-[60] text-left shadow-lg">
-                          <span className="block font-semibold text-white">
-                            {u.full_name || 'User'}
-                          </span>
-                          {u.job_title && (
-                            <span className="block text-white/85">{u.job_title}</span>
-                          )}
-                          <span className="block text-white/75">
-                            {online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}
-                          </span>
-                          {viewing && (
-                            <span className="block text-emerald-300">
-                              Viewing {viewing}
-                              {navTarget ? ' — click to jump' : ''}
-                            </span>
-                          )}
-                        </span>
+                        {/* Per-avatar tooltips were clipped by the
+                            home wrapper's overflow-hidden whenever
+                            an edge avatar was hovered; the shared
+                            tooltip below the 7A medallion replaces
+                            them. */}
                       </span>
                     </span>
                   </span>
@@ -350,6 +376,83 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             );
           })}
         </div>
+
+        {/* Shared centre tooltip — pinned just below the 7A
+            medallion, slot-rotation-free so it can never be clipped
+            by the home wrapper's overflow-hidden no matter where the
+            hovered avatar sits in the orbit. */}
+        {hovered && (
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 mt-12 z-[60] pointer-events-none">
+            {hovered.kind === 'user' ? (
+              (() => {
+                const actions = hovered.user.actions_today ?? 0;
+                const onFire = actions > ON_FIRE_THRESHOLD;
+                const recent = hovered.user.recent_actions ?? [];
+                return (
+                  <div className="w-max max-w-[min(20rem,82vw)] px-3 py-2 bg-foreground text-white text-xs rounded-lg shadow-lg break-words text-center">
+                    <p className="font-semibold leading-tight">{hovered.user.full_name || 'User'}</p>
+                    {hovered.user.job_title && (
+                      <p className="text-white/85 leading-tight mt-0.5">{hovered.user.job_title}</p>
+                    )}
+                    <p className="text-white/75 leading-tight mt-0.5">
+                      {hovered.online ? 'Online now' : `Last active ${timeAgo(hovered.user.last_sign_in)}`}
+                    </p>
+                    {hovered.viewing && (
+                      <p className="text-emerald-300 leading-tight mt-0.5">
+                        Viewing {hovered.viewing}
+                        {hovered.navTarget ? ' — click to jump' : ''}
+                      </p>
+                    )}
+                    {onFire && (
+                      <div className="mt-1.5 pt-1.5 border-t border-white/15 text-left">
+                        <p className="text-orange-300 font-semibold leading-tight">
+                          <span aria-hidden="true">🔥</span> On a streak — {actions} actions today
+                        </p>
+                        {recent.length > 0 && (
+                          <ul className="mt-1 space-y-0.5 text-white/80 leading-snug">
+                            {recent.slice(0, 4).map((a, idx) => (
+                              <li key={`${a.created_at}-${idx}`} className="truncate">
+                                <span className="text-white/55">{timeAgo(a.created_at)} · </span>
+                                {humanizeActivityType(a.type)}
+                                {a.target_label ? `: ${a.target_label}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="w-max max-w-[min(18rem,80vw)] bg-white rounded-xl border border-gray-100 shadow-xl px-3 py-2">
+                <p className="text-sm font-semibold text-foreground">{hovered.horse.name}</p>
+                <p className="text-[11px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                  {hovered.horse.age != null ? `${hovered.horse.age} years` : 'Age unknown'}
+                  {hovered.horse.works_in ? ` · ${hovered.horse.works_in}` : ''}
+                </p>
+                <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span className="text-foreground/40">Weight</span>
+                  <span className="text-foreground/80 text-right">
+                    {hovered.horse.last_weight_lbs ? `${hovered.horse.last_weight_lbs} lbs` : hovered.horse.weight ? `${hovered.horse.weight} lbs` : '—'}
+                  </span>
+                  <span className="text-foreground/40">Last fed</span>
+                  <span className="text-foreground/80 text-right">
+                    {hovered.horse.last_fed_at
+                      ? `${hovered.horse.last_feed_amount ?? ''}${hovered.horse.last_feed_unit ? ' ' + hovered.horse.last_feed_unit : ''} ${hovered.horse.last_feed_type ?? ''} · ${fmtRelative(hovered.horse.last_fed_at)}`.trim()
+                      : '—'}
+                  </span>
+                  {hovered.horse.last_weighed_at && (
+                    <>
+                      <span className="text-foreground/40">Weighed</span>
+                      <span className="text-foreground/80 text-right">{fmtRelative(hovered.horse.last_weighed_at)}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         </div>
       </div>
 
@@ -383,6 +486,17 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           inset: 0;
           pointer-events: none;
           transform-origin: center;
+        }
+        /* When any pin inside a slot is hovered/focused, lift the
+           whole slot above its siblings so the tooltip + glow can
+           render on top of every other avatar in the orbit. Each
+           slot already creates its own stacking context (because of
+           the rotate transform), so a plain z-index on the inner
+           tooltip can't escape that context — only the slot itself
+           can be promoted. */
+        .orbit-slot:has(.orbit-pin:hover),
+        .orbit-slot:has(.orbit-pin:focus-visible) {
+          z-index: 50;
         }
         .orbit-pin {
           position: absolute;
@@ -429,6 +543,24 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           animation-delay: var(--enter-delay);
         }
 
+        /* Flame badge gently breathes so the on-fire avatars draw the
+           eye without becoming distracting. Combines a slight scale
+           with a brighter shadow on the peak so the warmth reads on
+           pale backgrounds too. */
+        @keyframes orbit-fire-pulse {
+          0%, 100% {
+            transform: scale(1);
+            box-shadow: 0 0 6px rgba(251, 146, 60, 0.55);
+          }
+          50% {
+            transform: scale(1.15);
+            box-shadow: 0 0 12px rgba(251, 146, 60, 0.85);
+          }
+        }
+        .orbit-fire {
+          animation: orbit-fire-pulse 1.6s ease-in-out infinite;
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .orbit-pin-in,
           .orbit-pin-pre,
@@ -440,6 +572,14 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             opacity: 1 !important;
             top: 0 !important;
             transform: translate(-50%, -50%) !important;
+          }
+          /* Fire badge: keep its corner positioning, just kill the
+             pulse. Skipping the shared override above because it
+             would also force a centre-translate that fights with
+             the badge's Tailwind -top-1 / -right-1 placement. */
+          .orbit-fire {
+            animation: none !important;
+            transform: none !important;
           }
         }
       `}</style>

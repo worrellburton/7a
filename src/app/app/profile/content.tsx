@@ -162,7 +162,7 @@ function TeamCardPreview({
 }
 
 export default function ProfileContent() {
-  const { user, session } = useAuth();
+  const { user, session, userKind } = useAuth();
   const [fullName, setFullName] = useState('');
   const [credentials, setCredentials] = useState('');
   const [jobTitle, setJobTitle] = useState('');
@@ -441,7 +441,7 @@ export default function ProfileContent() {
   const headerAvatar = avatarUrl || user.user_metadata?.avatar_url;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10">
+    <div className="p-4 sm:p-6 lg:p-10 max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">My Profile</h1>
         <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
@@ -450,7 +450,7 @@ export default function ProfileContent() {
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_320px] gap-8 max-w-5xl">
+      <div className="grid lg:grid-cols-[1fr_320px] gap-8">
         {/* Left: form */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           {/* Avatar + email header */}
@@ -607,11 +607,10 @@ export default function ProfileContent() {
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   rows={4}
-                  maxLength={600}
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-primary focus:outline-none resize-y"
                   placeholder="A 2–3 sentence intro. Who you are, what you do at Seven Arrows, what draws you to this work."
                 />
-                <p className="text-[11px] text-foreground/40 mt-1">{bio.length}/600 — appears on your public team page.</p>
+                <p className="text-[11px] text-foreground/40 mt-1">Appears on your public team page.</p>
               </div>
 
               {/* Favorite Seven Arrows */}
@@ -841,35 +840,41 @@ export default function ProfileContent() {
                 )}
               </div>
 
-              {/* Public team toggle */}
-              <div className="pt-2 border-t border-gray-100">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      {publicTeam ? 'Visible on the team page' : 'Hidden from the team page'}
-                    </p>
-                    <p className="text-xs text-foreground/50 mt-0.5">
-                      {publicTeam
-                        ? 'You appear at /who-we-are/meet-our-team.'
-                        : "You won't appear on the public site."}
-                    </p>
+              {/* Public team toggle — staff-only. Alumni profiles
+                  don't show this control because they're never
+                  surfaced on the marketing /who-we-are/meet-our-team
+                  grid (the API forces public_team=false for non-
+                  staff classifications). */}
+              {userKind === 'staff' && (
+                <div className="pt-2 border-t border-gray-100">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {publicTeam ? 'Visible on the team page' : 'Hidden from the team page'}
+                      </p>
+                      <p className="text-xs text-foreground/50 mt-0.5">
+                        {publicTeam
+                          ? 'You appear at /who-we-are/meet-our-team.'
+                          : "You won't appear on the public site."}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={publicTeam}
+                      onClick={() => attemptHideToggle(!publicTeam)}
+                      className={`shrink-0 relative w-11 h-6 rounded-full transition-colors ${
+                        publicTeam ? 'bg-primary' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                        style={{ transform: publicTeam ? 'translateX(20px)' : 'translateX(0)' }}
+                      />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={publicTeam}
-                    onClick={() => attemptHideToggle(!publicTeam)}
-                    className={`shrink-0 relative w-11 h-6 rounded-full transition-colors ${
-                      publicTeam ? 'bg-primary' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
-                      style={{ transform: publicTeam ? 'translateX(20px)' : 'translateX(0)' }}
-                    />
-                  </button>
                 </div>
-              </div>
+              )}
 
               <button
                 onClick={saveProfile}

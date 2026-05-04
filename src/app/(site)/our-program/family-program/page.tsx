@@ -7,7 +7,6 @@ import FamilyComponents from '@/components/family/FamilyComponents';
 import FamilyPersonas from '@/components/family/FamilyPersonas';
 import WhileTheyAreIn from '@/components/family/WhileTheyAreIn';
 import BoundariesVsEnabling from '@/components/family/BoundariesVsEnabling';
-import FamilyWeekend from '@/components/family/FamilyWeekend';
 import FamilyFAQ from '@/components/family/FamilyFAQ';
 import { familyFaqs } from '@/components/family/familyFaqs';
 import FamilyCTA from '@/components/family/FamilyCTA';
@@ -121,7 +120,6 @@ export default function FamilyProgramPage() {
       <FamilyPersonas />
       <WhileTheyAreIn />
       <BoundariesVsEnabling />
-      <FamilyWeekend />
       <FamilyFAQ />
       <FamilyCTA />
     </main>

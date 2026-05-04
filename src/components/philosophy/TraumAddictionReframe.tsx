@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * Philosophy — Phase 3. The Forward-Facing Accelerated Recovery® reframe.
+ * Philosophy — Phase 3. The Forward-Facing® Accelerated Recovery reframe.
  *
  * Dark-section editorial beat. Left has the thesis prose; right has
  * an animated SVG of two converging circles (trauma + addiction)
@@ -32,7 +32,7 @@ export default function TraumAddictionReframe() {
         <div className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
           <div className="lg:col-span-6" style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'all 1s cubic-bezier(0.16,1,0.3,1) 0.1s' }}>
             <p className="text-[11px] font-semibold tracking-[0.24em] uppercase text-accent mb-5" style={{ fontFamily: 'var(--font-body)' }}>
-              The Forward-Facing Accelerated Recovery<span className="align-super text-[9px]">®</span> Model
+              The Forward-Facing<span className="align-super text-[9px]">®</span> Accelerated Recovery Model
             </p>
             <h2 id="ta-heading" className="font-bold tracking-tight mb-7" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.1rem, 4.2vw, 3.2rem)', lineHeight: 1.03 }}>
               Addiction as a <em className="not-italic" style={{ color: 'var(--color-accent)' }}>post-traumatic adaptation</em> &mdash; not a moral failure.

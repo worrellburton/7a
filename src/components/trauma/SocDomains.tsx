@@ -94,7 +94,7 @@ export default function SocDomains() {
               transition: 'all 0.8s cubic-bezier(0.16,1,0.3,1) 0.05s',
             }}
           >
-            The Forward-Facing Accelerated Recovery<span className="align-super text-[9px]">®</span> Approach
+            The Forward-Facing<span className="align-super text-[9px]">®</span> Accelerated Recovery Approach
           </p>
           <h2
             id="soc-heading"
@@ -122,7 +122,7 @@ export default function SocDomains() {
             provides an evolutional paradigm shift from a traditional
             focus on pathology to the active creation of health.
             Central to this model is the concept of a Sense of
-            Coherence (SOC). Forward-Facing Accelerated Recovery&reg; (FF-AR)
+            Coherence (SOC). Forward-Facing&reg; Accelerated Recovery (FF-AR)
             operationalizes these salutogenic principles in a treatment
             structure — creating the neurological foundation needed
             for deep, lasting change.

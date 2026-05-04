@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 const facts = [
   { term: 'Who', value: 'Parents, partners, adult children, siblings, and chosen family of Seven Arrows clients' },
   { term: 'Cost', value: 'Included in your loved one\'s program of care at no additional charge' },
-  { term: 'Family support sessions', value: 'Weekly virtual family support sessions, starting the second week of residential' },
+  { term: 'Family support sessions', value: 'Virtual family support sessions, starting the second week of residential' },
   { term: 'Education', value: 'Open-enrollment multi-week psychoeducation groups on addiction, trauma, boundaries, and co-regulation' },
   { term: 'After discharge', value: 'Family program continues — quarterly alumni family events and referrals to family-focused outpatient providers' },
 ];

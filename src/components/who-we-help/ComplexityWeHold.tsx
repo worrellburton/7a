@@ -32,7 +32,7 @@ const items: Complexity[] = [
   {
     title: 'Complex trauma and PTSD',
     body:
-      'Childhood trauma, developmental trauma, combat-related PTSD, moral injury. Our Forward-Facing Accelerated Recovery™ approach pairs somatic interventions (SE, ART) with cognitive work so neither side gets skipped.',
+      'Childhood trauma, developmental trauma, combat-related PTSD, moral injury. Our Forward-Facing® Accelerated Recovery approach pairs somatic interventions (SE, ART) with cognitive work so neither side gets skipped.',
   },
   {
     title: 'Treatment-resistant depression + anxiety',

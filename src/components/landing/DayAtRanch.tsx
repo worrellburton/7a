@@ -36,8 +36,8 @@ const beats: Beat[] = [
   },
   {
     time: '7:30 am',
-    title: 'Morning practice',
-    body: 'Invitational yoga, breathwork, or a walking meditation in the arena. Twenty minutes of nervous-system tuning before the clinical work begins.',
+    title: 'Morning circle',
+    body: 'Morning circle with staff and peers to set intentions, cold plunge or fitness time, and heading down to the barn to connect with the horses.',
     image: '/images/sound-healing-session.jpg',
   },
   {
@@ -49,7 +49,7 @@ const beats: Beat[] = [
   {
     time: '9:15 am',
     title: 'Primary-clinician session',
-    body: 'Individual therapy with your primary — EMDR, ART, IFS, or Forward-Facing Accelerated Recovery® as clinically indicated. The hour that anchors the day.',
+    body: 'Individual therapy with your primary — EMDR, ART, IFS, or Forward-Facing® Accelerated Recovery as clinically indicated. The hour that anchors the day.',
     image: '/images/individual-therapy-session.jpg',
   },
   {
@@ -73,7 +73,7 @@ const beats: Beat[] = [
   {
     time: '4:00 pm',
     title: 'Movement or holistic',
-    body: 'Hike, strength work, sound-bath session, or sweat-lodge ceremony depending on the day and the client. Body-level medicine.',
+    body: 'Hike, strength work, cold plunge or fitness, or sweat-lodge ceremony depending on the day and the client. Body-level medicine.',
     image: '/images/facility-exterior-mountains.jpg',
   },
   {
@@ -81,6 +81,12 @@ const beats: Beat[] = [
     title: 'Dinner and circle',
     body: 'Shared meal, then evening circle — the day gets named, hard moments get witnessed, wins get marked. Lights-out comes from a settled nervous system, not exhaustion.',
     image: '/images/group-sunset-desert.jpg',
+  },
+  {
+    time: '7:30 pm',
+    title: 'Tea time, craft night, or recovery meeting',
+    body: 'A quieter close to the day — tea time on the porch, craft night, or a recovery meeting. Connection without programming pressure.',
+    image: '/images/embrace-connection.jpg',
   },
 ];
 
