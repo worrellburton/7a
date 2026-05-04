@@ -296,7 +296,7 @@ export function buildClaudeCodePrompt(input: PromptInput): string {
     lines.push(`- Meta description:${breakdown.meta_points}/8`);
     lines.push(`- Body mentions:   ${breakdown.body_points}/5`);
   } else {
-    lines.push('- No scan data yet; run `Scan site fit` from /feather/seo first if you can.');
+    lines.push('- No scan data yet; run `Scan site fit` from /app/seo first if you can.');
   }
   lines.push('');
 
@@ -324,7 +324,7 @@ export function buildClaudeCodePrompt(input: PromptInput): string {
   lines.push('- This is a Next.js 16 App Router codebase. Public pages live under `src/app/(site)/**/page.tsx`.');
   lines.push('- The `<title>` and meta description are set via `export const metadata = { title, description }` at the top of each page.tsx (or its layout).');
   lines.push('- The H1 is the first `<h1>` in the page JSX. There should be exactly one.');
-  lines.push('- Route paths map to folder names; to change the URL slug, rename the folder and let middleware/301 redirects catch the old URL (see `/feather/seo/redirects`).');
+  lines.push('- Route paths map to folder names; to change the URL slug, rename the folder and let middleware/301 redirects catch the old URL (see `/app/seo/redirects`).');
   lines.push('- Run `npx tsc --noEmit` after edits to catch regressions.');
   lines.push('- Deploy workflow: commit on the current feature branch, merge into `main`, then into `master` (the live deploy branch). Never force-push.');
   lines.push('');
@@ -333,7 +333,7 @@ export function buildClaudeCodePrompt(input: PromptInput): string {
   lines.push(`- Every signal in the breakdown scores at its maximum for keyword "${keyword_text}".`);
   lines.push('- Copy reads naturally — no keyword stuffing. Humans should not notice the phrase was added on purpose.');
   lines.push('- Existing page structure and design are preserved; only headings, meta, slug, and body text change.');
-  lines.push('- After pushing, re-run `Scan site fit` at /feather/seo to confirm the pill flips to STRONG (score ≥ 80, ideally 95+).');
+  lines.push('- After pushing, re-run `Scan site fit` at /app/seo to confirm the pill flips to STRONG (score ≥ 80, ideally 95+).');
 
   return lines.join('\n');
 }
@@ -492,7 +492,7 @@ export function buildBlogCreationPrompt({ keyword_text, idea }: BlogPromptInput)
   lines.push('Skim both before drafting; copy their hero + metadata patterns verbatim, then replace the content.');
   lines.push('');
   lines.push('## Acceptance criteria');
-  lines.push(`- The finished episode's "Current fit" score for "${keyword_text}" reaches 100 on a re-scan at /feather/seo.`);
+  lines.push(`- The finished episode's "Current fit" score for "${keyword_text}" reaches 100 on a re-scan at /app/seo.`);
   lines.push('- The episode card appears on `/who-we-are/recovery-roadmap` with the correct kicker number, title, and link.');
   lines.push('- `npx tsc --noEmit` is clean.');
   lines.push('- Copy reads naturally to a human. The target keyword is present but not stuffed.');

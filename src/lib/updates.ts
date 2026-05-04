@@ -28,9 +28,9 @@ export const updates: UpdateEntry[] = [
     at: '2026-04-17T06:00:00Z',
     title: 'Clients module + home dashboard: who\'s in care, who\'s coming, who\'s on the team',
     items: [
-      'New /feather/clients page with list + grid views. Search, status filter, sortable columns (Name, MRN, Status, Admitted, Clinician).',
+      'New /app/clients page with list + grid views. Search, status filter, sortable columns (Name, MRN, Status, Admitted, Clinician).',
       'Seeded 10 test clients with realistic (but clearly fake) data — demographics, insurance, auth, ICD-10, LOC, emergency contact.',
-      'Client chart at /feather/clients/[id]: Overview, Insurance & Billing, Documents, Finance (admin-only), Notes tabs.',
+      'Client chart at /app/clients/[id]: Overview, Insurance & Billing, Documents, Finance (admin-only), Notes tabs.',
       'Insurance tab shows payer, plan, member/group IDs, subscriber info, effective/term dates, auth number, LOC code, authorized vs used units (with progress bar), and ICD-10 diagnoses.',
       'Documents tab: standard intake paperwork seeded per client; signed/unsigned badges; upload + download + delete.',
       'Finance tab (admins only): billed / paid / balance totals + line-item ledger.',

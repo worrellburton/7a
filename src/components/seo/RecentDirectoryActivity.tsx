@@ -6,7 +6,7 @@ import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 
 // Live feed of every seo.* event from public.activity_log — the
-// single feed for the whole SEO area. Renders on /feather/seo/actions
+// single feed for the whole SEO area. Renders on /app/seo/actions
 // (the Activities tab) and surfaces directory edits, backlink
 // adds/removes/comments, Speed audit runs, outing-photo loads,
 // and anything else that writes to activity_log under the seo.

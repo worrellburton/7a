@@ -3,7 +3,7 @@
 // ------------------------------------------------------------
 // Shared client-side QuickBooks connection state + header UI.
 //
-// Both /feather/finance and /feather/reports need the same thing: list connected
+// Both /app/finance and /app/reports need the same thing: list connected
 // companies, let admins pick one, connect another, or disconnect. Rather
 // than duplicate the logic, both pages call `useQuickBooksConnection()`
 // to get the state + actions, and render <QuickBooksHeader /> inline.

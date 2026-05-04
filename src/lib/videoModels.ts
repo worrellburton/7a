@@ -1,4 +1,4 @@
-// Catalog of image-to-video models we expose on /feather/video.
+// Catalog of image-to-video models we expose on /app/video.
 //
 // Each model declares:
 //   - the fal.ai endpoint slug (queue.fal.run/<endpoint>)

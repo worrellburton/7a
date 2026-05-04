@@ -12,16 +12,16 @@ export async function GET(req: NextRequest) {
   const error = url.searchParams.get('error');
 
   if (error) {
-    return NextResponse.redirect(`${url.origin}/feather/finance?error=${encodeURIComponent(error)}`);
+    return NextResponse.redirect(`${url.origin}/app/finance?error=${encodeURIComponent(error)}`);
   }
 
   const expectedState = req.cookies.get('qbo_oauth_state')?.value;
   if (!state || !expectedState || state !== expectedState) {
-    return NextResponse.redirect(`${url.origin}/feather/finance?error=state_mismatch`);
+    return NextResponse.redirect(`${url.origin}/app/finance?error=state_mismatch`);
   }
 
   if (!code || !realmId) {
-    return NextResponse.redirect(`${url.origin}/feather/finance?error=missing_params`);
+    return NextResponse.redirect(`${url.origin}/app/finance?error=missing_params`);
   }
 
   try {
@@ -29,13 +29,13 @@ export async function GET(req: NextRequest) {
     await upsertStoredToken(realmId, tokens);
 
     const res = NextResponse.redirect(
-      `${url.origin}/feather/finance?connected=1&realm_id=${encodeURIComponent(realmId)}`
+      `${url.origin}/app/finance?connected=1&realm_id=${encodeURIComponent(realmId)}`
     );
     res.cookies.delete('qbo_oauth_state');
     return res;
   } catch (err) {
     return NextResponse.redirect(
-      `${url.origin}/feather/finance?error=${encodeURIComponent(String(err))}`
+      `${url.origin}/app/finance?error=${encodeURIComponent(String(err))}`
     );
   }
 }

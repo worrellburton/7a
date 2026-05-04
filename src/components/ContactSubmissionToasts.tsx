@@ -344,7 +344,7 @@ function Toast({ submission, onDismiss }: { submission: Submission; onDismiss: (
             {submission.source ? `${submission.source} · ` : ''}{time}
           </p>
           <Link
-            href="/feather/website-requests"
+            href="/app/website-requests"
             className="text-[11px] font-semibold text-primary hover:text-primary-dark transition-colors"
           >
             Open inbox →
@@ -415,7 +415,7 @@ function VobToastCard({ vob, onDismiss }: { vob: VobToast; onDismiss: () => void
             {time}
           </p>
           <Link
-            href="/feather/website-requests?tab=vobs"
+            href="/app/website-requests?tab=vobs"
             className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 transition-colors"
           >
             Open VOBs →

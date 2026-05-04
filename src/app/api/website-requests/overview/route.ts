@@ -6,7 +6,7 @@ import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 // Marketing & Admissions department members. Summary across both
 // vob_requests and contact_submissions. Returns counts (total + new)
 // and the 5 most recent rows from each table for the landing page at
-// /feather/website-requests.
+// /app/website-requests.
 
 export const dynamic = 'force-dynamic';
 

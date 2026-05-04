@@ -9,7 +9,7 @@ export interface LogActivityInput {
   targetKind?: string; // e.g. 'job_description', 'calendar_event', 'user'
   targetId?: string;
   targetLabel?: string; // Human-readable label, e.g. JD title
-  targetPath?: string; // e.g. '/feather/job-descriptions/<id>'
+  targetPath?: string; // e.g. '/app/job-descriptions/<id>'
   metadata?: Record<string, unknown>;
 }
 
