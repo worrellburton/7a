@@ -42,7 +42,8 @@ const nextConfig = {
       { source: '/detox-for-benzodiazepine-withdrawal', destination: '/what-we-treat/benzodiazepine', statusCode: 301 },
       { source: '/opioid', destination: '/what-we-treat/opioid-addiction', statusCode: 301 },
       { source: '/fentanyl-detox', destination: '/what-we-treat/opioid-addiction', statusCode: 301 },
-      { source: '/transition-from-suboxone-to-sublocade', destination: '/what-we-treat/opioid-addiction', statusCode: 301 },
+      // /transition-from-suboxone-to-sublocade is now an actual
+      // article route (Recovery Roadmap Episode 7), not a redirect.
       { source: '/methadone-detox', destination: '/what-we-treat/opioid-addiction', statusCode: 301 },
       { source: '/suboxone-detox', destination: '/what-we-treat/opioid-addiction', statusCode: 301 },
       { source: '/carfentanil-detox', destination: '/what-we-treat/opioid-addiction', statusCode: 301 },
