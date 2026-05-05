@@ -18,6 +18,27 @@ export function isMissedCall(c: {
   return !!c.voicemail || (c.talk_time ?? 0) < 3;
 }
 
+// A call counts as "meaningful" when the AI fit_score clears the
+// threshold AND it isn't an outbound voicemail. We dial out a lot of
+// numbers that don't pick up; those go to voicemail and the score
+// reflects the script we left, not a real conversation, so they
+// shouldn't inflate the meaningful-calls KPI.
+export function isOutboundVoicemail(c: {
+  direction?: string | null;
+  voicemail?: boolean | null;
+}): boolean {
+  return c.direction === 'outbound' && !!c.voicemail;
+}
+
+export function isMeaningfulCall(
+  c: { direction?: string | null; voicemail?: boolean | null },
+  fitScore: number | null | undefined,
+): boolean {
+  if (fitScore == null || fitScore < MEANINGFUL_THRESHOLD) return false;
+  if (isOutboundVoicemail(c)) return false;
+  return true;
+}
+
 export function isPaidSource(raw: string | null | undefined): boolean {
   if (!raw) return false;
   const s = raw.toLowerCase();
@@ -132,7 +153,7 @@ export function computeRangeAggregates(
       if (isPaidSource(c.source_name || c.source)) missedPaid++;
     }
     const s = scores.get(c.ctm_id);
-    if (s?.fit_score != null && s.fit_score >= MEANINGFUL_THRESHOLD) {
+    if (isMeaningfulCall(c, s?.fit_score ?? null)) {
       meaningful++;
       dayMeaningful.set(day, (dayMeaningful.get(day) ?? 0) + 1);
     }

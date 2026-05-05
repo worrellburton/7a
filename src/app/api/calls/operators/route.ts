@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { isMeaningfulCall } from '@/lib/calls-shared';
 
 // GET /api/calls/operators?from&to
 //
@@ -34,6 +35,7 @@ interface CallRow {
   direction: string | null;
   duration: number | null;
   talk_time: number | null;
+  voicemail: boolean | null;
   caller_number_formatted: string | null;
   caller_number: string | null;
   city: string | null;
@@ -62,7 +64,7 @@ export async function GET(req: NextRequest) {
   while (true) {
     const { data, error } = await supabase
       .from('calls')
-      .select('ctm_id, called_at, direction, duration, talk_time, caller_number_formatted, caller_number, city, state, audio_url')
+      .select('ctm_id, called_at, direction, duration, talk_time, voicemail, caller_number_formatted, caller_number, city, state, audio_url')
       .gte('called_at', from)
       .lte('called_at', to)
       .range(start, start + PAGE_SIZE - 1);
@@ -130,8 +132,6 @@ export async function GET(req: NextRequest) {
     calls: CallEntry[];
   }>();
 
-  const MEANINGFUL_THRESHOLD = 60;
-
   for (const r of rows) {
     const name = r.operator_name?.trim();
     if (!name) continue;
@@ -148,7 +148,7 @@ export async function GET(req: NextRequest) {
       bucket.fitSum += r.fit_score;
       bucket.fitCount++;
     }
-    const isMeaningful = (r.fit_score ?? 0) >= MEANINGFUL_THRESHOLD;
+    const isMeaningful = isMeaningfulCall(call, r.fit_score);
     if (isMeaningful) bucket.meaningful++;
     // "Converted" heuristic: meaningful AND the AI assigned a specific
     // client_type (Insurance / Private Pay / Mental Health / etc.),
