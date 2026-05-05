@@ -16,7 +16,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -330,6 +330,29 @@ export default function ContactsContent() {
     setUpgradeTarget(null);
   }
 
+  // Inline notes editing — invoked by the click-to-expand row in
+  // ContactsGrid. Optimistic update so the cell collapses and the
+  // grid reflects the saved text immediately. The realtime postgres
+  // subscription will reconcile if the server pushes back something
+  // different.
+  async function handleSaveNotes(id: string, notes: string) {
+    if (!session?.access_token) return;
+    const trimmed = notes.trim();
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, notes: trimmed || null } : r)));
+    const res = await fetch(`/api/contacts/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ notes: trimmed }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(`Couldn't save notes: ${json.error ?? res.status}`);
+    }
+  }
+
   async function handleDelete(target: Contact) {
     if (!session?.access_token) return;
     if (!confirm(`Delete ${target.name}? This can't be undone.`)) return;
@@ -444,6 +467,7 @@ export default function ContactsContent() {
         onUpgrade={(c) => setUpgradeTarget(c)}
         onHistory={(c) => setHistoryTarget(c)}
         onDelete={(c) => handleDelete(c)}
+        onSaveNotes={handleSaveNotes}
         actionMenuFor={actionMenuFor}
         setActionMenuFor={setActionMenuFor}
       />
@@ -483,6 +507,70 @@ export default function ContactsContent() {
   );
 }
 
+// Inline editor that drops into a single-cell row beneath a contact
+// when the user clicks the notes cell. Holds its own draft state so
+// edits don't propagate to the row until Save fires; Cancel and Esc
+// discard. Cmd/Ctrl-Enter triggers save without leaving the keyboard.
+function NotesEditor({
+  initial,
+  onSave,
+  onCancel,
+}: {
+  initial: string;
+  onSave: (next: string) => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    taRef.current?.focus();
+    const len = taRef.current?.value.length ?? 0;
+    taRef.current?.setSelectionRange(len, len);
+  }, []);
+  const dirty = value !== initial;
+  async function commit() {
+    if (saving) return;
+    setSaving(true);
+    try { await onSave(value); } finally { setSaving(false); }
+  }
+  return (
+    <div>
+      <p className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 mb-1.5">Notes</p>
+      <textarea
+        ref={taRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') { e.preventDefault(); onCancel(); return; }
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); void commit(); }
+        }}
+        rows={4}
+        placeholder="Write a note about this contact…"
+        className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-[13px] text-foreground/85 leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void commit()}
+          disabled={saving || !dirty}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[12px] font-semibold shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="inline-flex items-center px-3 py-1.5 rounded-md bg-white text-foreground/70 text-[12px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
+        >
+          Cancel
+        </button>
+        <span className="ml-auto text-[11px] text-foreground/40">⌘↵ saves · Esc cancels</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Grid ───────────────────────────────────────────────────────
 
 function ContactsGrid({
@@ -495,6 +583,7 @@ function ContactsGrid({
   onUpgrade,
   onHistory,
   onDelete,
+  onSaveNotes,
   actionMenuFor,
   setActionMenuFor,
 }: {
@@ -507,9 +596,15 @@ function ContactsGrid({
   onUpgrade: (c: Contact) => void;
   onHistory: (c: Contact) => void;
   onDelete: (c: Contact) => void;
+  onSaveNotes: (id: string, notes: string) => Promise<void>;
   actionMenuFor: { id: string; rect: DOMRect } | null;
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
 }) {
+  // Tracks the row whose notes-editor strip is currently expanded.
+  // Click the notes cell to toggle. Persists across rerenders via a
+  // simple id string; null when collapsed.
+  const [expandedNotesId, setExpandedNotesId] = useState<string | null>(null);
+  const totalCols = columns.length + 5;
   return (
     <>
       <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
@@ -555,12 +650,34 @@ function ContactsGrid({
             </tr>
           ) : (
             rows.map((c) => (
-              <tr key={c.id} className="align-top hover:bg-warm-bg/40 transition-colors">
-                {columns.map((col) => (
-                  <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                    <ContactCell column={col} contact={c} />
-                  </td>
-                ))}
+              <Fragment key={c.id}>
+              <tr className="align-top hover:bg-warm-bg/40 transition-colors">
+                {columns.map((col) => {
+                  if (col.key === 'notes') {
+                    const isExpanded = expandedNotesId === c.id;
+                    return (
+                      <td
+                        key={col.key}
+                        className="px-3 py-2.5 align-middle cursor-pointer"
+                        onClick={() => setExpandedNotesId((prev) => (prev === c.id ? null : c.id))}
+                        title={c.notes ? 'Click to edit notes' : 'Click to add notes'}
+                      >
+                        <div className={`rounded-md px-2 -mx-2 py-1 transition-colors ${isExpanded ? 'bg-warm-bg/60' : 'hover:bg-warm-bg/40'}`}>
+                          {c.notes ? (
+                            <span className="text-foreground/75 truncate block max-w-[420px]">{c.notes}</span>
+                          ) : (
+                            <span className="text-foreground/30 italic text-[12px]">Add notes…</span>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  }
+                  return (
+                    <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
+                      <ContactCell column={col} contact={c} />
+                    </td>
+                  );
+                })}
                 <td className="px-3 py-2.5">
                   <div className="inline-flex items-center gap-1.5">
                     <button
@@ -624,6 +741,21 @@ function ContactsGrid({
                   )}
                 </td>
               </tr>
+              {expandedNotesId === c.id && (
+                <tr className="bg-warm-bg/30">
+                  <td colSpan={totalCols} className="px-4 py-4">
+                    <NotesEditor
+                      initial={c.notes ?? ''}
+                      onCancel={() => setExpandedNotesId(null)}
+                      onSave={async (next) => {
+                        await onSaveNotes(c.id, next);
+                        setExpandedNotesId(null);
+                      }}
+                    />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))
           )}
         </tbody>
@@ -753,7 +885,7 @@ function ContactCell({ column, contact }: { column: ColumnDef; contact: Contact 
       return <span className="text-foreground/65 whitespace-nowrap">{contact.location || <Em />}</span>;
     case 'notes':
       return contact.notes
-        ? <span className="text-foreground/75 line-clamp-2 leading-snug max-w-[480px]">{contact.notes}</span>
+        ? <span className="text-foreground/75 truncate block max-w-[420px]" title={contact.notes}>{contact.notes}</span>
         : <Em />;
     default:
       return null;
