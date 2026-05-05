@@ -30,6 +30,7 @@ import {
   normalizePhone,
   isPaidSource,
   isMissedCall,
+  isMeaningfulCall,
   ctmFetch,
   formatDuration,
   parseDate,
@@ -341,7 +342,7 @@ export default function CallsContent() {
         if (isPaidSource(c.source_name || c.source)) missedPaid++;
       }
       const s = scores[String(c.id)];
-      if (s?.fit_score != null && s.fit_score >= MEANINGFUL_THRESHOLD) {
+      if (isMeaningfulCall(c, s?.fit_score ?? null)) {
         meaningful++;
         dayMeaningfulCounts.set(callDate, (dayMeaningfulCounts.get(callDate) || 0) + 1);
       }
@@ -504,7 +505,7 @@ export default function CallsContent() {
     const yesterdayStr = insights.dailyCounts[5]?.date;
     for (const call of calls) {
       const s = scores[String(call.id)];
-      if (!s || s.fit_score == null || s.fit_score < MEANINGFUL_THRESHOLD) continue;
+      if (!isMeaningfulCall(call, s?.fit_score ?? null)) continue;
       const parsedM = parseDate(call.called_at);
       if (!parsedM) continue;
       const callDate = parsedM.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
@@ -1465,7 +1466,7 @@ export default function CallsContent() {
                       const isMeaningfulRow =
                         !isSpamCall(call) &&
                         !isMissedCall(call) &&
-                        (callScore?.fit_score ?? 0) >= MEANINGFUL_THRESHOLD;
+                        isMeaningfulCall(call, callScore?.fit_score ?? null);
                       const cellPad = isMeaningfulRow ? 'py-5' : 'py-2';
                       return (
                         <Fragment key={call.id}>
