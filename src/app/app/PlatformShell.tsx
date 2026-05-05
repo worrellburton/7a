@@ -1101,7 +1101,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       </aside>
 
       {/* Main content area */}
-      <div data-platform-main className="flex-1 bg-warm-bg overflow-auto relative">
+      <div data-platform-main className="flex-1 overflow-auto relative">
         {/* Mobile top bar */}
         <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 backdrop-blur border-b border-gray-100">
           <button
