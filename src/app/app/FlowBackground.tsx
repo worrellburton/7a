@@ -193,8 +193,8 @@ export default function FlowBackground() {
     <canvas
       ref={canvasRef}
       aria-hidden
-      className="fixed inset-0 -z-10 w-full h-full pointer-events-none"
-      style={{ opacity: 0.55 }}
+      className="fixed inset-0 z-0 w-full h-full pointer-events-none"
+      style={{ opacity: 1 }}
     />
   );
 }

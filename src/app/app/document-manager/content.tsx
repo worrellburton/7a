@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/lib/AuthProvider';
+import { db } from '@/lib/db';
 
 // Document Manager — central library of reusable documents (agreements,
 // policies, releases, etc.). Each document tracks its latest version,
@@ -94,7 +96,6 @@ const SEED_DOCS: DocumentRow[] = [
   { id: 'd7', title: 'Photo / Media Consent', category: 'consent_forms', version: 'v1', updated_at: '2025-09-22', updated_by: 'Marketing', size_kb: 38, status: 'draft', signatures: [] },
   { id: 'd8', title: 'Employee Confidentiality Agreement', category: 'new_hire_forms', version: 'v2', updated_at: '2025-12-08', updated_by: 'HR', size_kb: 88, status: 'archived', signatures: [] },
   { id: 'd9', title: 'Medical History Questionnaire', category: 'intake_forms', version: 'v1', updated_at: '2026-02-11', updated_by: 'Clinical', size_kb: 120, status: 'ready', signatures: [] },
-  { id: 'd10', title: 'Clinician Job Description', category: 'job_descriptions', version: 'v3', updated_at: '2026-03-05', updated_by: 'HR', size_kb: 64, status: 'ready', signatures: [] },
 ];
 
 function fmtDate(iso: string): string {
@@ -106,7 +107,56 @@ function fmtDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+// Project a row from public.job_descriptions into the DocumentRow shape
+// so the Job Descriptions tab in this view stays in lockstep with the
+// /app/job-descriptions surface — every JD created there shows up here
+// automatically, with a status derived from its archive state and a
+// version number derived from its activity log length so revisions
+// surface naturally instead of always reading "v1".
+function projectJobDescription(row: Record<string, unknown>): DocumentRow | null {
+  const id = row.id ? String(row.id) : '';
+  const title = typeof row.title === 'string' ? row.title.trim() : '';
+  if (!id || !title) return null;
+  const archivedAt = (row.archived_at as string | null) || null;
+  const updatedIso =
+    (row.last_edited_at as string | null) ||
+    (row.date_revised as string | null) ||
+    (row.created_at as string | null) ||
+    new Date().toISOString();
+  const updatedDate = updatedIso.slice(0, 10);
+  const updatedBy =
+    (row.last_edited_by_name as string | null) ||
+    (row.date_revised_by_name as string | null) ||
+    'Job Descriptions';
+  const activity = Array.isArray(row.activity) ? (row.activity as unknown[]) : [];
+  const revisions = activity.filter((e) => {
+    if (!e || typeof e !== 'object') return false;
+    const t = (e as { type?: unknown }).type;
+    return t === 'revised' || t === 'edited' || t === 'created';
+  }).length;
+  const version = `v${Math.max(1, revisions || 1)}`;
+  // Approximate size from the prose — same Blob trick as locally added
+  // documents so the column reads consistently.
+  const blobParts: string[] = [];
+  if (typeof row.summary === 'string') blobParts.push(row.summary);
+  for (const r of (row.responsibilities as string[] | null) ?? []) blobParts.push(r);
+  for (const r of (row.requirements as string[] | null) ?? []) blobParts.push(r);
+  const sizeKb = Math.max(1, Math.round(new Blob([blobParts.join('\n')]).size / 1024));
+  return {
+    id: `jd:${id}`,
+    title,
+    category: 'job_descriptions',
+    version,
+    updated_at: updatedDate,
+    updated_by: updatedBy,
+    size_kb: sizeKb,
+    status: archivedAt ? 'archived' : 'ready',
+    signatures: [],
+  };
+}
+
 export default function DocumentManagerContent() {
+  const { session } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -114,6 +164,11 @@ export default function DocumentManagerContent() {
   // Load persisted docs from localStorage on mount; fall back to seed data
   // so a fresh browser still has something to look at.
   const [docs, setDocs] = useState<DocumentRow[]>(SEED_DOCS);
+  // Live job descriptions pulled from public.job_descriptions on mount.
+  // These are merged into the docs list at render time so the Job
+  // Descriptions tab here is always a true mirror of /app/job-descriptions
+  // — no manual re-syncing, no risk of drift.
+  const [liveJDs, setLiveJDs] = useState<DocumentRow[]>([]);
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     try {
@@ -129,6 +184,34 @@ export default function DocumentManagerContent() {
     if (!hydrated) return;
     try { localStorage.setItem(DOCS_STORAGE_KEY, JSON.stringify(docs)); } catch {}
   }, [docs, hydrated]);
+
+  // Pull every job description from Supabase and project them into
+  // DocumentRow. Runs once we have a session (db() needs the auth
+  // header). Failures fall through silently — the rest of the doc
+  // manager keeps working with seed/local data.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await db({
+          action: 'select',
+          table: 'job_descriptions',
+          order: { column: 'title', ascending: true },
+        });
+        if (cancelled) return;
+        if (Array.isArray(rows)) {
+          const mapped = rows
+            .map((r) => projectJobDescription(r as Record<string, unknown>))
+            .filter((d): d is DocumentRow => d !== null);
+          setLiveJDs(mapped);
+        }
+      } catch (err) {
+        console.warn('[document-manager] failed to load job descriptions', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session]);
 
   // Active category is derived from ?tab=… so each section is shareable.
   const activeCategory: DocCategory = (() => {
@@ -158,16 +241,27 @@ export default function DocumentManagerContent() {
   const [editOpen, setEditOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
+  // Merge locally-managed docs with the live job_descriptions feed.
+  // When live JDs are present they fully own the Job Descriptions
+  // category — any cached/seed JD rows are dropped so the tab can't
+  // disagree with /app/job-descriptions.
+  const allDocs = useMemo(() => {
+    const local = liveJDs.length > 0
+      ? docs.filter(d => d.category !== 'job_descriptions')
+      : docs;
+    return [...local, ...liveJDs];
+  }, [docs, liveJDs]);
+
   const filteredDocs = useMemo(() => {
-    return docs.filter(d => {
+    return allDocs.filter(d => {
       if (d.category !== activeCategory) return false;
       if (statusFilter !== 'all' && d.status !== statusFilter) return false;
       return true;
     });
-  }, [docs, activeCategory, statusFilter]);
+  }, [allDocs, activeCategory, statusFilter]);
 
 
-  const selected = docs.find(d => d.id === selectedId) ?? null;
+  const selected = allDocs.find(d => d.id === selectedId) ?? null;
 
   const setDocStatus = (id: string, status: DocStatus) => {
     setDocs(prev => prev.map(d => d.id === id ? { ...d, status } : d));
