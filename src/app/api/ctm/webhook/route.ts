@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
+import { isAiCallScoringEnabled } from '@/lib/app-settings';
 
 // POST /api/ctm/webhook?token=<CTM_WEBHOOK_TOKEN>
 //
@@ -117,10 +118,12 @@ export async function POST(req: NextRequest) {
   const row = mapCall(call, accountId);
 
   const supabase = getAdminSupabase();
-  // Flag this call for auto-analysis. The actual scoring runs from the
-  // background worker so we don't block the webhook response (CTM
-  // retries aggressively on slow acks).
-  const rowWithFlag = { ...row, needs_score: true };
+  // Flag this call for auto-analysis when the AI lever is on. With
+  // the lever off we still ingest the CTM row (so the calls feed stays
+  // current) but never queue it for scoring — flipping the lever back
+  // on later will not retroactively analyze this call.
+  const aiEnabled = await isAiCallScoringEnabled();
+  const rowWithFlag = { ...row, needs_score: aiEnabled };
   const { error } = await supabase.from('calls').upsert(rowWithFlag, { onConflict: 'ctm_id' });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -132,8 +135,9 @@ export async function POST(req: NextRequest) {
   // We only target metadata-only rows (the score prompt forces
   // summary to start with "No audio available…" on that path) and
   // legacy "in progress" call_name placeholders. Real audio-based
-  // scores stay put.
-  if (row.audio_url) {
+  // scores stay put. Skipped when AI is paused — there's nothing to
+  // re-score against.
+  if (aiEnabled && row.audio_url) {
     await supabase
       .from('call_ai_scores')
       .delete()

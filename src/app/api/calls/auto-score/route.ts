@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase, getUserFromRequest } from '@/lib/supabase-server';
+import { isAiCallScoringEnabled } from '@/lib/app-settings';
 
 // POST /api/calls/auto-score
 //
@@ -47,6 +48,13 @@ async function handle(req: NextRequest) {
   if (!viaCron) {
     const user = await getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Master lever: when an admin pulls "Disable AI calls", drop every
+  // queued row out of the cron pass without touching the rows. Flip the
+  // lever back on and the same rows get picked up again on the next tick.
+  if (!(await isAiCallScoringEnabled())) {
+    return NextResponse.json({ ok: true, processed: 0, remaining: 0, skipped: 'ai_disabled' });
   }
 
   const supabase = getAdminSupabase();

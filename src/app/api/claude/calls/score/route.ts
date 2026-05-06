@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { isAiCallScoringEnabled } from '@/lib/app-settings';
 
 const CLAUDE_DEFAULT_MODEL = 'claude-opus-4-6';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -386,6 +387,17 @@ export async function POST(req: NextRequest) {
   if (!viaCron) {
     const user = await getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Master lever. Refuse to spend tokens (Anthropic or Gemini) when an
+  // admin has paused AI on calls. Defense in depth so a stale cron
+  // request, a stuck queue, or a manual "Re-analyze" click still can't
+  // run analysis once the lever is off.
+  if (!(await isAiCallScoringEnabled())) {
+    return NextResponse.json(
+      { error: 'AI call scoring is currently disabled by an admin.', code: 'ai_disabled' },
+      { status: 503 },
+    );
   }
 
   const supabase = getAdminSupabase();

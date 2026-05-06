@@ -72,6 +72,19 @@ const PAGES: AdminPage[] = [
       </svg>
     ),
   },
+  {
+    href: '/app/admin/levers',
+    title: 'Levers',
+    description: 'Master toggles: pause AI on calls, etc. CTM ingestion keeps running; analysis is what flips off.',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 12h14" />
+        <circle cx="9" cy="12" r="3" />
+        <path d="M9 4v5" />
+        <path d="M9 15v5" />
+      </svg>
+    ),
+  },
 ];
 
 export default function AdminContent() {
@@ -80,7 +93,7 @@ export default function AdminContent() {
       <header className="mb-6 sm:mb-8">
         <h1 className="text-lg font-semibold text-foreground tracking-tight">Admin</h1>
         <p className="text-sm text-foreground/55 mt-0.5">
-          Platform configuration. These five surfaces govern who can see what.
+          Platform configuration. These surfaces govern who can see what — and which AI features are live.
         </p>
       </header>
 
