@@ -1,10 +1,6 @@
-import type { Metadata } from 'next';
-import UserPermissionsContent from './content';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'User Permissions - Patient Portal',
-};
-
-export default function UserPermissionsPage() {
-  return <UserPermissionsContent />;
+// Moved under /app/admin/user-permissions.
+export default function UserPermissionsRedirect() {
+  redirect('/app/admin/user-permissions');
 }

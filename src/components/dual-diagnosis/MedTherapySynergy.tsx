@@ -46,6 +46,11 @@ export default function MedTherapySynergy() {
                 round on every dual-diagnosis client together. A change in one
                 layer immediately informs the others.
               </p>
+              <p className="text-white/70">
+                Our integrative psychiatrist brings a highly skilled approach
+                that honors the whole person — mind and body — not just
+                prescribing medications.
+              </p>
             </div>
           </div>
           <div className="lg:col-span-6" style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(22px)', transition: 'all 1.05s cubic-bezier(0.16,1,0.3,1) 0.25s' }}>

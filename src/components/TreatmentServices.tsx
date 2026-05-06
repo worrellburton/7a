@@ -24,7 +24,7 @@ const services = [
     title: 'Trauma Treatment',
     href: '/our-program/trauma-treatment',
     image: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776856127673-47motff4wza-equine-therapy-woman-with-white-horse.jpg',
-    description: 'Forward-Facing Accelerated Recovery™ — addressing root causes',
+    description: 'Forward-Facing® Accelerated Recovery — addressing root causes',
   },
   {
     title: 'Evidence-Based Treatment',

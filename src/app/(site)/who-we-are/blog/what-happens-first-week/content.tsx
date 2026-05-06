@@ -73,7 +73,7 @@ const days = [
   {
     day: 6,
     title: 'Deeper Therapeutic Work',
-    desc: 'Individual therapy sessions begin in earnest. Your counselor helps you explore the roots of your addiction using Forward-Facing Accelerated Recovery® techniques.',
+    desc: 'Individual therapy sessions begin in earnest. Your counselor helps you explore the roots of your addiction using Forward-Facing® Accelerated Recovery techniques.',
     icon: (
       <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
         <circle cx="16" cy="16" r="10" />

@@ -52,7 +52,7 @@ export default function WhyFamilyMatters() {
                 className="absolute inset-x-6 bottom-6 text-white/90 text-[12px] tracking-[0.18em] uppercase font-semibold"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                Family weekend · spring 2026
+                Family visit · spring 2026
               </figcaption>
             </figure>
           </div>

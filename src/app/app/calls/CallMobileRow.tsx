@@ -37,6 +37,7 @@ import {
   formatRelativeTime,
   formatTime,
   isMissedCall,
+  isMeaningfulCall,
   isPaidSource,
   unscoreableReason,
 } from './_shared';
@@ -162,7 +163,7 @@ export function CallMobileRow(props: CallMobileRowProps) {
   // the AI summary inline so the team can scan substance without
   // opening every call. Non-meaningful rows compact down — less
   // padding, smaller chip — so the inbox skims fast.
-  const isMeaningful = !isSpam && !isMissed && (score?.fit_score ?? 0) >= 60;
+  const isMeaningful = !isSpam && !isMissed && isMeaningfulCall(call, score?.fit_score ?? null);
 
   return (
     <div

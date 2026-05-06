@@ -159,6 +159,21 @@ export function isMissedCall(c: { direction?: string | null; voicemail?: boolean
   return !!c.voicemail || (c.talk_time ?? 0) < 3;
 }
 
+export const MEANINGFUL_THRESHOLD = 60;
+
+// Outbound voicemails never count as meaningful — they're just our
+// dial-out script reaching nobody. See isMeaningfulCall in
+// /lib/calls-shared.ts for the canonical version; this client copy
+// avoids importing the server util into the Calls page bundle.
+export function isMeaningfulCall(
+  c: { direction?: string | null; voicemail?: boolean | null },
+  fitScore: number | null | undefined,
+): boolean {
+  if (fitScore == null || fitScore < MEANINGFUL_THRESHOLD) return false;
+  if (c.direction === 'outbound' && c.voicemail) return false;
+  return true;
+}
+
 export async function ctmFetch(endpoint: string, params?: Record<string, string | number>): Promise<CTMResponse> {
   const token = getAuthToken();
   const res = await fetch('/api/ctm', {

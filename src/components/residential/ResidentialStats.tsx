@@ -5,8 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 /** Phase 2 — four count-up stats that anchor the residential proof. */
 const stats = [
   { value: 90, prefix: '30–', suffix: '', unit: 'days', label: 'Program lengths tuned to clinical need — not insurance windows' },
-  { value: 6, suffix: ':1', unit: 'ratio', label: 'Client-to-staff — real, individualized attention' },
-  { value: 24, suffix: '/7', unit: 'coverage', label: 'On-site clinical and residential staff, around the clock' },
+  { value: 24, suffix: '/7', unit: 'coverage', label: 'On-site trauma certified direct care staff, around the clock' },
   { value: 160, suffix: '', unit: 'acre ranch', label: 'Private campus at the base of the Swisshelm Mountains' },
 ];
 
@@ -35,7 +34,7 @@ export default function ResidentialStats() {
   return (
     <section ref={ref} className="bg-warm-bg py-16 lg:py-20" aria-label="Residential program by the numbers">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 lg:gap-6">
           {stats.map((s, i) => (
             <div
               key={s.label}

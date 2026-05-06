@@ -30,6 +30,7 @@ import {
   normalizePhone,
   isPaidSource,
   isMissedCall,
+  isMeaningfulCall,
   ctmFetch,
   formatDuration,
   parseDate,
@@ -341,7 +342,7 @@ export default function CallsContent() {
         if (isPaidSource(c.source_name || c.source)) missedPaid++;
       }
       const s = scores[String(c.id)];
-      if (s?.fit_score != null && s.fit_score >= MEANINGFUL_THRESHOLD) {
+      if (isMeaningfulCall(c, s?.fit_score ?? null)) {
         meaningful++;
         dayMeaningfulCounts.set(callDate, (dayMeaningfulCounts.get(callDate) || 0) + 1);
       }
@@ -504,7 +505,7 @@ export default function CallsContent() {
     const yesterdayStr = insights.dailyCounts[5]?.date;
     for (const call of calls) {
       const s = scores[String(call.id)];
-      if (!s || s.fit_score == null || s.fit_score < MEANINGFUL_THRESHOLD) continue;
+      if (!isMeaningfulCall(call, s?.fit_score ?? null)) continue;
       const parsedM = parseDate(call.called_at);
       if (!parsedM) continue;
       const callDate = parsedM.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
@@ -1066,6 +1067,19 @@ export default function CallsContent() {
           </div>
           <div className="flex items-center gap-2">
             <a
+              href="/app/calls/operator-guide"
+              className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-white/85 supports-[backdrop-filter]:bg-white/70 backdrop-blur text-foreground border border-white/70 rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-white transition-colors shadow-sm"
+              style={{ fontFamily: 'var(--font-body)' }}
+              aria-label="Open Operator Guide"
+            >
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h16" />
+                <circle cx="18" cy="12" r="2" strokeLinejoin="round" />
+              </svg>
+              <span className="hidden sm:inline">Operator Guide</span>
+              <span className="sm:hidden">Guide</span>
+            </a>
+            <a
               href="/app/calls/reports"
               className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-white/85 supports-[backdrop-filter]:bg-white/70 backdrop-blur text-foreground border border-white/70 rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-white transition-colors shadow-sm"
               style={{ fontFamily: 'var(--font-body)' }}
@@ -1465,7 +1479,7 @@ export default function CallsContent() {
                       const isMeaningfulRow =
                         !isSpamCall(call) &&
                         !isMissedCall(call) &&
-                        (callScore?.fit_score ?? 0) >= MEANINGFUL_THRESHOLD;
+                        isMeaningfulCall(call, callScore?.fit_score ?? null);
                       const cellPad = isMeaningfulRow ? 'py-5' : 'py-2';
                       return (
                         <Fragment key={call.id}>

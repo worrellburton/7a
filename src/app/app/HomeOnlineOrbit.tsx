@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 
 // Centered, slowly-rotating ring of avatars representing every
@@ -27,6 +28,33 @@ interface OrbitUser {
   last_seen_at: string | null;
   last_path: string | null;
   job_title: string | null;
+  // Today's activity-log count + recent rows, joined in by
+  // HomeContent. > 10 actions flips the avatar into "on fire" mode:
+  // a flame badge in the corner + a warm halo glow. The hover
+  // tooltip surfaces the count and the most recent actions so the
+  // viewer can see *why* a teammate is highlighted.
+  actions_today?: number;
+  recent_actions?: Array<{
+    type: string;
+    target_label: string | null;
+    created_at: string;
+  }>;
+}
+
+const ON_FIRE_THRESHOLD = 10;
+
+// Activity-log type strings are dot.snake_case (e.g.
+// "seo.directory_status_changed"). For the on-fire tooltip we want
+// short, human-readable labels — strip the namespace, replace
+// underscores with spaces, sentence-case the result. Keeps the
+// component decoupled from any per-type label registry: a new
+// activity type added anywhere in the app shows up here without an
+// edit.
+function humanizeActivityType(type: string): string {
+  const tail = type.includes('.') ? type.slice(type.lastIndexOf('.') + 1) : type;
+  const spaced = tail.replace(/_/g, ' ').trim();
+  if (!spaced) return type;
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 // Inner ring shows the horse roster, orbiting opposite-direction so
@@ -85,25 +113,216 @@ function fmtRelative(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+type HoverState =
+  | { kind: 'user'; user: OrbitUser; viewing: string | null; navTarget: string | null; online: boolean }
+  | { kind: 'horse'; horse: OrbitHorse };
+
+interface TooltipPos {
+  // Fixed-positioning anchor. The tooltip is portaled to <body> so it
+  // escapes every parent's overflow-hidden — only the viewport itself
+  // can clip it, and the auto-flip + edge-clamp below handle that.
+  left: number;
+  // top edge (when placement === 'bottom') or bottom edge (when
+  // placement === 'top') of the trigger, in viewport coords.
+  anchorY: number;
+  placement: 'top' | 'bottom';
+}
+
+function OrbitTooltip({
+  hovered,
+  pos,
+  tooltipRef,
+}: {
+  hovered: HoverState;
+  pos: TooltipPos;
+  tooltipRef: React.MutableRefObject<HTMLDivElement | null>;
+}) {
+  const gap = 12;
+  const style: CSSProperties = {
+    position: 'fixed',
+    left: pos.left,
+    top: pos.placement === 'bottom' ? pos.anchorY + gap : undefined,
+    bottom: pos.placement === 'top' ? Math.max(0, window.innerHeight - pos.anchorY) + gap : undefined,
+    transform: 'translateX(-50%)',
+    zIndex: 9999,
+    pointerEvents: 'none',
+  };
+  return (
+    <div ref={tooltipRef} style={style} className="orbit-tooltip">
+      {hovered.kind === 'user' ? (
+        (() => {
+          const actions = hovered.user.actions_today ?? 0;
+          const onFire = actions > ON_FIRE_THRESHOLD;
+          const recent = hovered.user.recent_actions ?? [];
+          return (
+            <div className="w-max max-w-[min(20rem,82vw)] px-3 py-2 bg-foreground text-white text-xs rounded-lg shadow-[0_18px_40px_-18px_rgba(0,0,0,0.45)] break-words text-center">
+              <p className="font-semibold leading-tight">{hovered.user.full_name || 'User'}</p>
+              {hovered.user.job_title && (
+                <p className="text-white/85 leading-tight mt-0.5">{hovered.user.job_title}</p>
+              )}
+              <p className="text-white/75 leading-tight mt-0.5">
+                {hovered.online ? 'Online now' : `Last active ${timeAgo(hovered.user.last_sign_in)}`}
+              </p>
+              {hovered.viewing && (
+                <p className="text-emerald-300 leading-tight mt-0.5">
+                  Viewing {hovered.viewing}
+                  {hovered.navTarget ? ' — click to jump' : ''}
+                </p>
+              )}
+              {onFire && (
+                <div className="mt-1.5 pt-1.5 border-t border-white/15 text-left">
+                  <p className="text-orange-300 font-semibold leading-tight">
+                    <span aria-hidden="true">🔥</span> On a streak — {actions} actions today
+                  </p>
+                  {recent.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 text-white/80 leading-snug">
+                      {recent.slice(0, 4).map((a, idx) => (
+                        <li key={`${a.created_at}-${idx}`} className="truncate">
+                          <span className="text-white/55">{timeAgo(a.created_at)} · </span>
+                          {humanizeActivityType(a.type)}
+                          {a.target_label ? `: ${a.target_label}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()
+      ) : (
+        <div className="w-max max-w-[min(18rem,80vw)] bg-white rounded-xl border border-gray-100 shadow-[0_18px_40px_-18px_rgba(0,0,0,0.45)] px-3 py-2">
+          <p className="text-sm font-semibold text-foreground">{hovered.horse.name}</p>
+          <p className="text-[11px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+            {hovered.horse.age != null ? `${hovered.horse.age} years` : 'Age unknown'}
+            {hovered.horse.works_in ? ` · ${hovered.horse.works_in}` : ''}
+          </p>
+          <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
+            <span className="text-foreground/40">Weight</span>
+            <span className="text-foreground/80 text-right">
+              {hovered.horse.last_weight_lbs ? `${hovered.horse.last_weight_lbs} lbs` : hovered.horse.weight ? `${hovered.horse.weight} lbs` : '—'}
+            </span>
+            <span className="text-foreground/40">Last fed</span>
+            <span className="text-foreground/80 text-right">
+              {hovered.horse.last_fed_at
+                ? `${hovered.horse.last_feed_amount ?? ''}${hovered.horse.last_feed_unit ? ' ' + hovered.horse.last_feed_unit : ''} ${hovered.horse.last_feed_type ?? ''} · ${fmtRelative(hovered.horse.last_fed_at)}`.trim()
+                : '—'}
+            </span>
+            {hovered.horse.last_weighed_at && (
+              <>
+                <span className="text-foreground/40">Weighed</span>
+                <span className="text-foreground/80 text-right">{fmtRelative(hovered.horse.last_weighed_at)}</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  // Tooltips were previously pinned under the 7A medallion to dodge
+  // overflow clipping. We now portal them to <body> with computed
+  // fixed positioning, so they can attach directly to the hovered
+  // avatar without ever being clipped. The ring also pauses on hover
+  // so the avatar — and therefore the tooltip — stays put while you
+  // read it.
+  const [hovered, setHovered] = useState<HoverState | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<TooltipPos | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 60);
     return () => clearTimeout(t);
   }, []);
 
+  // Re-measure the tooltip after it renders so we can clamp its
+  // horizontal position inside the viewport (a wide tooltip near the
+  // ring's left/right edge would otherwise spill off-screen). Runs
+  // only when hover state or anchor changes — not on every frame.
+  useLayoutEffect(() => {
+    if (!hovered || !tooltipPos || !tooltipRef.current) return;
+    const tipRect = tooltipRef.current.getBoundingClientRect();
+    const margin = 12;
+    let { left } = tooltipPos;
+    const halfWidth = tipRect.width / 2;
+    if (left - halfWidth < margin) left = margin + halfWidth;
+    if (left + halfWidth > window.innerWidth - margin) left = window.innerWidth - margin - halfWidth;
+    if (left !== tooltipPos.left) {
+      setTooltipPos((prev) => (prev ? { ...prev, left } : prev));
+    }
+  }, [hovered, tooltipPos]);
+
+  // Place the tooltip relative to the trigger's screen rect. Choose
+  // the side that points back toward the orbit centre (top half of
+  // ring → tooltip below; bottom half → tooltip above) so the
+  // tooltip naturally falls inside the orbit instead of off-screen.
+  function positionTooltipFor(el: HTMLElement) {
+    const rect = el.getBoundingClientRect();
+    const centerY = window.innerHeight / 2;
+    const triggerCenterY = rect.top + rect.height / 2;
+    const placement: 'top' | 'bottom' = triggerCenterY < centerY ? 'bottom' : 'top';
+    setTooltipPos({
+      left: rect.left + rect.width / 2,
+      anchorY: placement === 'bottom' ? rect.bottom : rect.top,
+      placement,
+    });
+  }
+
+  function clearHover(predicate: (h: HoverState) => boolean) {
+    setHovered((prev) => {
+      if (!prev) return prev;
+      if (!predicate(prev)) return prev;
+      setTooltipPos(null);
+      return null;
+    });
+  }
+
   if (users.length === 0) return null;
 
   const onlineCount = users.filter((u) => isOnlineNow(u.last_seen_at)).length;
+
+  // Auto-size the orbit so neither ring ever feels cramped. We solve
+  // for the diameter that gives each avatar ~80px of arc length on
+  // the outer ring (roughly 1.7× the 48px lg avatar diameter — wide
+  // enough that faces breathe without the ring becoming sparse).
+  // The inner ring sits at inset-[20%], i.e. 60% of the outer
+  // diameter, so we back-solve a horse-comfort minimum from there
+  // too — a horse-heavy day shouldn't crush the inner ring just
+  // because the team count is light. Clamped between 280px (a tidy
+  // ring for sparse teams) and 680px (so the orbit never outgrows
+  // the centerpiece column on narrow desktops).
+  const usersNeeded = (users.length * 80) / Math.PI;
+  const horsesNeeded = (horses.length * 50) / (0.6 * Math.PI);
+  const idealDiameter = Math.max(
+    280,
+    Math.min(680, Math.round(Math.max(usersNeeded, horsesNeeded))),
+  );
 
   return (
     <section
       className="relative z-40 flex flex-col items-center justify-center w-full"
       aria-label="Online today"
     >
-      <div className="text-center mb-6 sm:mb-10">
+      {/* Header — pinned above the ring as an overlay so it doesn't
+          add height to the section's vertical centre. The ring's
+          aspect-square box is what gets centered; the title floats
+          just above it in absolute space. The big negative `top` is
+          deliberate — the topmost avatars on the ring extend ~25px
+          past the section's top edge (they're translate(-50%) on
+          the rim), so a smaller offset would have the title text
+          collide with those avatars. Hidden on phones so the
+          orbit's centre medallion sits at the viewport's vertical
+          centre (the parent absolute-positions the orbit on mobile). */}
+      <div className="hidden sm:block absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+1.25rem)] sm:bottom-[calc(100%+1.5rem)] lg:bottom-[calc(100%+2rem)] text-center pointer-events-none z-10">
         <p
           className="text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/45"
           style={{ fontFamily: 'var(--font-body)' }}
@@ -131,9 +350,17 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           7A medallion ~13px left of the visual console center on
           some viewport widths. The flex parent guarantees horizontal
           centering of the inner aspect-square box regardless of any
-          width-resolution quirks above. */}
-      <div className="w-full flex justify-center">
-        <div className="relative w-full max-w-[300px] sm:max-w-[460px] aspect-square">
+          width-resolution quirks above. The orbit's max-width is
+          computed from the team + horse counts (idealDiameter above)
+          so a sparse roster draws a tight ~280px ring while a packed
+          one fans out to 680px. `w-full` still clamps to the viewport
+          on phones, so the px-4 padding keeps mobile avatars off the
+          screen edges without needing a hard breakpoint cap. */}
+      <div className="w-full flex justify-center px-4">
+        <div
+          className="relative w-full aspect-square"
+          style={{ maxWidth: `${idealDiameter}px` }}
+        >
         {/* Decorative concentric rings + centre medallion. The
             outermost border is exactly where the avatars will land,
             so the eye reads the orbit as one composed shape. */}
@@ -149,6 +376,8 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           aria-hidden="true"
           className="absolute inset-[36%] rounded-full bg-gradient-to-br from-primary/[0.07] via-accent/[0.05] to-transparent"
         />
+        {/* Centre 7A — small glass pill, kept understated so the
+            orbiting team avatars stay the focus. */}
         <div
           aria-hidden="true"
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/45 backdrop-blur-md border border-white/80 shadow-[0_8px_28px_-12px_rgba(60,48,42,0.35)] flex items-center justify-center"
@@ -168,7 +397,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             shape with the horses gently trailing the team. */}
         {horses.length > 0 && (
           <div
-            className={`orbit-ring absolute inset-[20%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-slow' : ''}`}
+            className={`orbit-ring absolute inset-[20%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-slow' : ''} ${hovered ? 'orbit-paused' : ''}`}
           >
             {horses.map((h, i) => {
               const angle = (i / horses.length) * 360;
@@ -183,16 +412,30 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                   <button
                     type="button"
                     onClick={() => router.push(`/app/equine/${h.id}`)}
+                    onMouseEnter={(e) => {
+                      positionTooltipFor(e.currentTarget);
+                      setHovered({ kind: 'horse', horse: h });
+                    }}
+                    onMouseLeave={() => clearHover((prev) => prev.kind === 'horse' && prev.horse.id === h.id)}
+                    onFocus={(e) => {
+                      positionTooltipFor(e.currentTarget);
+                      setHovered({ kind: 'horse', horse: h });
+                    }}
+                    onBlur={() => clearHover((prev) => prev.kind === 'horse' && prev.horse.id === h.id)}
                     className={`orbit-pin group orbit-pin-horse ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} cursor-pointer`}
                     style={pinStyle}
                     title={h.name}
                     aria-label={h.name}
                   >
                     {/* Counter-rotating wrapper for the slower inner ring
-                        (orbit-spin-slow on the parent). Inner span then
+                        (orbit-spin-slow on the parent). Gated on
+                        `mounted` so it starts in the same frame as
+                        the parent's spin animation — otherwise a 60ms
+                        head-start would leave each horse photo
+                        permanently tilted by ~0.12deg. Inner span then
                         undoes the slot's static rotation so the horse
                         photo isn't tilted by where it sits on the rim. */}
-                    <span className="orbit-counter-slow motion-reduce:!animate-none">
+                    <span className={`${mounted ? 'orbit-counter-slow' : ''} motion-reduce:!animate-none`}>
                       <span
                         className="block"
                         style={{ transform: `rotate(${-angle}deg)` }}
@@ -211,33 +454,6 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                               {h.name.charAt(0)}
                             </span>
                           )}
-                          <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 z-[60] text-left">
-                            <span className="block bg-white rounded-xl border border-gray-100 shadow-xl px-3 py-2 min-w-[220px] opacity-0 group-hover:opacity-100 transition-opacity">
-                              <span className="block text-sm font-semibold text-foreground whitespace-nowrap">{h.name}</span>
-                              <span className="block text-[11px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-                                {h.age != null ? `${h.age} years` : 'Age unknown'}
-                                {h.works_in ? ` · ${h.works_in}` : ''}
-                              </span>
-                              <span className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
-                                <span className="text-foreground/40">Weight</span>
-                                <span className="text-foreground/80 text-right">
-                                  {h.last_weight_lbs ? `${h.last_weight_lbs} lbs` : h.weight ? `${h.weight} lbs` : '—'}
-                                </span>
-                                <span className="text-foreground/40">Last fed</span>
-                                <span className="text-foreground/80 text-right">
-                                  {h.last_fed_at
-                                    ? `${h.last_feed_amount ?? ''}${h.last_feed_unit ? ' ' + h.last_feed_unit : ''} ${h.last_feed_type ?? ''} · ${fmtRelative(h.last_fed_at)}`.trim()
-                                    : '—'}
-                                </span>
-                                {h.last_weighed_at && (
-                                  <>
-                                    <span className="text-foreground/40">Weighed</span>
-                                    <span className="text-foreground/80 text-right">{fmtRelative(h.last_weighed_at)}</span>
-                                  </>
-                                )}
-                              </span>
-                            </span>
-                          </span>
                         </span>
                       </span>
                     </span>
@@ -258,13 +474,14 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             rotates at the same rate so faces stay upright through the
             orbit. */}
         <div
-          className={`orbit-ring absolute inset-[7%] sm:inset-0 motion-reduce:!animate-none ${mounted ? 'orbit-spin' : ''}`}
+          className={`orbit-ring absolute inset-[7%] sm:inset-0 motion-reduce:!animate-none ${mounted ? 'orbit-spin' : ''} ${hovered ? 'orbit-paused' : ''}`}
         >
           {users.map((u, i) => {
             const angle = (i / users.length) * 360;
             const online = isOnlineNow(u.last_seen_at);
             const viewing = online ? pathLabelFor(u.last_path) : null;
             const navTarget = online && u.last_path && u.last_path.startsWith('/app') ? u.last_path : null;
+            const onFire = (u.actions_today ?? 0) > ON_FIRE_THRESHOLD;
             const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
             const slotStyle: CSSProperties = {
               transform: `rotate(${angle}deg)`,
@@ -278,16 +495,30 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                 <Wrapper
                   type={navTarget ? 'button' : undefined}
                   onClick={navTarget ? () => router.push(navTarget) : undefined}
+                  onMouseEnter={(e: React.MouseEvent<HTMLElement>) => {
+                    positionTooltipFor(e.currentTarget);
+                    setHovered({ kind: 'user', user: u, viewing, navTarget, online });
+                  }}
+                  onMouseLeave={() => clearHover((h) => h.kind === 'user' && h.user.id === u.id)}
+                  onFocus={(e: React.FocusEvent<HTMLElement>) => {
+                    positionTooltipFor(e.currentTarget);
+                    setHovered({ kind: 'user', user: u, viewing, navTarget, online });
+                  }}
+                  onBlur={() => clearHover((h) => h.kind === 'user' && h.user.id === u.id)}
                   className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} ${navTarget ? 'cursor-pointer' : ''}`}
                   style={pinStyle}
                   title={navTarget ? `Go to ${viewing}` : undefined}
                   aria-label={u.full_name || 'Teammate'}
                 >
                   {/* Counter-rotating wrapper keeps the face upright
-                      while the parent ring spins. The inner span then
-                      cancels the slot's static rotation so the face
-                      isn't tilted by where it sits on the rim. */}
-                  <span className="orbit-counter motion-reduce:!animate-none">
+                      while the parent ring spins. Gated on `mounted`
+                      so it starts in the exact same frame as the
+                      parent's `orbit-spin` — otherwise the counter
+                      runs 60ms ahead and faces sit permanently
+                      ~0.18deg off-axis. The inner span then cancels
+                      the slot's static rotation so the face isn't
+                      tilted by where it sits on the rim. */}
+                  <span className={`${mounted ? 'orbit-counter' : ''} motion-reduce:!animate-none`}>
                     <span
                       className="block"
                       style={{ transform: `rotate(${-angle}deg)` }}
@@ -300,48 +531,46 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                             alt={u.full_name || ''}
                             referrerPolicy="no-referrer"
                             className={`block w-9 h-9 sm:w-12 sm:h-12 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
-                              online
-                                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
-                                : 'border-white shadow-md'
+                              onFire
+                                ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)]'
+                                : online
+                                  ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
+                                  : 'border-white shadow-md'
                             }`}
                           />
                         ) : (
                           <span
                             className={`flex w-9 h-9 sm:w-12 sm:h-12 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
-                              online
-                                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)] bg-primary text-white'
-                                : 'border-white bg-primary text-white shadow-md'
+                              onFire
+                                ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)] bg-primary text-white'
+                                : online
+                                  ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)] bg-primary text-white'
+                                  : 'border-white bg-primary text-white shadow-md'
                             }`}
                           >
                             {(u.full_name || '?').charAt(0).toUpperCase()}
                           </span>
                         )}
-                        {online && (
+                        {onFire && (
+                          <span
+                            aria-label="On a streak"
+                            className="orbit-fire absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-br from-amber-300 via-orange-500 to-rose-500 border-2 border-white shadow-md flex items-center justify-center text-[10px] leading-none"
+                            role="img"
+                          >
+                            <span aria-hidden="true">🔥</span>
+                          </span>
+                        )}
+                        {!onFire && online && (
                           <span
                             aria-hidden="true"
                             className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white"
                           />
                         )}
-                        {/* Tooltip — same counter-rotating layer so
-                            it reads upright regardless of which side
-                            of the orbit the avatar currently sits on. */}
-                        <span className="orbit-tooltip pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-[60] text-left shadow-lg">
-                          <span className="block font-semibold text-white">
-                            {u.full_name || 'User'}
-                          </span>
-                          {u.job_title && (
-                            <span className="block text-white/85">{u.job_title}</span>
-                          )}
-                          <span className="block text-white/75">
-                            {online ? 'Online now' : `Last active ${timeAgo(u.last_sign_in)}`}
-                          </span>
-                          {viewing && (
-                            <span className="block text-emerald-300">
-                              Viewing {viewing}
-                              {navTarget ? ' — click to jump' : ''}
-                            </span>
-                          )}
-                        </span>
+                        {/* Per-avatar tooltips were clipped by the
+                            home wrapper's overflow-hidden whenever
+                            an edge avatar was hovered; the shared
+                            tooltip below the 7A medallion replaces
+                            them. */}
                       </span>
                     </span>
                   </span>
@@ -350,8 +579,23 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             );
           })}
         </div>
+
         </div>
       </div>
+
+      {/* Avatar-attached tooltip. Portaled to <body> (outside the
+          `app-shell` zoom wrapper) with fixed positioning so no
+          parent's overflow-hidden can clip it. The ring above pauses
+          while `hovered` is set so the trigger — and therefore the
+          tooltip's anchor — stays still while you read it. */}
+      {portalReady && hovered && tooltipPos && createPortal(
+        <OrbitTooltip
+          hovered={hovered}
+          pos={tooltipPos}
+          tooltipRef={tooltipRef}
+        />,
+        document.body,
+      )}
 
       <style jsx>{`
         /* Outer ring (team) rotates clockwise on a slow 120s loop.
@@ -375,6 +619,18 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
         .orbit-counter      { display: inline-block; animation: orbit-counter-rot 120s linear infinite; }
         .orbit-counter-slow { display: inline-block; animation: orbit-counter-rot 180s linear infinite; }
 
+        /* When any avatar is hovered we freeze the rings (and their
+           paired counter-rotations) so the trigger stays pinned under
+           the cursor and the portaled tooltip — anchored to that
+           trigger's getBoundingClientRect — stays glued to the avatar
+           instead of drifting off as the ring spins. Pausing both
+           directions simultaneously keeps faces upright while frozen. */
+        .orbit-ring.orbit-paused,
+        .orbit-ring.orbit-paused .orbit-counter,
+        .orbit-ring.orbit-paused .orbit-counter-slow {
+          animation-play-state: paused;
+        }
+
         /* Slots fill the ring's bounding box. Each is rotated to its
            angle inline; the pin pinned at the top centre of the slot
            lands the avatar exactly on the outer edge of the ring. */
@@ -383,6 +639,17 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           inset: 0;
           pointer-events: none;
           transform-origin: center;
+        }
+        /* When any pin inside a slot is hovered/focused, lift the
+           whole slot above its siblings so the tooltip + glow can
+           render on top of every other avatar in the orbit. Each
+           slot already creates its own stacking context (because of
+           the rotate transform), so a plain z-index on the inner
+           tooltip can't escape that context — only the slot itself
+           can be promoted. */
+        .orbit-slot:has(.orbit-pin:hover),
+        .orbit-slot:has(.orbit-pin:focus-visible) {
+          z-index: 50;
         }
         .orbit-pin {
           position: absolute;
@@ -429,6 +696,24 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           animation-delay: var(--enter-delay);
         }
 
+        /* Flame badge gently breathes so the on-fire avatars draw the
+           eye without becoming distracting. Combines a slight scale
+           with a brighter shadow on the peak so the warmth reads on
+           pale backgrounds too. */
+        @keyframes orbit-fire-pulse {
+          0%, 100% {
+            transform: scale(1);
+            box-shadow: 0 0 6px rgba(251, 146, 60, 0.55);
+          }
+          50% {
+            transform: scale(1.15);
+            box-shadow: 0 0 12px rgba(251, 146, 60, 0.85);
+          }
+        }
+        .orbit-fire {
+          animation: orbit-fire-pulse 1.6s ease-in-out infinite;
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .orbit-pin-in,
           .orbit-pin-pre,
@@ -440,6 +725,14 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             opacity: 1 !important;
             top: 0 !important;
             transform: translate(-50%, -50%) !important;
+          }
+          /* Fire badge: keep its corner positioning, just kill the
+             pulse. Skipping the shared override above because it
+             would also force a centre-translate that fights with
+             the badge's Tailwind -top-1 / -right-1 placement. */
+          .orbit-fire {
+            animation: none !important;
+            transform: none !important;
           }
         }
       `}</style>

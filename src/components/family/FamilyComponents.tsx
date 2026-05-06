@@ -19,8 +19,8 @@ const s = {
 
 const components: Component[] = [
   {
-    title: 'Weekly family support sessions',
-    cadence: 'Every week during residential',
+    title: 'Family support sessions',
+    cadence: 'During residential',
     body: 'Structured virtual sessions with the client and their closest family members, held by a member of the clinical team. Not open-ended venting — targeted support on the specific dynamics that substance use has shaped in your system.',
     glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><circle cx="11" cy="12" r="3" /><circle cx="21" cy="12" r="3" /><path d="M5 26c0-4 3-7 6-7s6 3 6 7" /><path d="M15 26c0-4 3-7 6-7s6 3 6 7" /></svg>),
   },
@@ -37,10 +37,10 @@ const components: Component[] = [
     glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><path d="M4 14l12-10 12 10" /><path d="M7 14v14h18V14" /><path d="M13 28v-7h6v7" /></svg>),
   },
   {
-    title: 'Family weekends',
-    cadence: 'Quarterly',
-    body: 'Two-day intensives on campus — guided family support sessions, joint work, shared meals, and optional time in the arena with the horses. Partners and kids welcome for the Saturday evening.',
-    glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><circle cx="16" cy="16" r="12" /><path d="M16 8v8l5 3" /></svg>),
+    title: 'Virtual family visitation',
+    cadence: 'Weekly',
+    body: 'For loved ones who are out of state or otherwise unable to attend in person, weekly virtual visitation keeps the family connected throughout treatment.',
+    glyph: (<svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}><rect x="4" y="8" width="20" height="14" rx="2" /><path d="M24 13l5-3v12l-5-3" /></svg>),
   },
   {
     title: 'Post-discharge family plan',

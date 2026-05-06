@@ -129,7 +129,7 @@ export default function LocationPhoenixPage() {
         bullets={[
           { label: 'Transport from Phoenix', body: 'Pickup from Sky Harbor or a Phoenix address; ≈190 miles via I-10 / AZ-191.' },
           { label: 'Programs', body: '30/60/90-day residential, detox coordination, dual diagnosis, aftercare.' },
-          { label: 'Clinical specialty', body: 'Forward-Facing Accelerated Recovery® — trauma and substance use treated concurrently, not sequentially.' },
+          { label: 'Clinical specialty', body: 'Forward-Facing® Accelerated Recovery — trauma and substance use treated concurrently, not sequentially.' },
           { label: 'Insurance', body: 'Aetna, BCBS, Cigna, UHC, TRICARE, Beacon, First Health — free benefits check.' },
         ]}
       />

@@ -26,7 +26,7 @@ const facts: Fact[] = [
   {
     term: 'Co-occurring',
     value:
-      'Dual-diagnosis care for anxiety, depression, PTSD, trauma, bipolar II, and OCD alongside substance use',
+      'Dual-diagnosis care for anxiety, depression, PTSD, CPTSD, Bipolar Disorder, OCD, ADHD and other mental health challenges alongside substance use',
   },
   {
     term: 'Level of care',
@@ -36,7 +36,7 @@ const facts: Fact[] = [
   {
     term: 'Insurance',
     value:
-      'In-network with most major plans including Aetna, Blue Cross Blue Shield, Cigna, UnitedHealthcare, Humana, and TRICARE',
+      'Most major plans including Aetna, Blue Cross Blue Shield, Cigna, UnitedHealthcare, Humana, and TRICARE',
   },
   {
     term: 'Where',

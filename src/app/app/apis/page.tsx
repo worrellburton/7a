@@ -1,10 +1,6 @@
-import type { Metadata } from 'next';
-import APIsContent from './content';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'APIs - Patient Portal',
-};
-
-export default function APIsPage() {
-  return <APIsContent />;
+// Moved under /app/admin/apis.
+export default function APIsRedirect() {
+  redirect('/app/admin/apis');
 }
