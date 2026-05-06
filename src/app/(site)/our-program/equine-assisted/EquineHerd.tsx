@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import HorseGallery from './HorseGallery';
 
 /**
@@ -10,7 +10,9 @@ import HorseGallery from './HorseGallery';
  * pulls from /api/public/horses (our internal roster). Wrapping it in
  * GEO-friendly copy ("160-acre private ranch in Cochise County,
  * Arizona") gives both humans and crawlers a sense of place and
- * specificity that generic stock pages miss.
+ * specificity that generic stock pages miss. A herd-care subsection
+ * follows the gallery so visitors see how the horses are supported as
+ * co-regulators and healers — not just used as therapeutic tools.
  */
 export default function EquineHerd() {
   const ref = useRef<HTMLElement>(null);
@@ -58,7 +60,7 @@ export default function EquineHerd() {
               lineHeight: 1.04,
             }}
           >
-            Twelve teachers on{' '}
+            Fifteen teachers on{' '}
             <em className="not-italic text-primary">160 acres</em>.
           </h2>
           <p
@@ -76,10 +78,8 @@ export default function EquineHerd() {
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Every horse in our program has a specific temperament and a
-            specific therapeutic role. Some do groundwork only. Some carry
-            clients under saddle. Some are the herd&rsquo;s anchor — the one
-            who settles everyone else. Tap any of them below to read their
-            story.
+            specific therapeutic role. Some do equine-assisted psychotherapy
+            only. Some carry clients under saddle. And some do both.
           </p>
         </div>
 
@@ -92,7 +92,189 @@ export default function EquineHerd() {
         >
           <HorseGallery />
         </div>
+
+        <HerdCare visible={visible} />
       </div>
     </section>
+  );
+}
+
+/**
+ * Sub-section under the gallery that documents how the herd is
+ * matched, monitored, and cared for. Modeled as a "what we practice
+ * and model" panel so the welfare commitment reads as continuous
+ * with what we offer clients, not a separate compliance line.
+ */
+function HerdCare({ visible }: { visible: boolean }) {
+  const items: { title: string; body: string; glyph: ReactNode }[] = [
+    {
+      title: 'Tailored nutrition',
+      body: 'Individualized feed plans built around each horse&rsquo;s body condition, age, and workload, reviewed regularly by our barn team.',
+      glyph: (
+        <svg viewBox="0 0 32 32" className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 12c2-4 6-6 10-6s8 2 10 6" />
+          <path d="M6 12v10c0 2 2 4 4 4h12c2 0 4-2 4-4V12" />
+          <path d="M12 16v8M20 16v8" />
+        </svg>
+      ),
+    },
+    {
+      title: 'Monthly bodywork',
+      body: 'Routine bodywork at least monthly to support comfort, mobility, and nervous-system regulation in the horses themselves.',
+      glyph: (
+        <svg viewBox="0 0 32 32" className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 22c4-3 8-3 10-3s6 0 10 3" />
+          <circle cx="11" cy="13" r="2.5" />
+          <circle cx="21" cy="13" r="2.5" />
+          <path d="M16 6v3" />
+        </svg>
+      ),
+    },
+    {
+      title: 'Hoof care every 6 weeks',
+      body: 'Consistent farrier work on a six-week cycle, plus routine vaccines and deworming kept on a documented schedule.',
+      glyph: (
+        <svg viewBox="0 0 32 32" className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10 8c0-2 2-4 6-4s6 2 6 4v6c0 4-2 8-6 12-4-4-6-8-6-12V8z" />
+          <path d="M10 14h12" />
+        </svg>
+      ),
+    },
+    {
+      title: 'Daily readiness check',
+      body: 'Each horse is observed and evaluated daily to ensure they&rsquo;re physically and emotionally ready to participate before any session.',
+      glyph: (
+        <svg viewBox="0 0 32 32" className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="16" cy="16" r="11" />
+          <path d="M16 9v7l4 3" />
+        </svg>
+      ),
+    },
+    {
+      title: 'Honored "no"',
+      body: 'A horse showing fatigue, stress, or simply needing time off is respectfully rotated out and given space to rest and reset.',
+      glyph: (
+        <svg viewBox="0 0 32 32" className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 16c0-5 4-10 10-10s10 5 10 10-4 10-10 10S6 21 6 16z" />
+          <path d="M9 9l14 14" />
+        </svg>
+      ),
+    },
+    {
+      title: 'Matched to the moment',
+      body: 'We are intentional about pairing each horse&rsquo;s temperament, sensitivity, and disposition with the needs of the client in front of them.',
+      glyph: (
+        <svg viewBox="0 0 32 32" className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="16" r="5" />
+          <circle cx="21" cy="16" r="5" />
+          <path d="M14 16h4" />
+        </svg>
+      ),
+    },
+  ];
+
+  return (
+    <div
+      id="herd-care"
+      className="mt-20 lg:mt-24 scroll-mt-20"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(18px)',
+        transition: 'all 1s cubic-bezier(0.16,1,0.3,1) 0.4s',
+      }}
+    >
+      <div className="grid lg:grid-cols-12 gap-10 lg:gap-16 mb-12 lg:mb-14">
+        <div className="lg:col-span-5">
+          <p
+            className="text-[11px] tracking-[0.24em] uppercase font-semibold text-primary mb-4"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            How we care for the herd
+          </p>
+          <h3
+            className="text-foreground font-bold tracking-tight mb-5"
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 'clamp(1.75rem, 3.4vw, 2.4rem)',
+              lineHeight: 1.08,
+            }}
+          >
+            We practice and model what we offer{' '}
+            <em className="not-italic text-primary">our clients</em>.
+          </h3>
+          <p
+            className="text-foreground/70 text-[16px] leading-relaxed mb-4"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Our horses are thoughtfully selected based on temperament,
+            sensitivity, and their capacity to engage safely and authentically
+            in therapeutic work. Each horse brings a unique presence to
+            sessions, and we are intentional about matching their strengths
+            and disposition to the needs of our clients.
+          </p>
+          <p
+            className="text-foreground/70 text-[16px] leading-relaxed mb-4"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Their well-being is a central part of the work, and we honor them
+            as co-regulators and healers in the therapeutic process. We
+            practice intentional self-care for the herd, recognizing that
+            their ability to show up for clients is directly connected to how
+            well they are supported, listened to, and cared for.
+          </p>
+          <p
+            className="text-foreground/70 text-[16px] leading-relaxed"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            By prioritizing their care and autonomy, we support the horses in
+            remaining regulated, willing, and present — allowing them to offer
+            clear, honest, and grounded relational feedback in the therapeutic
+            process.
+          </p>
+        </div>
+
+        <div className="lg:col-span-7">
+          <ul className="grid sm:grid-cols-2 gap-5 lg:gap-6">
+            {items.map((it, i) => (
+              <li
+                key={it.title}
+                className="relative rounded-2xl bg-white border border-black/5 p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+                style={{
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? 'translateY(0)' : 'translateY(14px)',
+                  transition: `all 0.9s cubic-bezier(0.16,1,0.3,1) ${0.55 + i * 0.07}s`,
+                }}
+              >
+                <div
+                  className="inline-flex items-center justify-center w-11 h-11 rounded-xl text-primary-dark mb-4"
+                  style={{
+                    background:
+                      'linear-gradient(135deg, rgba(216,137,102,0.18) 0%, rgba(107,42,20,0.08) 100%)',
+                  }}
+                  aria-hidden="true"
+                >
+                  {it.glyph}
+                </div>
+                <h4
+                  className="text-foreground font-bold mb-1.5"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: '1.05rem',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {it.title}
+                </h4>
+                <p
+                  className="text-foreground/70 text-[14px] leading-relaxed"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                  dangerouslySetInnerHTML={{ __html: it.body }}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
   );
 }

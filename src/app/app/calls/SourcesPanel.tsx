@@ -1,11 +1,10 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
-import { Call, ScoreRow, parseDate, scoreColorClass } from './_shared';
+import { Call, ScoreRow, parseDate, scoreColorClass, isMeaningfulCall } from './_shared';
 
 export function SourcesPanel({ calls, scores, onOpenCall }: { calls: Call[]; scores: Record<string, ScoreRow>; onOpenCall: (id: number) => void }) {
   const [expandedSource, setExpandedSource] = useState<string | null>(null);
-  const MEANINGFUL = 60;
 
   const rows = useMemo(() => {
     const bySource = new Map<string, { count: number; meaningful: number; calls: Call[] }>();
@@ -15,7 +14,7 @@ export function SourcesPanel({ calls, scores, onOpenCall }: { calls: Call[]; sco
       if (!bucket) { bucket = { count: 0, meaningful: 0, calls: [] }; bySource.set(src, bucket); }
       bucket.count++;
       const s = scores[String(c.id)];
-      if (s?.fit_score != null && s.fit_score >= MEANINGFUL) bucket.meaningful++;
+      if (isMeaningfulCall(c, s?.fit_score ?? null)) bucket.meaningful++;
       bucket.calls.push(c);
     }
     for (const b of bySource.values()) {

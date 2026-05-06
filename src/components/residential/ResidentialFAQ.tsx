@@ -8,7 +8,7 @@ const faqs = [
   {
     question: 'How long does residential inpatient typically last?',
     answer:
-      'Most clients stay 30, 60, or 90+ days depending on clinical need and insurance authorization. Longer stays are frequently more effective for clients with complex trauma or high-severity addiction, and our Forward-Facing Accelerated Recovery® model is designed around the actual timeline of nervous-system healing rather than a fixed insurance window.',
+      'Most clients stay 30, 60, or 90+ days depending on clinical need and insurance authorization. Longer stays are frequently more effective for clients with complex trauma or high-severity addiction, and our Forward-Facing® Accelerated Recovery model is designed around the actual timeline of nervous-system healing rather than a fixed insurance window.',
   },
   {
     question: 'Do I need to complete detox before admission?',

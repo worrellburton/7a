@@ -95,6 +95,15 @@ export const OUTINGS: Outing[] = [
     prompt:
       "A documentary photograph of the granite dome formations of Cochise Stronghold in the Dragoon Mountains of Arizona at warm late-afternoon light, scattered oak and juniper, deep shadows in the protected canyon, no people, photographic editorial style, ultra-realistic.",
   },
+  {
+    slug: 'san-pedro-river',
+    name: 'San Pedro River',
+    region: 'San Pedro Riparian National Conservation Area · Cochise County',
+    body: 'A rare desert river running cottonwood-shaded through the valley — slow walks, water sounds, and one of the richest birding corridors in the Southwest.',
+    href: 'https://www.blm.gov/visit/spnca',
+    prompt:
+      'A documentary photograph of the San Pedro River in southeastern Arizona winding through tall cottonwood and willow gallery forest, soft morning light filtering through the canopy onto clear shallow water, no people, photographic editorial style, lush riparian greenery against pale desert hills, ultra-realistic.',
+  },
 ];
 
 export function findOutingBySlug(slug: string): Outing | null {

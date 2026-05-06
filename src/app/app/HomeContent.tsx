@@ -24,6 +24,15 @@ interface RecentUser {
   last_path: string | null;
   last_seen_at: string | null;
   status: 'active' | 'on_hold' | 'denied' | null;
+  // Activity-feed counters, joined in client-side after the user
+  // list loads. > 10 today flips the avatar into "on fire" mode in
+  // the orbit; the tooltip shows the count + a few recent actions.
+  actions_today?: number;
+  recent_actions?: Array<{
+    type: string;
+    target_label: string | null;
+    created_at: string;
+  }>;
 }
 
 interface PendingSignature {
@@ -49,7 +58,7 @@ function timeAgo(dateStr: string | null): string {
 }
 
 export default function HomeContent() {
-  const { user, session } = useAuth();
+  const { user, session, userKind } = useAuth();
   const { pages } = usePagePermissions();
   const router = useRouter();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
@@ -234,26 +243,68 @@ export default function HomeContent() {
 
   useEffect(() => {
     if (!session?.access_token) return;
+    let cancelled = false;
     async function fetchRecentUsers() {
       const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title, status', order: { column: 'last_sign_in', ascending: false } });
-      if (Array.isArray(data)) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        setRecentUsers(
-          data.filter(
-            (u: RecentUser) =>
-              // Hide users who aren't allowed in: on_hold or denied. Treat
-              // a missing status as active so older rows before the
-              // migration still render.
-              (u.status == null || u.status === 'active') &&
-              u.last_sign_in &&
-              new Date(u.last_sign_in) >= today,
-          ),
-        );
+      if (cancelled || !Array.isArray(data)) {
+        setTimeout(() => setLoaded(true), 100);
+        return;
       }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const filtered = (data as RecentUser[]).filter(
+        (u) =>
+          // Hide users who aren't allowed in: on_hold or denied. Treat
+          // a missing status as active so older rows before the
+          // migration still render.
+          (u.status == null || u.status === 'active') &&
+          u.last_sign_in &&
+          new Date(u.last_sign_in) >= today,
+      );
+      setRecentUsers(filtered);
       setTimeout(() => setLoaded(true), 100);
+
+      // Second pass: pull today's activity_log rows and join them
+      // onto the recent users. The orbit uses these counts to flip
+      // an avatar into "on fire" mode (> 10 actions today) and the
+      // shared tooltip lists the most recent ones so admins can see
+      // *why* a teammate is highlighted. Done as a separate fetch
+      // (and merged after) so the orbit renders immediately and the
+      // counts trickle in without blocking the avatars.
+      const { data: activityRows, error: activityErr } = await supabase
+        .from('activity_log')
+        .select('user_id, type, target_label, created_at')
+        .gte('created_at', today.toISOString())
+        .order('created_at', { ascending: false });
+      if (cancelled) return;
+      if (activityErr || !Array.isArray(activityRows)) return;
+      const counts: Record<string, number> = {};
+      const recents: Record<string, RecentUser['recent_actions']> = {};
+      for (const r of activityRows as Array<{
+        user_id: string | null;
+        type: string;
+        target_label: string | null;
+        created_at: string;
+      }>) {
+        if (!r.user_id) continue;
+        counts[r.user_id] = (counts[r.user_id] ?? 0) + 1;
+        const list = recents[r.user_id] ?? (recents[r.user_id] = []);
+        if (list.length < 5) {
+          list.push({ type: r.type, target_label: r.target_label, created_at: r.created_at });
+        }
+      }
+      setRecentUsers((prev) =>
+        prev.map((u) => ({
+          ...u,
+          actions_today: counts[u.id] ?? 0,
+          recent_actions: recents[u.id] ?? [],
+        })),
+      );
     }
     fetchRecentUsers();
+    return () => {
+      cancelled = true;
+    };
   }, [session]);
 
   useEffect(() => {
@@ -360,7 +411,7 @@ export default function HomeContent() {
   }
 
   return (
-    <div className="relative flex flex-col min-h-full overflow-x-clip">
+    <div data-home-no-scroll className="relative flex flex-col min-h-full overflow-x-clip">
       {/* Phase 3: ambient backdrop. Three soft warm orbs sit behind
           everything so the glass surfaces have something colorful to
           refract. Pointer-events off so they never trap clicks. */}
@@ -370,7 +421,14 @@ export default function HomeContent() {
         <div className="absolute bottom-0 left-1/3 w-[480px] h-[480px] rounded-full bg-amber-200/35 blur-[130px]" />
       </div>
 
-      <div className="relative flex-1 flex flex-col min-h-[calc(100vh-1px)] px-4 sm:px-6 lg:px-10 pt-3 lg:pt-6 pb-4 lg:pb-10">
+      {/* On lg+ the global `app-shell` applies zoom: 0.82, so a plain
+          h-[100vh] CSS height renders at only 82% of the actual
+          viewport — which would sit the orbit ~85px above true centre
+          on a 1080p display. Mirror the sidebar's compensation pattern
+          (`h-[calc(100vh/0.82)]`) so the wrapper fills the real screen
+          and `justify-center` on the centerpiece below lands the
+          orbit at the visual middle of the viewport. */}
+      <div className="relative flex-1 flex flex-col h-[calc(100vh-1px)] max-h-[calc(100vh-1px)] lg:h-[calc((100vh-1px)/0.82)] lg:max-h-[calc((100vh-1px)/0.82)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
 
         {/* Phase 4: hero — no glass card; the avatar/greeting and the
             create-menu button float on the page background. The hero
@@ -447,10 +505,11 @@ export default function HomeContent() {
             </div>
 
             {/* RIGHT (top row): single "+" button that opens a small
-                dropdown with the two creation entry points. Replaces
-                the prior side-by-side Feature-request + New-facilities
-                pills so the hero band stays compact. */}
-            <div ref={addMenuRef} className="relative shrink-0">
+                dropdown with the two creation entry points. Hidden
+                for alumni — Feature Request + New Facilities are
+                staff-only flows and don't apply to the alumni home
+                experience. */}
+            <div ref={addMenuRef} className={`relative shrink-0 ${userKind === 'alumni' ? 'hidden' : ''}`}>
               <button
                 type="button"
                 onClick={() => setAddMenuOpen((v) => !v)}
@@ -520,10 +579,17 @@ export default function HomeContent() {
 
         {/* Centered, slowly-rotating ring of teammates active in the
             last 24 hours, with the horse roster orbiting in the inner
-            ring. See HomeOnlineOrbit.tsx for the anatomy + animation. */}
+            ring. See HomeOnlineOrbit.tsx for the anatomy + animation.
+            Mobile: fixed-positioned so it pins to the visible
+            viewport's centre — using `absolute` would only centre it
+            inside the centerpiece flex column, which sits below the
+            welcome header and so isn't actually in the middle of the
+            screen. sm+: returns to normal flex flow. */}
         {recentUsers.length > 0 && (
-          <section className="relative z-50 w-full max-w-4xl mx-auto py-2">
-            <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} />
+          <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:relative sm:top-auto sm:left-auto sm:translate-x-0 sm:translate-y-0 pointer-events-none sm:pointer-events-auto">
+            <div className="pointer-events-auto">
+              <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} />
+            </div>
           </section>
         )}
 
@@ -617,19 +683,38 @@ export default function HomeContent() {
 
         </div> {/* end centerpiece */}
 
-        {/* Phase 8: footer status pill — small glass capsule so the
-            WIP notice has the same visual language as everything
-            above. */}
-        <div className="flex justify-center pt-4">
+        {/* Mission tagline — closes the home page with a quiet brand
+            anchor below the team orbit. Bottom padding clears the
+            globally-fixed "Also here" presence pill (PageViewers.tsx,
+            anchored at `bottom-20`) so the headline always reads above
+            it instead of being half-covered. */}
+        <section
+          aria-label="Mission tagline"
+          className="w-full max-w-4xl mx-auto pt-8 pb-32 px-4 flex flex-col items-center text-center"
+        >
           <p
-            className="inline-flex items-center gap-2 text-[10.5px] text-amber-700/85 rounded-full border border-white/60 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-xl px-3 py-1 shadow-sm"
-            role="status"
+            className="text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-2"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" aria-hidden="true" />
-            Work in progress — some things might not work yet.
+            Seven Arrows
           </p>
-        </div>
+          <h2
+            className="text-2xl lg:text-3xl font-semibold text-foreground/80 leading-tight"
+            style={{ fontFamily: 'var(--font-display)' }}
+            aria-label="Moving the mission forward"
+          >
+            {Array.from('Moving the mission forward').map((ch, i) => (
+              <span
+                key={i}
+                aria-hidden
+                className="sa-wave-letter"
+                style={{ ['--i' as string]: i }}
+              >
+                {ch === ' ' ? ' ' : ch}
+              </span>
+            ))}
+          </h2>
+        </section>
 
       </div>
 

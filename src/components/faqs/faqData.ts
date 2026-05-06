@@ -153,7 +153,7 @@ export const faqCategories: FaqCategory[] = [
       {
         id: 'tricare',
         q: 'Do you accept TRICARE for active-duty military and veterans?',
-        a: 'Yes. Seven Arrows regularly treats active-duty service members, reservists, veterans, and TRICARE-covered dependents. We are out of network with TRICARE — we can create a single case agreement or bill out of network, and we offer payment plans and scholarship options where appropriate. Admissions will verify your benefits and walk you through coverage before you commit. Our Forward-Facing Accelerated Recovery® approach is designed for trauma-impacted populations, including the military community.',
+        a: 'Yes. Seven Arrows regularly treats active-duty service members, reservists, veterans, and TRICARE-covered dependents. We are out of network with TRICARE — we can create a single case agreement or bill out of network, and we offer payment plans and scholarship options where appropriate. Admissions will verify your benefits and walk you through coverage before you commit. Our Forward-Facing® Accelerated Recovery approach is designed for trauma-impacted populations, including the military community.',
         personas: ['military'],
       },
       {
@@ -183,8 +183,8 @@ export const faqCategories: FaqCategory[] = [
       },
       {
         id: 'traumaddiction',
-        q: 'What is the Forward-Facing Accelerated Recovery® approach?',
-        a: 'Forward-Facing Accelerated Recovery® is our proprietary clinical framework — developed by Dr. J. Eric Gentry and Lindsay Rothschild, LCSW — for treating trauma and addiction as a single, integrated condition. It pairs cognitive work (CBT, IFS) with body-based interventions (somatic experiences, EMDR, ART) so the nervous system and the narrative both get attention.',
+        q: 'What is the Forward-Facing® Accelerated Recovery approach?',
+        a: 'Forward-Facing® Accelerated Recovery is our proprietary clinical framework — developed by Dr. J. Eric Gentry and Lindsay Rothschild, LCSW — for treating trauma and addiction as a single, integrated condition. It pairs cognitive work (CBT, IFS) with body-based interventions (somatic experiences, EMDR, ART) so the nervous system and the narrative both get attention.',
         personas: ['client', 'family', 'military', 'professional'],
       },
       {

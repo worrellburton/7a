@@ -26,7 +26,7 @@ const pillars: Pillar[] = [
   {
     title: 'Trauma-informed, top to bottom',
     body:
-      'Our Forward-Facing Accelerated Recovery™ framework runs through every role — clinical, medical, ops, kitchen. You are not fighting the system to hold the window open.',
+      'Our Forward-Facing® Accelerated Recovery framework runs through every role — clinical, medical, ops, kitchen. You are not fighting the system to hold the window open.',
     glyph: (<svg viewBox="0 0 32 32" className="w-9 h-9" aria-hidden="true" {...s}><path d="M16 5l9 3v8c0 6-4 10-9 11-5-1-9-5-9-11V8l9-3z" /><path d="M12 16l3 3 5-6" /></svg>),
   },
   {

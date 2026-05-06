@@ -42,6 +42,8 @@ const defaultPages: PageConfig[] = [
   { path: '/app/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },
   { path: '/app/tours', label: 'Tours', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/admissions', label: 'Admissions', adminOnly: false, section: 'nav', sort_order: 15, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/partnerships', label: 'Partnerships', adminOnly: false, section: 'nav', sort_order: 15.5, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/outreach', label: 'Outreach', adminOnly: false, section: 'nav', sort_order: 15.6, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/intake-paperwork', label: 'Intake Paperwork', adminOnly: false, section: 'nav', sort_order: 16, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/seo', label: 'SEO', adminOnly: false, section: 'nav', sort_order: 20, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/geo', label: 'GEO', adminOnly: false, section: 'nav', sort_order: 21, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
@@ -67,10 +69,24 @@ const defaultPages: PageConfig[] = [
   // see it surface but bounce to the app root if they navigate in.
   { path: '/app/levers', label: 'Levers', adminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
   { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
-  { path: '/app/pages', label: 'Pages', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
-  { path: '/app/departments', label: 'Departments', adminOnly: true, section: 'popup', sort_order: 2, allowedDepartments: [], departmentId: null },
-  { path: '/app/apis', label: 'APIs', adminOnly: true, section: 'popup', sort_order: 3, allowedDepartments: [], departmentId: null },
-  { path: '/app/user-permissions', label: 'User Permissions', adminOnly: true, section: 'popup', sort_order: 4, allowedDepartments: [], departmentId: null },
+  // Chat — open to all staff + alumni. PageGuard's per-user override
+  // for guests still applies (a guest sees Chat only when a super
+  // admin grants /app/chat in their allow-list).
+  { path: '/app/chat', label: 'Chat', adminOnly: false, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
+  // Super-admin gate is enforced inside the page itself + on every
+  // /api/incoming-users/* route. adminOnly here keeps the link out
+  // of regular admins' popup; the page bounces non-super admins to
+  // /app on direct navigation.
+  // My Profile lives in the popup section so it's manageable from
+  // /app/admin/pages alongside the other admin / utility links. The
+  // PlatformShell renders its dedicated My Profile button so we
+  // skip /app/profile in the popup rendering loops to avoid a
+  // duplicate entry in the user popup / mobile drawer.
+  { path: '/app/profile', label: 'My Profile', adminOnly: false, section: 'popup', sort_order: 0.1, allowedDepartments: [], departmentId: null },
+  // Pages / Incoming Users / Departments / APIs / User Permissions
+  // were previously five separate popup entries. They live under
+  // /app/admin now — the index there links out to all of them.
+  { path: '/app/admin', label: 'Admin', adminOnly: true, section: 'popup', sort_order: 0.5, allowedDepartments: [], departmentId: null },
   { path: '/app/activity', label: 'Activity', adminOnly: true, section: 'popup', sort_order: 5, allowedDepartments: [], departmentId: null },
 ];
 
@@ -236,7 +252,9 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   }, [session]);
 
   const setPageAdminOnly = async (path: string, adminOnly: boolean) => {
-    if (path === '/app/team' || path === '/app/pages') return;
+    // Team + Pages-admin must always stay admin-only — locking
+     // those out would brick the org chart + the pages registry.
+    if (path === '/app/team' || path === '/app/admin/pages') return;
 
     setPages((prev) => prev.map((p) => (p.path === path ? { ...p, adminOnly } : p)));
 

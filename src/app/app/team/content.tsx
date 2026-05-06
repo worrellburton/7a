@@ -150,7 +150,15 @@ export default function UsersContent() {
     async function fetchUsers() {
       const data = await db({ action: 'select', table: 'users', order: { column: 'created_at', ascending: false } });
       if (Array.isArray(data)) {
-        setUsers(data);
+        // Hide non-staff users — Guests + Alumni are managed on
+        // /app/incoming-users and shouldn't clutter the staff grid.
+        // Treat a missing user_kind (older rows pre-migration) as
+        // staff so they keep showing up.
+        const filtered = data.filter((u: { user_kind?: string }) => {
+          const k = u.user_kind ?? 'staff';
+          return k === 'staff';
+        });
+        setUsers(filtered);
       }
       setLoading(false);
     }
@@ -377,69 +385,30 @@ export default function UsersContent() {
 
       <TeamPageOrderModal open={orderModalOpen} onClose={() => setOrderModalOpen(false)} />
 
+      {/* Pending Approval moved to /app/incoming-users (super-admin
+          only). Keep a compact super-admin-only banner here that
+          links over when there's anyone waiting, so the team page
+          stays informational for everyone else. */}
       {isSuperAdmin && (() => {
-        // Super-admin-only block. Pending = on_hold (genuinely
-        // waiting on a decision). Denied users are intentionally
-        // NOT rendered here — once a super admin denies someone we
-        // hide them from this list so the pile stays clean. The
-        // user_status_change_to_on_hold trigger flips them back to
-        // on_hold the next time they sign in, which is when we want
-        // a fresh re-decision, so they re-enter the list at that
-        // moment rather than living in a perpetual "Denied" row.
         const pending = users.filter((u) => u.status === 'on_hold');
         if (pending.length === 0) return null;
         return (
-          <div className="mb-8 bg-white rounded-2xl shadow-sm border border-amber-100 overflow-hidden">
-            <div className="px-5 py-3 border-b border-amber-50 flex items-center justify-between gap-3 bg-amber-50/40">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Pending Approval</p>
-                <p className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-                  Users who signed in with an email outside <span className="font-medium">@sevenarrowsrecovery.com</span>.
-                </p>
-              </div>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
-                {pending.length} waiting
-              </span>
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/50 px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                {pending.length} {pending.length === 1 ? 'sign-in' : 'sign-ins'} waiting on you
+              </p>
+              <p className="text-xs text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+                Approve, deny, or classify them on the Incoming Users page.
+              </p>
             </div>
-            <div className="divide-y divide-gray-50">
-              {pending.map((u) => (
-                <div key={u.id} className="px-5 py-3 flex items-center gap-4 flex-wrap">
-                  <div className="flex items-center gap-3 flex-1 min-w-[220px]">
-                    {u.avatar_url ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
-                        {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{formatNameWithCredentials(u.full_name, u.credentials) || 'Unknown'}</p>
-                      <p className="text-xs text-foreground/50 truncate" style={{ fontFamily: 'var(--font-body)' }}>{u.email}</p>
-                    </div>
-                  </div>
-                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-50 text-amber-700" style={{ fontFamily: 'var(--font-body)' }}>
-                    On Hold
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setUserStatus(u.id, 'active')}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => setUserStatus(u.id, 'denied')}
-                      className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-foreground/70 text-xs font-semibold hover:border-red-300 hover:text-red-600 transition-colors"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      Deny
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <a
+              href="/app/admin/incoming-users"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-amber-700 transition-colors"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Open Incoming Users →
+            </a>
           </div>
         );
       })()}

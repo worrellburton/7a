@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
-import { phoenixDayOf } from '@/lib/calls-shared';
+import { phoenixDayOf, isMeaningfulCall } from '@/lib/calls-shared';
 
 // GET /api/calls/reports/recovery-com?from=<iso>&to=<iso>
 //
@@ -138,7 +138,9 @@ export async function GET(req: NextRequest) {
   const scored = safeCalls
     .map((c) => scoreById.get(c.ctm_id))
     .filter((s): s is ScoreRow => !!s);
-  const meaningful = scored.filter((s) => (s.fit_score ?? 0) >= MEANINGFUL_FIT).length;
+  const meaningful = safeCalls.filter((c) =>
+    isMeaningfulCall(c, scoreById.get(c.ctm_id)?.fit_score ?? null),
+  ).length;
   const highFit = scored.filter((s) => (s.fit_score ?? 0) >= HIGH_FIT).length;
   const avgCallScore =
     scored.length > 0 ? scored.reduce((sum, s) => sum + (s.score ?? 0), 0) / scored.length : 0;
@@ -159,7 +161,7 @@ export async function GET(req: NextRequest) {
     }
     bucket.count++;
     const score = scoreById.get(c.ctm_id);
-    if (score?.fit_score != null && score.fit_score >= MEANINGFUL_FIT) bucket.meaningful++;
+    if (isMeaningfulCall(c, score?.fit_score ?? null)) bucket.meaningful++;
     if (c.direction === 'inbound' && (c.voicemail || (c.talk_time ?? 0) < 3)) bucket.missed++;
   }
   const dailyCounts = Array.from(dailyMap.entries())
@@ -224,7 +226,7 @@ export async function GET(req: NextRequest) {
       bucket.scoreSum += score.score;
       bucket.scored++;
     }
-    if ((score?.fit_score ?? -1) >= MEANINGFUL_FIT) bucket.meaningful++;
+    if (isMeaningfulCall(c, score?.fit_score ?? null)) bucket.meaningful++;
     if ((score?.fit_score ?? -1) >= HIGH_FIT) bucket.highFit++;
   }
   const operators = Array.from(opsMap.entries())
