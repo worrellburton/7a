@@ -678,10 +678,13 @@ export default function HomeContent() {
 
         {/* Phase 8: footer status pill — small glass capsule so the
             WIP notice has the same visual language as everything
-            above. */}
-        <div className="flex justify-center pt-4">
+            above. Absolute-positioned so it doesn't push the orbit's
+            vertical centre off true viewport centre; the centerpiece
+            now stretches from the top padding to the bottom padding
+            of the viewport-locked frame above. */}
+        <div className="absolute inset-x-0 bottom-4 lg:bottom-6 flex justify-center pointer-events-none">
           <p
-            className="inline-flex items-center gap-2 text-[10.5px] text-amber-700/85 rounded-full border border-white/60 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-xl px-3 py-1 shadow-sm"
+            className="inline-flex items-center gap-2 text-[10.5px] text-amber-700/85 rounded-full border border-white/60 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-xl px-3 py-1 shadow-sm pointer-events-auto"
             role="status"
             style={{ fontFamily: 'var(--font-body)' }}
           >

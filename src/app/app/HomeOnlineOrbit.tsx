@@ -174,9 +174,11 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           width-resolution quirks above. The mobile cap (260px) keeps
           the avatars from being clipped at the viewport edges and
           gives the bottom row breathing room above any browser
-          chrome / floating UI. */}
+          chrome / floating UI. sm+ caps grow with the viewport so the
+          24-ish team avatars on the outer ring don't crowd each other
+          on wide screens. */}
       <div className="w-full flex justify-center px-4">
-        <div className="relative w-full max-w-[260px] sm:max-w-[460px] aspect-square">
+        <div className="relative w-full max-w-[260px] sm:max-w-[560px] lg:max-w-[640px] aspect-square">
         {/* Decorative concentric rings + centre medallion. The
             outermost border is exactly where the avatars will land,
             so the eye reads the orbit as one composed shape. */}
