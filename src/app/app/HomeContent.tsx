@@ -684,13 +684,13 @@ export default function HomeContent() {
         </div> {/* end centerpiece */}
 
         {/* Mission tagline — closes the home page with a quiet brand
-            anchor below the team orbit. Phase 1: foundation only —
-            eyebrow + display headline, centered, low-contrast, max-w
-            so it reads as a chapter close rather than a CTA. Later
-            phases layer atmosphere, motion, and personalisation. */}
+            anchor below the team orbit. Bottom padding clears the
+            globally-fixed "Also here" presence pill (PageViewers.tsx,
+            anchored at `bottom-20`) so the headline always reads above
+            it instead of being half-covered. */}
         <section
           aria-label="Mission tagline"
-          className="w-full max-w-4xl mx-auto pt-8 pb-12 px-4 flex flex-col items-center text-center"
+          className="w-full max-w-4xl mx-auto pt-8 pb-32 px-4 flex flex-col items-center text-center"
         >
           <p
             className="text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-2"
@@ -701,8 +701,18 @@ export default function HomeContent() {
           <h2
             className="text-2xl lg:text-3xl font-semibold text-foreground/80 leading-tight"
             style={{ fontFamily: 'var(--font-display)' }}
+            aria-label="Moving the mission forward"
           >
-            Moving the mission forward
+            {Array.from('Moving the mission forward').map((ch, i) => (
+              <span
+                key={i}
+                aria-hidden
+                className="sa-wave-letter"
+                style={{ ['--i' as string]: i }}
+              >
+                {ch === ' ' ? ' ' : ch}
+              </span>
+            ))}
           </h2>
         </section>
 
