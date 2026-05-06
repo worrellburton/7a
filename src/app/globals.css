@@ -389,3 +389,27 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
     box-shadow: inset 0 0 0 2px rgb(59 130 246 / 0.35);
   }
 }
+
+/* Wavy text — used by the home-page mission tagline. Each glyph is
+   wrapped in a `<span class="sa-wave-letter">` and given a custom
+   `--i` index that staggers the wave so the line looks like it's
+   slowly drifting on a current. The transform tilts the y-axis with
+   a subtle rotate so it doesn't feel mechanical. Pauses for users
+   with prefers-reduced-motion. */
+@keyframes sa-wave-letter {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-3px) rotate(-1.2deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(3px) rotate(1.2deg); }
+}
+.sa-wave-letter {
+  display: inline-block;
+  animation: sa-wave-letter 4.4s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 80ms);
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-wave-letter {
+    animation: none;
+  }
+}
