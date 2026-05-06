@@ -1067,6 +1067,19 @@ export default function CallsContent() {
           </div>
           <div className="flex items-center gap-2">
             <a
+              href="/app/calls/operator-guide"
+              className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-white/85 supports-[backdrop-filter]:bg-white/70 backdrop-blur text-foreground border border-white/70 rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-white transition-colors shadow-sm"
+              style={{ fontFamily: 'var(--font-body)' }}
+              aria-label="Open Operator Guide"
+            >
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h16" />
+                <circle cx="18" cy="12" r="2" strokeLinejoin="round" />
+              </svg>
+              <span className="hidden sm:inline">Operator Guide</span>
+              <span className="sm:hidden">Guide</span>
+            </a>
+            <a
               href="/app/calls/reports"
               className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-white/85 supports-[backdrop-filter]:bg-white/70 backdrop-blur text-foreground border border-white/70 rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-white transition-colors shadow-sm"
               style={{ fontFamily: 'var(--font-body)' }}
