@@ -68,6 +68,27 @@ const DEFAULT_VISIBLE = ALL_COLUMNS.map((c) => c.key);
 const DEFAULT_ORDER = ALL_COLUMNS.map((c) => c.key);
 const COL_BY_KEY = Object.fromEntries(ALL_COLUMNS.map((c) => [c.key, c])) as Record<string, ColumnDef>;
 
+// Per-column default widths in px. Used when the shared row in
+// `shared_grid_prefs.column_widths` doesn't yet have an entry for a
+// column. The 4 trailing engagement columns are also sizeable so the
+// keys here must stay aligned with the `data-col-key` markers in
+// the table header.
+const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
+  name: 200,
+  role: 180,
+  phone: 160,
+  email: 220,
+  location: 180,
+  notes: 280,
+  actions: 200,
+  last_contact_by_name: 220,
+  time_since: 150,
+  last_contact_at: 160,
+};
+const RESIZE_MIN_PX = 70;
+const RESIZE_MAX_PX = 900;
+const EXPANDER_COL_WIDTH_PX = 40;
+
 const METHOD_TONES: Record<ContactMethod, string> = {
   Phone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   'In Person': 'bg-blue-50 text-blue-700 border-blue-200',
@@ -162,6 +183,12 @@ export default function ContactsContent() {
 
   const [visibleCols, setVisibleCols] = useState<string[] | null>(null);
   const [columnOrder, setColumnOrder] = useState<string[] | null>(null);
+  // Column widths in px keyed by column key. Empty / missing keys
+  // fall back to a sensible default per column. Mutated optimistically
+  // while the user drags a resize handle and persisted on pointer-up;
+  // realtime updates from `shared_grid_prefs` overwrite this state so
+  // every admin sees the same layout in lockstep.
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
 
   const [sortKey, setSortKey] = useState<string>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -183,7 +210,14 @@ export default function ContactsContent() {
 
     fetch('/api/contacts/prefs', { headers: { Authorization: `Bearer ${session.access_token}` } })
       .then(async (r) => (r.ok ? await r.json() : null))
-      .then((json) => { if (!cancelled && json) applyPrefs(json.visible_columns, json.column_order); });
+      .then((json) => {
+        if (!cancelled && json) {
+          applyPrefs(json.visible_columns, json.column_order);
+          if (json.column_widths && typeof json.column_widths === 'object') {
+            setColumnWidths(json.column_widths as Record<string, number>);
+          }
+        }
+      });
 
     const channel = supabase
       .channel(`contacts-${user?.id ?? 'anon'}-${Math.random().toString(36).slice(2, 8)}`)
@@ -205,8 +239,17 @@ export default function ContactsContent() {
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_grid_prefs', filter: 'scope=eq.contacts' }, (payload) => {
-        const row = payload.new as { visible_columns: string[]; column_order: string[] } | null;
-        if (row) applyPrefs(row.visible_columns, row.column_order);
+        const row = payload.new as { visible_columns: string[]; column_order: string[]; column_widths?: Record<string, number> } | null;
+        if (!row) return;
+        applyPrefs(row.visible_columns, row.column_order);
+        if (row.column_widths && typeof row.column_widths === 'object') {
+          // Skip if a local resize is in flight — otherwise we'd
+          // snap the dragged column back to the old width as our
+          // own write echoes back.
+          if (!resizingRef.current) {
+            setColumnWidths(row.column_widths as Record<string, number>);
+          }
+        }
       })
       .subscribe();
     return () => {
@@ -233,6 +276,22 @@ export default function ContactsContent() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ visible_columns: visible, column_order: order }),
+      });
+    },
+    [session?.access_token],
+  );
+
+  // Live-flag flipped on while the user is dragging a resize handle so
+  // realtime echoes for in-flight widths don't snap the column back to
+  // its previous size mid-drag.
+  const resizingRef = useRef(false);
+  const persistColumnWidth = useCallback(
+    async (key: string, widthPx: number) => {
+      if (!session?.access_token) return;
+      await fetch('/api/contacts/prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ column_widths: { [key]: Math.round(widthPx) } }),
       });
     },
     [session?.access_token],
@@ -518,6 +577,11 @@ export default function ContactsContent() {
         onSaveField={handleSaveField}
         actionMenuFor={actionMenuFor}
         setActionMenuFor={setActionMenuFor}
+        columnWidths={columnWidths}
+        onResizeColumn={(key, w) => setColumnWidths((prev) => ({ ...prev, [key]: Math.round(w) }))}
+        onCommitColumnWidth={(key, w) => { void persistColumnWidth(key, w); }}
+        onResizeStart={() => { resizingRef.current = true; }}
+        onResizeEnd={() => { resizingRef.current = false; }}
       />
 
       {showAdd && (
@@ -638,6 +702,11 @@ function ContactsGrid({
   onSaveField,
   actionMenuFor,
   setActionMenuFor,
+  columnWidths,
+  onResizeColumn,
+  onCommitColumnWidth,
+  onResizeStart,
+  onResizeEnd,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -655,6 +724,11 @@ function ContactsGrid({
   onSaveField: (id: string, field: 'name' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
   actionMenuFor: { id: string; rect: DOMRect } | null;
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
+  columnWidths: Record<string, number>;
+  onResizeColumn: (key: string, widthPx: number) => void;
+  onCommitColumnWidth: (key: string, widthPx: number) => void;
+  onResizeStart: () => void;
+  onResizeEnd: () => void;
 }) {
   // Tracks the row whose notes-editor strip is currently expanded.
   // Click the notes cell to toggle. Persists across rerenders via a
@@ -670,64 +744,94 @@ function ContactsGrid({
       <div className="hidden md:block">
       <div
         ref={tableScrollRef}
+        data-outreach-table
         className="overflow-x-auto rounded-xl border border-black/10 bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
+        {/* <colgroup> drives the actual column widths so resize is
+            cheap (only one node per column needs its width set, not
+            every cell). Default widths from `DEFAULT_COL_WIDTHS_PX`
+            are overridden by the shared `column_widths` map when the
+            org has saved a layout. */}
+        <colgroup>
+          {columns.map((c) => {
+            const w = columnWidths[c.key] ?? DEFAULT_COL_WIDTHS_PX[c.key] ?? 180;
+            return <col key={c.key} style={{ width: `${w}px` }} />;
+          })}
+          {(['actions', 'last_contact_by_name', 'time_since', 'last_contact_at'] as const).map((k) => {
+            const w = columnWidths[k] ?? DEFAULT_COL_WIDTHS_PX[k];
+            return <col key={k} style={{ width: `${w}px` }} />;
+          })}
+          <col style={{ width: `${EXPANDER_COL_WIDTH_PX}px` }} />
+        </colgroup>
         <thead className="bg-warm-bg/50 text-left text-[11px] uppercase tracking-wider text-foreground/55">
           <tr>
             {columns.map((c) => (
               <th
                 key={c.key}
+                data-col-key={c.key}
                 draggable
                 onDragStart={() => onColDragStart(c.key)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => onColDrop(c.key)}
                 onClick={() => onSort(c.key)}
-                className={`px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80 ${c.align === 'right' ? 'text-right' : ''}`}
-                style={c.width ? { width: c.width } : undefined}
+                className={`group/th relative px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80 ${c.align === 'right' ? 'text-right' : ''}`}
               >
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 truncate">
                   {c.label}
                   <SortIndicator active={sortKey === c.key} dir={sortDir} />
                 </span>
+                <ResizeHandle
+                  colKey={c.key}
+                  onResize={onResizeColumn}
+                  onCommit={onCommitColumnWidth}
+                  onStart={onResizeStart}
+                  onEnd={onResizeEnd}
+                />
               </th>
             ))}
             {/* Engagement / action columns — fixed at the far right
                 so admissions sees them no matter how the grid is
                 customised. Order: Contact button, Last contact by,
                 Time since (colored pill), Last contact date, actions menu. */}
-            <th className="px-3 py-2 whitespace-nowrap" style={{ width: 200 }}>Actions</th>
+            <th data-col-key="actions" className="group/th relative px-3 py-2 whitespace-nowrap">
+              <span className="truncate">Actions</span>
+              <ResizeHandle colKey="actions" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
+            </th>
             <th
+              data-col-key="last_contact_by_name"
               onClick={() => onSort('last_contact_by_name')}
-              className="px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
-              style={{ width: 220 }}
+              className="group/th relative px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
             >
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 truncate">
                 Last contacted by
                 <SortIndicator active={sortKey === 'last_contact_by_name'} dir={sortDir} />
               </span>
+              <ResizeHandle colKey="last_contact_by_name" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
             <th
+              data-col-key="time_since"
               onClick={() => onSort('time_since')}
-              className="px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
-              style={{ width: 150 }}
+              className="group/th relative px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
             >
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 truncate">
                 Time since
                 <SortIndicator active={sortKey === 'time_since'} dir={sortDir} />
               </span>
+              <ResizeHandle colKey="time_since" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
             <th
+              data-col-key="last_contact_at"
               onClick={() => onSort('last_contact_at')}
-              className="px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
-              style={{ width: 160 }}
+              className="group/th relative px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
             >
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 truncate">
                 Last contact
                 <SortIndicator active={sortKey === 'last_contact_at'} dir={sortDir} />
               </span>
+              <ResizeHandle colKey="last_contact_at" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
-            <th className="px-3 py-2 w-10" />
+            <th className="px-3 py-2" />
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5">
@@ -970,19 +1074,38 @@ function ActionMenuPortal({
 // thumb has its own glass treatment that brightens on hover/drag.
 function FloatingScrollbar({ tableRef }: { tableRef: React.RefObject<HTMLDivElement | null> }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
+  const thumbRef = useRef<HTMLDivElement | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [layout, setLayout] = useState<{ left: number; width: number; thumbLeft: number; thumbWidth: number; visible: boolean }>({
+  const [dragging, setDragging] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [currentLabel, setCurrentLabel] = useState<string | null>(null);
+  const [layout, setLayout] = useState<{ left: number; width: number; thumbLeft: number; thumbWidth: number; visible: boolean; pct: number }>({
     left: 0,
     width: 0,
     thumbLeft: 0,
     thumbWidth: 0,
     visible: false,
+    pct: 0,
   });
 
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (!mounted) return;
+    function pickLabel(t: HTMLDivElement) {
+      const head = t.querySelector('thead');
+      if (!head) return null;
+      const ths = Array.from(head.querySelectorAll('th'));
+      if (!ths.length) return null;
+      const probeX = t.getBoundingClientRect().left + t.clientWidth / 2;
+      let best: HTMLElement | null = null;
+      for (const th of ths) {
+        const r = (th as HTMLElement).getBoundingClientRect();
+        if (r.left <= probeX && r.right >= probeX) { best = th as HTMLElement; break; }
+      }
+      const label = (best?.textContent ?? '').trim();
+      return label || null;
+    }
     function measure() {
       const t = tableRef.current;
       if (!t) return;
@@ -994,10 +1117,12 @@ function FloatingScrollbar({ tableRef }: { tableRef: React.RefObject<HTMLDivElem
       }
       const trackW = rect.width;
       const ratio = t.clientWidth / t.scrollWidth;
-      const thumbW = Math.max(40, trackW * ratio);
+      const thumbW = Math.max(48, trackW * ratio);
       const maxScroll = t.scrollWidth - t.clientWidth;
-      const thumbLeft = maxScroll > 0 ? (t.scrollLeft / maxScroll) * (trackW - thumbW) : 0;
-      setLayout({ left: rect.left, width: trackW, thumbLeft, thumbWidth: thumbW, visible: true });
+      const pct = maxScroll > 0 ? t.scrollLeft / maxScroll : 0;
+      const thumbLeft = pct * (trackW - thumbW);
+      setLayout({ left: rect.left, width: trackW, thumbLeft, thumbWidth: thumbW, visible: true, pct });
+      setCurrentLabel(pickLabel(t));
     }
     measure();
     const t = tableRef.current;
@@ -1014,12 +1139,48 @@ function FloatingScrollbar({ tableRef }: { tableRef: React.RefObject<HTMLDivElem
     };
   }, [mounted, tableRef]);
 
+  // Arrow keys + page/home/end to pan the table horizontally when the
+  // user has the track focused or the pointer is over the track or the
+  // table itself. We bind to window to avoid forcing a focus state.
+  useEffect(() => {
+    if (!mounted) return;
+    function onKey(e: KeyboardEvent) {
+      const t = tableRef.current;
+      if (!t) return;
+      const target = e.target as HTMLElement | null;
+      if (target && /^(input|textarea|select)$/i.test(target.tagName)) return;
+      if (target && target.isContentEditable) return;
+      const maxScroll = t.scrollWidth - t.clientWidth;
+      if (maxScroll <= 0) return;
+      const step = Math.max(60, Math.round(t.clientWidth * 0.18));
+      const big = Math.max(step * 3, Math.round(t.clientWidth * 0.9));
+      let next: number | null = null;
+      if (e.key === 'ArrowLeft') next = Math.max(0, t.scrollLeft - step);
+      else if (e.key === 'ArrowRight') next = Math.min(maxScroll, t.scrollLeft + step);
+      else if (e.key === 'PageUp') next = Math.max(0, t.scrollLeft - big);
+      else if (e.key === 'PageDown') next = Math.min(maxScroll, t.scrollLeft + big);
+      else if (e.key === 'Home' && (e.ctrlKey || e.metaKey || hovered || dragging)) next = 0;
+      else if (e.key === 'End' && (e.ctrlKey || e.metaKey || hovered || dragging)) next = maxScroll;
+      if (next == null) return;
+      // Only handle when the bar is visible AND the user is "engaged"
+      // with the bar (hovering or dragging) OR they're focused on the
+      // table region. Avoids hijacking arrow keys everywhere.
+      const overTable = target?.closest?.('[data-outreach-table]');
+      if (!hovered && !dragging && !overTable && document.activeElement !== trackRef.current) return;
+      e.preventDefault();
+      t.scrollTo({ left: next, behavior: 'smooth' });
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mounted, hovered, dragging, tableRef]);
+
   const dragRef = useRef<{ startX: number; startScrollLeft: number } | null>(null);
   function onThumbPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     e.preventDefault();
     const t = tableRef.current;
     if (!t) return;
     dragRef.current = { startX: e.clientX, startScrollLeft: t.scrollLeft };
+    setDragging(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function onThumbPointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -1036,6 +1197,7 @@ function FloatingScrollbar({ tableRef }: { tableRef: React.RefObject<HTMLDivElem
   }
   function onThumbPointerUp(e: React.PointerEvent<HTMLDivElement>) {
     dragRef.current = null;
+    setDragging(false);
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
@@ -1058,24 +1220,131 @@ function FloatingScrollbar({ tableRef }: { tableRef: React.RefObject<HTMLDivElem
 
   if (!mounted || !layout.visible) return null;
 
+  const showTooltip = dragging || hovered;
+  const tooltipText = currentLabel
+    ? `${currentLabel} · ${Math.round(layout.pct * 100)}%`
+    : `${Math.round(layout.pct * 100)}%`;
+  const thumbCenter = layout.thumbLeft + layout.thumbWidth / 2;
+
   return createPortal(
     <div
       ref={trackRef}
+      tabIndex={0}
+      role="scrollbar"
+      aria-orientation="horizontal"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(layout.pct * 100)}
       onPointerDown={onTrackPointerDown}
-      className="hidden md:block fixed bottom-3 z-[60] h-3 rounded-full bg-white/35 backdrop-blur-xl ring-1 ring-black/10 shadow-[0_8px_24px_-8px_rgba(40,30,25,0.28)]"
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      className={`hidden md:block fixed bottom-4 z-[60] rounded-full border border-white/40 ring-1 ring-black/5 backdrop-blur-2xl backdrop-saturate-150 outline-none transition-[height,box-shadow,background-color] duration-200 ease-out ${dragging || hovered ? 'h-5 shadow-[0_18px_44px_-14px_rgba(60,48,42,0.45),inset_0_1px_0_rgba(255,255,255,0.85)] bg-white/55' : 'h-4 shadow-[0_10px_28px_-10px_rgba(60,48,42,0.32),inset_0_1px_0_rgba(255,255,255,0.7)] bg-white/40'}`}
       style={{ left: layout.left, width: layout.width }}
-      aria-hidden
     >
       <div
+        ref={thumbRef}
         onPointerDown={onThumbPointerDown}
         onPointerMove={onThumbPointerMove}
         onPointerUp={onThumbPointerUp}
         onPointerCancel={onThumbPointerUp}
-        className="absolute inset-y-0.5 rounded-full bg-gradient-to-b from-foreground/45 to-foreground/30 hover:from-foreground/55 hover:to-foreground/40 active:from-foreground/65 active:to-foreground/55 ring-1 ring-white/30 shadow-sm cursor-grab active:cursor-grabbing transition-colors"
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
+        className={`absolute inset-y-[3px] rounded-full ring-1 ring-white/50 cursor-grab active:cursor-grabbing transition-[transform,box-shadow,background-image,filter] duration-200 ease-out will-change-transform bg-gradient-to-b from-[#d6896b] via-[#bc6b4a] to-[#a85a3c] hover:from-[#e0997b] hover:via-[#c87557] hover:to-[#b1644a] active:from-[#e7a48a] active:via-[#d18066] active:to-[#bb6e54] shadow-[0_4px_10px_-2px_rgba(188,107,74,0.45),inset_0_1px_0_rgba(255,255,255,0.4)] ${dragging ? 'scale-y-110 shadow-[0_8px_18px_-3px_rgba(188,107,74,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] brightness-110' : ''}`}
         style={{ left: layout.thumbLeft, width: layout.thumbWidth }}
       />
+      {/* Tooltip pill above the thumb showing the column you're parked
+          on plus % progress. Mirrors the glass aesthetic of the track
+          and only appears while interacting so it doesn't crowd the
+          page during quiet states. */}
+      <div
+        aria-hidden
+        className={`pointer-events-none absolute -top-9 -translate-x-1/2 px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap text-foreground/85 bg-white/65 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 ring-1 ring-black/5 shadow-[0_8px_22px_-10px_rgba(60,48,42,0.35)] transition-all duration-200 ease-out ${showTooltip ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}
+        style={{ left: thumbCenter }}
+      >
+        {tooltipText}
+      </div>
     </div>,
     document.body,
+  );
+}
+
+// Right-edge column-resize grip rendered inside each `<th>`. The
+// parent `<th>` is positioned-relative + group/th so a faint hover
+// trace shows up across the whole header cell while the live drag
+// state turns the grip orange. Pointer capture means the drag keeps
+// tracking even if the cursor leaves the bar mid-drag. We compute
+// width deltas off the live header bounding rect (NOT the in-state
+// width) so multi-handle interactions stay accurate.
+function ResizeHandle({
+  colKey,
+  onResize,
+  onCommit,
+  onStart,
+  onEnd,
+}: {
+  colKey: string;
+  onResize: (key: string, widthPx: number) => void;
+  onCommit: (key: string, widthPx: number) => void;
+  onStart: () => void;
+  onEnd: () => void;
+}) {
+  const [active, setActive] = useState(false);
+  const stateRef = useRef<{ startX: number; startWidth: number; lastWidth: number } | null>(null);
+
+  function findHeaderEl(currentTarget: HTMLElement): HTMLElement | null {
+    return currentTarget.closest(`th[data-col-key="${colKey}"]`) as HTMLElement | null;
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    const headerEl = findHeaderEl(e.currentTarget);
+    if (!headerEl) return;
+    const startWidth = headerEl.getBoundingClientRect().width;
+    stateRef.current = { startX: e.clientX, startWidth, lastWidth: startWidth };
+    setActive(true);
+    onStart();
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const s = stateRef.current;
+    if (!s) return;
+    e.preventDefault();
+    const dx = e.clientX - s.startX;
+    const next = Math.max(RESIZE_MIN_PX, Math.min(RESIZE_MAX_PX, s.startWidth + dx));
+    s.lastWidth = next;
+    onResize(colKey, next);
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const s = stateRef.current;
+    if (!s) return;
+    const finalWidth = s.lastWidth;
+    stateRef.current = null;
+    setActive(false);
+    onEnd();
+    onCommit(colKey, finalWidth);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Resize ${colKey} column`}
+      draggable={false}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      className={`absolute right-0 top-1 bottom-1 w-2 -mr-px rounded-full select-none cursor-col-resize touch-none transition-colors duration-150 ${active ? 'bg-[#bc6b4a]/80' : 'bg-transparent hover:bg-foreground/25 group-hover/th:bg-foreground/10'}`}
+    />
   );
 }
 
