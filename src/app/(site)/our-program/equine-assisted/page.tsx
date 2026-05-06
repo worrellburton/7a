@@ -178,7 +178,7 @@ export default function EquineAssistedPage() {
           </>
         }
         bullets={[
-          { label: 'Ground-based work', body: 'Most of the clinical work happens on the ground — attunement, leading, groundwork, grooming. No riding required for therapeutic work.' },
+          { label: 'Ground-based work', body: 'Most of the clinical work occurs on the ground through relational, ground-based experiences that emphasize attunement, presence, and somatic awareness. Through this experiential connection, clients access deeper insight, regulation, and integration without the need for mounted work.' },
           { label: 'Integrated, Not Elective', body: 'Equine-assisted psychotherapy (EAP) is embedded into the core weekly treatment schedule. Clients participate in a weekly EAP group session, with individual EAP sessions offered as clinically indicated, integrated alongside individual therapy, group therapy, and somatic-based work.' },
           { label: 'Evidence-Informed', body: 'Draws on attachment theory, somatic awareness/experiencing, and Internal Family Systems (IFS); integrates experiential and relational interventions; and is used as an adjunct to CBT, EMDR, mindfulness-based practices, psychoeducation, nervous system regulation (ANS-informed work), and trauma-informed care principles within equine-assisted psychotherapy.' },
           { label: 'For who it helps most', body: 'Clients presenting with complex trauma, Post-Traumatic Stress Disorder, attachment disruptions, and moral wounds, particularly those who have demonstrated limited response to traditional talk-based interventions and may benefit from experiential, somatic, and relationally focused approaches.' },

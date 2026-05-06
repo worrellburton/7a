@@ -5,12 +5,12 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 /**
  * Phase 5 — Session modalities.
  *
- * A three-stage animated SVG diagram (Observation → Groundwork →
- * Integration) that walks the visitor through how an EAP session
- * actually unfolds. Each stage is keyword-dense so crawlers and
- * LLMs can cite the specific interventions (pressure-and-release,
- * mirroring, somatic tracking) rather than generic "we work with
- * horses" filler.
+ * A three-stage animated SVG diagram (Observation → Relational
+ * Process → Integration) that walks the visitor through how an EAP
+ * session actually unfolds. Each stage is keyword-dense so crawlers
+ * and LLMs can cite the specific interventions (somatic tracking,
+ * IFS parts work, polyvagal-informed regulation) rather than generic
+ * "we work with horses" filler.
  */
 
 interface Stage {
@@ -18,7 +18,7 @@ interface Stage {
   title: string;
   duration: string;
   body: string;
-  bullets: string[];
+  bullets: { label: string; body: string }[];
   glyph: ReactNode;
 }
 
@@ -33,14 +33,23 @@ const s = {
 const stages: Stage[] = [
   {
     number: '01',
-    title: 'Observation & arrival',
+    title: 'Observation & Arrival',
     duration: '~15 min',
     body:
-      'The client enters the arena and the herd is already there. We watch. Who does the horse approach, who does it orient away from, what happens in the client&rsquo;s breath and posture as the distance closes.',
+      'The client enters the arena as the herd is present, with space to slow down and observe initial interactions, including shifts in proximity, breath, and posture.',
     bullets: [
-      'Nervous-system baseline check',
-      'Herd dynamics read-out',
-      'Safety briefing + orientation',
+      {
+        label: 'Somatic Check-In & Attunement',
+        body: 'Tracking body sensations, nervous system state, and presence',
+      },
+      {
+        label: 'Nervous System Baseline',
+        body: 'Assessing regulation to guide pacing',
+      },
+      {
+        label: 'Herd Awareness',
+        body: 'Noticing relational dynamics, boundaries, and connection patterns',
+      },
     ],
     glyph: (
       <svg viewBox="0 0 32 32" className="w-6 h-6" aria-hidden="true" {...s}>
@@ -52,14 +61,27 @@ const stages: Stage[] = [
   },
   {
     number: '02',
-    title: 'Groundwork & relationship',
+    title: 'Relational & Experiential Process',
     duration: '~30 min',
     body:
-      'Haltering, leading, pressure-and-release, grooming, and in-hand work. The horse is the feedback loop — if the client is incongruent, the horse won&rsquo;t follow. If the client settles, the horse settles. Clinicians track what&rsquo;s happening in the body and name it out loud.',
+      'Sessions center on attunement, presence, and real-time relational feedback with the herd. The horse reflects the client&rsquo;s internal state — shifts in regulation, authenticity, and connection — offering immediate, nonverbal insight. The clinician supports the client in tracking what is happening internally and within the relationship, using this awareness to guide the work.',
     bullets: [
-      'Pressure-and-release cues',
-      'Attachment + boundary practice',
-      'Co-regulation tracking',
+      {
+        label: 'IFS / Parts Awareness',
+        body: 'Identifying and engaging with protective and vulnerable parts as they emerge',
+      },
+      {
+        label: 'Somatic Tracking',
+        body: 'Noticing body sensations, activation, and regulation in the moment',
+      },
+      {
+        label: 'Polyvagal-Informed Regulation',
+        body: 'Supporting nervous system awareness, co-regulation, and safety cues',
+      },
+      {
+        label: 'Relational Attunement',
+        body: 'Exploring connection, boundaries, and patterns as reflected through the horse',
+      },
     ],
     glyph: (
       <svg viewBox="0 0 32 32" className="w-6 h-6" aria-hidden="true" {...s}>
@@ -72,14 +94,23 @@ const stages: Stage[] = [
   },
   {
     number: '03',
-    title: 'Trauma-Informed Integration & Processing Phase',
+    title: 'Trauma-Informed Integration',
     duration: '~15 min',
     body:
       'The client returns to a grounded space at the edge of the arena to support stabilization and reflection. The clinician facilitates gentle meaning-making of the experiential work, linking present-moment observations to the client&rsquo;s presenting concerns and treatment goals in a paced, consent-based manner.',
     bullets: [
-      'IFS parts-based framing',
-      'Somatic felt-sense mapping',
-      'Plan-of-care integration',
+      {
+        label: 'IFS Parts-Based Framing',
+        body: 'Naming the parts that showed up and what they were carrying',
+      },
+      {
+        label: 'Somatic Felt-Sense Mapping',
+        body: 'Linking the body&rsquo;s response to the emotional and relational story',
+      },
+      {
+        label: 'Plan-of-Care Integration',
+        body: 'Connecting insight from the arena to the broader treatment plan',
+      },
     ],
     glyph: (
       <svg viewBox="0 0 32 32" className="w-6 h-6" aria-hidden="true" {...s}>
@@ -139,16 +170,26 @@ export default function EquineSessions() {
             Sixty minutes. Three <em className="not-italic text-primary">arcs</em>.
           </h2>
           <p
+            className="text-foreground/70 leading-relaxed text-[16.5px] mb-4"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Each group session is co-facilitated by a licensed clinician, an
+            equine specialist, and the herd, creating a structured and
+            supported therapeutic environment. Individual sessions are guided
+            by a licensed therapist in partnership with the herd, offering a
+            more private, attuned space for deeper exploration and healing.
+          </p>
+          <p
             className="text-foreground/70 leading-relaxed text-[16.5px]"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Every session is co-led by a licensed clinician and an equine
-            specialist. The structure stays consistent so the nervous system
-            knows what&rsquo;s coming; the content flexes to the client and to
-            whatever the herd brings on a given day. The client and I might
-            walk in planning to work on one thing, but if the horses pick up
-            on something greater, we follow that — the session shifts in the
-            moment.
+            Sessions are intentionally flexible and trauma-informed, adapting
+            to meet the client&rsquo;s needs in real time. While there may be
+            an initial intention or focus, the work is guided by what emerges
+            in the moment — often reflected through the horses&rsquo;
+            responses and the client&rsquo;s internal experience. This allows
+            the process to remain responsive, client-centered, and grounded in
+            present-moment awareness.
           </p>
         </div>
 
@@ -198,17 +239,29 @@ export default function EquineSessions() {
                 style={{ fontFamily: 'var(--font-body)' }}
                 dangerouslySetInnerHTML={{ __html: stage.body }}
               />
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {stage.bullets.map((b) => (
                   <li
-                    key={b}
-                    className="flex items-start gap-2 text-[13.5px] text-foreground/75"
+                    key={b.label}
+                    className="flex items-start gap-2.5 text-[13.5px] text-foreground/75"
                     style={{ fontFamily: 'var(--font-body)' }}
                   >
-                    <svg className="w-3.5 h-3.5 text-primary shrink-0 mt-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg
+                      className="w-3.5 h-3.5 text-primary shrink-0 mt-1"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
-                    <span>{b}</span>
+                    <span>
+                      <strong className="font-semibold text-foreground">{b.label}:</strong>{' '}
+                      <span className="text-foreground/70">{b.body}</span>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -252,7 +305,7 @@ function AnimatedArcDiagram({ visible }: { visible: boolean }) {
             .arc-dot-3 { animation-delay: 1.6s; }
           `}</style>
         </defs>
-        {/* Curving path Observation → Groundwork → Integration */}
+        {/* Curving path Observation → Process → Integration */}
         <path
           d="M 80 80 Q 300 20, 600 80 T 1120 80"
           className="arc-path"
