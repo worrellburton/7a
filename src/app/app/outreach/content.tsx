@@ -662,52 +662,14 @@ function ContactsGrid({
   const [expandedNotesId, setExpandedNotesId] = useState<string | null>(null);
   const totalCols = columns.length + 5;
 
-  // Sticky horizontal scrollbar — when the table overflows the viewport
-  // width, mirror its native scrollbar with a thin proxy bar pinned to
-  // the bottom of the viewport so the user never has to scroll the page
-  // down just to reach the slider. Both bars stay in sync.
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
-  const proxyRef = useRef<HTMLDivElement | null>(null);
-  const [scrollW, setScrollW] = useState(0);
-  const [overflows, setOverflows] = useState(false);
-  useEffect(() => {
-    const el = tableScrollRef.current;
-    if (!el) return;
-    const measure = () => {
-      setScrollW(el.scrollWidth);
-      setOverflows(el.scrollWidth > el.clientWidth + 1);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    Array.from(el.children).forEach((c) => ro.observe(c as Element));
-    window.addEventListener('resize', measure);
-    return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
-  }, [rows.length, columns.length]);
-  const lockRef = useRef<'table' | 'proxy' | null>(null);
-  function syncFromTable() {
-    if (lockRef.current === 'proxy') return;
-    lockRef.current = 'table';
-    if (proxyRef.current && tableScrollRef.current) {
-      proxyRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
-    }
-    requestAnimationFrame(() => { lockRef.current = null; });
-  }
-  function syncFromProxy() {
-    if (lockRef.current === 'table') return;
-    lockRef.current = 'proxy';
-    if (proxyRef.current && tableScrollRef.current) {
-      tableScrollRef.current.scrollLeft = proxyRef.current.scrollLeft;
-    }
-    requestAnimationFrame(() => { lockRef.current = null; });
-  }
 
   return (
     <>
+      <FloatingScrollbar tableRef={tableScrollRef} />
       <div className="hidden md:block">
       <div
         ref={tableScrollRef}
-        onScroll={syncFromTable}
         className="overflow-x-auto rounded-xl border border-black/10 bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <table className="w-full text-sm">
@@ -894,15 +856,6 @@ function ContactsGrid({
         </tbody>
       </table>
       </div>
-      {overflows && (
-        <div
-          ref={proxyRef}
-          onScroll={syncFromProxy}
-          className="sticky bottom-0 z-30 mt-1 overflow-x-auto rounded-md bg-white/85 backdrop-blur ring-1 ring-black/10 shadow-[0_-4px_10px_rgba(0,0,0,0.04)]"
-        >
-          <div style={{ width: scrollW, height: 1 }} aria-hidden />
-        </div>
-      )}
       </div>
 
       {/* Mobile card layout — table is hard to scan on phones, so
@@ -1002,6 +955,125 @@ function ActionMenuPortal({
       >
         Delete contact
       </button>
+    </div>,
+    document.body,
+  );
+}
+
+// Custom horizontal scrollbar pinned to the bottom of the viewport.
+// Rendered through a portal to document.body so no ancestor's
+// `overflow: auto` (e.g. PlatformShell's main scroller) can clip
+// or mis-anchor a sticky position. Tracks the table's bounding rect
+// and scrollLeft on every scroll/resize/rAF tick so the thumb's
+// width + offset always reflect the table's true scroll state.
+// Glass styling: backdrop blur + translucent surface + ring; the
+// thumb has its own glass treatment that brightens on hover/drag.
+function FloatingScrollbar({ tableRef }: { tableRef: React.RefObject<HTMLDivElement | null> }) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [layout, setLayout] = useState<{ left: number; width: number; thumbLeft: number; thumbWidth: number; visible: boolean }>({
+    left: 0,
+    width: 0,
+    thumbLeft: 0,
+    thumbWidth: 0,
+    visible: false,
+  });
+
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    function measure() {
+      const t = tableRef.current;
+      if (!t) return;
+      const rect = t.getBoundingClientRect();
+      const overflows = t.scrollWidth > t.clientWidth + 1;
+      if (!overflows) {
+        setLayout((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+        return;
+      }
+      const trackW = rect.width;
+      const ratio = t.clientWidth / t.scrollWidth;
+      const thumbW = Math.max(40, trackW * ratio);
+      const maxScroll = t.scrollWidth - t.clientWidth;
+      const thumbLeft = maxScroll > 0 ? (t.scrollLeft / maxScroll) * (trackW - thumbW) : 0;
+      setLayout({ left: rect.left, width: trackW, thumbLeft, thumbWidth: thumbW, visible: true });
+    }
+    measure();
+    const t = tableRef.current;
+    if (!t) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(t);
+    Array.from(t.children).forEach((c) => ro.observe(c as Element));
+    document.addEventListener('scroll', measure, { capture: true, passive: true });
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      document.removeEventListener('scroll', measure, { capture: true } as AddEventListenerOptions);
+      window.removeEventListener('resize', measure);
+    };
+  }, [mounted, tableRef]);
+
+  const dragRef = useRef<{ startX: number; startScrollLeft: number } | null>(null);
+  function onThumbPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const t = tableRef.current;
+    if (!t) return;
+    dragRef.current = { startX: e.clientX, startScrollLeft: t.scrollLeft };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function onThumbPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    const t = tableRef.current;
+    if (!drag || !t) return;
+    const dx = e.clientX - drag.startX;
+    const trackW = layout.width;
+    const thumbW = layout.thumbWidth;
+    const maxScroll = t.scrollWidth - t.clientWidth;
+    const denom = trackW - thumbW;
+    if (denom <= 0) return;
+    t.scrollLeft = drag.startScrollLeft + (dx * maxScroll) / denom;
+  }
+  function onThumbPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    dragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }
+  function onTrackPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget) return;
+    const t = tableRef.current;
+    const trackEl = trackRef.current;
+    if (!t || !trackEl) return;
+    const rect = trackEl.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const trackW = rect.width;
+    const thumbW = layout.thumbWidth;
+    const maxScroll = t.scrollWidth - t.clientWidth;
+    const denom = trackW - thumbW;
+    if (denom <= 0) return;
+    const target = Math.max(0, Math.min(maxScroll, ((clickX - thumbW / 2) / denom) * maxScroll));
+    t.scrollTo({ left: target, behavior: 'smooth' });
+  }
+
+  if (!mounted || !layout.visible) return null;
+
+  return createPortal(
+    <div
+      ref={trackRef}
+      onPointerDown={onTrackPointerDown}
+      className="hidden md:block fixed bottom-3 z-[60] h-3 rounded-full bg-white/35 backdrop-blur-xl ring-1 ring-black/10 shadow-[0_8px_24px_-8px_rgba(40,30,25,0.28)]"
+      style={{ left: layout.left, width: layout.width }}
+      aria-hidden
+    >
+      <div
+        onPointerDown={onThumbPointerDown}
+        onPointerMove={onThumbPointerMove}
+        onPointerUp={onThumbPointerUp}
+        onPointerCancel={onThumbPointerUp}
+        className="absolute inset-y-0.5 rounded-full bg-gradient-to-b from-foreground/45 to-foreground/30 hover:from-foreground/55 hover:to-foreground/40 active:from-foreground/65 active:to-foreground/55 ring-1 ring-white/30 shadow-sm cursor-grab active:cursor-grabbing transition-colors"
+        style={{ left: layout.thumbLeft, width: layout.thumbWidth }}
+      />
     </div>,
     document.body,
   );
