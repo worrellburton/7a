@@ -116,6 +116,22 @@ function fmtAgoLong(iso: string | null): string {
   return `${years} ${years === 1 ? 'year' : 'years'}`;
 }
 
+function sortValue(c: Contact, key: string): string | number | null {
+  switch (key) {
+    case 'name': return c.name || null;
+    case 'role': return c.role || null;
+    case 'phone': return c.phone || null;
+    case 'email': return c.email || null;
+    case 'location': return c.location || null;
+    case 'notes': return c.notes || null;
+    case 'last_contact_at':
+    case 'time_since':
+      return c.last_contact_at ? new Date(c.last_contact_at).getTime() : null;
+    case 'last_contact_by_name': return c.last_contact_by_name || null;
+    default: return null;
+  }
+}
+
 // "Stale" if last contact >14 days, or never. Drives the row tint
 // hint on the right-hand engagement column.
 function staleness(iso: string | null): 'fresh' | 'cooling' | 'stale' | 'never' {
@@ -146,6 +162,13 @@ export default function ContactsContent() {
 
   const [visibleCols, setVisibleCols] = useState<string[] | null>(null);
   const [columnOrder, setColumnOrder] = useState<string[] | null>(null);
+
+  const [sortKey, setSortKey] = useState<string>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
+  }
 
   // Initial fetch + realtime subscriptions for contacts + shared prefs.
   useEffect(() => {
@@ -228,6 +251,23 @@ export default function ContactsContent() {
       return hay.includes(q);
     });
   }, [rows, search, filterMethod, filterStaleness]);
+
+  const sorted = useMemo(() => {
+    const arr = filtered.slice();
+    arr.sort((a, b) => {
+      const va = sortValue(a, sortKey);
+      const vb = sortValue(b, sortKey);
+      // Nulls always sink to the bottom regardless of direction.
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      const cmp = typeof va === 'number' && typeof vb === 'number'
+        ? va - vb
+        : String(va).localeCompare(String(vb), 'en', { sensitivity: 'base' });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortKey, sortDir]);
 
   const visibleColumnsResolved = useMemo(() => {
     const order = columnOrder ?? DEFAULT_ORDER;
@@ -459,8 +499,11 @@ export default function ContactsContent() {
 
       <ContactsGrid
         loading={loading}
-        rows={filtered}
+        rows={sorted}
         columns={visibleColumnsResolved}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSort={toggleSort}
         onColDragStart={onColDragStart}
         onColDrop={onColDrop}
         onContact={(c) => setLogTarget(c)}
@@ -577,6 +620,9 @@ function ContactsGrid({
   loading,
   rows,
   columns,
+  sortKey,
+  sortDir,
+  onSort,
   onColDragStart,
   onColDrop,
   onContact,
@@ -590,6 +636,9 @@ function ContactsGrid({
   loading: boolean;
   rows: Contact[];
   columns: ColumnDef[];
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+  onSort: (k: string) => void;
   onColDragStart: (k: string) => void;
   onColDrop: (k: string) => void;
   onContact: (c: Contact) => void;
@@ -618,10 +667,14 @@ function ContactsGrid({
                 onDragStart={() => onColDragStart(c.key)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => onColDrop(c.key)}
-                className={`px-3 py-2 whitespace-nowrap select-none cursor-move ${c.align === 'right' ? 'text-right' : ''}`}
+                onClick={() => onSort(c.key)}
+                className={`px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80 ${c.align === 'right' ? 'text-right' : ''}`}
                 style={c.width ? { width: c.width } : undefined}
               >
-                {c.label}
+                <span className="inline-flex items-center gap-1">
+                  {c.label}
+                  <SortIndicator active={sortKey === c.key} dir={sortDir} />
+                </span>
               </th>
             ))}
             {/* Engagement / action columns — fixed at the far right
@@ -629,9 +682,36 @@ function ContactsGrid({
                 customised. Order: Contact button, Last contact by,
                 Time since (colored pill), Last contact date, actions menu. */}
             <th className="px-3 py-2 whitespace-nowrap" style={{ width: 200 }}>Actions</th>
-            <th className="px-3 py-2 whitespace-nowrap" style={{ width: 220 }}>Last contacted by</th>
-            <th className="px-3 py-2 whitespace-nowrap" style={{ width: 150 }}>Time since</th>
-            <th className="px-3 py-2 whitespace-nowrap" style={{ width: 160 }}>Last contact</th>
+            <th
+              onClick={() => onSort('last_contact_by_name')}
+              className="px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
+              style={{ width: 220 }}
+            >
+              <span className="inline-flex items-center gap-1">
+                Last contacted by
+                <SortIndicator active={sortKey === 'last_contact_by_name'} dir={sortDir} />
+              </span>
+            </th>
+            <th
+              onClick={() => onSort('time_since')}
+              className="px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
+              style={{ width: 150 }}
+            >
+              <span className="inline-flex items-center gap-1">
+                Time since
+                <SortIndicator active={sortKey === 'time_since'} dir={sortDir} />
+              </span>
+            </th>
+            <th
+              onClick={() => onSort('last_contact_at')}
+              className="px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
+              style={{ width: 160 }}
+            >
+              <span className="inline-flex items-center gap-1">
+                Last contact
+                <SortIndicator active={sortKey === 'last_contact_at'} dir={sortDir} />
+              </span>
+            </th>
             <th className="px-3 py-2 w-10" />
           </tr>
         </thead>
@@ -864,14 +944,22 @@ function ActionMenuPortal({
   );
 }
 
+function SortIndicator({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
+  return (
+    <span className={`text-[9px] leading-none ${active ? 'text-foreground/70' : 'text-foreground/20'}`} aria-hidden>
+      {active ? (dir === 'asc' ? '▲' : '▼') : '▲▼'}
+    </span>
+  );
+}
+
 function ContactCell({ column, contact }: { column: ColumnDef; contact: Contact }) {
   switch (column.key) {
     case 'name':
       return (
         <div>
-          <p className="font-semibold text-foreground">{contact.name}</p>
+          <p className="font-semibold text-foreground whitespace-nowrap">{contact.name}</p>
           {contact.source === 'downgrade-from-partner' && (
-            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-foreground/40">From partner</p>
+            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-foreground/40 whitespace-nowrap">From partner</p>
           )}
         </div>
       );
