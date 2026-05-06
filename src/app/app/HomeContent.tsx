@@ -575,7 +575,7 @@ export default function HomeContent() {
             between the absolutely-positioned hero (top) and the WIP
             footer pill (bottom), and `justify-center` parks the orbit
             + Ask Policies stack at the dead center of that space. */}
-        <div className="relative flex-1 flex flex-col items-stretch justify-center gap-6 sm:gap-10 lg:gap-14 mt-2 lg:mt-0">
+        <div className="relative flex-1 flex flex-col items-stretch justify-center gap-4 sm:gap-6 lg:gap-8 mt-2 lg:mt-0">
 
         {/* Centered, slowly-rotating ring of teammates active in the
             last 24 hours, with the horse roster orbiting in the inner
@@ -690,16 +690,16 @@ export default function HomeContent() {
             it instead of being half-covered. */}
         <section
           aria-label="Mission tagline"
-          className="w-full max-w-4xl mx-auto pt-8 pb-32 px-4 flex flex-col items-center text-center"
+          className="w-full max-w-4xl mx-auto pt-2 pb-24 px-4 flex flex-col items-center text-center"
         >
           <p
-            className="text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-2"
+            className="text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-1.5"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Seven Arrows
           </p>
           <h2
-            className="text-2xl lg:text-3xl font-semibold text-foreground/80 leading-tight"
+            className="text-xl lg:text-2xl font-semibold text-foreground/80 leading-tight"
             style={{ fontFamily: 'var(--font-display)' }}
             aria-label="Moving the mission forward"
           >

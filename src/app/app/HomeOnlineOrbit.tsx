@@ -291,20 +291,20 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
   const onlineCount = users.filter((u) => isOnlineNow(u.last_seen_at)).length;
 
   // Auto-size the orbit so neither ring ever feels cramped. We solve
-  // for the diameter that gives each avatar ~80px of arc length on
-  // the outer ring (roughly 1.7× the 48px lg avatar diameter — wide
+  // for the diameter that gives each avatar ~64px of arc length on
+  // the outer ring (roughly 1.4× the 48px lg avatar diameter — wide
   // enough that faces breathe without the ring becoming sparse).
   // The inner ring sits at inset-[20%], i.e. 60% of the outer
   // diameter, so we back-solve a horse-comfort minimum from there
   // too — a horse-heavy day shouldn't crush the inner ring just
-  // because the team count is light. Clamped between 280px (a tidy
-  // ring for sparse teams) and 680px (so the orbit never outgrows
-  // the centerpiece column on narrow desktops).
-  const usersNeeded = (users.length * 80) / Math.PI;
-  const horsesNeeded = (horses.length * 50) / (0.6 * Math.PI);
+  // because the team count is light. Clamped between 240px (a tidy
+  // ring for sparse teams) and 500px (so the orbit + tagline fit on
+  // one viewport without scrolling on a typical laptop screen).
+  const usersNeeded = (users.length * 64) / Math.PI;
+  const horsesNeeded = (horses.length * 40) / (0.6 * Math.PI);
   const idealDiameter = Math.max(
-    280,
-    Math.min(680, Math.round(Math.max(usersNeeded, horsesNeeded))),
+    240,
+    Math.min(500, Math.round(Math.max(usersNeeded, horsesNeeded))),
   );
 
   return (
