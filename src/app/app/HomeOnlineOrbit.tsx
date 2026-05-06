@@ -290,6 +290,23 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
 
   const onlineCount = users.filter((u) => isOnlineNow(u.last_seen_at)).length;
 
+  // Auto-size the orbit so neither ring ever feels cramped. We solve
+  // for the diameter that gives each avatar ~80px of arc length on
+  // the outer ring (roughly 1.7× the 48px lg avatar diameter — wide
+  // enough that faces breathe without the ring becoming sparse).
+  // The inner ring sits at inset-[20%], i.e. 60% of the outer
+  // diameter, so we back-solve a horse-comfort minimum from there
+  // too — a horse-heavy day shouldn't crush the inner ring just
+  // because the team count is light. Clamped between 280px (a tidy
+  // ring for sparse teams) and 680px (so the orbit never outgrows
+  // the centerpiece column on narrow desktops).
+  const usersNeeded = (users.length * 80) / Math.PI;
+  const horsesNeeded = (horses.length * 50) / (0.6 * Math.PI);
+  const idealDiameter = Math.max(
+    280,
+    Math.min(680, Math.round(Math.max(usersNeeded, horsesNeeded))),
+  );
+
   return (
     <section
       className="relative z-40 flex flex-col items-center justify-center w-full"
@@ -333,14 +350,17 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           7A medallion ~13px left of the visual console center on
           some viewport widths. The flex parent guarantees horizontal
           centering of the inner aspect-square box regardless of any
-          width-resolution quirks above. The mobile cap (260px) keeps
-          the avatars from being clipped at the viewport edges and
-          gives the bottom row breathing room above any browser
-          chrome / floating UI. sm+ caps grow with the viewport so the
-          24-ish team avatars on the outer ring don't crowd each other
-          on wide screens. */}
+          width-resolution quirks above. The orbit's max-width is
+          computed from the team + horse counts (idealDiameter above)
+          so a sparse roster draws a tight ~280px ring while a packed
+          one fans out to 680px. `w-full` still clamps to the viewport
+          on phones, so the px-4 padding keeps mobile avatars off the
+          screen edges without needing a hard breakpoint cap. */}
       <div className="w-full flex justify-center px-4">
-        <div className="relative w-full max-w-[340px] sm:max-w-[560px] lg:max-w-[640px] aspect-square">
+        <div
+          className="relative w-full aspect-square"
+          style={{ maxWidth: `${idealDiameter}px` }}
+        >
         {/* Decorative concentric rings + centre medallion. The
             outermost border is exactly where the avatars will land,
             so the eye reads the orbit as one composed shape. */}
