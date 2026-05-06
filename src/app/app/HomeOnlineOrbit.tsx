@@ -142,10 +142,14 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
       {/* Header — pinned above the ring as an overlay so it doesn't
           add height to the section's vertical centre. The ring's
           aspect-square box is what gets centered; the title floats
-          just above it in absolute space. Hidden on phones so the
+          just above it in absolute space. The big negative `top` is
+          deliberate — the topmost avatars on the ring extend ~25px
+          past the section's top edge (they're translate(-50%) on
+          the rim), so a smaller offset would have the title text
+          collide with those avatars. Hidden on phones so the
           orbit's centre medallion sits at the viewport's vertical
           centre (the parent absolute-positions the orbit on mobile). */}
-      <div className="hidden sm:block absolute left-1/2 -translate-x-1/2 -top-2 sm:-top-4 lg:-top-6 text-center pointer-events-none z-10">
+      <div className="hidden sm:block absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+1.25rem)] sm:bottom-[calc(100%+1.5rem)] lg:bottom-[calc(100%+2rem)] text-center pointer-events-none z-10">
         <p
           className="text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/45"
           style={{ fontFamily: 'var(--font-body)' }}
@@ -180,7 +184,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           24-ish team avatars on the outer ring don't crowd each other
           on wide screens. */}
       <div className="w-full flex justify-center px-4">
-        <div className="relative w-full max-w-[260px] sm:max-w-[560px] lg:max-w-[640px] aspect-square">
+        <div className="relative w-full max-w-[340px] sm:max-w-[560px] lg:max-w-[640px] aspect-square">
         {/* Decorative concentric rings + centre medallion. The
             outermost border is exactly where the avatars will land,
             so the eye reads the orbit as one composed shape. */}
