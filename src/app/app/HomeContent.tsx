@@ -421,7 +421,7 @@ export default function HomeContent() {
         <div className="absolute bottom-0 left-1/3 w-[480px] h-[480px] rounded-full bg-amber-200/35 blur-[130px]" />
       </div>
 
-      <div className="relative flex-1 flex flex-col h-[calc(100vh-1px)] max-h-[calc(100vh-1px)] overflow-hidden px-4 sm:px-6 lg:px-10 pt-3 lg:pt-6 pb-4 lg:pb-10">
+      <div className="relative flex-1 flex flex-col h-[calc(100vh-1px)] max-h-[calc(100vh-1px)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
 
         {/* Phase 4: hero — no glass card; the avatar/greeting and the
             create-menu button float on the page background. The hero

@@ -139,11 +139,13 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
       className="relative z-40 flex flex-col items-center justify-center w-full"
       aria-label="Online today"
     >
-      {/* Header — hidden on phones so the orbit's centre medallion
-          sits at the viewport's vertical centre (the parent absolute-
-          positions the orbit on mobile). Returns on sm+ where there's
-          plenty of vertical room. */}
-      <div className="hidden sm:block text-center mb-6 sm:mb-10">
+      {/* Header — pinned above the ring as an overlay so it doesn't
+          add height to the section's vertical centre. The ring's
+          aspect-square box is what gets centered; the title floats
+          just above it in absolute space. Hidden on phones so the
+          orbit's centre medallion sits at the viewport's vertical
+          centre (the parent absolute-positions the orbit on mobile). */}
+      <div className="hidden sm:block absolute left-1/2 -translate-x-1/2 -top-2 sm:-top-4 lg:-top-6 text-center pointer-events-none z-10">
         <p
           className="text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/45"
           style={{ fontFamily: 'var(--font-body)' }}
