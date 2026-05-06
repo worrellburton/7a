@@ -266,7 +266,7 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M5 7l-1.5-1.5M19 7l1.5-1.5M5 17l-1.5 1.5M19 17l1.5 1.5" />
     </svg>
   ),
-  '/app/contacts': (
+  '/app/outreach': (
     // Address book / contact card — distinct from the team-people
     // icon so the two surfaces don't read as duplicates.
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">

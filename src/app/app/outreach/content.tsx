@@ -375,22 +375,26 @@ export default function ContactsContent() {
   // grid reflects the saved text immediately. The realtime postgres
   // subscription will reconcile if the server pushes back something
   // different.
-  async function handleSaveNotes(id: string, notes: string) {
+  async function handleSaveField(id: string, field: 'name' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) {
     if (!session?.access_token) return;
-    const trimmed = notes.trim();
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, notes: trimmed || null } : r)));
+    const trimmed = value.trim();
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: trimmed || null } : r)));
     const res = await fetch(`/api/contacts/${id}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ notes: trimmed }),
+      body: JSON.stringify({ [field]: trimmed }),
     });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
-      alert(`Couldn't save notes: ${json.error ?? res.status}`);
+      alert(`Couldn't save: ${json.error ?? res.status}`);
     }
+  }
+
+  async function handleSaveNotes(id: string, notes: string) {
+    return handleSaveField(id, 'notes', notes);
   }
 
   async function handleDelete(target: Contact) {
@@ -511,6 +515,7 @@ export default function ContactsContent() {
         onHistory={(c) => setHistoryTarget(c)}
         onDelete={(c) => handleDelete(c)}
         onSaveNotes={handleSaveNotes}
+        onSaveField={handleSaveField}
         actionMenuFor={actionMenuFor}
         setActionMenuFor={setActionMenuFor}
       />
@@ -630,6 +635,7 @@ function ContactsGrid({
   onHistory,
   onDelete,
   onSaveNotes,
+  onSaveField,
   actionMenuFor,
   setActionMenuFor,
 }: {
@@ -646,6 +652,7 @@ function ContactsGrid({
   onHistory: (c: Contact) => void;
   onDelete: (c: Contact) => void;
   onSaveNotes: (id: string, notes: string) => Promise<void>;
+  onSaveField: (id: string, field: 'name' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
   actionMenuFor: { id: string; rect: DOMRect } | null;
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
 }) {
@@ -654,9 +661,55 @@ function ContactsGrid({
   // simple id string; null when collapsed.
   const [expandedNotesId, setExpandedNotesId] = useState<string | null>(null);
   const totalCols = columns.length + 5;
+
+  // Sticky horizontal scrollbar — when the table overflows the viewport
+  // width, mirror its native scrollbar with a thin proxy bar pinned to
+  // the bottom of the viewport so the user never has to scroll the page
+  // down just to reach the slider. Both bars stay in sync.
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const proxyRef = useRef<HTMLDivElement | null>(null);
+  const [scrollW, setScrollW] = useState(0);
+  const [overflows, setOverflows] = useState(false);
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    const measure = () => {
+      setScrollW(el.scrollWidth);
+      setOverflows(el.scrollWidth > el.clientWidth + 1);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    Array.from(el.children).forEach((c) => ro.observe(c as Element));
+    window.addEventListener('resize', measure);
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
+  }, [rows.length, columns.length]);
+  const lockRef = useRef<'table' | 'proxy' | null>(null);
+  function syncFromTable() {
+    if (lockRef.current === 'proxy') return;
+    lockRef.current = 'table';
+    if (proxyRef.current && tableScrollRef.current) {
+      proxyRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => { lockRef.current = null; });
+  }
+  function syncFromProxy() {
+    if (lockRef.current === 'table') return;
+    lockRef.current = 'proxy';
+    if (proxyRef.current && tableScrollRef.current) {
+      tableScrollRef.current.scrollLeft = proxyRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => { lockRef.current = null; });
+  }
+
   return (
     <>
-      <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
+      <div className="hidden md:block">
+      <div
+        ref={tableScrollRef}
+        onScroll={syncFromTable}
+        className="overflow-x-auto rounded-xl border border-black/10 bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         <table className="w-full text-sm">
         <thead className="bg-warm-bg/50 text-left text-[11px] uppercase tracking-wider text-foreground/55">
           <tr>
@@ -754,7 +807,7 @@ function ContactsGrid({
                   }
                   return (
                     <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      <ContactCell column={col} contact={c} />
+                      <ContactCell column={col} contact={c} onSaveField={onSaveField} />
                     </td>
                   );
                 })}
@@ -840,6 +893,16 @@ function ContactsGrid({
           )}
         </tbody>
       </table>
+      </div>
+      {overflows && (
+        <div
+          ref={proxyRef}
+          onScroll={syncFromProxy}
+          className="sticky bottom-0 z-30 mt-1 overflow-x-auto rounded-md bg-white/85 backdrop-blur ring-1 ring-black/10 shadow-[0_-4px_10px_rgba(0,0,0,0.04)]"
+        >
+          <div style={{ width: scrollW, height: 1 }} aria-hidden />
+        </div>
+      )}
       </div>
 
       {/* Mobile card layout — table is hard to scan on phones, so
@@ -952,25 +1015,73 @@ function SortIndicator({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }
   );
 }
 
-function ContactCell({ column, contact }: { column: ColumnDef; contact: Contact }) {
+function ContactCell({
+  column,
+  contact,
+  onSaveField,
+}: {
+  column: ColumnDef;
+  contact: Contact;
+  onSaveField: (id: string, field: 'name' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+}) {
+  const save = (field: 'name' | 'role' | 'phone' | 'email' | 'location') => (next: string) =>
+    onSaveField(contact.id, field, next);
   switch (column.key) {
     case 'name':
       return (
         <div>
-          <p className="font-semibold text-foreground whitespace-nowrap">{contact.name}</p>
+          <EditableTextCell
+            value={contact.name}
+            onSave={save('name')}
+            className="font-semibold text-foreground whitespace-nowrap"
+            placeholder="Add name…"
+          />
           {contact.source === 'downgrade-from-partner' && (
             <p className="mt-0.5 text-[10px] uppercase tracking-wider text-foreground/40 whitespace-nowrap">From partner</p>
           )}
         </div>
       );
     case 'role':
-      return <span className="text-foreground/70">{contact.role || <Em />}</span>;
+      return (
+        <EditableTextCell
+          value={contact.role}
+          onSave={save('role')}
+          className="text-foreground/70"
+          placeholder="Add role…"
+        />
+      );
     case 'phone':
-      return contact.phone ? <CopyableCell value={contact.phone} mono /> : <Em />;
+      return (
+        <EditableTextCell
+          value={contact.phone}
+          onSave={save('phone')}
+          type="tel"
+          className="text-foreground/85"
+          mono
+          copyable
+          placeholder="Add phone…"
+        />
+      );
     case 'email':
-      return contact.email ? <CopyableCell value={contact.email} /> : <Em />;
+      return (
+        <EditableTextCell
+          value={contact.email}
+          onSave={save('email')}
+          type="email"
+          className="text-foreground/85"
+          copyable
+          placeholder="Add email…"
+        />
+      );
     case 'location':
-      return <span className="text-foreground/65 whitespace-nowrap">{contact.location || <Em />}</span>;
+      return (
+        <EditableTextCell
+          value={contact.location}
+          onSave={save('location')}
+          className="text-foreground/65 whitespace-nowrap"
+          placeholder="Add location…"
+        />
+      );
     case 'notes':
       return contact.notes
         ? <span className="text-foreground/75 truncate block max-w-[420px]" title={contact.notes}>{contact.notes}</span>
@@ -978,6 +1089,96 @@ function ContactCell({ column, contact }: { column: ColumnDef; contact: Contact 
     default:
       return null;
   }
+}
+
+// Inline single-line editor used by the editable text columns. Click to
+// edit, Enter / blur to save, Esc to cancel. Empty string clears the
+// field server-side. Optimistic update plus the existing realtime
+// subscription means every connected viewer sees the change.
+function EditableTextCell({
+  value,
+  onSave,
+  type = 'text',
+  className = '',
+  mono = false,
+  copyable = false,
+  placeholder,
+}: {
+  value: string | null | undefined;
+  onSave: (next: string) => Promise<void> | void;
+  type?: 'text' | 'tel' | 'email';
+  className?: string;
+  mono?: boolean;
+  copyable?: boolean;
+  placeholder?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? '');
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (!editing) setDraft(value ?? '');
+  }, [value, editing]);
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  async function commit() {
+    const next = draft.trim();
+    if ((next || '') === (value ?? '').trim()) {
+      setEditing(false);
+      return;
+    }
+    setEditing(false);
+    await onSave(next);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type={type}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); void commit(); }
+          else if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false); }
+        }}
+        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${mono ? 'font-mono tabular-nums' : ''}`}
+      />
+    );
+  }
+  const display = value ?? '';
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => setEditing(true)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditing(true); } }}
+      title={display ? (copyable ? `${display} · click to edit` : 'Click to edit') : 'Click to add'}
+      className={`group inline-flex items-center gap-1.5 cursor-text rounded-md px-1 -mx-1 py-0.5 hover:bg-warm-bg/60 transition-colors max-w-full ${className}`}
+    >
+      {display ? (
+        <span className={`${mono ? 'font-mono tabular-nums' : ''} truncate`}>{display}</span>
+      ) : (
+        <span className="text-foreground/30 italic text-[12px]">{placeholder ?? 'Click to add'}</span>
+      )}
+      {copyable && display && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); void navigator.clipboard.writeText(display); }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-foreground/40 hover:text-foreground/70"
+          title="Copy"
+          aria-label="Copy"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      )}
+    </div>
+  );
 }
 
 function ContactMobileCard({
