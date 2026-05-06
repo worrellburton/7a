@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 
 // Centered, slowly-rotating ring of avatars representing every
@@ -112,23 +113,178 @@ function fmtRelative(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+type HoverState =
+  | { kind: 'user'; user: OrbitUser; viewing: string | null; navTarget: string | null; online: boolean }
+  | { kind: 'horse'; horse: OrbitHorse };
+
+interface TooltipPos {
+  // Fixed-positioning anchor. The tooltip is portaled to <body> so it
+  // escapes every parent's overflow-hidden — only the viewport itself
+  // can clip it, and the auto-flip + edge-clamp below handle that.
+  left: number;
+  // top edge (when placement === 'bottom') or bottom edge (when
+  // placement === 'top') of the trigger, in viewport coords.
+  anchorY: number;
+  placement: 'top' | 'bottom';
+}
+
+function OrbitTooltip({
+  hovered,
+  pos,
+  tooltipRef,
+}: {
+  hovered: HoverState;
+  pos: TooltipPos;
+  tooltipRef: React.MutableRefObject<HTMLDivElement | null>;
+}) {
+  const gap = 12;
+  const style: CSSProperties = {
+    position: 'fixed',
+    left: pos.left,
+    top: pos.placement === 'bottom' ? pos.anchorY + gap : undefined,
+    bottom: pos.placement === 'top' ? Math.max(0, window.innerHeight - pos.anchorY) + gap : undefined,
+    transform: 'translateX(-50%)',
+    zIndex: 9999,
+    pointerEvents: 'none',
+  };
+  return (
+    <div ref={tooltipRef} style={style} className="orbit-tooltip">
+      {hovered.kind === 'user' ? (
+        (() => {
+          const actions = hovered.user.actions_today ?? 0;
+          const onFire = actions > ON_FIRE_THRESHOLD;
+          const recent = hovered.user.recent_actions ?? [];
+          return (
+            <div className="w-max max-w-[min(20rem,82vw)] px-3 py-2 bg-foreground text-white text-xs rounded-lg shadow-[0_18px_40px_-18px_rgba(0,0,0,0.45)] break-words text-center">
+              <p className="font-semibold leading-tight">{hovered.user.full_name || 'User'}</p>
+              {hovered.user.job_title && (
+                <p className="text-white/85 leading-tight mt-0.5">{hovered.user.job_title}</p>
+              )}
+              <p className="text-white/75 leading-tight mt-0.5">
+                {hovered.online ? 'Online now' : `Last active ${timeAgo(hovered.user.last_sign_in)}`}
+              </p>
+              {hovered.viewing && (
+                <p className="text-emerald-300 leading-tight mt-0.5">
+                  Viewing {hovered.viewing}
+                  {hovered.navTarget ? ' — click to jump' : ''}
+                </p>
+              )}
+              {onFire && (
+                <div className="mt-1.5 pt-1.5 border-t border-white/15 text-left">
+                  <p className="text-orange-300 font-semibold leading-tight">
+                    <span aria-hidden="true">🔥</span> On a streak — {actions} actions today
+                  </p>
+                  {recent.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 text-white/80 leading-snug">
+                      {recent.slice(0, 4).map((a, idx) => (
+                        <li key={`${a.created_at}-${idx}`} className="truncate">
+                          <span className="text-white/55">{timeAgo(a.created_at)} · </span>
+                          {humanizeActivityType(a.type)}
+                          {a.target_label ? `: ${a.target_label}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()
+      ) : (
+        <div className="w-max max-w-[min(18rem,80vw)] bg-white rounded-xl border border-gray-100 shadow-[0_18px_40px_-18px_rgba(0,0,0,0.45)] px-3 py-2">
+          <p className="text-sm font-semibold text-foreground">{hovered.horse.name}</p>
+          <p className="text-[11px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+            {hovered.horse.age != null ? `${hovered.horse.age} years` : 'Age unknown'}
+            {hovered.horse.works_in ? ` · ${hovered.horse.works_in}` : ''}
+          </p>
+          <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
+            <span className="text-foreground/40">Weight</span>
+            <span className="text-foreground/80 text-right">
+              {hovered.horse.last_weight_lbs ? `${hovered.horse.last_weight_lbs} lbs` : hovered.horse.weight ? `${hovered.horse.weight} lbs` : '—'}
+            </span>
+            <span className="text-foreground/40">Last fed</span>
+            <span className="text-foreground/80 text-right">
+              {hovered.horse.last_fed_at
+                ? `${hovered.horse.last_feed_amount ?? ''}${hovered.horse.last_feed_unit ? ' ' + hovered.horse.last_feed_unit : ''} ${hovered.horse.last_feed_type ?? ''} · ${fmtRelative(hovered.horse.last_fed_at)}`.trim()
+                : '—'}
+            </span>
+            {hovered.horse.last_weighed_at && (
+              <>
+                <span className="text-foreground/40">Weighed</span>
+                <span className="text-foreground/80 text-right">{fmtRelative(hovered.horse.last_weighed_at)}</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  // Per-avatar absolute tooltips were clipped by the home wrapper's
-  // overflow-hidden whenever a near-edge avatar was hovered. Using a
-  // single shared tooltip pinned just under the 7A medallion keeps
-  // it on-screen regardless of which avatar is active.
-  const [hovered, setHovered] = useState<
-    | { kind: 'user'; user: OrbitUser; viewing: string | null; navTarget: string | null; online: boolean }
-    | { kind: 'horse'; horse: OrbitHorse }
-    | null
-  >(null);
+  // Tooltips were previously pinned under the 7A medallion to dodge
+  // overflow clipping. We now portal them to <body> with computed
+  // fixed positioning, so they can attach directly to the hovered
+  // avatar without ever being clipped. The ring also pauses on hover
+  // so the avatar — and therefore the tooltip — stays put while you
+  // read it.
+  const [hovered, setHovered] = useState<HoverState | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<TooltipPos | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 60);
     return () => clearTimeout(t);
   }, []);
+
+  // Re-measure the tooltip after it renders so we can clamp its
+  // horizontal position inside the viewport (a wide tooltip near the
+  // ring's left/right edge would otherwise spill off-screen). Runs
+  // only when hover state or anchor changes — not on every frame.
+  useLayoutEffect(() => {
+    if (!hovered || !tooltipPos || !tooltipRef.current) return;
+    const tipRect = tooltipRef.current.getBoundingClientRect();
+    const margin = 12;
+    let { left } = tooltipPos;
+    const halfWidth = tipRect.width / 2;
+    if (left - halfWidth < margin) left = margin + halfWidth;
+    if (left + halfWidth > window.innerWidth - margin) left = window.innerWidth - margin - halfWidth;
+    if (left !== tooltipPos.left) {
+      setTooltipPos((prev) => (prev ? { ...prev, left } : prev));
+    }
+  }, [hovered, tooltipPos]);
+
+  // Place the tooltip relative to the trigger's screen rect. Choose
+  // the side that points back toward the orbit centre (top half of
+  // ring → tooltip below; bottom half → tooltip above) so the
+  // tooltip naturally falls inside the orbit instead of off-screen.
+  function positionTooltipFor(el: HTMLElement) {
+    const rect = el.getBoundingClientRect();
+    const centerY = window.innerHeight / 2;
+    const triggerCenterY = rect.top + rect.height / 2;
+    const placement: 'top' | 'bottom' = triggerCenterY < centerY ? 'bottom' : 'top';
+    setTooltipPos({
+      left: rect.left + rect.width / 2,
+      anchorY: placement === 'bottom' ? rect.bottom : rect.top,
+      placement,
+    });
+  }
+
+  function clearHover(predicate: (h: HoverState) => boolean) {
+    setHovered((prev) => {
+      if (!prev) return prev;
+      if (!predicate(prev)) return prev;
+      setTooltipPos(null);
+      return null;
+    });
+  }
 
   if (users.length === 0) return null;
 
@@ -221,7 +377,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             shape with the horses gently trailing the team. */}
         {horses.length > 0 && (
           <div
-            className={`orbit-ring absolute inset-[20%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-slow' : ''}`}
+            className={`orbit-ring absolute inset-[20%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-slow' : ''} ${hovered ? 'orbit-paused' : ''}`}
           >
             {horses.map((h, i) => {
               const angle = (i / horses.length) * 360;
@@ -236,20 +392,30 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                   <button
                     type="button"
                     onClick={() => router.push(`/app/equine/${h.id}`)}
-                    onMouseEnter={() => setHovered({ kind: 'horse', horse: h })}
-                    onMouseLeave={() => setHovered((prev) => (prev?.kind === 'horse' && prev.horse.id === h.id ? null : prev))}
-                    onFocus={() => setHovered({ kind: 'horse', horse: h })}
-                    onBlur={() => setHovered((prev) => (prev?.kind === 'horse' && prev.horse.id === h.id ? null : prev))}
+                    onMouseEnter={(e) => {
+                      positionTooltipFor(e.currentTarget);
+                      setHovered({ kind: 'horse', horse: h });
+                    }}
+                    onMouseLeave={() => clearHover((prev) => prev.kind === 'horse' && prev.horse.id === h.id)}
+                    onFocus={(e) => {
+                      positionTooltipFor(e.currentTarget);
+                      setHovered({ kind: 'horse', horse: h });
+                    }}
+                    onBlur={() => clearHover((prev) => prev.kind === 'horse' && prev.horse.id === h.id)}
                     className={`orbit-pin group orbit-pin-horse ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} cursor-pointer`}
                     style={pinStyle}
                     title={h.name}
                     aria-label={h.name}
                   >
                     {/* Counter-rotating wrapper for the slower inner ring
-                        (orbit-spin-slow on the parent). Inner span then
+                        (orbit-spin-slow on the parent). Gated on
+                        `mounted` so it starts in the same frame as
+                        the parent's spin animation — otherwise a 60ms
+                        head-start would leave each horse photo
+                        permanently tilted by ~0.12deg. Inner span then
                         undoes the slot's static rotation so the horse
                         photo isn't tilted by where it sits on the rim. */}
-                    <span className="orbit-counter-slow motion-reduce:!animate-none">
+                    <span className={`${mounted ? 'orbit-counter-slow' : ''} motion-reduce:!animate-none`}>
                       <span
                         className="block"
                         style={{ transform: `rotate(${-angle}deg)` }}
@@ -288,7 +454,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             rotates at the same rate so faces stay upright through the
             orbit. */}
         <div
-          className={`orbit-ring absolute inset-[7%] sm:inset-0 motion-reduce:!animate-none ${mounted ? 'orbit-spin' : ''}`}
+          className={`orbit-ring absolute inset-[7%] sm:inset-0 motion-reduce:!animate-none ${mounted ? 'orbit-spin' : ''} ${hovered ? 'orbit-paused' : ''}`}
         >
           {users.map((u, i) => {
             const angle = (i / users.length) * 360;
@@ -309,20 +475,30 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                 <Wrapper
                   type={navTarget ? 'button' : undefined}
                   onClick={navTarget ? () => router.push(navTarget) : undefined}
-                  onMouseEnter={() => setHovered({ kind: 'user', user: u, viewing, navTarget, online })}
-                  onMouseLeave={() => setHovered((h) => (h?.kind === 'user' && h.user.id === u.id ? null : h))}
-                  onFocus={() => setHovered({ kind: 'user', user: u, viewing, navTarget, online })}
-                  onBlur={() => setHovered((h) => (h?.kind === 'user' && h.user.id === u.id ? null : h))}
+                  onMouseEnter={(e: React.MouseEvent<HTMLElement>) => {
+                    positionTooltipFor(e.currentTarget);
+                    setHovered({ kind: 'user', user: u, viewing, navTarget, online });
+                  }}
+                  onMouseLeave={() => clearHover((h) => h.kind === 'user' && h.user.id === u.id)}
+                  onFocus={(e: React.FocusEvent<HTMLElement>) => {
+                    positionTooltipFor(e.currentTarget);
+                    setHovered({ kind: 'user', user: u, viewing, navTarget, online });
+                  }}
+                  onBlur={() => clearHover((h) => h.kind === 'user' && h.user.id === u.id)}
                   className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} ${navTarget ? 'cursor-pointer' : ''}`}
                   style={pinStyle}
                   title={navTarget ? `Go to ${viewing}` : undefined}
                   aria-label={u.full_name || 'Teammate'}
                 >
                   {/* Counter-rotating wrapper keeps the face upright
-                      while the parent ring spins. The inner span then
-                      cancels the slot's static rotation so the face
-                      isn't tilted by where it sits on the rim. */}
-                  <span className="orbit-counter motion-reduce:!animate-none">
+                      while the parent ring spins. Gated on `mounted`
+                      so it starts in the exact same frame as the
+                      parent's `orbit-spin` — otherwise the counter
+                      runs 60ms ahead and faces sit permanently
+                      ~0.18deg off-axis. The inner span then cancels
+                      the slot's static rotation so the face isn't
+                      tilted by where it sits on the rim. */}
+                  <span className={`${mounted ? 'orbit-counter' : ''} motion-reduce:!animate-none`}>
                     <span
                       className="block"
                       style={{ transform: `rotate(${-angle}deg)` }}
@@ -384,84 +560,22 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
           })}
         </div>
 
-        {/* Shared centre tooltip — pinned just below the 7A
-            medallion, slot-rotation-free so it can never be clipped
-            by the home wrapper's overflow-hidden no matter where the
-            hovered avatar sits in the orbit. */}
-        {hovered && (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 mt-12 z-[60] pointer-events-none">
-            {hovered.kind === 'user' ? (
-              (() => {
-                const actions = hovered.user.actions_today ?? 0;
-                const onFire = actions > ON_FIRE_THRESHOLD;
-                const recent = hovered.user.recent_actions ?? [];
-                return (
-                  <div className="w-max max-w-[min(20rem,82vw)] px-3 py-2 bg-foreground text-white text-xs rounded-lg shadow-lg break-words text-center">
-                    <p className="font-semibold leading-tight">{hovered.user.full_name || 'User'}</p>
-                    {hovered.user.job_title && (
-                      <p className="text-white/85 leading-tight mt-0.5">{hovered.user.job_title}</p>
-                    )}
-                    <p className="text-white/75 leading-tight mt-0.5">
-                      {hovered.online ? 'Online now' : `Last active ${timeAgo(hovered.user.last_sign_in)}`}
-                    </p>
-                    {hovered.viewing && (
-                      <p className="text-emerald-300 leading-tight mt-0.5">
-                        Viewing {hovered.viewing}
-                        {hovered.navTarget ? ' — click to jump' : ''}
-                      </p>
-                    )}
-                    {onFire && (
-                      <div className="mt-1.5 pt-1.5 border-t border-white/15 text-left">
-                        <p className="text-orange-300 font-semibold leading-tight">
-                          <span aria-hidden="true">🔥</span> On a streak — {actions} actions today
-                        </p>
-                        {recent.length > 0 && (
-                          <ul className="mt-1 space-y-0.5 text-white/80 leading-snug">
-                            {recent.slice(0, 4).map((a, idx) => (
-                              <li key={`${a.created_at}-${idx}`} className="truncate">
-                                <span className="text-white/55">{timeAgo(a.created_at)} · </span>
-                                {humanizeActivityType(a.type)}
-                                {a.target_label ? `: ${a.target_label}` : ''}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()
-            ) : (
-              <div className="w-max max-w-[min(18rem,80vw)] bg-white rounded-xl border border-gray-100 shadow-xl px-3 py-2">
-                <p className="text-sm font-semibold text-foreground">{hovered.horse.name}</p>
-                <p className="text-[11px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-                  {hovered.horse.age != null ? `${hovered.horse.age} years` : 'Age unknown'}
-                  {hovered.horse.works_in ? ` · ${hovered.horse.works_in}` : ''}
-                </p>
-                <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]" style={{ fontFamily: 'var(--font-body)' }}>
-                  <span className="text-foreground/40">Weight</span>
-                  <span className="text-foreground/80 text-right">
-                    {hovered.horse.last_weight_lbs ? `${hovered.horse.last_weight_lbs} lbs` : hovered.horse.weight ? `${hovered.horse.weight} lbs` : '—'}
-                  </span>
-                  <span className="text-foreground/40">Last fed</span>
-                  <span className="text-foreground/80 text-right">
-                    {hovered.horse.last_fed_at
-                      ? `${hovered.horse.last_feed_amount ?? ''}${hovered.horse.last_feed_unit ? ' ' + hovered.horse.last_feed_unit : ''} ${hovered.horse.last_feed_type ?? ''} · ${fmtRelative(hovered.horse.last_fed_at)}`.trim()
-                      : '—'}
-                  </span>
-                  {hovered.horse.last_weighed_at && (
-                    <>
-                      <span className="text-foreground/40">Weighed</span>
-                      <span className="text-foreground/80 text-right">{fmtRelative(hovered.horse.last_weighed_at)}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
         </div>
       </div>
+
+      {/* Avatar-attached tooltip. Portaled to <body> (outside the
+          `app-shell` zoom wrapper) with fixed positioning so no
+          parent's overflow-hidden can clip it. The ring above pauses
+          while `hovered` is set so the trigger — and therefore the
+          tooltip's anchor — stays still while you read it. */}
+      {portalReady && hovered && tooltipPos && createPortal(
+        <OrbitTooltip
+          hovered={hovered}
+          pos={tooltipPos}
+          tooltipRef={tooltipRef}
+        />,
+        document.body,
+      )}
 
       <style jsx>{`
         /* Outer ring (team) rotates clockwise on a slow 120s loop.
@@ -484,6 +598,18 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
         }
         .orbit-counter      { display: inline-block; animation: orbit-counter-rot 120s linear infinite; }
         .orbit-counter-slow { display: inline-block; animation: orbit-counter-rot 180s linear infinite; }
+
+        /* When any avatar is hovered we freeze the rings (and their
+           paired counter-rotations) so the trigger stays pinned under
+           the cursor and the portaled tooltip — anchored to that
+           trigger's getBoundingClientRect — stays glued to the avatar
+           instead of drifting off as the ring spins. Pausing both
+           directions simultaneously keeps faces upright while frozen. */
+        .orbit-ring.orbit-paused,
+        .orbit-ring.orbit-paused .orbit-counter,
+        .orbit-ring.orbit-paused .orbit-counter-slow {
+          animation-play-state: paused;
+        }
 
         /* Slots fill the ring's bounding box. Each is rotated to its
            angle inline; the pin pinned at the top centre of the slot
