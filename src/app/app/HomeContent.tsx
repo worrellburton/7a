@@ -683,6 +683,29 @@ export default function HomeContent() {
 
         </div> {/* end centerpiece */}
 
+        {/* Mission tagline — closes the home page with a quiet brand
+            anchor below the team orbit. Phase 1: foundation only —
+            eyebrow + display headline, centered, low-contrast, max-w
+            so it reads as a chapter close rather than a CTA. Later
+            phases layer atmosphere, motion, and personalisation. */}
+        <section
+          aria-label="Mission tagline"
+          className="w-full max-w-4xl mx-auto pt-8 pb-12 px-4 flex flex-col items-center text-center"
+        >
+          <p
+            className="text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-2"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Seven Arrows
+          </p>
+          <h2
+            className="text-2xl lg:text-3xl font-semibold text-foreground/80 leading-tight"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            Moving the mission forward
+          </h2>
+        </section>
+
       </div>
 
       <FeatureRequestModal open={featureRequestOpen} onClose={() => setFeatureRequestOpen(false)} />
