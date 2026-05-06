@@ -37,9 +37,11 @@ const nextConfig = {
 
       // ── Phase 1: Substance landing pages → /what-we-treat/* ─────
       { source: '/meth-addiction', destination: '/what-we-treat/methamphetamine', statusCode: 301 },
-      { source: '/what-to-expect-during-meth-withdrawal', destination: '/what-we-treat/methamphetamine', statusCode: 301 },
+      // /what-to-expect-during-meth-withdrawal is now an actual
+      // article route (Recovery Roadmap series), not a redirect.
       { source: '/xanax', destination: '/what-we-treat/benzodiazepine', statusCode: 301 },
-      { source: '/detox-for-benzodiazepine-withdrawal', destination: '/what-we-treat/benzodiazepine', statusCode: 301 },
+      // /detox-for-benzodiazepine-withdrawal is now an actual
+      // article route (Recovery Roadmap series), not a redirect.
       { source: '/opioid', destination: '/what-we-treat/opioid-addiction', statusCode: 301 },
       { source: '/fentanyl-detox', destination: '/what-we-treat/opioid-addiction', statusCode: 301 },
       // /transition-from-suboxone-to-sublocade is now an actual
@@ -74,32 +76,38 @@ const nextConfig = {
       { source: '/treatment-services/luxury-addiction-treatment', destination: '/treatment/residential-inpatient', statusCode: 301 },
       { source: '/luxury-rehab-center', destination: '/treatment/residential-inpatient', statusCode: 301 },
       { source: '/difference-between-inpatient-vs-outpatient', destination: '/treatment/residential-inpatient', statusCode: 301 },
-      { source: '/inpatient-mental-health-facilities-in-arizona', destination: '/treatment/residential-inpatient', statusCode: 301 },
+      // /inpatient-mental-health-facilities-in-arizona is now an
+      // actual article route (Recovery Roadmap series).
       { source: '/treatment-services/dual-diagnosis', destination: '/what-we-treat/dual-diagnosis', statusCode: 301 },
       { source: '/dual-diagnosis-treatment-centers-in-arizona', destination: '/what-we-treat/dual-diagnosis', statusCode: 301 },
       { source: '/treatment-services/interventions', destination: '/treatment/interventions', statusCode: 301 },
-      { source: '/force-someone-to-go-to-rehab', destination: '/treatment/interventions', statusCode: 301 },
+      // /force-someone-to-go-to-rehab is now an actual article route
+      // (Recovery Roadmap series).
       { source: '/treatment-services/alumni-aftercare', destination: '/treatment/alumni-aftercare', statusCode: 301 },
       { source: '/treatment-services', destination: '/treatment', statusCode: 301 },
 
       // ── Phase 4: Our Program (modalities) → /our-program/* ──────
       { source: '/treatment-services/holistic-approaches', destination: '/our-program/holistic-approaches', statusCode: 301 },
       { source: '/supportive-holistic-care-for-medical-detox', destination: '/our-program/holistic-approaches', statusCode: 301 },
-      { source: '/what-makes-a-rehab-holistic', destination: '/our-program/holistic-approaches', statusCode: 301 },
-      { source: '/sound-therapy-and-addiction-treatment', destination: '/our-program/holistic-approaches', statusCode: 301 },
+      // /what-makes-a-rehab-holistic and
+      // /sound-therapy-and-addiction-treatment are now actual
+      // article routes (Recovery Roadmap series).
       { source: '/medical-and-holistic-addiction-treatment', destination: '/our-program/holistic-approaches', statusCode: 301 },
       { source: '/treatment-services/evidence-based', destination: '/our-program/evidence-based', statusCode: 301 },
       { source: '/seven-core-principles', destination: '/our-program/evidence-based', statusCode: 301 },
-      { source: '/medication-assisted-treatment-long-term', destination: '/our-program/evidence-based', statusCode: 301 },
-      { source: '/what-to-expect-during-dbt-sessions', destination: '/our-program/evidence-based', statusCode: 301 },
+      // /medication-assisted-treatment-long-term and
+      // /what-to-expect-during-dbt-sessions are now actual article
+      // routes (Recovery Roadmap series).
       { source: '/cbt-improves-addiction-outcomes', destination: '/our-program/evidence-based', statusCode: 301 },
       { source: '/treatment-services/cbt', destination: '/our-program/evidence-based', statusCode: 301 },
       { source: '/treatment-services/equine-assisted', destination: '/our-program/equine-assisted', statusCode: 301 },
-      { source: '/pets-role-in-addiction-recovery-unconditional-support-love', destination: '/our-program/equine-assisted', statusCode: 301 },
-      { source: '/drug-rehabs-with-horses', destination: '/our-program/equine-assisted', statusCode: 301 },
+      // /pets-role-in-addiction-recovery-unconditional-support-love
+      // and /drug-rehabs-with-horses are now actual article routes
+      // (Recovery Roadmap series).
       { source: '/treatment-services/indigenous-program', destination: '/our-program/indigenous-approach', statusCode: 301 },
       { source: '/addiction-in-native-american-communities', destination: '/our-program/indigenous-approach', statusCode: 301 },
-      { source: '/the-integration-of-cultural-and-holistic-healing-in-recovery', destination: '/our-program/indigenous-approach', statusCode: 301 },
+      // /the-integration-of-cultural-and-holistic-healing-in-recovery
+      // is now an actual article route (Recovery Roadmap series).
       { source: '/treatment-services/trauma-informed-care', destination: '/our-program/trauma-treatment', statusCode: 301 },
       { source: '/treatment-services/brainspotting', destination: '/our-program/trauma-treatment', statusCode: 301 },
       { source: '/treatment-services/family-therapy', destination: '/our-program/family-program', statusCode: 301 },
@@ -150,14 +158,17 @@ const nextConfig = {
       { source: '/blog', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/self-care-addiction-recovery', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/what-to-expect-during-rehab', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
-      { source: '/role-of-support-groups-in-addiction-recovery', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/getting-through-the-holidays-sober', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
-      { source: '/manage-stress-and-burnout', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
-      { source: '/the-power-of-nutrition-in-early-recovery', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
-      { source: '/sober-summer-activities', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
-      { source: '/addiction-in-a-coworker', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
-      { source: '/rebuilding-and-restoring-your-life-in-addiction-recovery', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/getting-through-the-first-day-at-rehab', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
+      // The following slugs were previously rolled up to the
+      // recovery-roadmap hub but are now actual article routes
+      // (republished as Recovery Roadmap episodes 8 onward):
+      //   /role-of-support-groups-in-addiction-recovery
+      //   /manage-stress-and-burnout
+      //   /the-power-of-nutrition-in-early-recovery
+      //   /sober-summer-activities
+      //   /addiction-in-a-coworker
+      //   /rebuilding-and-restoring-your-life-in-addiction-recovery
 
       // ── Phase 10: Misc / catch-alls ─────────────────────────────
       { source: '/arizona-rehab-centers', destination: '/', statusCode: 301 },
