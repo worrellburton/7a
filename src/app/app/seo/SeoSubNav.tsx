@@ -21,12 +21,12 @@ interface Tab {
 
 const PRIMARY_TABS: Tab[] = [
   { href: '/app/seo/actions', label: 'Activities', hint: 'Submit + track SEO activities', flair: 'fire' },
-  // "Backlinks" is the parent tab for both the directory tracker
-  // (/app/seo/directories) and the Semrush link profile
-  // (/app/seo/backlinks). Default landing goes to Directories
-  // because that's where the team works day-to-day; the inner
-  // sub-tabs let admins jump to Backlinks when they need it.
-  { href: '/app/seo/directories', label: 'Backlinks', hint: 'Directory tracker + Semrush link profile' },
+  // "Backlinks" is the parent tab for the directory tracker plus the
+  // four manual outreach trackers (press releases / guest posts /
+  // comments / forums). Default landing goes to Directories because
+  // that's where the team works day-to-day; the inner sub-tabs let
+  // admins jump to the channel-specific trackers when they need to.
+  { href: '/app/seo/directories', label: 'Backlinks', hint: 'Directory tracker + outreach channels' },
   { href: '/app/seo/audit', label: 'Site audit', hint: 'On-page issues' },
   { href: '/app/seo/serp-audit', label: 'SERP Audit', hint: 'Off-site brand mentions on the open web' },
   { href: '/app/seo/media', label: 'Media', hint: 'Images + videos with optimize batch' },
@@ -48,12 +48,11 @@ const WIP_TABS: Tab[] = [
 function isTabActive(pathname: string, href: string): boolean {
   if (href === '/app/seo') return pathname === '/app/seo';
   // The Backlinks primary tab covers everything reachable from
-  // LinksSubNav — Directories, Backlinks, and the four outreach
-  // trackers (press releases / guest posts / comments / forums) —
-  // so the parent stays highlighted on every one of those routes.
-  if (href === '/app/seo/backlinks' || href === '/app/seo/directories') {
+  // LinksSubNav — Directories plus the four outreach trackers
+  // (press releases / guest posts / comments / forums) — so the
+  // parent stays highlighted on every one of those routes.
+  if (href === '/app/seo/directories') {
     const linksRoutes = [
-      '/app/seo/backlinks',
       '/app/seo/directories',
       '/app/seo/press-releases',
       '/app/seo/guest-posts',

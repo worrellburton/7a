@@ -18,25 +18,43 @@ import { logActivity } from '@/lib/activity';
 
 export type OutreachChannel = 'press_release' | 'guest_post' | 'comment' | 'forum';
 
-export type OutreachStatus = 'not_started' | 'in_progress' | 'published' | 'declined';
+export type OutreachStatus =
+  | 'not_started'
+  | 'pending_approval'
+  | 'in_progress'
+  | 'published'
+  | 'declined';
 
 export interface OutreachEntry {
   id: string;
   channel: OutreachChannel;
-  url: string;
+  url: string | null;
   title: string | null;
+  body: string | null;
+  is_campaign: boolean;
   status: OutreachStatus;
   notes: string | null;
   added_by: string | null;
   added_by_name: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
-const STATUS_ORDER: OutreachStatus[] = ['not_started', 'in_progress', 'published', 'declined'];
+const STATUS_ORDER: OutreachStatus[] = [
+  'not_started', 'pending_approval', 'in_progress', 'published', 'declined',
+];
+
+// "Pending approval" only applies to campaigns — hide it from the
+// inline status select for plain placement rows.
+const STATUS_OPTIONS_PLACEMENT: OutreachStatus[] = [
+  'not_started', 'in_progress', 'published', 'declined',
+];
 
 const STATUS_LABELS: Record<OutreachStatus, string> = {
   not_started: 'Not started',
+  pending_approval: 'Pending approval',
   in_progress: 'In progress',
   published: 'Published',
   declined: 'Declined',
@@ -44,10 +62,32 @@ const STATUS_LABELS: Record<OutreachStatus, string> = {
 
 const STATUS_TONES: Record<OutreachStatus, string> = {
   not_started: 'bg-warm-bg/70 text-foreground/55 border-black/10',
+  pending_approval: 'bg-blue-50 text-blue-700 border-blue-200',
   in_progress: 'bg-amber-50 text-amber-700 border-amber-200',
   published: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   declined: 'bg-rose-50 text-rose-700 border-rose-200',
 };
+
+// Press-release campaigns push the body to a fixed list of
+// distribution channels — same set every time. We surface this list
+// in the New Campaign composer so the team can see where the release
+// will land before they submit it for approval.
+const PRESS_RELEASE_DISTRIBUTION = [
+  'Google News Inclusion',
+  'Newsroom Inclusion',
+  'Video Press Release',
+  'As Seen In Badges',
+  'White-Label Reports',
+  'Premium Publications (DR 80+)',
+  'Press Release Distribution',
+  'AP News',
+  'Yahoo Finance',
+  'Business Insider',
+  'Globe News Wire',
+  'Market Watch',
+  'Apple News+',
+  'KXAN',
+];
 
 interface ChannelCopy {
   /** Slug used in /app/seo/<slug> — also the activity log target path. */
@@ -115,8 +155,9 @@ const CHANNEL_COPY: Record<OutreachChannel, ChannelCopy> = {
 };
 
 export default function OutreachContent({ channel }: { channel: OutreachChannel }) {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const copy = CHANNEL_COPY[channel];
+  const supportsCampaigns = channel === 'press_release';
   const [rows, setRows] = useState<OutreachEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -127,11 +168,20 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
   const [draftStatus, setDraftStatus] = useState<OutreachStatus>('in_progress');
   const [adding, setAdding] = useState(false);
 
+  // Campaign composer (press releases only — full body goes through a
+  // superadmin-approved approval gate before distribution).
+  const [campaignOpen, setCampaignOpen] = useState(false);
+  const [campaignTitle, setCampaignTitle] = useState('');
+  const [campaignBody, setCampaignBody] = useState('');
+  const [campaignSubmitting, setCampaignSubmitting] = useState(false);
+
   // Status filter (chip strip above the list).
   const [filter, setFilter] = useState<'all' | OutreachStatus>('all');
 
-  // Per-row open chat — the modal hosts the RowChat for one entry at a time.
+  // Per-row open chat / details. Chat opens the RowChat thread; details
+  // shows the campaign body + distribution list for press releases.
   const [openChat, setOpenChat] = useState<OutreachEntry | null>(null);
+  const [openDetails, setOpenDetails] = useState<OutreachEntry | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -170,7 +220,7 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
 
   const counts = useMemo(() => {
     const out: Record<OutreachStatus, number> = {
-      not_started: 0, in_progress: 0, published: 0, declined: 0,
+      not_started: 0, pending_approval: 0, in_progress: 0, published: 0, declined: 0,
     };
     for (const r of rows) out[r.status] = (out[r.status] || 0) + 1;
     return out;
@@ -210,9 +260,9 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
           type: `seo.${channel}_added`,
           targetKind: `seo_${channel}`,
           targetId: real.id,
-          targetLabel: real.title || real.url,
+          targetLabel: real.title || real.url || 'Outreach entry',
           targetPath: `/app/seo/${copy.slug}`,
-          metadata: { url: real.url },
+          metadata: { url: real.url ?? undefined },
         });
       }
     } catch (e) {
@@ -232,16 +282,113 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
     });
   };
 
+  const submitCampaign = async () => {
+    const title = campaignTitle.trim();
+    const body = campaignBody.trim();
+    if (!title || !body || !user || campaignSubmitting) return;
+    setCampaignSubmitting(true);
+    setError(null);
+    try {
+      const inserted = await db({
+        action: 'insert',
+        table: 'seo_outreach_entries',
+        data: {
+          channel,
+          url: null,
+          title,
+          body,
+          is_campaign: true,
+          status: 'pending_approval',
+          added_by: user.id,
+          added_by_name: user.user_metadata?.full_name || user.email || null,
+        },
+      });
+      if (inserted && (inserted as OutreachEntry).id) {
+        const real = inserted as OutreachEntry;
+        setRows((prev) => [real, ...prev.filter((r) => r.id !== real.id)]);
+        setCampaignTitle('');
+        setCampaignBody('');
+        setCampaignOpen(false);
+        logActivity({
+          userId: user.id,
+          type: `seo.${channel}_campaign_submitted`,
+          targetKind: `seo_${channel}`,
+          targetId: real.id,
+          targetLabel: real.title || 'Press release campaign',
+          targetPath: `/app/seo/${copy.slug}`,
+          metadata: { preview: body.slice(0, 140) },
+        });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCampaignSubmitting(false);
+    }
+  };
+
+  const approve = async (entry: OutreachEntry) => {
+    if (!user) return;
+    const now = new Date().toISOString();
+    setRows((prev) => prev.map((r) =>
+      r.id === entry.id
+        ? { ...r, status: 'in_progress' as OutreachStatus, approved_by: user.id, approved_at: now }
+        : r,
+    ));
+    await db({
+      action: 'update',
+      table: 'seo_outreach_entries',
+      match: { id: entry.id },
+      data: { status: 'in_progress', approved_by: user.id, approved_at: now, updated_at: now },
+    });
+    logActivity({
+      userId: user.id,
+      type: `seo.${channel}_campaign_approved`,
+      targetKind: `seo_${channel}`,
+      targetId: entry.id,
+      targetLabel: entry.title || 'Press release campaign',
+      targetPath: `/app/seo/${copy.slug}`,
+    });
+  };
+
+  const deny = async (entry: OutreachEntry) => {
+    if (!user) return;
+    const now = new Date().toISOString();
+    setRows((prev) => prev.map((r) =>
+      r.id === entry.id ? { ...r, status: 'declined' as OutreachStatus } : r,
+    ));
+    await db({
+      action: 'update',
+      table: 'seo_outreach_entries',
+      match: { id: entry.id },
+      data: { status: 'declined', updated_at: now },
+    });
+    logActivity({
+      userId: user.id,
+      type: `seo.${channel}_campaign_denied`,
+      targetKind: `seo_${channel}`,
+      targetId: entry.id,
+      targetLabel: entry.title || 'Press release campaign',
+      targetPath: `/app/seo/${copy.slug}`,
+    });
+  };
+
   const remove = async (id: string) => {
     if (typeof window !== 'undefined' && !window.confirm('Delete this entry and its chat thread?')) return;
     setRows((prev) => prev.filter((r) => r.id !== id));
     await db({ action: 'delete', table: 'seo_outreach_entries', match: { id } });
   };
 
-  // ESC closes the chat modal
+  // ESC closes whichever modal is open + lock the body scroll while
+  // any modal is up so the table behind doesn't scroll.
+  const anyModalOpen = openChat !== null || openDetails !== null || campaignOpen;
   useEffect(() => {
-    if (!openChat) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenChat(null); };
+    if (!anyModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (campaignOpen) setCampaignOpen(false);
+      else if (openDetails) setOpenDetails(null);
+      else if (openChat) setOpenChat(null);
+    };
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -249,7 +396,7 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [openChat]);
+  }, [anyModalOpen, campaignOpen, openDetails, openChat]);
 
   return (
     <div className="p-8 max-w-7xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
@@ -310,9 +457,25 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
 
       {/* Add-row form */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-5">
-        <h2 className="text-sm font-bold text-foreground mb-3" style={{ fontFamily: 'var(--font-display)' }}>
-          {copy.addLabel}
-        </h2>
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+            {copy.addLabel}
+          </h2>
+          {supportsCampaigns ? (
+            <button
+              type="button"
+              onClick={() => setCampaignOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-foreground text-white hover:bg-foreground/90"
+              title="Compose a press release for distribution to the wire + premium publications"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              New campaign
+            </button>
+          ) : null}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-[2fr_1.5fr_auto_auto] gap-2">
           <input
             type="url"
@@ -376,63 +539,311 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
           </div>
         ) : (
           <ul className="divide-y divide-black/5">
-            {filtered.map((r) => (
-              <li key={r.id} className="px-5 py-3.5 hover:bg-warm-bg/30 transition-colors">
-                <div className="flex items-start gap-3 flex-wrap">
-                  <div className="flex-1 min-w-0">
-                    <a
-                      href={r.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-semibold text-primary hover:underline break-all"
-                    >
-                      {r.title || r.url}
-                    </a>
-                    {r.title ? (
-                      <p className="text-[11px] text-foreground/45 break-all mt-0.5">{r.url}</p>
-                    ) : null}
-                    {r.notes ? (
-                      <p className="text-xs text-foreground/65 mt-1 whitespace-pre-line">{r.notes}</p>
-                    ) : null}
-                    <p className="text-[10px] text-foreground/40 mt-1.5">
-                      Added {formatDate(r.created_at)}
-                      {r.added_by_name ? ` by ${r.added_by_name}` : ''}
-                    </p>
+            {filtered.map((r) => {
+              const pending = r.is_campaign && r.status === 'pending_approval';
+              const statusOptions = r.is_campaign ? STATUS_ORDER : STATUS_OPTIONS_PLACEMENT;
+              return (
+                <li key={r.id} className="px-5 py-3.5 hover:bg-warm-bg/30 transition-colors">
+                  <div className="flex items-start gap-3 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      {r.is_campaign ? (
+                        <button
+                          type="button"
+                          onClick={() => setOpenDetails(r)}
+                          className="text-left text-sm font-semibold text-foreground hover:text-primary transition-colors"
+                        >
+                          {r.title || 'Untitled campaign'}
+                          <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-foreground/85 text-white">
+                            Campaign
+                          </span>
+                        </button>
+                      ) : r.url ? (
+                        <a
+                          href={r.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-semibold text-primary hover:underline break-all"
+                        >
+                          {r.title || r.url}
+                        </a>
+                      ) : (
+                        <span className="text-sm font-semibold text-foreground/70">
+                          {r.title || 'Untitled'}
+                        </span>
+                      )}
+                      {!r.is_campaign && r.title && r.url ? (
+                        <p className="text-[11px] text-foreground/45 break-all mt-0.5">{r.url}</p>
+                      ) : null}
+                      {r.is_campaign && r.body ? (
+                        <p className="text-xs text-foreground/55 mt-1 line-clamp-2">{r.body}</p>
+                      ) : null}
+                      {r.notes ? (
+                        <p className="text-xs text-foreground/65 mt-1 whitespace-pre-line">{r.notes}</p>
+                      ) : null}
+                      <p className="text-[10px] text-foreground/40 mt-1.5">
+                        Added {formatDate(r.created_at)}
+                        {r.added_by_name ? ` by ${r.added_by_name}` : ''}
+                        {r.approved_at ? ` · approved ${formatDate(r.approved_at)}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                      {pending && isSuperAdmin ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => approve(r)}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+                            title="Approve campaign — moves it to In progress"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deny(r)}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-rose-600 text-white hover:bg-rose-700"
+                            title="Deny campaign — moves it to Declined"
+                          >
+                            Deny
+                          </button>
+                        </>
+                      ) : null}
+                      {pending && !isSuperAdmin ? (
+                        <span
+                          className={`px-2 py-1 rounded-md border text-[11px] font-semibold ${STATUS_TONES.pending_approval}`}
+                          title="Waiting on a superadmin to approve this campaign."
+                        >
+                          {STATUS_LABELS.pending_approval}
+                        </span>
+                      ) : (
+                        <select
+                          value={r.status}
+                          onChange={(e) => updateStatus(r.id, e.target.value as OutreachStatus)}
+                          className={`px-2 py-1 rounded-md border text-[11px] font-semibold ${STATUS_TONES[r.status]}`}
+                        >
+                          {statusOptions.map((s) => (
+                            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                          ))}
+                        </select>
+                      )}
+                      {r.is_campaign ? (
+                        <button
+                          type="button"
+                          onClick={() => setOpenDetails(r)}
+                          className="px-2.5 py-1 rounded-md border border-black/10 text-[11px] font-medium text-foreground/65 hover:text-foreground hover:bg-warm-bg/50"
+                          title="View the campaign body + distribution list"
+                        >
+                          View
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setOpenChat(r)}
+                        className="px-2.5 py-1 rounded-md border border-black/10 text-[11px] font-medium text-foreground/65 hover:text-foreground hover:bg-warm-bg/50"
+                        title="Open the chat thread for this entry"
+                      >
+                        Chat
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => remove(r.id)}
+                        className="px-2 py-1 rounded-md text-[11px] text-foreground/40 hover:text-rose-600 hover:bg-rose-50"
+                        title="Delete entry + chat"
+                        aria-label="Delete entry"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <select
-                      value={r.status}
-                      onChange={(e) => updateStatus(r.id, e.target.value as OutreachStatus)}
-                      className={`px-2 py-1 rounded-md border text-[11px] font-semibold ${STATUS_TONES[r.status]}`}
-                    >
-                      {STATUS_ORDER.map((s) => (
-                        <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setOpenChat(r)}
-                      className="px-2.5 py-1 rounded-md border border-black/10 text-[11px] font-medium text-foreground/65 hover:text-foreground hover:bg-warm-bg/50"
-                      title="Open the chat thread for this entry"
-                    >
-                      Chat
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => remove(r.id)}
-                      className="px-2 py-1 rounded-md text-[11px] text-foreground/40 hover:text-rose-600 hover:bg-rose-50"
-                      title="Delete entry + chat"
-                      aria-label="Delete entry"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
+
+      {/* Campaign composer modal — press releases only. The body
+          flows to the same fixed distribution list every time, so we
+          show the list inline as a confirmation. */}
+      {campaignOpen ? (
+        <div
+          className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4"
+          onClick={() => setCampaignOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 px-5 py-3.5 border-b border-black/5">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">
+                  New press release campaign
+                </p>
+                <p className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                  Compose &amp; send for approval
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCampaignOpen(false)}
+                className="text-foreground/40 hover:text-foreground text-2xl leading-none"
+                aria-label="Close composer"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/55 mb-1">
+                  Headline
+                </label>
+                <input
+                  type="text"
+                  value={campaignTitle}
+                  onChange={(e) => setCampaignTitle(e.target.value)}
+                  placeholder="Seven Arrows Recovery launches…"
+                  className="w-full px-3 py-2 rounded-lg border border-black/10 bg-warm-bg/40 text-sm focus:outline-none focus:border-primary/50 focus:bg-white"
+                  disabled={campaignSubmitting}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/55 mb-1">
+                  Press release body
+                </label>
+                <textarea
+                  value={campaignBody}
+                  onChange={(e) => setCampaignBody(e.target.value)}
+                  placeholder="FOR IMMEDIATE RELEASE&#10;&#10;Scottsdale, AZ — Seven Arrows Recovery today announced…"
+                  rows={14}
+                  className="w-full px-3 py-2 rounded-lg border border-black/10 bg-warm-bg/40 text-sm focus:outline-none focus:border-primary/50 focus:bg-white font-mono leading-relaxed resize-y"
+                  disabled={campaignSubmitting}
+                />
+              </div>
+              <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-900/70 mb-2">
+                  This campaign will be sent to
+                </p>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px] text-blue-900/85">
+                  {PRESS_RELEASE_DISTRIBUTION.map((d) => (
+                    <li key={d} className="flex items-start gap-1.5">
+                      <svg className="w-3 h-3 mt-0.5 shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <span>{d}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="text-[11px] text-foreground/55">
+                After you submit, this campaign goes to <strong>Pending approval</strong>.
+                A superadmin reviews the body and either approves it (which moves it to
+                <span className={`mx-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${STATUS_TONES.in_progress}`}>In progress</span>
+                so distribution can begin) or denies it.
+              </p>
+            </div>
+            <div className="px-5 py-3 border-t border-black/5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCampaignOpen(false)}
+                className="px-3 py-2 rounded-lg text-sm font-medium text-foreground/65 hover:text-foreground hover:bg-warm-bg/50"
+                disabled={campaignSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitCampaign}
+                disabled={campaignSubmitting || !campaignTitle.trim() || !campaignBody.trim() || !user}
+                className="px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90 disabled:bg-foreground/30 disabled:cursor-not-allowed"
+              >
+                {campaignSubmitting ? 'Submitting…' : 'Submit for approval'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Campaign details modal — read-only view of the body + the
+          distribution list, available from the row's "View" button. */}
+      {openDetails ? (
+        <div
+          className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4"
+          onClick={() => setOpenDetails(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 px-5 py-3.5 border-b border-black/5">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">
+                  Press release campaign
+                </p>
+                <p className="text-base font-bold text-foreground truncate" style={{ fontFamily: 'var(--font-display)' }} title={openDetails.title || ''}>
+                  {openDetails.title || 'Untitled campaign'}
+                </p>
+                <p className="text-[11px] text-foreground/50 mt-0.5">
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${STATUS_TONES[openDetails.status]}`}>
+                    {STATUS_LABELS[openDetails.status]}
+                  </span>
+                  {openDetails.added_by_name ? <> · submitted by {openDetails.added_by_name}</> : null}
+                  <> · {formatDate(openDetails.created_at)}</>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenDetails(null)}
+                className="text-foreground/40 hover:text-foreground text-2xl leading-none"
+                aria-label="Close details"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55 mb-1">
+                  Body
+                </p>
+                <pre className="whitespace-pre-wrap font-mono text-[12.5px] leading-relaxed bg-warm-bg/40 rounded-lg p-3 text-foreground/85">
+                  {openDetails.body || '(no body)'}
+                </pre>
+              </div>
+              <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-900/70 mb-2">
+                  Distribution
+                </p>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px] text-blue-900/85">
+                  {PRESS_RELEASE_DISTRIBUTION.map((d) => (
+                    <li key={d} className="flex items-start gap-1.5">
+                      <svg className="w-3 h-3 mt-0.5 shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <span>{d}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {openDetails.status === 'pending_approval' && isSuperAdmin ? (
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/5">
+                  <button
+                    type="button"
+                    onClick={() => { void deny(openDetails); setOpenDetails(null); }}
+                    className="px-3 py-2 rounded-lg text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700"
+                  >
+                    Deny
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void approve(openDetails); setOpenDetails(null); }}
+                    className="px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                    Approve
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Chat modal */}
       {openChat ? (
@@ -449,8 +860,8 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
                 <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">
                   {copy.title} · chat
                 </p>
-                <p className="text-sm font-semibold text-foreground truncate" title={openChat.url}>
-                  {openChat.title || openChat.url}
+                <p className="text-sm font-semibold text-foreground truncate" title={openChat.url ?? undefined}>
+                  {openChat.title || openChat.url || 'Outreach entry'}
                 </p>
               </div>
               <button
@@ -467,7 +878,7 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
                 table="seo_outreach_messages"
                 keyColumn="entry_id"
                 keyValue={openChat.id}
-                label={openChat.title || openChat.url}
+                label={openChat.title || openChat.url || 'Outreach entry'}
                 targetPath={`/app/seo/${copy.slug}`}
                 activityType={`seo.${channel}_chat_message`}
                 activityKind={`seo_${channel}`}

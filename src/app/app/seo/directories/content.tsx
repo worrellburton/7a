@@ -4953,8 +4953,8 @@ function SemrushStatusBanner({
         </svg>
         <span>
           No Semrush snapshot yet — click <strong>Sync from Semrush</strong> on the{' '}
-          <Link href="/app/seo/backlinks" className="underline font-semibold hover:text-amber-700">
-            Backlinks page
+          <Link href="/app/seo/refdomains" className="underline font-semibold hover:text-amber-700">
+            Referring domains page
           </Link>{' '}
           to populate the Semrush column below.
         </span>

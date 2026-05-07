@@ -305,7 +305,7 @@ export default function RefDomainsContent() {
         <p className="text-[11px] text-foreground/40 mt-3">
           Target <span className="font-mono">{snapshot.target}</span>
           {' · '}
-          <Link href="/app/seo/backlinks" className="underline decoration-dotted hover:text-foreground">
+          <Link href="/app/seo/directories" className="underline decoration-dotted hover:text-foreground">
             Back to Backlinks
           </Link>
         </p>
