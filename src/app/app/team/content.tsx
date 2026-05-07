@@ -227,21 +227,36 @@ export default function UsersContent() {
       showToast("You can't delete yourself");
       return;
     }
+    if (!isSuperAdmin) {
+      showToast('Only super admins can delete users');
+      return;
+    }
     const ok = await confirm(`Delete ${userName}?`, {
-      message: 'This cannot be undone.',
+      message:
+        'They will be removed from the team and their email added to the deny list — even if they sign back in with Google, they will be denied access.',
       confirmLabel: 'Delete',
       tone: 'danger',
     });
     if (!ok) return;
 
-    const result = await db({ action: 'delete', table: 'users', match: { id: userId } });
-
-    if (result?.error) {
-      showToast(`Failed to delete: ${result.error}`);
+    const token = session?.access_token;
+    if (!token) {
+      showToast('Session expired — please sign in again');
       return;
     }
+
+    const res = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) {
+      showToast(`Failed to delete: ${body.error ?? `HTTP ${res.status}`}`);
+      return;
+    }
+
     setUsers((prev) => prev.filter((u) => u.id !== userId));
-    showToast(`${userName} has been removed`);
+    showToast(`${userName} has been removed and blocked from signing back in`);
     if (user?.id) {
       logActivity({
         userId: user.id,
