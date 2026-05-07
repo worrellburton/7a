@@ -4,38 +4,6 @@
 
 import { getAuthToken } from '@/lib/db';
 
-export interface ScoreRow {
-  call_id: string;
-  score: number;
-  call_name: string | null;
-  caller_name: string | null;
-  operator_name: string | null;
-  caller_interest: string | null;
-  client_type: string | null;
-  fit_score: number | null;
-  summary: string;
-  operator_strengths: string[];
-  operator_weaknesses: string[];
-  next_steps: string | null;
-  sentiment: string | null;
-  transcript: string | null;
-  scored_at: string;
-  // `model` encodes which path produced this score — `gemini-audio:...`
-  // used the actual recording, `claude:...` is metadata-only. The UI
-  // badges the metadata-only case so the user knows why the summary is
-  // cautious rather than assuming it was computed from audio.
-  model?: string | null;
-  // Diagnostic context written by /api/claude/calls/score — lets the
-  // metadata-only banner explain *why* audio analysis didn't run
-  // (e.g. recording fetched fine but Gemini errored on a 38-min call)
-  // instead of pretending no audio was available.
-  debug_info?: {
-    audio_status?: string | null;
-    analyzer?: string | null;
-    analyzer_error?: string | null;
-  } | null;
-}
-
 export interface Call {
   id: number;
   name: string;
@@ -63,6 +31,8 @@ export interface Call {
   voicemail: boolean;
   first_call: boolean;
   business_number: string;
+  // CTM's own lead score (their scoring, not ours). Optional / null
+  // when the account hasn't enabled lead scoring at the CTM side.
   score: number | null;
   notes: string;
 }
@@ -76,7 +46,7 @@ export interface CTMResponse {
   error?: string;
 }
 
-export type Tab = 'calls' | 'sources' | 'spam' | 'operators';
+export type Tab = 'calls' | 'sources' | 'spam';
 
 export const SPAM_STORAGE_KEY = 'calls_spam_numbers_v1';
 
@@ -94,45 +64,6 @@ export interface Insights {
   returnedPickedUpThisWeek: number;
   dailyCounts: { label: string; short: string; date: string; count: number; missedCount: number; returnedCount: number; sources: { name: string; count: number }[] }[];
 }
-
-export interface OperatorCallEntry {
-  ctm_id: string;
-  called_at: string;
-  direction: string | null;
-  duration: number | null;
-  talk_time: number | null;
-  caller_number_formatted: string | null;
-  caller_number: string | null;
-  city: string | null;
-  state: string | null;
-  audio_url: string | null;
-  score: number | null;
-  fit_score: number | null;
-  call_name: string | null;
-  caller_name: string | null;
-  summary: string | null;
-  next_steps: string | null;
-  sentiment: string | null;
-  client_type: string | null;
-  caller_interest: string | null;
-  strengths: string[];
-  weaknesses: string[];
-}
-
-export interface OperatorAgg {
-  name: string;
-  count: number;
-  avgScore: number;
-  avgFit: number | null;
-  meaningful: number;
-  converted: number;
-  successPct: number;
-  strengths: { text: string; count: number }[];
-  weaknesses: { text: string; count: number }[];
-  calls: OperatorCallEntry[];
-}
-
-export type OpSortKey = 'name' | 'count' | 'avgFit' | 'meaningful' | 'converted' | 'successPct' | 'avgScore';
 
 export const directionStyle: Record<string, string> = {
   inbound: 'bg-emerald-50 text-emerald-700',
@@ -157,21 +88,6 @@ export function isPaidSource(raw: string | null | undefined): boolean {
 export function isMissedCall(c: { direction?: string | null; voicemail?: boolean | null; talk_time?: number | null }): boolean {
   if (c.direction !== 'inbound') return false;
   return !!c.voicemail || (c.talk_time ?? 0) < 3;
-}
-
-export const MEANINGFUL_THRESHOLD = 60;
-
-// Outbound voicemails never count as meaningful — they're just our
-// dial-out script reaching nobody. See isMeaningfulCall in
-// /lib/calls-shared.ts for the canonical version; this client copy
-// avoids importing the server util into the Calls page bundle.
-export function isMeaningfulCall(
-  c: { direction?: string | null; voicemail?: boolean | null },
-  fitScore: number | null | undefined,
-): boolean {
-  if (fitScore == null || fitScore < MEANINGFUL_THRESHOLD) return false;
-  if (c.direction === 'outbound' && c.voicemail) return false;
-  return true;
 }
 
 export async function ctmFetch(endpoint: string, params?: Record<string, string | number>): Promise<CTMResponse> {
@@ -277,63 +193,9 @@ export function formatRelativeTime(dateStr: string): string {
   }
 }
 
-export function clientTypeBg(type: string): string {
-  switch (type) {
-    case 'Insurance': return 'bg-blue-50 text-blue-700';
-    case 'Private Pay': return 'bg-amber-50 text-amber-700';
-    case 'Mental Health': return 'bg-purple-50 text-purple-700';
-    case 'Addiction': return 'bg-red-50 text-red-700';
-    case 'Dual Diagnosis': return 'bg-indigo-50 text-indigo-700';
-    case 'Family/Loved One': return 'bg-pink-50 text-pink-700';
-    default: return 'bg-gray-50 text-gray-600';
-  }
-}
-
-export function fitScoreBg(s: number): string {
-  if (s >= 75) return 'bg-emerald-500';
-  if (s >= 40) return 'bg-amber-500';
-  return 'bg-red-400';
-}
-
-export function scoreColorHex(s: number): string {
-  if (s >= 80) return '#10b981';
-  if (s >= 60) return '#3b82f6';
-  if (s >= 40) return '#f59e0b';
-  return '#ef4444';
-}
-
-// Some calls (dropped, poor connection, audio too garbled) can't
-// fairly be assigned an operator score — surfacing a low number for
-// them unfairly drags the operator's average. We detect those cases
-// from the AI-generated call_name + summary and let the UI render
-// "N/A" with a tooltip instead.
-export function unscoreableReason(score: ScoreRow | null): string | null {
-  if (!score) return null;
-  const haystack = `${score.call_name ?? ''} ${score.summary ?? ''}`.toLowerCase();
-  if (/dropped\s*call|poor\s*(connection|audio)|audio\s*(quality)?[^.]{0,30}too\s*poor|couldn'?t\s*(hear|understand|make\s*out)/i.test(haystack)) {
-    return 'Audio was too poor or the call dropped — operator can’t be fairly scored.';
-  }
-  return null;
-}
-
-export function sentimentStyle(s: string | null): string {
-  if (s === 'positive') return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-  if (s === 'negative') return 'text-red-700 bg-red-50 border-red-200';
-  if (s === 'neutral') return 'text-slate-700 bg-slate-50 border-slate-200';
-  return 'text-foreground/50 bg-gray-50 border-gray-200';
-}
-
 export function fmtAudioTime(s: number): string {
   if (!Number.isFinite(s) || s < 0) s = 0;
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
   return `${m}:${sec.toString().padStart(2, '0')}`;
-}
-
-export function scoreColorClass(s: number | null | undefined): string {
-  if (s == null) return 'text-foreground/40';
-  if (s >= 80) return 'text-emerald-500';
-  if (s >= 60) return 'text-blue-600';
-  if (s >= 40) return 'text-amber-500';
-  return 'text-red-500';
 }
