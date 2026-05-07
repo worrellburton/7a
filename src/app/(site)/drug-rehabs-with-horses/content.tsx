@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 10'}
-        title={'Drug Rehabs with Horses'}
+        label="The Recovery Roadmap — Episode 10"
+        title="Drug Rehabs with Horses"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'Drug Rehabs with Horses' },
+          { label: "Drug Rehabs with Horses" },
         ]}
-        description={'Finding the right path to recovery is a deeply personal journey that touches every aspect of an individual’s life.'}
+        description="Finding the right path to recovery is a deeply personal journey that touches every aspect of an individual’s life. At Seven Arrows Recovery, we believe this journey should be as unique as the person seeking help. While…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,77 +22,77 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Finding the right path to recovery is a deeply personal journey that touches every aspect of an individual&rsquo;s life. At Seven Arrows Recovery, we believe this journey should be as unique as the person seeking help. While traditional addiction treatment methods have been proven effective, drug rehabs with horses provide a truly transformative experience that may not be achieved through conventional therapies alone. If you&rsquo;re asking, &ldquo;Are there drug rehabs with horses?&rdquo; the answer is yes&mdash;and these equine drug rehabs are gaining popularity for their ability to offer healing in ways traditional treatment might not.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"Finding the right path to recovery is a deeply personal journey that touches every aspect of an individual’s life. At Seven Arrows Recovery, we believe this journey should be as unique as the person seeking help. While traditional addiction treatment methods have been proven effective, drug rehabs with horses provide a truly transformative experience that may not be achieved through conventional therapies alone. If you’re asking, “Are there drug rehabs with horses?” the answer is yes—and these equine drug rehabs are gaining popularity for their ability to offer healing in ways traditional treatment might not."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              What a Drug Rehab Program with Horses Entails
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"What a Drug Rehab Program with Horses Entails"}
+            </h2>
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"Drug rehab centers with horses integrate equine-assisted therapy (EAT) into their programs, creating a dual path for both emotional and physical healing. At Seven Arrows Recovery, we’ve made this innovative therapy a core component of our services. By combining evidence-based therapies with equine drug rehabs, participants embark on a therapeutic journey that fosters growth, trust, and personal transformation. In these programs, individuals engage with horses in a structured, supportive environment that promotes accountability, emotional healing, and self-reflection."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Equine Therapy: A Key Component of Drug Rehabs with Horses"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Drug rehab centers with horses integrate equine-assisted therapy (EAT) into their programs, creating a dual path for both emotional and physical healing. At Seven Arrows Recovery, we&rsquo;ve made this innovative therapy a core component of our services. By combining evidence-based therapies with equine drug rehabs, participants embark on a therapeutic journey that fosters growth, trust, and personal transformation. In these programs, individuals engage with horses in a structured, supportive environment that promotes accountability, emotional healing, and self-reflection.
+              {"Equine therapy has become an essential approach in many drug rehabs with horses. In these programs, participants interact with horses under the guidance of trained professionals, allowing them to explore their emotions and behaviors in a non-threatening, non-judgmental setting. Through these interactions, clients learn crucial life skills such as boundary-setting, communication, and responsibility. The horses’ natural ability to mirror human emotions provides immediate, unbiased feedback, encouraging clients to reflect on their feelings and gain a deeper understanding of their substance use challenges."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Equine Therapy: A Key Component of Drug Rehabs with Horses
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Horse & Human Programs in Equine Drug Rehabs"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Equine therapy has become an essential approach in many drug rehabs with horses. In these programs, participants interact with horses under the guidance of trained professionals, allowing them to explore their emotions and behaviors in a non-threatening, non-judgmental setting. Through these interactions, clients learn crucial life skills such as boundary-setting, communication, and responsibility. The horses&rsquo; natural ability to mirror human emotions provides immediate, unbiased feedback, encouraging clients to reflect on their feelings and gain a deeper understanding of their substance use challenges.
+              {"Drug rehabs with horses often offer specialized horse & human programs that support both psychological and physical recovery. These programs may include activities like grooming, leading, and riding horses—each activity designed with therapeutic intent. These interactions are highly effective in helping individuals develop emotional regulation, build confidence, and form deeper connections with their inner selves. The safe, structured environment in which individuals work with horses helps them cultivate emotional resilience, which is critical in overcoming addiction and maintaining long-term sobriety."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Horse & Human Programs in Equine Drug Rehabs
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Benefits of Equine Experiences in Treating Drug & Alcohol Abuse"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Drug rehabs with horses often offer specialized horse & human programs that support both psychological and physical recovery. These programs may include activities like grooming, leading, and riding horses&mdash;each activity designed with therapeutic intent. These interactions are highly effective in helping individuals develop emotional regulation, build confidence, and form deeper connections with their inner selves. The safe, structured environment in which individuals work with horses helps them cultivate emotional resilience, which is critical in overcoming addiction and maintaining long-term sobriety.
+              {"The inclusion of equine therapy in drug rehabs with horses offers a range of powerful benefits for individuals recovering from substance abuse. Here are several key ways that equine drug rehabs can enhance the recovery process:"}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Benefits of Equine Experiences in Treating Drug & Alcohol Abuse
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Emotional Reflection and Awareness"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Horses are uniquely attuned to human emotions and can offer immediate, unbiased feedback about the emotional state of those interacting with them. This ability to mirror human emotions creates an invaluable opportunity for individuals to examine their emotional responses and triggers."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Building Trust and Relationship Skills"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Developing a relationship with a horse requires patience, consistency, and empathy—essential in rebuilding trust with oneself and others. In drug rehab programs with horses, clients learn how to foster meaningful relationships, a skill that directly translates to rebuilding personal and family connections damaged by addiction."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Enhancing Self-Esteem and Self-Efficacy"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Working with horses gives individuals tangible opportunities to experience success, which helps rebuild self-esteem and self-worth. Every accomplishment—leading a horse or completing a grooming task—reinforces the belief that positive change is possible. This process fosters a sense of self-efficacy, which is vital for those committed to a sober life and a future free from addiction."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Fostering Mindfulness and Presence"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Interacting with horses requires mindfulness—being fully present in the moment. Horses are susceptible to their environment and the emotional state of those around them. This attentiveness helps individuals become more aware of their thoughts, emotions, and physical sensations. Mindfulness is a powerful tool for managing cravings and emotional triggers, supporting overall emotional regulation and well-being during recovery."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Processing Trauma in a Safe Space"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"For many individuals struggling with addiction, unresolved trauma is a key contributing factor. Drug rehabs with horses offer a unique opportunity to address trauma in a safe, non-threatening environment. Horses create a calming atmosphere that allows clients to confront and process painful memories or emotions associated with their trauma. Equine drug rehabs offer a space for healing, enabling individuals to release trauma-related emotions and begin the process of emotional recovery."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Why Choose a Drug Rehab with Horses?"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              The inclusion of equine therapy in drug rehabs with horses offers a range of powerful benefits for individuals recovering from substance abuse. Here are several key ways that equine drug rehabs can enhance the recovery process:
+              {"If you’ve been wondering, “Are there drug rehabs with horses?” and are interested in exploring equine drug rehabs as part of your recovery journey, it’s essential to consider the significant advantages that these programs offer. Integrating horses into drug rehab programs provides a unique opportunity to address addiction holistically, not just as a physical dependency but as an emotional and psychological challenge."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Emotional Reflection and Awareness
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Getting Started at Seven Arrows Recovery"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Horses are uniquely attuned to human emotions and can offer immediate, unbiased feedback about the emotional state of those interacting with them. This ability to mirror human emotions creates an invaluable opportunity for individuals to examine their emotional responses and triggers.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Building Trust and Relationship Skills
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Developing a relationship with a horse requires patience, consistency, and empathy&mdash;essential in rebuilding trust with oneself and others. In drug rehab programs with horses, clients learn how to foster meaningful relationships, a skill that directly translates to rebuilding personal and family connections damaged by addiction.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Enhancing Self-Esteem and Self-Efficacy
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Working with horses gives individuals tangible opportunities to experience success, which helps rebuild self-esteem and self-worth. Every accomplishment&mdash;leading a horse or completing a grooming task&mdash;reinforces the belief that positive change is possible. This process fosters a sense of self-efficacy, which is vital for those committed to a sober life and a future free from addiction.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Fostering Mindfulness and Presence
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Interacting with horses requires mindfulness&mdash;being fully present in the moment. Horses are susceptible to their environment and the emotional state of those around them. This attentiveness helps individuals become more aware of their thoughts, emotions, and physical sensations. Mindfulness is a powerful tool for managing cravings and emotional triggers, supporting overall emotional regulation and well-being during recovery.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Processing Trauma in a Safe Space
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              For many individuals struggling with addiction, unresolved trauma is a key contributing factor. Drug rehabs with horses offer a unique opportunity to address trauma in a safe, non-threatening environment. Horses create a calming atmosphere that allows clients to confront and process painful memories or emotions associated with their trauma. Equine drug rehabs offer a space for healing, enabling individuals to release trauma-related emotions and begin the process of emotional recovery.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Why Choose a Drug Rehab with Horses?
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              If you&rsquo;ve been wondering, &ldquo;Are there drug rehabs with horses?&rdquo; and are interested in exploring equine drug rehabs as part of your recovery journey, it&rsquo;s essential to consider the significant advantages that these programs offer. Integrating horses into drug rehab programs provides a unique opportunity to address addiction holistically, not just as a physical dependency but as an emotional and psychological challenge.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Getting Started at Seven Arrows Recovery
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              At Seven Arrows Recovery, we are proud to offer comprehensive equine drug rehabs as part of our holistic addiction treatment programs. Incorporating the transformative power of horses into the recovery process can significantly improve outcomes for those battling addiction. If you are asking, &ldquo;Are there drug rehabs with horses?&rdquo; and are considering a program that includes equine therapy, we are here to support you.
+              {"At Seven Arrows Recovery, we are proud to offer comprehensive equine drug rehabs as part of our holistic addiction treatment programs. Incorporating the transformative power of horses into the recovery process can significantly improve outcomes for those battling addiction. If you are asking, “Are there drug rehabs with horses?” and are considering a program that includes equine therapy, we are here to support you."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              If you&rsquo;re ready to explore how drug rehab programs with horses can support your journey to sobriety, or if you know someone who may benefit from equine drug rehab, we invite you to reach out to us today. Discover how our drug rehab with horses can help you overcome addiction and reclaim a healthy, sober life.
+              {"If you’re ready to explore how drug rehab programs with horses can support your journey to sobriety, or if you know someone who may benefit from equine drug rehab, we invite you to reach out to us today. Discover how our drug rehab with horses can help you overcome addiction and reclaim a healthy, sober life."}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">

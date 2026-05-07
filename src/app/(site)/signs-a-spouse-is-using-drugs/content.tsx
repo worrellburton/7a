@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 8'}
-        title={'Signs a Spouse is Using Drugs'}
+        label="The Recovery Roadmap — Episode 8"
+        title="Signs a Spouse is Using Drugs"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'Signs a Spouse is Using Drugs' },
+          { label: "Signs a Spouse is Using Drugs" },
         ]}
-        description={'Substance abuse doesn’t just affect individuals—it creates ripple effects that touch everyone close to them, especially spouses.'}
+        description="Substance abuse doesn’t just affect individuals—it creates ripple effects that touch everyone close to them, especially spouses. If you’ve noticed your partner acting differently and you’re starting to worry about signs a spouse…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,122 +22,100 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"Substance abuse doesn’t just affect individuals—it creates ripple effects that touch everyone close to them, especially spouses. If you’ve noticed your partner acting differently and you’re starting to worry about signs a spouse is using drugs, it’s essential to pay attention to these signs. Recognizing the signs a spouse is using drugs can help you take timely action and get the support your family needs."}
+            </p>
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"In many cases, the signs start small: changes in behavior, shifts in mood, or secretive habits that don’t add up. Over time, these issues can grow into serious concerns that affect emotional, financial, and physical well-being. Below, we explore the top five signs a spouse is using drugs, and what you can do to help them find a path to recovery."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"1. Sudden Behavioral and Emotional Changes"}
+            </h3>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Substance abuse doesn&rsquo;t just affect individuals&mdash;it creates ripple effects that touch everyone close to them, especially spouses. If you&rsquo;ve noticed your partner acting differently and you&rsquo;re starting to worry about signs a spouse is using drugs, it&rsquo;s essential to pay attention to these signs. Recognizing the signs a spouse is using drugs can help you take timely action and get the support your family needs.
+              {"One of the first signs a spouse is using drugs is a noticeable change in their demeanor or behavior. You may see:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Extreme mood swings—happy one moment, angry or withdrawn the next"}</li>
+              <li>{"Loss of interest in family time, hobbies, or responsibilities"}</li>
+              <li>{"Becoming defensive or irritated when asked simple questions"}</li>
+            </ul>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"If these behaviors emerge suddenly and persist, it may be more than just stress or fatigue. These emotional shifts are often early indicators that substance use is involved."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"2. Unexplained Financial Problems"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Drug use is expensive, and it often leads to hidden or increasing financial strain. You might notice:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Frequent ATM withdrawals or mysterious charges"}</li>
+              <li>{"Bills are being missed, or household items are disappearing."}</li>
+              <li>{"Sudden need to borrow money without clear reasons"}</li>
+            </ul>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"If your spouse is typically responsible with money but you’re noticing financial chaos or secrecy, it’s worth considering whether substance use could be behind the change."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"3. Physical Health and Appearance Decline"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Another common sign a spouse is using drugs is a decline in personal hygiene or health. While not every change means drug use, consider whether your spouse is showing:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Sudden weight loss or gain"}</li>
+              <li>{"Unusual marks, bruises, or constant sniffles"}</li>
+              <li>{"Changes in sleep patterns—staying up for days or excessive sleeping"}</li>
+              <li>{"Bloodshot eyes, frequent nosebleeds, or slurred speech"}</li>
+            </ul>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"When these physical symptoms accompany other red flags, they should not be ignored."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"4. Increased Secrecy and Isolation"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Addiction thrives in secrecy. If your spouse is suddenly guarding their phone, disappearing without explanation, or locking themselves in a room for long periods, they may be hiding drug use. You might also see:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Lies about where they’ve been or who they were with"}</li>
+              <li>{"Keeping new “friends” a secret"}</li>
+              <li>{"Increased irritability when asked about their plans or behavior"}</li>
+            </ul>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"This kind of secretive behavior is one of the most consistent signs a spouse is using drugs, and it can place a significant emotional strain on a relationship."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"5. Trouble at Work or Legal Issues"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"When drug use escalates, it often affects every area of life, including employment and legal standing. Warning signs can include:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Being written up at work, frequently calling out, or losing a job"}</li>
+              <li>{"DUIs, arrests, or legal trouble that’s vaguely explained"}</li>
+              <li>{"Continuing to use substances even after facing serious consequences"}</li>
+            </ul>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"If your spouse’s professional life or legal standing is suddenly unstable, it’s time to consider whether addiction is a factor."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"What to Do if You Notice Signs a Spouse Is Using Drugs"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"If you’re noticing these warning signs, you may be overwhelmed, heartbroken, or unsure of what to do next. It’s natural to feel confused, especially if your spouse denies the issue or blames other factors. But early intervention can make a big difference."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              In many cases, the signs start small: changes in behavior, shifts in mood, or secretive habits that don&rsquo;t add up. Over time, these issues can grow into serious concerns that affect emotional, financial, and physical well-being. Below, we explore the top five signs a spouse is using drugs, and what you can do to help them find a path to recovery.
+              {"Start by documenting your concerns and any patterns you observe. Approach your spouse from a place of compassion, not confrontation, and express your desire to help them, not punish them. Avoid enabling behaviors, such as covering up for their actions or ignoring problems out of fear. And most importantly, don’t try to handle everything on your own. Addiction is a complex disease that requires professional help and family support."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              1. Sudden Behavioral and Emotional Changes
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Get Help from Seven Arrows Recovery"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              One of the first signs a spouse is using drugs is a noticeable change in their demeanor or behavior. You may see:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Extreme mood swings&mdash;happy one moment, angry or withdrawn the next
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Loss of interest in family time, hobbies, or responsibilities
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Becoming defensive or irritated when asked simple questions
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              If these behaviors emerge suddenly and persist, it may be more than just stress or fatigue. These emotional shifts are often early indicators that substance use is involved.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              2. Unexplained Financial Problems
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Drug use is expensive, and it often leads to hidden or increasing financial strain. You might notice:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Frequent ATM withdrawals or mysterious charges
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Bills are being missed, or household items are disappearing.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Sudden need to borrow money without clear reasons
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              If your spouse is typically responsible with money but you&rsquo;re noticing financial chaos or secrecy, it&rsquo;s worth considering whether substance use could be behind the change.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              3. Physical Health and Appearance Decline
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Another common sign a spouse is using drugs is a decline in personal hygiene or health. While not every change means drug use, consider whether your spouse is showing:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Sudden weight loss or gain
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Unusual marks, bruises, or constant sniffles
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Changes in sleep patterns&mdash;staying up for days or excessive sleeping
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Bloodshot eyes, frequent nosebleeds, or slurred speech
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              When these physical symptoms accompany other red flags, they should not be ignored.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              4. Increased Secrecy and Isolation
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Addiction thrives in secrecy. If your spouse is suddenly guarding their phone, disappearing without explanation, or locking themselves in a room for long periods, they may be hiding drug use. You might also see:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Lies about where they&rsquo;ve been or who they were with
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Keeping new &ldquo;friends&rdquo; a secret
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Increased irritability when asked about their plans or behavior
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              This kind of secretive behavior is one of the most consistent signs a spouse is using drugs, and it can place a significant emotional strain on a relationship.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              5. Trouble at Work or Legal Issues
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              When drug use escalates, it often affects every area of life, including employment and legal standing. Warning signs can include:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Being written up at work, frequently calling out, or losing a job
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              DUIs, arrests, or legal trouble that&rsquo;s vaguely explained
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Continuing to use substances even after facing serious consequences
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              If your spouse&rsquo;s professional life or legal standing is suddenly unstable, it&rsquo;s time to consider whether addiction is a factor.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              What to Do if You Notice Signs a Spouse Is Using Drugs
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              If you&rsquo;re noticing these warning signs, you may be overwhelmed, heartbroken, or unsure of what to do next. It&rsquo;s natural to feel confused, especially if your spouse denies the issue or blames other factors. But early intervention can make a big difference.
+              {"If you’ve recognized any of these signs that a spouse is using drugs, know that you’re not alone, and help is available. At Seven Arrows Recovery in Arizona, we offer personalized addiction treatment in a supportive and healing environment. Our programs address both substance use and the family dynamics affected by addiction, offering a holistic path forward."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Start by documenting your concerns and any patterns you observe. Approach your spouse from a place of compassion, not confrontation, and express your desire to help them, not punish them. Avoid enabling behaviors, such as covering up for their actions or ignoring problems out of fear. And most importantly, don&rsquo;t try to handle everything on your own. Addiction is a complex disease that requires professional help and family support.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Get Help from Seven Arrows Recovery
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              If you&rsquo;ve recognized any of these signs that a spouse is using drugs, know that you&rsquo;re not alone, and help is available. At Seven Arrows Recovery in Arizona, we offer personalized addiction treatment in a supportive and healing environment. Our programs address both substance use and the family dynamics affected by addiction, offering a holistic path forward.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Contact Seven Arrows Recovery today to learn how we can help your spouse reclaim their life&mdash;and how you can begin healing, too.
+              {"Contact Seven Arrows Recovery today to learn how we can help your spouse reclaim their life—and how you can begin healing, too."}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">

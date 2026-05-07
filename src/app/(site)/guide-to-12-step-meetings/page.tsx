@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'A Simple Guide to 12-Step Meetings | Seven Arrows Recovery',
-  description:
-    'The journey to recovery is deeply personal, filled with unique challenges and moments of profound growth.',
-  keywords:
-    'a simple guide to 12-step meetings, guide to 12 step meetings, addiction recovery, Seven Arrows Recovery, Arizona rehab',
+  title: "A Simple Guide to 12-Step Meetings | Seven Arrows Recovery",
+  description: "The journey to recovery is deeply personal, filled with unique challenges and moments of profound growth. At Seven Arrows Recovery, we understand that each person’s path is different, and supporting these individual journeys is…",
+  keywords: "guide to 12 step meetings, a simple guide to 12-step meetings, addiction recovery, Seven Arrows Recovery, Arizona rehab",
   alternates: {
-    canonical: 'https://sevenarrowsrecoveryarizona.com/guide-to-12-step-meetings',
+    canonical: "https://sevenarrowsrecoveryarizona.com/guide-to-12-step-meetings",
   },
 };
 

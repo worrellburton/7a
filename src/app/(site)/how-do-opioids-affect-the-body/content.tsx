@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 40'}
-        title={'How Do Opioids Affect the Body?'}
+        label="The Recovery Roadmap — Episode 40"
+        title="How Do Opioids Affect the Body?"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'How Do Opioids Affect the Body?' },
+          { label: "How Do Opioids Affect the Body?" },
         ]}
-        description={'Opioids are a class of drugs that include prescription painkillers like oxycodone and hydrocodone and illicit substances such as heroin.'}
+        description="Opioids are a class of drugs that include prescription painkillers like oxycodone and hydrocodone and illicit substances such as heroin. While opioids can be effective in managing pain, they also carry a high risk of addiction…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,62 +22,62 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Opioids are a class of drugs that include prescription painkillers like oxycodone and hydrocodone and illicit substances such as heroin. While opioids can be effective in managing pain, they also carry a high risk of addiction and can significantly impact the body. At Seven Arrows Recovery, we understand the importance of education in addiction recovery. In this article, we will explore how opioids affect the body and shed light on the potential consequences of opioid use.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"Opioids are a class of drugs that include prescription painkillers like oxycodone and hydrocodone and illicit substances such as heroin. While opioids can be effective in managing pain, they also carry a high risk of addiction and can significantly impact the body. At Seven Arrows Recovery, we understand the importance of education in addiction recovery. In this article, we will explore how opioids affect the body and shed light on the potential consequences of opioid use."}
             </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Seven Arrows Recovery is a top-rated drug rehab in Arizona. Contact us today to learn more about addiction treatment services in Arizona.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"Seven Arrows Recovery is a top-rated drug rehab in Arizona. Contact us today to learn more about addiction treatment services in Arizona."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              How Do Opioids Affect the Body?
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"How Do Opioids Affect the Body?"}
+            </h2>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Pain Relief:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Opioids bind to specific receptors in the brain and spinal cord, reducing the perception of pain. They block pain signals and create a sense of euphoria, providing temporary relief for individuals experiencing acute or chronic pain."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Respiratory Depression:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"One of the most dangerous effects of opioids is respiratory depression. Opioids slow down the central nervous system, including the part of the brain that regulates breathing. This can result in shallow or slowed breathing, which can be life-threatening, especially when high doses or potent opioids are involved."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Sedation and Drowsiness:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Opioids can induce feelings of sedation and drowsiness. They can impair cognitive function, attention, and reaction times. This effect can make tasks such as driving or operating machinery dangerous while under the influence of opioids."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Nausea and Vomiting:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Opioids can cause nausea and vomiting, particularly when taken in higher doses or by opioid-naive individuals. These symptoms can be distressing and may contribute to a decreased quality of life for those using opioids."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Tolerance and Dependence:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"With repeated opioid use, the body can develop tolerance, requiring higher doses to achieve the same effect. Continued use can lead to physical dependence, where the body becomes reliant on opioids to function normally. Abruptly stopping or reducing opioid use can result in withdrawal symptoms, which can be uncomfortable and, in some cases, severe."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Increased Risk of Overdose:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Opioid overdose is a significant concern due to the potent nature of these drugs. High doses or combining opioids with other substances, such as alcohol or benzodiazepines, can lead to respiratory failure, unconsciousness, and even death. The risk of overdose is especially high when using illicit opioids like heroin, which may vary in potency and can be laced with other dangerous substances."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Impact on Mental Health:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Opioid use can have detrimental effects on mental health. Prolonged use can contribute to mood disorders such as depression and anxiety. Additionally, individuals who misuse opioids may experience social isolation, strained relationships, and financial difficulties, further exacerbating mental health challenges."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Seven Arrows Recovery Offers Opioid Treatment in Arizona"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Pain Relief:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Opioids bind to specific receptors in the brain and spinal cord, reducing the perception of pain. They block pain signals and create a sense of euphoria, providing temporary relief for individuals experiencing acute or chronic pain.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Respiratory Depression:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              One of the most dangerous effects of opioids is respiratory depression. Opioids slow down the central nervous system, including the part of the brain that regulates breathing. This can result in shallow or slowed breathing, which can be life-threatening, especially when high doses or potent opioids are involved.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Sedation and Drowsiness:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Opioids can induce feelings of sedation and drowsiness. They can impair cognitive function, attention, and reaction times. This effect can make tasks such as driving or operating machinery dangerous while under the influence of opioids.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Nausea and Vomiting:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Opioids can cause nausea and vomiting, particularly when taken in higher doses or by opioid-naive individuals. These symptoms can be distressing and may contribute to a decreased quality of life for those using opioids.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Tolerance and Dependence:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              With repeated opioid use, the body can develop tolerance, requiring higher doses to achieve the same effect. Continued use can lead to physical dependence, where the body becomes reliant on opioids to function normally. Abruptly stopping or reducing opioid use can result in withdrawal symptoms, which can be uncomfortable and, in some cases, severe.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Increased Risk of Overdose:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Opioid overdose is a significant concern due to the potent nature of these drugs. High doses or combining opioids with other substances, such as alcohol or benzodiazepines, can lead to respiratory failure, unconsciousness, and even death. The risk of overdose is especially high when using illicit opioids like heroin, which may vary in potency and can be laced with other dangerous substances.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Impact on Mental Health:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Opioid use can have detrimental effects on mental health. Prolonged use can contribute to mood disorders such as depression and anxiety. Additionally, individuals who misuse opioids may experience social isolation, strained relationships, and financial difficulties, further exacerbating mental health challenges.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Seven Arrows Recovery Offers Opioid Treatment in Arizona
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Understanding how opioids affect the body is crucial for raising awareness about the potential risks and consequences of opioid use. While opioids can provide effective pain relief when used appropriately, the misuse or long-term use of opioids can lead to serious health complications, addiction, and even fatal overdoses. If you or someone you know is struggling with opioid use, seeking professional help from a healthcare provider or addiction treatment center is essential. Comprehensive treatment, including therapy and support, can help individuals overcome opioid addiction and regain control of their lives. Contact Seven Arrows Recovery today to learn about our Tucson inpatient drug rehab.
+              {"Understanding how opioids affect the body is crucial for raising awareness about the potential risks and consequences of opioid use. While opioids can provide effective pain relief when used appropriately, the misuse or long-term use of opioids can lead to serious health complications, addiction, and even fatal overdoses. If you or someone you know is struggling with opioid use, seeking professional help from a healthcare provider or addiction treatment center is essential. Comprehensive treatment, including therapy and support, can help individuals overcome opioid addiction and regain control of their lives. Contact Seven Arrows Recovery today to learn about our Tucson inpatient drug rehab."}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">

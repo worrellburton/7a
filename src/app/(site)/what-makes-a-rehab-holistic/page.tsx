@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'What Makes a Rehab Holistic | Seven Arrows Recovery',
-  description:
-    'Holistic rehab centers take a comprehensive approach to addiction treatment, addressing not only the physical aspects of addiction but also the emotional, mental, and spiritual components.',
-  keywords:
-    'what makes a rehab holistic, what makes a rehab holistic, addiction recovery, Seven Arrows Recovery, Arizona rehab',
+  title: "What Makes a Rehab Holistic | Seven Arrows Recovery",
+  description: "Holistic rehab centers take a comprehensive approach to addiction treatment, addressing not only the physical aspects of addiction but also the emotional, mental, and spiritual components. These centers recognize that addiction…",
+  keywords: "what makes a rehab holistic, what makes a rehab holistic, addiction recovery, Seven Arrows Recovery, Arizona rehab",
   alternates: {
-    canonical: 'https://sevenarrowsrecoveryarizona.com/what-makes-a-rehab-holistic',
+    canonical: "https://sevenarrowsrecoveryarizona.com/what-makes-a-rehab-holistic",
   },
 };
 

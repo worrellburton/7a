@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Inpatient Mental Health Facilities in Arizona | Seven Arrows Recovery',
-  description:
-    'Understanding how to find the best inpatient mental health facilities in Arizona is crucial in your journey to healing and recovery.',
-  keywords:
-    'inpatient mental health facilities in arizona, inpatient mental health facilities in arizona, addiction recovery, Seven Arrows Recovery, Arizona rehab',
+  title: "Inpatient Mental Health Facilities in Arizona | Seven Arrows Recovery",
+  description: "Understanding how to find the best inpatient mental health facilities in Arizona is crucial in your journey to healing and recovery. With various options available, each offering different approaches and services, it can be…",
+  keywords: "inpatient mental health facilities in arizona, inpatient mental health facilities in arizona, addiction recovery, Seven Arrows Recovery, Arizona rehab",
   alternates: {
-    canonical: 'https://sevenarrowsrecoveryarizona.com/inpatient-mental-health-facilities-in-arizona',
+    canonical: "https://sevenarrowsrecoveryarizona.com/inpatient-mental-health-facilities-in-arizona",
   },
 };
 

@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 18'}
-        title={'How Can Equine Therapy Benefit Addiction Recovery?'}
+        label="The Recovery Roadmap — Episode 18"
+        title="How Can Equine Therapy Benefit Addiction Recovery?"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'How Can Equine Therapy Benefit Addiction Recovery?' },
+          { label: "How Can Equine Therapy Benefit Addiction Recovery?" },
         ]}
-        description={'Addiction is an ongoing issue affecting millions of people worldwide. Whether it’s substances like drugs and alcohol or behaviors such as gambling, addiction disrupts lives, fractures families…'}
+        description="Addiction is an ongoing issue affecting millions of people worldwide. Whether it’s substances like drugs and alcohol or behaviors such as gambling, addiction disrupts lives, fractures families, and depletes communities.…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,80 +22,76 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Addiction is an ongoing issue affecting millions of people worldwide. Whether it&rsquo;s substances like drugs and alcohol or behaviors such as gambling, addiction disrupts lives, fractures families, and depletes communities. Traditional approaches to addiction recovery often include a combination of medical treatment, counseling, and support groups. However, recent years have seen a surge in alternative therapies that address the holistic needs of individuals struggling with addiction. One such alternative with proven benefits is equine therapy.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"Addiction is an ongoing issue affecting millions of people worldwide. Whether it’s substances like drugs and alcohol or behaviors such as gambling, addiction disrupts lives, fractures families, and depletes communities. Traditional approaches to addiction recovery often include a combination of medical treatment, counseling, and support groups. However, recent years have seen a surge in alternative therapies that address the holistic needs of individuals struggling with addiction. One such alternative with proven benefits is equine therapy."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              What is Equine Therapy?
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"What is Equine Therapy?"}
+            </h2>
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"Equine therapy, also known as horse therapy or equine-assisted therapy, is a therapeutic approach that involves interactions between patients and horses. This therapy style can be part of an individual or group session and typically includes activities like grooming, feeding, and leading horses, as well as more structured exercises under the guidance of a trained therapist."}
+            </p>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"The basis of equine therapy lies in the calming and intuitive nature of horses, making it a viable option for people dealing with various emotional and psychological conditions, including addiction. This form of therapy leverages the unique characteristics of horses to facilitate emotional healing and personal growth."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"What Equine Therapy Entails"}
+            </h2>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Structured Interaction: Sessions usually begin with a specific goal, such as establishing trust and clear communication between the patient and the horse. Participants may groom or feed the horses, activities designed to promote a sense of responsibility and connection."}</li>
+              <li>{"Guided Exercises: Participants perform structured exercises with the horses under the supervision of a certified therapist. These could involve leading the horse through an obstacle course or simple riding exercises to enhance emotional regulation and maintain focus."}</li>
+              <li>{"Therapeutic Processing: After the physical interactions, there’s often a debriefing session where participants reflect on their experiences. This helps to draw parallels between their interactions with the horses and their own lives, providing valuable insights into their behavior and thought patterns."}</li>
+            </ul>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Benefits of Equine Therapy in Treating Drug & Alcohol Abuse"}
+            </h2>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Emotional Regulation"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Interacting with horses requires patience and a calm demeanor. People in addiction recovery often struggle with emotional regulation, a key component in fighting cravings and preventing relapse. The act of managing a horse helps individuals practice maintaining their composure and staying present, skills that are crucial for long-term recovery."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Building Trust and Patience"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Addiction can severely impact one’s ability to trust others and themselves. Horses, being extremely intuitive creatures, respond to authentic emotions. Learning to build a relationship with a horse rooted in mutual respect and trust can be incredibly healing for someone in recovery."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Enhancing Self-Esteem"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Many individuals battling addiction suffer from low self-esteem. Completing tasks and bonding with such powerful animals can significantly boost one’s confidence. Each small success in equine therapy translates into a psychological victory, reinforcing the belief that change and growth are possible."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Reducing Anxiety and Stress"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Spending time with horses has been shown to reduce anxiety and stress levels, both of which are common triggers for substance abuse. The rhythmic movements of riding and the peaceful nature of these animals create an environment where one can experience calm and relaxation."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Fostering Responsibility"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Caring for a horse involves a significant responsibility, from grooming to feeding and exercising the animal. This sense of duty can be shifted towards other areas of life, helping individuals develop a more structured and disciplined lifestyle, which is essential for overcoming addiction."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Promoting Social Engagement"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Equine therapy for substance abuse often involves group activities, which can help rebuild social skills that may have deteriorated due to substance abuse. Engaging in successful team efforts can restore a sense of community and belonging, which is essential for emotional well-being."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"How to Contact Seven Arrows Recovery for Equine-Assisted Treatment"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Equine therapy, also known as horse therapy or equine-assisted therapy, is a therapeutic approach that involves interactions between patients and horses. This therapy style can be part of an individual or group session and typically includes activities like grooming, feeding, and leading horses, as well as more structured exercises under the guidance of a trained therapist.
+              {"If you or someone you love is struggling with addiction and are interested in exploring the healing benefits of equine therapy, consider reaching out to Seven Arrows Recovery for addiction treatment in Arizona. Seven Arrows Recovery specializes in holistic and personalized approaches to addiction treatment, incorporating equine-assisted therapy as a significant component of their recovery programs."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              The basis of equine therapy lies in the calming and intuitive nature of horses, making it a viable option for people dealing with various emotional and psychological conditions, including addiction. This form of therapy leverages the unique characteristics of horses to facilitate emotional healing and personal growth.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              What Equine Therapy Entails
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              1. Structured Interaction: Sessions usually begin with a specific goal, such as establishing trust and clear communication between the patient and the horse. Participants may groom or feed the horses, activities designed to promote a sense of responsibility and connection.
+              {"Feel free to visit our website to learn more about our programs, read testimonials, and even schedule a consultation. Our team of professionals is dedicated to supporting you on your journey to recovery with compassionate care and effective treatment strategies."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              2. Guided Exercises: Participants perform structured exercises with the horses under the supervision of a certified therapist. These could involve leading the horse through an obstacle course or simple riding exercises to enhance emotional regulation and maintain focus.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              3. Therapeutic Processing: After the physical interactions, there&rsquo;s often a debriefing session where participants reflect on their experiences. This helps to draw parallels between their interactions with the horses and their own lives, providing valuable insights into their behavior and thought patterns.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Benefits of Equine Therapy in Treating Drug & Alcohol Abuse
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Emotional Regulation
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Interacting with horses requires patience and a calm demeanor. People in addiction recovery often struggle with emotional regulation, a key component in fighting cravings and preventing relapse. The act of managing a horse helps individuals practice maintaining their composure and staying present, skills that are crucial for long-term recovery.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Building Trust and Patience
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Addiction can severely impact one&rsquo;s ability to trust others and themselves. Horses, being extremely intuitive creatures, respond to authentic emotions. Learning to build a relationship with a horse rooted in mutual respect and trust can be incredibly healing for someone in recovery.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Enhancing Self-Esteem
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Many individuals battling addiction suffer from low self-esteem. Completing tasks and bonding with such powerful animals can significantly boost one&rsquo;s confidence. Each small success in equine therapy translates into a psychological victory, reinforcing the belief that change and growth are possible.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Reducing Anxiety and Stress
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Spending time with horses has been shown to reduce anxiety and stress levels, both of which are common triggers for substance abuse. The rhythmic movements of riding and the peaceful nature of these animals create an environment where one can experience calm and relaxation.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Fostering Responsibility
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Caring for a horse involves a significant responsibility, from grooming to feeding and exercising the animal. This sense of duty can be shifted towards other areas of life, helping individuals develop a more structured and disciplined lifestyle, which is essential for overcoming addiction.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Promoting Social Engagement
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Equine therapy for substance abuse often involves group activities, which can help rebuild social skills that may have deteriorated due to substance abuse. Engaging in successful team efforts can restore a sense of community and belonging, which is essential for emotional well-being.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              How to Contact Seven Arrows Recovery for Equine-Assisted Treatment
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              If you or someone you love is struggling with addiction and are interested in exploring the healing benefits of equine therapy, consider reaching out to Seven Arrows Recovery for addiction treatment in Arizona. Seven Arrows Recovery specializes in holistic and personalized approaches to addiction treatment, incorporating equine-assisted therapy as a significant component of their recovery programs.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Feel free to visit our website to learn more about our programs, read testimonials, and even schedule a consultation. Our team of professionals is dedicated to supporting you on your journey to recovery with compassionate care and effective treatment strategies.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Equine therapy offers a unique and powerful avenue for those seeking recovery from addiction, addressing emotional, psychological, and social aspects holistically. If conventional methods haven&rsquo;t provided the desired results, equine therapy at Seven Arrows Recovery might be the transformative experience you&rsquo;re looking for.
+              {"Equine therapy offers a unique and powerful avenue for those seeking recovery from addiction, addressing emotional, psychological, and social aspects holistically. If conventional methods haven’t provided the desired results, equine therapy at Seven Arrows Recovery might be the transformative experience you’re looking for."}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">

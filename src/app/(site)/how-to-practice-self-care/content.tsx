@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 50'}
-        title={'How to Practice Self Care'}
+        label="The Recovery Roadmap — Episode 50"
+        title="How to Practice Self Care"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'How to Practice Self Care' },
+          { label: "How to Practice Self Care" },
         ]}
-        description={'Self-care is an essential practice that promotes overall well-being, helps manage stress, and enhances our physical, emotional, and mental health.'}
+        description="Self-care is an essential practice that promotes overall well-being, helps manage stress, and enhances our physical, emotional, and mental health. In today’s fast-paced and demanding world, taking time for self-care is more…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,77 +22,77 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Self-care is an essential practice that promotes overall well-being, helps manage stress, and enhances our physical, emotional, and mental health. In today&rsquo;s fast-paced and demanding world, taking time for self-care is more important than ever. At Seven Arrows Recovery, self-care is integral to the recovery journey. This article will explore practical tips and strategies to help you incorporate self-care into your daily routine and nurture your mind, body, and spirit.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"Self-care is an essential practice that promotes overall well-being, helps manage stress, and enhances our physical, emotional, and mental health. In today’s fast-paced and demanding world, taking time for self-care is more important than ever. At Seven Arrows Recovery, self-care is integral to the recovery journey. This article will explore practical tips and strategies to help you incorporate self-care into your daily routine and nurture your mind, body, and spirit."}
             </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Seven Arrows Recovery is a top-rated drug rehab in Arizona. Contact us today to learn more about addiction treatment services in Arizona.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"Seven Arrows Recovery is a top-rated drug rehab in Arizona. Contact us today to learn more about addiction treatment services in Arizona."}
             </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Prioritize Self-Care:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Make self-care a priority by recognizing its importance in your life. Understand that caring for yourself is not selfish but necessary for your overall health and happiness. Dedicate time each day or week specifically for self-care activities.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Listen to Your Needs:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Tune in to your body, mind, and emotions to identify your needs. Take note of signs of stress, fatigue, or emotional exhaustion. Prioritize activities that replenish your energy, bring you joy, and help you feel grounded.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Establish Healthy Boundaries:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Learn to set boundaries to protect your well-being. Say no to commitments or activities that drain your energy or overwhelm you. Prioritize activities that align with your values and support your growth.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Nourish Your Body:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Engage in activities that support your physical health. Eat a balanced diet, stay hydrated, and engage in regular exercise. Prioritize sleep to ensure your body gets the rest it needs for optimal functioning.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Engage in Mindful Practices:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Incorporate mindfulness into your daily routine. Practice meditation, deep breathing exercises, or yoga to promote relaxation, reduce stress, and cultivate a sense of calm. Mindful activities can help you stay present and connected to yourself.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Engage in Activities You Enjoy:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Identify activities that bring you joy, relaxation, or a sense of accomplishment. Engage in hobbies or creative outlets that make you feel alive and fulfilled. This could include reading, painting, dancing, gardening, or playing an instrument.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Cultivate Supportive Relationships:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Nurture relationships with people who support and uplift you. Surround yourself with individuals who contribute positively to your life and recovery. Seek support groups or therapy to connect with others who understand your journey.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Practice Self-Compassion:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Be kind and gentle with yourself. Treat yourself with the same compassion and understanding you would offer a loved one. Acknowledge your accomplishments and practice self-acceptance.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Disconnect from Technology:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Take regular breaks from screens and digital devices. Engage in activities that allow you to disconnect and be present at the moment. Spend time in nature, engage in hobbies, or enjoy quality time with loved ones.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Regular Self-Reflection:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Take time to reflect on your needs, values, and goals. Journaling or engaging in self-reflection exercises can help you gain clarity, process emotions, and make conscious choices that align with your authentic self.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Seven Arrows Recovery is a Luxury Treatment Center in Arizona
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Prioritize Self-Care:"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Incorporating self-care into your daily life is a powerful way to nurture your well-being and support your recovery journey. By prioritizing self-care, listening to your needs, and engaging in activities that nourish your mind, body, and spirit, you can create a foundation of resilience, balance, and self-empowerment. Remember, self-care is an ongoing practice, and it is important to regularly assess and adjust your self-care routine to meet your evolving needs. Embrace self-care as an act of self-love and invest in your own well-being for a healthier and more fulfilling life.Contact Seven Arrows Recovery today to learn about our Tucson inpatient drug rehab.
+              {"Make self-care a priority by recognizing its importance in your life. Understand that caring for yourself is not selfish but necessary for your overall health and happiness. Dedicate time each day or week specifically for self-care activities."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Listen to Your Needs:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Tune in to your body, mind, and emotions to identify your needs. Take note of signs of stress, fatigue, or emotional exhaustion. Prioritize activities that replenish your energy, bring you joy, and help you feel grounded."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Establish Healthy Boundaries:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Learn to set boundaries to protect your well-being. Say no to commitments or activities that drain your energy or overwhelm you. Prioritize activities that align with your values and support your growth."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Nourish Your Body:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Engage in activities that support your physical health. Eat a balanced diet, stay hydrated, and engage in regular exercise. Prioritize sleep to ensure your body gets the rest it needs for optimal functioning."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Engage in Mindful Practices:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Incorporate mindfulness into your daily routine. Practice meditation, deep breathing exercises, or yoga to promote relaxation, reduce stress, and cultivate a sense of calm. Mindful activities can help you stay present and connected to yourself."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Engage in Activities You Enjoy:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Identify activities that bring you joy, relaxation, or a sense of accomplishment. Engage in hobbies or creative outlets that make you feel alive and fulfilled. This could include reading, painting, dancing, gardening, or playing an instrument."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Cultivate Supportive Relationships:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Nurture relationships with people who support and uplift you. Surround yourself with individuals who contribute positively to your life and recovery. Seek support groups or therapy to connect with others who understand your journey."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Practice Self-Compassion:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Be kind and gentle with yourself. Treat yourself with the same compassion and understanding you would offer a loved one. Acknowledge your accomplishments and practice self-acceptance."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Disconnect from Technology:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Take regular breaks from screens and digital devices. Engage in activities that allow you to disconnect and be present at the moment. Spend time in nature, engage in hobbies, or enjoy quality time with loved ones."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Regular Self-Reflection:"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Take time to reflect on your needs, values, and goals. Journaling or engaging in self-reflection exercises can help you gain clarity, process emotions, and make conscious choices that align with your authentic self."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Seven Arrows Recovery is a Luxury Treatment Center in Arizona"}
+            </h2>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Incorporating self-care into your daily life is a powerful way to nurture your well-being and support your recovery journey. By prioritizing self-care, listening to your needs, and engaging in activities that nourish your mind, body, and spirit, you can create a foundation of resilience, balance, and self-empowerment. Remember, self-care is an ongoing practice, and it is important to regularly assess and adjust your self-care routine to meet your evolving needs. Embrace self-care as an act of self-love and invest in your own well-being for a healthier and more fulfilling life.Contact Seven Arrows Recovery today to learn about our Tucson inpatient drug rehab."}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">
