@@ -3,15 +3,12 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import CallAiBadge from './CallAiHover';
 import { OperatorPicker, ClientTypePicker, SelectAllCheckbox, SortTh, DetailField } from './Pickers';
-import { ScoreMiniPopover } from './ScoreMiniPopover';
 import { AudioScrubber } from './AudioScrubber';
 import { MobileRangePresets } from './MobileRangePresets';
 import { CopyCallLinkButton, OperatorCallLinkButton, SyncStatusIndicator } from './LinkButtons';
 import { MiniHeatmap } from './MiniHeatmap';
 import { TimelineSlider } from './TimelineSlider';
-import { OperatorInsightsPanel } from './OperatorInsights';
 import { SourcesPanel } from './SourcesPanel';
 import { CallDetail } from './CallDetail';
 import { CallMobileRow, CallMobileRowSkeleton } from './CallMobileRow';
@@ -1067,19 +1064,6 @@ export default function CallsContent() {
           </div>
           <div className="flex items-center gap-2">
             <a
-              href="/app/calls/operator-guide"
-              className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-white/85 supports-[backdrop-filter]:bg-white/70 backdrop-blur text-foreground border border-white/70 rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-white transition-colors shadow-sm"
-              style={{ fontFamily: 'var(--font-body)' }}
-              aria-label="Open Operator Guide"
-            >
-              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h16" />
-                <circle cx="18" cy="12" r="2" strokeLinejoin="round" />
-              </svg>
-              <span className="hidden sm:inline">Operator Guide</span>
-              <span className="sm:hidden">Guide</span>
-            </a>
-            <a
               href="/app/calls/reports"
               className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-white/85 supports-[backdrop-filter]:bg-white/70 backdrop-blur text-foreground border border-white/70 rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-white transition-colors shadow-sm"
               style={{ fontFamily: 'var(--font-body)' }}
@@ -1613,29 +1597,7 @@ export default function CallsContent() {
                                   {call.voicemail ? 'Voicemail' : 'No answer'}
                                 </span>
                               ) : (
-                                <div className="flex flex-col items-start gap-1">
-                                  <div className="flex items-center gap-2">
-                                    <OperatorPicker
-                                      currentName={scores[String(call.id)]?.operator_name || null}
-                                      knownOperators={knownOperators}
-                                      noAnswer={false}
-                                      voicemail={false}
-                                      error={scoringErrors[String(call.id)]}
-                                      onPick={(name) => setManualOperator(String(call.id), name)}
-                                    />
-                                    <CallAiBadge
-                                      call={call}
-                                      preScore={scores[String(call.id)] || null}
-                                      loading={scoringIds.has(String(call.id))}
-                                      onClick={() => setMiniPopoverId(miniPopoverId === call.id ? null : call.id)}
-                                    />
-                                  </div>
-                                  {scores[String(call.id)]?.scored_at && (
-                                    <div className="text-[9px] text-foreground/30 whitespace-nowrap leading-tight" style={{ fontFamily: 'var(--font-body)' }}>
-                                      {formatDate(scores[String(call.id)].scored_at)} · {formatTime(scores[String(call.id)].scored_at)}
-                                    </div>
-                                  )}
-                                </div>
+                                <span className="text-xs text-foreground/40">&mdash;</span>
                               )}
                             </td>
                             <td className={`px-3 sm:px-5 ${cellPad} text-sm whitespace-nowrap`} style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
@@ -1709,19 +1671,6 @@ export default function CallsContent() {
                               </td>
                             </tr>
                           )}
-                          {!expanded && miniPopoverId === call.id && (
-                            <tr className="bg-gradient-to-r from-primary/5 to-transparent border-b border-gray-50" onClick={(e) => e.stopPropagation()}>
-                              <td colSpan={15} className="px-5 py-4">
-                                <ScoreMiniPopover
-                                  score={scores[String(call.id)] || null}
-                                  scoring={scoringIds.has(String(call.id))}
-                                  error={scoringErrors[String(call.id)]}
-                                  onClose={() => setMiniPopoverId(null)}
-                                  onRescore={() => rescoreCall(String(call.id), true)}
-                                />
-                              </td>
-                            </tr>
-                          )}
                         </Fragment>
                       );
                     })}
@@ -1754,26 +1703,6 @@ export default function CallsContent() {
       {/* Sources Tab */}
       {tab === 'sources' && !loading && (
         <SourcesPanel calls={calls} scores={scores} onOpenCall={(id) => { setExpandedId(id); setTab('calls'); setTimeout(() => { const el = document.querySelector(`[data-call-id="${id}"]`); if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300); }} />
-      )}
-
-      {/* Operator Insights Tab — admin only */}
-      {tab === 'operators' && !loading && isAdmin && (
-        <OperatorInsightsPanel
-          rangeStart={rangeStart}
-          rangeEnd={rangeEnd}
-          token={session?.access_token ?? null}
-          onOpenCall={(ctmId, calledAt) => {
-            const iso = parseDate(calledAt)?.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-            if (iso) setDateFilter(iso);
-            setExpandedId(Number(ctmId));
-            setTab('calls');
-            setPage(1);
-            setTimeout(() => {
-              const el = document.querySelector(`[data-call-id="${ctmId}"]`);
-              if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 300);
-          }}
-        />
       )}
 
       {/* Selection action bar — appears when one or more calls are
