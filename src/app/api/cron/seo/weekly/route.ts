@@ -28,8 +28,7 @@ import {
 //
 // Auth: relies on Vercel cron's `x-vercel-cron` header. When the
 // handler is hit interactively (admin-triggered "run now"), the
-// Authorization Bearer header must match CRON_SECRET — same pattern
-// the existing /api/calls/auto-score uses, so we reuse the secret.
+// Authorization Bearer header must match CRON_SECRET.
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;

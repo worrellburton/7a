@@ -13,7 +13,6 @@ import { CallMobileRow, CallMobileRowSkeleton } from './CallMobileRow';
 import { MobileSelect } from './MobileSelect';
 import {
   Call,
-  CTMResponse,
   Tab,
   SPAM_STORAGE_KEY,
   Insights,
@@ -957,6 +956,11 @@ export default function CallsContent() {
                         onToggleSelect={() => toggleSelect(String(call.id))}
                         onPlay={(url) => playRecording(url)}
                       />
+                      {expanded && (
+                        <div className="bg-warm-bg/30 px-3.5 py-4">
+                          <CallDetail call={call} />
+                        </div>
+                      )}
                     </Fragment>
                   );
                 })}
@@ -1099,6 +1103,13 @@ export default function CallsContent() {
                               <svg className={`w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                             </td>
                           </tr>
+                          {expanded && (
+                            <tr className="bg-warm-bg/30 border-b border-gray-50">
+                              <td colSpan={11} className="px-5 py-5">
+                                <CallDetail call={call} />
+                              </td>
+                            </tr>
+                          )}
                         </Fragment>
                       );
                     })}

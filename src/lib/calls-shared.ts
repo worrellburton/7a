@@ -2,8 +2,6 @@
 // /api/calls/* server routes. Keeping the rules in one place avoids
 // drifting server aggregates vs. client badges.
 
-export const MEANINGFUL_THRESHOLD = 60;
-
 export function normalizePhone(num: string | null | undefined): string {
   if (!num) return '';
   return num.replace(/\D/g, '');
@@ -16,27 +14,6 @@ export function isMissedCall(c: {
 }): boolean {
   if (c.direction !== 'inbound') return false;
   return !!c.voicemail || (c.talk_time ?? 0) < 3;
-}
-
-// A call counts as "meaningful" when the AI fit_score clears the
-// threshold AND it isn't an outbound voicemail. We dial out a lot of
-// numbers that don't pick up; those go to voicemail and the score
-// reflects the script we left, not a real conversation, so they
-// shouldn't inflate the meaningful-calls KPI.
-export function isOutboundVoicemail(c: {
-  direction?: string | null;
-  voicemail?: boolean | null;
-}): boolean {
-  return c.direction === 'outbound' && !!c.voicemail;
-}
-
-export function isMeaningfulCall(
-  c: { direction?: string | null; voicemail?: boolean | null },
-  fitScore: number | null | undefined,
-): boolean {
-  if (fitScore == null || fitScore < MEANINGFUL_THRESHOLD) return false;
-  if (isOutboundVoicemail(c)) return false;
-  return true;
 }
 
 export function isPaidSource(raw: string | null | undefined): boolean {
@@ -91,7 +68,6 @@ export interface RangeAggregates {
   missed: number;
   missedPaid: number;
   missedSpam: number;
-  meaningful: number;
   spam: number;
   returnedMissed: number;
   returnedPickedUp: number;
@@ -101,17 +77,15 @@ export interface RangeAggregates {
     count: number;
     missedCount: number;
     returnedCount: number;
-    meaningfulCount: number;
   }[];
 }
 
-// Compute every stat card value for a given set of calls + score map.
-// `phoenixDay` is a function the caller provides so we don't hard-bake a
-// tz here — keeps this file environment-agnostic.
+// Compute every stat card value for a given set of calls. `phoenixDay`
+// is a function the caller provides so we don't hard-bake a tz here —
+// keeps this file environment-agnostic.
 export function computeRangeAggregates(
   calls: AggregateCall[],
   spamSet: Set<string>,
-  scores: Map<string, { fit_score: number | null }>,
   phoenixDay: (iso: string) => string,
   rangeDays: string[],
 ): RangeAggregates {
@@ -119,7 +93,6 @@ export function computeRangeAggregates(
   const dayCount = new Map<string, number>();
   const dayMissed = new Map<string, number>();
   const dayReturned = new Map<string, number>();
-  const dayMeaningful = new Map<string, number>();
   const missedNumbers = new Set<string>();
 
   let totalCalls = 0;
@@ -128,7 +101,6 @@ export function computeRangeAggregates(
   let missed = 0;
   let missedPaid = 0;
   let missedSpam = 0;
-  let meaningful = 0;
   let spam = 0;
   let totalDuration = 0;
 
@@ -152,11 +124,6 @@ export function computeRangeAggregates(
       if (c.caller_number) missedNumbers.add(c.caller_number);
       if (isPaidSource(c.source_name || c.source)) missedPaid++;
     }
-    const s = scores.get(c.ctm_id);
-    if (isMeaningfulCall(c, s?.fit_score ?? null)) {
-      meaningful++;
-      dayMeaningful.set(day, (dayMeaningful.get(day) ?? 0) + 1);
-    }
   }
 
   let returnedMissed = 0;
@@ -178,7 +145,6 @@ export function computeRangeAggregates(
     count: dayCount.get(d) ?? 0,
     missedCount: dayMissed.get(d) ?? 0,
     returnedCount: dayReturned.get(d) ?? 0,
-    meaningfulCount: dayMeaningful.get(d) ?? 0,
   }));
 
   return {
@@ -188,7 +154,6 @@ export function computeRangeAggregates(
     missed,
     missedPaid,
     missedSpam,
-    meaningful,
     spam,
     returnedMissed,
     returnedPickedUp,
