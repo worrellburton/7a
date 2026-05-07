@@ -1,20 +1,18 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
-import { Call, ScoreRow, parseDate, scoreColorClass, isMeaningfulCall } from './_shared';
+import { Call, parseDate } from './_shared';
 
-export function SourcesPanel({ calls, scores, onOpenCall }: { calls: Call[]; scores: Record<string, ScoreRow>; onOpenCall: (id: number) => void }) {
+export function SourcesPanel({ calls, onOpenCall }: { calls: Call[]; onOpenCall: (id: number) => void }) {
   const [expandedSource, setExpandedSource] = useState<string | null>(null);
 
   const rows = useMemo(() => {
-    const bySource = new Map<string, { count: number; meaningful: number; calls: Call[] }>();
+    const bySource = new Map<string, { count: number; calls: Call[] }>();
     for (const c of calls) {
       const src = c.source_name || c.source || 'Unknown';
       let bucket = bySource.get(src);
-      if (!bucket) { bucket = { count: 0, meaningful: 0, calls: [] }; bySource.set(src, bucket); }
+      if (!bucket) { bucket = { count: 0, calls: [] }; bySource.set(src, bucket); }
       bucket.count++;
-      const s = scores[String(c.id)];
-      if (isMeaningfulCall(c, s?.fit_score ?? null)) bucket.meaningful++;
       bucket.calls.push(c);
     }
     for (const b of bySource.values()) {
@@ -27,7 +25,7 @@ export function SourcesPanel({ calls, scores, onOpenCall }: { calls: Call[]; sco
     return Array.from(bySource.entries())
       .map(([name, b]) => ({ name, ...b }))
       .sort((a, b) => b.count - a.count);
-  }, [calls, scores]);
+  }, [calls]);
 
   if (rows.length === 0) {
     return (
@@ -49,7 +47,6 @@ export function SourcesPanel({ calls, scores, onOpenCall }: { calls: Call[]; sco
             <tr className="border-b border-gray-100 bg-warm-bg/50">
               <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Source</th>
               <th className="text-right px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Calls</th>
-              <th className="text-right px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Meaningful</th>
               <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>%</th>
               <th />
             </tr>
@@ -57,7 +54,6 @@ export function SourcesPanel({ calls, scores, onOpenCall }: { calls: Call[]; sco
           <tbody className="divide-y divide-gray-50">
             {rows.map(s => {
               const pct = total > 0 ? Math.round((s.count / total) * 100) : 0;
-              const meaningfulPct = s.count > 0 ? Math.round((s.meaningful / s.count) * 100) : 0;
               const isOpen = expandedSource === s.name;
               return (
                 <Fragment key={s.name}>
@@ -67,10 +63,6 @@ export function SourcesPanel({ calls, scores, onOpenCall }: { calls: Call[]; sco
                   >
                     <td className="px-3 sm:px-5 py-3.5 text-sm font-medium text-foreground">{s.name}</td>
                     <td className="px-3 sm:px-5 py-3.5 text-right text-sm font-bold text-foreground">{s.count}</td>
-                    <td className="px-3 sm:px-5 py-3.5 text-right text-sm">
-                      <span className="font-semibold text-blue-600">{s.meaningful}</span>
-                      {s.count > 0 && <span className="text-foreground/40 text-[11px] ml-1">({meaningfulPct}%)</span>}
-                    </td>
                     <td className="px-3 sm:px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-2 bg-warm-bg rounded-full max-w-[120px]">
@@ -87,10 +79,9 @@ export function SourcesPanel({ calls, scores, onOpenCall }: { calls: Call[]; sco
                   </tr>
                   {isOpen && (
                     <tr>
-                      <td colSpan={5} className="bg-warm-bg/10 px-5 py-3">
+                      <td colSpan={4} className="bg-warm-bg/10 px-5 py-3">
                         <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-50">
                           {s.calls.map(c => {
-                            const score = scores[String(c.id)];
                             const d = parseDate(c.called_at);
                             const time = d ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : '';
                             return (
@@ -106,18 +97,10 @@ export function SourcesPanel({ calls, scores, onOpenCall }: { calls: Call[]; sco
                                   </span>
                                   <div className="min-w-0">
                                     <p className="text-xs font-semibold text-foreground truncate">
-                                      {score?.call_name || score?.caller_name || c.caller_number_formatted || c.caller_number || 'Call'}
+                                      {c.caller_number_formatted || c.caller_number || 'Call'}
                                     </p>
                                     <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>{time}</p>
                                   </div>
-                                </div>
-                                <div className="flex items-center gap-3 shrink-0">
-                                  {score?.fit_score != null && (
-                                    <span className={`text-[11px] font-semibold ${scoreColorClass(score.fit_score)}`} style={{ fontFamily: 'var(--font-body)' }}>
-                                      {score.fit_score}/100 fit
-                                    </span>
-                                  )}
-                                  <span className={`text-xs font-bold ${scoreColorClass(score?.score ?? null)}`}>{score?.score ?? '—'}</span>
                                 </div>
                               </button>
                             );
