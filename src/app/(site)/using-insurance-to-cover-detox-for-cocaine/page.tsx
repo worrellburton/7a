@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Using Insurance to Cover Detox for Cocaine Addiction | Seven Arrows Recovery',
-  description:
-    'Cocaine addiction can impact every facet of a person’s life—relationships, career, physical health, and emotional well-being.',
-  keywords:
-    'using insurance to cover detox for cocaine addiction, using insurance to cover detox for cocaine, addiction recovery, Seven Arrows Recovery, Arizona rehab',
+  title: "Using Insurance to Cover Detox for Cocaine Addiction | Seven Arrows Recovery",
+  description: "Cocaine addiction can impact every facet of a person’s life—relationships, career, physical health, and emotional well-being. If you or someone you love is struggling with cocaine addiction, the decision to seek help is a…",
+  keywords: "using insurance to cover detox for cocaine, using insurance to cover detox for cocaine addiction, addiction recovery, Seven Arrows Recovery, Arizona rehab",
   alternates: {
-    canonical: 'https://sevenarrowsrecoveryarizona.com/using-insurance-to-cover-detox-for-cocaine',
+    canonical: "https://sevenarrowsrecoveryarizona.com/using-insurance-to-cover-detox-for-cocaine",
   },
 };
 

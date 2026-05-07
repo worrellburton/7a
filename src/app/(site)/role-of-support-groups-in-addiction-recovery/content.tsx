@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 43'}
-        title={'The Role of Support Groups in Addiction Recovery'}
+        label="The Recovery Roadmap — Episode 43"
+        title="The Role of Support Groups in Addiction Recovery"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'The Role of Support Groups in Addiction Recovery' },
+          { label: "The Role of Support Groups in Addiction Recovery" },
         ]}
-        description={'Addiction recovery can be filled with many ups and downs. This is because becoming sober is just the beginning of your sobriety journey.'}
+        description="Addiction recovery can be filled with many ups and downs. This is because becoming sober is just the beginning of your sobriety journey. While you’ll be leading a healthier, happier life, throughout your recovery journey you’ll…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,77 +22,69 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"Addiction recovery can be filled with many ups and downs. This is because becoming sober is just the beginning of your sobriety journey. While you’ll be leading a healthier, happier life, throughout your recovery journey you’ll still be faced with old triggers that run the risk of potentially jeopardizing your sobriety. In fact, around 50% of recovering addicts will relapse after receiving substance use disorder treatment. Fortunately, there are a variety of resources, like addiction support groups, that offer recovering addicts support and motivation to guide them along their recovery journey."}
+            </p>
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"At Seven Arrows, we are a leading drug rehab in Arizona that provides a range of treatment options, including holistic addiction treatment, to help you heal along your recovery journey. We’re here to help you every step of the way to not just overcome your addiction, but lead a healthier, happier quality of life. If you or someone you know is struggling with addiction, you don’t have to suffer in silence. Contact us today to start your road to recovery."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"What are Addiction Support Groups?"}
+            </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Addiction recovery can be filled with many ups and downs. This is because becoming sober is just the beginning of your sobriety journey. While you&rsquo;ll be leading a healthier, happier life, throughout your recovery journey you&rsquo;ll still be faced with old triggers that run the risk of potentially jeopardizing your sobriety. In fact, around 50% of recovering addicts will relapse after receiving substance use disorder treatment. Fortunately, there are a variety of resources, like addiction support groups, that offer recovering addicts support and motivation to guide them along their recovery journey.
+              {"Addiction support groups are support groups for recovering addicts that help encourage and motivate members to maintain long-term sobriety. This is because your recovery journey is a life-long commitment that doesn’t just end once you complete drug or alcohol addiction treatment. Once you leave rehab, you’ll be faced with many triggers and urges to abuse drugs which can potentially jeopardize your sobriety. This is where support groups come in!"}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              At Seven Arrows, we are a leading drug rehab in Arizona that provides a range of treatment options, including holistic addiction treatment, to help you heal along your recovery journey. We&rsquo;re here to help you every step of the way to not just overcome your addiction, but lead a healthier, happier quality of life. If you or someone you know is struggling with addiction, you don&rsquo;t have to suffer in silence. Contact us today to start your road to recovery.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              What are Addiction Support Groups?
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Addiction support groups are support groups for recovering addicts that help encourage and motivate members to maintain long-term sobriety. This is because your recovery journey is a life-long commitment that doesn&rsquo;t just end once you complete drug or alcohol addiction treatment. Once you leave rehab, you&rsquo;ll be faced with many triggers and urges to abuse drugs which can potentially jeopardize your sobriety. This is where support groups come in!
+              {"Addiction support groups bring together a group of recovering addicts and essentially encourage each member to stay accountable along their recovery journey. While support groups can vary depending on the type of addiction support group, the overall goal remains the same: bring together a group of recovering addicts and help each other maintain sobriety after treatment."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Addiction support groups bring together a group of recovering addicts and essentially encourage each member to stay accountable along their recovery journey. While support groups can vary depending on the type of addiction support group, the overall goal remains the same: bring together a group of recovering addicts and help each other maintain sobriety after treatment.
+              {"There are a number of different types of addiction support groups which vary depending on your exact recovery needs. Some common examples include:"}
             </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              There are a number of different types of addiction support groups which vary depending on your exact recovery needs. Some common examples include:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              1. 12-Step Programs
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              2. SMART Recovery (self-management and recovery training)
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              3. Online Support Communities
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              4. Moderation Management (MM)
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              5. And More
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Benefits of Attending Addiction Support Groups
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"12-Step Programs"}</li>
+              <li>{"SMART Recovery (self-management and recovery training)"}</li>
+              <li>{"Online Support Communities"}</li>
+              <li>{"Moderation Management (MM)"}</li>
+              <li>{"And More"}</li>
+            </ul>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Benefits of Attending Addiction Support Groups"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Now that you know more about what addiction support groups are, let&rsquo;s dive into the many benefits of why you should consider joining a support group after receiving addiction treatment.
+              {"Now that you know more about what addiction support groups are, let’s dive into the many benefits of why you should consider joining a support group after receiving addiction treatment."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Build a Sense of Community
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Build a Sense of Community"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Support groups offer you the chance to build a community around other individuals who understand what you are going through. While you can also receive support and community from loved ones after treatment, sometimes it can be difficult for loved ones to relate to what you are going through if they haven’t themselves recovered from drug addiction. Therefore, addiction support groups bring together other recovering addicts who share similar experiences as you."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Lean on Members for Support"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"During support groups, you can lean on other group members for advice or support as you progress along your recovery journey. Whether you are just starting your journey, or have been sober for years, you can find constant encouragement and inspiration from other individuals within your addiction support group."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Encourage and Inspire Others"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"As briefly mentioned above, addiction support groups can provide you with a sense of encouragement. Plus, you can inspire others who may not be as far along in their recovery journey as you are. Again, support groups can be beneficial for individuals who have been sober for less than a year, or individuals who have been sober for many years."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Maintain a Sense of Accountability"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Last but not least, addiction support groups provide a sense of accountability to maintain your sobriety. You’ll not only be able to lean on others for support during times of need, but you’ll learn more about yourself and triggers you may not have even known you had. All of this can help reduce your risk of relapsing."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Top-Rated Drug Rehab in Arizona"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Support groups offer you the chance to build a community around other individuals who understand what you are going through. While you can also receive support and community from loved ones after treatment, sometimes it can be difficult for loved ones to relate to what you are going through if they haven&rsquo;t themselves recovered from drug addiction. Therefore, addiction support groups bring together other recovering addicts who share similar experiences as you.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Lean on Members for Support
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              During support groups, you can lean on other group members for advice or support as you progress along your recovery journey. Whether you are just starting your journey, or have been sober for years, you can find constant encouragement and inspiration from other individuals within your addiction support group.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Encourage and Inspire Others
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              As briefly mentioned above, addiction support groups can provide you with a sense of encouragement. Plus, you can inspire others who may not be as far along in their recovery journey as you are. Again, support groups can be beneficial for individuals who have been sober for less than a year, or individuals who have been sober for many years.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Maintain a Sense of Accountability
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Last but not least, addiction support groups provide a sense of accountability to maintain your sobriety. You&rsquo;ll not only be able to lean on others for support during times of need, but you&rsquo;ll learn more about yourself and triggers you may not have even known you had. All of this can help reduce your risk of relapsing.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Top-Rated Drug Rehab in Arizona
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Addiction support groups offer a safe space for you to build a support group of peers who understand what you are going through. Whether you just became sober or have been sober for years, addiction support groups are beneficial for all recovering addicts looking for additional support and encouragement to help them maintain their sobriety.
+              {"Addiction support groups offer a safe space for you to build a support group of peers who understand what you are going through. Whether you just became sober or have been sober for years, addiction support groups are beneficial for all recovering addicts looking for additional support and encouragement to help them maintain their sobriety."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              If you or someone you know is struggling with addiction&ndash; help is available. At Seven Arrows, we are a leading drug rehab in Arizona that provides a range of treatment options to help as many patients as possible maintain life-long sobriety. Gone are the days of struggling in silence with your addiction.Ready to start your recovery journey? Contact us today!
+              {"If you or someone you know is struggling with addiction– help is available. At Seven Arrows, we are a leading drug rehab in Arizona that provides a range of treatment options to help as many patients as possible maintain life-long sobriety. Gone are the days of struggling in silence with your addiction.Ready to start your recovery journey? Contact us today!"}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">

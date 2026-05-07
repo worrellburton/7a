@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 29'}
-        title={'Sober Summer Activities'}
+        label="The Recovery Roadmap — Episode 29"
+        title="Sober Summer Activities"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'Sober Summer Activities' },
+          { label: "Sober Summer Activities" },
         ]}
-        description={'If you’re in recovery, the idea of warm weather, late nights, and seasonal events can feel complicated. But sober summer activities don’t have to be boring or isolating.'}
+        description="If you’re in recovery, the idea of warm weather, late nights, and seasonal events can feel complicated. But sober summer activities don’t have to be boring or isolating. Summer can become one of the most fulfilling times in your…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,77 +22,77 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              If you&rsquo;re in recovery, the idea of warm weather, late nights, and seasonal events can feel complicated. But sober summer activities don&rsquo;t have to be boring or isolating. Summer can become one of the most fulfilling times in your healing journey if you plan intentionally.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"If you’re in recovery, the idea of warm weather, late nights, and seasonal events can feel complicated. But sober summer activities don’t have to be boring or isolating. Summer can become one of the most fulfilling times in your healing journey if you plan intentionally."}
             </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              At Seven Arrows Recovery, we understand that having fun is crucial to achieving and maintaining long-term sobriety. Recovery is about more than what you&rsquo;re avoiding&mdash;it&rsquo;s about discovering new ways to live with joy, purpose, and connection. Here are five meaningful sober summer activities that can help you enjoy the season without compromising your recovery.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"At Seven Arrows Recovery, we understand that having fun is crucial to achieving and maintaining long-term sobriety. Recovery is about more than what you’re avoiding—it’s about discovering new ways to live with joy, purpose, and connection. Here are five meaningful sober summer activities that can help you enjoy the season without compromising your recovery."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Rediscover Nature Through Fun Sober Summer Activities
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Rediscover Nature Through Fun Sober Summer Activities"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Spending time outdoors is one of the most accessible and healing sober summer activities you can choose. Whether it&rsquo;s hiking, paddleboarding, swimming, or simply walking through a local park, nature helps regulate stress, elevate mood, and reconnect you with the present moment.
+              {"Spending time outdoors is one of the most accessible and healing sober summer activities you can choose. Whether it’s hiking, paddleboarding, swimming, or simply walking through a local park, nature helps regulate stress, elevate mood, and reconnect you with the present moment."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Try planning early morning hikes to beat the heat, or organize weekend trips to national parks or scenic overlooks. You can also start a garden, take nature photography walks, or try forest bathing. The options are endless, especially in Arizona, and all substance-free.
+              {"Try planning early morning hikes to beat the heat, or organize weekend trips to national parks or scenic overlooks. You can also start a garden, take nature photography walks, or try forest bathing. The options are endless, especially in Arizona, and all substance-free."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Host Connection-Focused Fun Sober Summer Activities
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Host Connection-Focused Fun Sober Summer Activities"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Socializing in recovery can feel intimidating at first, especially during a season when alcohol is often present at gatherings. That&rsquo;s why creating your sober summer activities&mdash;like hosting a sober BBQ, bonfire, or picnic- is a great way to stay connected while maintaining your boundaries.
+              {"Socializing in recovery can feel intimidating at first, especially during a season when alcohol is often present at gatherings. That’s why creating your sober summer activities—like hosting a sober BBQ, bonfire, or picnic- is a great way to stay connected while maintaining your boundaries."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Serve up colorful mocktails, play lawn games, or try themed dinner nights with close friends or recovery peers. Creating safe, substance-free spaces gives you the freedom to be social without pressure, while also reinforcing your commitment to sober living.
+              {"Serve up colorful mocktails, play lawn games, or try themed dinner nights with close friends or recovery peers. Creating safe, substance-free spaces gives you the freedom to be social without pressure, while also reinforcing your commitment to sober living."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Use Creative Expression as a Summer Outlet
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Use Creative Expression as a Summer Outlet"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Summer provides more free time and natural inspiration&mdash;perfect for diving into creative sober summer activities. Whether you&rsquo;re into painting, writing, music, crafting, or cooking, creative expression allows you to explore new sides of yourself while reducing stress and building confidence.
+              {"Summer provides more free time and natural inspiration—perfect for diving into creative sober summer activities. Whether you’re into painting, writing, music, crafting, or cooking, creative expression allows you to explore new sides of yourself while reducing stress and building confidence."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              You don&rsquo;t need to be an expert to benefit. Join a community art class, start a creative challenge with a friend, or simply journal outside each day. These activities can become new rituals that ground your recovery while allowing you to experience authentic joy.
+              {"You don’t need to be an expert to benefit. Join a community art class, start a creative challenge with a friend, or simply journal outside each day. These activities can become new rituals that ground your recovery while allowing you to experience authentic joy."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Attend Local Events that Support Sober Living
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Attend Local Events that Support Sober Living"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Many cities in Arizona offer community-based sober summer activities that are free or low-cost. Think outdoor yoga sessions, sober dance parties, farmers markets, street fairs, movie nights in the park, or live music with substance-free areas. These experiences help you stay active and engaged without the triggers that may come from traditional nightlife.
+              {"Many cities in Arizona offer community-based sober summer activities that are free or low-cost. Think outdoor yoga sessions, sober dance parties, farmers markets, street fairs, movie nights in the park, or live music with substance-free areas. These experiences help you stay active and engaged without the triggers that may come from traditional nightlife."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              When exploring these events, be mindful of your emotional state and set boundaries as needed. You can always bring a friend, plan an exit strategy, or choose smaller gatherings that feel safer during early recovery.
+              {"When exploring these events, be mindful of your emotional state and set boundaries as needed. You can always bring a friend, plan an exit strategy, or choose smaller gatherings that feel safer during early recovery."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Make Volunteering Part of Your Sober Summer Activities
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Make Volunteering Part of Your Sober Summer Activities"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Few things are more meaningful than giving back, and summer offers plenty of opportunities to get involved. Volunteering is one of the most powerful sober summer activities because it shifts your focus outward, builds purpose, and helps you connect with others who care about similar values.
+              {"Few things are more meaningful than giving back, and summer offers plenty of opportunities to get involved. Volunteering is one of the most powerful sober summer activities because it shifts your focus outward, builds purpose, and helps you connect with others who care about similar values."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Whether you volunteer at a local food bank, animal shelter, or community garden, service can replace unhealthy habits with life-affirming actions. It&rsquo;s also a great way to meet new people who share your commitment to growth and change.
+              {"Whether you volunteer at a local food bank, animal shelter, or community garden, service can replace unhealthy habits with life-affirming actions. It’s also a great way to meet new people who share your commitment to growth and change."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Why Fun Sober Summer Activities Are Key to Recovery
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Why Fun Sober Summer Activities Are Key to Recovery"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Engaging in sober summer activities is about more than just passing time. It&rsquo;s about rewriting the way you think about joy, pleasure, and connection. When you actively choose substance-free experiences, you&rsquo;re creating new patterns in your brain and proving to yourself that life without substances is not only possible but worth living.
+              {"Engaging in sober summer activities is about more than just passing time. It’s about rewriting the way you think about joy, pleasure, and connection. When you actively choose substance-free experiences, you’re creating new patterns in your brain and proving to yourself that life without substances is not only possible but worth living."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Having fun helps regulate your nervous system, build resilience, and boost your overall well-being. And during summer&mdash;when triggers and temptations can be high&mdash;intentional planning makes all the difference.
+              {"Having fun helps regulate your nervous system, build resilience, and boost your overall well-being. And during summer—when triggers and temptations can be high—intentional planning makes all the difference."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Seven Arrows Recovery Can Help You Embrace a Sober Summer
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Seven Arrows Recovery Can Help You Embrace a Sober Summer"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Whether you&rsquo;re new to recovery or further along in your journey, sober summer activities can play a major role in helping you stay on track. At Seven Arrows Recovery, we offer a safe and supportive environment for healing, with programs grounded in compassion, evidence-based care, and holistic practices.
+              {"Whether you’re new to recovery or further along in your journey, sober summer activities can play a major role in helping you stay on track. At Seven Arrows Recovery, we offer a safe and supportive environment for healing, with programs grounded in compassion, evidence-based care, and holistic practices."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              If you&rsquo;re looking for guidance, structure, or just extra support as you navigate summer in sobriety, we&rsquo;re here for you.
+              {"If you’re looking for guidance, structure, or just extra support as you navigate summer in sobriety, we’re here for you."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Contact Seven Arrows Recovery today to learn how we can help you stay grounded, grow stronger, and enjoy everything this season has to offer, without substances. Your path to a meaningful, sober summer starts now.
+              {"Contact Seven Arrows Recovery today to learn how we can help you stay grounded, grow stronger, and enjoy everything this season has to offer, without substances. Your path to a meaningful, sober summer starts now."}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">
