@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 
-// GET /api/calls/<ctm_id> — returns the single call row from public.calls
-// joined with its latest AI score from public.call_ai_scores. Used by the
-// dedicated call detail page.
+// GET /api/calls/<ctm_id> — returns the single CTM call row from
+// public.calls. Used by the dedicated call detail page.
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getUserFromRequest(req);
@@ -23,13 +22,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (callErr) return NextResponse.json({ error: callErr.message }, { status: 500 });
   if (!call) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const { data: score } = await supabase
-    .from('call_ai_scores')
-    .select('*')
-    .eq('call_id', String(id))
-    .order('scored_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  return NextResponse.json({ call, score: score ?? null });
+  return NextResponse.json({ call });
 }

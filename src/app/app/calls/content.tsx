@@ -3,54 +3,34 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import CallAiBadge from './CallAiHover';
-import { OperatorPicker, ClientTypePicker, SelectAllCheckbox, SortTh, DetailField } from './Pickers';
-import { ScoreMiniPopover } from './ScoreMiniPopover';
-import { AudioScrubber } from './AudioScrubber';
+import { SelectAllCheckbox, SortTh } from './Pickers';
 import { MobileRangePresets } from './MobileRangePresets';
-import { CopyCallLinkButton, OperatorCallLinkButton, SyncStatusIndicator } from './LinkButtons';
-import { MiniHeatmap } from './MiniHeatmap';
+import { CopyCallLinkButton, SyncStatusIndicator } from './LinkButtons';
 import { TimelineSlider } from './TimelineSlider';
-import { OperatorInsightsPanel } from './OperatorInsights';
 import { SourcesPanel } from './SourcesPanel';
 import { CallDetail } from './CallDetail';
 import { CallMobileRow, CallMobileRowSkeleton } from './CallMobileRow';
 import { MobileSelect } from './MobileSelect';
 import {
-  ScoreRow,
   Call,
-  CTMResponse,
   Tab,
   SPAM_STORAGE_KEY,
   Insights,
-  OperatorCallEntry,
-  OperatorAgg,
-  OpSortKey,
   directionStyle,
   normalizePhone,
   isPaidSource,
   isMissedCall,
-  isMeaningfulCall,
   ctmFetch,
   formatDuration,
   parseDate,
   formatDate,
   formatTime,
-  clientTypeBg,
-  fitScoreBg,
-  scoreColorHex,
-  sentimentStyle,
-  fmtAudioTime,
-  scoreColorClass,
 } from './_shared';
 
 export default function CallsContent() {
-  const { user, session, isAdmin } = useAuth();
-  const [bulkAnalyzing, setBulkAnalyzing] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+  const { user, session } = useAuth();
   // Batch selection — checkbox in every row, sticky action bar appears
-  // when any are selected, "Analyze N selected" runs the same per-call
-  // scoring pipeline as the floating "Analyze all" CTA but scoped.
+  // when any are selected with spam controls.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const router = useRouter();
   const pathname = usePathname();
@@ -58,12 +38,12 @@ export default function CallsContent() {
 
   // Derive the active tab directly from the URL every render. Keeping
   // it as local state was causing the sidebar "Calls" click to land on
-  // stale state (e.g. Operator Insights) whenever the ?tab= param was
-  // stripped from a same-pathname navigation. Reading from the URL
-  // means there's no sync lag and every tab is genuinely shareable.
+  // stale state whenever the ?tab= param was stripped from a
+  // same-pathname navigation. Reading from the URL means there's no
+  // sync lag and every tab is genuinely shareable.
   const tab: Tab = (() => {
     const q = searchParams?.get('tab');
-    return q === 'sources' || q === 'spam' || q === 'operators' ? q : 'calls';
+    return q === 'sources' || q === 'spam' ? q : 'calls';
   })();
   const setTab = useCallback((next: Tab) => {
     const sp = new URLSearchParams(searchParams?.toString() ?? '');
@@ -94,14 +74,11 @@ export default function CallsContent() {
     if (!q) return;
     router.replace(`/app/calls/${encodeURIComponent(q)}`);
   }, [searchParams, router]);
-  const [miniPopoverId, setMiniPopoverId] = useState<number | null>(null);
-  const [transcriptFor, setTranscriptFor] = useState<number | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [directionFilter, setDirectionFilter] = useState<string>('all');
-  const [operatorFilter, setOperatorFilter] = useState<string>('all');
   const [sortKey, setSortKey] = useState<string>('called_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [sources, setSources] = useState<{ name: string; count: number }[]>([]);
@@ -122,18 +99,13 @@ export default function CallsContent() {
     return new Date(Date.UTC(y, m - 1, d, 7, 0, 0, 0) + 24 * 60 * 60 * 1000 - 1);
   });
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [scores, setScores] = useState<Record<string, ScoreRow>>({});
-  const [scoringIds, setScoringIds] = useState<Set<string>>(new Set());
-  const [scoringErrors, setScoringErrors] = useState<Record<string, string>>({});
-  const autoScoreInFlight = useRef<Set<string>>(new Set());
   const [spamNumbers, setSpamNumbers] = useState<Set<string>>(new Set());
   const [reportingSpam, setReportingSpam] = useState<string | null>(null);
 
   // Load the spam list. Preferred source is public.call_spam_numbers
   // (shared across users). On first load we also push any numbers still
-  // living in this browser's localStorage up to the server, so the new
-  // /api/calls/insights endpoint — which filters by the server list —
-  // sees the same spam classifications the UI does.
+  // living in this browser's localStorage up to the server so the
+  // shared list catches up.
   useEffect(() => {
     if (!session?.access_token) return;
     let cancelled = false;
@@ -243,27 +215,6 @@ export default function CallsContent() {
     return false;
   }, [spamNumbers]);
 
-  const knownOperators = useMemo(() => {
-    const names = new Set<string>();
-    for (const s of Object.values(scores)) {
-      if (s?.operator_name) names.add(s.operator_name);
-    }
-    return Array.from(names).sort((a, b) => a.localeCompare(b));
-  }, [scores]);
-
-  const knownClientTypes = useMemo(() => {
-    const types = new Set<string>([
-      'Insurance', 'Private Pay', 'Mental Health', 'Addiction',
-      'Dual Diagnosis', 'Family/Loved One', 'Other',
-    ]);
-    for (const s of Object.values(scores)) {
-      if (s?.client_type) types.add(s.client_type);
-    }
-    return Array.from(types).sort((a, b) => a.localeCompare(b));
-  }, [scores]);
-
-  const MEANINGFUL_THRESHOLD = 60;
-
   const localRangeInsights = useMemo(() => {
     const startIso = rangeStart.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
     const endIso = rangeEnd.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
@@ -304,7 +255,6 @@ export default function CallsContent() {
     const daySources = new Map<string, Map<string, number>>();
     const dayMissedCounts = new Map<string, number>();
     const dayReturnedCounts = new Map<string, number>();
-    const dayMeaningfulCounts = new Map<string, number>();
     const missedNumbers = new Set<string>();
     let totalCalls = 0;
     let totalDuration = 0;
@@ -312,7 +262,6 @@ export default function CallsContent() {
     let outboundCount = 0;
     let missed = 0;
     let missedPaid = 0;
-    let meaningful = 0;
     let spam = 0;
     let missedSpam = 0;
 
@@ -341,11 +290,6 @@ export default function CallsContent() {
         if (c.caller_number) missedNumbers.add(c.caller_number);
         if (isPaidSource(c.source_name || c.source)) missedPaid++;
       }
-      const s = scores[String(c.id)];
-      if (isMeaningfulCall(c, s?.fit_score ?? null)) {
-        meaningful++;
-        dayMeaningfulCounts.set(callDate, (dayMeaningfulCounts.get(callDate) || 0) + 1);
-      }
     }
 
     let returnedMissed = 0;
@@ -372,7 +316,6 @@ export default function CallsContent() {
         count: dayCounts.get(d.date) || 0,
         missedCount: dayMissedCounts.get(d.date) || 0,
         returnedCount: dayReturnedCounts.get(d.date) || 0,
-        meaningfulCount: dayMeaningfulCounts.get(d.date) || 0,
         sources,
       };
     });
@@ -384,7 +327,6 @@ export default function CallsContent() {
       outbound: outboundCount,
       missed,
       missedPaid,
-      meaningful,
       spam,
       missedSpam,
       returnedMissed,
@@ -393,68 +335,9 @@ export default function CallsContent() {
       startIso,
       endIso,
     };
-  }, [allCallsRaw, calls, scores, rangeStart, rangeEnd, isSpamCall]);
+  }, [allCallsRaw, calls, rangeStart, rangeEnd, isSpamCall]);
 
-  // Canonical counts from public.calls (populated by /api/ctm/sync).
-  // When this resolves we prefer it over the local computation because
-  // it sees every synced call, not just what the browser has paginated.
-  const [serverRangeInsights, setServerRangeInsights] = useState<typeof localRangeInsights | null>(null);
-  useEffect(() => {
-    if (!session?.access_token) return;
-    let cancelled = false;
-    const from = rangeStart.toISOString();
-    const to = rangeEnd.toISOString();
-    (async () => {
-      try {
-        const res = await fetch(`/api/calls/insights?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!res.ok) throw new Error(`insights ${res.status}`);
-        const data = await res.json();
-        if (cancelled || data.error) return;
-        // Trust the server. Zero is a real answer — means nothing is
-        // synced into public.calls for this window yet. Falling back to
-        // the paginated client data would paper over sync lag and
-        // silently disagree with other pages that read the same table.
-        // Pad dailyCounts with label/short/sources to match the client shape.
-        const dailyCounts = (data.dailyCounts ?? []).map((d: { date: string; count: number; missedCount: number; returnedCount: number; meaningfulCount: number }) => {
-          const [y, m, dd] = d.date.split('-').map(Number);
-          const dt = new Date(Date.UTC(y, m - 1, dd, 12));
-          return {
-            date: d.date,
-            label: dt.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }),
-            short: dt.toLocaleDateString('en-US', { weekday: 'narrow', timeZone: 'UTC' }),
-            count: d.count,
-            missedCount: d.missedCount,
-            returnedCount: d.returnedCount,
-            meaningfulCount: d.meaningfulCount,
-            sources: [],
-          };
-        });
-        setServerRangeInsights({
-          totalCalls: data.totalCalls,
-          avgDuration: data.avgDuration,
-          inbound: data.inbound,
-          outbound: data.outbound,
-          missed: data.missed,
-          missedPaid: data.missedPaid,
-          meaningful: data.meaningful,
-          spam: data.spam,
-          missedSpam: data.missedSpam ?? 0,
-          returnedMissed: data.returnedMissed,
-          returnedPickedUp: data.returnedPickedUp,
-          dailyCounts,
-          startIso: rangeStart.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
-          endIso: rangeEnd.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
-        });
-      } catch {
-        // Leave serverRangeInsights null so we fall through to local.
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [session?.access_token, rangeStart, rangeEnd, spamNumbers]);
-
-  const rangeInsights = serverRangeInsights ?? localRangeInsights;
+  const rangeInsights = localRangeInsights;
 
   const spamCount = useMemo(() => {
     let count = 0;
@@ -468,90 +351,6 @@ export default function CallsContent() {
     return count;
   }, [allCallsRaw, calls, isSpamCall]);
 
-  // Detect single-day range (e.g. Today / Yesterday) so we can show a
-  // narrative Daily Summary instead of the multi-day chart.
-  const rangeStartIso = rangeStart.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-  const rangeEndIso = rangeEnd.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-  const isSingleDay = rangeStartIso === rangeEndIso;
-  const todayIso = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-  const isTodaySelected = isSingleDay && rangeStartIso === todayIso;
-
-  const dailyCalls = useMemo(() => {
-    if (!isSingleDay) return [] as Call[];
-    const seen = new Set<number>();
-    const out: Call[] = [];
-    for (const c of [...allCallsRaw, ...calls]) {
-      if (seen.has(c.id)) continue;
-      seen.add(c.id);
-      const p = parseDate(c.called_at);
-      if (!p) continue;
-      if (p.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }) !== rangeStartIso) continue;
-      out.push(c);
-    }
-    out.sort((a, b) => {
-      const ta = parseDate(a.called_at)?.getTime() ?? 0;
-      const tb = parseDate(b.called_at)?.getTime() ?? 0;
-      return ta - tb;
-    });
-    return out;
-  }, [allCallsRaw, calls, isSingleDay, rangeStartIso]);
-
-  const meaningfulData = useMemo(() => {
-    let thisWeek = 0;
-    const dailyCounts = new Map<string, number>();
-    if (!insights) return { thisWeek: 0, today: 0, yesterday: 0, dailyCounts };
-    const weekDates = new Set(insights.dailyCounts.map(d => d.date));
-    const todayStr = insights.dailyCounts[6]?.date;
-    const yesterdayStr = insights.dailyCounts[5]?.date;
-    for (const call of calls) {
-      const s = scores[String(call.id)];
-      if (!isMeaningfulCall(call, s?.fit_score ?? null)) continue;
-      const parsedM = parseDate(call.called_at);
-      if (!parsedM) continue;
-      const callDate = parsedM.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-      if (weekDates.has(callDate)) {
-        thisWeek++;
-        dailyCounts.set(callDate, (dailyCounts.get(callDate) || 0) + 1);
-      }
-    }
-    return {
-      thisWeek,
-      today: dailyCounts.get(todayStr) || 0,
-      yesterday: dailyCounts.get(yesterdayStr) || 0,
-      dailyCounts,
-    };
-  }, [calls, scores, insights]);
-
-  const setManualOperator = useCallback(async (callId: string, operatorName: string | null) => {
-    if (!session?.access_token) return;
-    try {
-      const res = await fetch('/api/claude/calls/set-operator', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ callId, operator_name: operatorName }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.result) setScores((prev) => ({ ...prev, [callId]: data.result }));
-      }
-    } catch { /* swallow — UI keeps the stale value */ }
-  }, [session?.access_token]);
-
-  const setManualClientType = useCallback(async (callId: string, clientType: string | null) => {
-    if (!session?.access_token) return;
-    try {
-      const res = await fetch('/api/claude/calls/set-client-type', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ callId, client_type: clientType }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.result) setScores((prev) => ({ ...prev, [callId]: data.result }));
-      }
-    } catch { /* swallow — UI keeps the stale value */ }
-  }, [session?.access_token]);
-
   const handleSort = useCallback((key: string) => {
     setSortKey((prev) => {
       if (prev === key) {
@@ -563,63 +362,6 @@ export default function CallsContent() {
     });
   }, []);
 
-  // Score a list of calls in parallel (concurrency 3). Generic so the
-  // same path powers both the floating "Analyze all" CTA and the
-  // sticky "Analyze selected" action. `force=true` re-scores already
-  // analyzed calls (used by the selection action so the user can
-  // re-run on a curated set).
-  const analyzeCalls = useCallback(async (targets: Call[], opts: { force?: boolean } = {}) => {
-    if (!session?.access_token) return;
-    if (!targets.length) return;
-    const force = opts.force === true;
-    setBulkAnalyzing(true);
-    setBulkProgress({ done: 0, total: targets.length });
-    const concurrency = 3;
-    let idx = 0;
-    let done = 0;
-    async function worker() {
-      while (idx < targets.length) {
-        const myIdx = idx++;
-        const call = targets[myIdx];
-        const callId = String(call.id);
-        // When `force` is off, skip already-scored calls to save API calls.
-        if (!force && scores[callId]) { done++; setBulkProgress({ done, total: targets.length }); continue; }
-        setScoringIds((prev) => { const n = new Set(prev); n.add(callId); return n; });
-        try {
-          const res = await fetch('/api/claude/calls/score', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session!.access_token}` },
-            body: JSON.stringify({ callId, call, force }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.result) setScores((prev) => ({ ...prev, [callId]: data.result }));
-          } else {
-            let err = `Analyze failed (${res.status})`;
-            try { const j = await res.json(); err = j.error || err; } catch {}
-            setScoringErrors((prev) => ({ ...prev, [callId]: err }));
-          }
-        } catch (e) {
-          setScoringErrors((prev) => ({ ...prev, [callId]: e instanceof Error ? e.message : 'Network error' }));
-        } finally {
-          setScoringIds((prev) => { const n = new Set(prev); n.delete(callId); return n; });
-          done++;
-          setBulkProgress({ done, total: targets.length });
-        }
-      }
-    }
-    await Promise.all(Array.from({ length: concurrency }, () => worker()));
-    setBulkAnalyzing(false);
-  }, [scores, session]);
-
-  const analyzeAllCalls = useCallback(() => analyzeCalls(calls), [analyzeCalls, calls]);
-
-  const analyzeSelectedCalls = useCallback(() => {
-    const targets = calls.filter((c) => selectedIds.has(String(c.id)));
-    // Selection implies intent — re-score even if already analyzed.
-    analyzeCalls(targets, { force: true });
-  }, [analyzeCalls, calls, selectedIds]);
-
   // Selection helpers
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -630,55 +372,6 @@ export default function CallsContent() {
     });
   }, []);
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
-
-  const rescoreCall = useCallback(async (callId: string, force: boolean) => {
-    if (!session?.access_token) {
-      setScoringErrors((prev) => ({ ...prev, [callId]: 'Not signed in' }));
-      return;
-    }
-    const call = calls.find((c) => String(c.id) === callId);
-    if (!call) {
-      setScoringErrors((prev) => ({ ...prev, [callId]: 'Call not found' }));
-      return;
-    }
-    setScoringIds((prev) => { const n = new Set(prev); n.add(callId); return n; });
-    setScoringErrors((prev) => { const n = { ...prev }; delete n[callId]; return n; });
-    try {
-      const res = await fetch('/api/claude/calls/score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ callId, call, force }),
-      });
-      let data: { result?: ScoreRow; error?: string; detail?: string; call_in_progress?: boolean; audio_pending?: boolean } = {};
-      try { data = await res.json(); } catch { /* non-json response */ }
-      if (!res.ok) {
-        const msg = data.error || data.detail || `Analyze failed (${res.status})`;
-        setScoringErrors((prev) => ({ ...prev, [callId]: msg }));
-        return;
-      }
-      // 202 from the score route means the call isn't ready to be
-      // analyzed yet — either it's still in progress, or the
-      // recording hasn't been transcoded by CTM. Both resolve on
-      // their own; surface a friendly message instead of an error.
-      if (data.call_in_progress) {
-        setScoringErrors((prev) => ({ ...prev, [callId]: 'Call still in progress — analysis will run once it ends.' }));
-        return;
-      }
-      if (data.audio_pending) {
-        setScoringErrors((prev) => ({ ...prev, [callId]: 'Recording not ready yet — try again in a few minutes.' }));
-        return;
-      }
-      if (data.result) {
-        setScores((prev) => ({ ...prev, [callId]: data.result! }));
-      } else {
-        setScoringErrors((prev) => ({ ...prev, [callId]: data.error || 'No result returned' }));
-      }
-    } catch (err) {
-      setScoringErrors((prev) => ({ ...prev, [callId]: err instanceof Error ? err.message : 'Network error' }));
-    } finally {
-      setScoringIds((prev) => { const n = new Set(prev); n.delete(callId); return n; });
-    }
-  }, [calls, session?.access_token]);
 
   // Discover account ID first
   useEffect(() => {
@@ -902,65 +595,9 @@ export default function CallsContent() {
     return () => observer.disconnect();
   }, [tab, loading, loadingMore, page, totalPages, fetchCalls]);
 
-  // Auto-score: fetch existing scores, then queue any unscored calls.
-  // Uses a per-call inflight set so newly-arrived calls (e.g. just completed
-  // and freshly polled) get picked up even while a previous batch is running.
-  useEffect(() => {
-    if (!session?.access_token || calls.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      const callIds = calls.map((c) => String(c.id));
-      try {
-        const res = await fetch('/api/claude/calls/scores-lookup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ callIds }),
-        });
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        if (data.scores) {
-          setScores((prev) => ({ ...prev, ...data.scores }));
-        }
-        const toScore = calls.filter((c) => {
-          const id = String(c.id);
-          return !data.scores?.[id] && !autoScoreInFlight.current.has(id);
-        });
-        if (toScore.length === 0) return;
-        const concurrency = 3;
-        let idx = 0;
-        const worker = async () => {
-          while (idx < toScore.length) {
-            if (cancelled) return;
-            const call = toScore[idx++];
-            const id = String(call.id);
-            autoScoreInFlight.current.add(id);
-            try {
-              const scoreRes = await fetch('/api/claude/calls/score', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                body: JSON.stringify({ callId: id, call }),
-              });
-              if (scoreRes.ok) {
-                const scoreData = await scoreRes.json();
-                if (scoreData.result) {
-                  setScores((prev) => ({ ...prev, [id]: scoreData.result }));
-                }
-              }
-            } catch { /* continue */ }
-            finally {
-              autoScoreInFlight.current.delete(id);
-            }
-          }
-        };
-        await Promise.all(Array.from({ length: concurrency }, () => worker()));
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [session?.access_token, calls]);
-
-  // Light polling — pick up newly-completed calls every 60s so auto-analyze
-  // can score them without a full page reload. Merges new IDs to the front
-  // instead of resetting pagination so the user's scroll position survives.
+  // Light polling — pick up newly-completed calls every 60s without a
+  // full page reload. Merges new IDs to the front instead of resetting
+  // pagination so the user's scroll position survives.
   useEffect(() => {
     if (!accountId || !session?.access_token) return;
     let cancelled = false;
@@ -1012,29 +649,24 @@ export default function CallsContent() {
       } else {
         if (spamFlag) return false;
       }
-      if (operatorFilter === 'all') return true;
-      const s = scores[String(call.id)];
-      return s?.operator_name === operatorFilter;
+      return true;
     });
-    const getVal = (call: Call, s: ScoreRow | undefined): string | number => {
+    const getVal = (call: Call): string | number => {
       switch (sortKey) {
         case 'id': return call.id;
-        case 'fit_score': return s?.fit_score ?? -1;
-        case 'call_name': return (s?.call_name || '').toLowerCase();
         case 'called_at': return parseDate(call.called_at)?.getTime() ?? 0;
         case 'caller_number': return (call.caller_number_formatted || call.caller_number || '').toLowerCase();
         case 'duration': return call.duration ?? 0;
-        case 'caller_name': return (s?.caller_name || '').toLowerCase();
-        case 'operator_name': return (s?.operator_name || '').toLowerCase();
-        case 'client_type': return (s?.client_type || '').toLowerCase();
+        case 'tracking_label': return (call.tracking_label || '').toLowerCase();
+        case 'direction': return (call.direction || '').toLowerCase();
         case 'source': return (call.source_name || call.source || '').toLowerCase();
         case 'location': return [call.city, call.state].filter(Boolean).join(', ').toLowerCase();
         default: return 0;
       }
     };
     return filtered.slice().sort((a, b) => {
-      const vA = getVal(a, scores[String(a.id)]);
-      const vB = getVal(b, scores[String(b.id)]);
+      const vA = getVal(a);
+      const vB = getVal(b);
       if (vA < vB) return sortDir === 'asc' ? -1 : 1;
       if (vA > vB) return sortDir === 'asc' ? 1 : -1;
       return 0;
@@ -1066,19 +698,6 @@ export default function CallsContent() {
             <SyncStatusIndicator token={session?.access_token ?? null} />
           </div>
           <div className="flex items-center gap-2">
-            <a
-              href="/app/calls/operator-guide"
-              className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-white/85 supports-[backdrop-filter]:bg-white/70 backdrop-blur text-foreground border border-white/70 rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-white transition-colors shadow-sm"
-              style={{ fontFamily: 'var(--font-body)' }}
-              aria-label="Open Operator Guide"
-            >
-              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h16" />
-                <circle cx="18" cy="12" r="2" strokeLinejoin="round" />
-              </svg>
-              <span className="hidden sm:inline">Operator Guide</span>
-              <span className="sm:hidden">Guide</span>
-            </a>
             <a
               href="/app/calls/reports"
               className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-white/85 supports-[backdrop-filter]:bg-white/70 backdrop-blur text-foreground border border-white/70 rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider hover:bg-white transition-colors shadow-sm"
@@ -1148,9 +767,7 @@ export default function CallsContent() {
       )}
 
       {/* Insights Dashboard — glass tiles. Each tile carries a top
-          sheen line so the surface reads as real glass; the active
-          "Meaningful" tile gets an emerald-rim instead of a tint
-          shift so the focus state survives the translucent wash. */}
+          sheen line so the surface reads as real glass. */}
       {insightsLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
           {[...Array(4)].map((_, i) => (
@@ -1162,16 +779,8 @@ export default function CallsContent() {
         </div>
       ) : (
         <div className="mb-6 space-y-4">
-          <div className="grid grid-cols-4 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 sm:gap-4">
             <StatTile label="Total Calls" value={rangeInsights.totalCalls} sub={rangeInsights.totalCalls > 0 ? `${rangeInsights.inbound} in · ${rangeInsights.outbound} out` : 'No calls in range'} />
-            <StatTile
-              label="Meaningful"
-              labelClass="text-blue-500"
-              valueClass="text-blue-600"
-              value={rangeInsights.meaningful}
-              sub={rangeInsights.totalCalls > 0 ? `${Math.round((rangeInsights.meaningful / rangeInsights.totalCalls) * 100)}% of calls` : 'No calls in range'}
-              accent="blue"
-            />
             <StatTile
               label="Missed"
               valueClass="text-red-500"
@@ -1228,40 +837,16 @@ export default function CallsContent() {
           the selection signal stays loud. */}
       <div className="relative flex gap-1 mb-4 sm:mb-6 rounded-xl border border-white/70 bg-white/45 supports-[backdrop-filter]:bg-white/30 backdrop-blur-xl p-1 w-fit shadow-sm">
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-xl bg-gradient-to-r from-transparent via-white/85 to-transparent" />
-        {(['calls', 'sources', 'spam', ...(isAdmin ? ['operators'] as const : [])] as Tab[]).map(t => {
-          const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : t === 'spam' ? 'Spam' : 'Operator Insights';
-          const isAdminTab = t === 'operators';
+        {(['calls', 'sources', 'spam'] as Tab[]).map(t => {
+          const label = t === 'calls' ? 'Call Log' : t === 'sources' ? 'Sources' : 'Spam';
           return (
             <button
               key={t}
-              onClick={() => {
-                setTab(t);
-                // Operator Insights is most useful against the entire history,
-                // so switching into it defaults the range to "All".
-                if (t === 'operators' && timelineBounds) {
-                  const s = new Date(timelineBounds.min); s.setHours(0, 0, 0, 0);
-                  const e = new Date(timelineBounds.max); e.setHours(23, 59, 59, 999);
-                  setRangeStart(s);
-                  setRangeEnd(e);
-                }
-              }}
+              onClick={() => setTab(t)}
               className={`relative px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${tab === t ? 'bg-white shadow-sm text-foreground' : 'text-foreground/40 hover:text-foreground/60'}`}
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              <span className="inline-flex items-center gap-1.5">
-                {label}
-                {isAdminTab && (
-                  <span className="group/admin relative inline-flex items-center">
-                    <span aria-hidden className="absolute inset-0 rounded-full bg-amber-300/50 blur-[3px] animate-pulse" />
-                    <svg className="relative w-3.5 h-3.5 text-amber-500 drop-shadow-[0_0_6px_rgba(251,191,36,0.9)]" fill="currentColor" viewBox="0 0 24 24" aria-label="Super admin only">
-                      <path d="M12 2l2.39 4.84L20 7.54l-4 3.89.94 5.5L12 14.77 7.06 16.93 8 11.43l-4-3.89 5.61-.7L12 2z" />
-                    </svg>
-                    <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-30 whitespace-nowrap rounded-md bg-foreground text-white text-[10px] font-semibold px-2 py-1 opacity-0 group-hover/admin:opacity-100 transition-opacity shadow-lg" style={{ fontFamily: 'var(--font-body)' }}>
-                      Super admin only
-                    </span>
-                  </span>
-                )}
-              </span>
+              <span className="inline-flex items-center gap-1.5">{label}</span>
             </button>
           );
         })}
@@ -1300,19 +885,6 @@ export default function CallsContent() {
                 { value: 'all', label: 'All directions' },
                 { value: 'inbound', label: 'Inbound' },
                 { value: 'outbound', label: 'Outbound' },
-              ]}
-            />
-            <MobileSelect
-              ariaLabel="Operator"
-              value={operatorFilter}
-              onChange={setOperatorFilter}
-              options={[
-                { value: 'all', label: 'All operators' },
-                ...Array.from(new Set(
-                  Object.values(scores)
-                    .map(s => s.operator_name)
-                    .filter((n): n is string => !!n)
-                )).sort().map(name => ({ value: name, label: name })),
               ]}
             />
             <button
@@ -1371,33 +943,22 @@ export default function CallsContent() {
               <div className="md:hidden divide-y divide-gray-50">
                 {visibleCalls.map((call) => {
                   const expanded = expandedId === call.id;
-                  const score = scores[String(call.id)];
                   const spamFlag = isSpamCall(call);
                   return (
                     <Fragment key={call.id}>
                       <CallMobileRow
                         call={call}
-                        score={score}
                         expanded={expanded}
                         selected={selectedIds.has(String(call.id))}
-                        scoring={scoringIds.has(String(call.id))}
                         isSpam={spamFlag}
                         playingAudio={playingAudio}
                         onToggleExpand={() => setExpandedId(expanded ? null : call.id)}
                         onToggleSelect={() => toggleSelect(String(call.id))}
                         onPlay={(url) => playRecording(url)}
-                        onOpenTranscript={() => setTranscriptFor(call.id)}
-                        onRescore={() => rescoreCall(String(call.id), true)}
                       />
                       {expanded && (
                         <div className="bg-warm-bg/30 px-3.5 py-4">
-                          <CallDetail
-                            call={call}
-                            score={scores[String(call.id)] || null}
-                            scoring={scoringIds.has(String(call.id))}
-                            error={scoringErrors[String(call.id)]}
-                            onRescore={rescoreCall}
-                          />
+                          <CallDetail call={call} />
                         </div>
                       )}
                     </Fragment>
@@ -1418,69 +979,21 @@ export default function CallsContent() {
                         />
                       </th>
                       <SortTh label="Call ID" sortKeyName="id" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                      <SortTh label="Fit" sortKeyName="fit_score" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                      <SortTh label="Call Name" sortKeyName="call_name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Direction" sortKeyName="direction" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       <SortTh label="Date / Time" sortKeyName="called_at" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       <SortTh label="Number" sortKeyName="caller_number" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      <SortTh label="Tracking" sortKeyName="tracking_label" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       <SortTh label="Duration" sortKeyName="duration" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                      <SortTh label="Caller" sortKeyName="caller_name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                      <SortTh label="Operator" sortKeyName="operator_name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                      <SortTh label="Type" sortKeyName="client_type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       <SortTh label="Source" sortKeyName="source" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       <SortTh label="Location" sortKeyName="location" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} hiddenLg />
                       <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Recording</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-foreground/40 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Transcript</th>
                       <th className="w-8" />
                     </tr>
                   </thead>
                   <tbody>
-                    {calls.filter(call => {
-                      const spamFlag = isSpamCall(call);
-                      if (tab === 'spam') {
-                        if (!spamFlag) return false;
-                      } else {
-                        if (spamFlag) return false;
-                      }
-                      if (operatorFilter === 'all') return true;
-                      const s = scores[String(call.id)];
-                      return s?.operator_name === operatorFilter;
-                    }).slice().sort((a, b) => {
-                      const sA = scores[String(a.id)];
-                      const sB = scores[String(b.id)];
-                      const getVal = (call: Call, s: ScoreRow | undefined): string | number => {
-                        switch (sortKey) {
-                          case 'id': return call.id;
-                          case 'fit_score': return s?.fit_score ?? -1;
-                          case 'call_name': return (s?.call_name || '').toLowerCase();
-                          case 'called_at': return parseDate(call.called_at)?.getTime() ?? 0;
-                          case 'caller_number': return (call.caller_number_formatted || call.caller_number || '').toLowerCase();
-                          case 'duration': return call.duration ?? 0;
-                          case 'caller_name': return (s?.caller_name || '').toLowerCase();
-                          case 'operator_name': return (s?.operator_name || '').toLowerCase();
-                          case 'client_type': return (s?.client_type || '').toLowerCase();
-                          case 'source': return (call.source_name || call.source || '').toLowerCase();
-                          case 'location': return [call.city, call.state].filter(Boolean).join(', ').toLowerCase();
-                          default: return 0;
-                        }
-                      };
-                      const vA = getVal(a, sA);
-                      const vB = getVal(b, sB);
-                      if (vA < vB) return sortDir === 'asc' ? -1 : 1;
-                      if (vA > vB) return sortDir === 'asc' ? 1 : -1;
-                      return 0;
-                    }).map(call => {
+                    {visibleCalls.map(call => {
                       const expanded = expandedId === call.id;
-                      const callScore = scores[String(call.id)];
-                      // Density tiers: meaningful (fit_score >= 60)
-                      // rows breathe and show the AI summary inline;
-                      // every other row collapses to a compact strip
-                      // so the inbox stays scannable. Spam + missed
-                      // are always compact regardless of score.
-                      const isMeaningfulRow =
-                        !isSpamCall(call) &&
-                        !isMissedCall(call) &&
-                        isMeaningfulCall(call, callScore?.fit_score ?? null);
-                      const cellPad = isMeaningfulRow ? 'py-5' : 'py-2';
+                      const cellPad = 'py-2';
                       return (
                         <Fragment key={call.id}>
                           <tr data-call-id={call.id} onClick={() => setExpandedId(expanded ? null : call.id)} className={`transition-colors cursor-pointer hover:bg-warm-bg/20 ${selectedIds.has(String(call.id)) ? 'bg-primary/5' : ''} ${isSpamCall(call) ? 'bg-amber-50/70 border-b border-amber-200' : isMissedCall(call) ? 'bg-red-50/60 border-b border-red-100' : 'border-b border-primary/20'}`} style={isSpamCall(call) ? { boxShadow: 'inset 0 0 20px rgba(245,158,11,0.1), 0 0 8px rgba(245,158,11,0.06)' } : isMissedCall(call) ? { boxShadow: 'inset 0 0 20px rgba(239,68,68,0.1), 0 0 8px rgba(239,68,68,0.06)' } : { boxShadow: '0 2px 8px -4px rgba(188, 107, 74, 0.18), 0 1px 0 rgba(188, 107, 74, 0.08)' }}>
@@ -1494,63 +1007,27 @@ export default function CallsContent() {
                               />
                             </td>
                             <td className={`px-3 sm:px-5 ${cellPad}`} onClick={(e) => e.stopPropagation()}>
-                              <div className="flex flex-col items-start gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => rescoreCall(String(call.id), true)}
-                                  disabled={scoringIds.has(String(call.id))}
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg text-foreground/60 hover:text-primary hover:bg-white transition-colors border border-gray-200 disabled:opacity-50 whitespace-nowrap"
-                                  title="Run AI analysis on this call"
-                                >
-                                  <svg className={`w-3 h-3 ${scoringIds.has(String(call.id)) ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                  </svg>
-                                  {scoringIds.has(String(call.id)) ? 'Analyzing…' : scores[String(call.id)]?.scored_at ? 'Re-analyze' : 'Analyze'}
-                                </button>
-                                <div className="flex items-center gap-1 flex-wrap">
-                                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
-                                    {call.direction || 'unknown'}
-                                  </span>
-                                  {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">VM</span>}
-                                  {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">1st</span>}
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
-                                  <CopyCallLinkButton callId={String(call.id)} />
-                                </div>
+                              <div className="flex items-center gap-1.5">
+                                <div className="text-xs font-mono text-foreground/50 whitespace-nowrap">#{call.id}</div>
+                                <CopyCallLinkButton callId={String(call.id)} />
                               </div>
                             </td>
-                            <td className={`px-3 sm:px-5 ${cellPad} text-sm whitespace-nowrap`} style={{ fontFamily: 'var(--font-body)' }}>
-                              {scores[String(call.id)]?.fit_score != null ? (
-                                <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold text-white ${fitScoreBg(scores[String(call.id)].fit_score!)}`}>
-                                  {scores[String(call.id)].fit_score}
+                            <td className={`px-3 sm:px-5 ${cellPad}`} onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${directionStyle[call.direction] || 'bg-gray-100 text-gray-600'}`}>
+                                  {call.direction || 'unknown'}
                                 </span>
-                              ) : (
-                                <span className="text-foreground/20">—</span>
-                              )}
-                            </td>
-                            <td
-                              className={`px-3 sm:px-5 ${cellPad} text-sm text-foreground/80 ${
-                                isMeaningfulRow ? 'max-w-[420px] min-w-[260px]' : 'max-w-[180px]'
-                              }`}
-                              style={{ fontFamily: 'var(--font-body)' }}
-                            >
-                              {callScore?.call_name ? (
-                                <div className="flex flex-col gap-1.5">
-                                  <span className="font-semibold leading-tight">{callScore.call_name}</span>
-                                  {/* Inline AI summary on meaningful
-                                      rows. Wraps to multi-line so the
-                                      operator can read substance
-                                      without expanding the row. */}
-                                  {isMeaningfulRow && callScore.summary && (
-                                    <p className="text-[12.5px] text-foreground/65 leading-snug whitespace-normal">
-                                      {callScore.summary}
-                                    </p>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-foreground/20">—</span>
-                              )}
+                                {call.voicemail && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">VM</span>}
+                                {call.first_call && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">1st</span>}
+                                {isSpamCall(call) && (
+                                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">Spam</span>
+                                )}
+                                {!isSpamCall(call) && isMissedCall(call) && (
+                                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
+                                    {call.voicemail ? 'Voicemail' : 'No answer'}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className={`px-3 sm:px-5 ${cellPad}`}>
                               <div className="text-sm font-medium text-foreground whitespace-nowrap">{formatDate(call.called_at)}</div>
@@ -1593,67 +1070,11 @@ export default function CallsContent() {
                                 )}
                               </div>
                             </td>
+                            <td className={`px-3 sm:px-5 ${cellPad} text-sm text-foreground/70 max-w-[180px] truncate`} style={{ fontFamily: 'var(--font-body)' }}>
+                              {call.tracking_label || '—'}
+                            </td>
                             <td className={`px-3 sm:px-5 ${cellPad} text-sm font-mono text-foreground whitespace-nowrap`}>
                               {formatDuration(call.duration)}
-                            </td>
-                            <td className={`px-3 sm:px-5 ${cellPad} text-sm text-foreground/70 whitespace-nowrap`} style={{ fontFamily: 'var(--font-body)' }}>
-                              {scores[String(call.id)]?.caller_name ? (
-                                <span className="font-medium">{scores[String(call.id)].caller_name}</span>
-                              ) : (
-                                <span className="text-foreground/20">—</span>
-                              )}
-                            </td>
-                            <td className={`px-3 sm:px-5 ${cellPad} text-sm text-foreground/70 whitespace-nowrap`} style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
-                              {isSpamCall(call) ? (
-                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">
-                                  Spam
-                                </span>
-                              ) : isMissedCall(call) ? (
-                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
-                                  {call.voicemail ? 'Voicemail' : 'No answer'}
-                                </span>
-                              ) : (
-                                <div className="flex flex-col items-start gap-1">
-                                  <div className="flex items-center gap-2">
-                                    <OperatorPicker
-                                      currentName={scores[String(call.id)]?.operator_name || null}
-                                      knownOperators={knownOperators}
-                                      noAnswer={false}
-                                      voicemail={false}
-                                      error={scoringErrors[String(call.id)]}
-                                      onPick={(name) => setManualOperator(String(call.id), name)}
-                                    />
-                                    <CallAiBadge
-                                      call={call}
-                                      preScore={scores[String(call.id)] || null}
-                                      loading={scoringIds.has(String(call.id))}
-                                      onClick={() => setMiniPopoverId(miniPopoverId === call.id ? null : call.id)}
-                                    />
-                                  </div>
-                                  {scores[String(call.id)]?.scored_at && (
-                                    <div className="text-[9px] text-foreground/30 whitespace-nowrap leading-tight" style={{ fontFamily: 'var(--font-body)' }}>
-                                      {formatDate(scores[String(call.id)].scored_at)} · {formatTime(scores[String(call.id)].scored_at)}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                            <td className={`px-3 sm:px-5 ${cellPad} text-sm whitespace-nowrap`} style={{ fontFamily: 'var(--font-body)' }} onClick={(e) => e.stopPropagation()}>
-                              {isSpamCall(call) ? (
-                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">
-                                  Spam
-                                </span>
-                              ) : isMissedCall(call) ? (
-                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
-                                  {call.voicemail ? 'Voicemail' : 'No answer'}
-                                </span>
-                              ) : (
-                                <ClientTypePicker
-                                  currentType={scores[String(call.id)]?.client_type || null}
-                                  knownTypes={knownClientTypes}
-                                  onPick={(t) => setManualClientType(String(call.id), t)}
-                                />
-                              )}
                             </td>
                             <td className="px-3 sm:px-5 py-3.5 text-sm text-foreground/60 max-w-[180px] truncate" style={{ fontFamily: 'var(--font-body)' }}>
                               {call.source_name || call.source || '—'}
@@ -1678,47 +1099,14 @@ export default function CallsContent() {
                                 <span className="text-xs text-foreground/20">—</span>
                               )}
                             </td>
-                            <td className="px-3 sm:px-5 py-3.5" onClick={e => e.stopPropagation()}>
-                              {scores[String(call.id)]?.transcript ? (
-                                <button
-                                  onClick={() => setTranscriptFor(call.id)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors bg-blue-50 text-blue-700 hover:bg-blue-100"
-                                  style={{ fontFamily: 'var(--font-body)' }}
-                                >
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
-                                  View
-                                </button>
-                              ) : (
-                                <span className="text-xs text-foreground/20">—</span>
-                              )}
-                            </td>
                             <td className="px-3 py-3.5">
                               <svg className={`w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                             </td>
                           </tr>
                           {expanded && (
                             <tr className="bg-warm-bg/30 border-b border-gray-50">
-                              <td colSpan={15} className="px-5 py-5">
-                                <CallDetail
-                                  call={call}
-                                  score={scores[String(call.id)] || null}
-                                  scoring={scoringIds.has(String(call.id))}
-                                  error={scoringErrors[String(call.id)]}
-                                  onRescore={rescoreCall}
-                                />
-                              </td>
-                            </tr>
-                          )}
-                          {!expanded && miniPopoverId === call.id && (
-                            <tr className="bg-gradient-to-r from-primary/5 to-transparent border-b border-gray-50" onClick={(e) => e.stopPropagation()}>
-                              <td colSpan={15} className="px-5 py-4">
-                                <ScoreMiniPopover
-                                  score={scores[String(call.id)] || null}
-                                  scoring={scoringIds.has(String(call.id))}
-                                  error={scoringErrors[String(call.id)]}
-                                  onClose={() => setMiniPopoverId(null)}
-                                  onRescore={() => rescoreCall(String(call.id), true)}
-                                />
+                              <td colSpan={11} className="px-5 py-5">
+                                <CallDetail call={call} />
                               </td>
                             </tr>
                           )}
@@ -1753,124 +1141,55 @@ export default function CallsContent() {
 
       {/* Sources Tab */}
       {tab === 'sources' && !loading && (
-        <SourcesPanel calls={calls} scores={scores} onOpenCall={(id) => { setExpandedId(id); setTab('calls'); setTimeout(() => { const el = document.querySelector(`[data-call-id="${id}"]`); if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300); }} />
-      )}
-
-      {/* Operator Insights Tab — admin only */}
-      {tab === 'operators' && !loading && isAdmin && (
-        <OperatorInsightsPanel
-          rangeStart={rangeStart}
-          rangeEnd={rangeEnd}
-          token={session?.access_token ?? null}
-          onOpenCall={(ctmId, calledAt) => {
-            const iso = parseDate(calledAt)?.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-            if (iso) setDateFilter(iso);
-            setExpandedId(Number(ctmId));
-            setTab('calls');
-            setPage(1);
-            setTimeout(() => {
-              const el = document.querySelector(`[data-call-id="${ctmId}"]`);
-              if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 300);
-          }}
-        />
+        <SourcesPanel calls={calls} onOpenCall={(id) => { setExpandedId(id); setTab('calls'); setTimeout(() => { const el = document.querySelector(`[data-call-id="${id}"]`); if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300); }} />
       )}
 
       {/* Selection action bar — appears when one or more calls are
-          checked. Sits bottom-center so it doesn't fight the existing
-          "Analyze missing" floating CTA at bottom-right. */}
-      {isAdmin && selectedIds.size > 0 && !bulkAnalyzing && (
+          checked. Spam toggling lives here so the action is discoverable
+          without hunting per-row hover states. */}
+      {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 inline-flex items-center gap-2 bg-foreground text-white rounded-full pl-5 pr-2 py-2 shadow-2xl ring-1 ring-white/10">
           <span className="text-sm font-semibold" style={{ fontFamily: 'var(--font-body)' }}>
             {selectedIds.size} selected
           </span>
           <button
             type="button"
+            onClick={() => {
+              for (const id of selectedIds) {
+                const call = calls.find((c) => String(c.id) === id);
+                if (call?.caller_number) reportSpam(call.caller_number);
+              }
+              clearSelection();
+            }}
+            className="inline-flex items-center gap-1 bg-red-500 hover:bg-red-600 text-white rounded-full px-3 py-2 text-xs font-semibold transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Mark as spam
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              for (const id of selectedIds) {
+                const call = calls.find((c) => String(c.id) === id);
+                if (call?.caller_number) unreportSpam(call.caller_number);
+              }
+              clearSelection();
+            }}
+            className="inline-flex items-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full px-3 py-2 text-xs font-semibold transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Unmark spam
+          </button>
+          <button
+            type="button"
             onClick={clearSelection}
             className="text-[11px] font-semibold uppercase tracking-wider text-white/70 hover:text-white px-3 py-1.5 transition-colors"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Clear
-          </button>
-          <button
-            type="button"
-            onClick={analyzeSelectedCalls}
-            className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-full px-4 py-2 text-sm font-semibold transition-colors"
-            style={{ fontFamily: 'var(--font-body)' }}
-            title={`Analyze ${selectedIds.size} selected call${selectedIds.size === 1 ? '' : 's'}`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-            </svg>
-            Analyze {selectedIds.size}
+            Clear selection
           </button>
         </div>
       )}
-
-      {isAdmin && calls.length > 0 && (() => {
-        const unscored = calls.filter(c => !scores[String(c.id)]).length;
-        if (!bulkAnalyzing && unscored === 0) return null;
-        return (
-          <button
-            type="button"
-            onClick={analyzeAllCalls}
-            disabled={bulkAnalyzing}
-            className={`fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 px-4 py-3 rounded-full text-white text-sm font-semibold shadow-lg transition-all ${bulkAnalyzing ? 'bg-primary-dark shadow-xl scale-105' : 'bg-primary hover:bg-primary-dark hover:shadow-xl'}`}
-            style={{ fontFamily: 'var(--font-body)' }}
-            title="Analyze calls that don't have a score yet"
-          >
-            <svg className={`w-4 h-4 ${bulkAnalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
-            {bulkAnalyzing && bulkProgress ? (
-              <>
-                <span>Analyzing {bulkProgress.done}/{bulkProgress.total}</span>
-                <span className="w-16 h-1.5 rounded-full bg-white/30 overflow-hidden">
-                  <span className="block h-full bg-white rounded-full transition-all" style={{ width: `${Math.round((bulkProgress.done / bulkProgress.total) * 100)}%` }} />
-                </span>
-              </>
-            ) : (
-              <span>Analyze missing calls{unscored > 0 ? ` · ${unscored}` : ''}</span>
-            )}
-          </button>
-        );
-      })()}
-
-      {transcriptFor !== null && (() => {
-        const call = calls.find((c) => c.id === transcriptFor);
-        const transcript = call ? scores[String(call.id)]?.transcript : null;
-        return (
-          <div
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setTranscriptFor(null)}
-          >
-            <div
-              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-                <div>
-                  <h3 className="text-sm font-bold text-foreground">Call transcript</h3>
-                  {call && <p className="text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>{formatDate(call.called_at)} · {formatTime(call.called_at)}</p>}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setTranscriptFor(null)}
-                  className="text-foreground/40 hover:text-foreground/70 p-1 rounded-lg hover:bg-warm-bg"
-                  aria-label="Close"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-              <div className="px-5 py-4 overflow-y-auto flex-1">
-                {transcript ? (
-                  <pre className="text-sm text-foreground/80 whitespace-pre-wrap font-sans leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>{transcript}</pre>
-                ) : (
-                  <p className="text-sm text-foreground/40 italic">No transcript available for this call yet. Click Analyze to generate one.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }

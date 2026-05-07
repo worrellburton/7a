@@ -1,77 +1,42 @@
 'use client';
 
-// Single-row mobile presentation for the calls list.
-//
-// The previous mobile card crammed call name, phone, direction
-// badge, fit chip, voicemail badge, "1st" badge, spam badge, missed
-// badge, operator name, client type, three action buttons, and the
-// call ID into one tile. On a 390-wide iPhone screen that meant
-// every row wrapped to four lines and the date/time string broke
-// down to "— · — · 2:00" when the parser hiccuped on the timestamp.
-//
-// This component restores a scannable single row. Anatomy from left
-// to right:
+// Single-row mobile presentation for the calls list. Anatomy:
 //
 //   ┌──┬─────┬──────────────────────────────────────┬───────┬──┐
 //   │ ▌│ icon│ Caller name                          │ time  │ ›│
 //   │  │     │ +1 (555) 555-5555 · 2:00             │       │  │
 //   └──┴─────┴──────────────────────────────────────┴───────┴──┘
 //
-//   ▌  Status accent edge (color = fit / missed / spam tier)
-//   ◯  Direction icon (incoming arrow / outgoing arrow / missed)
-//   …  Identity stack (name + secondary line)
-//   ◷  Relative time
-//   ›  Chevron (taps reveal action sheet w/ play / transcript)
-//
-// Tap anywhere on the row → opens the call detail (existing
-// expanded view). Long-press / chevron tap → action sheet for
-// per-row commands. This decouples the "view this call" path from
-// the "do something with this call" path so each one gets a real
-// 44x44 tap target instead of three crammed-together 32px circles.
+// Tap the row → opens the expanded detail view. Per-row actions
+// (play recording / select) live in the meatball menu on the right.
 
 import { useEffect, useRef, useState } from 'react';
 import {
   Call,
-  ScoreRow,
   formatDuration,
   formatRelativeTime,
   formatTime,
   isMissedCall,
-  isMeaningfulCall,
   isPaidSource,
-  unscoreableReason,
 } from './_shared';
 
 export interface CallMobileRowProps {
   call: Call;
-  score: ScoreRow | null | undefined;
   expanded: boolean;
   selected: boolean;
-  scoring: boolean;
   isSpam: boolean;
   playingAudio: string | null;
   onToggleExpand: () => void;
   onToggleSelect: () => void;
   onPlay: (audioUrl: string) => void;
-  onOpenTranscript: () => void;
-  onRescore: () => void;
 }
 
-function fitTier(fit: number | null | undefined): 'great' | 'good' | 'ok' | 'poor' | 'unknown' {
-  if (fit == null) return 'unknown';
-  if (fit >= 75) return 'great';
-  if (fit >= 50) return 'good';
-  if (fit >= 25) return 'ok';
-  return 'poor';
-}
-
-// Single accent color per row, derived from the most important
-// status the row can carry. Spam wins (it's the loudest signal),
-// then missed, then the fit tier, then "no analysis yet".
+// Single accent color per row. Spam wins (it's the loudest signal),
+// then missed, then a neutral default. Without AI scoring we don't
+// have a fit-tier accent any more.
 function statusAccent(args: {
   isSpam: boolean;
   isMissed: boolean;
-  fit: number | null | undefined;
 }): { bar: string; rowBg: string; tag: { label: string; cls: string } | null } {
   if (args.isSpam) {
     return {
@@ -87,34 +52,18 @@ function statusAccent(args: {
       tag: { label: 'Missed', cls: 'bg-rose-100 text-rose-800' },
     };
   }
-  switch (fitTier(args.fit)) {
-    case 'great':
-      return { bar: 'bg-emerald-500', rowBg: 'bg-white', tag: null };
-    case 'good':
-      return { bar: 'bg-blue-500', rowBg: 'bg-white', tag: null };
-    case 'ok':
-      return { bar: 'bg-amber-500', rowBg: 'bg-white', tag: null };
-    case 'poor':
-      return { bar: 'bg-red-400', rowBg: 'bg-white', tag: null };
-    default:
-      return { bar: 'bg-gray-200', rowBg: 'bg-white', tag: null };
-  }
+  return { bar: 'bg-gray-200', rowBg: 'bg-white', tag: null };
 }
 
 export function CallMobileRow(props: CallMobileRowProps) {
   const {
     call,
-    score,
     expanded,
     selected,
-    scoring,
     isSpam,
     playingAudio,
     onToggleExpand,
-    onToggleSelect,
     onPlay,
-    onOpenTranscript,
-    onRescore,
   } = props;
   const [actionsOpen, setActionsOpen] = useState(false);
   const actionsHostRef = useRef<HTMLDivElement | null>(null);
@@ -141,29 +90,17 @@ export function CallMobileRow(props: CallMobileRowProps) {
   }, [actionsOpen]);
 
   const isMissed = isMissedCall(call);
-  const accent = statusAccent({ isSpam, isMissed, fit: score?.fit_score ?? null });
+  const accent = statusAccent({ isSpam, isMissed });
 
-  const callerName = score?.caller_name?.trim();
   const callerNumber = call.caller_number_formatted || call.caller_number || 'Unknown';
-  const headlineTop = callerName || callerNumber;
-  const headlineSub = callerName ? callerNumber : (score?.call_name ?? null);
+  const headlineTop = callerNumber;
   const direction = (call.direction || '').toLowerCase();
   const isInbound = direction === 'inbound';
   const isOutbound = direction === 'outbound';
 
-  // Time line never falls back to "—" anymore. Relative time is the
-  // primary read; the absolute time is hover-only via title for
-  // teammates who want the exact stamp.
   const relTime = formatRelativeTime(call.called_at);
   const absTime = `${formatTime(call.called_at)}`;
   const duration = call.duration != null ? formatDuration(call.duration) : null;
-
-  // Meaningfulness threshold mirrors the page-level constant
-  // (fit_score >= 60). Meaningful rows expand vertically and surface
-  // the AI summary inline so the team can scan substance without
-  // opening every call. Non-meaningful rows compact down — less
-  // padding, smaller chip — so the inbox skims fast.
-  const isMeaningful = !isSpam && !isMissed && isMeaningfulCall(call, score?.fit_score ?? null);
 
   return (
     <div
@@ -171,52 +108,29 @@ export function CallMobileRow(props: CallMobileRowProps) {
         selected ? 'bg-primary/5' : ''
       }`}
     >
-      <div className={`flex items-stretch ${isMeaningful ? 'min-h-[96px]' : 'min-h-[52px]'}`}>
-        {/* Status accent edge — colored stripe spanning the full row
-            height, motion-reduce friendly because it's pure layout. */}
+      <div className="flex items-stretch min-h-[52px]">
         <div className={`w-1 shrink-0 ${accent.bar}`} aria-hidden="true" />
 
         <button
           type="button"
           onClick={onToggleExpand}
-          className={`flex-1 min-w-0 flex items-start gap-3 pl-3 pr-2 ${
-            isMeaningful ? 'py-3.5' : 'py-2'
-          } text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-r-xl`}
+          className="flex-1 min-w-0 flex items-start gap-3 pl-3 pr-2 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-r-xl"
         >
-          {/* Far-left column: prominent fit-score chip when scored.
-              Spam / missed / unanalyzed rows keep an icon stand-in
-              instead of showing "—" so the column always carries a
-              real signal. Color tracks the same tiers as the
-              desktop table (>=75 emerald, >=50 blue, >=25 amber,
-              <25 rose) so the two views read identically. A tiny
-              direction arrow sits in the bottom-right corner of
-              the chip so we don't lose the inbound/outbound bit. */}
+          {/* Left chip: spam / missed icon, or a direction arrow. */}
           <span
-            className={`shrink-0 relative inline-flex items-center justify-center rounded-xl font-bold tabular-nums ${
-              isMeaningful ? 'w-11 h-11 text-[15px] mt-0.5' : 'w-8 h-8 text-[12px]'
-            } ${
+            className={`shrink-0 relative inline-flex items-center justify-center rounded-xl w-8 h-8 ${
               isSpam
                 ? 'bg-amber-50 text-amber-700'
                 : isMissed
                 ? 'bg-rose-50 text-rose-600'
-                : score?.fit_score != null
-                ? score.fit_score >= 75
-                  ? 'bg-emerald-500 text-white'
-                  : score.fit_score >= 50
-                  ? 'bg-blue-500 text-white'
-                  : score.fit_score >= 25
-                  ? 'bg-amber-500 text-white'
-                  : 'bg-rose-500 text-white'
+                : isInbound
+                ? 'bg-emerald-50 text-emerald-600'
+                : isOutbound
+                ? 'bg-blue-50 text-blue-600'
                 : 'bg-gray-100 text-foreground/40'
             }`}
             aria-label={
-              score?.fit_score != null
-                ? `Fit score ${score.fit_score} of 100`
-                : isSpam
-                ? 'Spam'
-                : isMissed
-                ? 'Missed call'
-                : 'Unanalyzed call'
+              isSpam ? 'Spam' : isMissed ? 'Missed call' : isInbound ? 'Inbound' : isOutbound ? 'Outbound' : 'Call'
             }
           >
             {isSpam ? (
@@ -228,65 +142,20 @@ export function CallMobileRow(props: CallMobileRowProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.95.36 1.88.7 2.78a2 2 0 0 1-.45 2.11l-1.27 1.27a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.83.57 2.78.7A2 2 0 0 1 22 16.92Z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M22 2 16 8m0-6 6 6" />
               </svg>
-            ) : score?.fit_score != null ? (
-              <span>{score.fit_score}</span>
             ) : (
-              <span className="text-[12px] font-medium">—</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" aria-hidden="true">
+                {isInbound ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 19V5m0 14h14M5 19l14-14" />
+                ) : isOutbound ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 5v14m0-14H5m14 0L5 19" />
+                ) : (
+                  <circle cx="12" cy="12" r="2" />
+                )}
+              </svg>
             )}
-            {/* Direction sub-glyph — bottom-right corner. Hidden on
-                spam/missed since the icon already covers status. */}
-            {!isSpam && !isMissed && (isInbound || isOutbound) && (
-              <span
-                aria-hidden="true"
-                className={`absolute -bottom-0.5 -right-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-white ${
-                  isInbound ? 'bg-emerald-500' : 'bg-blue-500'
-                } text-white`}
-                title={isInbound ? 'Inbound' : 'Outbound'}
-              >
-                <svg className="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
-                  {isInbound ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 19V5m0 14h14M5 19l14-14" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 5v14m0-14H5m14 0L5 19" />
-                  )}
-                </svg>
-              </span>
-            )}
-            {/* Operator (call-handling) score — small white bubble in
-                the top-right corner of the fit chip. Distinct from
-                the fit number in the centre so the two metrics never
-                read as the same thing. Hidden when there's nothing
-                to show or when the row already carries spam/missed
-                iconography. */}
-            {!isSpam && !isMissed && score?.score != null && (() => {
-              const naReason = unscoreableReason(score);
-              if (naReason) {
-                return (
-                  <span
-                    className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[22px] h-[18px] px-1 rounded-full bg-white text-foreground/55 text-[9px] font-bold uppercase tracking-wider shadow-sm border border-dashed border-black/15 cursor-help"
-                    title={`N/A — ${naReason}`}
-                    aria-label={`Operator score N/A — ${naReason}`}
-                  >
-                    N/A
-                  </span>
-                );
-              }
-              return (
-                <span
-                  className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-white text-foreground text-[10px] font-bold tabular-nums shadow-sm border border-black/10"
-                  title={`Operator call score ${score.score}/100`}
-                  aria-label={`Operator call score ${score.score}`}
-                >
-                  {score.score}
-                </span>
-              );
-            })()}
           </span>
 
-          {/* Identity stack — caller name dominates if known, else
-              the phone number itself reads as the headline. The
-              second line carries number + duration so the row stays
-              one-glance scannable. */}
+          {/* Identity stack — phone number + duration line. */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <p className="text-[15px] font-semibold text-foreground leading-tight truncate">
@@ -302,15 +171,12 @@ export function CallMobileRow(props: CallMobileRowProps) {
                   VM
                 </span>
               )}
-              {/* The inline fit chip that used to live next to the
-                  name is gone — the leftmost column now owns that
-                  signal as a prominent color-coded square. */}
             </div>
             <p
               className="text-[12px] text-foreground/55 mt-0.5 truncate"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              {headlineSub ?? callerNumber}
+              {call.tracking_label || call.source_name || 'Call'}
               {duration && (
                 <>
                   <span className="mx-1.5 text-foreground/30">·</span>
@@ -324,22 +190,9 @@ export function CallMobileRow(props: CallMobileRowProps) {
                 </>
               )}
             </p>
-            {/* Inline AI summary on meaningful rows so the team can
-                read substance without expanding every call. Hidden
-                on non-meaningful rows so the inbox stays scannable. */}
-            {isMeaningful && score?.summary && (
-              <p
-                className="mt-1.5 text-[12.5px] text-foreground/75 leading-snug"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                {score.summary}
-              </p>
-            )}
           </div>
 
-          {/* Time + chevron stack — time always renders even if the
-              parse failed for some rows (relTime falls back to ''
-              and the chevron still anchors). */}
+          {/* Time + chevron stack. */}
           <div className="shrink-0 flex items-center gap-2">
             <div className="text-right">
               <p
@@ -348,8 +201,6 @@ export function CallMobileRow(props: CallMobileRowProps) {
               >
                 {relTime || absTime || ''}
               </p>
-              {/* Reserve the second line so rows stay the same height
-                  whether or not we render a tag below. */}
               <p className="text-[10px] text-foreground/35 tabular-nums">
                 #{call.id}
               </p>
@@ -369,10 +220,7 @@ export function CallMobileRow(props: CallMobileRowProps) {
           </div>
         </button>
 
-        {/* Per-row actions — one button that opens a tiny popover
-            with Play / Transcript / Re-analyze. Keeps the row free
-            of three competing icons and gives every action a real
-            44x44 tap target. */}
+        {/* Per-row actions — meatball menu with Play. */}
         <div ref={actionsHostRef} className="shrink-0 flex items-center pr-2 relative" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
@@ -394,7 +242,7 @@ export function CallMobileRow(props: CallMobileRowProps) {
               className="absolute right-2 top-full mt-1 z-30 w-44 rounded-xl border border-black/5 bg-white shadow-xl py-1 animate-sheet-slide motion-reduce:animate-none"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              {call.audio && (
+              {call.audio ? (
                 <button
                   type="button"
                   role="menuitem"
@@ -416,45 +264,9 @@ export function CallMobileRow(props: CallMobileRowProps) {
                   )}
                   <span>{playingAudio === call.audio ? 'Stop' : 'Play recording'}</span>
                 </button>
+              ) : (
+                <p className="px-3 py-2.5 text-sm text-foreground/40">No recording</p>
               )}
-              {score?.transcript && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setActionsOpen(false);
-                    onOpenTranscript();
-                  }}
-                  className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-sm text-foreground/85 hover:bg-warm-bg/40 active:bg-warm-bg/60"
-                >
-                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                  </svg>
-                  <span>View transcript</span>
-                </button>
-              )}
-              <button
-                type="button"
-                role="menuitem"
-                disabled={scoring}
-                onClick={() => {
-                  setActionsOpen(false);
-                  onRescore();
-                }}
-                className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-sm text-foreground/85 hover:bg-warm-bg/40 active:bg-warm-bg/60 disabled:opacity-50"
-              >
-                <svg
-                  className={`w-4 h-4 text-foreground/55 ${scoring ? 'animate-spin motion-reduce:animate-none' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                </svg>
-                <span>{score?.scored_at ? 'Re-analyze' : 'Analyze'}</span>
-              </button>
             </div>
           )}
         </div>
@@ -464,8 +276,6 @@ export function CallMobileRow(props: CallMobileRowProps) {
 }
 
 // Skeleton row used while we're loading the first page of calls.
-// Mirrors the real row's vertical rhythm so swapping in real data
-// doesn't reflow the list.
 export function CallMobileRowSkeleton() {
   return (
     <div className="bg-white animate-pulse motion-reduce:animate-none">

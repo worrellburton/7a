@@ -8,11 +8,12 @@ import type { RecoveryReportPayload, CallLogRow, AnalyticsPayload } from './cont
 // Pages:
 //   1. Cover — Seven Arrows mark, report title, date window, total
 //      calls hero stat, key takeaways
-//   2. Stats overview — 8 KPI tiles
-//   3. Daily volume — bar chart drawn with rect primitives
-//   4. Distributions — fit, sentiment, client type
-//   5. Operator scoreboard — table
-//   6+. Comprehensive call log — table that paginates as needed
+//   2. Stats overview — KPI tiles + daily volume chart
+//   3. Attribution — top tracking labels / numbers / sources
+//   4. Geography — top cities + states
+//   5. Timing — hour-of-day / day-of-week
+//   6. Analytics (GA4) — sessions, sources, landing pages, etc.
+//   7+. Comprehensive call log — table that paginates as needed
 
 const PAGE_W = 612; // letter width in pt
 const PAGE_H = 792; // letter height in pt
@@ -98,12 +99,11 @@ function fmtDuration(s: number): string {
 }
 
 // Helvetica's WinAnsi encoding (jsPDF's default) doesn't include
-// the unicode glyphs we lean on in the on-screen UI (≥, →, •, em
+// the unicode glyphs we lean on in the on-screen UI (>=, ->, em
 // dash, curly quotes). When we feed those characters in raw, jsPDF
 // either drops them or substitutes look-alikes that throw off line
-// widths — that's what produced the spaced-out "FIT  "e 60" garble
-// on the cover page. Anywhere we hand a string to pdf.text we route
-// it through asciiSafe first so the printed copy stays clean.
+// widths. Anywhere we hand a string to pdf.text we route it through
+// asciiSafe first so the printed copy stays clean.
 function asciiSafe(input: string): string {
   return input
     .replace(/≥/g, '>=')
@@ -119,13 +119,8 @@ function asciiSafe(input: string): string {
 
 // PII redaction for the printed report. The PDF is intended to be
 // shared with marketing partners + executives, so we keep the data
-// useful (last-4 phone digits, location, AI summary) but strip the
-// pieces that directly identify the caller.
-function redactName(name: string | null | undefined): string {
-  if (!name || !name.trim()) return '—';
-  return '***';
-}
-
+// useful (last-4 phone digits, location) but strip the pieces that
+// directly identify the caller.
 function redactPhone(phone: string | null | undefined): string {
   if (!phone) return '—';
   const digits = phone.replace(/\D/g, '');
@@ -166,7 +161,7 @@ function drawCoverPage(ctx: PageContext, data: RecoveryReportPayload) {
   pdf.setTextColor(COLOR.muted);
   const blurb = pdf.splitTextToSize(
     asciiSafe(
-      'Every call CTM attributes to the Recovery.com listing — volume, lead quality, and conversion likelihood — for the window below.',
+      'Every call CTM attributes to the Recovery.com listing - call volume, tracking-line attribution, and caller geography for the window below.',
     ),
     PAGE_W - MARGIN_X * 2,
   );
@@ -197,8 +192,7 @@ function drawCoverPage(ctx: PageContext, data: RecoveryReportPayload) {
     340,
   );
 
-  // Hero KPI tiles — 4 across so Missed sits on the cover next to
-  // the volume + lead-quality numbers.
+  // Hero KPI tiles — 4 across.
   const tileY = 380;
   const tileGap = 10;
   const tileW = (PAGE_W - MARGIN_X * 2 - tileGap * 3) / 4;
@@ -210,17 +204,14 @@ function drawCoverPage(ctx: PageContext, data: RecoveryReportPayload) {
       sub: `${data.overview.uniqueCallers} unique callers`,
     },
     {
-      label: 'Meaningful (fit >= 60)',
-      value: data.overview.meaningful.toLocaleString(),
-      sub: `${Math.round(data.overview.meaningfulPct * 100)}% of all calls`,
+      label: 'Inbound',
+      value: data.overview.inbound.toLocaleString(),
+      sub: `${data.overview.outbound} outbound`,
     },
     {
-      label: 'High fit (>= 75)',
-      value: data.overview.highFit.toLocaleString(),
-      sub:
-        data.overview.scoredCount > 0
-          ? `${Math.round((data.overview.highFit / data.overview.scoredCount) * 100)}% of scored`
-          : '-',
+      label: 'Voicemails',
+      value: data.overview.voicemails.toLocaleString(),
+      sub: 'Of total calls',
     },
     {
       label: 'Missed inbound',
@@ -261,26 +252,24 @@ function drawTakeaways(ctx: PageContext, data: RecoveryReportPayload, startY: nu
   pdf.setTextColor(COLOR.primary);
   pdf.text('KEY TAKEAWAYS', MARGIN_X, startY);
 
-  const meaningfulPct = Math.round(data.overview.meaningfulPct * 100);
-  const conversionPct =
-    data.overview.scoredCount > 0
-      ? Math.round((data.overview.highFit / data.overview.scoredCount) * 100)
-      : 0;
-  const topClient = data.clientTypes[0]?.label ?? null;
-  const topClientCount = data.clientTypes[0]?.count ?? 0;
-  const topOperator = data.operators[0] ?? null;
+  const topLabel = data.trackingLabels[0] ?? null;
+  const topSource = data.sources[0] ?? null;
+  const topCity = data.cities[0] ?? null;
 
   const rawLines = [
-    `${data.overview.total.toLocaleString()} calls landed via Recovery.com in this window — ${meaningfulPct}% of them met the meaningful threshold (fit >= 60).`,
-    data.overview.scoredCount > 0
-      ? `${conversionPct}% of scored calls landed in the high-fit bucket (>= 75) — the strongest indicator of admit-readiness.`
-      : `AI scoring hasn't run on this window yet, so lead-quality stats aren't available.`,
-    topClient
-      ? `The dominant caller profile was "${topClient}" (${topClientCount} of ${data.overview.scoredCount} scored calls).`
+    `${data.overview.total.toLocaleString()} calls landed via Recovery.com in this window (${data.overview.inbound} inbound, ${data.overview.outbound} outbound).`,
+    `${data.overview.uniqueCallers.toLocaleString()} unique callers reached the listing.`,
+    topLabel
+      ? `The "${topLabel.label}" tracking line fielded the most calls (${topLabel.count}).`
       : '',
-    topOperator ? `${topOperator.name} fielded the most Recovery.com calls (${topOperator.count}).` : '',
+    topSource
+      ? `Top CTM source variant: "${topSource.label}" with ${topSource.count} calls.`
+      : '',
+    topCity
+      ? `${topCity.city}${topCity.state ? `, ${topCity.state}` : ''} was the busiest caller city (${topCity.count} calls).`
+      : '',
     data.overview.missed > 0
-      ? `${data.overview.missed} inbound call${data.overview.missed === 1 ? '' : 's'} went to voicemail or hung up before a 3-second talk window — review the call log on the last pages for callbacks.`
+      ? `${data.overview.missed} inbound call${data.overview.missed === 1 ? '' : 's'} went to voicemail or hung up before a 3-second talk window - review the call log on the last pages for callbacks.`
       : 'Every inbound call in this window cleared the 3-second talk threshold.',
   ].filter(Boolean);
 
@@ -311,20 +300,15 @@ function drawStatsPage(ctx: PageContext, data: RecoveryReportPayload) {
   drawSectionHeading(ctx, 'OVERVIEW', 'Headline numbers');
   ctx.cursorY += 8;
 
-  const fmtPct = (n: number) => `${Math.round(n * 100)}%`;
-  const conversionPct = data.overview.scoredCount > 0 ? data.overview.highFit / data.overview.scoredCount : 0;
-  // Note: no per-call AI handling score on this page. Lead-quality
-  // metrics (fit) describe the caller, not the operator's handling,
-  // so they stay.
   const tiles: { label: string; value: string; sub?: string }[] = [
     { label: 'Total calls', value: data.overview.total.toLocaleString() },
     { label: 'Inbound', value: data.overview.inbound.toLocaleString(), sub: `${data.overview.outbound} outbound` },
     { label: 'Unique callers', value: data.overview.uniqueCallers.toLocaleString(), sub: 'Distinct phone numbers' },
-    { label: 'Meaningful', value: data.overview.meaningful.toLocaleString(), sub: fmtPct(data.overview.meaningfulPct) },
-    { label: 'High fit (>= 75)', value: data.overview.highFit.toLocaleString(), sub: `${fmtPct(conversionPct)} of scored` },
-    { label: 'Avg fit score', value: data.overview.avgFitScore ? data.overview.avgFitScore.toFixed(1) : '-', sub: 'Lead quality 0-100' },
+    { label: 'Voicemails', value: data.overview.voicemails.toLocaleString(), sub: 'Of total calls' },
     { label: 'Avg duration', value: fmtDuration(data.overview.avgDuration), sub: `${fmtDuration(data.overview.avgTalkTime)} talk` },
+    { label: 'Total talk time', value: fmtDuration(data.overview.totalTalkTime), sub: `${fmtDuration(data.overview.totalDuration)} ringtime` },
     { label: 'Missed inbound', value: data.overview.missed.toLocaleString(), sub: 'VM + < 3s talk' },
+    { label: 'Outbound', value: data.overview.outbound.toLocaleString(), sub: 'Calls placed' },
   ];
 
   const cols = 4;
@@ -397,16 +381,16 @@ function drawDailyVolumeChart(ctx: PageContext, daily: RecoveryReportPayload['da
     ctx.pdf.text(String(v), innerLeft - 4, y + 2, { align: 'right' });
   }
 
-  // Bars.
+  // Bars — total in primary, missed overlaid in red.
   daily.forEach((d, i) => {
     const x = innerLeft + i * slot + (slot - barW) / 2;
     const totalH = (innerH * d.count) / max;
-    const meaningfulH = (innerH * d.meaningful) / max;
+    const missedH = (innerH * d.missed) / max;
     ctx.pdf.setFillColor('#bc6b4a');
     ctx.pdf.rect(x, innerBottom - totalH, barW, totalH, 'F');
-    if (meaningfulH > 0) {
-      ctx.pdf.setFillColor('#10b981');
-      ctx.pdf.rect(x, innerBottom - meaningfulH, barW, meaningfulH, 'F');
+    if (missedH > 0) {
+      ctx.pdf.setFillColor('#dc2626');
+      ctx.pdf.rect(x, innerBottom - missedH, barW, missedH, 'F');
     }
   });
 
@@ -435,9 +419,9 @@ function drawDailyVolumeChart(ctx: PageContext, daily: RecoveryReportPayload['da
   ctx.pdf.setFontSize(8);
   ctx.pdf.setTextColor(COLOR.muted);
   ctx.pdf.text(asciiSafe('All calls'), innerLeft + 14, legendY + 7);
-  ctx.pdf.setFillColor('#10b981');
+  ctx.pdf.setFillColor('#dc2626');
   ctx.pdf.rect(innerLeft + 80, legendY, 8, 8, 'F');
-  ctx.pdf.text(asciiSafe('Meaningful (fit >= 60)'), innerLeft + 94, legendY + 7);
+  ctx.pdf.text(asciiSafe('Missed inbound'), innerLeft + 94, legendY + 7);
 
   ctx.cursorY = legendY + 22;
 }
@@ -452,156 +436,196 @@ function niceTickStep(max: number): number {
   return Math.ceil(max / 5);
 }
 
-// ─── Distributions page ─────────────────────────────────────────
+// ─── Attribution page (tracking labels / numbers / sources) ────
 
-function drawDistributionsPage(ctx: PageContext, data: RecoveryReportPayload) {
+function drawAttributionPage(ctx: PageContext, data: RecoveryReportPayload) {
+  if (
+    data.trackingLabels.length === 0 &&
+    data.trackingNumbers.length === 0 &&
+    data.sources.length === 0
+  ) {
+    return;
+  }
   ctx.pdf.addPage();
   ctx.pageNumber++;
   ctx.cursorY = MARGIN_TOP;
   drawHeader(ctx);
 
-  drawSectionHeading(ctx, 'LEAD QUALITY', 'Fit-score buckets');
-  ctx.cursorY += 6;
-  drawHorizontalBars(
-    ctx,
-    data.fitHistogram.map((r) => ({ label: r.label, value: r.count, color: bucketColor(r.range) })),
-  );
-  ctx.cursorY += 16;
-
-  drawSectionHeading(ctx, 'TONE', 'Sentiment breakdown');
-  ctx.cursorY += 6;
-  const sentimentTotal = data.sentiment.reduce((s, r) => s + r.count, 0);
-  drawHorizontalBars(
-    ctx,
-    data.sentiment.map((r) => ({
-      label: `${r.key.charAt(0).toUpperCase()}${r.key.slice(1)}`,
-      value: r.count,
-      color:
-        r.key === 'positive'
-          ? '#10b981'
-          : r.key === 'negative'
-            ? '#dc2626'
-            : r.key === 'neutral'
-              ? '#94a3b8'
-              : '#a89d93',
-      suffix: sentimentTotal > 0 ? `${Math.round((r.count / sentimentTotal) * 100)}%` : undefined,
-    })),
-  );
-  ctx.cursorY += 16;
-
-  if (data.clientTypes.length > 0) {
-    drawSectionHeading(ctx, 'MIX', 'Client type');
+  if (data.trackingLabels.length > 0) {
+    drawSectionHeading(ctx, 'ATTRIBUTION', 'Top tracking labels');
     ctx.cursorY += 6;
-    const ctTotal = data.clientTypes.reduce((s, r) => s + r.count, 0);
     drawHorizontalBars(
       ctx,
-      data.clientTypes.slice(0, 8).map((r) => ({
-        label: r.label,
-        value: r.count,
-        color: COLOR.primary,
-        suffix: ctTotal > 0 ? `${Math.round((r.count / ctTotal) * 100)}%` : undefined,
-      })),
+      data.trackingLabels.map((r) => ({ label: r.label, value: r.count, color: COLOR.primary })),
+    );
+    ctx.cursorY += 16;
+  }
+
+  if (data.trackingNumbers.length > 0) {
+    drawSectionHeading(ctx, 'ATTRIBUTION', 'Top tracking numbers');
+    ctx.cursorY += 6;
+    drawHorizontalBars(
+      ctx,
+      data.trackingNumbers.map((r) => ({ label: r.number, value: r.count, color: COLOR.primaryDark })),
+    );
+    ctx.cursorY += 16;
+  }
+
+  if (data.sources.length > 0) {
+    drawSectionHeading(ctx, 'ATTRIBUTION', 'Top sources');
+    ctx.cursorY += 6;
+    drawHorizontalBars(
+      ctx,
+      data.sources.map((r) => ({ label: r.label, value: r.count, color: COLOR.emerald })),
     );
   }
 
   drawFooter(ctx);
 }
 
-function bucketColor(range: string): string {
-  if (range === '75-100') return '#059669';
-  if (range === '60-74') return '#10b981';
-  if (range === '40-59') return '#d97706';
-  if (range === '20-39') return '#ea580c';
-  return '#dc2626';
-}
+// ─── Geography page ─────────────────────────────────────────────
 
-interface HBar {
-  label: string;
-  value: number;
-  color: string;
-  suffix?: string;
-}
-
-function drawHorizontalBars(ctx: PageContext, rows: HBar[]) {
-  const max = Math.max(1, ...rows.map((r) => r.value));
-  const labelW = 120;
-  const valueW = 60;
-  const barLeft = MARGIN_X + labelW;
-  const barRight = PAGE_W - MARGIN_X - valueW;
-  const barW = barRight - barLeft;
-  const rowH = 18;
-  ensureRoom(ctx, rows.length * rowH + 12);
-  for (const r of rows) {
-    const y = ctx.cursorY;
-    ctx.pdf.setFont('helvetica', 'normal');
-    ctx.pdf.setFontSize(9);
-    ctx.pdf.setTextColor(COLOR.text);
-    ctx.pdf.text(asciiSafe(r.label), MARGIN_X, y + 11);
-
-    // Track + filled bar.
-    ctx.pdf.setFillColor(COLOR.card);
-    ctx.pdf.roundedRect(barLeft, y + 4, barW, 8, 2, 2, 'F');
-    const fillW = (barW * r.value) / max;
-    if (fillW > 0) {
-      ctx.pdf.setFillColor(r.color);
-      ctx.pdf.roundedRect(barLeft, y + 4, fillW, 8, 2, 2, 'F');
-    }
-    ctx.pdf.setFont('helvetica', 'bold');
-    ctx.pdf.setFontSize(9);
-    ctx.pdf.setTextColor(COLOR.text);
-    const valueLabel = r.suffix ? `${r.value}  ${r.suffix}` : String(r.value);
-    ctx.pdf.text(asciiSafe(valueLabel), PAGE_W - MARGIN_X, y + 11, { align: 'right' });
-    ctx.cursorY += rowH;
+function drawGeoPage(ctx: PageContext, data: RecoveryReportPayload) {
+  if (data.cities.length === 0 && data.states.length === 0) return;
+  ensureRoom(ctx, 200);
+  if (ctx.cursorY === MARGIN_TOP) {
+    // already at top of fresh page
+  } else {
+    ctx.pdf.addPage();
+    ctx.pageNumber++;
+    ctx.cursorY = MARGIN_TOP;
+    drawHeader(ctx);
   }
+
+  if (data.cities.length > 0) {
+    drawSectionHeading(ctx, 'GEOGRAPHY', 'Top caller cities');
+    ctx.cursorY += 6;
+    const cols = [
+      { label: 'City', x: MARGIN_X },
+      { label: 'State', x: MARGIN_X + 280 },
+      { label: 'Calls', x: PAGE_W - MARGIN_X, align: 'right' as const },
+    ];
+    drawTableHeader(ctx, cols);
+    for (const r of data.cities) {
+      ensureRoom(ctx, 18);
+      const y = ctx.cursorY + 11;
+      ctx.pdf.setFont('helvetica', 'bold');
+      ctx.pdf.setFontSize(9);
+      ctx.pdf.setTextColor(COLOR.text);
+      ctx.pdf.text(asciiSafe(r.city), cols[0].x, y);
+      ctx.pdf.setFont('helvetica', 'normal');
+      ctx.pdf.setTextColor(COLOR.muted);
+      ctx.pdf.text(asciiSafe(r.state ?? '-'), cols[1].x, y);
+      ctx.pdf.setFont('helvetica', 'bold');
+      ctx.pdf.setTextColor(COLOR.primary);
+      ctx.pdf.text(String(r.count), cols[2].x, y, { align: 'right' });
+      ctx.pdf.setDrawColor(COLOR.hairline);
+      ctx.pdf.line(MARGIN_X, ctx.cursorY + 18, PAGE_W - MARGIN_X, ctx.cursorY + 18);
+      ctx.cursorY += 18;
+    }
+    ctx.cursorY += 16;
+  }
+
+  if (data.states.length > 0) {
+    ensureRoom(ctx, 60 + data.states.length * 16);
+    drawSectionHeading(ctx, 'GEOGRAPHY', 'Top caller states');
+    ctx.cursorY += 6;
+    drawHorizontalBars(
+      ctx,
+      data.states.map((r) => ({ label: r.state, value: r.count, color: '#3b82f6' })),
+    );
+  }
+
+  drawFooter(ctx);
 }
 
-// ─── Operator scoreboard ────────────────────────────────────────
+// ─── Timing page (hour + day of week) ──────────────────────────
 
-function drawOperatorPage(ctx: PageContext, data: RecoveryReportPayload) {
-  if (data.operators.length === 0) return;
-  ensureRoom(ctx, 220);
+function drawTimingPage(ctx: PageContext, data: RecoveryReportPayload) {
+  const hourlyHas = data.hourlyCounts.some((h) => h.count > 0);
+  const dowHas = data.dowCounts.some((d) => d.count > 0);
+  if (!hourlyHas && !dowHas) return;
+
   ctx.pdf.addPage();
   ctx.pageNumber++;
   ctx.cursorY = MARGIN_TOP;
   drawHeader(ctx);
 
-  drawSectionHeading(ctx, 'TEAM', 'Operator handling');
-  ctx.cursorY += 6;
+  drawSectionHeading(ctx, 'TIMING', 'When calls arrive');
+  ctx.cursorY += 4;
 
-  // Per-operator AI handling score is intentionally omitted —
-  // operator performance is reviewed in the calls UI, not surfaced
-  // on the printable report.
-  const cols = [
-    { label: 'Operator', x: MARGIN_X },
-    { label: 'Calls', x: MARGIN_X + 280, align: 'right' as const },
-    { label: 'Meaningful', x: MARGIN_X + 400, align: 'right' as const },
-    { label: 'High fit', x: PAGE_W - MARGIN_X, align: 'right' as const },
-  ];
-  drawTableHeader(ctx, cols);
+  const startY = ctx.cursorY;
+  const halfW = (PAGE_W - MARGIN_X * 2 - 16) / 2;
+  const chartH = 140;
 
-  for (const r of data.operators) {
-    ensureRoom(ctx, 18);
-    const y = ctx.cursorY + 11;
+  // Hour-of-day chart (left).
+  if (hourlyHas) {
+    const left = MARGIN_X;
+    const innerLeft = left + 28;
+    const innerRight = left + halfW - 4;
+    const innerTop = startY + 16;
+    const innerBottom = startY + chartH - 18;
+    const innerW = innerRight - innerLeft;
+    const innerH = innerBottom - innerTop;
+    const max = Math.max(1, ...data.hourlyCounts.map((h) => h.count));
+    const slot = innerW / 24;
+    const barW = slot * 0.7;
     ctx.pdf.setFont('helvetica', 'bold');
-    ctx.pdf.setFontSize(9);
-    ctx.pdf.setTextColor(COLOR.text);
-    ctx.pdf.text(asciiSafe(r.name), cols[0].x, y);
+    ctx.pdf.setFontSize(7);
+    ctx.pdf.setTextColor(COLOR.faint);
+    ctx.pdf.text('BY HOUR (PHOENIX)', left, startY + 8);
+    data.hourlyCounts.forEach((h, i) => {
+      const x = innerLeft + i * slot + (slot - barW) / 2;
+      const totalH = (innerH * h.count) / max;
+      ctx.pdf.setFillColor('#bc6b4a');
+      ctx.pdf.rect(x, innerBottom - totalH, barW, totalH, 'F');
+    });
     ctx.pdf.setFont('helvetica', 'normal');
-    ctx.pdf.setTextColor(COLOR.text);
-    ctx.pdf.text(String(r.count), cols[1].x, y, { align: 'right' });
-    ctx.pdf.setTextColor(COLOR.emerald);
-    ctx.pdf.text(String(r.meaningful), cols[2].x, y, { align: 'right' });
-    ctx.pdf.setTextColor(COLOR.primary);
-    ctx.pdf.text(String(r.highFit), cols[3].x, y, { align: 'right' });
-    ctx.pdf.setDrawColor(COLOR.hairline);
-    ctx.pdf.line(MARGIN_X, ctx.cursorY + 18, PAGE_W - MARGIN_X, ctx.cursorY + 18);
-    ctx.cursorY += 18;
+    ctx.pdf.setFontSize(7);
+    ctx.pdf.setTextColor(COLOR.faint);
+    [
+      [0, '12am'],
+      [6, '6am'],
+      [12, 'noon'],
+      [18, '6pm'],
+    ].forEach(([h, label]) => {
+      const x = innerLeft + (h as number) * slot + slot / 2;
+      ctx.pdf.text(asciiSafe(label as string), x, innerBottom + 12, { align: 'center' });
+    });
   }
 
-  // Repeat callers — slot in here if there's room, otherwise it
-  // gets its own page.
+  // Day-of-week chart (right).
+  if (dowHas) {
+    const left = MARGIN_X + halfW + 16;
+    const max = Math.max(1, ...data.dowCounts.map((d) => d.count));
+    ctx.pdf.setFont('helvetica', 'bold');
+    ctx.pdf.setFontSize(7);
+    ctx.pdf.setTextColor(COLOR.faint);
+    ctx.pdf.text('BY DAY OF WEEK', left, startY + 8);
+    let y = startY + 22;
+    for (const d of data.dowCounts) {
+      const pct = d.count / max;
+      ctx.pdf.setFont('helvetica', 'bold');
+      ctx.pdf.setFontSize(8);
+      ctx.pdf.setTextColor(COLOR.text);
+      ctx.pdf.text(asciiSafe(d.label), left, y + 7);
+      const trackLeft = left + 36;
+      const trackW = halfW - 36 - 50;
+      ctx.pdf.setFillColor(COLOR.card);
+      ctx.pdf.roundedRect(trackLeft, y + 1, trackW, 8, 2, 2, 'F');
+      ctx.pdf.setFillColor('#10b981');
+      ctx.pdf.roundedRect(trackLeft, y + 1, trackW * pct, 8, 2, 2, 'F');
+      ctx.pdf.setFont('helvetica', 'normal');
+      ctx.pdf.setFontSize(8);
+      ctx.pdf.setTextColor(COLOR.muted);
+      ctx.pdf.text(String(d.count), left + halfW - 8, y + 7, { align: 'right' });
+      y += 14;
+    }
+  }
+  ctx.cursorY = startY + chartH + 12;
+
+  // Repeat callers — slot in here if there's room.
   if (data.repeatCallers.length > 0) {
-    ctx.cursorY += 24;
     ensureRoom(ctx, 60 + data.repeatCallers.length * 18);
     drawSectionHeading(ctx, 'PERSISTENCE', 'Repeat callers');
     ctx.cursorY += 6;
@@ -637,6 +661,48 @@ function drawOperatorPage(ctx: PageContext, data: RecoveryReportPayload) {
   drawFooter(ctx);
 }
 
+interface HBar {
+  label: string;
+  value: number;
+  color: string;
+  suffix?: string;
+}
+
+function drawHorizontalBars(ctx: PageContext, rows: HBar[]) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  const labelW = 220;
+  const valueW = 60;
+  const barLeft = MARGIN_X + labelW;
+  const barRight = PAGE_W - MARGIN_X - valueW;
+  const barW = barRight - barLeft;
+  const rowH = 18;
+  ensureRoom(ctx, rows.length * rowH + 12);
+  for (const r of rows) {
+    ensureRoom(ctx, rowH);
+    const y = ctx.cursorY;
+    ctx.pdf.setFont('helvetica', 'normal');
+    ctx.pdf.setFontSize(9);
+    ctx.pdf.setTextColor(COLOR.text);
+    const labelClipped = ctx.pdf.splitTextToSize(asciiSafe(r.label), labelW - 8)[0];
+    ctx.pdf.text(labelClipped, MARGIN_X, y + 11);
+
+    // Track + filled bar.
+    ctx.pdf.setFillColor(COLOR.card);
+    ctx.pdf.roundedRect(barLeft, y + 4, barW, 8, 2, 2, 'F');
+    const fillW = (barW * r.value) / max;
+    if (fillW > 0) {
+      ctx.pdf.setFillColor(r.color);
+      ctx.pdf.roundedRect(barLeft, y + 4, fillW, 8, 2, 2, 'F');
+    }
+    ctx.pdf.setFont('helvetica', 'bold');
+    ctx.pdf.setFontSize(9);
+    ctx.pdf.setTextColor(COLOR.text);
+    const valueLabel = r.suffix ? `${r.value}  ${r.suffix}` : String(r.value);
+    ctx.pdf.text(asciiSafe(valueLabel), PAGE_W - MARGIN_X, y + 11, { align: 'right' });
+    ctx.cursorY += rowH;
+  }
+}
+
 // ─── Call log ───────────────────────────────────────────────────
 
 function drawCallLogPages(ctx: PageContext, calls: CallLogRow[]) {
@@ -652,106 +718,56 @@ function drawCallLogPages(ctx: PageContext, calls: CallLogRow[]) {
   ctx.pdf.setTextColor(COLOR.muted);
   ctx.pdf.text(
     asciiSafe(
-      `${calls.length.toLocaleString()} calls in this window. Caller names + phone numbers are redacted; only the last four digits of each number are shown.`,
+      `${calls.length.toLocaleString()} calls in this window. Phone numbers are redacted; only the last four digits of each number are shown.`,
     ),
     MARGIN_X,
     ctx.cursorY + 18,
   );
   ctx.cursorY += 36;
 
+  const cols = [
+    { label: 'When', x: MARGIN_X },
+    { label: 'Caller', x: MARGIN_X + 120 },
+    { label: 'Location', x: MARGIN_X + 220 },
+    { label: 'Dir', x: MARGIN_X + 330 },
+    { label: 'Duration', x: MARGIN_X + 380, align: 'right' as const },
+    { label: 'Tracking', x: MARGIN_X + 410 },
+    { label: 'Source', x: PAGE_W - MARGIN_X, align: 'right' as const },
+  ];
+  drawTableHeader(ctx, cols);
+
   for (const c of calls) {
-    drawCallEntry(ctx, c);
+    ensureRoom(ctx, 18);
+    const y = ctx.cursorY + 11;
+    ctx.pdf.setFont('helvetica', 'normal');
+    ctx.pdf.setFontSize(8);
+    ctx.pdf.setTextColor(COLOR.muted);
+    ctx.pdf.text(asciiSafe(fmtDateTime(c.called_at)), cols[0].x, y);
+    ctx.pdf.setFont('helvetica', 'bold');
+    ctx.pdf.setTextColor(COLOR.text);
+    ctx.pdf.text(redactPhone(c.caller_number), cols[1].x, y);
+    ctx.pdf.setFont('helvetica', 'normal');
+    ctx.pdf.setTextColor(COLOR.muted);
+    const loc = [c.city, c.state].filter(Boolean).join(', ') || '-';
+    ctx.pdf.text(asciiSafe(loc), cols[2].x, y);
+    ctx.pdf.text(asciiSafe(c.direction || '-'), cols[3].x, y);
+    ctx.pdf.text(asciiSafe(fmtDuration(c.duration)), cols[4].x, y, { align: 'right' });
+    const tracking = c.tracking_label || c.tracking_number || '-';
+    const trackingClipped = ctx.pdf.splitTextToSize(asciiSafe(tracking), 110)[0];
+    ctx.pdf.text(trackingClipped, cols[5].x, y);
+    const src = c.source || '-';
+    const srcClipped = ctx.pdf.splitTextToSize(asciiSafe(src), 110)[0];
+    ctx.pdf.text(srcClipped, cols[6].x, y, { align: 'right' });
+    if (c.voicemail) {
+      ctx.pdf.setTextColor(COLOR.amber);
+      ctx.pdf.setFontSize(7);
+      ctx.pdf.text('VM', cols[1].x + 60, y);
+    }
+    ctx.pdf.setDrawColor(COLOR.hairline);
+    ctx.pdf.line(MARGIN_X, ctx.cursorY + 18, PAGE_W - MARGIN_X, ctx.cursorY + 18);
+    ctx.cursorY += 18;
   }
   drawFooter(ctx);
-}
-
-function drawCallEntry(ctx: PageContext, c: CallLogRow) {
-  // Estimate row height up-front so we can decide whether to break.
-  const summaryText = c.summary ? asciiSafe(c.summary) : '';
-  const summaryWrapped = summaryText
-    ? ctx.pdf.splitTextToSize(summaryText, PAGE_W - MARGIN_X * 2 - 6)
-    : [];
-  const nextStepsText = c.next_steps ? asciiSafe(c.next_steps) : '';
-  const blockH = 18 + 12 + summaryWrapped.length * 11 + (nextStepsText ? 12 : 0) + 10;
-  ensureRoom(ctx, blockH);
-
-  const startY = ctx.cursorY;
-  // Top metadata line — caller is always redacted (PHI).
-  ctx.pdf.setFont('helvetica', 'bold');
-  ctx.pdf.setFontSize(10);
-  ctx.pdf.setTextColor(COLOR.text);
-  const headlineParts: string[] = [];
-  // Names always blanked. Phone shown as last-4 only.
-  headlineParts.push(redactName(c.caller_name));
-  headlineParts.push(redactPhone(c.caller_number));
-  ctx.pdf.text(asciiSafe(headlineParts.join('  ')), MARGIN_X, startY + 12);
-
-  // Right-side fit chip only — per-call AI handling score (which
-  // doubles as an operator-quality signal) is intentionally omitted
-  // from the printed report.
-  let chipX = PAGE_W - MARGIN_X;
-  if (c.fit_score != null) {
-    chipX = drawChip(ctx, chipX, startY + 4, asciiSafe(`Fit ${c.fit_score}`), fitColor(c.fit_score));
-  }
-  void chipX;
-
-  // Sub-line: time, duration, location, operator name, client type.
-  const subParts: string[] = [];
-  subParts.push(fmtDateTime(c.called_at));
-  subParts.push(fmtDuration(c.duration));
-  const loc = [c.city, c.state].filter(Boolean).join(', ');
-  if (loc) subParts.push(loc);
-  if (c.operator_name) subParts.push(`Operator: ${c.operator_name}`);
-  if (c.client_type) subParts.push(c.client_type);
-  if (c.voicemail) subParts.push('Voicemail');
-  ctx.pdf.setFont('helvetica', 'normal');
-  ctx.pdf.setFontSize(8);
-  ctx.pdf.setTextColor(COLOR.muted);
-  ctx.pdf.text(asciiSafe(subParts.join('  -  ')), MARGIN_X, startY + 26);
-
-  // Summary.
-  let y = startY + 40;
-  if (summaryWrapped.length > 0) {
-    ctx.pdf.setFont('helvetica', 'normal');
-    ctx.pdf.setFontSize(9);
-    ctx.pdf.setTextColor(COLOR.text);
-    ctx.pdf.text(summaryWrapped, MARGIN_X, y);
-    y += summaryWrapped.length * 11;
-  }
-  if (nextStepsText) {
-    ctx.pdf.setFont('helvetica', 'bold');
-    ctx.pdf.setFontSize(8);
-    ctx.pdf.setTextColor(COLOR.primary);
-    ctx.pdf.text(asciiSafe(`-> ${nextStepsText}`), MARGIN_X, y + 4);
-    y += 12;
-  }
-
-  // Hairline separator.
-  ctx.pdf.setDrawColor(COLOR.hairline);
-  ctx.pdf.setLineWidth(0.4);
-  ctx.pdf.line(MARGIN_X, y + 6, PAGE_W - MARGIN_X, y + 6);
-  ctx.cursorY = y + 14;
-}
-
-function drawChip(ctx: PageContext, anchorRight: number, y: number, text: string, color: string): number {
-  const padX = 6;
-  ctx.pdf.setFont('helvetica', 'bold');
-  ctx.pdf.setFontSize(8);
-  const safe = asciiSafe(text);
-  const w = ctx.pdf.getTextWidth(safe) + padX * 2;
-  const x = anchorRight - w;
-  ctx.pdf.setFillColor(color);
-  ctx.pdf.roundedRect(x, y, w, 12, 3, 3, 'F');
-  ctx.pdf.setTextColor('#ffffff');
-  ctx.pdf.text(safe, x + padX, y + 8.5);
-  return x - 4;
-}
-
-function fitColor(v: number): string {
-  if (v >= 75) return '#059669';
-  if (v >= 60) return '#10b981';
-  if (v >= 40) return '#d97706';
-  return '#dc2626';
 }
 
 // ─── Common helpers ─────────────────────────────────────────────
@@ -942,14 +958,14 @@ function drawAnalyticsPage(ctx: PageContext, analytics: AnalyticsPayload | null)
     ensureRoom(ctx, 80 + Math.min(analytics.landing.length, 10) * 18);
     drawSectionHeading(ctx, 'PAGES', 'Top landing pages');
     ctx.cursorY += 4;
-    const cols = [
+    const lpCols = [
       { label: 'Path', x: MARGIN_X },
       { label: 'Sessions', x: MARGIN_X + 280, align: 'right' as const },
       { label: 'Users', x: MARGIN_X + 340, align: 'right' as const },
       { label: 'Engagement', x: MARGIN_X + 410, align: 'right' as const },
       { label: 'Bounce', x: PAGE_W - MARGIN_X, align: 'right' as const },
     ];
-    drawTableHeader(ctx, cols);
+    drawTableHeader(ctx, lpCols);
     for (const r of analytics.landing.slice(0, 10)) {
       ensureRoom(ctx, 18);
       const y = ctx.cursorY + 11;
@@ -957,17 +973,17 @@ function drawAnalyticsPage(ctx: PageContext, analytics: AnalyticsPayload | null)
       ctx.pdf.setFontSize(8);
       ctx.pdf.setTextColor(COLOR.text);
       const truncatedPath = ctx.pdf.splitTextToSize(asciiSafe(r.path || '/'), 270)[0];
-      ctx.pdf.text(truncatedPath, cols[0].x, y);
+      ctx.pdf.text(truncatedPath, lpCols[0].x, y);
       ctx.pdf.setFont('helvetica', 'bold');
       ctx.pdf.setTextColor(COLOR.primary);
-      ctx.pdf.text(String(r.sessions), cols[1].x, y, { align: 'right' });
+      ctx.pdf.text(String(r.sessions), lpCols[1].x, y, { align: 'right' });
       ctx.pdf.setFont('helvetica', 'normal');
       ctx.pdf.setTextColor(COLOR.text);
-      ctx.pdf.text(String(r.activeUsers), cols[2].x, y, { align: 'right' });
+      ctx.pdf.text(String(r.activeUsers), lpCols[2].x, y, { align: 'right' });
       ctx.pdf.setTextColor(COLOR.emerald);
-      ctx.pdf.text(`${(r.engagementRate * 100).toFixed(0)}%`, cols[3].x, y, { align: 'right' });
+      ctx.pdf.text(`${(r.engagementRate * 100).toFixed(0)}%`, lpCols[3].x, y, { align: 'right' });
       ctx.pdf.setTextColor(COLOR.muted);
-      ctx.pdf.text(`${(r.bounceRate * 100).toFixed(0)}%`, cols[4].x, y, { align: 'right' });
+      ctx.pdf.text(`${(r.bounceRate * 100).toFixed(0)}%`, lpCols[4].x, y, { align: 'right' });
       ctx.pdf.setDrawColor(COLOR.hairline);
       ctx.pdf.line(MARGIN_X, ctx.cursorY + 18, PAGE_W - MARGIN_X, ctx.cursorY + 18);
       ctx.cursorY += 18;
@@ -1225,9 +1241,10 @@ export async function downloadRecoveryComPdf(
   const ctx = newDoc();
   drawCoverPage(ctx, data);
   drawStatsPage(ctx, data);
-  drawDistributionsPage(ctx, data);
+  drawAttributionPage(ctx, data);
+  drawGeoPage(ctx, data);
+  drawTimingPage(ctx, data);
   drawAnalyticsPage(ctx, analytics);
-  drawOperatorPage(ctx, data);
   drawCallLogPages(ctx, data.callLog);
 
   const stamp = new Date().toISOString().slice(0, 10);
