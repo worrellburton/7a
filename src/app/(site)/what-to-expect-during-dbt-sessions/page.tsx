@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'What to Expect During Dbt Sessions | Seven Arrows Recovery',
-  description:
-    'Addiction is powerful, and its impact can overwhelm an individual, altering their mental and physical health, relationships, and overall quality of life.',
-  keywords:
-    'what to expect during dbt sessions, what to expect during dbt sessions, addiction recovery, Seven Arrows Recovery, Arizona rehab',
+  title: "What to Expect During Dbt Sessions | Seven Arrows Recovery",
+  description: "Finding the perfect therapy solution for your addiction recovery or mental health needs can seem daunting. At Seven Arrows Recovery, we pride ourselves on offering highly effective therapies grounded in scientific research. DBT,…",
+  keywords: "what to expect during dbt sessions, what to expect during dbt sessions, addiction recovery, Seven Arrows Recovery, Arizona rehab",
   alternates: {
-    canonical: 'https://sevenarrowsrecoveryarizona.com/what-to-expect-during-dbt-sessions',
+    canonical: "https://sevenarrowsrecoveryarizona.com/what-to-expect-during-dbt-sessions",
   },
 };
 

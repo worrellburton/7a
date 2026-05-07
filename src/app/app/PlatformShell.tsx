@@ -360,14 +360,20 @@ export { pageIcons };
 
 /**
  * Seven Arrows brand mark for the sidebar / mobile drawer header.
- * A copper-gradient pill containing "7A" with a small bow-and-arrow
- * stroke detail to nod to the Seven Arrows name. A pulsing radial
- * glow halo sits behind it, breathing on a slow loop so the brand
- * feels alive without being noisy. Two sizes — md for the pinned
- * desktop sidebar, sm for the compact mobile drawer header.
+ * A copper-gradient pill containing a feather glyph — a quieter nod
+ * to the Seven Arrows name than the literal "7A" wordmark we used to
+ * carry. A pulsing radial glow halo sits behind it, breathing on a
+ * slow loop so the brand feels alive without being noisy. The
+ * feather&rsquo;s spine has a subtle drift animation so the icon
+ * reads as in-motion rather than static. Two sizes — md for the
+ * pinned desktop sidebar, sm for the compact mobile drawer header.
+ *
+ * The orbit centerpiece on /app still renders "7A" — that mark stays
+ * as the centered identity anchor; this badge is the chrome anchor.
  */
 function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
   const big = size === 'md';
+  const dim = big ? 36 : 28;
   return (
     <span className="relative inline-flex items-center" aria-label="Seven Arrows Recovery">
       <style jsx>{`
@@ -381,9 +387,9 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
             transform: scale(1.08);
           }
         }
-        @keyframes sa-logo-arrow {
-          0%, 100% { transform: translateX(0); opacity: 0.7; }
-          50%      { transform: translateX(2px); opacity: 1; }
+        @keyframes sa-feather-drift {
+          0%, 100% { transform: rotate(-2deg) translateY(0); }
+          50%      { transform: rotate(1deg) translateY(-1px); }
         }
       `}</style>
       {/* Outer glow halo — pulsing breath behind the badge. */}
@@ -398,35 +404,37 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
           animation: 'sa-logo-glow 2.6s ease-in-out infinite',
         }}
       />
-      {/* Mark — copper-gradient rounded square with "7A" in white */}
+      {/* Mark — copper-gradient rounded square with a white feather */}
       <span
-        className={`relative inline-flex items-center gap-1 rounded-xl ${big ? 'px-2.5 py-1' : 'px-2 py-0.5'} text-white tracking-tight font-black`}
+        className="relative inline-flex items-center justify-center rounded-xl text-white"
         style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: big ? '1.25rem' : '1rem',
+          width: dim,
+          height: dim,
           background:
             'linear-gradient(135deg, #d4794a 0%, #bc6b4a 45%, #a45a3d 100%)',
           boxShadow:
             '0 4px 12px -3px rgba(188,107,74,0.55), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -1px 0 rgba(0,0,0,0.08)',
         }}
       >
-        <span className="leading-none">7A</span>
-        {/* Tiny arrow nod to "Seven Arrows" — points right with a
-            subtle drift animation so it reads as in-motion rather
-            than static. */}
         <svg
           aria-hidden="true"
-          width={big ? 12 : 10}
-          height={big ? 12 : 10}
-          viewBox="0 0 12 12"
+          width={big ? 22 : 18}
+          height={big ? 22 : 18}
+          viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth={2}
+          strokeWidth={1.9}
           strokeLinecap="round"
           strokeLinejoin="round"
-          style={{ animation: 'sa-logo-arrow 2.6s ease-in-out infinite' }}
+          style={{
+            animation: 'sa-feather-drift 4.2s ease-in-out infinite',
+            transformOrigin: '50% 80%',
+          }}
         >
-          <path d="M2 6h7M6 3l3 3-3 3" />
+          {/* Lucide-style feather glyph */}
+          <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+          <line x1="16" y1="8" x2="2" y2="22" />
+          <line x1="17.5" y1="15" x2="9" y2="15" />
         </svg>
       </span>
     </span>

@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 39'}
-        title={'The Benefits of Animal-Assisted Therapies in Addiction Treatment'}
+        label="The Recovery Roadmap — Episode 39"
+        title="The Benefits of Animal-Assisted Therapies in Addiction Treatment"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'The Benefits of Animal-Assisted Therapies in Addiction Treatment' },
+          { label: "The Benefits of Animal-Assisted Therapies in Addiction Treatment" },
         ]}
-        description={'At Seven Arrows Recovery, we understand that the journey to recovery is deeply personal and challenging.'}
+        description="At Seven Arrows Recovery, we understand that the journey to recovery is deeply personal and challenging. Our mission is to support you every step of the way, offering a holistic blend of evidence-based and innovative therapies…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,101 +22,79 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              At Seven Arrows Recovery, we understand that the journey to recovery is deeply personal and challenging. Our mission is to support you every step of the way, offering a holistic blend of evidence-based and innovative therapies tailored to your unique needs. One creative approach that has shown tremendous promise is Animal-Assisted Therapy (AAT), and understanding the benefits of animal-assisted therapies can help you integrate them into your treatment plan.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"At Seven Arrows Recovery, we understand that the journey to recovery is deeply personal and challenging. Our mission is to support you every step of the way, offering a holistic blend of evidence-based and innovative therapies tailored to your unique needs. One creative approach that has shown tremendous promise is Animal-Assisted Therapy (AAT), and understanding the benefits of animal-assisted therapies can help you integrate them into your treatment plan."}
             </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Animals can naturally bring joy, comfort, and companionship into our lives. In the context of addiction treatment, they can play a transformative role, helping individuals reconnect with their emotions, build healthier relationships, and find new motivation on the path to recovery.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"Animals can naturally bring joy, comfort, and companionship into our lives. In the context of addiction treatment, they can play a transformative role, helping individuals reconnect with their emotions, build healthier relationships, and find new motivation on the path to recovery."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              The Role of Animals in the Therapeutic Journey
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"The Role of Animals in the Therapeutic Journey"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              The benefits of animal-assisted therapies stretch beyond just spending time with animals; they involve structured and goal-oriented interactions designed to support mental and emotional healing. Research has shown that these interactions can:
+              {"The benefits of animal-assisted therapies stretch beyond just spending time with animals; they involve structured and goal-oriented interactions designed to support mental and emotional healing. Research has shown that these interactions can:"}
             </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Reduce stress and anxiety: Simply being around animals can lower cortisol levels, easing the stress and anxiety that often accompany addiction recovery."}</li>
+              <li>{"Enhance mood: Caring for and bonding with an animal can release endorphins, which are natural mood lifters."}</li>
+              <li>{"Improve social skills: Interactions with therapy animals can bolster social behaviors, such as empathy and trust, which are crucial for building healthy human relationships."}</li>
+              <li>{"Support physical activity: Activities like walking a dog or participating in equine therapy encourage physical movement, which helps improve overall health."}</li>
+            </ul>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Reduce stress and anxiety: Simply being around animals can lower cortisol levels, easing the stress and anxiety that often accompany addiction recovery.
+              {"Let’s explore how different animals serve these therapeutic roles and contribute to the healing process in addiction treatment."}
             </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Horses: Building Trust and Emotional Awareness"}
+            </h3>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Enhance mood: Caring for and bonding with an animal can release endorphins, which are natural mood lifters.
+              {"Equine-assisted therapy (EAT) utilizes the intuitive nature of horses to foster personal growth and emotional healing. Horses are highly sensitive to human emotions and can mirror our feelings, helping us become more aware of our own inner states. Working with horses can teach key life skills such as:"}
             </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Trust: Horses require a sense of trust and respect. As you build a relationship with a horse, you learn about boundaries and trust-building, which are essential for healthy human relationships."}</li>
+              <li>{"Emotional Regulation: Because horses respond immediately to our nonverbal cues, they help us understand and manage our emotions more effectively."}</li>
+              <li>{"Responsibility: Caring for a horse involves daily routines and responsibilities, which can instill a sense of purpose and discipline."}</li>
+            </ul>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Dogs: Unconditional Love and Support"}
+            </h3>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Improve social skills: Interactions with therapy animals can bolster social behaviors, such as empathy and trust, which are crucial for building healthy human relationships.
+              {"Dogs are known for their loyalty and unconditional love, making them incredible companions in the recovery process. Therapy dogs provide:"}
             </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Emotional Comfort: Their presence can be soothing, helping to alleviate feelings of loneliness and isolation."}</li>
+              <li>{"Encouragement for Routine: The daily needs of a dog, such as feeding and walking, help establish a routine, which is crucial in recovery."}</li>
+              <li>{"Opportunities for Social Interaction: Dogs naturally draw people together, promoting social interaction and reducing feelings of social anxiety and isolation."}</li>
+            </ul>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Cats: Calm and Connection"}
+            </h3>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Support physical activity: Activities like walking a dog or participating in equine therapy encourage physical movement, which helps improve overall health.
+              {"Cats, with their independent yet affectionate nature, play a unique role in therapy by offering:"}
             </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Calm Presence: Their generally calm demeanor can help create a peaceful environment conducive to reflection and relaxation."}</li>
+              <li>{"Encouragement of Touch: Petting a cat can be very soothing, helping to reduce stress and anxiety."}</li>
+              <li>{"Emotional Bonding: Despite their independent nature, cats form strong bonds with their caregivers, teaching us about connection and care."}</li>
+            </ul>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Small Animals and Their Varied Benefits"}
+            </h3>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Let&rsquo;s explore how different animals serve these therapeutic roles and contribute to the healing process in addiction treatment.
+              {"Smaller animals such as rabbits, guinea pigs, and birds also bring their own set of benefits to therapy:"}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Horses: Building Trust and Emotional Awareness
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Gentleness: Small animals can be less intimidating and easier to handle, making them great for those who are new to Animal-Assisted Therapy."}</li>
+              <li>{"Boosting Mood: Their playful and curious nature can bring joy and laughter, which are vital for a positive recovery environment."}</li>
+              <li>{"Teaching Responsibility: Caring for these smaller creatures encourages a sense of routine and accountability, aiding in the development of a structured lifestyle."}</li>
+            </ul>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Experience the Benefits of Animal Assisted Therapies in Addiction Treatment"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Equine-assisted therapy (EAT) utilizes the intuitive nature of horses to foster personal growth and emotional healing. Horses are highly sensitive to human emotions and can mirror our feelings, helping us become more aware of our own inner states. Working with horses can teach key life skills such as:
+              {"At Seven Arrows Recovery, we are dedicated to providing a comprehensive and compassionate approach to addiction treatment. Our commitment to integrating holistic therapies, like Animal-Assisted Therapy, reflects our belief in the power of diverse healing modalities to support your journey to sobriety."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Trust: Horses require a sense of trust and respect. As you build a relationship with a horse, you learn about boundaries and trust-building, which are essential for healthy human relationships.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Emotional Regulation: Because horses respond immediately to our nonverbal cues, they help us understand and manage our emotions more effectively.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Responsibility: Caring for a horse involves daily routines and responsibilities, which can instill a sense of purpose and discipline.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Dogs: Unconditional Love and Support
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Dogs are known for their loyalty and unconditional love, making them incredible companions in the recovery process. Therapy dogs provide:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Emotional Comfort: Their presence can be soothing, helping to alleviate feelings of loneliness and isolation.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Encouragement for Routine: The daily needs of a dog, such as feeding and walking, help establish a routine, which is crucial in recovery.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Opportunities for Social Interaction: Dogs naturally draw people together, promoting social interaction and reducing feelings of social anxiety and isolation.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Cats: Calm and Connection
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Cats, with their independent yet affectionate nature, play a unique role in therapy by offering:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Calm Presence: Their generally calm demeanor can help create a peaceful environment conducive to reflection and relaxation.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Encouragement of Touch: Petting a cat can be very soothing, helping to reduce stress and anxiety.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Emotional Bonding: Despite their independent nature, cats form strong bonds with their caregivers, teaching us about connection and care.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Small Animals and Their Varied Benefits
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Smaller animals such as rabbits, guinea pigs, and birds also bring their own set of benefits to therapy:
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Gentleness: Small animals can be less intimidating and easier to handle, making them great for those who are new to Animal-Assisted Therapy.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Boosting Mood: Their playful and curious nature can bring joy and laughter, which are vital for a positive recovery environment.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Teaching Responsibility: Caring for these smaller creatures encourages a sense of routine and accountability, aiding in the development of a structured lifestyle.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Experience the Benefits of Animal Assisted Therapies in Addiction Treatment
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              At Seven Arrows Recovery, we are dedicated to providing a comprehensive and compassionate approach to addiction treatment. Our commitment to integrating holistic therapies, like Animal-Assisted Therapy, reflects our belief in the power of diverse healing modalities to support your journey to sobriety.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Our equine-assisted experiences in Arizona offer a unique opportunity to connect with these magnificent animals and discover new pathways to healing and growth. These experiences are designed to help you build trust, emotional awareness, and a sense of responsibility, all within a supportive and nurturing environment.
+              {"Our equine-assisted experiences in Arizona offer a unique opportunity to connect with these magnificent animals and discover new pathways to healing and growth. These experiences are designed to help you build trust, emotional awareness, and a sense of responsibility, all within a supportive and nurturing environment."}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">

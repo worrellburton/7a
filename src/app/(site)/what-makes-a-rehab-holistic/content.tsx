@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 41'}
-        title={'What Makes a Rehab Holistic'}
+        label="The Recovery Roadmap — Episode 41"
+        title="What Makes a Rehab Holistic"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'What Makes a Rehab Holistic' },
+          { label: "What Makes a Rehab Holistic" },
         ]}
-        description={'Holistic rehab centers take a comprehensive approach to addiction treatment, addressing not only the physical aspects of addiction but also the emotional, mental, and spiritual components.'}
+        description="Holistic rehab centers take a comprehensive approach to addiction treatment, addressing not only the physical aspects of addiction but also the emotional, mental, and spiritual components. These centers recognize that addiction…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,128 +22,104 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Holistic rehab centers take a comprehensive approach to addiction treatment, addressing not only the physical aspects of addiction but also the emotional, mental, and spiritual components. These centers recognize that addiction is a multifaceted issue, one that affects every part of an individual&rsquo;s life. Therefore, they integrate a wide range of therapies, from traditional methods like counseling and medication to alternative practices such as yoga, meditation, and acupuncture.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"Holistic rehab centers take a comprehensive approach to addiction treatment, addressing not only the physical aspects of addiction but also the emotional, mental, and spiritual components. These centers recognize that addiction is a multifaceted issue, one that affects every part of an individual’s life. Therefore, they integrate a wide range of therapies, from traditional methods like counseling and medication to alternative practices such as yoga, meditation, and acupuncture."}
+            </p>
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"This approach ensures that treatment is not just about managing symptoms but about fostering overall well-being, helping individuals reconnect with themselves on a deeper level. Holistic rehab also emphasizes the importance of lifestyle changes, community support, and the development of healthy coping mechanisms, ensuring that individuals are equipped to maintain sobriety long after they leave the facility. By focusing on healing the mind, body, and spirit, these centers offer a path to recovery that is as much about personal transformation as it is about overcoming addiction."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              This approach ensures that treatment is not just about managing symptoms but about fostering overall well-being, helping individuals reconnect with themselves on a deeper level. Holistic rehab also emphasizes the importance of lifestyle changes, community support, and the development of healthy coping mechanisms, ensuring that individuals are equipped to maintain sobriety long after they leave the facility. By focusing on healing the mind, body, and spirit, these centers offer a path to recovery that is as much about personal transformation as it is about overcoming addiction.
+              {"Seven Arrows Recovery is a holistic rehab that focuses on the person as a whole. It offers a sanctuary where individuals can heal in a supportive, nurturing environment that honors their unique journey to wellness."}
             </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Seven Arrows Recovery is a holistic rehab that focuses on the person as a whole. It offers a sanctuary where individuals can heal in a supportive, nurturing environment that honors their unique journey to wellness.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Critical Components of a Holistic Rehab
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Critical Components of a Holistic Rehab"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              A traditional rehab typically focuses on the clinical aspect of recovery, aiming to reduce symptoms and help individuals stop using. Holistic rehabs, on the other hand, take a more profound process by addressing all aspects of a person. These rehabs understand that addiction and mental health conditions often stem from emotional stress, past life experiences, and trauma. They also understand that addiction can impact individuals&rsquo; relationships, lifestyle, health, and overall well-being. In understanding this, holistic rehabs aim to provide a more well-rounded approach to recovery that will lead to long-term, sustainable recovery. Some of the key components of a holistic rehab include:
+              {"A traditional rehab typically focuses on the clinical aspect of recovery, aiming to reduce symptoms and help individuals stop using. Holistic rehabs, on the other hand, take a more profound process by addressing all aspects of a person. These rehabs understand that addiction and mental health conditions often stem from emotional stress, past life experiences, and trauma. They also understand that addiction can impact individuals’ relationships, lifestyle, health, and overall well-being. In understanding this, holistic rehabs aim to provide a more well-rounded approach to recovery that will lead to long-term, sustainable recovery. Some of the key components of a holistic rehab include:"}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              1. Whole-Person Approach
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"1. Whole-Person Approach"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Holistic rehab centers focus on treating the whole person rather than just the addiction. This approach considers the patient’s physical, mental, emotional, and spiritual aspects, ensuring that all dimensions of a person’s well-being are addressed in the recovery process."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"2. Complementary Therapies"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"These centers often offer a variety of complementary therapies alongside traditional medical treatments."}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Acupuncture"}</li>
+              <li>{"Yoga"}</li>
+              <li>{"Meditation and Mindfulness"}</li>
+              <li>{"Massage Therapy"}</li>
+              <li>{"Nutritional Counseling"}</li>
+              <li>{"Art and Music Therapy"}</li>
+            </ul>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"3. Personalized Treatment Plans"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Each individual’s treatment plan is tailored to their specific needs, often including a combination of traditional and alternative therapies."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"4. Focus on Mental Health"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Holistic rehabs often place a strong emphasis on mental health, incorporating therapies like:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Cognitive Behavioral Therapy (CBT)"}</li>
+              <li>{"Dialectical Behavior Therapy (DBT)"}</li>
+              <li>{"Psychotherapy"}</li>
+              <li>{"Group and Individual Counseling"}</li>
+            </ul>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"5. Integrative Medicine"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Integrative medicine combines conventional Western medicine with complementary and alternative therapies, optimizing the body’s natural healing abilities while addressing the whole person."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"6. Spiritual Wellness"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"These centers often incorporate spiritual practices, which might include:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Meditation"}</li>
+              <li>{"Mindfulness practices"}</li>
+              <li>{"12-Step or alternative spiritual programs"}</li>
+            </ul>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"7. Life Skills Training"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Holistic rehab centers often provide life skills training to help individuals reintegrate into society post-treatment. This can include:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Career counseling"}</li>
+              <li>{"Educational support"}</li>
+              <li>{"Stress management techniques"}</li>
+            </ul>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"8. Environmental Healing"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"The environment of holistic rehab centers is usually designed to promote healing and wellness, and they are often situated in serene, natural settings."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"9. Community and Support Networks"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Emphasis on building a supportive community within and outside rehab, including family therapy and support groups."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Holistic Healing with Seven Arrows Recovery"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Holistic rehab centers focus on treating the whole person rather than just the addiction. This approach considers the patient&rsquo;s physical, mental, emotional, and spiritual aspects, ensuring that all dimensions of a person&rsquo;s well-being are addressed in the recovery process.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              2. Complementary Therapies
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              These centers often offer a variety of complementary therapies alongside traditional medical treatments.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Acupuncture
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Yoga
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Meditation and Mindfulness
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Massage Therapy
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Nutritional Counseling
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Art and Music Therapy
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              3. Personalized Treatment Plans
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Each individual&rsquo;s treatment plan is tailored to their specific needs, often including a combination of traditional and alternative therapies.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              4. Focus on Mental Health
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Holistic rehabs often place a strong emphasis on mental health, incorporating therapies like:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Cognitive Behavioral Therapy (CBT)
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Dialectical Behavior Therapy (DBT)
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Psychotherapy
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Group and Individual Counseling
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              5. Integrative Medicine
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Integrative medicine combines conventional Western medicine with complementary and alternative therapies, optimizing the body&rsquo;s natural healing abilities while addressing the whole person.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              6. Spiritual Wellness
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              These centers often incorporate spiritual practices, which might include:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Meditation
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Mindfulness practices
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              12-Step or alternative spiritual programs
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              7. Life Skills Training
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Holistic rehab centers often provide life skills training to help individuals reintegrate into society post-treatment. This can include:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Career counseling
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Educational support
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Stress management techniques
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              8. Environmental Healing
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              The environment of holistic rehab centers is usually designed to promote healing and wellness, and they are often situated in serene, natural settings.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              9. Community and Support Networks
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Emphasis on building a supportive community within and outside rehab, including family therapy and support groups.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Holistic Healing with Seven Arrows Recovery
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              In summary, holistic rehab centers aim to provide a nurturing environment where all aspects of an individual&rsquo;s well-being are addressed to promote lasting recovery. Integrating traditional and alternative therapies, focusing on mental and spiritual health, and emphasizing personal growth and community support, Seven Arrows Recovery is a holistic rehab that focuses on the person, offering a sanctuary where true healing can occur on every level.
+              {"In summary, holistic rehab centers aim to provide a nurturing environment where all aspects of an individual’s well-being are addressed to promote lasting recovery. Integrating traditional and alternative therapies, focusing on mental and spiritual health, and emphasizing personal growth and community support, Seven Arrows Recovery is a holistic rehab that focuses on the person, offering a sanctuary where true healing can occur on every level."}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">

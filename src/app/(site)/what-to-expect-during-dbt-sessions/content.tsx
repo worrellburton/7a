@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 26'}
-        title={'What to Expect During Dbt Sessions'}
+        label="The Recovery Roadmap — Episode 26"
+        title="What to Expect During Dbt Sessions"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'What to Expect During Dbt Sessions' },
+          { label: "What to Expect During Dbt Sessions" },
         ]}
-        description={'Addiction is powerful, and its impact can overwhelm an individual, altering their mental and physical health, relationships, and overall quality of life.'}
+        description="Finding the perfect therapy solution for your addiction recovery or mental health needs can seem daunting. At Seven Arrows Recovery, we pride ourselves on offering highly effective therapies grounded in scientific research. DBT,…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,86 +22,117 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Addiction is powerful, and its impact can overwhelm an individual, altering their mental and physical health, relationships, and overall quality of life. Dependent behaviors, including substance use disorders, are complex and often stem from various underlying factors. One significant root cause that increasingly garners attention is trauma. Trauma&rsquo;s destructive influence can ignite and perpetuate addiction, creating a vicious cycle that may feel impossible to break. Understanding the connection between trauma and substance use disorder is crucial for effective treatment and long-term recovery.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"Finding the perfect therapy solution for your addiction recovery or mental health needs can seem daunting. At Seven Arrows Recovery, we pride ourselves on offering highly effective therapies grounded in scientific research. DBT, or dialectical behavioral therapy, has enabled thousands of people to make powerful, life-changing progress in their recovery. If you or a loved one is considering DBT as part of your treatment plan, read below to learn what to expect during DBT sessions."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              The Connection Between Trauma and Addiction
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"DBT is much more than talk therapy. It’s a concrete, supportive, and effective form of therapy that can allow you to work through powerful emotions, learn to foster healthier relationships, and take control of your addiction triggers. If you’re wondering how DBT can help you or your addicted loved one, it’s important to understand exactly how DBT works."}
+            </p>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Below, we’ll cover DBT therapy sessions, what to expect during DBT sessions, and how this form of treatment can work."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"How Does DBT Work?"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Trauma refers to the emotional and psychological effects of profoundly distressing events. These experiences can range from early childhood abuse, neglect, and loss to adult experiences of assault, domestic violence, or witnessing a catastrophic event. Trauma fundamentally changes how individuals perceive their world and themselves, embedding deep within their psyche, often becoming a silent driver of various maladaptive behaviors, including addiction.
+              {"DBT was originally created to help those struggling with borderline personality disorder. Since then, it has been used to help people work through many other issues such as addiction, depression, anxiety, and PTSD. DBT focuses on both acceptance and change."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              When individuals experience trauma, their brain undergoes structural and functional changes. The constant state of hyper-arousal or the numbness associated with post-traumatic stress disorder (PTSD) can make reality unbearable. To cope with these overwhelming emotions and intrusive memories, individuals may turn to substances. Drugs and alcohol can temporarily numb the pain, provide an artificial sense of control, or create fleeting feelings of euphoria.
+              {"At its core, DBT helps individuals embrace two key truths:"}
             </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Acceptance of one’s emotions and circumstances as they are."}</li>
+              <li>{"The possibility of positive change through learning new skills and perspectives."}</li>
+            </ul>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              However, this escape is short-lived. As reliance on substances increases, the original trauma remains untreated, festering like an open wound. Consequently, addiction and trauma become intertwined, each exacerbating the other.
+              {"DBT and addiction treatment are undeniably intertwined, as many individuals struggling with addiction experience overwhelming emotions that lead them to turn to substances for relief. DBT teaches practical tools to cope with these emotions in healthier, more sustainable ways. The therapy focuses on four main skill areas:"}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Is Trauma a Root Cause of Substance Use Disorder?
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Mindfulness: Learning how to stay present in the moment without judgment."}</li>
+              <li>{"Distress Tolerance: Building strategies to cope with crisis situations without resorting to harmful behaviors."}</li>
+              <li>{"Emotion Regulation: Understanding and managing powerful emotions that can feel overwhelming."}</li>
+              <li>{"Interpersonal Effectiveness: Enhancing communication and relationships, with an emphasis on establishing boundaries and advocating for oneself."}</li>
+            </ul>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"What to Expect During DBT Therapy Sessions"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Trauma&rsquo;s role as a catalyst for addiction is well-documented. Studies have shown that individuals who have experienced trauma are significantly more likely to develop substance use disorders. Childhood trauma, in particular, plays a pivotal role, as early experiences shape an individual&rsquo;s psychological and emotional development.
+              {"Going to therapy can be scary, especially if you aren’t sure what to expect. At Seven Arrows Recovery, we understand that anxiety is why we wanted to walk you through what you can expect when you come in for your first DBT therapy session:"}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"1. Personalized Goal-Setting"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Your therapist will first work with you to identify the issues you want to work on and what you hope to get out of therapy. Whether you need help managing intense emotions, recovering from addiction, or learning how to build better relationships, we will tailor your treatment specifically to you and your goals. We’ll also discuss how your DBT treatment will complement other forms of treatment, such as addiction programs, trauma-informed therapy, and holistic therapies."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"2. Clearly Laid-Out Sessions"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"DBT sessions follow a specific structure that may feel reassuring to know there is a plan in place to help you heal. Each session will typically involve discussing situations you encountered during the week, learning skills, and identifying strategies you can use when similar situations arise in the future."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Traumatic stress can lead to a heightened state of anxiety, depression, and other mental health issues, pushing individuals towards substances as a form of self-medication. The temporary relief provided by drug or alcohol use becomes a lure, entangling them more profoundly as the need to escape persists.
+              {"During individual DBT therapy, you’ll meet one-on-one with your therapist to discuss your emotions, identify thought patterns, and learn how to build your own coping skills."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Trauma leads to tangible alterations in brain chemistry. The stress hormones and neurobiological pathways influenced by trauma often overlap with those affected by addiction. This physiological intersection further elucidates why trauma victims are highly susceptible to substance use disorders.
+              {"Many people benefit from both individual DBT and DBT group therapy. Group therapy can allow you to learn skills in a supportive environment, learn from your peers, and gain knowledge from others who are going through similar experiences."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Identifying Trauma and Treating Substance Use
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"3. Providing a Safe Space"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Your therapist will provide a safe space for you to process anything that is on your mind. They are there to help you through every step of your therapy journey. During your DBT sessions, you aren’t being told you need to change who you are. Your therapist will help you identify the skills you already have and give you the tools to navigate life."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"4. Skills-Based Focus"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"A significant portion of your DBT therapy sessions will be focused on gaining real-world skills to help you better manage your life. Each session will focus on one of the four different DBT skill sets (mindfulness, distress tolerance, emotional regulation, and interpersonal effectiveness). Whether you need to learn how to better cope with triggers that affect your recovery or talk to your loved ones about your disorder, DBT will provide you with the skills to handle real-life situations."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"5. Relapse Prevention"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"If you are using DBT to treat addiction, you will also learn about relapse prevention. Relapse prevention includes identifying why you have cravings, creating your toolkit to overcome your cravings, and empowering your ability to choose recovery."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"6. Support Between Sessions"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Between your DBT therapy sessions, you will likely have “homework” to complete. This can include exercises to help you work through certain issues when you are not in therapy. You will also have access to our compassionate staff if you need someone to help guide you in using your new skills in real time."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"The Road to Healing: DBT and Sobriety"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"There is no “quick fix” for addiction or mental health challenges, but DBT offers a path that is both empowering and transformative. Through this structured yet compassionate approach, many individuals learn how to reclaim their lives, build better relationships, and approach recovery armed with tools that foster resilience."}
+            </p>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Research supports the effectiveness of DBT in addiction treatment. Studies show that DBT greatly reduces the likelihood of relapse by improving emotion regulation skills and increasing the ability to resist triggers. For example, a review published in the Journal of Substance Abuse Treatment found that individuals who completed DBT programs had significantly improved overall coping abilities, supporting long-term sobriety success (source)."}
+            </p>
+            <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Why Seven Arrows Recovery for DBT Therapy?"}
+            </h3>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"At Seven Arrows Recovery, we approach DBT with one goal in mind: supporting your full recovery, mind, body, and spirit. Our DBT therapy sessions are integrated into a holistic program designed to meet your individual needs."}
+            </p>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Here’s why Seven Arrows is the right place for healing:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Personalized Care: No two journeys are the same, and at Seven Arrows, every client’s treatment plan is uniquely designed based on their goals, triggers, and circumstances."}</li>
+              <li>{"Experienced Clinicians: Our team is trained in delivering DBT with compassion and evidence-based precision."}</li>
+              <li>{"Holistic Focus: Beyond DBT, we provide complementary therapies that nurture your emotional, mental, and physical health."}</li>
+              <li>{"Supportive Community: We are more than just a treatment center—we’re a community that empowers individuals to heal and thrive in recovery."}</li>
+            </ul>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Start Your Journey Toward Balanced Living Today"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Recognizing and addressing trauma is paramount in treating addiction effectively. A comprehensive treatment approach should address both the trauma and the addiction simultaneously to ensure holistic healing. Here&rsquo;s how to identify and treat these interconnected issues:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Identifying Trauma
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              1. Behavioral Patterns: Look for signs of avoidance, hyper-vigilance, mood swings, and risky behaviors. People with unresolved trauma may have difficulty forming or maintaining healthy relationships and may exhibit erratic behavior.
+              {"Recovery is more than healing from addiction. It’s about creating a life that allows you to prosper in every way—and DBT can help you build that foundation for a life of balance. At Seven Arrows Recovery, we want to be with you every step of the way."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              2. Physical Symptoms: Chronic pain, gastrointestinal problems, and fatigue can be physical manifestations of unresolved trauma.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              3. Mental Health: Comorbid mental health issues such as anxiety, depression, PTSD, and dissociative disorders often accompany trauma.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              4. Substance Use: If substance use seems disproportionate or is used explicitly to cope with emotional pain, it could indicate underlying trauma.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Treating Both Trauma and Substance Use
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              1. Integrated Therapy: Employing an integrated therapeutic approach ensures that both trauma and addiction are treated concurrently. Cognitive Behavioral Therapy (CBT) and Eye Movement Desensitization and Reprocessing (EMDR) have shown effectiveness in treating trauma-related disorders.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              2. Trauma-Informed Care: This approach understands the prevalence of trauma and its impact on individuals and tailors the treatment environment to be safe and supportive, minimizing re-traumatization.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              3. Medication: Certain medications can help manage symptoms of anxiety, depression, and PTSD, which in turn may reduce reliance on substances.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              4. Group Therapy: Joining a support group with others who have similar experiences can provide a sense of belonging and understanding, which is crucial for recovery.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              5. Mindfulness and Relaxation Techniques: Practices such as mindfulness meditation, yoga, and art therapy can help trauma survivors manage stress and anxiety healthily.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Find Compassionate Addiction Treatment Today
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Confronting and healing from both trauma and addiction is a monumental task, but it is possible. Comprehensive, compassionate, and expert care can guide individuals towards recovery and reclaiming their lives. At Seven Arrows Recovery, we specialize in trauma-informed treatment tailored to each individual&rsquo;s needs. Our dedicated team in Arizona helps clients navigate their pain, offering pathways to healing and sobriety.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              If you or someone you love is struggling with the dual burden of trauma and addiction, don&rsquo;t wait. Take the first step towards a brighter future. Contact Seven Arrows Recovery today, and let us be your partner in the journey to recovery.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              For more information and resources, please visit our website or call us directly to speak with a compassionate counselor. Your path to healing starts now.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Embrace the journey of healing with us. You deserve a life free from the shadows of trauma and addiction.
+              {"Perhaps you’ve been browsing “DBT therapy sessions” and are ready to learn more about DBT. If so, don’t wait another moment to start your journey toward emotional balance, strengthened recovery, and newfound hope. Let Seven Arrows Recovery guide you, and give you the tools you need to live a life of balance. Call or contact us today."}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">

@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 11'}
-        title={'How to Go to Rehab Without Loosing Your Job'}
+        label="The Recovery Roadmap — Episode 11"
+        title="How to Go to Rehab Without Loosing Your Job"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'How to Go to Rehab Without Loosing Your Job' },
+          { label: "How to Go to Rehab Without Loosing Your Job" },
         ]}
-        description={'Going to rehab can be a life-changing decision, but for many individuals, the fear of losing their job can prevent them from seeking the help they need.'}
+        description="Going to rehab can be a life-changing decision, but for many individuals, the fear of losing their job can prevent them from seeking the help they need. However, thanks to the Family and Medical Leave Act (FMLA), employees have…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,41 +22,41 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Going to rehab can be a life-changing decision, but for many individuals, the fear of losing their job can prevent them from seeking the help they need. However, thanks to the Family and Medical Leave Act (FMLA), employees have the right to take unpaid leave for medical reasons, including substance abuse treatment. In this article, we will explore how FMLA can enable you to attend rehab without jeopardizing your job security.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"Going to rehab can be a life-changing decision, but for many individuals, the fear of losing their job can prevent them from seeking the help they need. However, thanks to the Family and Medical Leave Act (FMLA), employees have the right to take unpaid leave for medical reasons, including substance abuse treatment. In this article, we will explore how FMLA can enable you to attend rehab without jeopardizing your job security."}
+            </p>
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"FMLA provides job protection and allows eligible employees to take up to 12 weeks of unpaid leave for qualified medical reasons. While entering rehab may seem daunting, knowing your rights and understanding the process can give you the confidence to seek treatment without the fear of negative consequences at work."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              FMLA provides job protection and allows eligible employees to take up to 12 weeks of unpaid leave for qualified medical reasons. While entering rehab may seem daunting, knowing your rights and understanding the process can give you the confidence to seek treatment without the fear of negative consequences at work.
+              {"Whether you are struggling with alcohol addiction, drug abuse, or any other substance dependency, FMLA can provide you with the opportunity to prioritize your health and recovery. By knowing how to navigate the FMLA paperwork, communicate with your employer, and maintain open lines of communication, you can ensure a smooth transition to rehab while safeguarding your job."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Whether you are struggling with alcohol addiction, drug abuse, or any other substance dependency, FMLA can provide you with the opportunity to prioritize your health and recovery. By knowing how to navigate the FMLA paperwork, communicate with your employer, and maintain open lines of communication, you can ensure a smooth transition to rehab while safeguarding your job.
+              {"Don’t let the fear of job loss prevent you from seeking the help you need. Let’s explore how FMLA can make rehab a possibility while ensuring your employment remains secure."}
             </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Don&rsquo;t let the fear of job loss prevent you from seeking the help you need. Let&rsquo;s explore how FMLA can make rehab a possibility while ensuring your employment remains secure.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              What is the Family and Medical Leave Act (FMLA)?
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"What is the Family and Medical Leave Act (FMLA)?"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              The Family and Medical Leave Act (FMLA) is a federal law that grants eligible employees the right to take unpaid leave for qualified medical reasons. Enacted in 1993, the FMLA aims to balance the needs of employees with the legitimate interests of employers. Under the FMLA, eligible employees are entitled to up to 12 weeks of unpaid leave within a 12-month period for various qualifying reasons, including the treatment of substance abuse.
+              {"The Family and Medical Leave Act (FMLA) is a federal law that grants eligible employees the right to take unpaid leave for qualified medical reasons. Enacted in 1993, the FMLA aims to balance the needs of employees with the legitimate interests of employers. Under the FMLA, eligible employees are entitled to up to 12 weeks of unpaid leave within a 12-month period for various qualifying reasons, including the treatment of substance abuse."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              To be eligible for FMLA leave, an employee must work for a covered employer, have worked for the employer for at least 12 months, have worked at least 1,250 hours during the previous 12 months, and work at a location where the employer has at least 50 employees within a 75-mile radius. If you meet these criteria, you may be eligible to take unpaid leave for substance abuse treatment without the fear of losing your job.
+              {"To be eligible for FMLA leave, an employee must work for a covered employer, have worked for the employer for at least 12 months, have worked at least 1,250 hours during the previous 12 months, and work at a location where the employer has at least 50 employees within a 75-mile radius. If you meet these criteria, you may be eligible to take unpaid leave for substance abuse treatment without the fear of losing your job."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              The FMLA also provides certain protections for employees, including maintaining group health insurance benefits during the leave period and the right to be reinstated to the same or an equivalent position upon return from leave. Understanding your rights under the FMLA is crucial when considering rehab as a viable option for your recovery journey.
+              {"The FMLA also provides certain protections for employees, including maintaining group health insurance benefits during the leave period and the right to be reinstated to the same or an equivalent position upon return from leave. Understanding your rights under the FMLA is crucial when considering rehab as a viable option for your recovery journey."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Understanding the FMLA and Substance Abuse Treatment
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Understanding the FMLA and Substance Abuse Treatment"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Substance abuse is a serious health issue that affects millions of individuals worldwide. Recognizing the impact addiction can have on an individual&rsquo;s personal and professional life, the FMLA includes substance abuse treatment as a qualifying medical reason for leave. Whether you are struggling with alcohol addiction, drug abuse, or any other form of substance dependency, the FMLA can provide the opportunity to seek treatment without jeopardizing your job security.
+              {"Substance abuse is a serious health issue that affects millions of individuals worldwide. Recognizing the impact addiction can have on an individual’s personal and professional life, the FMLA includes substance abuse treatment as a qualifying medical reason for leave. Whether you are struggling with alcohol addiction, drug abuse, or any other form of substance dependency, the FMLA can provide the opportunity to seek treatment without jeopardizing your job security."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Substance abuse treatment can take various forms, including inpatient rehabilitation programs, outpatient counseling, or intensive outpatient programs. The FMLA allows eligible employees to take leave for the time necessary to complete the treatment program recommended by a healthcare provider. This means that you can focus on your recovery without the added stress of potential job loss.
+              {"Substance abuse treatment can take various forms, including inpatient rehabilitation programs, outpatient counseling, or intensive outpatient programs. The FMLA allows eligible employees to take leave for the time necessary to complete the treatment program recommended by a healthcare provider. This means that you can focus on your recovery without the added stress of potential job loss."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              It&rsquo;s important to note that the FMLA does not require employers to pay employees during their leave; it only provides job protection and ensures continued access to health insurance benefits. However, some employers may offer paid leave options, so it&rsquo;s worth exploring your company&rsquo;s policies and any applicable state laws that may provide additional benefits.
+              {"It’s important to note that the FMLA does not require employers to pay employees during their leave; it only provides job protection and ensures continued access to health insurance benefits. However, some employers may offer paid leave options, so it’s worth exploring your company’s policies and any applicable state laws that may provide additional benefits."}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">

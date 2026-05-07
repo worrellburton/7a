@@ -5,15 +5,15 @@ export default function PageContent() {
   return (
     <>
       <PageHero
-        label={'The Recovery Roadmap — Episode 47'}
-        title={'What to Look for in a Heroin Rehab'}
+        label="The Recovery Roadmap — Episode 47"
+        title="What to Look for in a Heroin Rehab"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who We Are', href: '/who-we-are' },
           { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
-          { label: 'What to Look for in a Heroin Rehab' },
+          { label: "What to Look for in a Heroin Rehab" },
         ]}
-        description={'Heroin addiction is a devastating disease that affects individuals and families across the country. If you or someone you love is struggling, finding the right treatment center is critical.'}
+        description="Heroin addiction is a devastating disease that affects individuals and families across the country. If you or someone you love is struggling, finding the right treatment center is critical. Knowing what to look for in a heroin…"
         image="/images/resident-reading-window.jpg"
         width="narrow"
       />
@@ -22,152 +22,118 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Heroin addiction is a devastating disease that affects individuals and families across the country. If you or someone you love is struggling, finding the right treatment center is critical. Knowing what to look for in a heroin rehab can help you choose a program that offers not only effective care but also long-term support for recovery. From medically supervised detox to personalized therapy, the best heroin rehab centers offer a comprehensive, compassionate approach that meets each individual&rsquo;s unique needs.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+              {"Heroin addiction is a devastating disease that affects individuals and families across the country. If you or someone you love is struggling, finding the right treatment center is critical. Knowing what to look for in a heroin rehab can help you choose a program that offers not only effective care but also long-term support for recovery. From medically supervised detox to personalized therapy, the best heroin rehab centers offer a comprehensive, compassionate approach that meets each individual’s unique needs."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Why Knowing What to Look for in a Heroin Rehab Matters
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Why Knowing What to Look for in a Heroin Rehab Matters"}
             </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Choosing a heroin rehab is not just about finding a place to stop using drugs; it&rsquo;s about selecting a facility that will support lasting recovery. When evaluating what to look for in a heroin rehab or treatment center, several key elements should be considered. Understanding what to look for in a heroin rehab can help you make an informed decision that leads to long-term healing.
-            </p>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Look for facilities that are licensed and accredited, utilize evidence-based treatment models, and provide a comprehensive continuum of care. A quality program should treat not just the addiction but the underlying mental health and emotional issues that often contribute to heroin use.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Medical Detox Services
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              The first step in any effective heroin rehab program is medical detox. Heroin withdrawal can be extremely uncomfortable and, in some cases, dangerous. A reputable rehab center will offer or coordinate medically supervised detox to help manage withdrawal symptoms safely and comfortably. Ask whether the program offers 24/7 monitoring, access to medications like buprenorphine or methadone, and mental health support during detox.
+            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+              {"Choosing a heroin rehab is not just about finding a place to stop using drugs; it’s about selecting a facility that will support lasting recovery. When evaluating what to look for in a heroin rehab or treatment center, several key elements should be considered. Understanding what to look for in a heroin rehab can help you make an informed decision that leads to long-term healing."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              When considering what to look for in a heroin rehab, make sure detox is included as part of the treatment plan, not just a prerequisite. Seamless transition from detox to ongoing care is vital.
+              {"Look for facilities that are licensed and accredited, utilize evidence-based treatment models, and provide a comprehensive continuum of care. A quality program should treat not just the addiction but the underlying mental health and emotional issues that often contribute to heroin use."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Evidence-Based Therapy Options at a Heroin Rehab in Arizona
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Medical Detox Services"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Once detox is complete, long-term treatment begins. One of the most important things to look for in a heroin rehab is access to evidence-based therapies that address both addiction and co-occurring disorders. The most effective programs use a combination of:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Cognitive Behavioral Therapy (CBT)
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Dialectical Behavior Therapy (DBT)
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Motivational Interviewing (MI)
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Trauma-informed care
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Group and family therapy
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              These therapies help clients understand the root causes of their addiction, build coping strategies, and develop healthier patterns of thinking and behavior.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Individualized Treatment Plans
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Every person&rsquo;s journey with addiction is different. That&rsquo;s why individualized care is a major component of what to look for in a heroin rehab. Avoid one-size-fits-all programs. Instead, choose a rehab center that conducts thorough assessments at intake and develops a personalized treatment plan that evolves as recovery progresses.
+              {"The first step in any effective heroin rehab program is medical detox. Heroin withdrawal can be extremely uncomfortable and, in some cases, dangerous. A reputable rehab center will offer or coordinate medically supervised detox to help manage withdrawal symptoms safely and comfortably. Ask whether the program offers 24/7 monitoring, access to medications like buprenorphine or methadone, and mental health support during detox."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Treatment plans should take into account a person&rsquo;s history with substance use, mental health conditions, trauma background, medical needs, and personal goals. The best heroin rehab centers provide flexible, adaptive care that evolves with the individual.
+              {"When considering what to look for in a heroin rehab, make sure detox is included as part of the treatment plan, not just a prerequisite. Seamless transition from detox to ongoing care is vital."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Dual Diagnosis Support
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Evidence-Based Therapy Options at a Heroin Rehab in Arizona"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Many people struggling with heroin addiction also experience co-occurring mental health disorders, such as depression, anxiety, or PTSD. When evaluating what to look for in a heroin rehab, check whether the program offers dual diagnosis treatment.
+              {"Once detox is complete, long-term treatment begins. One of the most important things to look for in a heroin rehab is access to evidence-based therapies that address both addiction and co-occurring disorders. The most effective programs use a combination of:"}
             </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Cognitive Behavioral Therapy (CBT)"}</li>
+              <li>{"Dialectical Behavior Therapy (DBT)"}</li>
+              <li>{"Motivational Interviewing (MI)"}</li>
+              <li>{"Trauma-informed care"}</li>
+              <li>{"Group and family therapy"}</li>
+            </ul>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              Integrated care that addresses both substance use and mental health in tandem leads to better outcomes. Look for licensed clinicians, access to psychiatric medication, and specialized therapy designed to treat complex mental health challenges alongside addiction.
+              {"These therapies help clients understand the root causes of their addiction, build coping strategies, and develop healthier patterns of thinking and behavior."}
             </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Holistic and Experiential Therapies
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              In addition to clinical therapy, many leading rehab centers include holistic or experiential therapies to support emotional and spiritual healing. When asking what to look for in a heroin rehab, consider programs that offer:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Yoga or meditation
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Art or music therapy
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Equine-assisted therapy
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Nature-based activities
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Mindfulness training
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Individualized Treatment Plans"}
             </h2>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              These services may not be the core of treatment, but they provide valuable tools for stress reduction, self-awareness, and emotional regulation&mdash;key components of long-term recovery.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Aftercare and Relapse Prevention Planning
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              True recovery extends beyond the initial rehab stay. An essential part of what to look for in a heroin rehab is comprehensive aftercare planning. Before completing treatment, individuals should have access to:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Relapse prevention planning
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Ongoing outpatient or step-down care
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Alumni support groups
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Referrals to sober living
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Connection to community resources
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Ask how the rehab supports clients after discharge and what kind of follow-up is available. Ongoing support significantly improves the chances of maintaining sobriety long-term.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Questions to Ask Before Choosing a Heroin Rehab
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              To ensure you&rsquo;re choosing the right heroin rehab program, come prepared with questions. These can help you better understand the facility&rsquo;s approach and whether it aligns with your or your loved one&rsquo;s needs. Consider asking:
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              What is your approach to treating heroin addiction?
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Do you offer or coordinate on-site medical detox?
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              How do you develop individualized treatment plans?
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              What evidence-based therapies do you provide?
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              How do you support clients with dual diagnosis needs?
-            </h2>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              What does your aftercare program include?
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Having clear answers to these questions will help you confirm whether the facility meets your expectations.
-            </p>
-            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-10" style={{ fontFamily: 'var(--font-display)' }}>
-              Contact Seven Arrows Recovery for Heroin Rehab in Arizona
-            </h2>
-            <p className="text-foreground/80 leading-relaxed mb-4">
-              Understanding what to look for in a heroin rehab is the first step toward finding real healing. At Seven Arrows Recovery in Arizona, we specialize in trauma-informed, individualized care for heroin addiction. Our programs combine medical detox, therapy, holistic healing, and long-term support to help clients break free from heroin and rebuild their lives with strength and purpose.
+              {"Every person’s journey with addiction is different. That’s why individualized care is a major component of what to look for in a heroin rehab. Avoid one-size-fits-all programs. Instead, choose a rehab center that conducts thorough assessments at intake and develops a personalized treatment plan that evolves as recovery progresses."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              If you or a loved one is struggling with heroin addiction, don&rsquo;t wait. Contact Seven Arrows Recovery today to learn more about our heroin rehab programs and how we can support you on the path to recovery.
+              {"Treatment plans should take into account a person’s history with substance use, mental health conditions, trauma background, medical needs, and personal goals. The best heroin rehab centers provide flexible, adaptive care that evolves with the individual."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Dual Diagnosis Support"}
+            </h2>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Many people struggling with heroin addiction also experience co-occurring mental health disorders, such as depression, anxiety, or PTSD. When evaluating what to look for in a heroin rehab, check whether the program offers dual diagnosis treatment."}
+            </p>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Integrated care that addresses both substance use and mental health in tandem leads to better outcomes. Look for licensed clinicians, access to psychiatric medication, and specialized therapy designed to treat complex mental health challenges alongside addiction."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Holistic and Experiential Therapies"}
+            </h2>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"In addition to clinical therapy, many leading rehab centers include holistic or experiential therapies to support emotional and spiritual healing. When asking what to look for in a heroin rehab, consider programs that offer:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Yoga or meditation"}</li>
+              <li>{"Art or music therapy"}</li>
+              <li>{"Equine-assisted therapy"}</li>
+              <li>{"Nature-based activities"}</li>
+              <li>{"Mindfulness training"}</li>
+            </ul>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"These services may not be the core of treatment, but they provide valuable tools for stress reduction, self-awareness, and emotional regulation—key components of long-term recovery."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Aftercare and Relapse Prevention Planning"}
+            </h2>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"True recovery extends beyond the initial rehab stay. An essential part of what to look for in a heroin rehab is comprehensive aftercare planning. Before completing treatment, individuals should have access to:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"Relapse prevention planning"}</li>
+              <li>{"Ongoing outpatient or step-down care"}</li>
+              <li>{"Alumni support groups"}</li>
+              <li>{"Referrals to sober living"}</li>
+              <li>{"Connection to community resources"}</li>
+            </ul>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Ask how the rehab supports clients after discharge and what kind of follow-up is available. Ongoing support significantly improves the chances of maintaining sobriety long-term."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Questions to Ask Before Choosing a Heroin Rehab"}
+            </h2>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"To ensure you’re choosing the right heroin rehab program, come prepared with questions. These can help you better understand the facility’s approach and whether it aligns with your or your loved one’s needs. Consider asking:"}
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">
+              <li>{"What is your approach to treating heroin addiction?"}</li>
+              <li>{"Do you offer or coordinate on-site medical detox?"}</li>
+              <li>{"How do you develop individualized treatment plans?"}</li>
+              <li>{"What evidence-based therapies do you provide?"}</li>
+              <li>{"How do you support clients with dual diagnosis needs?"}</li>
+              <li>{"What does your aftercare program include?"}</li>
+            </ul>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Having clear answers to these questions will help you confirm whether the facility meets your expectations."}
+            </p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
+              {"Contact Seven Arrows Recovery for Heroin Rehab in Arizona"}
+            </h2>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"Understanding what to look for in a heroin rehab is the first step toward finding real healing. At Seven Arrows Recovery in Arizona, we specialize in trauma-informed, individualized care for heroin addiction. Our programs combine medical detox, therapy, holistic healing, and long-term support to help clients break free from heroin and rebuild their lives with strength and purpose."}
+            </p>
+            <p className="text-foreground/80 leading-relaxed mb-4">
+              {"If you or a loved one is struggling with heroin addiction, don’t wait. Contact Seven Arrows Recovery today to learn more about our heroin rehab programs and how we can support you on the path to recovery."}
             </p>
 
             <div className="bg-warm-bg rounded-2xl p-8 lg:p-10 text-center mt-12">
