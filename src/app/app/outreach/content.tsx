@@ -779,6 +779,14 @@ function ContactsGrid({
               >
                 <span className="inline-flex items-center gap-1 truncate">
                   {c.label}
+                  {c.key === 'name' && (
+                    <span
+                      className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1.5 rounded-full bg-foreground/10 text-foreground/65 text-[10px] font-bold tabular-nums"
+                      title={`${rows.length} contact${rows.length === 1 ? '' : 's'}`}
+                    >
+                      {rows.length}
+                    </span>
+                  )}
                   <SortIndicator active={sortKey === c.key} dir={sortDir} />
                 </span>
                 <ResizeHandle
