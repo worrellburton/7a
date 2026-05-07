@@ -2862,6 +2862,7 @@ type Status =
   | 'submitted'
   | 'pending'
   | 'live'
+  | 'live_incorrect_nap'
   | 'paid_list'
   | 'no_option'
   | 'requires_official_docs'
@@ -2876,6 +2877,7 @@ const STATUS_LABELS: Record<Status, string> = {
   submitted: 'Submitted',
   pending: 'Pending',
   live: 'Live',
+  live_incorrect_nap: 'Live but incorrect NAP',
   paid_list: 'Paid List',
   no_option: 'No option',
   requires_official_docs: 'Requires official Docs',
@@ -2889,6 +2891,11 @@ const STATUS_TONE: Record<Status, string> = {
   submitted: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100',
   pending: 'bg-yellow-50 text-yellow-800 border-yellow-200 hover:bg-yellow-100',
   live: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100',
+  // Live-but-broken: the listing exists in the wild but the
+  // Name/Address/Phone is wrong. Orange — "win with a defect" —
+  // distinguishes it from `live` (emerald, all good) and
+  // `requires_official_docs` (rose, blocked).
+  live_incorrect_nap: 'bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100',
   paid_list: 'bg-violet-50 text-violet-800 border-violet-200 hover:bg-violet-100',
   no_option: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100',
   requires_official_docs: 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100',
@@ -2908,6 +2915,7 @@ const STATUS_ROW_TINT: Record<Status, string> = {
   submitted: 'bg-amber-50/55 hover:bg-amber-50',
   pending: 'bg-yellow-50/55 hover:bg-yellow-50',
   live: 'bg-emerald-50/55 hover:bg-emerald-50',
+  live_incorrect_nap: 'bg-orange-50/55 hover:bg-orange-50',
   paid_list: 'bg-violet-50/55 hover:bg-violet-50',
   no_option: 'bg-slate-50/55 hover:bg-slate-50',
   requires_official_docs: 'bg-rose-50/55 hover:bg-rose-50',
@@ -2926,6 +2934,7 @@ const STATUS_ORDER: Status[] = [
   'submitted',
   'pending',
   'live',
+  'live_incorrect_nap',
   'paid_list',
   'no_option',
   'requires_official_docs',
@@ -2944,6 +2953,7 @@ const STATUS_ORDER: Status[] = [
 // float Skip up.
 const DEFAULT_STATUS_GROUP_ORDER: Status[] = [
   'live',
+  'live_incorrect_nap',
   'claim_in_process',
   'claimed',
   'submitted',
@@ -3056,7 +3066,8 @@ const STATUS_CYCLE: Record<Status, Status> = {
   claimed: 'submitted',
   submitted: 'pending',
   pending: 'live',
-  live: 'paid_list',
+  live: 'live_incorrect_nap',
+  live_incorrect_nap: 'paid_list',
   paid_list: 'no_option',
   no_option: 'requires_official_docs',
   requires_official_docs: 'skip',
@@ -4244,6 +4255,7 @@ export default function DirectoriesContent() {
       submitted: 0,
       pending: 0,
       live: 0,
+      live_incorrect_nap: 0,
       paid_list: 0,
       no_option: 0,
       requires_official_docs: 0,
@@ -4267,6 +4279,10 @@ export default function DirectoriesContent() {
     submitted: 'amber',
     pending: 'amber',
     live: 'emerald',
+    // Live-but-broken counts toward the "needs attention" colour
+    // language (amber) — it's a win that's regressed into a defect,
+    // not a clean win like `live`.
+    live_incorrect_nap: 'amber',
     paid_list: 'teal',
     no_option: 'foreground',
     requires_official_docs: 'rose',
