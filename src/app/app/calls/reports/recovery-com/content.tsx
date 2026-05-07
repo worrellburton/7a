@@ -11,6 +11,10 @@ import { downloadRecoveryComPdf } from './pdf';
 // warm-bg, copper-accent headlines (Fraunces), Inter body. The
 // "Download PDF" button hands the same data to /pdf so the printed
 // doc doesn't drift from the on-screen copy.
+//
+// Volume + attribution only — daily/hourly/day-of-week breakdowns,
+// missed-call counts, top tracking labels, sources, geo. The GA4
+// website-traffic slice loads from a sister endpoint.
 
 type RangeKey = 7 | 30 | 90 | 'ytd' | 'all';
 
@@ -48,16 +52,9 @@ export interface CallLogRow {
   city: string | null;
   state: string | null;
   tracking_label: string | null;
+  tracking_number: string | null;
+  source: string | null;
   voicemail: boolean;
-  score: number | null;
-  fit_score: number | null;
-  call_name: string | null;
-  caller_name: string | null;
-  operator_name: string | null;
-  client_type: string | null;
-  sentiment: string | null;
-  summary: string | null;
-  next_steps: string | null;
 }
 
 export interface RecoveryReportPayload {
@@ -67,27 +64,21 @@ export interface RecoveryReportPayload {
     inbound: number;
     outbound: number;
     missed: number;
+    voicemails: number;
     uniqueCallers: number;
     avgDuration: number;
     avgTalkTime: number;
-    scoredCount: number;
-    meaningful: number;
-    highFit: number;
-    meaningfulPct: number;
-    avgCallScore: number;
-    avgFitScore: number;
+    totalDuration: number;
+    totalTalkTime: number;
   };
-  dailyCounts: { date: string; count: number; meaningful: number; missed: number }[];
-  fitHistogram: { label: string; count: number; range: string }[];
-  sentiment: { key: string; count: number }[];
-  clientTypes: { label: string; count: number }[];
-  operators: {
-    name: string;
-    count: number;
-    avgScore: number | null;
-    meaningful: number;
-    highFit: number;
-  }[];
+  dailyCounts: { date: string; count: number; missed: number }[];
+  hourlyCounts: { hour: number; count: number }[];
+  dowCounts: { day: number; label: string; count: number }[];
+  trackingLabels: { label: string; count: number }[];
+  trackingNumbers: { number: string; count: number }[];
+  sources: { label: string; count: number }[];
+  cities: { city: string; state: string | null; count: number }[];
+  states: { state: string; count: number }[];
   repeatCallers: {
     phone: string;
     calls: number;
@@ -339,13 +330,14 @@ export default function RecoveryComReportContent() {
           <>
             <KpiBand overview={data.overview} loading={loading} />
             <DailyVolumeChart data={data.dailyCounts} />
-            <DistributionsRow
-              fitHistogram={data.fitHistogram}
-              sentiment={data.sentiment}
-              clientTypes={data.clientTypes}
+            <TimePatternsRow hourly={data.hourlyCounts} dowCounts={data.dowCounts} />
+            <AttributionRow
+              trackingLabels={data.trackingLabels}
+              trackingNumbers={data.trackingNumbers}
+              sources={data.sources}
             />
+            <GeoRow cities={data.cities} states={data.states} />
             <AnalyticsSection analytics={analytics} />
-            <OperatorScoreboard rows={data.operators} />
             <RepeatCallersSection rows={data.repeatCallers} />
             <CallLogSection rows={data.callLog} />
           </>
@@ -392,9 +384,8 @@ function ReportHero({
             <em className="not-italic text-primary">Recovery.com</em> — call performance
           </h1>
           <p className="mt-3 text-sm text-foreground/65 max-w-2xl">
-            Every call CTM attributes to the Recovery.com listing — volume,
-            lead quality, operator handling, and conversion likelihood —
-            for the {windowLabel(fromTo.from, fromTo.to)} window.
+            Every call CTM attributes to the Recovery.com listing — call volume,
+            tracking-line attribution, and caller geography — for the {windowLabel(fromTo.from, fromTo.to)} window.
           </p>
           <div className="mt-3 flex items-center gap-2 text-[11px] uppercase tracking-wider text-foreground/45">
             <span>{fromTo.from.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
@@ -442,7 +433,7 @@ function windowLabel(from: Date, to: Date): string {
   return `${days}-day`;
 }
 
-// ─── KPI band (8 stats) ─────────────────────────────────────────
+// ─── KPI band ───────────────────────────────────────────────────
 
 function KpiBand({
   overview,
@@ -452,27 +443,21 @@ function KpiBand({
   loading: boolean;
 }) {
   const fmtNum = (n: number) => n.toLocaleString();
-  const fmtPct = (n: number) => `${Math.round(n * 100)}%`;
   const fmtDuration = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = Math.round(s % 60);
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
-  const conversionPct = overview.scoredCount > 0 ? overview.highFit / overview.scoredCount : 0;
 
-  // Per-call AI handling score is intentionally omitted from this
-  // report — operator scoring is reviewed in the calls UI, not on
-  // the printable rollup. Lead-quality (fit) numbers describe the
-  // caller, not the operator's handling, so they stay.
   const kpis: { label: string; value: string; hint?: string; tone: 'primary' | 'emerald' | 'foreground' | 'amber' | 'red' }[] = [
     { label: 'Total calls', value: fmtNum(overview.total), tone: 'foreground' },
     { label: 'Inbound', value: fmtNum(overview.inbound), hint: `${fmtNum(overview.outbound)} outbound`, tone: 'foreground' },
     { label: 'Unique callers', value: fmtNum(overview.uniqueCallers), hint: 'Distinct phone numbers', tone: 'foreground' },
-    { label: 'Meaningful (fit ≥ 60)', value: fmtNum(overview.meaningful), hint: fmtPct(overview.meaningfulPct), tone: 'emerald' },
-    { label: 'High fit (≥ 75)', value: fmtNum(overview.highFit), hint: `${fmtPct(conversionPct)} of scored`, tone: 'primary' },
-    { label: 'Avg fit score', value: overview.avgFitScore ? overview.avgFitScore.toFixed(1) : '—', hint: 'Lead-quality 0–100', tone: 'emerald' },
-    { label: 'Avg duration', value: fmtDuration(overview.avgDuration), hint: `${fmtDuration(overview.avgTalkTime)} talk`, tone: 'foreground' },
+    { label: 'Voicemails', value: fmtNum(overview.voicemails), hint: 'Of total calls', tone: 'amber' },
+    { label: 'Avg duration', value: fmtDuration(overview.avgDuration), hint: `${fmtDuration(overview.avgTalkTime)} talk`, tone: 'emerald' },
+    { label: 'Total talk time', value: fmtDuration(overview.totalTalkTime), hint: `${fmtDuration(overview.totalDuration)} ringtime`, tone: 'emerald' },
     { label: 'Missed inbound', value: fmtNum(overview.missed), hint: 'Voicemail + < 3s talk', tone: 'red' },
+    { label: 'Outbound', value: fmtNum(overview.outbound), hint: 'Calls placed', tone: 'foreground' },
   ];
 
   const toneClass = (t: string) =>
@@ -535,7 +520,7 @@ function DailyVolumeChart({
 
   return (
     <section className="report-section mt-8 rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
-      <SectionTitle eyebrow="Volume" title="Daily call volume" subtitle="Stacked: meaningful (fit ≥ 60) sit on top of total calls." />
+      <SectionTitle eyebrow="Volume" title="Daily call volume" subtitle="Total calls per day, with missed inbound calls highlighted in red." />
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
         {ticks.map((v) => {
           const y = PAD_T + innerH - (innerH * v) / max;
@@ -551,8 +536,8 @@ function DailyVolumeChart({
         {data.map((d, i) => {
           const totalY = PAD_T + innerH - (innerH * d.count) / max;
           const totalH = PAD_T + innerH - totalY;
-          const meaningfulH = (innerH * d.meaningful) / max;
-          const meaningfulY = PAD_T + innerH - meaningfulH;
+          const missedH = (innerH * d.missed) / max;
+          const missedY = PAD_T + innerH - missedH;
           const x = PAD_L + i * slot + (slot - barW) / 2;
           const isActive = hover === i;
           return (
@@ -570,14 +555,14 @@ function DailyVolumeChart({
                 rx={2}
                 fill={isActive ? 'rgba(188,107,74,0.85)' : 'rgba(188,107,74,0.55)'}
               />
-              {meaningfulH > 0 && (
+              {missedH > 0 && (
                 <rect
                   x={x}
-                  y={meaningfulY}
+                  y={missedY}
                   width={barW}
-                  height={Math.max(0, meaningfulH)}
+                  height={Math.max(0, missedH)}
                   rx={2}
-                  fill={isActive ? 'rgba(16,185,129,0.95)' : 'rgba(16,185,129,0.75)'}
+                  fill={isActive ? 'rgba(220,38,38,0.95)' : 'rgba(220,38,38,0.75)'}
                 />
               )}
             </g>
@@ -604,8 +589,6 @@ function DailyVolumeChart({
           </span>
           <span>·</span>
           <span>{data[hover].count} calls</span>
-          <span>·</span>
-          <span className="text-emerald-700 font-semibold">{data[hover].meaningful} meaningful</span>
           {data[hover].missed > 0 && (
             <>
               <span>·</span>
@@ -616,7 +599,7 @@ function DailyVolumeChart({
       )}
       <div className="mt-2 flex items-center gap-4 text-[10.5px] text-foreground/55">
         <LegendDot color="rgba(188,107,74,0.55)" label="All calls" />
-        <LegendDot color="rgba(16,185,129,0.75)" label="Meaningful (fit ≥ 60)" />
+        <LegendDot color="rgba(220,38,38,0.75)" label="Missed inbound" />
       </div>
     </section>
   );
@@ -641,157 +624,230 @@ function niceTickStep(max: number): number {
   return Math.ceil(max / 5);
 }
 
-// ─── Distributions row (fit / sentiment / client type) ──────────
+// ─── Hour-of-day + day-of-week (calls) ──────────────────────────
 
-function DistributionsRow({
-  fitHistogram,
-  sentiment,
-  clientTypes,
+function TimePatternsRow({
+  hourly,
+  dowCounts,
 }: {
-  fitHistogram: RecoveryReportPayload['fitHistogram'];
-  sentiment: RecoveryReportPayload['sentiment'];
-  clientTypes: RecoveryReportPayload['clientTypes'];
+  hourly: RecoveryReportPayload['hourlyCounts'];
+  dowCounts: RecoveryReportPayload['dowCounts'];
 }) {
+  const hourlyHas = hourly.some((h) => h.count > 0);
+  const dowHas = dowCounts.some((d) => d.count > 0);
+  if (!hourlyHas && !dowHas) return null;
+  const maxHourly = Math.max(1, ...hourly.map((h) => h.count));
+  const maxDay = Math.max(1, ...dowCounts.map((d) => d.count));
+  const peakHour = hourly.reduce((best, h) => (h.count > best.count ? h : best), hourly[0]);
+  const peakDay = dowCounts.reduce((best, d) => (d.count > best.count ? d : best), dowCounts[0]);
+  const fmtHour = (h: number) => {
+    if (h === 0) return '12am';
+    if (h < 12) return `${h}am`;
+    if (h === 12) return '12pm';
+    return `${h - 12}pm`;
+  };
   return (
-    <section className="report-section mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-      <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
-        <SectionTitle eyebrow="Lead quality" title="Fit-score buckets" subtitle="How many of the scored calls landed in each fit-score range." />
-        <FitHistogram rows={fitHistogram} />
-      </div>
-      <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
-        <SectionTitle eyebrow="Tone" title="Sentiment" subtitle="AI read of the conversational tone." />
-        <SentimentBars rows={sentiment} />
-      </div>
-      <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
-        <SectionTitle eyebrow="Mix" title="Client type" subtitle="How the AI categorised the caller." />
-        <ClientTypeList rows={clientTypes} />
+    <section className="report-section mt-8 rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+      <SectionTitle eyebrow="Timing" title="When calls arrive" subtitle="Hour-of-day and day-of-week distribution for Recovery.com calls (Phoenix time)." />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50">By hour</p>
+            {peakHour && peakHour.count > 0 && (
+              <p className="text-[11px] text-foreground/55">
+                Peak: <span className="font-semibold text-primary">{fmtHour(peakHour.hour)}</span> · {peakHour.count}
+              </p>
+            )}
+          </div>
+          <div className="flex items-end gap-0.5 h-28">
+            {hourly.map((h) => {
+              const pct = (h.count / maxHourly) * 100;
+              const isPeak = peakHour && h.hour === peakHour.hour && h.count > 0;
+              return (
+                <div key={h.hour} className="flex-1 flex flex-col items-center gap-1 group">
+                  <div
+                    className={`w-full rounded-t-sm transition-all ${isPeak ? 'bg-primary' : 'bg-primary/55'} group-hover:bg-primary`}
+                    style={{ height: `${pct}%`, minHeight: h.count > 0 ? 2 : 0 }}
+                    title={`${fmtHour(h.hour)} · ${h.count} calls`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-12 mt-1 text-[9px] text-foreground/45 text-center">
+            <span className="col-span-3">12am</span>
+            <span className="col-span-3">6am</span>
+            <span className="col-span-3">noon</span>
+            <span className="col-span-3">6pm</span>
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50">By day of week</p>
+            {peakDay && peakDay.count > 0 && (
+              <p className="text-[11px] text-foreground/55">
+                Peak: <span className="font-semibold text-primary">{peakDay.label}</span> · {peakDay.count}
+              </p>
+            )}
+          </div>
+          <ul className="space-y-1.5">
+            {dowCounts.map((d) => {
+              const pct = maxDay > 0 ? (d.count / maxDay) * 100 : 0;
+              return (
+                <li key={d.day} className="text-[12px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-foreground/75 font-semibold">{d.label}</span>
+                    <span className="text-foreground/55 tabular-nums">{d.count}</span>
+                  </div>
+                  <div className="mt-1 h-2 bg-warm-bg rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </div>
     </section>
   );
 }
 
-function FitHistogram({ rows }: { rows: RecoveryReportPayload['fitHistogram'] }) {
-  const max = Math.max(1, ...rows.map((r) => r.count));
+// ─── Attribution row (tracking labels / numbers / sources) ──────
+
+function AttributionRow({
+  trackingLabels,
+  trackingNumbers,
+  sources,
+}: {
+  trackingLabels: RecoveryReportPayload['trackingLabels'];
+  trackingNumbers: RecoveryReportPayload['trackingNumbers'];
+  sources: RecoveryReportPayload['sources'];
+}) {
+  if (trackingLabels.length === 0 && trackingNumbers.length === 0 && sources.length === 0) return null;
   return (
-    <div className="space-y-2.5">
-      {rows.map((r) => {
+    <section className="report-section mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+      <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+        <SectionTitle eyebrow="Attribution" title="Top tracking labels" subtitle="The CTM tracking-line label that fielded the call." />
+        <CountList rows={trackingLabels.map((r) => ({ label: r.label, count: r.count }))} accent="primary" />
+      </div>
+      <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+        <SectionTitle eyebrow="Attribution" title="Top tracking numbers" subtitle="The dialed-in tracking number per CTM line." />
+        <CountList
+          rows={trackingNumbers.map((r) => ({ label: r.number, count: r.count }))}
+          accent="primary"
+          mono
+        />
+      </div>
+      <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
+        <SectionTitle eyebrow="Attribution" title="Top sources" subtitle="CTM source string variants we caught for Recovery.com." />
+        <CountList rows={sources.map((r) => ({ label: r.label, count: r.count }))} accent="emerald" />
+      </div>
+    </section>
+  );
+}
+
+function CountList({
+  rows,
+  accent,
+  mono = false,
+}: {
+  rows: { label: string; count: number }[];
+  accent: 'primary' | 'emerald';
+  mono?: boolean;
+}) {
+  if (rows.length === 0) {
+    return <p className="text-xs text-foreground/45 italic">No data in this window.</p>;
+  }
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  const tone = accent === 'primary' ? 'bg-primary/70' : 'bg-emerald-500';
+  return (
+    <ul className="space-y-2.5">
+      {rows.slice(0, 12).map((r) => {
         const pct = (r.count / max) * 100;
-        const tone =
-          r.range === '75-100'
-            ? 'bg-emerald-500'
-            : r.range === '60-74'
-              ? 'bg-emerald-400'
-              : r.range === '40-59'
-                ? 'bg-amber-400'
-                : r.range === '20-39'
-                  ? 'bg-orange-400'
-                  : 'bg-red-400';
         return (
-          <div key={r.range}>
-            <div className="flex items-center justify-between text-[11px] text-foreground/65 mb-1">
-              <span className="font-semibold">{r.label}</span>
-              <span className="tabular-nums">{r.count}</span>
+          <li key={r.label}>
+            <div className="flex items-center justify-between text-[12px] mb-1">
+              <span className={`text-foreground/80 truncate ${mono ? 'font-mono text-[11.5px]' : ''}`}>{r.label}</span>
+              <span className="text-foreground/55 tabular-nums shrink-0 ml-2">{r.count}</span>
             </div>
-            <div className="h-2 bg-warm-bg rounded-full overflow-hidden">
+            <div className="h-1.5 bg-warm-bg rounded-full overflow-hidden">
               <div className={`h-full ${tone} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
             </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function SentimentBars({ rows }: { rows: RecoveryReportPayload['sentiment'] }) {
-  const total = rows.reduce((sum, r) => sum + r.count, 0);
-  if (total === 0) {
-    return <p className="text-xs text-foreground/45 italic">No scored calls yet.</p>;
-  }
-  const tone = (k: string) =>
-    k === 'positive'
-      ? 'bg-emerald-500'
-      : k === 'negative'
-        ? 'bg-red-500'
-        : k === 'neutral'
-          ? 'bg-slate-400'
-          : 'bg-foreground/30';
-  return (
-    <div className="space-y-2.5">
-      {rows.map((r) => {
-        const pct = total > 0 ? (r.count / total) * 100 : 0;
-        return (
-          <div key={r.key}>
-            <div className="flex items-center justify-between text-[11px] text-foreground/65 mb-1">
-              <span className="font-semibold capitalize">{r.key}</span>
-              <span className="tabular-nums">{r.count} · {Math.round(pct)}%</span>
-            </div>
-            <div className="h-2 bg-warm-bg rounded-full overflow-hidden">
-              <div className={`h-full ${tone(r.key)} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ClientTypeList({ rows }: { rows: RecoveryReportPayload['clientTypes'] }) {
-  if (rows.length === 0) {
-    return <p className="text-xs text-foreground/45 italic">No client-type tags yet.</p>;
-  }
-  const total = rows.reduce((sum, r) => sum + r.count, 0);
-  return (
-    <ul className="space-y-2">
-      {rows.slice(0, 8).map((r) => {
-        const pct = total > 0 ? Math.round((r.count / total) * 100) : 0;
-        return (
-          <li key={r.label} className="flex items-center justify-between text-[12px]">
-            <span className="text-foreground/75">{r.label}</span>
-            <span className="text-foreground/55 tabular-nums">{r.count} <span className="text-foreground/35">· {pct}%</span></span>
           </li>
         );
       })}
-      {rows.length > 8 && (
-        <li className="text-[11px] text-foreground/45 italic pt-1">
-          + {rows.length - 8} more
-        </li>
+      {rows.length > 12 && (
+        <li className="text-[11px] text-foreground/45 italic pt-1">+ {rows.length - 12} more</li>
       )}
     </ul>
   );
 }
 
-// ─── Operator scoreboard ─────────────────────────────────────────
+// ─── Geography (cities + states) ───────────────────────────────
 
-function OperatorScoreboard({ rows }: { rows: RecoveryReportPayload['operators'] }) {
-  if (rows.length === 0) return null;
+function GeoRow({
+  cities,
+  states,
+}: {
+  cities: RecoveryReportPayload['cities'];
+  states: RecoveryReportPayload['states'];
+}) {
+  if (cities.length === 0 && states.length === 0) return null;
   return (
     <section className="report-section mt-8 rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
-      <SectionTitle eyebrow="Team" title="Operator handling" subtitle="Who answered Recovery.com calls and how often the call landed in the meaningful or high-fit bucket." />
-      <div className="overflow-x-auto -mx-1">
-        <table className="w-full text-sm">
-          <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
-            <tr>
-              <th className="px-3 py-2 rounded-l-lg">Operator</th>
-              <th className="px-3 py-2 text-right">Calls</th>
-              <th className="px-3 py-2 text-right">Meaningful</th>
-              <th className="px-3 py-2 text-right rounded-r-lg">High fit</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-black/5">
-            {rows.map((r) => (
-              <tr key={r.name} className="align-middle">
-                <td className="px-3 py-2.5 font-semibold text-foreground">{r.name}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums">{r.count}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700 font-semibold">
-                  {r.meaningful}
-                </td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-primary font-semibold">
-                  {r.highFit}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <SectionTitle eyebrow="Geography" title="Where callers are dialing from" subtitle="Top cities and states inferred from CTM caller-location data." />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50 mb-2">Top cities</p>
+          {cities.length === 0 ? (
+            <p className="text-xs text-foreground/45 italic">No city data in this window.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
+                <tr>
+                  <th className="px-3 py-2 rounded-l-lg">City</th>
+                  <th className="px-3 py-2">State</th>
+                  <th className="px-3 py-2 text-right rounded-r-lg">Calls</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/5">
+                {cities.map((r, i) => (
+                  <tr key={`${r.city}-${i}`}>
+                    <td className="px-3 py-2.5 font-semibold text-foreground">{r.city}</td>
+                    <td className="px-3 py-2.5 text-foreground/65">{r.state ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-primary">{r.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground/50 mb-2">Top states</p>
+          {states.length === 0 ? (
+            <p className="text-xs text-foreground/45 italic">No state data in this window.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {states.slice(0, 10).map((r) => {
+                const total = states.reduce((s, x) => s + x.count, 0) || 1;
+                const pct = (r.count / total) * 100;
+                return (
+                  <li key={r.state} className="text-[12px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-foreground/75">{r.state}</span>
+                      <span className="text-foreground/55 tabular-nums">
+                        {r.count} <span className="text-foreground/35">· {pct.toFixed(0)}%</span>
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 bg-warm-bg rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -853,7 +909,7 @@ function CallLogSection({ rows }: { rows: CallLogRow[] }) {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) =>
-      [r.caller_number, r.caller_name, r.call_name, r.operator_name, r.client_type, r.summary]
+      [r.caller_number, r.tracking_label, r.tracking_number, r.source, r.city, r.state]
         .filter(Boolean)
         .some((v) => (v as string).toLowerCase().includes(q)),
     );
@@ -868,7 +924,7 @@ function CallLogSection({ rows }: { rows: CallLogRow[] }) {
         <SectionTitle
           eyebrow="Detail"
           title="Comprehensive call log"
-          subtitle={`${rows.length.toLocaleString()} calls in this window. Click any row to open the full transcript and AI analysis.`}
+          subtitle={`${rows.length.toLocaleString()} calls in this window.`}
         />
         <div className="report-no-print w-full sm:w-auto">
           <input
@@ -878,7 +934,7 @@ function CallLogSection({ rows }: { rows: CallLogRow[] }) {
               setSearch(e.target.value);
               setPage(0);
             }}
-            placeholder="Search caller, operator, summary…"
+            placeholder="Search caller, tracking, location…"
             className="w-full sm:w-64 px-3 py-2 rounded-lg border border-black/10 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </div>
@@ -891,11 +947,10 @@ function CallLogSection({ rows }: { rows: CallLogRow[] }) {
               <th className="px-3 py-2 rounded-l-lg">When</th>
               <th className="px-3 py-2">Caller</th>
               <th className="px-3 py-2">Location</th>
+              <th className="px-3 py-2">Direction</th>
               <th className="px-3 py-2 text-right">Duration</th>
-              <th className="px-3 py-2 text-right">Fit</th>
-              <th className="px-3 py-2">Operator</th>
-              <th className="px-3 py-2">Client type</th>
-              <th className="px-3 py-2 rounded-r-lg">Summary</th>
+              <th className="px-3 py-2">Tracking line</th>
+              <th className="px-3 py-2 rounded-r-lg">Source</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-black/5">
@@ -905,43 +960,36 @@ function CallLogSection({ rows }: { rows: CallLogRow[] }) {
                   {new Date(r.called_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                 </td>
                 <td className="px-3 py-2.5">
-                  <div className="font-semibold text-foreground">
-                    {r.caller_name || r.caller_number || 'Unknown'}
+                  <div className="font-semibold text-foreground tabular-nums">
+                    {r.caller_number || 'Unknown'}
                   </div>
-                  {r.caller_name && r.caller_number && (
-                    <div className="text-[11px] text-foreground/45 tabular-nums">{r.caller_number}</div>
+                  {r.voicemail && (
+                    <div className="text-[11px] text-amber-700 font-semibold">Voicemail</div>
                   )}
                 </td>
                 <td className="px-3 py-2.5 text-foreground/65">
                   {[r.city, r.state].filter(Boolean).join(', ') || '—'}
                 </td>
+                <td className="px-3 py-2.5 text-foreground/65 capitalize">
+                  {r.direction || '—'}
+                </td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-foreground/65">
                   {fmtDuration(r.duration)}
                 </td>
-                <td className="px-3 py-2.5 text-right">
-                  <FitCell value={r.fit_score} />
-                </td>
-                <td className="px-3 py-2.5 text-foreground/65 whitespace-nowrap">
-                  {r.operator_name || <span className="text-foreground/35">—</span>}
-                </td>
-                <td className="px-3 py-2.5 text-foreground/65 whitespace-nowrap">
-                  {r.client_type || <span className="text-foreground/35">—</span>}
-                </td>
-                <td className="px-3 py-2.5 text-foreground/75 max-w-[420px]">
-                  {r.summary ? (
-                    <span className="line-clamp-2 leading-snug">{r.summary}</span>
-                  ) : (
-                    <span className="text-foreground/35 italic">No analysis</span>
+                <td className="px-3 py-2.5 text-foreground/75">
+                  {r.tracking_label || <span className="text-foreground/35">—</span>}
+                  {r.tracking_number && (
+                    <div className="text-[11px] text-foreground/45 font-mono tabular-nums">{r.tracking_number}</div>
                   )}
-                  {r.next_steps && (
-                    <div className="mt-1 text-[11px] text-primary line-clamp-1">→ {r.next_steps}</div>
-                  )}
+                </td>
+                <td className="px-3 py-2.5 text-foreground/65">
+                  {r.source || <span className="text-foreground/35">—</span>}
                 </td>
               </tr>
             ))}
             {pageRows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-10 text-center text-foreground/45 text-sm">
+                <td colSpan={7} className="px-3 py-10 text-center text-foreground/45 text-sm">
                   No matching calls.
                 </td>
               </tr>
@@ -976,17 +1024,6 @@ function CallLogSection({ rows }: { rows: CallLogRow[] }) {
         </div>
       )}
     </section>
-  );
-}
-
-function FitCell({ value }: { value: number | null }) {
-  if (value == null) return <span className="text-foreground/35">—</span>;
-  const tone =
-    value >= 75 ? 'text-emerald-700 bg-emerald-50' : value >= 60 ? 'text-emerald-600 bg-emerald-50/70' : value >= 40 ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50';
-  return (
-    <span className={`inline-flex items-center justify-center min-w-[2.25rem] px-2 py-0.5 rounded-md text-[11px] font-bold tabular-nums ${tone}`}>
-      {value}
-    </span>
   );
 }
 
@@ -1416,8 +1453,8 @@ function AnalyticsCampaigns({
   rows: NonNullable<AnalyticsPayload['campaigns']>;
 }) {
   // Filter the noise rows GA always returns.
-  const meaningful = rows.filter((r) => r.name && !/^\(not set\)|^\(direct\)$/i.test(r.name));
-  if (meaningful.length === 0) return null;
+  const named = rows.filter((r) => r.name && !/^\(not set\)|^\(direct\)$/i.test(r.name));
+  if (named.length === 0) return null;
   return (
     <div className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6 shadow-sm">
       <SectionTitle eyebrow="Campaigns" title="UTM campaigns in play" subtitle="Named campaigns Recovery.com / Rehabpath are pushing toward us." />
@@ -1431,7 +1468,7 @@ function AnalyticsCampaigns({
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5">
-          {meaningful.slice(0, 10).map((r) => (
+          {named.slice(0, 10).map((r) => (
             <tr key={r.name}>
               <td className="px-3 py-2.5 font-mono text-[12px] text-foreground/85">{r.name}</td>
               <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-primary">{r.sessions}</td>
@@ -1627,34 +1664,6 @@ function AnalyticsLandingPages({ rows }: { rows: AnalyticsPayload['landing'] }) 
   );
 }
 
-function AnalyticsCountries({ rows }: { rows: AnalyticsPayload['countries'] }) {
-  if (!rows || rows.length === 0) return null;
-  const total = rows.reduce((s, r) => s + r.sessions, 0) || 1;
-  return (
-    <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
-      <SectionTitle eyebrow="Geo" title="Top countries" />
-      <ul className="space-y-1.5">
-        {rows.slice(0, 8).map((r) => {
-          const pct = (r.sessions / total) * 100;
-          return (
-            <li key={r.country} className="text-[12px]">
-              <div className="flex items-center justify-between">
-                <span className="text-foreground/75 truncate">{r.country || '(unknown)'}</span>
-                <span className="text-foreground/55 tabular-nums">
-                  {r.sessions} <span className="text-foreground/35">· {pct.toFixed(0)}%</span>
-                </span>
-              </div>
-              <div className="mt-1 h-1.5 bg-warm-bg rounded-full overflow-hidden">
-                <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
 function AnalyticsDevices({ rows }: { rows: AnalyticsPayload['devices'] }) {
   if (!rows || rows.length === 0) return null;
   const total = rows.reduce((s, r) => s + r.sessions, 0) || 1;
@@ -1755,4 +1764,3 @@ function ReportFooter() {
     </footer>
   );
 }
-
