@@ -47,15 +47,21 @@ const WIP_TABS: Tab[] = [
 
 function isTabActive(pathname: string, href: string): boolean {
   if (href === '/app/seo') return pathname === '/app/seo';
-  // The Backlinks primary tab covers both the Semrush link profile
-  // and the directory tracker — Directories is one of its inner
-  // sub-tabs, so the parent stays highlighted there too.
-  if (href === '/app/seo/backlinks') {
-    return (
-      pathname === '/app/seo/backlinks'
-      || pathname.startsWith('/app/seo/backlinks/')
-      || pathname === '/app/seo/directories'
-      || pathname.startsWith('/app/seo/directories/')
+  // The Backlinks primary tab covers everything reachable from
+  // LinksSubNav — Directories, Backlinks, and the four outreach
+  // trackers (press releases / guest posts / comments / forums) —
+  // so the parent stays highlighted on every one of those routes.
+  if (href === '/app/seo/backlinks' || href === '/app/seo/directories') {
+    const linksRoutes = [
+      '/app/seo/backlinks',
+      '/app/seo/directories',
+      '/app/seo/press-releases',
+      '/app/seo/guest-posts',
+      '/app/seo/comments',
+      '/app/seo/forums',
+    ];
+    return linksRoutes.some(
+      (r) => pathname === r || pathname.startsWith(`${r}/`),
     );
   }
   return pathname === href || pathname.startsWith(`${href}/`);

@@ -18,9 +18,16 @@ interface InnerTab {
 const INNER_TABS: InnerTab[] = [
   // Directories first — that's where day-to-day work happens
   // (claiming + tracking citations); Backlinks is a quieter
-  // Semrush snapshot that admins glance at less often.
+  // Semrush snapshot that admins glance at less often. The four
+  // outreach trackers (press releases / guest posts / comments /
+  // forums) follow, each one a manual list of prospects we're
+  // working through with a per-row chat thread.
   { href: '/app/seo/directories', label: 'Directories', hint: 'Off-site listings to claim' },
   { href: '/app/seo/backlinks', label: 'Backlinks', hint: 'Semrush link profile' },
+  { href: '/app/seo/press-releases', label: 'Press releases', hint: 'Press release placements + pitches' },
+  { href: '/app/seo/guest-posts', label: 'Guest posts', hint: 'Guest-post outreach + placements' },
+  { href: '/app/seo/comments', label: 'Comment', hint: 'Comment placements on relevant articles' },
+  { href: '/app/seo/forums', label: 'Forum', hint: 'Forum threads we are contributing to' },
 ];
 
 export default function LinksSubNav() {
