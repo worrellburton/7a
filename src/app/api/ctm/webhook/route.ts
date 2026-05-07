@@ -117,28 +117,9 @@ export async function POST(req: NextRequest) {
   const row = mapCall(call, accountId);
 
   const supabase = getAdminSupabase();
-  // Flag this call for auto-analysis. The actual scoring runs from the
-  // background worker so we don't block the webhook response (CTM
-  // retries aggressively on slow acks).
-  const rowWithFlag = { ...row, needs_score: true };
-  const { error } = await supabase.from('calls').upsert(rowWithFlag, { onConflict: 'ctm_id' });
+  const { error } = await supabase.from('calls').upsert(row, { onConflict: 'ctm_id' });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  // If the call now has audio (recording finalized) but a stale AI
-  // score from the in-progress era is sitting in cache, drop it so
-  // auto-score redoes the analysis with the actual recording.
-  // We only target metadata-only rows (the score prompt forces
-  // summary to start with "No audio available…" on that path) and
-  // legacy "in progress" call_name placeholders. Real audio-based
-  // scores stay put.
-  if (row.audio_url) {
-    await supabase
-      .from('call_ai_scores')
-      .delete()
-      .eq('call_id', row.ctm_id)
-      .or('summary.ilike.No audio available%,call_name.ilike.%in progress%,call_name.ilike.%in-progress%');
   }
 
   return NextResponse.json({ ok: true, ctm_id: row.ctm_id });
