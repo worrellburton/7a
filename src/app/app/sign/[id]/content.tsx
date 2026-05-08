@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { uploadFile } from '@/lib/upload';
 import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
@@ -328,6 +329,22 @@ export default function SignContent() {
     setSigned(true);
     setSaving(false);
     if (user) {
+      // Close any pending jd_reminder lever-pull rows that pointed at
+      // this signature. Without this the global LeverPullListener would
+      // re-pop the "sign your JD" modal on the user's next page load
+      // until a super admin manually marked the row completed —
+      // exactly the loop Tracey hit before this fix landed. Defensive
+      // (the listener ALSO drops self-resolved rows on read), but the
+      // proactive write keeps the queue clean for analytics + admin
+      // pages that still iterate lever_pulls.
+      void supabase
+        .from('lever_pulls')
+        .update({ status: 'completed', acknowledged_at: nowIso })
+        .eq('lever_type', 'jd_reminder')
+        .eq('target_user_id', user.id)
+        .eq('status', 'pending')
+        .filter('metadata->>jd_signature_id', 'eq', sig.id);
+
       logActivity({
         userId: user.id,
         type: 'jd.signed',
