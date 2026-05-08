@@ -22,8 +22,9 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 // ------------------------------------------------------------
 
 type View = 'month' | 'week' | 'day';
-type ViewMode = 'groups' | 'team' | 'events';
+type ViewMode = 'groups' | 'team' | 'events' | 'phones';
 type SubjectKind = 'group' | 'user' | 'event';
+type EventCategory = 'team' | 'phones';
 
 interface EventRow {
   id: string;
@@ -37,6 +38,7 @@ interface EventRow {
   notes: string | null;
   created_by: string | null;
   repeat_rule?: RepeatRule | null;
+  category?: EventCategory; // 'team' (default) or 'phones'
 }
 
 type RepeatRule = 'daily' | 'weekdays' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
@@ -96,7 +98,17 @@ const DEFAULT_SHIFTS: Shift[] = [
   { id: 'overnight', name: 'Overnight', start: '22:30', end: '06:30' },
 ];
 
+// Phones runs a different shift bundle from the Team schedule —
+// 9–5 day coverage and 5–9 evening, no overnight. Edits live in
+// localStorage under PHONE_SHIFTS_STORAGE_KEY so changes don't
+// stomp the team's Morning/Afternoon/Overnight bundle.
+const DEFAULT_PHONE_SHIFTS: Shift[] = [
+  { id: 'phones-day', name: 'Day', start: '09:00', end: '17:00' },
+  { id: 'phones-evening', name: 'Evening', start: '17:00', end: '21:00' },
+];
+
 const SHIFTS_STORAGE_KEY = 'sa-calendar-shifts-v1';
+const PHONE_SHIFTS_STORAGE_KEY = 'sa-calendar-phone-shifts-v1';
 const VIEWMODE_STORAGE_KEY = 'sa-calendar-viewmode-v1';
 
 // ------------------------------------------------------------
@@ -377,8 +389,15 @@ export default function CalendarContent() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [shifts, setShifts] = useState<Shift[]>(DEFAULT_SHIFTS);
+  const [phoneShifts, setPhoneShifts] = useState<Shift[]>(DEFAULT_PHONE_SHIFTS);
   const [shiftSettingsOpen, setShiftSettingsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('team');
+  // Active shift bundle — Phones uses its own 9–5 / 5–9 list, every
+  // other tab keeps the team's Morning / Afternoon / Overnight bundle.
+  // Wire this through the rest of the page so shift rows + drop-zone
+  // calculations + the "in this shift" lookup all see the same set.
+  const activeShifts = viewMode === 'phones' ? phoneShifts : shifts;
+  const activeCategory: EventCategory = viewMode === 'phones' ? 'phones' : 'team';
   const [drag, setDrag] = useState<DragInfo | null>(null);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const dragCtxValue = useMemo<DragCtxValue>(
@@ -411,23 +430,40 @@ export default function CalendarContent() {
     } catch {
       /* ignore malformed storage */
     }
+    try {
+      const raw = window.localStorage.getItem(PHONE_SHIFTS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Shift[];
+      if (Array.isArray(parsed) && parsed.length === 2) setPhoneShifts(parsed);
+    } catch {
+      /* ignore malformed storage */
+    }
   }, []);
 
   const saveShifts = useCallback((next: Shift[]) => {
+    if (viewMode === 'phones') {
+      setPhoneShifts(next);
+      try {
+        window.localStorage.setItem(PHONE_SHIFTS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
     setShifts(next);
     try {
       window.localStorage.setItem(SHIFTS_STORAGE_KEY, JSON.stringify(next));
     } catch {
       /* storage full / private mode — ignore */
     }
-  }, []);
+  }, [viewMode]);
 
   // Hydrate view mode from localStorage on mount.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const raw = window.localStorage.getItem(VIEWMODE_STORAGE_KEY);
-      if (raw === 'groups' || raw === 'team' || raw === 'events') {
+      if (raw === 'groups' || raw === 'team' || raw === 'events' || raw === 'phones') {
         setViewMode(raw);
       } else if (raw === 'shifts' || raw === 'hybrid') {
         // Legacy values — collapse to the new 'team' mode.
@@ -579,23 +615,27 @@ export default function CalendarContent() {
       if (payload.kind === 'user' && resolvedStart) {
         const targetH = dbTimeToHours(resolvedStart);
         const targetShift =
-          targetH == null ? null : shifts.find((s) => shiftContainsHour(s, targetH));
+          targetH == null ? null : activeShifts.find((s) => shiftContainsHour(s, targetH));
         if (targetShift) {
           const iso = toISODate(date);
           // Include projected repeat occurrences via eventsByDate, so a
           // daily-repeating user can't also be dropped ad-hoc into the
-          // same shift on any other day.
+          // same shift on any other day. Restrict the clash check to
+          // the same category so a Phones drop doesn't get blocked by
+          // an existing Team shift that happens to overlap the hour.
           const dayEvents = eventsByDate.get(iso) || [];
           const clash = dayEvents.some(
             (ev) =>
               ev.subject_kind === 'user' &&
               ev.subject_id === payload.id &&
-              shiftForEvent(ev, shifts) === targetShift.id
+              (ev.category ?? 'team') === activeCategory &&
+              shiftForEvent(ev, activeShifts) === targetShift.id
           );
           if (clash) return;
         }
       }
       const isEvent = payload.kind === 'event';
+      const eventCategory: EventCategory = payload.kind === 'user' ? activeCategory : 'team';
       const optimistic: EventRow = {
         id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         title: payload.label,
@@ -607,6 +647,7 @@ export default function CalendarContent() {
         color: payload.color,
         notes: '',
         created_by: user.id,
+        category: eventCategory,
       };
       setEvents((prev) => [...prev, optimistic]);
 
@@ -622,6 +663,7 @@ export default function CalendarContent() {
           subject_id: optimistic.subject_id,
           color: optimistic.color,
           created_by: optimistic.created_by,
+          category: optimistic.category,
         },
       });
       if (inserted && (inserted as EventRow).id) {
@@ -641,7 +683,7 @@ export default function CalendarContent() {
         setEvents((prev) => prev.filter((ev) => ev.id !== optimistic.id));
       }
     },
-    [user, events, shifts, eventsByDate]
+    [user, events, activeShifts, activeCategory, eventsByDate]
   );
 
   // ---- Reschedule an existing event by dragging it ----
@@ -676,10 +718,15 @@ export default function CalendarContent() {
       }
       // Guard: reschedule cannot put the same user into the same shift twice
       // on the same day. Only applies to user events with a resolved start.
+      // Use the *event's own* shift bundle (phones vs team) so a Phones
+      // event reschedules against phone shifts even if the user dragged
+      // it from the Team tab, and vice-versa.
       if (existing.subject_kind === 'user' && newStart) {
+        const evCategory: EventCategory = existing.category ?? 'team';
+        const evShifts = evCategory === 'phones' ? phoneShifts : shifts;
         const targetH = dbTimeToHours(newStart);
         const targetShift =
-          targetH == null ? null : shifts.find((s) => shiftContainsHour(s, targetH));
+          targetH == null ? null : evShifts.find((s) => shiftContainsHour(s, targetH));
         if (targetShift) {
           const dayEvents = eventsByDate.get(newDate) || [];
           const clash = dayEvents.some(
@@ -687,7 +734,8 @@ export default function CalendarContent() {
               masterEventId(ev.id) !== eventId &&
               ev.subject_kind === 'user' &&
               ev.subject_id === existing.subject_id &&
-              shiftForEvent(ev, shifts) === targetShift.id
+              (ev.category ?? 'team') === evCategory &&
+              shiftForEvent(ev, evShifts) === targetShift.id
           );
           if (clash) return;
         }
@@ -732,7 +780,7 @@ export default function CalendarContent() {
         });
       }
     },
-    [events, shifts, eventsByDate, user]
+    [events, shifts, phoneShifts, eventsByDate, user]
   );
 
   // ---- Resize an event (change start_time or end_time) ----
@@ -838,11 +886,15 @@ export default function CalendarContent() {
   const handleClearShift = useCallback(
     async (date: Date, shift: Shift) => {
       const iso = toISODate(date);
+      // Clear only events in the *currently visible* category so the
+      // Phones tab's "clear shift" button doesn't sweep up team events
+      // that happen to share the same hour window.
       const toClear = events.filter(
         (ev) =>
           ev.event_date === iso &&
           ev.subject_kind === 'user' &&
-          shiftForEvent(ev, shifts) === shift.id
+          (ev.category ?? 'team') === activeCategory &&
+          shiftForEvent(ev, activeShifts) === shift.id
       );
       if (toClear.length === 0) return;
       const ids = toClear.map((e) => masterEventId(e.id));
@@ -856,7 +908,7 @@ export default function CalendarContent() {
       const allOk = results.every((r) => r && (r as { ok?: boolean }).ok);
       if (!allOk) setEvents(prev);
     },
-    [events, shifts]
+    [events, activeShifts, activeCategory]
   );
 
   // ---- Set AOD (Assistant on Duty) for a given day ----
@@ -938,7 +990,7 @@ export default function CalendarContent() {
       {/* Top-center Groups/Team toggle, with Month/Week/Day directly below. */}
       <div className="mb-3 flex flex-col items-center gap-2">
         <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
-          {(['groups', 'team', 'events'] as ViewMode[]).map((m) => (
+          {(['groups', 'team', 'phones', 'events'] as ViewMode[]).map((m) => (
             <button
               key={m}
               onClick={() => saveViewMode(m)}
@@ -952,7 +1004,9 @@ export default function CalendarContent() {
                 m === 'groups'
                   ? 'Show group events; drag from Groups panel'
                   : m === 'team'
-                  ? 'Show shift buckets with team members; drag from Team panel'
+                  ? 'Show team shift buckets (Morning / Afternoon / Overnight)'
+                  : m === 'phones'
+                  ? 'Show phone-coverage shift buckets (9–5 / 5–9)'
                   : 'Show standalone events; create new ones from the Events panel'
               }
             >
@@ -1066,7 +1120,8 @@ export default function CalendarContent() {
               eventsByDate={eventsByDate}
               usersById={usersById}
               aodByDate={aodByDate}
-              shifts={shifts}
+              shifts={activeShifts}
+              activeCategory={activeCategory}
               viewMode={viewMode}
               onEventClick={setEditingId}
               onDayClick={handleDayClick}
@@ -1079,7 +1134,8 @@ export default function CalendarContent() {
               eventsByDate={eventsByDate}
               usersById={usersById}
               aodByDate={aodByDate}
-              shifts={shifts}
+              shifts={activeShifts}
+              activeCategory={activeCategory}
               viewMode={viewMode}
               onSetAod={handleSetAod}
               onClearAod={handleClearAod}
@@ -1107,7 +1163,8 @@ export default function CalendarContent() {
               eventsByDate={eventsByDate}
               usersById={usersById}
               aodByDate={aodByDate}
-              shifts={shifts}
+              shifts={activeShifts}
+              activeCategory={activeCategory}
               viewMode={viewMode}
               onCreate={(date, hour, payload) => handleCreate(payload, date, hour)}
               onCreateInShift={(date, payload, shift) =>
@@ -1144,7 +1201,7 @@ export default function CalendarContent() {
 
       {shiftSettingsOpen && (
         <ShiftSettingsModal
-          shifts={shifts}
+          shifts={activeShifts}
           onClose={() => setShiftSettingsOpen(false)}
           onSave={(next) => {
             saveShifts(next);
@@ -1279,7 +1336,7 @@ function Palette({
         </div>
       </div>
 
-      {tab === 'team' && (
+      {(tab === 'team' || tab === 'phones') && (
         <div
           className="px-3 pb-2 flex items-center justify-between gap-2 text-[11px]"
           style={{ fontFamily: 'var(--font-body)' }}
@@ -1392,8 +1449,10 @@ function Palette({
       <div className="p-3 border-t border-gray-100 text-[11px] text-foreground/40 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
         {tab === 'events'
           ? 'Add a new event above, then drag it onto any day to schedule it.'
-          : tab === 'team' && multiSelect
+          : (tab === 'team' || tab === 'phones') && multiSelect
           ? 'Shift-click or tick team members to select multiple, then drag any selected chip to schedule everyone at once.'
+          : tab === 'phones'
+          ? 'Drag a team member into a Day (9–5) or Evening (5–9) shift to put them on phone coverage. Shift-click several to batch-schedule.'
           : 'Drag a team member into a shift, or shift-click several to batch-schedule them. Drop a team member on the upper-left AOC slot to set Assistant on Duty.'}
       </div>
     </div>
@@ -2231,6 +2290,7 @@ function MonthView({
   usersById,
   aodByDate,
   shifts,
+  activeCategory,
   viewMode,
   onEventClick,
   onDayClick,
@@ -2242,6 +2302,7 @@ function MonthView({
   usersById: Map<string, UserRow>;
   aodByDate: Map<string, string>;
   shifts: Shift[];
+  activeCategory: EventCategory;
   viewMode: ViewMode;
   onEventClick: (id: string) => void;
   onDayClick: (date: Date) => void;
@@ -2274,8 +2335,12 @@ function MonthView({
           // filters further inside the Groups branch; Events mode shows only
           // standalone events.
           const dayEvents =
-            viewMode === 'team'
-              ? rawDayEvents.filter((ev) => ev.subject_kind === 'user')
+            viewMode === 'team' || viewMode === 'phones'
+              ? rawDayEvents.filter(
+                  (ev) =>
+                    ev.subject_kind === 'user' &&
+                    (ev.category ?? 'team') === activeCategory,
+                )
               : viewMode === 'events'
               ? rawDayEvents.filter((ev) => ev.subject_kind === 'event')
               : rawDayEvents;
@@ -2452,6 +2517,7 @@ function WeekView({
   usersById,
   aodByDate,
   shifts,
+  activeCategory,
   viewMode,
   onSetAod,
   onClearAod,
@@ -2469,6 +2535,7 @@ function WeekView({
   usersById: Map<string, UserRow>;
   aodByDate: Map<string, string>;
   shifts: Shift[];
+  activeCategory: EventCategory;
   viewMode: ViewMode;
   onSetAod: (date: Date, userId: string) => void;
   onClearAod: (date: Date) => void;
@@ -2571,6 +2638,9 @@ function WeekView({
                   />
                 </div>
               )}
+              {/* Phones doesn't carry the AOD concept — it's a coverage
+                  schedule, not an admissions schedule. So no AodSlot
+                  here even though shift rows still render below. */}
             </button>
           );
         })}
@@ -2630,8 +2700,8 @@ function WeekView({
         </div>
         {/* Shift overlay — each shift rendered as a drop zone inside its
             own day column, positioned by the shift's actual time range.
-            Team view only (groups don't live inside shifts). */}
-        {viewMode === 'team' && shifts.length > 0 && (
+            Team / Phones views only (groups don't live inside shifts). */}
+        {(viewMode === 'team' || viewMode === 'phones') && shifts.length > 0 && (
           <div
             className="pointer-events-none absolute inset-0 grid"
             style={{ gridTemplateColumns: '64px repeat(7, minmax(0, 1fr))' }}
@@ -2662,7 +2732,10 @@ function WeekView({
                   }
                   if (segments.length === 0) return null;
                   const shiftUserEvents = (eventsByDate.get(toISODate(d)) || []).filter(
-                    (ev) => ev.subject_kind === 'user' && shiftForEvent(ev, shifts) === s.id
+                    (ev) =>
+                      ev.subject_kind === 'user' &&
+                      (ev.category ?? 'team') === activeCategory &&
+                      shiftForEvent(ev, shifts) === s.id,
                   );
                   // Put label + avatars in the largest visible segment so
                   // overnight shifts headline their post-midnight slab.
@@ -2752,11 +2825,16 @@ function WeekView({
               if (viewMode === 'groups') return ev.subject_kind === 'group';
               // Events view shows only standalone event-kind events.
               if (viewMode === 'events') return ev.subject_kind === 'event';
-              // Team view: user events are rendered as avatars inside their
-              // shift block, not time-positioned. Only render user events
-              // that fall outside any shift (fallback) plus non-user events.
+              // Team / Phones view: user events live inside their shift
+              // block as avatars, not time-positioned. Only render user
+              // events from the active category that fall outside any
+              // shift (fallback) plus non-user events. Other-category
+              // user events are hidden entirely.
               if (ev.subject_kind === 'group') return false;
-              if (ev.subject_kind === 'user') return shiftForEvent(ev, shifts) == null;
+              if (ev.subject_kind === 'user') {
+                if ((ev.category ?? 'team') !== activeCategory) return false;
+                return shiftForEvent(ev, shifts) == null;
+              }
               return true;
             });
             const layout = computeEventLayout(dayEvents);
@@ -2797,6 +2875,7 @@ function DayView({
   usersById,
   aodByDate,
   shifts,
+  activeCategory,
   viewMode,
   onCreate,
   onCreateInShift,
@@ -2813,6 +2892,7 @@ function DayView({
   usersById: Map<string, UserRow>;
   aodByDate: Map<string, string>;
   shifts: Shift[];
+  activeCategory: EventCategory;
   viewMode: ViewMode;
   onCreate: (date: Date, hour: number, payload: DragPayload) => void;
   onCreateInShift: (date: Date, payload: DragPayload, shift: Shift) => void;
@@ -2827,19 +2907,20 @@ function DayView({
   const iso = toISODate(day);
   const allDayEvents = eventsByDate.get(iso) || [];
   // Groups view shows only group events (no shift rail); Events view shows
-  // only standalone events; Team view shows user/shift events plus the rail.
-  const dayEvents = allDayEvents.filter((ev) =>
-    viewMode === 'groups'
-      ? ev.subject_kind === 'group'
-      : viewMode === 'events'
-      ? ev.subject_kind === 'event'
-      : ev.subject_kind === 'user' || ev.subject_kind === 'event'
-  );
+  // only standalone events; Team / Phones view shows user/shift events
+  // (filtered to the active category) plus standalone events.
+  const dayEvents = allDayEvents.filter((ev) => {
+    if (viewMode === 'groups') return ev.subject_kind === 'group';
+    if (viewMode === 'events') return ev.subject_kind === 'event';
+    if (ev.subject_kind === 'user') return (ev.category ?? 'team') === activeCategory;
+    return ev.subject_kind === 'event';
+  });
   const timedEvents = dayEvents.filter((ev) => {
     if (parseTime(ev.start_time) == null) return false;
-    // In team view, user events are rendered as avatars inside their shift
-    // block. Skip them here unless they fall outside every shift.
-    if (viewMode === 'team' && ev.subject_kind === 'user') {
+    // In team / phones view, user events are rendered as avatars inside
+    // their shift block. Skip them here unless they fall outside every
+    // shift.
+    if ((viewMode === 'team' || viewMode === 'phones') && ev.subject_kind === 'user') {
       return shiftForEvent(ev, shifts) == null;
     }
     return true;
@@ -2931,7 +3012,7 @@ function DayView({
             block positioned at its actual time range inside the hour grid.
             Wrapping shifts (overnight) render as two segments so both the
             pre- and post-midnight portions are droppable. Team mode only. */}
-        {viewMode === 'team' && shifts.map((s) => {
+        {(viewMode === 'team' || viewMode === 'phones') && shifts.map((s) => {
           const startH = hhmmToHours(s.start);
           const endH = hhmmToHours(s.end);
           const wraps = endH <= startH;
@@ -2948,7 +3029,10 @@ function DayView({
           }
           if (segments.length === 0) return null;
           const shiftUserEvents = allDayEvents.filter(
-            (ev) => ev.subject_kind === 'user' && shiftForEvent(ev, shifts) === s.id
+            (ev) =>
+              ev.subject_kind === 'user' &&
+              (ev.category ?? 'team') === activeCategory &&
+              shiftForEvent(ev, shifts) === s.id,
           );
           // Render the label + avatar cluster in the *largest* visible
           // segment so overnight shifts show their headline content in the
