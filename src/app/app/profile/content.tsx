@@ -23,6 +23,7 @@ import {
   type CursorEffect,
   type CursorEffectId,
 } from '@/lib/cursor-effects';
+import EffectTile from './EffectTile';
 import { useEffect, useRef, useState } from 'react';
 
 const CURSOR_COLORS: { label: string; value: string }[] = [
@@ -1080,7 +1081,16 @@ function ProfileCursorTab({
       <div className="mt-6 pt-5 border-t border-gray-100">
         <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Cursor Effect</label>
         <p className="text-xs text-foreground/40 mb-3">Pick how your cursor looks for everyone in the portal. Each thumbnail shows a tiny live preview of the effect.</p>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {/* Phase 8/9 — bigger picker tiles with real-time mini-cursor
+            previews. Each tile is its own EffectTile (rAF loop, real
+            trail buffer, per-effect decoration). Selected tile gets
+            a primary ring, a soft tint background, a 1.02x scale,
+            and the cursor inside it speeds up so the active effect
+            reads at a glance. Hover lifts the tile -2px and brightens
+            the canvas. Grid stays 2-col mobile / 5-col desktop but
+            tiles are taller (h-24 vs h-16) so the cursor and trail
+            actually have room to breathe. */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {CURSOR_EFFECTS.map((eff) => {
             const active = cursorEffect === eff.id;
             return (
@@ -1090,26 +1100,45 @@ function ProfileCursorTab({
                 onClick={() => onCursorEffectChange(eff.id)}
                 aria-pressed={active}
                 title={`${eff.label} — ${eff.blurb}`}
-                className={`group relative flex flex-col items-stretch gap-1 rounded-xl border-2 transition-all p-2 ${
+                className={`group relative flex flex-col items-stretch gap-2 rounded-2xl border-2 p-2 will-change-transform ${
                   active
-                    ? 'border-primary bg-primary/5 shadow-sm'
-                    : 'border-gray-100 hover:border-foreground/20 hover:bg-warm-bg/30'
+                    ? 'border-primary bg-primary/[0.06] shadow-md scale-[1.03]'
+                    : 'border-gray-100 bg-white hover:border-foreground/20 hover:shadow-sm hover:-translate-y-0.5'
                 }`}
+                style={{
+                  transition:
+                    'transform 280ms cubic-bezier(0.16,1,0.3,1), border-color 200ms, background-color 200ms, box-shadow 280ms',
+                }}
               >
-                <div className="relative h-16 rounded-lg bg-warm-bg/40 overflow-hidden">
-                  <CursorEffectThumb
+                <div
+                  className={`relative h-24 rounded-xl overflow-hidden transition-all duration-300 ${
+                    active
+                      ? 'bg-gradient-to-br from-warm-bg/70 to-primary/[0.07] ring-1 ring-primary/25'
+                      : 'bg-warm-bg/40 group-hover:bg-warm-bg/60'
+                  }`}
+                >
+                  <EffectTile
                     effect={eff}
                     color={cursorColor}
                     avatarUrl={avatarUrl}
                     displayName={displayName}
+                    active={active}
                   />
                 </div>
                 <span
-                  className={`text-[11px] font-semibold ${active ? 'text-primary' : 'text-foreground/75'}`}
+                  className={`text-[12px] font-semibold tracking-tight transition-colors ${
+                    active ? 'text-primary' : 'text-foreground/70 group-hover:text-foreground'
+                  }`}
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {eff.label}
                 </span>
+                {active && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary shadow-[0_0_0_3px_rgba(216,137,102,0.18)]"
+                  />
+                )}
               </button>
             );
           })}
@@ -1519,235 +1548,3 @@ function CursorEffectPreviewLayer({
   return dot;
 }
 
-// Mini-preview rendered inside each picker swatch. Doesn't run the
-// real PresenceCursors render path — it just animates a small SVG /
-// CSS sketch keyed off CursorEffect.thumb.mode so the user can see
-// what each effect looks like at a glance. Phase 9 implements the
-// real renderers in PresenceCursors itself.
-function CursorEffectThumb({
-  effect,
-  color,
-  avatarUrl,
-  displayName,
-}: {
-  effect: CursorEffect;
-  color: string | null;
-  avatarUrl: string | null;
-  displayName: string | null;
-}) {
-  const tint = color ?? '#bc6b4a';
-  const mode = effect.thumb.mode;
-  const initial = (displayName || '?').trim().charAt(0).toUpperCase() || '?';
-  // The cursor head — actual user avatar where available, falling
-  // back to a colour-tinted initial. Sits ABOVE the effect decoration
-  // (trail / sparkles / rings) the same way it does in the live
-  // PresenceCursors render path, so the picker tile previews the
-  // exact composition teammates will see.
-  const head = avatarUrl ? (
-    <span
-      aria-hidden="true"
-      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden"
-      style={{
-        width: 16,
-        height: 16,
-        boxShadow: `0 0 0 1.5px ${tint}, 0 0 6px ${tint}77`,
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={avatarUrl}
-        alt=""
-        width={16}
-        height={16}
-        className="block w-full h-full object-cover"
-      />
-    </span>
-  ) : (
-    <span
-      aria-hidden="true"
-      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full text-white font-bold flex items-center justify-center"
-      style={{
-        width: 16,
-        height: 16,
-        backgroundColor: tint,
-        fontSize: 9,
-        boxShadow: `0 0 0 1.5px #ffffff, 0 0 6px ${tint}77`,
-      }}
-    >
-      {initial}
-    </span>
-  );
-  // Kept for the rainbow swatch which paints its head with a
-  // hue-cycling background instead of the user's avatar.
-  const dot = head;
-
-  if (mode === 'classic') {
-    return (
-      <div className="absolute inset-0">
-        {dot}
-        <span className="absolute left-1/2 top-1/2 translate-x-3 -translate-y-1 px-1.5 py-px rounded bg-foreground/85 text-white text-[8px] font-semibold">You</span>
-      </div>
-    );
-  }
-
-  if (mode === 'flame') {
-    return (
-      <div className="absolute inset-0">
-        <span
-          aria-hidden="true"
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-2 w-2 h-5 rounded-full blur-[2px] cursor-effect-flame"
-          style={{ background: `linear-gradient(180deg, ${tint} 0%, #f59e0b 60%, transparent 100%)` }}
-        />
-        {dot}
-      </div>
-    );
-  }
-
-  if (mode === 'comet') {
-    return (
-      <div className="absolute inset-0">
-        <span
-          aria-hidden="true"
-          className="absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-[18px] w-5 h-1.5 rounded-full"
-          style={{ background: `linear-gradient(90deg, transparent 0%, ${tint}33 30%, ${tint} 100%)` }}
-        />
-        {dot}
-      </div>
-    );
-  }
-
-  if (mode === 'sparkle') {
-    const positions = [
-      { l: '38%', t: '32%', d: '0s' },
-      { l: '60%', t: '40%', d: '0.4s' },
-      { l: '46%', t: '62%', d: '0.8s' },
-      { l: '58%', t: '60%', d: '1.2s' },
-    ];
-    return (
-      <div className="absolute inset-0">
-        {positions.map((p) => (
-          <span
-            key={`${p.l}-${p.t}`}
-            aria-hidden="true"
-            className="absolute w-1 h-1 rounded-full cursor-effect-sparkle"
-            style={{ left: p.l, top: p.t, background: tint, animationDelay: p.d }}
-          />
-        ))}
-        {dot}
-      </div>
-    );
-  }
-
-  if (mode === 'bubbles') {
-    const bubbles = [
-      { l: '46%', d: '0s' },
-      { l: '52%', d: '0.5s' },
-      { l: '49%', d: '1s' },
-    ];
-    return (
-      <div className="absolute inset-0">
-        {bubbles.map((b) => (
-          <span
-            key={b.l + b.d}
-            aria-hidden="true"
-            className="absolute w-1.5 h-1.5 rounded-full opacity-70 cursor-effect-bubble"
-            style={{ left: b.l, bottom: '20%', background: tint, animationDelay: b.d }}
-          />
-        ))}
-        {dot}
-      </div>
-    );
-  }
-
-  if (mode === 'glow') {
-    return (
-      <div className="absolute inset-0">
-        <span
-          aria-hidden="true"
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-7 h-7 rounded-full blur-md cursor-effect-glow"
-          style={{ background: tint }}
-        />
-        {dot}
-      </div>
-    );
-  }
-
-  if (mode === 'rainbow') {
-    // Hue-cycling halo behind the avatar so the swatch reads as
-    // "your face, but the cursor itself cycles through colours" —
-    // mirrors what teammates actually see when the rainbow effect
-    // is active in PresenceCursors.
-    return (
-      <div className="absolute inset-0">
-        <span
-          aria-hidden="true"
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full blur-[3px] cursor-effect-rainbow"
-        />
-        {head}
-      </div>
-    );
-  }
-
-  if (mode === 'lightning') {
-    return (
-      <div className="absolute inset-0">
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 40 40"
-          className="absolute inset-0 w-full h-full"
-        >
-          <polyline
-            points="6,28 14,20 12,18 22,12"
-            fill="none"
-            stroke={tint}
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        {dot}
-      </div>
-    );
-  }
-
-  if (mode === 'dots') {
-    const dots = [
-      { l: 'calc(50% - 14px)', s: 0.6, o: 0.25 },
-      { l: 'calc(50% - 9px)', s: 0.7, o: 0.45 },
-      { l: 'calc(50% - 5px)', s: 0.8, o: 0.7 },
-    ];
-    return (
-      <div className="absolute inset-0">
-        {dots.map((d, i) => (
-          <span
-            key={i}
-            aria-hidden="true"
-            className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
-            style={{ left: d.l, background: tint, opacity: d.o, transform: `translateY(-50%) scale(${d.s})` }}
-          />
-        ))}
-        {dot}
-      </div>
-    );
-  }
-
-  if (mode === 'pulse') {
-    return (
-      <div className="absolute inset-0">
-        <span
-          aria-hidden="true"
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full cursor-effect-pulse-ring"
-          style={{ borderColor: tint }}
-        />
-        <span
-          aria-hidden="true"
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full cursor-effect-pulse-ring"
-          style={{ borderColor: tint, animationDelay: '0.6s' }}
-        />
-        {dot}
-      </div>
-    );
-  }
-
-  return <div className="absolute inset-0">{dot}</div>;
-}
