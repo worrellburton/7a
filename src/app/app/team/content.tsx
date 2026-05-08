@@ -360,7 +360,7 @@ export default function UsersContent() {
         <div>
           <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Team</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            People who have signed into the patient portal.
+            People who have signed into Feather.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

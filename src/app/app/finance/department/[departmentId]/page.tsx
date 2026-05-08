@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import DepartmentBudgetContent from './content';
 
 export const metadata: Metadata = {
-  title: 'Department Budget - Patient Portal',
+  title: 'Department Budget - Feather',
 };
 
 export default function DepartmentBudgetPage() {

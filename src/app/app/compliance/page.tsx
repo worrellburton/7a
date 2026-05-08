@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import ComplianceContent from './content';
 
 export const metadata: Metadata = {
-  title: 'Compliance - Patient Portal',
+  title: 'Compliance - Feather',
 };
 
 export default function CompliancePage() {

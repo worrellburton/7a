@@ -145,7 +145,7 @@ function drawCoverPage(ctx: PageContext, data: RecoveryReportPayload) {
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
   pdf.setTextColor(COLOR.faint);
-  pdf.text(asciiSafe('Patient portal - sevenarrowsrecoveryarizona.com'), MARGIN_X, 70);
+  pdf.text(asciiSafe('Feather - sevenarrowsrecoveryarizona.com'), MARGIN_X, 70);
 
   // Title block.
   pdf.setFont('helvetica', 'bold');

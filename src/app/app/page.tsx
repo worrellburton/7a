@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import HomeContent from './HomeContent';
 
 export const metadata: Metadata = {
-  title: 'Home - Patient Portal',
+  title: 'Home - Feather',
 };
 
 export default function AppHomePage() {

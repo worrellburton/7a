@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import GeoContent from './content';
 
 export const metadata: Metadata = {
-  title: 'GEO - Patient Portal',
+  title: 'GEO - Feather',
 };
 
 export default function GeoPage() {
