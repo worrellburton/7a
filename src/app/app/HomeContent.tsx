@@ -33,6 +33,15 @@ interface RecentUser {
     target_label: string | null;
     created_at: string;
   }>;
+  // Phone-coverage shifts assigned to this user *for today only*,
+  // pulled from public.calendar_events where category='phones' and
+  // event_date = today (Phoenix time). Drives the phone badge + the
+  // "on phones today" tooltip section in HomeOnlineOrbit.
+  phones_today?: Array<{
+    title: string;          // shift label as stored on the event row
+    start_time: string | null;
+    end_time: string | null;
+  }>;
 }
 
 interface PendingSignature {
@@ -298,6 +307,46 @@ export default function HomeContent() {
           ...u,
           actions_today: counts[u.id] ?? 0,
           recent_actions: recents[u.id] ?? [],
+        })),
+      );
+
+      // Third pass: pull today's phones-coverage events from
+      // calendar_events. Same calendar that powers /app/calendar's
+      // Phones tab — `category='phones'` discriminates phones rows
+      // from regular team events. event_date is a calendar date in
+      // Phoenix time (no tz on the column), so we match against
+      // today's Phoenix YYYY-MM-DD. Each event's title carries the
+      // shift label ("Phones — Day / Evening / Morning"); start_time
+      // and end_time are the resolved hours.
+      const phoenixToday = new Date().toLocaleDateString('en-CA', {
+        timeZone: 'America/Phoenix',
+      });
+      const { data: phoneRows, error: phoneErr } = await supabase
+        .from('calendar_events')
+        .select('subject_id, title, start_time, end_time')
+        .eq('event_date', phoenixToday)
+        .eq('subject_kind', 'user')
+        .eq('category', 'phones');
+      if (cancelled || phoneErr || !Array.isArray(phoneRows)) return;
+      const phonesByUser: Record<string, RecentUser['phones_today']> = {};
+      for (const r of phoneRows as Array<{
+        subject_id: string | null;
+        title: string;
+        start_time: string | null;
+        end_time: string | null;
+      }>) {
+        if (!r.subject_id) continue;
+        const list = phonesByUser[r.subject_id] ?? (phonesByUser[r.subject_id] = []);
+        list.push({
+          title: r.title,
+          start_time: r.start_time,
+          end_time: r.end_time,
+        });
+      }
+      setRecentUsers((prev) =>
+        prev.map((u) => ({
+          ...u,
+          phones_today: phonesByUser[u.id] ?? [],
         })),
       );
     }

@@ -39,6 +39,16 @@ interface OrbitUser {
     target_label: string | null;
     created_at: string;
   }>;
+  // Phone-coverage shifts assigned to this user *today only*. Each
+  // entry is one calendar_events row with category='phones' and
+  // event_date = today (Phoenix time). Drives the phone badge in the
+  // bottom-left of the avatar + the "On phones today" section in the
+  // hover tooltip.
+  phones_today?: Array<{
+    title: string;
+    start_time: string | null;
+    end_time: string | null;
+  }>;
 }
 
 const ON_FIRE_THRESHOLD = 10;
@@ -87,6 +97,23 @@ interface Props {
 function isOnlineNow(lastSeen: string | null): boolean {
   if (!lastSeen) return false;
   return Date.now() - new Date(lastSeen).getTime() < 6 * 60 * 1000;
+}
+
+// Format a database time-of-day ('HH:MM:SS' or 'HH:MM') as a friendly
+// 12-hour label — "9 AM", "5:30 PM". '00:00:00' on the end_time is
+// treated as midnight (24:00) so the Evening shift's 17:00 → 00:00
+// reads as "5 PM – 12 AM" instead of "5 PM – 12 AM" looking like a
+// typo.
+function fmtPhoneTime(s: string | null, isEnd = false): string {
+  if (!s) return '—';
+  const [hStr, mStr] = s.split(':');
+  let h = Number(hStr);
+  const m = Number(mStr ?? 0);
+  if (!Number.isFinite(h)) return '—';
+  if (isEnd && h === 0 && m === 0) return '12 AM';
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return m === 0 ? `${h12} ${suffix}` : `${h12}:${String(m).padStart(2, '0')} ${suffix}`;
 }
 
 function timeAgo(dateStr: string | null): string {
@@ -168,6 +195,35 @@ function OrbitTooltip({
                   Viewing {hovered.viewing}
                   {hovered.navTarget ? ' — click to jump' : ''}
                 </p>
+              )}
+              {/* Phones-coverage block — only renders when the
+                  teammate has at least one calendar_events row with
+                  category='phones' for today (Phoenix time). Each
+                  shift line reads "Day · 8 AM – 5 PM"; multiple
+                  shifts stack so a person covering both Day + Evening
+                  shows up as two rows. */}
+              {(hovered.user.phones_today?.length ?? 0) > 0 && (
+                <div className="mt-1.5 pt-1.5 border-t border-white/15 text-left">
+                  <p className="text-sky-300 font-semibold leading-tight inline-flex items-center gap-1">
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                    </svg>
+                    On phones today
+                  </p>
+                  <ul className="mt-1 space-y-0.5 text-white/85 leading-snug">
+                    {hovered.user.phones_today!.map((p, i) => (
+                      <li key={`${p.title}-${i}`} className="truncate">
+                        <span className="text-white">{p.title || 'Phones'}</span>
+                        <span className="text-white/55">
+                          {' · '}
+                          {fmtPhoneTime(p.start_time)}
+                          {' – '}
+                          {fmtPhoneTime(p.end_time, true)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               {onFire && (
                 <div className="mt-1.5 pt-1.5 border-t border-white/15 text-left">
@@ -565,6 +621,23 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                             aria-hidden="true"
                             className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white"
                           />
+                        )}
+                        {/* Phones-coverage badge — pinned bottom-left so
+                            it doesn't fight the online dot (bottom-right)
+                            or the on-fire flame (top-right). Renders only
+                            when the teammate has at least one phones
+                            shift assigned for today. Hover-tooltip in
+                            OrbitTooltip surfaces the shift + time range. */}
+                        {(u.phones_today?.length ?? 0) > 0 && (
+                          <span
+                            aria-label="On phones today"
+                            role="img"
+                            className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 border-2 border-white shadow-md flex items-center justify-center"
+                          >
+                            <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                            </svg>
+                          </span>
                         )}
                         {/* Per-avatar tooltips were clipped by the
                             home wrapper's overflow-hidden whenever
