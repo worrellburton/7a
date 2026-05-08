@@ -103,12 +103,16 @@ const DEFAULT_SHIFTS: Shift[] = [
 // localStorage under PHONE_SHIFTS_STORAGE_KEY so changes don't
 // stomp the team's Morning/Afternoon/Overnight bundle.
 const DEFAULT_PHONE_SHIFTS: Shift[] = [
-  { id: 'phones-day', name: 'Day', start: '09:00', end: '17:00' },
+  { id: 'phones-day', name: 'Day', start: '08:00', end: '17:00' },
   { id: 'phones-evening', name: 'Evening', start: '17:00', end: '21:00' },
 ];
 
 const SHIFTS_STORAGE_KEY = 'sa-calendar-shifts-v1';
-const PHONE_SHIFTS_STORAGE_KEY = 'sa-calendar-phone-shifts-v1';
+// v2 — shipped after the Day shift's start moved from 09:00 → 08:00.
+// Bumping the key resets the per-browser cache so users who hit the
+// page before the change get the new default; if anyone had retimed
+// their bundle locally they can reset it from Shift Settings.
+const PHONE_SHIFTS_STORAGE_KEY = 'sa-calendar-phone-shifts-v2';
 const VIEWMODE_STORAGE_KEY = 'sa-calendar-viewmode-v1';
 
 // ------------------------------------------------------------
@@ -1770,18 +1774,39 @@ function ShiftAvatar({
 
 // Cluster of user avatars for a shift — shown inside each shift
 // drop block. Wraps onto multiple rows so a full shift still fits.
+// When `fill` is set the cluster renders one full-width chip per
+// event stacked vertically and grown to the full block height — used
+// by the Phones tab where a single person on coverage should visibly
+// own the whole 8 – 5 / 5 – 9 block instead of perching as a small
+// circle in the corner.
 function ShiftAvatarCluster({
   events,
   usersById,
   onEventClick,
   size = 'md',
+  fill = false,
 }: {
   events: EventRow[];
   usersById: Map<string, UserRow>;
   onEventClick: (id: string) => void;
   size?: 'sm' | 'md';
+  fill?: boolean;
 }) {
   if (events.length === 0) return null;
+  if (fill) {
+    return (
+      <div className="flex flex-col gap-0.5 flex-1 min-h-0 pointer-events-auto">
+        {events.map((ev) => (
+          <ShiftAvatarFillRow
+            key={ev.id}
+            ev={ev}
+            usersById={usersById}
+            onClick={onEventClick}
+          />
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-wrap gap-1 pointer-events-auto">
       {events.map((ev) => (
@@ -1793,6 +1818,56 @@ function ShiftAvatarCluster({
           size={size}
         />
       ))}
+    </div>
+  );
+}
+
+// Full-width row chip — fills the shift block vertically so a single
+// person on phone coverage reads as "owning" the slot. flex-1
+// distributes vertical space evenly when multiple people share the
+// shift.
+function ShiftAvatarFillRow({
+  ev,
+  usersById,
+  onClick,
+}: {
+  ev: EventRow;
+  usersById: Map<string, UserRow>;
+  onClick: (id: string) => void;
+}) {
+  const color = ev.color || colorFor(ev.subject_id ?? ev.id);
+  const u = usersById.get(ev.subject_id ?? '');
+  const label = u ? userLabel(u) : ev.title;
+  const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(ev.id);
+      }}
+      className={`flex-1 min-h-0 rounded-md cursor-grab active:cursor-grabbing flex items-center gap-2 px-2 py-1 ring-1 ring-white/70 shadow-sm hover:shadow-md hover:-translate-y-px transition-all overflow-hidden ${
+        dragging ? 'opacity-40' : ''
+      }`}
+      title={label}
+      style={{
+        fontFamily: 'var(--font-body)',
+        background: `linear-gradient(135deg, ${color}d8, ${color}b0)`,
+      }}
+    >
+      <span className="shrink-0 w-6 h-6 rounded-full ring-2 ring-white/85 overflow-hidden flex items-center justify-center bg-white/40 text-[10px] font-bold text-white">
+        {u?.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={u.avatar_url} alt={label} className="w-full h-full object-cover" />
+        ) : (
+          label.charAt(0).toUpperCase()
+        )}
+      </span>
+      <span className="text-[11px] font-semibold text-white/95 truncate drop-shadow-sm">
+        {label}
+      </span>
     </div>
   );
 }
@@ -2799,6 +2874,7 @@ function WeekView({
                               usersById={usersById}
                               onEventClick={onEventClick}
                               size="sm"
+                              fill={viewMode === 'phones'}
                             />
                           </>
                         )}
@@ -3097,6 +3173,7 @@ function DayView({
                       usersById={usersById}
                       onEventClick={onEventClick}
                       size="md"
+                      fill={viewMode === 'phones'}
                     />
                   </>
                 )}
