@@ -1050,6 +1050,18 @@ function ProfileCursorTab({
         )}
       </div>
 
+      {/* Live preview — a wider sandbox where the user can mouse
+          around inside the box and see the currently-selected effect
+          play out at full size on a real moving cursor. The preview
+          tracks pointer position relative to the box, not the
+          viewport, so it doesn't fight the global PresenceCursors
+          renderer outside the box. */}
+      <div className="mt-6 pt-5 border-t border-gray-100">
+        <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Live Preview</label>
+        <p className="text-xs text-foreground/40 mb-3">Hover inside the box to see your current effect at full size.</p>
+        <CursorEffectPreview effect={cursorEffect} color={cursorColor} />
+      </div>
+
       <div className="mt-6 pt-5 border-t border-gray-100">
         <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Cursor Effect</label>
         <p className="text-xs text-foreground/40 mb-3">Pick how your cursor looks for everyone in the portal. Each thumbnail shows a tiny live preview of the effect.</p>
@@ -1085,6 +1097,346 @@ function ProfileCursorTab({
       </div>
     </div>
   );
+}
+
+// Live preview surface — a 160px-tall sandbox where the user moves
+// their pointer and sees the currently-selected effect at full size.
+// Renders one cursor head + its effect-specific decoration; pointer
+// position is tracked relative to the box's bounding rect so the
+// preview can sit anywhere on the page without polluting the
+// viewport-level PresenceCursors layer.
+function CursorEffectPreview({
+  effect,
+  color,
+}: {
+  effect: CursorEffectId;
+  color: string | null;
+}) {
+  const tint = color ?? '#bc6b4a';
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [trail, setTrail] = useState<Array<{ x: number; y: number; t: number }>>([]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onMove = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      setPos({ x, y });
+      setTrail((prev) => {
+        const next = [...prev, { x, y, t: Date.now() }];
+        return next.slice(-12);
+      });
+    };
+    const onLeave = () => {
+      setPos(null);
+      setTrail([]);
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerleave', onLeave);
+    return () => {
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerleave', onLeave);
+    };
+  }, []);
+
+  // Tick to age the trail / drive periodic effects (sparkle, pulse).
+  // Doesn't render anything new, just forces a re-paint at ~30 fps so
+  // time-based animations are smooth without a per-effect raf loop.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const loop = () => {
+      setTick((n) => (n + 1) % 1000000);
+      raf = window.requestAnimationFrame(loop);
+    };
+    raf = window.requestAnimationFrame(loop);
+    return () => window.cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className="relative h-40 rounded-xl border border-dashed border-gray-200 bg-warm-bg/30 overflow-hidden cursor-none"
+    >
+      {!pos && (
+        <div className="absolute inset-0 flex items-center justify-center text-[12px] text-foreground/35" style={{ fontFamily: 'var(--font-body)' }}>
+          Move your pointer in here to preview the effect.
+        </div>
+      )}
+      {pos && (
+        <CursorEffectPreviewLayer
+          effect={effect}
+          tint={tint}
+          x={pos.x}
+          y={pos.y}
+          trail={trail}
+        />
+      )}
+    </div>
+  );
+}
+
+function CursorEffectPreviewLayer({
+  effect,
+  tint,
+  x,
+  y,
+  trail,
+}: {
+  effect: CursorEffectId;
+  tint: string;
+  x: number;
+  y: number;
+  trail: Array<{ x: number; y: number; t: number }>;
+}) {
+  const dot = (
+    <span
+      aria-hidden="true"
+      className="absolute w-3 h-3 rounded-full ring-2 ring-white shadow"
+      style={{ left: x, top: y, transform: 'translate(-50%, -50%)', backgroundColor: tint }}
+    />
+  );
+
+  if (effect === 'classic') {
+    return (
+      <>
+        {dot}
+        <span
+          className="absolute px-1.5 py-0.5 rounded text-[10px] font-semibold text-white pointer-events-none"
+          style={{ left: x + 10, top: y - 4, backgroundColor: tint, fontFamily: 'var(--font-body)' }}
+        >
+          You
+        </span>
+      </>
+    );
+  }
+
+  if (effect === 'flame' || effect === 'comet' || effect === 'lightning' || effect === 'dots') {
+    // Path-based effects render a series of trail points behind the
+    // cursor with mode-specific shape / falloff.
+    const recent = trail.slice(-8);
+    return (
+      <>
+        {recent.map((p, i) => {
+          const age = (recent.length - 1 - i) / Math.max(1, recent.length - 1);
+          const opacity = 1 - age;
+          if (effect === 'dots') {
+            const size = 4 + (1 - age) * 4;
+            return (
+              <span
+                key={p.t}
+                aria-hidden="true"
+                className="absolute rounded-full"
+                style={{
+                  left: p.x,
+                  top: p.y,
+                  width: size,
+                  height: size,
+                  transform: 'translate(-50%, -50%)',
+                  background: tint,
+                  opacity: opacity * 0.6,
+                }}
+              />
+            );
+          }
+          if (effect === 'lightning') {
+            // Each segment skews ±2px so the path zigzags
+            const skew = i % 2 === 0 ? -3 : 3;
+            return (
+              <span
+                key={p.t}
+                aria-hidden="true"
+                className="absolute"
+                style={{
+                  left: p.x + skew,
+                  top: p.y + skew,
+                  width: 6,
+                  height: 2,
+                  transform: 'translate(-50%, -50%)',
+                  background: tint,
+                  opacity: opacity * 0.8,
+                  borderRadius: 2,
+                }}
+              />
+            );
+          }
+          if (effect === 'comet') {
+            const size = 3 + (1 - age) * 8;
+            return (
+              <span
+                key={p.t}
+                aria-hidden="true"
+                className="absolute rounded-full blur-[1px]"
+                style={{
+                  left: p.x,
+                  top: p.y,
+                  width: size,
+                  height: size,
+                  transform: 'translate(-50%, -50%)',
+                  background: tint,
+                  opacity: opacity * 0.55,
+                }}
+              />
+            );
+          }
+          // flame
+          const size = 4 + (1 - age) * 14;
+          const flameColor = age < 0.5 ? tint : '#f59e0b';
+          return (
+            <span
+              key={p.t}
+              aria-hidden="true"
+              className="absolute rounded-full blur-[2px]"
+              style={{
+                left: p.x,
+                top: p.y,
+                width: size,
+                height: size,
+                transform: 'translate(-50%, -50%)',
+                background: flameColor,
+                opacity: opacity * 0.7,
+              }}
+            />
+          );
+        })}
+        {dot}
+      </>
+    );
+  }
+
+  if (effect === 'sparkle') {
+    // Pulse 4 sparkles at fixed angles relative to the cursor; the rAF
+    // tick at the parent level forces a repaint so each sparkle pulses
+    // in/out via a sin(time) lookup.
+    const t = Date.now() / 380;
+    const angles = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+    return (
+      <>
+        {angles.map((a, i) => {
+          const radius = 14 + Math.sin(t + i) * 4;
+          const dx = Math.cos(a + t * 0.4) * radius;
+          const dy = Math.sin(a + t * 0.4) * radius;
+          const opacity = 0.5 + 0.5 * Math.sin(t * 1.5 + i);
+          return (
+            <span
+              key={i}
+              aria-hidden="true"
+              className="absolute w-1.5 h-1.5 rounded-full"
+              style={{ left: x + dx, top: y + dy, transform: 'translate(-50%, -50%)', background: tint, opacity }}
+            />
+          );
+        })}
+        {dot}
+      </>
+    );
+  }
+
+  if (effect === 'bubbles') {
+    // Spawn a bubble every ~250ms via the trail timestamps, render
+    // each rising upward with age-based opacity + scale.
+    const recent = trail.slice(-6);
+    return (
+      <>
+        {recent.map((p, i) => {
+          const age = (Date.now() - p.t) / 1500;
+          if (age > 1) return null;
+          const size = 4 + age * 10;
+          const opacity = (1 - age) * 0.55;
+          return (
+            <span
+              key={p.t}
+              aria-hidden="true"
+              className="absolute rounded-full"
+              style={{
+                left: p.x + ((i % 2 === 0 ? -1 : 1) * age * 6),
+                top: p.y - age * 30,
+                width: size,
+                height: size,
+                transform: 'translate(-50%, -50%)',
+                background: tint,
+                opacity,
+              }}
+            />
+          );
+        })}
+        {dot}
+      </>
+    );
+  }
+
+  if (effect === 'glow') {
+    return (
+      <>
+        <span
+          aria-hidden="true"
+          className="absolute rounded-full blur-xl"
+          style={{
+            left: x,
+            top: y,
+            width: 60,
+            height: 60,
+            transform: 'translate(-50%, -50%)',
+            background: tint,
+            opacity: 0.55,
+          }}
+        />
+        {dot}
+      </>
+    );
+  }
+
+  if (effect === 'rainbow') {
+    const t = Date.now() / 22;
+    const hue = (t % 360);
+    return (
+      <span
+        aria-hidden="true"
+        className="absolute w-3.5 h-3.5 rounded-full ring-2 ring-white shadow"
+        style={{
+          left: x,
+          top: y,
+          transform: 'translate(-50%, -50%)',
+          backgroundColor: `hsl(${hue}, 85%, 58%)`,
+        }}
+      />
+    );
+  }
+
+  if (effect === 'pulse') {
+    const t = Date.now() / 800;
+    const pulses = [0, 0.5];
+    return (
+      <>
+        {pulses.map((offset, i) => {
+          const phase = ((t + offset) % 1);
+          const size = 8 + phase * 56;
+          const opacity = (1 - phase) * 0.7;
+          return (
+            <span
+              key={i}
+              aria-hidden="true"
+              className="absolute rounded-full"
+              style={{
+                left: x,
+                top: y,
+                width: size,
+                height: size,
+                transform: 'translate(-50%, -50%)',
+                border: `1.5px solid ${tint}`,
+                opacity,
+              }}
+            />
+          );
+        })}
+        {dot}
+      </>
+    );
+  }
+
+  return dot;
 }
 
 // Mini-preview rendered inside each picker swatch. Doesn't run the
