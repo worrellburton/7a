@@ -172,7 +172,7 @@ export default function EquineWhy() {
             >
               As prey animals, horses are wired for connection through
               awareness. Their survival depends on sensing even the smallest
-              shifts in the nervous system — changes in breath, muscle tone,
+              shifts in the nervous system, changes in breath, muscle tone,
               and presence. They don&rsquo;t analyze or interpret; they feel
               and respond, offering immediate, honest feedback about what is
               happening beneath the surface, moment to moment.
@@ -186,7 +186,7 @@ export default function EquineWhy() {
               is diagnostic. A horse that won&rsquo;t approach is information.
               A horse that finally settles into shared breath is information.
               Our clinicians translate that information into the therapeutic
-              work — connecting the body, the relationship, and the story.
+              work, connecting the body, the relationship, and the story.
             </p>
             <p
               className="text-foreground/70 leading-relaxed text-[16.5px]"

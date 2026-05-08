@@ -64,7 +64,7 @@ const stages: Stage[] = [
     title: 'Relational & Experiential Process',
     duration: '~30 min',
     body:
-      'Sessions center on attunement, presence, and real-time relational feedback with the herd. The horse reflects the client&rsquo;s internal state — shifts in regulation, authenticity, and connection — offering immediate, nonverbal insight. The clinician supports the client in tracking what is happening internally and within the relationship, using this awareness to guide the work.',
+      'Sessions center on attunement, presence, and real-time relational feedback with the herd. The horse reflects the client&rsquo;s internal state, shifts in regulation, authenticity, and connection, offering immediate, nonverbal insight. The clinician supports the client in tracking what is happening internally and within the relationship, using this awareness to guide the work.',
     bullets: [
       {
         label: 'IFS / Parts Awareness',
@@ -174,7 +174,7 @@ export default function EquineSessions() {
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Each group session is co-facilitated by a licensed clinician, an
-            equine specialist, and the herd, creating a structured and
+            equine specialist and the herd, creating a structured and
             supported therapeutic environment. Individual sessions are guided
             by a licensed therapist in partnership with the herd, offering a
             more private, attuned space for deeper exploration and healing.
@@ -186,9 +186,9 @@ export default function EquineSessions() {
             Sessions are intentionally flexible and trauma-informed, adapting
             to meet the client&rsquo;s needs in real time. While there may be
             an initial intention or focus, the work is guided by what emerges
-            in the moment — often reflected through the horses&rsquo;
-            responses and the client&rsquo;s internal experience. This allows
-            the process to remain responsive, client-centered, and grounded in
+            in the moment, often reflected through the horses&rsquo; responses
+            and the client&rsquo;s internal experience. This allows the
+            process to remain responsive, client-centered, and grounded in
             present-moment awareness.
           </p>
         </div>

@@ -47,7 +47,7 @@ const items: SafetyItem[] = [
   {
     title: 'Horse welfare standards',
     body:
-      'Our herd is never run more than a capped number of sessions per week. Horses who are off, in season, or recovering are rotated out. A horse&rsquo;s &ldquo;no&rdquo; is respected the same way a client&rsquo;s &ldquo;no&rdquo; is — it&rsquo;s information, not resistance.',
+      'Horses are assessed daily and provided time off and breaks as needed, recognizing the importance of self-care for the herd just as we prioritize it for our clients. This helps ensure they remain rested, regulated, and able to engage authentically in the healing process. Their care includes routine bodywork, vaccinations, deworming, regular hoof care, and individualized nutrition plans tailored to their specific physical and emotional needs.',
   },
   {
     title: 'Medical oversight on campus',

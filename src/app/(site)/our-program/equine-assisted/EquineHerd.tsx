@@ -68,7 +68,7 @@ export default function EquineHerd() {
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Our herd lives full-time at the ranch in the high desert of Cochise
-            County, Arizona — ten minutes from the town of Elfrida, at the base
+            County, Arizona, ten minutes from the town of Elfrida, at the base
             of the Swisshelm Mountains. They&rsquo;re not rotated in from an
             outside barn for sessions. They know the rhythm of the property,
             the staff, and the clients who come through it.
@@ -79,7 +79,7 @@ export default function EquineHerd() {
           >
             Every horse in our program has a specific temperament and a
             specific therapeutic role. Some do equine-assisted psychotherapy
-            only. Some carry clients under saddle. And some do both.
+            only. Some carry clients under saddle, and some do both.
           </p>
         </div>
 
@@ -216,18 +216,31 @@ function HerdCare({ visible }: { visible: boolean }) {
             className="text-foreground/70 text-[16px] leading-relaxed mb-4"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Their well-being is a central part of the work, and we honor them
-            as co-regulators and healers in the therapeutic process. We
+            Their well-being is a central part of the work, and we also honor
+            them as co-regulators and healers in the therapeutic process. We
             practice intentional self-care for the herd, recognizing that
             their ability to show up for clients is directly connected to how
             well they are supported, listened to, and cared for.
+          </p>
+          <p
+            className="text-foreground/70 text-[16px] leading-relaxed mb-4"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Each horse receives individualized care, including tailored
+            nutrition based on their specific needs, regular bodywork at least
+            monthly to support comfort and regulation, routine deworming and
+            vaccines, and consistent hoof care every six weeks. They are
+            observed and evaluated daily to ensure they are physically and
+            emotionally ready to participate. If a horse shows signs of
+            fatigue, stress, or simply needs time off, they are respectfully
+            taken out of rotation and given space to rest and reset.
           </p>
           <p
             className="text-foreground/70 text-[16px] leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             By prioritizing their care and autonomy, we support the horses in
-            remaining regulated, willing, and present — allowing them to offer
+            remaining regulated, willing, and present, allowing them to offer
             clear, honest, and grounded relational feedback in the therapeutic
             process.
           </p>
@@ -274,6 +287,119 @@ function HerdCare({ visible }: { visible: boolean }) {
             ))}
           </ul>
         </div>
+      </div>
+
+      {/* Photo strip under the welfare prose + cards. Pulls 4 horses
+          off /api/public/horses (original image_url, not bling) so
+          the welfare narrative is anchored to actual animals, not
+          generic stock. Visually answers "we practice and model what
+          we offer our clients" by showing the horses themselves. */}
+      <HerdCarePhotoStrip visible={visible} />
+    </div>
+  );
+}
+
+interface CareStripHorse {
+  id: string;
+  name: string;
+  works_in: string | null;
+  image_url: string | null;
+}
+
+function HerdCarePhotoStrip({ visible }: { visible: boolean }) {
+  const [horses, setHorses] = useState<CareStripHorse[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/public/horses');
+        const data = await res.json();
+        if (cancelled) return;
+        if (res.ok && Array.isArray(data?.horses)) {
+          // Pick the first four horses with photos. The roster API
+          // already filters out anything without image_url, but we
+          // re-check defensively in case the contract widens.
+          const withPhotos = (data.horses as CareStripHorse[]).filter(
+            (h) => !!h.image_url,
+          );
+          setHorses(withPhotos.slice(0, 4));
+        } else {
+          setHorses([]);
+        }
+      } catch {
+        if (!cancelled) setHorses([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Hide the strip during fetch + when nobody has a photo yet, so
+  // the welfare section never renders an empty band.
+  if (!horses || horses.length === 0) return null;
+
+  return (
+    <div
+      className="mt-14 lg:mt-16"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(18px)',
+        transition: 'all 1s cubic-bezier(0.16,1,0.3,1) 0.85s',
+      }}
+    >
+      <p
+        className="text-[11px] tracking-[0.24em] uppercase font-semibold text-primary mb-4"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        Some of the herd
+      </p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
+        {horses.map((h, i) => (
+          <figure
+            key={h.id}
+            className="group relative overflow-hidden rounded-2xl bg-warm-bg border border-black/5 shadow-sm hover:shadow-lg transition-all duration-500"
+            style={{
+              opacity: visible ? 1 : 0,
+              transform: visible ? 'translateY(0)' : 'translateY(14px)',
+              transition: `opacity 0.9s cubic-bezier(0.16,1,0.3,1) ${1 + i * 0.08}s, transform 0.9s cubic-bezier(0.16,1,0.3,1) ${1 + i * 0.08}s, box-shadow 500ms`,
+            }}
+          >
+            <div className="relative aspect-[4/5]">
+              {h.image_url && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={h.image_url}
+                  alt={`Portrait of ${h.name}, one of the therapy horses cared for at Seven Arrows Recovery`}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.04]"
+                  loading="lazy"
+                />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent pointer-events-none" />
+              <figcaption className="absolute inset-x-0 bottom-0 p-3.5">
+                <p
+                  className="text-white font-bold tracking-tight drop-shadow-sm"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: '1.05rem',
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {h.name}
+                </p>
+                {h.works_in && (
+                  <p
+                    className="text-white/80 text-[11px] font-medium mt-0.5"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {h.works_in}
+                  </p>
+                )}
+              </figcaption>
+            </div>
+          </figure>
+        ))}
       </div>
     </div>
   );
