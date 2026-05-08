@@ -16,6 +16,13 @@ import { db } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 import { supabase } from '@/lib/supabase';
 import { formatNameWithCredentials } from '@/lib/displayName';
+import {
+  CURSOR_EFFECTS,
+  DEFAULT_CURSOR_EFFECT,
+  normaliseCursorEffect,
+  type CursorEffect,
+  type CursorEffectId,
+} from '@/lib/cursor-effects';
 import { useEffect, useRef, useState } from 'react';
 
 const CURSOR_COLORS: { label: string; value: string }[] = [
@@ -181,6 +188,7 @@ export default function ProfileContent() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [publicTeam, setPublicTeam] = useState(true);
   const [cursorColor, setCursorColor] = useState<string | null>(null);
+  const [cursorEffect, setCursorEffect] = useState<CursorEffectId>(DEFAULT_CURSOR_EFFECT);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [aiBusy, setAiBusy] = useState<'bio' | 'quote' | null>(null);
@@ -213,9 +221,9 @@ export default function ProfileContent() {
       // PostgREST returns an error instead of rows — fall back to the
       // stable subset so the editor still loads the rest of the profile.
       const FULL =
-        'full_name, credentials, job_title, hometown, cursor_color, bio, favorite_quote, favorite_seven_arrows, interesting_facts, avatar_url, public_team';
+        'full_name, credentials, job_title, hometown, cursor_color, cursor_effect, bio, favorite_quote, favorite_seven_arrows, interesting_facts, avatar_url, public_team';
       const SAFE =
-        'full_name, job_title, cursor_color, bio, favorite_quote, favorite_seven_arrows, avatar_url, public_team';
+        'full_name, job_title, cursor_color, cursor_effect, bio, favorite_quote, favorite_seven_arrows, avatar_url, public_team';
 
       let data = await db({
         action: 'select',
@@ -242,6 +250,7 @@ export default function ProfileContent() {
         setJobTitle(row.job_title || '');
         setHometown(row.hometown || '');
         setCursorColor(row.cursor_color || null);
+        setCursorEffect(normaliseCursorEffect(row.cursor_effect));
         setBio(row.bio || '');
         setFavoriteQuote(row.favorite_quote || '');
         setFavoriteSevenArrows(row.favorite_seven_arrows || '');
@@ -274,6 +283,23 @@ export default function ProfileContent() {
       action: 'update',
       table: 'users',
       data: { cursor_color: value },
+      match: { id: user.id },
+    });
+  }
+
+  async function pickCursorEffect(value: CursorEffectId) {
+    if (!user) return;
+    setCursorEffect(value);
+    // Same instant-feedback pattern the colour picker uses — fire a
+    // window event so PresenceCursors can pick the new effect up
+    // immediately for the local user, then persist to the canonical
+    // public.users.cursor_effect column. Phase 8 wires the broadcast
+    // side so other clients render the change too.
+    window.dispatchEvent(new CustomEvent('cursor-effect-change', { detail: { effect: value } }));
+    await db({
+      action: 'update',
+      table: 'users',
+      data: { cursor_effect: value },
       match: { id: user.id },
     });
   }
@@ -495,6 +521,8 @@ export default function ProfileContent() {
         <ProfileCursorTab
           cursorColor={cursorColor}
           onCursorColorChange={(value) => { void pickCursorColor(value); }}
+          cursorEffect={cursorEffect}
+          onCursorEffectChange={(value) => { void pickCursorEffect(value); }}
         />
       ) : (
       <div className="grid lg:grid-cols-[1fr_320px] gap-8">
@@ -927,14 +955,18 @@ export default function ProfileContent() {
 }
 
 // Cursor sub-page — Phase 3 lands the shell, Phase 4 moves the
-// existing colour picker in here. Phases 5-7 layer the 10-effect
-// catalogue + picker + live preview on top.
+// existing colour picker in here, Phase 6 adds the 10-effect picker.
+// Phase 7 layers the live preview surface on top.
 function ProfileCursorTab({
   cursorColor,
   onCursorColorChange,
+  cursorEffect,
+  onCursorEffectChange,
 }: {
   cursorColor: string | null;
   onCursorColorChange: (value: string | null) => void;
+  cursorEffect: CursorEffectId;
+  onCursorEffectChange: (value: CursorEffectId) => void;
 }) {
   const isCustom = !!(cursorColor && !CURSOR_COLORS.some((c) => c.value === cursorColor));
   return (
@@ -1018,9 +1050,229 @@ function ProfileCursorTab({
         )}
       </div>
 
-      {/* Phase 5+ adds the cursor-effect catalogue + picker + live
-          preview here. Until then the colour picker is the only thing
-          on this tab. */}
+      <div className="mt-6 pt-5 border-t border-gray-100">
+        <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Cursor Effect</label>
+        <p className="text-xs text-foreground/40 mb-3">Pick how your cursor looks for everyone in the portal. Each thumbnail shows a tiny live preview of the effect.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {CURSOR_EFFECTS.map((eff) => {
+            const active = cursorEffect === eff.id;
+            return (
+              <button
+                key={eff.id}
+                type="button"
+                onClick={() => onCursorEffectChange(eff.id)}
+                aria-pressed={active}
+                title={`${eff.label} — ${eff.blurb}`}
+                className={`group relative flex flex-col items-stretch gap-1 rounded-xl border-2 transition-all p-2 ${
+                  active
+                    ? 'border-primary bg-primary/5 shadow-sm'
+                    : 'border-gray-100 hover:border-foreground/20 hover:bg-warm-bg/30'
+                }`}
+              >
+                <div className="relative h-16 rounded-lg bg-warm-bg/40 overflow-hidden">
+                  <CursorEffectThumb effect={eff} color={cursorColor} />
+                </div>
+                <span
+                  className={`text-[11px] font-semibold ${active ? 'text-primary' : 'text-foreground/75'}`}
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {eff.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
+}
+
+// Mini-preview rendered inside each picker swatch. Doesn't run the
+// real PresenceCursors render path — it just animates a small SVG /
+// CSS sketch keyed off CursorEffect.thumb.mode so the user can see
+// what each effect looks like at a glance. Phase 9 implements the
+// real renderers in PresenceCursors itself.
+function CursorEffectThumb({
+  effect,
+  color,
+}: {
+  effect: CursorEffect;
+  color: string | null;
+}) {
+  const tint = color ?? '#bc6b4a';
+  const mode = effect.thumb.mode;
+  // Common cursor dot — rendered absolutely-positioned by each branch
+  // so the trail / particles can sit beneath it.
+  const dot = (
+    <span
+      aria-hidden="true"
+      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full ring-2 ring-white shadow"
+      style={{ backgroundColor: tint }}
+    />
+  );
+
+  if (mode === 'classic') {
+    return (
+      <div className="absolute inset-0">
+        {dot}
+        <span className="absolute left-1/2 top-1/2 translate-x-3 -translate-y-1 px-1.5 py-px rounded bg-foreground/85 text-white text-[8px] font-semibold">You</span>
+      </div>
+    );
+  }
+
+  if (mode === 'flame') {
+    return (
+      <div className="absolute inset-0">
+        <span
+          aria-hidden="true"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-2 w-2 h-5 rounded-full blur-[2px] cursor-effect-flame"
+          style={{ background: `linear-gradient(180deg, ${tint} 0%, #f59e0b 60%, transparent 100%)` }}
+        />
+        {dot}
+      </div>
+    );
+  }
+
+  if (mode === 'comet') {
+    return (
+      <div className="absolute inset-0">
+        <span
+          aria-hidden="true"
+          className="absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-[18px] w-5 h-1.5 rounded-full"
+          style={{ background: `linear-gradient(90deg, transparent 0%, ${tint}33 30%, ${tint} 100%)` }}
+        />
+        {dot}
+      </div>
+    );
+  }
+
+  if (mode === 'sparkle') {
+    const positions = [
+      { l: '38%', t: '32%', d: '0s' },
+      { l: '60%', t: '40%', d: '0.4s' },
+      { l: '46%', t: '62%', d: '0.8s' },
+      { l: '58%', t: '60%', d: '1.2s' },
+    ];
+    return (
+      <div className="absolute inset-0">
+        {positions.map((p) => (
+          <span
+            key={`${p.l}-${p.t}`}
+            aria-hidden="true"
+            className="absolute w-1 h-1 rounded-full cursor-effect-sparkle"
+            style={{ left: p.l, top: p.t, background: tint, animationDelay: p.d }}
+          />
+        ))}
+        {dot}
+      </div>
+    );
+  }
+
+  if (mode === 'bubbles') {
+    const bubbles = [
+      { l: '46%', d: '0s' },
+      { l: '52%', d: '0.5s' },
+      { l: '49%', d: '1s' },
+    ];
+    return (
+      <div className="absolute inset-0">
+        {bubbles.map((b) => (
+          <span
+            key={b.l + b.d}
+            aria-hidden="true"
+            className="absolute w-1.5 h-1.5 rounded-full opacity-70 cursor-effect-bubble"
+            style={{ left: b.l, bottom: '20%', background: tint, animationDelay: b.d }}
+          />
+        ))}
+        {dot}
+      </div>
+    );
+  }
+
+  if (mode === 'glow') {
+    return (
+      <div className="absolute inset-0">
+        <span
+          aria-hidden="true"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-7 h-7 rounded-full blur-md cursor-effect-glow"
+          style={{ background: tint }}
+        />
+        {dot}
+      </div>
+    );
+  }
+
+  if (mode === 'rainbow') {
+    return (
+      <div className="absolute inset-0">
+        <span
+          aria-hidden="true"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full ring-2 ring-white shadow cursor-effect-rainbow"
+        />
+      </div>
+    );
+  }
+
+  if (mode === 'lightning') {
+    return (
+      <div className="absolute inset-0">
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 40 40"
+          className="absolute inset-0 w-full h-full"
+        >
+          <polyline
+            points="6,28 14,20 12,18 22,12"
+            fill="none"
+            stroke={tint}
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        {dot}
+      </div>
+    );
+  }
+
+  if (mode === 'dots') {
+    const dots = [
+      { l: 'calc(50% - 14px)', s: 0.6, o: 0.25 },
+      { l: 'calc(50% - 9px)', s: 0.7, o: 0.45 },
+      { l: 'calc(50% - 5px)', s: 0.8, o: 0.7 },
+    ];
+    return (
+      <div className="absolute inset-0">
+        {dots.map((d, i) => (
+          <span
+            key={i}
+            aria-hidden="true"
+            className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
+            style={{ left: d.l, background: tint, opacity: d.o, transform: `translateY(-50%) scale(${d.s})` }}
+          />
+        ))}
+        {dot}
+      </div>
+    );
+  }
+
+  if (mode === 'pulse') {
+    return (
+      <div className="absolute inset-0">
+        <span
+          aria-hidden="true"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full cursor-effect-pulse-ring"
+          style={{ borderColor: tint }}
+        />
+        <span
+          aria-hidden="true"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full cursor-effect-pulse-ring"
+          style={{ borderColor: tint, animationDelay: '0.6s' }}
+        />
+        {dot}
+      </div>
+    );
+  }
+
+  return <div className="absolute inset-0">{dot}</div>;
 }

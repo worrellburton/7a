@@ -413,3 +413,77 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
     animation: none;
   }
 }
+
+/* ── Cursor-effect picker thumbnails ──────────────────────────────
+   Tiny animations rendered inside each swatch on /app/profile →
+   Cursor so the user can see what each effect looks like before they
+   pick it. The full PresenceCursors renderer runs the real effect at
+   broadcast time; these are sketches keyed off CursorEffect.thumb.mode
+   in src/lib/cursor-effects.ts. Pauses under prefers-reduced-motion. */
+
+@keyframes cursor-effect-flame-flicker {
+  0%, 100% { transform: translate(-50%, 8px) scaleY(1); opacity: 0.85; }
+  50% { transform: translate(-50%, 10px) scaleY(1.15); opacity: 1; }
+}
+.cursor-effect-flame {
+  animation: cursor-effect-flame-flicker 0.9s ease-in-out infinite;
+}
+
+@keyframes cursor-effect-sparkle {
+  0%, 100% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1); opacity: 1; }
+}
+.cursor-effect-sparkle {
+  animation: cursor-effect-sparkle 1.6s ease-in-out infinite;
+}
+
+@keyframes cursor-effect-bubble {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  20% { opacity: 0.7; }
+  100% { transform: translateY(-30px) scale(1); opacity: 0; }
+}
+.cursor-effect-bubble {
+  animation: cursor-effect-bubble 1.8s ease-out infinite;
+}
+
+@keyframes cursor-effect-glow {
+  0%, 100% { opacity: 0.45; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.75; transform: translate(-50%, -50%) scale(1.18); }
+}
+.cursor-effect-glow {
+  animation: cursor-effect-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes cursor-effect-rainbow-hue {
+  from { background-color: #ef4444; }
+  16% { background-color: #f59e0b; }
+  33% { background-color: #84cc16; }
+  50% { background-color: #06b6d4; }
+  66% { background-color: #6366f1; }
+  83% { background-color: #ec4899; }
+  to { background-color: #ef4444; }
+}
+.cursor-effect-rainbow {
+  animation: cursor-effect-rainbow-hue 4s linear infinite;
+}
+
+@keyframes cursor-effect-pulse-ring {
+  0% { box-shadow: 0 0 0 0 currentColor; opacity: 0.7; }
+  100% { box-shadow: 0 0 0 14px transparent; opacity: 0; }
+}
+.cursor-effect-pulse-ring {
+  border: 1.5px solid currentColor;
+  background: transparent;
+  animation: cursor-effect-pulse-ring 1.6s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor-effect-flame,
+  .cursor-effect-sparkle,
+  .cursor-effect-bubble,
+  .cursor-effect-glow,
+  .cursor-effect-rainbow,
+  .cursor-effect-pulse-ring {
+    animation: none;
+  }
+}
