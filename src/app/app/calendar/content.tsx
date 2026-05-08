@@ -1848,16 +1848,23 @@ function ShiftAvatarFillRow({
         e.stopPropagation();
         onClick(ev.id);
       }}
-      className={`flex-1 min-h-0 rounded-md cursor-grab active:cursor-grabbing flex items-center gap-2 px-2 py-1 ring-1 ring-white/70 shadow-sm hover:shadow-md hover:-translate-y-px transition-all overflow-hidden ${
+      className={`relative flex-1 min-h-0 rounded-md cursor-grab active:cursor-grabbing flex items-center gap-2 pl-3 pr-2 py-1 bg-white/70 ring-1 ring-foreground/10 shadow-sm hover:shadow-md hover:bg-white/85 hover:-translate-y-px transition-all overflow-hidden ${
         dragging ? 'opacity-40' : ''
       }`}
       title={label}
-      style={{
-        fontFamily: 'var(--font-body)',
-        background: `linear-gradient(135deg, ${color}d8, ${color}b0)`,
-      }}
+      style={{ fontFamily: 'var(--font-body)' }}
     >
-      <span className="shrink-0 w-6 h-6 rounded-full ring-2 ring-white/85 overflow-hidden flex items-center justify-center bg-white/40 text-[10px] font-bold text-white">
+      {/* Color carries on a thin left bar instead of a full-tile fill
+          — a saturated slab over the page's evening sun-gradient was
+          glare-bright and hard to read after dark. The pale white
+          chip with a 3px color stripe stays calm under both daylight
+          and the dim evening overlay. */}
+      <span
+        aria-hidden="true"
+        className="absolute left-0 top-0 bottom-0 w-1 rounded-l-md"
+        style={{ backgroundColor: color }}
+      />
+      <span className="shrink-0 w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: color }}>
         {u?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={u.avatar_url} alt={label} className="w-full h-full object-cover" />
@@ -1865,7 +1872,7 @@ function ShiftAvatarFillRow({
           label.charAt(0).toUpperCase()
         )}
       </span>
-      <span className="text-[11px] font-semibold text-white/95 truncate drop-shadow-sm">
+      <span className="text-[11px] font-semibold text-foreground/85 truncate">
         {label}
       </span>
     </div>
