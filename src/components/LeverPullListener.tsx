@@ -29,6 +29,32 @@ export default function LeverPullListener() {
   const { user } = useAuth();
   const [active, setActive] = useState<LeverPullRow | null>(null);
 
+  // Defensive guard: a jd_reminder pull might have been queued *before*
+  // the user signed (signing happens via a different code path that
+  // doesn't write to lever_pulls). Without this check the popup would
+  // re-fire on every page load until the super admin manually
+  // marked it completed. We re-resolve the row's signature from
+  // jd_signatures.signer_user_id matching this user to avoid trusting
+  // metadata that's bypassable from the client. If the JD is already
+  // signed, mark the pull completed and swallow the row.
+  const dropIfAlreadySigned = async (row: LeverPullRow): Promise<boolean> => {
+    if (row.lever_type !== 'jd_reminder' || !user?.id) return false;
+    const sigId = row.metadata?.jd_signature_id;
+    if (!sigId) return false;
+    const { data: sig } = await supabase
+      .from('jd_signatures')
+      .select('id, signed_at, signer_user_id')
+      .eq('id', sigId)
+      .eq('signer_user_id', user.id)
+      .maybeSingle();
+    if (!sig?.signed_at) return false;
+    void supabase
+      .from('lever_pulls')
+      .update({ status: 'completed', acknowledged_at: new Date().toISOString() })
+      .eq('id', row.id);
+    return true;
+  };
+
   // Initial fetch: any pending pulls already waiting for this user.
   useEffect(() => {
     if (!user?.id) return;
@@ -43,7 +69,9 @@ export default function LeverPullListener() {
         .limit(1);
       if (cancelled) return;
       const row = (data ?? [])[0] as LeverPullRow | undefined;
-      if (row) setActive(row);
+      if (!row) return;
+      if (await dropIfAlreadySigned(row)) return;
+      setActive(row);
     })();
     return () => {
       cancelled = true;
@@ -63,9 +91,10 @@ export default function LeverPullListener() {
           table: 'lever_pulls',
           filter: `target_user_id=eq.${user.id}`,
         },
-        (payload) => {
+        async (payload) => {
           const row = payload.new as LeverPullRow;
           if (row.status !== 'pending') return;
+          if (await dropIfAlreadySigned(row)) return;
           setActive(row);
         },
       )
