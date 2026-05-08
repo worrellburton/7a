@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 
@@ -233,12 +234,21 @@ export default function PageHero({
           aria-hidden="true"
         />
       ) : (
-        <img
+        // Next.js Image with priority emits AVIF + WebP variants, a
+        // responsive srcset, and a `<link rel=preload fetchpriority=high>`
+        // automatically. That fixes the desktop + mobile LCP issues
+        // flagged in Search Console for every inner page that used to
+        // render this background as a plain <img loading="eager"> at the
+        // raw 400–500 KB JPEG size. Behaviour is otherwise identical —
+        // absolutely positioned, fills the section, decorative.
+        <Image
           src={posterImage}
           alt=""
-          className="absolute inset-0 w-full h-full object-cover"
-          loading="eager"
           aria-hidden="true"
+          priority
+          fill
+          sizes="100vw"
+          className="object-cover"
         />
       )}
 
