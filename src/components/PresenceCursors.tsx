@@ -5,6 +5,11 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
+import {
+  type CursorEffectId,
+  DEFAULT_CURSOR_EFFECT,
+  normaliseCursorEffect,
+} from '@/lib/cursor-effects';
 
 // Realtime cursor presence layer.
 //
@@ -20,6 +25,11 @@ interface CursorPayload {
   name: string;
   avatar_url: string | null;
   color: string | null; // user-chosen hex/HSL; falls back to hue
+  // User-picked render mode from the cursor-effect catalogue. Optional
+  // on the wire so a sender on an old build (pre-phase 8) doesn't
+  // crash receivers on the new build — receivers normalise to
+  // 'classic' when the field is missing or unrecognised.
+  effect?: CursorEffectId;
   x: number; // viewport-relative px
   y: number;
   vw: number; // sender viewport size for proportional placement
@@ -37,6 +47,9 @@ interface TrailPoint {
 interface RemoteCursor extends CursorPayload {
   // Stable hue derived from id hash, used when no explicit color is set.
   hue: number;
+  // Always present locally — either the sender's broadcast or the
+  // 'classic' default if the wire payload omitted the field.
+  effectId: CursorEffectId;
   // Velocity bookkeeping — populated locally on every broadcast we
   // receive. The fire trail orientation + length are computed from
   // these. Only the latest (vx, vy, speed) values are read by
@@ -79,7 +92,7 @@ export function PresenceCursors() {
   // Cache the freshest profile for the current user — pulled from the `users`
   // table so we get the same avatar/name everyone else sees, not just whatever
   // happens to be in the auth metadata.
-  const profileRef = useRef<{ name: string; avatar_url: string | null; color: string | null } | null>(null);
+  const profileRef = useRef<{ name: string; avatar_url: string | null; color: string | null; effect: CursorEffectId } | null>(null);
 
   // Track viewport for proportional rescaling of remote cursors.
   useEffect(() => {
@@ -94,25 +107,52 @@ export function PresenceCursors() {
     if (!user?.id) return;
     let cancelled = false;
     (async () => {
-      const rows = await db({
+      // Try the FULL select first (includes cursor_effect, added in
+      // migration 20260508_users_cursor_effect.sql). If that fails on
+      // a stack that hasn't applied the migration, fall back to the
+      // pre-effect select so the cursor layer keeps rendering with
+      // 'classic' instead of going silent. This mirrors the same
+      // safe-degrade pattern used on the profile page itself.
+      let rows = await db({
         action: 'select',
         table: 'users',
         match: { id: user.id },
-        select: 'full_name, avatar_url, cursor_color',
+        select: 'full_name, avatar_url, cursor_color, cursor_effect',
       }).catch(() => null);
+      if (!Array.isArray(rows)) {
+        // eslint-disable-next-line no-console
+        console.info('[PresenceCursors] cursor_effect column unavailable; using classic.');
+        rows = await db({
+          action: 'select',
+          table: 'users',
+          match: { id: user.id },
+          select: 'full_name, avatar_url, cursor_color',
+        }).catch(() => null);
+      }
       if (cancelled) return;
       const meta = user.user_metadata || {};
       const fallbackName = (meta.full_name as string) || user.email || 'User';
       const fallbackAvatar = (meta.avatar_url as string) || null;
       if (Array.isArray(rows) && rows.length > 0) {
-        const r = rows[0] as { full_name: string | null; avatar_url: string | null; cursor_color: string | null };
+        const r = rows[0] as {
+          full_name: string | null;
+          avatar_url: string | null;
+          cursor_color: string | null;
+          cursor_effect?: string | null;
+        };
         profileRef.current = {
           name: r.full_name || fallbackName,
           avatar_url: r.avatar_url || fallbackAvatar,
           color: r.cursor_color || null,
+          effect: normaliseCursorEffect(r.cursor_effect),
         };
       } else {
-        profileRef.current = { name: fallbackName, avatar_url: fallbackAvatar, color: null };
+        profileRef.current = {
+          name: fallbackName,
+          avatar_url: fallbackAvatar,
+          color: null,
+          effect: DEFAULT_CURSOR_EFFECT,
+        };
       }
     })();
     return () => { cancelled = true; };
@@ -127,6 +167,21 @@ export function PresenceCursors() {
     };
     window.addEventListener('cursor-color-change', onChange);
     return () => window.removeEventListener('cursor-color-change', onChange);
+  }, []);
+
+  // Same pattern for cursor_effect — the picker on /app/profile fires
+  // a 'cursor-effect-change' CustomEvent so the new effect ships in
+  // the very next outgoing broadcast (no reload, no waiting for the
+  // db round-trip).
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ effect: CursorEffectId | string | null }>).detail;
+      if (profileRef.current) {
+        profileRef.current.effect = normaliseCursorEffect(detail?.effect ?? null);
+      }
+    };
+    window.addEventListener('cursor-effect-change', onChange);
+    return () => window.removeEventListener('cursor-effect-change', onChange);
   }, []);
 
   // Subscribe to the channel and clean up stale cursors every second.
@@ -193,6 +248,12 @@ export function PresenceCursors() {
             ...c,
             ts: arrivedAt,
             hue: hueFromId(c.user_id),
+            // Coerce the wire value through the catalogue so a stale
+            // effect id (sender on a newer build that widened the
+            // catalogue, or a missing field from a pre-phase-8
+            // sender) renders as 'classic' instead of an undefined
+            // branch.
+            effectId: normaliseCursorEffect(c.effect),
             prevX: c.x,
             prevY: c.y,
             prevTs: arrivedAt,
@@ -264,6 +325,7 @@ export function PresenceCursors() {
           name: profile.name,
           avatar_url: profile.avatar_url,
           color: profile.color,
+          effect: profile.effect,
           x: e.clientX,
           y: e.clientY,
           vw: window.innerWidth,

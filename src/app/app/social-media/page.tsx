@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import SocialMediaContent from './content';
 
 export const metadata: Metadata = {
-  title: 'Social Media — Patient Portal',
+  title: 'Social Media — Feather',
 };
 
 export default function SocialMediaPage() {

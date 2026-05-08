@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import OutreachContent from '../outreach/OutreachContent';
 
 export const metadata: Metadata = {
-  title: 'Forums - Patient Portal',
+  title: 'Forums - Feather',
 };
 
 export default function ForumsPage() {

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import SerpAuditContent from './content';
 
 export const metadata: Metadata = {
-  title: 'SERP Audit — Patient Portal',
+  title: 'SERP Audit — Feather',
 };
 
 export default function SerpAuditPage() {

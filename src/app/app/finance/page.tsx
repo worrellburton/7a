@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import FinanceContent from './content';
 
 export const metadata: Metadata = {
-  title: 'Finance - Patient Portal',
+  title: 'Finance - Feather',
 };
 
 export default function FinancePage() {

@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import WebsiteRequestsContent from './content';
 
 export const metadata: Metadata = {
-  title: 'Website Requests - Patient Portal',
+  title: 'Website Requests - Feather',
 };
 
 export default function WebsiteRequestsPage() {

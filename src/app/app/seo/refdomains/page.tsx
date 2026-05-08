@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import RefDomainsContent from './content';
 
 export const metadata: Metadata = {
-  title: 'Referring Domains - Patient Portal',
+  title: 'Referring Domains - Feather',
 };
 
 export default function RefDomainsPage() {
