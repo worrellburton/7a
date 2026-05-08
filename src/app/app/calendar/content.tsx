@@ -3,7 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 // ------------------------------------------------------------
 // Calendar — Phase 3: polish, edit, reschedule, delete.
@@ -98,21 +98,23 @@ const DEFAULT_SHIFTS: Shift[] = [
   { id: 'overnight', name: 'Overnight', start: '22:30', end: '06:30' },
 ];
 
-// Phones runs a different shift bundle from the Team schedule —
-// 9–5 day coverage and 5–9 evening, no overnight. Edits live in
-// localStorage under PHONE_SHIFTS_STORAGE_KEY so changes don't
-// stomp the team's Morning/Afternoon/Overnight bundle.
+// Phones runs a different shift bundle from the Team schedule — full
+// 24-hour coverage broken into Morning (00:00–08:00), Day (08:00–17:00)
+// and Evening (17:00–24:00, end stored as '00:00' since shiftContainsHour
+// treats end <= start as a midnight wrap). Edits live in localStorage
+// under PHONE_SHIFTS_STORAGE_KEY so changes don't stomp the team's
+// Morning/Afternoon/Overnight bundle.
 const DEFAULT_PHONE_SHIFTS: Shift[] = [
+  { id: 'phones-morning', name: 'Morning', start: '00:00', end: '08:00' },
   { id: 'phones-day', name: 'Day', start: '08:00', end: '17:00' },
-  { id: 'phones-evening', name: 'Evening', start: '17:00', end: '21:00' },
+  { id: 'phones-evening', name: 'Evening', start: '17:00', end: '00:00' },
 ];
 
 const SHIFTS_STORAGE_KEY = 'sa-calendar-shifts-v1';
-// v2 — shipped after the Day shift's start moved from 09:00 → 08:00.
-// Bumping the key resets the per-browser cache so users who hit the
-// page before the change get the new default; if anyone had retimed
-// their bundle locally they can reset it from Shift Settings.
-const PHONE_SHIFTS_STORAGE_KEY = 'sa-calendar-phone-shifts-v2';
+// v3 — shipped after the bundle grew from 2 shifts (Day, Evening 5–9)
+// to 3 (Morning 12–8, Day 8–5, Evening 5–12). Bump invalidates the
+// stale 2-row cache so the new defaults render.
+const PHONE_SHIFTS_STORAGE_KEY = 'sa-calendar-phone-shifts-v3';
 const VIEWMODE_STORAGE_KEY = 'sa-calendar-viewmode-v1';
 
 // ------------------------------------------------------------
@@ -438,7 +440,7 @@ export default function CalendarContent() {
       const raw = window.localStorage.getItem(PHONE_SHIFTS_STORAGE_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as Shift[];
-      if (Array.isArray(parsed) && parsed.length === 2) setPhoneShifts(parsed);
+      if (Array.isArray(parsed) && parsed.length === 3) setPhoneShifts(parsed);
     } catch {
       /* ignore malformed storage */
     }
@@ -1775,33 +1777,52 @@ function ShiftAvatar({
 // Cluster of user avatars for a shift — shown inside each shift
 // drop block. Wraps onto multiple rows so a full shift still fits.
 // When `fill` is set the cluster renders one full-width chip per
-// event stacked vertically and grown to the full block height — used
-// by the Phones tab where a single person on coverage should visibly
-// own the whole 8 – 5 / 5 – 9 block instead of perching as a small
-// circle in the corner.
+// event positioned by the event's start/end time within the shift
+// segment [segStartH, segEndH]. The chip carries top + bottom resize
+// handles so admissions can stretch a person's coverage shorter or
+// longer without leaving the calendar — used by the Phones tab where
+// a person dropped into a shift initially fills the slab and is then
+// trimmed to their actual coverage window.
 function ShiftAvatarCluster({
   events,
   usersById,
   onEventClick,
   size = 'md',
   fill = false,
+  segStartH,
+  segEndH,
+  onResize,
 }: {
   events: EventRow[];
   usersById: Map<string, UserRow>;
   onEventClick: (id: string) => void;
   size?: 'sm' | 'md';
   fill?: boolean;
+  /** Decimal-hour bounds of the shift segment this cluster lives in.
+   *  Required when fill=true so chips can position by their event time. */
+  segStartH?: number;
+  segEndH?: number;
+  /** Event resize callback — required when fill=true. Hour-snapped. */
+  onResize?: (eventId: string, newStart: number, newEnd: number) => void;
 }) {
   if (events.length === 0) return null;
-  if (fill) {
+  if (fill && segStartH != null && segEndH != null && onResize) {
+    // `relative flex-1 min-h-0` makes the cluster wrap take the rest
+    // of the DropCell below the header without overlapping it. Chips
+    // inside position absolutely against this wrapper's bounds, so a
+    // chip at evStart=segStartH lands flush with the wrapper's top
+    // (just below the small DAY/EVENING label) and not behind it.
     return (
-      <div className="flex flex-col gap-0.5 flex-1 min-h-0 pointer-events-auto">
+      <div className="relative flex-1 min-h-0 pointer-events-none">
         {events.map((ev) => (
           <ShiftAvatarFillRow
             key={ev.id}
             ev={ev}
             usersById={usersById}
             onClick={onEventClick}
+            segStartH={segStartH}
+            segEndH={segEndH}
+            onResize={onResize}
           />
         ))}
       </div>
@@ -1822,25 +1843,109 @@ function ShiftAvatarCluster({
   );
 }
 
-// Full-width row chip — fills the shift block vertically so a single
-// person on phone coverage reads as "owning" the slot. flex-1
-// distributes vertical space evenly when multiple people share the
-// shift.
+// Full-width row chip — positioned absolutely within the shift block
+// based on the event's start/end time. Top + bottom edges expose
+// 4px-tall drag handles; pointer drag converts vertical pixel motion
+// into a new hour and calls onResize. End times of '00:00:00' that
+// follow a later start (the Evening shift's end-at-midnight wrap)
+// are normalised to 24 so the chip fills the whole bar correctly.
 function ShiftAvatarFillRow({
   ev,
   usersById,
   onClick,
+  segStartH,
+  segEndH,
+  onResize,
 }: {
   ev: EventRow;
   usersById: Map<string, UserRow>;
   onClick: (id: string) => void;
+  segStartH: number;
+  segEndH: number;
+  onResize: (eventId: string, newStart: number, newEnd: number) => void;
 }) {
   const color = ev.color || colorFor(ev.subject_id ?? ev.id);
   const u = usersById.get(ev.subject_id ?? '');
   const label = u ? userLabel(u) : ev.title;
   const { dragging, onDragStart, onDragEnd } = useEventDrag(ev);
+
+  const segSpan = Math.max(0.001, segEndH - segStartH);
+  // Resolve the event's start/end as decimal hours within the shift
+  // segment. evEnd of 0 (midnight) following a positive evStart means
+  // the event ends at the segment's end (Evening's 17→00 wrap).
+  const rawStart = dbTimeToHours(ev.start_time);
+  const rawEnd = dbTimeToHours(ev.end_time);
+  const evStart = rawStart != null ? rawStart : segStartH;
+  let evEnd = rawEnd != null ? rawEnd : segEndH;
+  if (evEnd <= evStart) evEnd = segEndH; // wrap or unset → fill to end
+  // Clamp to the shift segment so a pre-existing wider event still
+  // renders inside its own block.
+  const clampedStart = Math.max(segStartH, Math.min(evStart, segEndH - 1));
+  const clampedEnd = Math.max(clampedStart + 0.5, Math.min(evEnd, segEndH));
+
+  // Local preview state — while a handle is being dragged we update
+  // these locally for instant feedback, then commit to the database
+  // (via onResize) on pointer-up.
+  const [previewStart, setPreviewStart] = useState<number | null>(null);
+  const [previewEnd, setPreviewEnd] = useState<number | null>(null);
+  const liveStart = previewStart ?? clampedStart;
+  const liveEnd = previewEnd ?? clampedEnd;
+
+  const topPct = ((liveStart - segStartH) / segSpan) * 100;
+  const heightPct = ((liveEnd - liveStart) / segSpan) * 100;
+
+  // Pointer-driven resize. We attach pointermove/up to the document
+  // because the chip is small and the pointer easily wanders off
+  // during a drag. The shift block's parent (a positioned ancestor)
+  // gives us the geometry we need to convert client Y → hour.
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const startResize = (edge: 'top' | 'bottom') =>
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const blockEl = rowRef.current?.parentElement; // the absolute inset-0 wrapper
+      if (!blockEl) return;
+      const rect = blockEl.getBoundingClientRect();
+      const yToHour = (clientY: number) => {
+        const ratio = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+        return segStartH + ratio * segSpan;
+      };
+      const move = (mv: PointerEvent) => {
+        const rawHour = yToHour(mv.clientY);
+        const snapped = Math.round(rawHour); // hour-snap, matches handleResizeEvent
+        if (edge === 'top') {
+          const next = Math.max(segStartH, Math.min(snapped, clampedEnd - 1));
+          setPreviewStart(next);
+        } else {
+          const next = Math.max(clampedStart + 1, Math.min(snapped, segEndH));
+          setPreviewEnd(next);
+        }
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        // Commit whatever the preview landed on. Read the latest
+        // values via setState callback so we don't stale-close on the
+        // initial (null) preview state.
+        setPreviewStart((ps) => {
+          setPreviewEnd((pe) => {
+            const finalStart = ps ?? clampedStart;
+            const finalEnd = pe ?? clampedEnd;
+            if (finalStart !== clampedStart || finalEnd !== clampedEnd) {
+              onResize(ev.id, finalStart, finalEnd);
+            }
+            return null;
+          });
+          return null;
+        });
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    };
+
   return (
     <div
+      ref={rowRef}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -1848,23 +1953,49 @@ function ShiftAvatarFillRow({
         e.stopPropagation();
         onClick(ev.id);
       }}
-      className={`relative flex-1 min-h-0 rounded-md cursor-grab active:cursor-grabbing flex items-center gap-2 pl-3 pr-2 py-1 bg-white/70 ring-1 ring-foreground/10 shadow-sm hover:shadow-md hover:bg-white/85 hover:-translate-y-px transition-all overflow-hidden ${
+      className={`absolute left-0.5 right-0.5 rounded-md cursor-grab active:cursor-grabbing flex items-center gap-2 pl-3 pr-2 py-1 shadow-sm hover:shadow-md hover:brightness-105 transition-all overflow-hidden pointer-events-auto ${
         dragging ? 'opacity-40' : ''
       }`}
-      title={label}
-      style={{ fontFamily: 'var(--font-body)' }}
+      title={`${label} · ${formatHour(liveStart)} – ${formatHour(liveEnd === 24 ? 0 : liveEnd)}`}
+      style={{
+        fontFamily: 'var(--font-body)',
+        top: `${topPct}%`,
+        height: `${heightPct}%`,
+        // Soft tinted fill keyed off the user's palette colour — bright
+        // enough to look alive without the saturated slab that fought
+        // the evening sun-gradient. The 25% alpha (`40` hex) lets the
+        // white card behind show through so identity reads at a glance
+        // without searing. Border picks up the same colour at higher
+        // alpha so the chip reads as a single cohesive block.
+        backgroundColor: `${color}33`,
+        boxShadow: `inset 0 0 0 1px ${color}66, 0 1px 2px rgba(0,0,0,0.05)`,
+      }}
     >
-      {/* Color carries on a thin left bar instead of a full-tile fill
-          — a saturated slab over the page's evening sun-gradient was
-          glare-bright and hard to read after dark. The pale white
-          chip with a 3px color stripe stays calm under both daylight
-          and the dim evening overlay. */}
+      {/* Top resize handle — 4px tall strip at the row's upper edge.
+          Catches pointer events even when the chip itself is being
+          dragged for a reschedule, by stopping propagation in
+          onPointerDown. */}
+      <div
+        aria-label={`Resize ${label} from the top`}
+        onPointerDown={startResize('top')}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize hover:bg-foreground/10"
+      />
+      {/* Bottom resize handle — same idea but along the lower edge. */}
+      <div
+        aria-label={`Resize ${label} from the bottom`}
+        onPointerDown={startResize('bottom')}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute left-0 right-0 bottom-0 h-1.5 cursor-ns-resize hover:bg-foreground/10"
+      />
+      {/* Saturated left bar so the per-user colour reads even when
+          the row is short and the body tint thin. */}
       <span
         aria-hidden="true"
         className="absolute left-0 top-0 bottom-0 w-1 rounded-l-md"
         style={{ backgroundColor: color }}
       />
-      <span className="shrink-0 w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: color }}>
+      <span className="shrink-0 w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-white/80" style={{ backgroundColor: color }}>
         {u?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={u.avatar_url} alt={label} className="w-full h-full object-cover" />
@@ -2728,31 +2859,38 @@ function WeekView({
         })}
       </div>
       <div className="flex-1 min-h-0 relative">
-        {/* Per-day gradient overlays sit behind the grid cells. */}
-        <div
-          key={days.map(toISODate).join('|')}
-          className="pointer-events-none absolute inset-0 grid animate-cal-fade"
-          style={{ gridTemplateColumns: '64px repeat(7, minmax(0, 1fr))' }}
-          aria-hidden="true"
-        >
-          <div />
-          {daySun.map((s, i) => (
-            <div key={i} className="relative" style={{ background: s.gradient }}>
-              {s.sunrise > DAY_START_H && s.sunrise < DAY_END_H && (
-                <div
-                  className="absolute left-0 right-0 border-t border-foreground/40"
-                  style={{ top: `${s.sunrisePct}%` }}
-                />
-              )}
-              {s.sunset > DAY_START_H && s.sunset < DAY_END_H && (
-                <div
-                  className="absolute left-0 right-0 border-t border-foreground/40"
-                  style={{ top: `${s.sunsetPct}%` }}
-                />
-              )}
-            </div>
-          ))}
-        </div>
+        {/* Per-day sun-position gradient overlay — suppressed on the
+            Phones tab. Phones is a 24-hour coverage schedule, so the
+            "darken after sundown" wash made the 5–12 Evening + 12–8
+            Morning shifts read as a gloomy black slab and washed the
+            chip colours out. Keep it on Team / Groups / Events where
+            day-night context is useful. */}
+        {viewMode !== 'phones' && (
+          <div
+            key={days.map(toISODate).join('|')}
+            className="pointer-events-none absolute inset-0 grid animate-cal-fade"
+            style={{ gridTemplateColumns: '64px repeat(7, minmax(0, 1fr))' }}
+            aria-hidden="true"
+          >
+            <div />
+            {daySun.map((s, i) => (
+              <div key={i} className="relative" style={{ background: s.gradient }}>
+                {s.sunrise > DAY_START_H && s.sunrise < DAY_END_H && (
+                  <div
+                    className="absolute left-0 right-0 border-t border-foreground/40"
+                    style={{ top: `${s.sunrisePct}%` }}
+                  />
+                )}
+                {s.sunset > DAY_START_H && s.sunset < DAY_END_H && (
+                  <div
+                    className="absolute left-0 right-0 border-t border-foreground/40"
+                    style={{ top: `${s.sunsetPct}%` }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
         <div
           className="grid h-full relative"
           style={{
@@ -2882,6 +3020,9 @@ function WeekView({
                               onEventClick={onEventClick}
                               size="sm"
                               fill={viewMode === 'phones'}
+                              segStartH={seg.a}
+                              segEndH={seg.b}
+                              onResize={onResize}
                             />
                           </>
                         )}
@@ -3084,13 +3225,18 @@ function DayView({
         </div>
       </div>
       <div className="flex-1 min-h-0 relative">
-        {/* Sunrise/sunset gradient overlay — sits behind cells, above bg */}
-        <div
-          key={iso}
-          className="pointer-events-none absolute inset-0 animate-cal-fade"
-          style={{ background: gradient, left: '80px' }}
-          aria-hidden="true"
-        />
+        {/* Sunrise/sunset gradient overlay — sits behind cells, above
+            bg. Hidden on Phones because the 24-hour coverage view
+            doesn't benefit from a "darken after sunset" wash and the
+            black tint dulls the chip colours. */}
+        {viewMode !== 'phones' && (
+          <div
+            key={iso}
+            className="pointer-events-none absolute inset-0 animate-cal-fade"
+            style={{ background: gradient, left: '80px' }}
+            aria-hidden="true"
+          />
+        )}
         {/* Shift drop zones — each shift rendered as an interactive drop
             block positioned at its actual time range inside the hour grid.
             Wrapping shifts (overnight) render as two segments so both the
@@ -3181,6 +3327,9 @@ function DayView({
                       onEventClick={onEventClick}
                       size="md"
                       fill={viewMode === 'phones'}
+                      segStartH={seg.a}
+                      segEndH={seg.b}
+                      onResize={onResize}
                     />
                   </>
                 )}
