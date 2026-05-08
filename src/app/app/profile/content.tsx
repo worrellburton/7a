@@ -167,6 +167,12 @@ export default function ProfileContent() {
   const [credentials, setCredentials] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [hometown, setHometown] = useState('');
+  // Top-of-page subtab. Info hosts every existing field (name,
+  // credentials, bio, public-team toggle, etc.); Cursor hosts the
+  // cursor color picker and the 10-effect picker introduced over
+  // phases 4-9. Default to Info so a teammate landing here doesn't
+  // get bounced to a settings page they didn't ask for.
+  const [profileTab, setProfileTab] = useState<'info' | 'cursor'>('info');
   const [bio, setBio] = useState('');
   const [favoriteQuote, setFavoriteQuote] = useState('');
   const [favoriteSevenArrows, setFavoriteSevenArrows] = useState('');
@@ -442,7 +448,7 @@ export default function ProfileContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-5xl mx-auto">
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">My Profile</h1>
         <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
           Manage your account information. Public-team fields appear on{' '}
@@ -450,6 +456,47 @@ export default function ProfileContent() {
         </p>
       </div>
 
+      {/* Sub-page strip — Info hosts the editable profile fields;
+          Cursor hosts the cursor colour + the 10-effect picker. Style
+          mirrors the Backlinks inner strip on /app/seo so the two
+          hierarchies read consistently. */}
+      <nav
+        aria-label="Profile sub-navigation"
+        className="mb-5 flex items-center gap-1 border-b border-black/10"
+      >
+        {(['info', 'cursor'] as const).map((t) => {
+          const active = profileTab === t;
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setProfileTab(t)}
+              className={`relative px-3 py-2 text-[13px] font-medium transition-colors ${
+                active
+                  ? 'text-primary'
+                  : 'text-foreground/55 hover:text-foreground/85'
+              }`}
+              aria-current={active ? 'page' : undefined}
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {t === 'info' ? 'Info' : 'Cursor'}
+              {active && (
+                <span
+                  aria-hidden="true"
+                  className="absolute left-2 right-2 -bottom-px h-0.5 rounded-full bg-primary"
+                />
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      {profileTab === 'cursor' ? (
+        <ProfileCursorTab
+          cursorColor={cursorColor}
+          onCursorColorChange={(value) => { void pickCursorColor(value); }}
+        />
+      ) : (
       <div className="grid lg:grid-cols-[1fr_320px] gap-8">
         {/* Left: form */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -899,6 +946,7 @@ export default function ProfileContent() {
           </p>
         </div>
       </div>
+      )}
 
       {/* Hide-from-website confirmation */}
       {confirmHide && (
@@ -953,6 +1001,31 @@ export default function ProfileContent() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Cursor sub-page — Phase 3 lands the placeholder shell. The colour
+// picker (phase 4), the 10-effect catalogue (phase 5), the picker UI
+// (phase 6), and the live preview (phase 7) fill this component out
+// in subsequent commits.
+function ProfileCursorTab({
+  cursorColor,
+  onCursorColorChange,
+}: {
+  cursorColor: string | null;
+  onCursorColorChange: (value: string | null) => void;
+}) {
+  void cursorColor;
+  void onCursorColorChange;
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <h2 className="text-base font-semibold text-foreground mb-1">Cursor</h2>
+      <p className="text-sm text-foreground/55 mb-4" style={{ fontFamily: 'var(--font-body)' }}>
+        Pick the colour and effect your cursor uses everywhere in the portal —
+        teammates see the same effect on their screens when you’re on the same
+        page. Effect picker lands in the next phase.
+      </p>
     </div>
   );
 }
