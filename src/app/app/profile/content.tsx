@@ -804,88 +804,9 @@ export default function ProfileContent() {
                 <p className="text-[11px] text-foreground/40 mt-1">{favoriteQuote.length}/300</p>
               </div>
 
-              {/* Cursor color */}
-              <div>
-                <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Cursor Color</label>
-                <p className="text-xs text-foreground/40 mb-2">This is the color your cursor shows up as for everyone else in the portal.</p>
-                <div className="flex items-center flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => pickCursorColor(null)}
-                    aria-label="Auto color"
-                    title="Auto"
-                    className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-[9px] font-bold uppercase tracking-wider transition-transform hover:scale-110 ${
-                      cursorColor === null ? 'border-foreground text-foreground bg-white' : 'border-gray-200 text-foreground/50 bg-white'
-                    }`}
-                  >
-                    A
-                  </button>
-                  {CURSOR_COLORS.map((c) => (
-                    <button
-                      key={c.value}
-                      type="button"
-                      onClick={() => pickCursorColor(c.value)}
-                      aria-label={c.label}
-                      title={c.label}
-                      className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${
-                        cursorColor === c.value ? 'border-foreground' : 'border-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]'
-                      }`}
-                      style={{ backgroundColor: c.value }}
-                    />
-                  ))}
-                  {/* Free-form picker — preset swatches cover the
-                      common cases, but this lets the user dial in
-                      any hex via the OS-native color UI. We render
-                      a circular preview that mirrors the current
-                      color with a small "+" affordance, and the
-                      hidden native input opens its picker on click.
-                      Custom-color rows that don't match a preset
-                      land here as "selected" automatically. */}
-                  <label
-                    className={`relative w-7 h-7 rounded-full border-2 cursor-pointer transition-transform hover:scale-110 inline-flex items-center justify-center ${
-                      cursorColor && !CURSOR_COLORS.some((c) => c.value === cursorColor)
-                        ? 'border-foreground'
-                        : 'border-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]'
-                    }`}
-                    style={{
-                      background: cursorColor && !CURSOR_COLORS.some((c) => c.value === cursorColor)
-                        ? cursorColor
-                        : 'conic-gradient(from 90deg, #f87171, #fbbf24, #34d399, #60a5fa, #a78bfa, #f472b6, #f87171)',
-                    }}
-                    title="Pick any color"
-                    aria-label="Pick any color"
-                  >
-                    <input
-                      type="color"
-                      value={cursorColor && /^#[0-9a-fA-F]{6}$/.test(cursorColor) ? cursorColor : '#bc6b4a'}
-                      onChange={(e) => pickCursorColor(e.target.value)}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                    />
-                    {/* Plus glyph centered — only shows when the
-                        custom slot isn't the active selection so
-                        the swatch preview itself stays clean once
-                        a custom color is set. */}
-                    {!(cursorColor && !CURSOR_COLORS.some((c) => c.value === cursorColor)) && (
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        className="w-3 h-3 text-white drop-shadow"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                      >
-                        <path d="M12 5v14M5 12h14" />
-                      </svg>
-                    )}
-                  </label>
-                </div>
-                {cursorColor && !CURSOR_COLORS.some((c) => c.value === cursorColor) && (
-                  <p className="text-[11px] text-foreground/45 mt-1.5 font-mono">
-                    {cursorColor}
-                  </p>
-                )}
-              </div>
+              {/* Cursor color moved to /app/profile → Cursor sub-tab in
+                  Phase 4 of the cursor-effect rollout — see
+                  ProfileCursorTab below for the new home. */}
 
               {/* Public team toggle — staff-only. Alumni profiles
                   don't show this control because they're never
@@ -1005,10 +926,9 @@ export default function ProfileContent() {
   );
 }
 
-// Cursor sub-page — Phase 3 lands the placeholder shell. The colour
-// picker (phase 4), the 10-effect catalogue (phase 5), the picker UI
-// (phase 6), and the live preview (phase 7) fill this component out
-// in subsequent commits.
+// Cursor sub-page — Phase 3 lands the shell, Phase 4 moves the
+// existing colour picker in here. Phases 5-7 layer the 10-effect
+// catalogue + picker + live preview on top.
 function ProfileCursorTab({
   cursorColor,
   onCursorColorChange,
@@ -1016,16 +936,91 @@ function ProfileCursorTab({
   cursorColor: string | null;
   onCursorColorChange: (value: string | null) => void;
 }) {
-  void cursorColor;
-  void onCursorColorChange;
+  const isCustom = !!(cursorColor && !CURSOR_COLORS.some((c) => c.value === cursorColor));
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 max-w-3xl">
       <h2 className="text-base font-semibold text-foreground mb-1">Cursor</h2>
-      <p className="text-sm text-foreground/55 mb-4" style={{ fontFamily: 'var(--font-body)' }}>
+      <p className="text-sm text-foreground/55 mb-6" style={{ fontFamily: 'var(--font-body)' }}>
         Pick the colour and effect your cursor uses everywhere in the portal —
         teammates see the same effect on their screens when you’re on the same
-        page. Effect picker lands in the next phase.
+        page.
       </p>
+
+      <div className="border-t border-gray-100 pt-5">
+        <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Cursor Color</label>
+        <p className="text-xs text-foreground/40 mb-2.5">This is the color your cursor shows up as for everyone else in the portal.</p>
+        <div className="flex items-center flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onCursorColorChange(null)}
+            aria-label="Auto color"
+            title="Auto"
+            className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-[9px] font-bold uppercase tracking-wider transition-transform hover:scale-110 ${
+              cursorColor === null ? 'border-foreground text-foreground bg-white' : 'border-gray-200 text-foreground/50 bg-white'
+            }`}
+          >
+            A
+          </button>
+          {CURSOR_COLORS.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => onCursorColorChange(c.value)}
+              aria-label={c.label}
+              title={c.label}
+              className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${
+                cursorColor === c.value ? 'border-foreground' : 'border-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]'
+              }`}
+              style={{ backgroundColor: c.value }}
+            />
+          ))}
+          {/* Free-form swatch — clicking opens the OS-native colour
+              picker via the hidden <input type=color>, and any custom
+              hex that doesn't match a preset slots in here as the
+              active selection. */}
+          <label
+            className={`relative w-7 h-7 rounded-full border-2 cursor-pointer transition-transform hover:scale-110 inline-flex items-center justify-center ${
+              isCustom ? 'border-foreground' : 'border-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]'
+            }`}
+            style={{
+              background: isCustom
+                ? (cursorColor as string)
+                : 'conic-gradient(from 90deg, #f87171, #fbbf24, #34d399, #60a5fa, #a78bfa, #f472b6, #f87171)',
+            }}
+            title="Pick any color"
+            aria-label="Pick any color"
+          >
+            <input
+              type="color"
+              value={cursorColor && /^#[0-9a-fA-F]{6}$/.test(cursorColor) ? cursorColor : '#bc6b4a'}
+              onChange={(e) => onCursorColorChange(e.target.value)}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+            />
+            {!isCustom && (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="w-3 h-3 text-white drop-shadow"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            )}
+          </label>
+        </div>
+        {isCustom && (
+          <p className="text-[11px] text-foreground/45 mt-1.5 font-mono">
+            {cursorColor}
+          </p>
+        )}
+      </div>
+
+      {/* Phase 5+ adds the cursor-effect catalogue + picker + live
+          preview here. Until then the colour picker is the only thing
+          on this tab. */}
     </div>
   );
 }
