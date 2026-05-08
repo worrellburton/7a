@@ -341,6 +341,25 @@ export function PresenceCursors() {
     return () => window.removeEventListener('mousemove', onMove);
   }, [user?.id, pathname]);
 
+  // Time-based effects (sparkle / rainbow / pulse / glow / bubbles)
+  // need a steady ~60fps tick to repaint between broadcasts. Trail-
+  // based effects (flame / comet / lightning / dots) animate
+  // implicitly through the trail buffer + incoming broadcasts. We
+  // gate the rAF loop on cursor presence so an empty page doesn't
+  // burn a frame budget for nothing.
+  const [, setNow] = useState(0);
+  const hasCursors = Object.keys(cursors).length > 0;
+  useEffect(() => {
+    if (!hasCursors) return;
+    let raf = 0;
+    const loop = () => {
+      setNow((n) => (n + 1) % 1_000_000);
+      raf = window.requestAnimationFrame(loop);
+    };
+    raf = window.requestAnimationFrame(loop);
+    return () => window.cancelAnimationFrame(raf);
+  }, [hasCursors]);
+
   if (!user || viewport.w === 0) return null;
 
   // Only show cursors of teammates currently on the same page.
@@ -367,6 +386,19 @@ export function PresenceCursors() {
           0%, 100% { opacity: 0.55; }
           50% { opacity: 0.9; }
         }
+        /* glow effect — slow inhale / exhale on the halo, no
+           flame body. */
+        @keyframes presence-effect-glow {
+          0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.55; }
+          50%      { transform: translate(-50%, -50%) scale(1.18); opacity: 0.85; }
+        }
+        /* pulse effect — rings spawn at the cursor and expand
+           outward, fading as they grow. Two ring tracks phased
+           half a cycle apart so there's always one mid-flight. */
+        @keyframes presence-effect-ring {
+          0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0.85; }
+          100% { transform: translate(-50%, -50%) scale(1.6);  opacity: 0; }
+        }
       `}</style>
 
       {visible.map((c) => {
@@ -375,191 +407,349 @@ export function PresenceCursors() {
         const x = (c.x / Math.max(1, c.vw)) * viewport.w;
         const y = (c.y / Math.max(1, c.vh)) * viewport.h;
         const initial = (c.name || '?').charAt(0).toUpperCase();
-        const color = c.color || `hsl(${c.hue}, 70%, 50%)`;
+        const baseColor = c.color || `hsl(${c.hue}, 70%, 50%)`;
+
+        // Rainbow effect overrides the chosen colour with a hue-cycling
+        // value sampled off Date.now(). The user explicitly opted into
+        // multi-hue when they picked rainbow, so we own the colour
+        // channel for them. All other effects honour the chosen colour.
+        const color = c.effectId === 'rainbow'
+          ? `hsl(${(Date.now() / 22) % 360}, 85%, 58%)`
+          : baseColor;
 
         // Trail orientation. Flame drags OPPOSITE to motion, so we
         // negate the velocity vector and atan2 it to get the angle
-        // pointing away from the cursor. Below the IDLE_SPEED
-        // threshold the velocity is too small to be a meaningful
-        // direction (random sub-pixel jitter), so we fall back to
-        // pointing straight down — the cursor reads as a candle
-        // when stationary and as a comet when moving.
+        // pointing away from the cursor.
         const speed = c.speed ?? 0;
-        const IDLE_SPEED = 25; // px/sec; below this, treat as idle
-        // Trail orientation. The flame's base orientation is "pointing
-        // straight DOWN from the cursor tip". After CSS rotation θ,
-        // the flame's tip-to-base direction becomes (sin θ, cos θ).
-        // We want that to match the OPPOSITE of velocity — the flame
-        // drags behind, so it points toward (-vx, -vy). Solving
-        // (sin θ, cos θ) = (-vx, -vy)/|v| gives θ = atan2(-vx, -vy).
-        //
-        // Earlier versions used atan2(-vy, -vx)+90, which had the
-        // arguments transposed and produced the bug where the trail
-        // appeared in FRONT of the cursor on vertical motion. Fixed
-        // by swapping the args to atan2's expected (y, x) order
-        // applied to the negated vector.
+        const IDLE_SPEED = 25;
         const trailAngleDeg = speed >= IDLE_SPEED
           ? (Math.atan2(-(c.vx ?? 0), -(c.vy ?? 0)) * 180) / Math.PI
-          : 0; // idle = base orientation, flame points straight down
+          : 0;
 
-        // Phase 5: scale the flame by speed. The mapping is two
-        // logistic curves so the response feels natural across the
-        // full range:
-        //   * lengthScale 0.45 → 2.6  (idle ember → comet tail)
-        //   * widthScale  0.85 → 1.25 (fat candle → narrow streak)
-        // Slower cursors get a stout, candle-shaped flame; fast
-        // ones stretch into a long, narrow comet tail. Width
-        // narrows under speed because real flames stretch thinner
-        // when they trail.
-        const SPEED_REF = 1400; // px/sec where the flame is "long"
+        const SPEED_REF = 1400;
         const speedNorm = Math.min(1, speed / SPEED_REF);
         const lengthScale = 0.45 + speedNorm * 2.15;
         const widthScale = 0.85 + speedNorm * 0.40;
+
+        // Pre-compute trail points in the cursor's own translated
+        // frame so each effect renderer can iterate them without
+        // repeating the (px - x, py - y) math.
+        const trailPts = (c.trail ?? []).slice(0, -1).map((pt, i, arr) => {
+          const px = (pt.x / Math.max(1, c.vw)) * viewport.w;
+          const py = (pt.y / Math.max(1, c.vh)) * viewport.h;
+          const ageMs = c.ts - pt.ts;
+          const ageNorm = Math.max(0, Math.min(1, ageMs / TRAIL_LIFETIME_MS));
+          const indexNorm = (i + 1) / Math.max(1, arr.length);
+          return { ts: pt.ts, dx: px - x, dy: py - y, ageNorm, indexNorm };
+        });
+
+        // Per-effect decoration — sits BEHIND the cursor arrow.
+        // Each branch renders its own JSX off the same shared
+        // (color, x, y, trailPts, speed*) inputs. classic returns
+        // null because the bare arrow + avatar IS the effect.
+        let decoration: React.ReactNode = null;
+
+        if (c.effectId === 'flame') {
+          // Multi-particle fire trail behind the cursor (the original
+          // PresenceCursors look) — heat-graded radial gradients along
+          // the path + a teardrop flame body that flickers and stretches
+          // with speed.
+          decoration = (
+            <>
+              {trailPts.map(({ ts, dx, dy, ageNorm, indexNorm }) => {
+                const alpha = (1 - ageNorm) * indexNorm * 0.7;
+                const size = 6 + indexNorm * 8 + speedNorm * 4;
+                const heat = indexNorm;
+                const core = heat > 0.66 ? '#ffffff' : heat > 0.33 ? '#fde68a' : '#f97316';
+                const mid  = heat > 0.66 ? '#fde68a' : heat > 0.33 ? '#fbbf24' : '#dc2626';
+                const edge = heat > 0.5  ? color     : '#7c2d12';
+                return (
+                  <span
+                    key={ts}
+                    aria-hidden="true"
+                    className="absolute pointer-events-none rounded-full"
+                    style={{
+                      left: dx,
+                      top: dy,
+                      width: size,
+                      height: size,
+                      transform: 'translate(-50%, -50%)',
+                      background: `radial-gradient(circle, ${core} 0%, ${mid} 35%, ${edge} 70%, transparent 100%)`,
+                      opacity: alpha,
+                      filter: `blur(${1.5 + indexNorm * 1.5}px)`,
+                      mixBlendMode: 'screen',
+                    }}
+                  />
+                );
+              })}
+              <div
+                aria-hidden="true"
+                className="absolute pointer-events-none"
+                style={{
+                  top: 4,
+                  left: 4,
+                  width: 28,
+                  height: 60,
+                  transformOrigin: '50% 0%',
+                  transform: `translateX(-50%) rotate(${trailAngleDeg}deg)`,
+                  transition: 'transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+                }}
+              >
+                <div
+                  className="relative w-full h-full"
+                  style={{
+                    animation: 'presence-flame-sway 1.4s ease-in-out infinite',
+                    filter: 'blur(0.4px)',
+                  }}
+                >
+                  <span
+                    className="absolute inset-0"
+                    style={{
+                      background: `radial-gradient(closest-side, ${color}aa 0%, ${color}66 35%, transparent 75%)`,
+                      filter: 'blur(8px)',
+                      animation: 'presence-glow-pulse 1.8s ease-in-out infinite',
+                    }}
+                  />
+                  <span
+                    className="absolute"
+                    style={{
+                      left: '50%',
+                      top: 6,
+                      width: 20,
+                      height: 50,
+                      marginLeft: -10,
+                      borderRadius: '50% 50% 50% 50% / 35% 35% 65% 65%',
+                      background: `linear-gradient(to bottom, ${color} 0%, #f97316 38%, #fbbf24 78%, #fde68a 100%)`,
+                      transformOrigin: '50% 0%',
+                      scale: `${widthScale} ${lengthScale}`,
+                      transition: 'scale 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+                      animation: 'presence-flame-flicker 0.85s ease-in-out infinite',
+                      filter: 'blur(0.6px)',
+                      mixBlendMode: 'screen',
+                    }}
+                  />
+                </div>
+              </div>
+            </>
+          );
+        } else if (c.effectId === 'comet') {
+          // Tapered solid tail — chooses the user's colour and lets
+          // the indexNorm/ageNorm decide size + alpha. No glow, no
+          // flame body; the line of soft circles reads as a comet's
+          // wake on its own.
+          decoration = (
+            <>
+              {trailPts.map(({ ts, dx, dy, ageNorm, indexNorm }) => {
+                const size = 4 + indexNorm * 12;
+                const alpha = (1 - ageNorm) * indexNorm * 0.65;
+                return (
+                  <span
+                    key={ts}
+                    aria-hidden="true"
+                    className="absolute pointer-events-none rounded-full"
+                    style={{
+                      left: dx,
+                      top: dy,
+                      width: size,
+                      height: size,
+                      transform: 'translate(-50%, -50%)',
+                      background: color,
+                      opacity: alpha,
+                      filter: 'blur(1.5px)',
+                    }}
+                  />
+                );
+              })}
+            </>
+          );
+        } else if (c.effectId === 'lightning') {
+          // Zigzag short tail — alternating ±skew on each segment so
+          // the path reads as a jagged bolt rather than a smooth line.
+          decoration = (
+            <>
+              {trailPts.map(({ ts, dx, dy, indexNorm }, i) => {
+                const skew = i % 2 === 0 ? -4 : 4;
+                const alpha = indexNorm * 0.85;
+                return (
+                  <span
+                    key={ts}
+                    aria-hidden="true"
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: dx + skew,
+                      top: dy + skew,
+                      width: 8,
+                      height: 2.5,
+                      transform: 'translate(-50%, -50%)',
+                      background: color,
+                      opacity: alpha,
+                      borderRadius: 2,
+                      boxShadow: `0 0 6px ${color}`,
+                    }}
+                  />
+                );
+              })}
+            </>
+          );
+        } else if (c.effectId === 'dots') {
+          // Plain fading-circle trail — no glow, no zigzag, just
+          // discrete colour dots that age out behind the cursor.
+          decoration = (
+            <>
+              {trailPts.map(({ ts, dx, dy, ageNorm, indexNorm }) => {
+                const size = 4 + indexNorm * 4;
+                const alpha = (1 - ageNorm) * indexNorm * 0.6;
+                return (
+                  <span
+                    key={ts}
+                    aria-hidden="true"
+                    className="absolute pointer-events-none rounded-full"
+                    style={{
+                      left: dx,
+                      top: dy,
+                      width: size,
+                      height: size,
+                      transform: 'translate(-50%, -50%)',
+                      background: color,
+                      opacity: alpha,
+                    }}
+                  />
+                );
+              })}
+            </>
+          );
+        } else if (c.effectId === 'sparkle') {
+          // Four sparkles orbiting the cursor head. Phase off
+          // Date.now() so they pulse in/out and rotate slowly. The
+          // rAF tick at the component root forces a repaint on every
+          // frame so the orbit is smooth without per-cursor raf
+          // bookkeeping.
+          const t = Date.now() / 380;
+          const angles = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+          decoration = (
+            <>
+              {angles.map((a, i) => {
+                const radius = 14 + Math.sin(t + i) * 4;
+                const dx = Math.cos(a + t * 0.4) * radius;
+                const dy = Math.sin(a + t * 0.4) * radius;
+                const alpha = 0.5 + 0.5 * Math.sin(t * 1.5 + i);
+                return (
+                  <span
+                    key={i}
+                    aria-hidden="true"
+                    className="absolute pointer-events-none rounded-full"
+                    style={{
+                      left: dx,
+                      top: dy,
+                      width: 6,
+                      height: 6,
+                      transform: 'translate(-50%, -50%)',
+                      background: color,
+                      opacity: alpha,
+                      boxShadow: `0 0 8px ${color}`,
+                    }}
+                  />
+                );
+              })}
+            </>
+          );
+        } else if (c.effectId === 'bubbles') {
+          // Bubbles rise upward from each historical trail point.
+          // Vertical offset is age-based so they actually drift up
+          // as time passes; horizontal wobble alternates so the
+          // column doesn't read as a perfectly straight stream.
+          const now = Date.now();
+          decoration = (
+            <>
+              {trailPts.map(({ ts, dx, dy }, i) => {
+                const ageSec = (now - ts) / 1000;
+                if (ageSec > 1.5) return null;
+                const rise = ageSec * 28;
+                const wobble = Math.sin(ageSec * 6 + i) * 5;
+                const size = 6 + ageSec * 6;
+                const alpha = Math.max(0, (1 - ageSec / 1.5)) * 0.55;
+                return (
+                  <span
+                    key={ts}
+                    aria-hidden="true"
+                    className="absolute pointer-events-none rounded-full"
+                    style={{
+                      left: dx + wobble,
+                      top: dy - rise,
+                      width: size,
+                      height: size,
+                      transform: 'translate(-50%, -50%)',
+                      background: color,
+                      opacity: alpha,
+                      boxShadow: `inset 0 0 4px rgba(255,255,255,0.5)`,
+                    }}
+                  />
+                );
+              })}
+            </>
+          );
+        } else if (c.effectId === 'glow') {
+          // Single soft halo behind the cursor that inhales /
+          // exhales via the presence-effect-glow keyframes.
+          decoration = (
+            <span
+              aria-hidden="true"
+              className="absolute pointer-events-none rounded-full"
+              style={{
+                left: 4,
+                top: 4,
+                width: 60,
+                height: 60,
+                transform: 'translate(-50%, -50%)',
+                background: color,
+                filter: 'blur(14px)',
+                animation: 'presence-effect-glow 2s ease-in-out infinite',
+              }}
+            />
+          );
+        } else if (c.effectId === 'pulse') {
+          // Two concentric expanding rings phased half-cycle apart
+          // so there's always one mid-flight from the cursor outward.
+          decoration = (
+            <>
+              {[0, -1].map((delay, i) => (
+                <span
+                  key={i}
+                  aria-hidden="true"
+                  className="absolute pointer-events-none rounded-full"
+                  style={{
+                    left: 4,
+                    top: 4,
+                    width: 60,
+                    height: 60,
+                    border: `2px solid ${color}`,
+                    transformOrigin: 'center',
+                    animation: 'presence-effect-ring 2s ease-out infinite',
+                    animationDelay: `${delay}s`,
+                  }}
+                />
+              ))}
+            </>
+          );
+        } else if (c.effectId === 'rainbow') {
+          // Decoration is "the colour itself" — handled by the
+          // hue-cycling color override above. No extra DOM.
+          decoration = null;
+        }
+        // 'classic' falls through with decoration = null.
+
         return (
           <div
             key={c.user_id}
             className="absolute top-0 left-0 will-change-transform transition-transform duration-75 ease-linear"
             style={{ transform: `translate(${x}px, ${y}px)` }}
           >
-            {/* Phase 6: multi-particle path trail. Each historical
-                position renders as a small fire blob whose size +
-                opacity fade as the point ages. Coordinates are
-                ABSOLUTE in viewport space, so we offset by the
-                current cursor's screen position to draw them in
-                the same translation frame as the rest of this
-                cursor's elements. */}
-            {(c.trail ?? []).slice(0, -1).map((pt, i, arr) => {
-              const ageMs = c.ts - pt.ts;
-              const ageNorm = Math.max(0, Math.min(1, ageMs / TRAIL_LIFETIME_MS));
-              // Index-based fade so the most recent point is
-              // brightest even before age dominates.
-              const indexNorm = (i + 1) / Math.max(1, arr.length);
-              const alpha = (1 - ageNorm) * indexNorm * 0.7;
-              const size = 6 + indexNorm * 8 + speedNorm * 4;
-              // Phase 7: color temperature falls off as the
-              // particle ages. Hot particles near the cursor are
-              // white-yellow (highest temperature); old particles
-              // at the tail cool through orange to deep red. This
-              // mirrors the way a real flame's tail loses heat as
-              // it dissipates. We pick a Bezier-like 4-stop palette
-              // and lerp index-wise so the gradient ID stays a
-              // single radial-gradient string per particle.
-              //
-              //   indexNorm 1.0  → white core, yellow halo, color-tinted edge
-              //   indexNorm 0.5  → orange core, deep-orange halo, color edge
-              //   indexNorm 0.0  → ember red core, dark red halo, fade
-              const heat = indexNorm; // 1 = hottest (newest), 0 = coolest
-              const core = heat > 0.66 ? '#ffffff'
-                : heat > 0.33 ? '#fde68a'
-                : '#f97316';
-              const mid = heat > 0.66 ? '#fde68a'
-                : heat > 0.33 ? '#fbbf24'
-                : '#dc2626';
-              const edge = heat > 0.5 ? color : '#7c2d12';
-              // Translate from the trail point's viewport-space
-              // (px, py) to a delta from the current cursor's
-              // (x, y). The wrapping div is already translated to
-              // (x, y), so we render at (-dx, -dy) to land on the
-              // historical point.
-              const px = (pt.x / Math.max(1, c.vw)) * viewport.w;
-              const py = (pt.y / Math.max(1, c.vh)) * viewport.h;
-              return (
-                <span
-                  key={pt.ts}
-                  aria-hidden="true"
-                  className="absolute pointer-events-none rounded-full"
-                  style={{
-                    left: px - x,
-                    top: py - y,
-                    width: size,
-                    height: size,
-                    transform: 'translate(-50%, -50%)',
-                    background: `radial-gradient(circle, ${core} 0%, ${mid} 35%, ${edge} 70%, transparent 100%)`,
-                    opacity: alpha,
-                    filter: `blur(${1.5 + indexNorm * 1.5}px)`,
-                    mixBlendMode: 'screen',
-                  }}
-                />
-              );
-            })}
+            {decoration}
 
-            {/* Fire trail — sits BEHIND the cursor arrow. The
-                outer wrapper rotates around the cursor TIP based on
-                trailAngleDeg, so the flame always drags opposite to
-                motion. Inside the wrapper, the flame element itself
-                renders pointing "down" in its local frame; the
-                rotation handles direction.
-                transform-origin sits at the cursor tip (top center
-                of the box) so rotation pivots around the pointer
-                rather than the flame's midpoint — otherwise fast
-                direction changes would slingshot the flame around. */}
-            <div
-              aria-hidden="true"
-              className="absolute pointer-events-none"
-              style={{
-                top: 4,
-                left: 4,
-                width: 28,
-                height: 60,
-                transformOrigin: '50% 0%',
-                transform: `translateX(-50%) rotate(${trailAngleDeg}deg)`,
-                transition: 'transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1)',
-              }}
-            >
-            <div
-              className="relative w-full h-full"
-              style={{
-                animation: 'presence-flame-sway 1.4s ease-in-out infinite',
-                filter: 'blur(0.4px)',
-              }}
-            >
-              {/* Outer glow halo — pulses gently so the cursor reads
-                  as alive even when the user is idle. */}
-              <span
-                className="absolute inset-0"
-                style={{
-                  background: `radial-gradient(closest-side, ${color}aa 0%, ${color}66 35%, transparent 75%)`,
-                  filter: 'blur(8px)',
-                  animation: 'presence-glow-pulse 1.8s ease-in-out infinite',
-                }}
-              />
-              {/* Flame body — teardrop with a fire gradient. The
-                  flicker loop scales it up/down so it dances.
-                  --flame-length / --flame-width CSS variables come
-                  from the speed-driven lengthScale / widthScale
-                  computed above, so the body literally stretches
-                  when the cursor sprints. */}
-              <span
-                className="absolute"
-                style={{
-                  left: '50%',
-                  top: 6,
-                  width: 20,
-                  height: 50,
-                  marginLeft: -10,
-                  borderRadius: '50% 50% 50% 50% / 35% 35% 65% 65%',
-                  background: `linear-gradient(to bottom, ${color} 0%, #f97316 38%, #fbbf24 78%, #fde68a 100%)`,
-                  transformOrigin: '50% 0%',
-                  // Compose the flicker animation with a base
-                  // scale that varies with speed. The animation
-                  // multiplies onto this via its own scaleX/Y
-                  // transform, so we get "dances at a longer
-                  // length" rather than fighting the keyframes.
-                  scale: `${widthScale} ${lengthScale}`,
-                  transition: 'scale 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
-                  animation: 'presence-flame-flicker 0.85s ease-in-out infinite',
-                  filter: 'blur(0.6px)',
-                  mixBlendMode: 'screen',
-                }}
-              />
-            </div>
-            </div>
-
-            {/* Cursor arrow — sits above the flame so the pointer
-                tip is always crisp. drop-shadow keeps it readable
-                on light backgrounds; the wider colored shadow adds
-                a subtle outer halo so the cursor glows even before
-                the flame catches up. */}
+            {/* Cursor arrow — shared across every effect so the
+                pointer tip is always crisp. drop-shadow keeps it
+                readable on light backgrounds; the colored shadow
+                adds an outer halo that reads under any decoration. */}
             <svg
               width="20"
               height="20"
@@ -579,15 +769,29 @@ export function PresenceCursors() {
               />
             </svg>
 
-            {/* Avatar — explicit width/height + aspect-square + the
-                inline w/h attributes guarantee a perfect circle even
-                when the source image is non-square (the old version
-                rendered as an oval whenever a portrait avatar landed
-                here because object-fit was unset). The colored
-                box-shadow wraps the disc with the user's cursor
-                color so each teammate's avatar is identifiable at a
-                glance, plus a soft outer glow that ties into the
-                flame. */}
+            {/* Classic-only name pill — without trail / sparkles /
+                rings to identify the cursor, the bare arrow could
+                belong to anyone. The pill puts the user's first
+                name (or initial) right next to the tip so they're
+                still recognisable. Other effects hide it because
+                their decoration already carries identity. */}
+            {c.effectId === 'classic' && (
+              <span
+                className="absolute pointer-events-none px-1.5 py-0.5 rounded text-[10px] font-semibold text-white whitespace-nowrap"
+                style={{
+                  left: 18,
+                  top: 2,
+                  backgroundColor: color,
+                  fontFamily: 'var(--font-body)',
+                  boxShadow: `0 1px 3px ${color}66`,
+                }}
+              >
+                {c.name || initial}
+              </span>
+            )}
+
+            {/* Avatar — same disc on every effect. Colour ring
+                follows the chosen / hue-cycling colour. */}
             {c.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
