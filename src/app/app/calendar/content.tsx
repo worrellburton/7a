@@ -1724,6 +1724,145 @@ function useEventDrag(ev: EventRow) {
 // shift today", so we just cluster the circles.
 // ------------------------------------------------------------
 
+// Month-view day-cell renderer for the Phones tab. Each shift gets a
+// vertical slab whose height is proportional to its hour span (Morning
+// 8h, Day 9h, Evening 7h on the default bundle = 24h total) so the
+// whole day cell reads as a 24-hour coverage strip at a glance. Empty
+// shifts fade to a dashed placeholder so admissions can see "nobody on
+// Day for the 8th" without reading three separate rows. Each slab
+// shows the shift letter + the first assignee's name + an avatar; if
+// multiple people are on the same shift, additional names compact to
+// "+N".
+function PhonesMonthDay({
+  shifts,
+  byShift,
+  usersById,
+  onEventClick,
+  inMonth,
+}: {
+  shifts: Shift[];
+  byShift: Map<string, EventRow[]>;
+  usersById: Map<string, UserRow>;
+  onEventClick: (id: string) => void;
+  inMonth: boolean;
+}) {
+  // Compute each shift's hour span; flexBasis below uses this to give
+  // longer shifts more vertical real estate inside the day cell.
+  const totalH = shifts.reduce((sum, s) => {
+    const a = hhmmToHours(s.start);
+    const b = hhmmToHours(s.end);
+    return sum + (b <= a ? 24 - a + b : b - a);
+  }, 0);
+  return (
+    <div className="flex-1 min-h-0 flex flex-col gap-0.5 px-1 pb-1">
+      {shifts.map((s) => {
+        const a = hhmmToHours(s.start);
+        const b = hhmmToHours(s.end);
+        const span = b <= a ? 24 - a + b : b - a;
+        const flexBasis = totalH > 0 ? `${(span / totalH) * 100}%` : 'auto';
+        const evs = byShift.get(s.id) || [];
+        const userEvs = evs.filter((ev) => ev.subject_kind === 'user');
+        const firstEv = userEvs[0];
+        const firstUser = firstEv ? usersById.get(firstEv.subject_id ?? '') : undefined;
+        const firstLabel = firstEv
+          ? firstUser
+            ? userLabel(firstUser)
+            : firstEv.title
+          : null;
+        const firstColor = firstEv
+          ? firstEv.color || colorFor(firstEv.subject_id ?? firstEv.id)
+          : null;
+        const moreCount = Math.max(0, userEvs.length - 1);
+        return (
+          <div
+            key={s.id}
+            className={`relative rounded-md px-1.5 py-0.5 flex items-center gap-1.5 min-h-0 overflow-hidden ${
+              userEvs.length > 0
+                ? ''
+                : 'border border-dashed border-foreground/15'
+            }`}
+            style={{
+              flexBasis,
+              flexGrow: 1,
+              flexShrink: 1,
+              backgroundColor: firstColor ? `${firstColor}28` : undefined,
+              boxShadow: firstColor ? `inset 0 0 0 1px ${firstColor}55` : undefined,
+            }}
+            title={
+              userEvs.length === 0
+                ? `${s.name} · ${formatShiftRange(s)} · unassigned`
+                : `${s.name} · ${formatShiftRange(s)} · ${userEvs
+                    .map((ev) => {
+                      const u = usersById.get(ev.subject_id ?? '');
+                      return u ? userLabel(u) : ev.title;
+                    })
+                    .join(', ')}`
+            }
+            onClick={(e) => {
+              if (firstEv) {
+                e.stopPropagation();
+                onEventClick(firstEv.id);
+              }
+            }}
+          >
+            {/* Saturated left bar — only shows when someone's
+                assigned, mirrors the week-view fill chip. */}
+            {firstColor && (
+              <span
+                aria-hidden="true"
+                className="absolute left-0 top-0 bottom-0 w-1 rounded-l-md"
+                style={{ backgroundColor: firstColor }}
+              />
+            )}
+            <span
+              className="shrink-0 text-[9px] font-bold uppercase text-foreground/55 tracking-wider w-[10px] text-center"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {s.name.charAt(0)}
+            </span>
+            {firstEv && firstUser ? (
+              <>
+                <span
+                  className="shrink-0 w-4 h-4 rounded-full overflow-hidden flex items-center justify-center text-[8px] font-bold text-white"
+                  style={{ backgroundColor: firstColor || '#888' }}
+                >
+                  {firstUser.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={firstUser.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    (firstLabel || '?').charAt(0).toUpperCase()
+                  )}
+                </span>
+                <span
+                  className="text-[10px] font-semibold text-foreground/85 truncate"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {firstLabel}
+                </span>
+                {moreCount > 0 && (
+                  <span
+                    className="shrink-0 text-[9px] font-bold text-foreground/55 ml-auto"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    +{moreCount}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span
+                className={`text-[10px] truncate ${inMonth ? 'text-foreground/35' : 'text-foreground/15'}`}
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                {formatShiftRange(s)}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ShiftAvatar({
   ev,
   usersById,
@@ -2611,7 +2750,15 @@ function MonthView({
                 </span>
               </div>
 
-              {viewMode === 'groups' ? (
+              {viewMode === 'phones' ? (
+                <PhonesMonthDay
+                  shifts={shifts}
+                  byShift={byShift}
+                  usersById={usersById}
+                  onEventClick={onEventClick}
+                  inMonth={inMonth}
+                />
+              ) : viewMode === 'groups' ? (
                 <div className="flex-1 min-h-0 mx-1 mb-1 px-1 py-0.5 overflow-hidden space-y-0.5">
                   {groupEvents.slice(0, 5).map((ev) => (
                     <EventChip key={ev.id} ev={ev} usersById={usersById} onClick={onEventClick} />
