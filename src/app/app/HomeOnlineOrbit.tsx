@@ -453,7 +453,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             shape with the horses gently trailing the team. */}
         {horses.length > 0 && (
           <div
-            className={`orbit-ring absolute inset-[20%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-slow' : ''} ${hovered ? 'orbit-paused' : ''}`}
+            className={`orbit-ring absolute inset-[20%] motion-reduce:!animate-none ${hovered ? 'orbit-paused' : ''}`}
           >
             {horses.map((h, i) => {
               const angle = (i / horses.length) * 360;
@@ -491,7 +491,13 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                         permanently tilted by ~0.12deg. Inner span then
                         undoes the slot's static rotation so the horse
                         photo isn't tilted by where it sits on the rim. */}
-                    <span className={`${mounted ? 'orbit-counter-slow' : ''} motion-reduce:!animate-none`}>
+                    {/* No counter-rotation animation — the parent
+                        ring no longer spins, so avatars only need to
+                        undo the slot's static rotation. The previous
+                        animation-paired approach drifted over time
+                        and tilted the placeholder-initial avatars
+                        visibly. */}
+                    <span>
                       <span
                         className="block"
                         style={{ transform: `rotate(${-angle}deg)` }}
@@ -530,7 +536,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
             rotates at the same rate so faces stay upright through the
             orbit. */}
         <div
-          className={`orbit-ring absolute inset-[7%] sm:inset-0 motion-reduce:!animate-none ${mounted ? 'orbit-spin' : ''} ${hovered ? 'orbit-paused' : ''}`}
+          className={`orbit-ring absolute inset-[7%] sm:inset-0 motion-reduce:!animate-none ${hovered ? 'orbit-paused' : ''}`}
         >
           {users.map((u, i) => {
             const angle = (i / users.length) * 360;
@@ -574,7 +580,13 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                       ~0.18deg off-axis. The inner span then cancels
                       the slot's static rotation so the face isn't
                       tilted by where it sits on the rim. */}
-                  <span className={`${mounted ? 'orbit-counter' : ''} motion-reduce:!animate-none`}>
+                  {/* Single static counter-rotation cancels the slot's
+                      `rotate(angle)` so the avatar reads upright. No
+                      orbit-counter animation any more — the parent
+                      ring's spin is gone, so we don't need to chase
+                      a moving target and the two animations can't
+                      drift apart over time. */}
+                  <span>
                     <span
                       className="block"
                       style={{ transform: `rotate(${-angle}deg)` }}
