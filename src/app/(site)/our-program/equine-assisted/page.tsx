@@ -3,7 +3,9 @@ import type { Metadata } from 'next';
 import PageHero from '@/components/PageHero';
 import GeoAnswer from '@/components/seo/GeoAnswer';
 import EquineWhy from './EquineWhy';
+import EquineFeatured from './EquineFeatured';
 import EquineHerd from './EquineHerd';
+import EquineWatchHerd from './EquineWatchHerd';
 import EquineSessions from './EquineSessions';
 import EquinePopulations from './EquinePopulations';
 import EquineSafety from './EquineSafety';
@@ -97,6 +99,40 @@ const faqPageSchema = {
   })),
 };
 
+// Phase 9 — Animal entity markup for the named therapy horses on
+// the page. These are real, individual animals featured in the
+// program; calling them out as schema:Animal lets crawlers tie the
+// proper-noun mentions in the page copy ("Arrow", "Wanda", "Red
+// Feather", etc.) to discrete entities. Kept to a representative
+// subset of the herd so we don't bloat the JSON-LD payload — the
+// full roster lives behind /api/public/horses for visitors who
+// open the gallery.
+const therapyHorsesSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: 'Therapy horses at Seven Arrows Recovery',
+  description:
+    'Named therapy horses living full-time on the Seven Arrows Recovery 160-acre ranch in Cochise County, Arizona. Each horse participates in equine-assisted psychotherapy, trail riding, or both.',
+  itemListElement: [
+    'Arrow', 'Chika', 'Wanda', 'Kate', 'Jack', 'Red Feather', 'Dandy',
+    'Wellbriety (Wally)', 'Cowboy', 'Clyde', 'Scout', 'Authentic Self',
+    'Murphy',
+  ].map((name, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    item: {
+      '@type': 'Animal',
+      name,
+      species: 'Equus caballus',
+      description: `${name} is one of the therapy horses at Seven Arrows Recovery.`,
+      // Tie each horse back to the program page so the entity has
+      // a canonical url even though there's no per-horse marketing
+      // page (the detail modal is not crawlable).
+      url: `https://sevenarrowsrecoveryarizona.com/our-program/equine-assisted#meet-herd`,
+    },
+  })),
+};
+
 const medicalWebPageSchema = {
   '@context': 'https://schema.org',
   '@type': 'MedicalWebPage',
@@ -135,6 +171,10 @@ export default function EquineAssistedPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPageSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(therapyHorsesSchema) }}
       />
       <script
         type="application/ld+json"
@@ -187,7 +227,9 @@ export default function EquineAssistedPage() {
       />
       <EquineWhy />
       <EquineSessions />
+      <EquineFeatured />
       <EquineHerd />
+      <EquineWatchHerd />
       <EquinePopulations />
       <EquineSafety />
       <EquineReview />

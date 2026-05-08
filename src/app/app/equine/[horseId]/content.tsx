@@ -50,6 +50,13 @@ interface Horse {
   vet_visits: VetVisit[];
   document_urls: string[];
   image_url: string | null;
+  // Phase 4 of the equine-page upgrade — additional portrait shots
+  // featured in the public horse-detail modal (carousel) and an
+  // optional clip surfaced in the page-level "Watch the herd" reel.
+  // Both are admin-controlled here on /app/equine/[id]; the public
+  // marketing surface reads them from /api/public/horses.
+  gallery_urls: string[];
+  video_url: string | null;
   created_at: string;
 }
 
@@ -90,6 +97,13 @@ export default function HorseContent() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
+  // Phase 4 — gallery + video state. Driven by hidden file inputs +
+  // dedicated handlers below; gallery uploads append to the existing
+  // gallery_urls array, video upload swaps the single video_url.
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
 
   const [showVetForm, setShowVetForm] = useState(false);
   const [vetFormDate, setVetFormDate] = useState('');
@@ -127,6 +141,8 @@ export default function HorseContent() {
             notes: (h.notes as string) || '',
             vet_visits: Array.isArray(h.vet_visits) ? (h.vet_visits as VetVisit[]) : [],
             document_urls: Array.isArray(h.document_urls) ? (h.document_urls as string[]) : [],
+            gallery_urls: Array.isArray(h.gallery_urls) ? (h.gallery_urls as string[]) : [],
+            video_url: (h.video_url as string) || null,
           });
         } else {
           setNotFound(true);
@@ -251,6 +267,51 @@ export default function HorseContent() {
       setHorse({ ...horse, image_url: url });
     }
     setUploadingImage(false);
+  };
+
+  // Append every selected file to gallery_urls. Sequential uploads so
+  // a slow first file doesn't get masked by later successes.
+  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!horse || !e.target.files?.length) return;
+    const files = Array.from(e.target.files);
+    if (galleryInputRef.current) galleryInputRef.current.value = '';
+    setUploadingGallery(true);
+    const newUrls = [...(horse.gallery_urls || [])];
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) continue;
+      const { url } = await uploadFile(f);
+      if (url) newUrls.push(url);
+    }
+    await db({ action: 'update', table: 'equine', data: { gallery_urls: newUrls }, match: { id: horse.id } });
+    setHorse({ ...horse, gallery_urls: newUrls });
+    setUploadingGallery(false);
+  };
+
+  const removeGalleryImage = async (index: number) => {
+    if (!horse) return;
+    const newUrls = (horse.gallery_urls || []).filter((_, i) => i !== index);
+    await db({ action: 'update', table: 'equine', data: { gallery_urls: newUrls }, match: { id: horse.id } });
+    setHorse({ ...horse, gallery_urls: newUrls });
+  };
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!horse || !e.target.files?.length) return;
+    const file = e.target.files[0];
+    if (videoInputRef.current) videoInputRef.current.value = '';
+    if (!file.type.startsWith('video/')) return;
+    setUploadingVideo(true);
+    const { url } = await uploadFile(file);
+    if (url) {
+      await db({ action: 'update', table: 'equine', data: { video_url: url }, match: { id: horse.id } });
+      setHorse({ ...horse, video_url: url });
+    }
+    setUploadingVideo(false);
+  };
+
+  const removeVideo = async () => {
+    if (!horse) return;
+    await db({ action: 'update', table: 'equine', data: { video_url: null }, match: { id: horse.id } });
+    setHorse({ ...horse, video_url: null });
   };
 
   const removeDoc = async (docIndex: number) => {
@@ -503,6 +564,107 @@ export default function HorseContent() {
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Click photo to upload &middot; Click any field to edit
           </p>
+        </div>
+      </div>
+
+      {/* Public marketing — extra portrait shots + optional clip.
+          Shown on /our-program/equine-assisted: extra photos appear
+          as a carousel inside the public horse-detail modal; the
+          clip surfaces in the page-level "Watch the herd" video
+          reel. Original (non-bling) media only — bling is for the
+          internal roster card, not public marketing. */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+        <div className="flex items-baseline justify-between gap-4 mb-3">
+          <h2 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+            Public marketing — extra photos &amp; video
+          </h2>
+          <Link href="/our-program/equine-assisted#meet-herd" target="_blank" className="text-[11px] text-primary hover:underline" style={{ fontFamily: 'var(--font-body)' }}>
+            Preview public page →
+          </Link>
+        </div>
+
+        <div className="mb-5">
+          <p className="text-xs text-foreground/50 mb-2" style={{ fontFamily: 'var(--font-body)' }}>
+            Extra portrait shots — appear in the carousel on the public horse-detail modal.
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            {(horse.gallery_urls || []).map((url, i) => (
+              <div key={`${url}-${i}`} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 group/gallery">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={`${horse.name} extra ${i + 1}`} className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removeGalleryImage(i)}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs flex items-center justify-center opacity-0 group-hover/gallery:opacity-100 transition-opacity"
+                  aria-label="Remove photo"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              disabled={uploadingGallery}
+              className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-200 hover:border-primary hover:bg-primary/5 transition-all flex items-center justify-center text-foreground/40 hover:text-primary"
+              aria-label="Upload more photos"
+            >
+              {uploadingGallery ? (
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              )}
+            </button>
+            <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleGalleryUpload} />
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs text-foreground/50 mb-2" style={{ fontFamily: 'var(--font-body)' }}>
+            Short clip — surfaced in the page-level &ldquo;Watch the herd&rdquo; video reel.
+          </p>
+          {horse.video_url ? (
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <video
+                src={horse.video_url}
+                className="w-32 h-20 rounded-lg border border-gray-200 object-cover bg-black"
+                muted
+                playsInline
+                preload="metadata"
+              />
+              <div className="flex flex-col gap-1.5">
+                <a
+                  href={horse.video_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-primary hover:underline"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Open in new tab
+                </a>
+                <button
+                  type="button"
+                  onClick={removeVideo}
+                  className="text-xs text-red-500 hover:underline self-start"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => videoInputRef.current?.click()}
+              disabled={uploadingVideo}
+              className="px-4 py-2 rounded-lg border-2 border-dashed border-gray-200 text-xs text-foreground/60 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {uploadingVideo ? 'Uploading…' : '+ Upload video'}
+            </button>
+          )}
+          <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoUpload} />
         </div>
       </div>
 
