@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import OutreachContent from '../outreach/OutreachContent';
 
 export const metadata: Metadata = {
-  title: 'Comments - Patient Portal',
+  title: 'Comments - Feather',
 };
 
 export default function CommentsPage() {

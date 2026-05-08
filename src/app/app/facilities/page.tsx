@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import FacilitiesContent from './content';
 
 export const metadata: Metadata = {
-  title: 'Facilities - Patient Portal',
+  title: 'Facilities - Feather',
 };
 
 export default function FacilitiesPage() {

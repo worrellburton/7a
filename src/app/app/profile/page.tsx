@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import ProfileContent from './content';
 
 export const metadata: Metadata = {
-  title: 'My Profile - Patient Portal',
+  title: 'My Profile - Feather',
 };
 
 export default function ProfilePage() {

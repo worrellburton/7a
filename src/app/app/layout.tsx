@@ -3,7 +3,7 @@ import PlatformShell from './PlatformShell';
 import { PagePermissionsProvider } from '@/lib/PagePermissions';
 
 export const metadata: Metadata = {
-  title: { default: 'Patient Portal', template: '%s | Seven Arrows Recovery' },
+  title: { default: 'Feather', template: '%s | Seven Arrows Recovery' },
   description: null,
   openGraph: null,
   twitter: null,

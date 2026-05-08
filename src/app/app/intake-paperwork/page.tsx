@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import IntakePaperworkContent from './content';
 
 export const metadata: Metadata = {
-  title: 'Intake Paperwork - Patient Portal',
+  title: 'Intake Paperwork - Feather',
 };
 
 export default function IntakePaperworkPage() {
