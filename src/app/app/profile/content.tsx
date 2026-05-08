@@ -523,6 +523,8 @@ export default function ProfileContent() {
           onCursorColorChange={(value) => { void pickCursorColor(value); }}
           cursorEffect={cursorEffect}
           onCursorEffectChange={(value) => { void pickCursorEffect(value); }}
+          avatarUrl={headerAvatar ?? null}
+          displayName={fullName || user.email || null}
         />
       ) : (
       <div className="grid lg:grid-cols-[1fr_320px] gap-8">
@@ -962,11 +964,19 @@ function ProfileCursorTab({
   onCursorColorChange,
   cursorEffect,
   onCursorEffectChange,
+  avatarUrl,
+  displayName,
 }: {
   cursorColor: string | null;
   onCursorColorChange: (value: string | null) => void;
   cursorEffect: CursorEffectId;
   onCursorEffectChange: (value: CursorEffectId) => void;
+  /** The user's own avatar URL, threaded through so every preview
+   *  (live sandbox + 10 picker thumbnails) shows the actual face that
+   *  ships in the realtime broadcast — much closer to "what teammates
+   *  will see" than the generic dot the picker used to draw. */
+  avatarUrl: string | null;
+  displayName: string | null;
 }) {
   const isCustom = !!(cursorColor && !CURSOR_COLORS.some((c) => c.value === cursorColor));
   return (
@@ -1059,7 +1069,12 @@ function ProfileCursorTab({
       <div className="mt-6 pt-5 border-t border-gray-100">
         <label className="block text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5">Live Preview</label>
         <p className="text-xs text-foreground/40 mb-3">Hover inside the box to see your current effect at full size.</p>
-        <CursorEffectPreview effect={cursorEffect} color={cursorColor} />
+        <CursorEffectPreview
+          effect={cursorEffect}
+          color={cursorColor}
+          avatarUrl={avatarUrl}
+          displayName={displayName}
+        />
       </div>
 
       <div className="mt-6 pt-5 border-t border-gray-100">
@@ -1082,7 +1097,12 @@ function ProfileCursorTab({
                 }`}
               >
                 <div className="relative h-16 rounded-lg bg-warm-bg/40 overflow-hidden">
-                  <CursorEffectThumb effect={eff} color={cursorColor} />
+                  <CursorEffectThumb
+                    effect={eff}
+                    color={cursorColor}
+                    avatarUrl={avatarUrl}
+                    displayName={displayName}
+                  />
                 </div>
                 <span
                   className={`text-[11px] font-semibold ${active ? 'text-primary' : 'text-foreground/75'}`}
@@ -1108,9 +1128,13 @@ function ProfileCursorTab({
 function CursorEffectPreview({
   effect,
   color,
+  avatarUrl,
+  displayName,
 }: {
   effect: CursorEffectId;
   color: string | null;
+  avatarUrl: string | null;
+  displayName: string | null;
 }) {
   const tint = color ?? '#bc6b4a';
   const ref = useRef<HTMLDivElement | null>(null);
@@ -1173,6 +1197,8 @@ function CursorEffectPreview({
           x={pos.x}
           y={pos.y}
           trail={trail}
+          avatarUrl={avatarUrl}
+          displayName={displayName}
         />
       )}
     </div>
@@ -1185,19 +1211,61 @@ function CursorEffectPreviewLayer({
   x,
   y,
   trail,
+  avatarUrl,
+  displayName,
 }: {
   effect: CursorEffectId;
   tint: string;
   x: number;
   y: number;
   trail: Array<{ x: number; y: number; t: number }>;
+  avatarUrl: string | null;
+  displayName: string | null;
 }) {
-  const dot = (
+  const initial = (displayName || '?').trim().charAt(0).toUpperCase() || '?';
+  const HEAD = 22; // px diameter — large enough to show face detail
+  // The cursor head — actual user avatar where available, falling
+  // back to a colour-tinted initial. Mirrors the head used in
+  // PresenceCursors so the preview is faithful.
+  const dot = avatarUrl ? (
     <span
       aria-hidden="true"
-      className="absolute w-3 h-3 rounded-full ring-2 ring-white shadow"
-      style={{ left: x, top: y, transform: 'translate(-50%, -50%)', backgroundColor: tint }}
-    />
+      className="absolute rounded-full overflow-hidden pointer-events-none"
+      style={{
+        left: x,
+        top: y,
+        width: HEAD,
+        height: HEAD,
+        transform: 'translate(-50%, -50%)',
+        boxShadow: `0 0 0 2px ${tint}, 0 0 10px ${tint}aa`,
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={avatarUrl}
+        alt=""
+        width={HEAD}
+        height={HEAD}
+        className="block w-full h-full object-cover"
+      />
+    </span>
+  ) : (
+    <span
+      aria-hidden="true"
+      className="absolute rounded-full pointer-events-none text-white font-bold flex items-center justify-center"
+      style={{
+        left: x,
+        top: y,
+        width: HEAD,
+        height: HEAD,
+        transform: 'translate(-50%, -50%)',
+        backgroundColor: tint,
+        fontSize: 11,
+        boxShadow: `0 0 0 2px #ffffff, 0 0 10px ${tint}aa`,
+      }}
+    >
+      {initial}
+    </span>
   );
 
   if (effect === 'classic') {
@@ -1206,9 +1274,9 @@ function CursorEffectPreviewLayer({
         {dot}
         <span
           className="absolute px-1.5 py-0.5 rounded text-[10px] font-semibold text-white pointer-events-none"
-          style={{ left: x + 10, top: y - 4, backgroundColor: tint, fontFamily: 'var(--font-body)' }}
+          style={{ left: x + HEAD / 2 + 4, top: y - 4, backgroundColor: tint, fontFamily: 'var(--font-body)' }}
         >
-          You
+          {displayName || 'You'}
         </span>
       </>
     );
@@ -1389,19 +1457,31 @@ function CursorEffectPreviewLayer({
   }
 
   if (effect === 'rainbow') {
-    const t = Date.now() / 22;
-    const hue = (t % 360);
+    // Avatar stays the same, but the ring hue-cycles via Date.now()
+    // so the cursor reads as multi-coloured. We render a separate
+    // halo behind the avatar (rather than fighting the avatar's own
+    // box-shadow) so the colour cycle is visible regardless of
+    // whether the user has a photo or just an initial fallback.
+    const hue = (Date.now() / 22) % 360;
+    const rainbow = `hsl(${hue}, 85%, 58%)`;
     return (
-      <span
-        aria-hidden="true"
-        className="absolute w-3.5 h-3.5 rounded-full ring-2 ring-white shadow"
-        style={{
-          left: x,
-          top: y,
-          transform: 'translate(-50%, -50%)',
-          backgroundColor: `hsl(${hue}, 85%, 58%)`,
-        }}
-      />
+      <>
+        <span
+          aria-hidden="true"
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            left: x,
+            top: y,
+            width: HEAD + 12,
+            height: HEAD + 12,
+            transform: 'translate(-50%, -50%)',
+            background: rainbow,
+            filter: 'blur(6px)',
+            opacity: 0.7,
+          }}
+        />
+        {dot}
+      </>
     );
   }
 
@@ -1447,21 +1527,59 @@ function CursorEffectPreviewLayer({
 function CursorEffectThumb({
   effect,
   color,
+  avatarUrl,
+  displayName,
 }: {
   effect: CursorEffect;
   color: string | null;
+  avatarUrl: string | null;
+  displayName: string | null;
 }) {
   const tint = color ?? '#bc6b4a';
   const mode = effect.thumb.mode;
-  // Common cursor dot — rendered absolutely-positioned by each branch
-  // so the trail / particles can sit beneath it.
-  const dot = (
+  const initial = (displayName || '?').trim().charAt(0).toUpperCase() || '?';
+  // The cursor head — actual user avatar where available, falling
+  // back to a colour-tinted initial. Sits ABOVE the effect decoration
+  // (trail / sparkles / rings) the same way it does in the live
+  // PresenceCursors render path, so the picker tile previews the
+  // exact composition teammates will see.
+  const head = avatarUrl ? (
     <span
       aria-hidden="true"
-      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full ring-2 ring-white shadow"
-      style={{ backgroundColor: tint }}
-    />
+      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden"
+      style={{
+        width: 16,
+        height: 16,
+        boxShadow: `0 0 0 1.5px ${tint}, 0 0 6px ${tint}77`,
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={avatarUrl}
+        alt=""
+        width={16}
+        height={16}
+        className="block w-full h-full object-cover"
+      />
+    </span>
+  ) : (
+    <span
+      aria-hidden="true"
+      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full text-white font-bold flex items-center justify-center"
+      style={{
+        width: 16,
+        height: 16,
+        backgroundColor: tint,
+        fontSize: 9,
+        boxShadow: `0 0 0 1.5px #ffffff, 0 0 6px ${tint}77`,
+      }}
+    >
+      {initial}
+    </span>
   );
+  // Kept for the rainbow swatch which paints its head with a
+  // hue-cycling background instead of the user's avatar.
+  const dot = head;
 
   if (mode === 'classic') {
     return (
@@ -1555,12 +1673,17 @@ function CursorEffectThumb({
   }
 
   if (mode === 'rainbow') {
+    // Hue-cycling halo behind the avatar so the swatch reads as
+    // "your face, but the cursor itself cycles through colours" —
+    // mirrors what teammates actually see when the rainbow effect
+    // is active in PresenceCursors.
     return (
       <div className="absolute inset-0">
         <span
           aria-hidden="true"
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full ring-2 ring-white shadow cursor-effect-rainbow"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full blur-[3px] cursor-effect-rainbow"
         />
+        {head}
       </div>
     );
   }
