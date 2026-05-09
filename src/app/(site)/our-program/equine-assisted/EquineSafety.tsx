@@ -42,12 +42,12 @@ const items: SafetyItem[] = [
   {
     title: 'Consent, opt-out, and substitution',
     body:
-      'EAP is an offered modality, not a required one. Clients who decline, or who later decide the arena isn&rsquo;t where their work lives, are substituted into equivalent clinical hours with no loss of care intensity.',
+      'EAP individual sessions is an offered modality, not a required one. It is invitational — clients may choose to have a session or decline. If they opt out, they still receive equivalent clinical hours with no loss of care.',
   },
   {
     title: 'Horse welfare standards',
     body:
-      'Our herd is never run more than a capped number of sessions per week. Horses who are off, in season, or recovering are rotated out. A horse&rsquo;s &ldquo;no&rdquo; is respected the same way a client&rsquo;s &ldquo;no&rdquo; is — it&rsquo;s information, not resistance.',
+      'Horses are assessed daily and provided time off and breaks as needed, recognizing the importance of self-care for the herd just as we prioritize it for our clients. This helps ensure they remain rested, regulated, and able to engage authentically in the healing process. Their care includes routine bodywork, vaccinations, deworming, regular hoof care, and individualized nutrition plans tailored to their specific physical and emotional needs.',
   },
   {
     title: 'Medical oversight on campus',
