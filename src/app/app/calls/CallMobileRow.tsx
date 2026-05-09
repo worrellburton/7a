@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Call,
+  formatDate,
   formatDuration,
   formatRelativeTime,
   formatTime,
@@ -100,7 +101,20 @@ export function CallMobileRow(props: CallMobileRowProps) {
 
   const relTime = formatRelativeTime(call.called_at);
   const absTime = `${formatTime(call.called_at)}`;
+  const dateLabel = formatDate(call.called_at);
+  const timeLabel = formatTime(call.called_at);
   const duration = call.duration != null ? formatDuration(call.duration) : null;
+  const [linkCopied, setLinkCopied] = useState(false);
+  const callPageUrl = `/app/calls/${encodeURIComponent(String(call.id))}`;
+  const copyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${callPageUrl}`);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1500);
+    } catch {
+      /* clipboard blocked — leave feedback off */
+    }
+  };
 
   return (
     <div
@@ -192,14 +206,20 @@ export function CallMobileRow(props: CallMobileRowProps) {
             </p>
           </div>
 
-          {/* Time + chevron stack. */}
+          {/* Date + time + chevron stack. Date sits on top in the
+              same heavier weight as the headline so a teammate can
+              place the call from a thumb-scroll without expanding the
+              row; relative time + clock time go underneath. */}
           <div className="shrink-0 flex items-center gap-2">
             <div className="text-right">
               <p
-                className="text-[11px] font-semibold text-foreground/65 tabular-nums whitespace-nowrap"
-                title={absTime}
+                className="text-[12px] font-semibold text-foreground/80 tabular-nums whitespace-nowrap"
+                title={relTime || absTime}
               >
-                {relTime || absTime || ''}
+                {dateLabel}
+              </p>
+              <p className="text-[10px] text-foreground/50 tabular-nums whitespace-nowrap">
+                {timeLabel}
               </p>
               <p className="text-[10px] text-foreground/35 tabular-nums">
                 #{call.id}
@@ -267,6 +287,40 @@ export function CallMobileRow(props: CallMobileRowProps) {
               ) : (
                 <p className="px-3 py-2.5 text-sm text-foreground/40">No recording</p>
               )}
+              <div className="my-1 border-t border-gray-100" aria-hidden="true" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={async () => {
+                  await copyShareLink();
+                  setActionsOpen(false);
+                }}
+                className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-sm text-foreground/85 hover:bg-warm-bg/40 active:bg-warm-bg/60"
+              >
+                {linkCopied ? (
+                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-foreground/55" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 11-5.656-5.656l1.101-1.101m11.314-11.314l1.101-1.101a4 4 0 115.656 5.656l-4 4a4 4 0 01-5.656 0M10 14L14 10" />
+                  </svg>
+                )}
+                <span>{linkCopied ? 'Link copied' : 'Copy share link'}</span>
+              </button>
+              <a
+                role="menuitem"
+                href={callPageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setActionsOpen(false)}
+                className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-sm text-foreground/85 hover:bg-warm-bg/40 active:bg-warm-bg/60"
+              >
+                <svg className="w-4 h-4 text-foreground/55" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                <span>Open call page</span>
+              </a>
             </div>
           )}
         </div>

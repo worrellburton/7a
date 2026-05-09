@@ -114,12 +114,21 @@ export function parseDate(dateStr: string | null | undefined): Date | null {
   if (!dateStr) return null;
   let d = new Date(dateStr);
   if (!isNaN(d.getTime())) return d;
-  // CTM sometimes returns "YYYY-MM-DD HH:MM:SS +ZZZZ" without 'T'
-  d = new Date(String(dateStr).replace(' ', 'T').replace(' +', '+').replace(' -', '-'));
+  // CTM occasionally returns "YYYY-MM-DD HH:MM:SS +ZZZZ" (sometimes
+  // with double spaces, sometimes with the offset glued to the end).
+  // Normalise to ISO 8601: first space → 'T', subsequent runs of
+  // whitespace collapsed, then strip the space before the offset
+  // sign so "+0000" / "-0700" lands directly on the time.
+  const normalised = String(dateStr)
+    .replace(' ', 'T')
+    .replace(/\s+/g, '')
+    .replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+  d = new Date(normalised);
   if (!isNaN(d.getTime())) return d;
-  // Try Unix timestamp (seconds)
+  // Unix timestamp — seconds (10 digits) or milliseconds (13 digits).
   const n = Number(dateStr);
   if (n > 1e9 && n < 2e10) return new Date(n * 1000);
+  if (n > 1e12 && n < 2e13) return new Date(n);
   return null;
 }
 
