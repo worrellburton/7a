@@ -1100,8 +1100,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         </div> {/* end sticky wrapper */}
       </aside>
 
-      {/* Main content area */}
-      <div data-platform-main className="flex-1 overflow-auto relative">
+      {/* Main content area. The inner overflow-auto is only needed on
+          lg+ where the sidebar is sticky and the main panel must
+          scroll independently to keep the rail visible. On mobile the
+          rail is hidden, so letting the body scroll naturally avoids
+          the double-scrollbar (page + main panel) iOS shows when this
+          element is taller than the viewport. */}
+      <div data-platform-main className="flex-1 lg:overflow-auto relative">
         {/* Mobile top bar */}
         <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 backdrop-blur border-b border-gray-100">
           <button
