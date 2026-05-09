@@ -42,7 +42,7 @@ const items: SafetyItem[] = [
   {
     title: 'Consent, opt-out, and substitution',
     body:
-      'EAP is an offered modality, not a required one. Clients who decline, or who later decide the arena isn&rsquo;t where their work lives, are substituted into equivalent clinical hours with no loss of care intensity.',
+      'EAP individual sessions is an offered modality, not a required one. It is invitational — clients may choose to have a session or decline. If they opt out, they still receive equivalent clinical hours with no loss of care.',
   },
   {
     title: 'Horse welfare standards',
