@@ -247,7 +247,8 @@ function SocialTabBody(props: TabBodyProps) {
   if (active === 'creative') {
     return (
       <div role="tabpanel" id="tabpanel-creative" aria-labelledby="tab-creative">
-        <CreativeTabPlaceholder />
+        <CreativeSubNav />
+        <CreativeTabBody />
       </div>
     );
   }
@@ -573,14 +574,102 @@ function ScheduledPanel({
   );
 }
 
-function CreativeTabPlaceholder() {
+// ── Creative sub-nav (Library / Templates / AI) ─────────────────────
+//
+// Phase 5 of the 10-phase split. Three sub-views via the same `?sub=`
+// query param the Post tab uses, but scoped to the Creative tab so
+// Compose state on the Post tab and the Library/Templates/AI state
+// here can both persist independently in the URL.
+
+type CreativeSub = 'library' | 'templates' | 'ai';
+
+const CREATIVE_SUBS: { id: CreativeSub; label: string; description: string }[] = [
+  { id: 'library', label: 'Library', description: 'Browse uploaded photos and videos.' },
+  { id: 'templates', label: 'Templates', description: 'Reusable post drafts with placeholders.' },
+  { id: 'ai', label: 'AI', description: 'Draft captions with Claude.' },
+];
+
+function readCreativeSub(raw: string | null): CreativeSub {
+  if (raw === 'templates' || raw === 'ai') return raw;
+  return 'library';
+}
+
+function CreativeSubNav() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const active = readCreativeSub(searchParams.get('sub'));
+  const select = (id: CreativeSub) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('tab', 'creative');
+    if (id === 'library') next.delete('sub');
+    else next.set('sub', id);
+    const qs = next.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
   return (
-    <div className="rounded-2xl border border-dashed border-black/15 bg-white px-6 py-14 text-center">
-      <p className="text-xs uppercase tracking-[0.22em] text-foreground/40 mb-2">Creative</p>
-      <p className="text-base font-semibold text-foreground/85 mb-1">Library, templates, and AI drafts land here.</p>
+    <div role="tablist" aria-label="Creative sections" className="mb-5 flex flex-wrap gap-1 rounded-xl bg-white border border-black/10 p-1">
+      {CREATIVE_SUBS.map((s) => {
+        const selected = active === s.id;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => select(s.id)}
+            title={s.description}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              selected ? 'bg-foreground text-white' : 'text-foreground/60 hover:bg-warm-bg/40'
+            }`}
+          >
+            {s.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CreativeTabBody() {
+  const searchParams = useSearchParams();
+  const sub = readCreativeSub(searchParams.get('sub'));
+  if (sub === 'templates') return <CreativeTemplatesPanel />;
+  if (sub === 'ai') return <CreativeAiPanel />;
+  return <CreativeLibraryPanel />;
+}
+
+function CreativeLibraryPanel() {
+  return (
+    <div className="rounded-2xl border border-dashed border-black/15 bg-white px-6 py-12 text-center">
+      <p className="text-xs uppercase tracking-[0.22em] text-foreground/40 mb-2">Library</p>
       <p className="text-sm text-foreground/55 max-w-md mx-auto">
-        Browse uploaded media, pick from saved templates, or draft a caption
-        with Claude — then send it straight to the Post tab.
+        Phase 6 wires the site_images gallery in here with multi-select and a
+        Send-to-Compose handoff that prefills Post &rarr; Compose.
+      </p>
+    </div>
+  );
+}
+
+function CreativeTemplatesPanel() {
+  return (
+    <div className="rounded-2xl border border-dashed border-black/15 bg-white px-6 py-12 text-center">
+      <p className="text-xs uppercase tracking-[0.22em] text-foreground/40 mb-2">Templates</p>
+      <p className="text-sm text-foreground/55 max-w-md mx-auto">
+        Phase 7 fills this in with reusable post drafts (Wisdom Wednesday, Alumni
+        Spotlight, etc.) and a one-click Use Template handoff.
+      </p>
+    </div>
+  );
+}
+
+function CreativeAiPanel() {
+  return (
+    <div className="rounded-2xl border border-dashed border-black/15 bg-white px-6 py-12 text-center">
+      <p className="text-xs uppercase tracking-[0.22em] text-foreground/40 mb-2">AI</p>
+      <p className="text-sm text-foreground/55 max-w-md mx-auto">
+        Phase 8 wires a Claude-backed caption generator with topic, tone, and
+        platform inputs. Drafts ship to Compose with one click.
       </p>
     </div>
   );
