@@ -185,8 +185,8 @@ type Tab = 'overview' | 'post' | 'creative';
 
 const TABS: { id: Tab; label: string; description: string }[] = [
   { id: 'overview', label: 'Overview', description: 'Connected accounts + analytics snapshot.' },
-  { id: 'post', label: 'Post', description: 'Compose and schedule across every channel.' },
   { id: 'creative', label: 'Creative', description: 'Library, templates, and AI-assisted drafts.' },
+  { id: 'post', label: 'Post', description: 'Compose and schedule across every channel.' },
 ];
 
 function readTab(raw: string | null): Tab {
