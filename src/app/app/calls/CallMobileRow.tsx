@@ -19,6 +19,7 @@ import {
   formatTime,
   isMissedCall,
   isPaidSource,
+  parseDate,
 } from './_shared';
 
 export interface CallMobileRowProps {
@@ -100,20 +101,31 @@ export function CallMobileRow(props: CallMobileRowProps) {
   const isOutbound = direction === 'outbound';
 
   // CTM's primary timestamp is `called_at`, but a small slice of the
-  // synced rows show up with that field nulled (or in a format the
-  // parser bails on). Walk a short list of plausible siblings —
-  // `start_time`, `created`, `created_at`, `local_called_at` —
-  // before giving up so the row always shows *some* date instead of
-  // a bare em-dash.
-  const candidate =
-    [call.called_at, (call as Record<string, unknown>).local_called_at,
-     (call as Record<string, unknown>).start_time, (call as Record<string, unknown>).created_at,
-     (call as Record<string, unknown>).created]
-      .find((v): v is string | number => (typeof v === 'string' && v.length > 0) || typeof v === 'number')
-    ?? '';
-  const relTime = formatRelativeTime(typeof candidate === 'string' ? candidate : String(candidate));
-  const absTime = formatTime(typeof candidate === 'string' ? candidate : String(candidate));
-  const dateLabel = formatDate(typeof candidate === 'string' ? candidate : String(candidate));
+  // synced rows show up with that field nulled or in a format the
+  // parser bails on (especially on iOS Safari). Walk a list of
+  // plausible siblings and pick the first one parseDate can actually
+  // read — *not* the first non-empty one, because a placeholder
+  // string like "0000-00-00 00:00:00" would short-circuit otherwise.
+  const candidates = [
+    call.called_at,
+    (call as Record<string, unknown>).local_called_at,
+    (call as Record<string, unknown>).start_time,
+    (call as Record<string, unknown>).local_start_time,
+    (call as Record<string, unknown>).created_at,
+    (call as Record<string, unknown>).created,
+  ];
+  let timestamp = '';
+  for (const c of candidates) {
+    if (c === null || c === undefined || c === '') continue;
+    const stringified = typeof c === 'number' ? String(c) : String(c);
+    if (parseDate(stringified)) {
+      timestamp = stringified;
+      break;
+    }
+  }
+  const relTime = formatRelativeTime(timestamp);
+  const absTime = formatTime(timestamp);
+  const dateLabel = formatDate(timestamp);
   const timeLabel = absTime;
   const duration = call.duration != null ? formatDuration(call.duration) : null;
   const [linkCopied, setLinkCopied] = useState(false);
