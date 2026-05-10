@@ -257,6 +257,7 @@ function SocialTabBody(props: TabBodyProps) {
   // Overview (default)
   return (
     <div role="tabpanel" id="tabpanel-overview" aria-labelledby="tab-overview">
+      <OverviewSummary connected={accounts?.activeSocialAccounts ?? []} />
       <ConnectedAccountsStrip
         accounts={accounts}
         loading={accountsLoading}
@@ -265,6 +266,96 @@ function SocialTabBody(props: TabBodyProps) {
       />
       <AnalyticsPanel connected={accounts?.activeSocialAccounts ?? []} />
     </div>
+  );
+}
+
+// ── Overview summary tiles ──────────────────────────────────────────
+//
+// Phase 2 of the 10-phase split. Three roll-up tiles above the
+// accounts strip: connected platforms, total followers across them,
+// and the freshness of the most recent analytics snapshot. The
+// follower total reads from the same /analytics/history endpoint
+// the AnalyticsPanel uses, so the numbers stay consistent without a
+// second cron job.
+
+function OverviewSummary({ connected }: { connected: string[] }) {
+  const [snapshots, setSnapshots] = useState<Record<string, { raw: Record<string, unknown> | null; captured_at: string | null }>>({});
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/social-media/analytics/history', {
+          credentials: 'include', cache: 'no-store',
+        });
+        if (!res.ok) return;
+        const json = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        const latest = (json.latest ?? {}) as Record<string, { raw: Record<string, unknown>; captured_at: string }>;
+        const out: typeof snapshots = {};
+        for (const [platform, row] of Object.entries(latest)) {
+          out[platform] = { raw: row.raw, captured_at: row.captured_at };
+        }
+        setSnapshots(out);
+      } catch {
+        /* leave empty — AnalyticsPanel will surface the real error */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const totalFollowers = useMemo(() => {
+    let sum = 0;
+    for (const platform of connected) {
+      const raw = snapshots[platform]?.raw ?? null;
+      const stats = extractStats(platform as PlatformId, raw);
+      const followers = stats.find((s) => s.label.toLowerCase() === 'followers');
+      if (followers) {
+        const n = Number(followers.value.replace(/,/g, ''));
+        if (Number.isFinite(n)) sum += n;
+      }
+    }
+    return sum;
+  }, [connected, snapshots]);
+
+  const freshest = useMemo(() => {
+    let max: string | null = null;
+    for (const k of Object.keys(snapshots)) {
+      const at = snapshots[k]?.captured_at;
+      if (at && (!max || at > max)) max = at;
+    }
+    return max;
+  }, [snapshots]);
+
+  const tiles: { label: string; value: string; sub?: string }[] = [
+    {
+      label: 'Connected platforms',
+      value: connected.length.toLocaleString(),
+      sub: connected.length === 0 ? 'Connect one in the strip below' : 'Sending posts on these channels',
+    },
+    {
+      label: 'Total followers',
+      value: totalFollowers.toLocaleString(),
+      sub: 'Sum across connected platforms',
+    },
+    {
+      label: 'Snapshot freshness',
+      value: freshest
+        ? new Date(freshest).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        : '—',
+      sub: 'Auto-refreshes daily at 6am',
+    },
+  ];
+
+  return (
+    <section aria-label="Overview summary" className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {tiles.map((t) => (
+        <div key={t.label} className="rounded-2xl border border-black/10 bg-white px-4 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">{t.label}</p>
+          <p className="text-xl font-bold text-foreground tabular-nums leading-tight mt-0.5">{t.value}</p>
+          {t.sub && <p className="text-[11px] text-foreground/45 mt-0.5">{t.sub}</p>}
+        </div>
+      ))}
+    </section>
   );
 }
 
