@@ -58,12 +58,29 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const latest = new Map<string, SnapshotRow>();
+  // "Previous" = the most recent snapshot per platform that's at
+  // least 20 hours older than the latest one. We intentionally avoid
+  // "the literal previous row" because the cron retries can land
+  // back-to-back snapshots within a few minutes; what we want is
+  // yesterday's number to compute a believable +/- delta.
+  const previous = new Map<string, SnapshotRow>();
+  const PREVIOUS_GAP_MS = 20 * 60 * 60 * 1000;
   for (const row of (data ?? []) as SnapshotRow[]) {
-    if (!latest.has(row.platform)) latest.set(row.platform, row);
+    if (!latest.has(row.platform)) {
+      latest.set(row.platform, row);
+      continue;
+    }
+    if (previous.has(row.platform)) continue;
+    const latestRow = latest.get(row.platform)!;
+    const dt = new Date(latestRow.captured_at).getTime() - new Date(row.captured_at).getTime();
+    if (dt >= PREVIOUS_GAP_MS) {
+      previous.set(row.platform, row);
+    }
   }
 
   return NextResponse.json({
     latest: Object.fromEntries(latest),
+    previous: Object.fromEntries(previous),
     platforms: Array.from(latest.keys()),
   });
 }

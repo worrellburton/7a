@@ -1645,11 +1645,13 @@ interface SnapshotEntry {
 
 interface HistoryResponse {
   latest: Record<string, SnapshotEntry>;
+  previous?: Record<string, SnapshotEntry>;
   platforms: string[];
 }
 
 function AnalyticsPanel({ connected }: { connected: string[] }) {
   const [latest, setLatest] = useState<Record<string, SnapshotEntry>>({});
+  const [previous, setPrevious] = useState<Record<string, SnapshotEntry>>({});
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1664,6 +1666,7 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
       const json = (await res.json().catch(() => ({}))) as HistoryResponse & { error?: string };
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       setLatest(json.latest ?? {});
+      setPrevious(json.previous ?? {});
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -1767,6 +1770,7 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
               key={p}
               platform={p as PlatformId}
               raw={latest[p]?.raw ?? null}
+              previousRaw={previous[p]?.raw ?? null}
               capturedAt={latest[p]?.captured_at ?? null}
             />
           ))}
@@ -1777,15 +1781,31 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
 }
 
 function AnalyticsRow({
-  platform, raw, capturedAt,
+  platform, raw, previousRaw, capturedAt,
 }: {
   platform: PlatformId;
   raw: Record<string, unknown> | null;
+  /** Yesterday's snapshot for this platform (if any) — used to render
+   *  +/- deltas next to each metric. Falls back to no-delta when
+   *  absent. */
+  previousRaw?: Record<string, unknown> | null;
   /** Snapshot captured_at — surfaces in the platform column underneath
    *  the icon + name so each row reads as data from a specific moment. */
   capturedAt?: string | null;
 }) {
   const stats = useMemo(() => extractStats(platform, raw), [platform, raw]);
+  const previousStats = useMemo(
+    () => extractStats(platform, previousRaw ?? null),
+    [platform, previousRaw],
+  );
+  const previousByLabel = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of previousStats) {
+      const n = Number(s.value.replace(/,/g, ''));
+      if (Number.isFinite(n)) m.set(s.label, n);
+    }
+    return m;
+  }, [previousStats]);
   const platformLabel = platform.toUpperCase().replace('GMB', 'Google Biz');
   const capturedLabel = capturedAt
     ? new Date(capturedAt).toLocaleString('en-US', {
@@ -1824,7 +1844,12 @@ function AnalyticsRow({
           </details>
         ) : (
           <ul className="flex flex-wrap gap-x-5 gap-y-2">
-            {stats.map((s) => (
+            {stats.map((s) => {
+              const todayN = Number(s.value.replace(/,/g, ''));
+              const yest = previousByLabel.get(s.label);
+              const hasDelta = Number.isFinite(todayN) && yest !== undefined;
+              const delta = hasDelta ? todayN - (yest as number) : 0;
+              return (
               <li key={s.label} className="min-w-0">
                 <p className="text-[10px] uppercase tracking-wider text-foreground/45 leading-tight">
                   {s.label}
@@ -1832,8 +1857,24 @@ function AnalyticsRow({
                 <p className="text-base font-bold text-foreground tabular-nums leading-tight">
                   {s.value}
                 </p>
+                {hasDelta && delta !== 0 && (
+                  <p
+                    className={`text-[10px] font-semibold tabular-nums leading-tight ${
+                      delta > 0 ? 'text-emerald-700' : 'text-red-700'
+                    }`}
+                    title="Change vs. previous day"
+                  >
+                    {delta > 0 ? '+' : ''}{delta.toLocaleString()}
+                  </p>
+                )}
+                {hasDelta && delta === 0 && (
+                  <p className="text-[10px] font-semibold tabular-nums leading-tight text-foreground/35">
+                    no change
+                  </p>
+                )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
