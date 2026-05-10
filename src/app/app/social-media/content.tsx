@@ -1547,6 +1547,46 @@ function Composer({
   const [scheduleDate, setScheduleDate] = useState('');
   const [posting, setPosting] = useState(false);
   const [resultMsg, setResultMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [draftBanner, setDraftBanner] = useState<ComposeDraft['source'] | null>(null);
+
+  // Phase 9 of the 10-phase split: consume any draft stashed by the
+  // Library / Templates / AI sub-tabs. We read the sessionStorage
+  // stash on mount (covers refresh + tab-switch back), and also
+  // listen for the live CustomEvent so a draft pushed while the
+  // Composer is already mounted prefills the form immediately.
+  useEffect(() => {
+    const apply = (draft: ComposeDraft) => {
+      if (draft.caption) setText((prev) => prev || draft.caption || '');
+      if (draft.mediaUrls && draft.mediaUrls.length > 0) {
+        const next: PickedMedia[] = draft.mediaUrls.map((url) => ({
+          url,
+          thumbUrl: url,
+          label: url.split('/').pop() || 'Image',
+          kind: 'image',
+        }));
+        setPicked((prev) => {
+          // Merge — don't drop anything the user already added by hand.
+          const seen = new Set(prev.map((m) => m.url));
+          return [...prev, ...next.filter((m) => !seen.has(m.url))];
+        });
+      }
+      setDraftBanner(draft.source ?? null);
+    };
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as ComposeDraft;
+        apply(parsed);
+        sessionStorage.removeItem(DRAFT_KEY);
+      }
+    } catch { /* ignore — sessionStorage might be unavailable */ }
+    const onDraft = (e: Event) => {
+      const detail = (e as CustomEvent<ComposeDraft>).detail;
+      if (detail) apply(detail);
+    };
+    window.addEventListener('social-media-compose-draft', onDraft);
+    return () => window.removeEventListener('social-media-compose-draft', onDraft);
+  }, []);
   // Top-right delivery toast — see PostStatusToast for the visual.
   // Holds the lifecycle of the most recent submit so the toast can
   // animate from "sending" through per-platform results.
@@ -1718,6 +1758,23 @@ function Composer({
       />
 
       <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">Compose</h2>
+
+      {draftBanner && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] text-emerald-900">
+          <span className="font-semibold">
+            Prefilled from{' '}
+            {draftBanner === 'library' ? 'Library' : draftBanner === 'templates' ? 'Templates' : 'AI'}.
+          </span>
+          <button
+            type="button"
+            onClick={() => setDraftBanner(null)}
+            className="text-emerald-800/70 hover:text-emerald-900"
+            aria-label="Dismiss prefill notice"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* "Post to" picker sits at the top — picking the channels is
           the most consequential decision per post, and seeing the
