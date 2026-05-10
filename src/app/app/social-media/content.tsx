@@ -20,7 +20,7 @@ import { PostStatusToast, type PostStatus, type PerPlatformResult } from './Post
 interface ComposeDraft {
   caption?: string;
   mediaUrls?: string[];
-  source?: 'library' | 'templates' | 'ai';
+  source?: 'library' | 'templates' | 'ai' | 'drafts';
 }
 const DRAFT_KEY = 'social_media_compose_draft_v1';
 function pushComposeDraft(draft: ComposeDraft) {
@@ -28,6 +28,51 @@ function pushComposeDraft(draft: ComposeDraft) {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     window.dispatchEvent(new CustomEvent('social-media-compose-draft', { detail: draft }));
   } catch { /* sessionStorage may be unavailable in private browsing */ }
+}
+
+// Intermediate Library -> AI staging. Lives in sessionStorage under
+// a separate key so the Composer's pushComposeDraft consume-and-clear
+// path doesn't accidentally drop it. The AI panel reads this on
+// mount to pre-populate its media context; saving to drafts copies
+// the urls into the draft payload and then this stash is cleared.
+interface CreativeStaging { mediaUrls: string[] }
+const STAGING_KEY = 'social_media_creative_staging_v1';
+function pushCreativeStaging(s: CreativeStaging) {
+  try { sessionStorage.setItem(STAGING_KEY, JSON.stringify(s)); } catch { /* no-op */ }
+}
+function readCreativeStaging(): CreativeStaging | null {
+  try {
+    const raw = sessionStorage.getItem(STAGING_KEY);
+    return raw ? (JSON.parse(raw) as CreativeStaging) : null;
+  } catch { return null; }
+}
+function clearCreativeStaging() {
+  try { sessionStorage.removeItem(STAGING_KEY); } catch { /* no-op */ }
+}
+
+// Saved drafts — phase B/C of the wizard. Persisted in localStorage
+// so they survive refresh and tab close. List rendered under
+// Creative > Drafts; each has Edit / Send to Compose / Delete.
+interface SavedDraft {
+  id: string;
+  createdAt: string;
+  caption: string;
+  mediaUrls: string[];
+}
+const DRAFTS_KEY = 'social_media_saved_drafts_v1';
+function readSavedDrafts(): SavedDraft[] {
+  try {
+    const raw = localStorage.getItem(DRAFTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as SavedDraft[]) : [];
+  } catch { return []; }
+}
+function writeSavedDrafts(drafts: SavedDraft[]) {
+  try {
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+    window.dispatchEvent(new CustomEvent('social-media-drafts-changed'));
+  } catch { /* no-op */ }
 }
 
 // Marketing → Social Media. v1 wraps Ayrshare's API:
@@ -446,17 +491,17 @@ function OverviewSummary({ connected }: { connected: string[] }) {
 // phase 4 fills in; History wraps the existing HistoryList without
 // changing its props.
 
-type PostSub = 'compose' | 'scheduled' | 'history';
+type PostSub = 'drafts' | 'scheduled' | 'history';
 
 const POST_SUBS: { id: PostSub; label: string }[] = [
-  { id: 'compose', label: 'Compose' },
+  { id: 'drafts', label: 'Drafts' },
   { id: 'scheduled', label: 'Scheduled' },
   { id: 'history', label: 'History' },
 ];
 
 function readPostSub(raw: string | null): PostSub {
   if (raw === 'scheduled' || raw === 'history') return raw;
-  return 'compose';
+  return 'drafts';
 }
 
 function PostSubNav() {
@@ -467,7 +512,7 @@ function PostSubNav() {
   const select = (id: PostSub) => {
     const next = new URLSearchParams(searchParams.toString());
     next.set('tab', 'post');
-    if (id === 'compose') next.delete('sub');
+    if (id === 'drafts') next.delete('sub');
     else next.set('sub', id);
     const qs = next.toString();
     router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
@@ -520,11 +565,157 @@ function PostTabBody({
       />
     );
   }
+  // Default sub = drafts. Compose lives inside DraftsPanel and only
+  // mounts when the user clicks Publish on a specific draft.
   return (
-    <Composer
-      connected={accounts?.activeSocialAccounts ?? []}
+    <DraftsPanel
+      accounts={accounts}
       onPosted={refreshHistory}
     />
+  );
+}
+
+// ── Post > Drafts ────────────────────────────────────────────────────
+//
+// Lists every saved draft (created from Creative > AI's "Save draft"
+// or Templates' "Save as draft"). Each row is a card with the
+// caption preview, attached media chips, and three actions — Publish
+// (opens Composer prefilled inline), Duplicate (clone), Delete.
+// Composer is mounted inline when activeDraftId is set so the user
+// stays on the same screen through the publish flow.
+
+function DraftsPanel({
+  accounts, onPosted,
+}: {
+  accounts: AccountsResponse | null;
+  onPosted: () => void;
+}) {
+  const [drafts, setDrafts] = useState<SavedDraft[]>([]);
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDrafts(readSavedDrafts());
+    const onChange = () => setDrafts(readSavedDrafts());
+    window.addEventListener('social-media-drafts-changed', onChange);
+    window.addEventListener('storage', onChange);
+    return () => {
+      window.removeEventListener('social-media-drafts-changed', onChange);
+      window.removeEventListener('storage', onChange);
+    };
+  }, []);
+
+  const removeDraft = (id: string) => {
+    const next = drafts.filter((d) => d.id !== id);
+    setDrafts(next);
+    writeSavedDrafts(next);
+  };
+
+  const startPublish = (d: SavedDraft) => {
+    pushComposeDraft({ caption: d.caption, mediaUrls: d.mediaUrls, source: 'drafts' });
+    setActiveDraftId(d.id);
+  };
+
+  const cancelPublish = () => setActiveDraftId(null);
+
+  const onComposerPosted = () => {
+    // Successful publish — drop the draft, fall back to the list.
+    if (activeDraftId) removeDraft(activeDraftId);
+    setActiveDraftId(null);
+    onPosted();
+  };
+
+  if (activeDraftId) {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={cancelPublish}
+          className="mb-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-foreground/60 hover:text-foreground"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to drafts
+        </button>
+        <Composer
+          connected={accounts?.activeSocialAccounts ?? []}
+          onPosted={onComposerPosted}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-5">
+      <div className="mb-4">
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Drafts</h2>
+        <p className="text-[11px] text-foreground/45 mt-0.5">
+          Saved posts from Creative. Pick one and Publish.
+        </p>
+      </div>
+      {drafts.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-black/10 bg-warm-bg/30 px-5 py-10 text-center">
+          <p className="text-sm text-foreground/55 max-w-md mx-auto">
+            No drafts yet. Build one in <strong>Creative &rarr; Library &rarr; AI</strong>, or
+            start from a template in <strong>Creative &rarr; Templates</strong>.
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {drafts.map((d) => {
+            const created = new Date(d.createdAt).toLocaleString('en-US', {
+              month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+            });
+            const preview = d.caption.length > 240
+              ? `${d.caption.slice(0, 240)}…`
+              : d.caption;
+            return (
+              <li key={d.id} className="rounded-xl border border-black/10 bg-warm-bg/20 p-4">
+                <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">
+                    Saved {created}
+                  </p>
+                  {d.mediaUrls.length > 0 && (
+                    <p className="text-[10px] text-foreground/45">
+                      {d.mediaUrls.length} media attached
+                    </p>
+                  )}
+                </div>
+                <p className="text-sm text-foreground/85 whitespace-pre-wrap leading-relaxed">
+                  {preview}
+                </p>
+                {d.mediaUrls.length > 0 && (
+                  <ul className="mt-3 flex flex-wrap gap-2">
+                    {d.mediaUrls.slice(0, 6).map((url) => (
+                      <li key={url} className="w-12 h-12 rounded-lg overflow-hidden border border-black/10">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="Draft media" className="w-full h-full object-cover" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-4 flex items-center justify-end gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => removeDraft(d.id)}
+                    className="text-[12px] text-foreground/55 hover:text-red-700"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => startPublish(d)}
+                    className="rounded-lg bg-primary text-white px-3 py-1.5 text-[12px] font-semibold hover:bg-primary-dark"
+                  >
+                    Publish
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -730,36 +921,81 @@ function CreativeTabBody() {
 // the URL is staged in sessionStorage and reads as a no-op on the
 // Post tab (no regression for direct Compose usage).
 
-interface LibraryImageRow {
+interface LibraryAsset {
   id: string;
-  public_url: string;
+  url: string;
+  thumbUrl: string;
   filename: string | null;
   alt: string | null;
   created_at: string;
+  kind: 'image' | 'video';
 }
+
+type LibraryFilter = 'all' | 'photos' | 'videos';
 
 function CreativeLibraryPanel() {
   const router = useRouter();
   const pathname = usePathname();
-  const [images, setImages] = useState<LibraryImageRow[]>([]);
+  const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<LibraryFilter>('all');
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const { data, error: err } = await supabase
-          .from('site_images')
-          .select('id, public_url, filename, alt, created_at')
-          .order('created_at', { ascending: false })
-          .limit(200);
-        if (err) throw err;
+        // Pull photos + videos in parallel; merge into a single
+        // chronological list so the filter is a pure client-side
+        // toggle once data lands.
+        const [imagesRes, videosRes] = await Promise.all([
+          supabase
+            .from('site_images')
+            .select('id, public_url, filename, alt, created_at')
+            .order('created_at', { ascending: false })
+            .limit(200),
+          supabase
+            .from('site_videos')
+            .select('id, video_url, thumbnail_url, filename, alt, created_at')
+            .order('created_at', { ascending: false })
+            .limit(80),
+        ]);
         if (cancelled) return;
-        setImages((data ?? []) as LibraryImageRow[]);
+        if (imagesRes.error) throw imagesRes.error;
+        const imageRows = (imagesRes.data ?? []) as Array<{
+          id: string; public_url: string; filename: string | null;
+          alt: string | null; created_at: string;
+        }>;
+        const videoRows = (videosRes.error ? [] : (videosRes.data ?? [])) as Array<{
+          id: string; video_url: string | null; thumbnail_url: string | null;
+          filename: string | null; alt: string | null; created_at: string;
+        }>;
+        const merged: LibraryAsset[] = [
+          ...imageRows.map<LibraryAsset>((r) => ({
+            id: `img:${r.id}`,
+            url: r.public_url,
+            thumbUrl: r.public_url,
+            filename: r.filename,
+            alt: r.alt,
+            created_at: r.created_at,
+            kind: 'image',
+          })),
+          ...videoRows
+            .filter((r) => Boolean(r.video_url))
+            .map<LibraryAsset>((r) => ({
+              id: `vid:${r.id}`,
+              url: r.video_url as string,
+              thumbUrl: r.thumbnail_url || (r.video_url as string),
+              filename: r.filename,
+              alt: r.alt,
+              created_at: r.created_at,
+              kind: 'video',
+            })),
+        ].sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+        setAssets(merged);
         setError(null);
       } catch (e) {
         if (cancelled) return;
@@ -773,12 +1009,14 @@ function CreativeLibraryPanel() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return images;
-    return images.filter((row) =>
-      (row.filename ?? '').toLowerCase().includes(q) ||
-      (row.alt ?? '').toLowerCase().includes(q),
-    );
-  }, [images, query]);
+    return assets.filter((row) => {
+      if (filter === 'photos' && row.kind !== 'image') return false;
+      if (filter === 'videos' && row.kind !== 'video') return false;
+      if (!q) return true;
+      return (row.filename ?? '').toLowerCase().includes(q) ||
+        (row.alt ?? '').toLowerCase().includes(q);
+    });
+  }, [assets, filter, query]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -789,25 +1027,35 @@ function CreativeLibraryPanel() {
     });
   };
 
-  const sendToCompose = () => {
-    const urls = images
+  const continueToAi = () => {
+    const urls = assets
       .filter((row) => selected.has(row.id))
-      .map((row) => row.public_url)
+      .map((row) => row.url)
       .filter((u): u is string => Boolean(u));
     if (urls.length === 0) return;
-    pushComposeDraft({ mediaUrls: urls, source: 'library' });
+    pushCreativeStaging({ mediaUrls: urls });
     const next = new URLSearchParams();
-    next.set('tab', 'post');
+    next.set('tab', 'creative');
+    next.set('sub', 'ai');
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
+  const counts = useMemo(() => {
+    let photos = 0, videos = 0;
+    for (const a of assets) {
+      if (a.kind === 'image') photos++;
+      else videos++;
+    }
+    return { photos, videos, all: photos + videos };
+  }, [assets]);
+
   return (
-    <section className="rounded-2xl border border-black/10 bg-white p-5">
+    <section className="rounded-2xl border border-black/10 bg-white p-5 pb-20 sm:pb-5">
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div>
           <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Library</h2>
           <p className="text-[11px] text-foreground/45 mt-0.5">
-            Pick photos to send into Compose. Up to 200 shown, newest first.
+            Pick the media you want a post built around. Continue takes you to AI for caption generation.
           </p>
         </div>
         <input
@@ -819,6 +1067,30 @@ function CreativeLibraryPanel() {
         />
       </div>
 
+      {/* Photo / Video filter — pill bar matches the tab/sub-tab idiom
+          used elsewhere on the page so the control reads as a peer. */}
+      <div className="mb-4 inline-flex rounded-lg border border-black/10 overflow-hidden">
+        {([
+          { id: 'all', label: `All (${counts.all})` },
+          { id: 'photos', label: `Photos (${counts.photos})` },
+          { id: 'videos', label: `Videos (${counts.videos})` },
+        ] as const).map((opt) => {
+          const sel = filter === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setFilter(opt.id)}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                sel ? 'bg-foreground text-white' : 'text-foreground/60 hover:bg-warm-bg/40'
+              }`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
       {error && (
         <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 mb-3">
           {error}
@@ -828,12 +1100,12 @@ function CreativeLibraryPanel() {
       {loading ? (
         <p className="text-xs text-foreground/45 italic">Loading library…</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-foreground/55 italic">No images match.</p>
+        <p className="text-sm text-foreground/55 italic">No media matches.</p>
       ) : (
         <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
           {filtered.map((row) => {
             const isSelected = selected.has(row.id);
-            const label = row.alt || row.filename || 'Image';
+            const label = row.alt || row.filename || (row.kind === 'video' ? 'Video' : 'Image');
             return (
               <li key={row.id}>
                 <button
@@ -847,11 +1119,31 @@ function CreativeLibraryPanel() {
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={row.public_url}
+                    src={row.thumbUrl}
                     alt={label}
                     loading="lazy"
                     className="w-full h-full object-cover"
                   />
+                  {row.kind === 'video' && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-0 flex items-center justify-center bg-black/20"
+                    >
+                      <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/55 text-white">
+                        <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </span>
+                    </span>
+                  )}
+                  <span
+                    className={`absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold ${
+                      row.kind === 'video' ? 'bg-fuchsia-600/90 text-white' : 'bg-black/55 text-white'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {row.kind === 'video' ? 'Video' : 'Photo'}
+                  </span>
                   {isSelected && (
                     <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white shadow">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" aria-hidden="true">
@@ -866,7 +1158,11 @@ function CreativeLibraryPanel() {
         </ul>
       )}
 
-      <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+      {/* Sticky action footer — pinned to the bottom of the scroll
+          container so Continue is reachable without scrolling past
+          200 thumbnails. White background + top border so the
+          control reads as separate from the grid behind it. */}
+      <div className="sticky bottom-0 left-0 right-0 -mx-5 -mb-5 mt-4 px-5 py-3 bg-white/95 supports-[backdrop-filter]:bg-white/80 backdrop-blur border-t border-black/10 flex items-center justify-between gap-3 flex-wrap rounded-b-2xl">
         <p className="text-[12px] text-foreground/55">
           <span className="font-semibold text-foreground/80">{selected.size}</span>
           {' '}selected
@@ -882,11 +1178,11 @@ function CreativeLibraryPanel() {
           </button>
           <button
             type="button"
-            onClick={sendToCompose}
+            onClick={continueToAi}
             disabled={selected.size === 0}
             className="rounded-lg bg-primary text-white px-4 py-1.5 text-[12px] font-semibold hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Send to Compose
+            Continue
           </button>
         </div>
       </div>
@@ -967,10 +1263,18 @@ function CreativeTemplatesPanel() {
   const pathname = usePathname();
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const useTemplate = (t: PostTemplate) => {
-    pushComposeDraft({ caption: t.body, source: 'templates' });
+  const saveTemplateDraft = (t: PostTemplate) => {
+    const draft: SavedDraft = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      caption: t.body,
+      mediaUrls: [],
+    };
+    const existing = readSavedDrafts();
+    writeSavedDrafts([draft, ...existing]);
     const next = new URLSearchParams();
     next.set('tab', 'post');
+    next.set('sub', 'drafts');
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
@@ -1005,10 +1309,10 @@ function CreativeTemplatesPanel() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => useTemplate(t)}
+                  onClick={() => saveTemplateDraft(t)}
                   className="rounded-lg bg-primary text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-primary-dark"
                 >
-                  Use template
+                  Save as draft
                 </button>
               </div>
             </li>
@@ -1052,21 +1356,43 @@ function CreativeAiPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [variants, setVariants] = useState<string[]>([]);
+  const [stagedMedia, setStagedMedia] = useState<string[]>([]);
+
+  // Pull any media the user picked in Library so the AI prompt can
+  // describe what the post is built around. We peek without clearing
+  // — the stash is consumed when Save fires (success path) so a back
+  // navigation to Library + return still finds the same selection.
+  useEffect(() => {
+    const staged = readCreativeStaging();
+    if (staged?.mediaUrls?.length) setStagedMedia(staged.mediaUrls);
+  }, []);
 
   const generate = async () => {
-    if (!topic.trim()) {
-      setError('Topic is required.');
+    const trimmedTopic = topic.trim();
+    if (!trimmedTopic && stagedMedia.length === 0) {
+      setError('Add a topic or pick media in Library first.');
       return;
     }
     setBusy(true);
     setError(null);
     setVariants([]);
     try {
+      // Topic falls back to a media-anchored sentence so users can
+      // hit Generate after only picking photos in Library — Claude
+      // gets enough hint to draft something on-brand.
+      const effectiveTopic = trimmedTopic
+        || `A post built around ${stagedMedia.length} attached image${stagedMedia.length === 1 ? '' : 's'} from the Seven Arrows ranch.`;
       const res = await fetch('/api/claude/social-caption', {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ topic, tone, length, includeHashtags }),
+        body: JSON.stringify({
+          topic: effectiveTopic,
+          tone,
+          length,
+          includeHashtags,
+          mediaUrls: stagedMedia,
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1082,10 +1408,19 @@ function CreativeAiPanel() {
     }
   };
 
-  const sendToCompose = (caption: string) => {
-    pushComposeDraft({ caption, source: 'ai' });
+  const saveDraft = (caption: string) => {
+    const draft: SavedDraft = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      caption,
+      mediaUrls: stagedMedia,
+    };
+    const existing = readSavedDrafts();
+    writeSavedDrafts([draft, ...existing]);
+    clearCreativeStaging();
     const next = new URLSearchParams();
     next.set('tab', 'post');
+    next.set('sub', 'drafts');
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
@@ -1094,9 +1429,27 @@ function CreativeAiPanel() {
       <div className="mb-3">
         <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">AI captions</h2>
         <p className="text-[11px] text-foreground/45 mt-0.5">
-          Tell Claude what the post is about; pick from three drafts and send the best to Compose.
+          {stagedMedia.length > 0
+            ? `Drafting around ${stagedMedia.length} piece${stagedMedia.length === 1 ? '' : 's'} of media from Library. Save the best variant to land it on Post → Drafts.`
+            : 'Tell Claude what the post is about; Save the best variant and it lands on Post → Drafts.'}
         </p>
       </div>
+
+      {stagedMedia.length > 0 && (
+        <div className="mb-4 rounded-xl border border-black/10 bg-warm-bg/30 p-3">
+          <p className="text-[10px] uppercase tracking-wider text-foreground/55 font-semibold mb-2">
+            From Library ({stagedMedia.length})
+          </p>
+          <ul className="flex flex-wrap gap-2">
+            {stagedMedia.map((url) => (
+              <li key={url} className="relative w-14 h-14 rounded-lg overflow-hidden border border-black/10">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="Staged media" className="w-full h-full object-cover" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <label className="block">
@@ -1182,10 +1535,10 @@ function CreativeAiPanel() {
               <div className="mt-3 flex items-center justify-end">
                 <button
                   type="button"
-                  onClick={() => sendToCompose(v)}
+                  onClick={() => saveDraft(v)}
                   className="rounded-lg bg-primary text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-primary-dark"
                 >
-                  Send to Compose
+                  Save draft
                 </button>
               </div>
             </li>
@@ -1292,11 +1645,13 @@ interface SnapshotEntry {
 
 interface HistoryResponse {
   latest: Record<string, SnapshotEntry>;
+  previous?: Record<string, SnapshotEntry>;
   platforms: string[];
 }
 
 function AnalyticsPanel({ connected }: { connected: string[] }) {
   const [latest, setLatest] = useState<Record<string, SnapshotEntry>>({});
+  const [previous, setPrevious] = useState<Record<string, SnapshotEntry>>({});
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1311,6 +1666,7 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
       const json = (await res.json().catch(() => ({}))) as HistoryResponse & { error?: string };
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       setLatest(json.latest ?? {});
+      setPrevious(json.previous ?? {});
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -1414,6 +1770,7 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
               key={p}
               platform={p as PlatformId}
               raw={latest[p]?.raw ?? null}
+              previousRaw={previous[p]?.raw ?? null}
               capturedAt={latest[p]?.captured_at ?? null}
             />
           ))}
@@ -1424,15 +1781,31 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
 }
 
 function AnalyticsRow({
-  platform, raw, capturedAt,
+  platform, raw, previousRaw, capturedAt,
 }: {
   platform: PlatformId;
   raw: Record<string, unknown> | null;
+  /** Yesterday's snapshot for this platform (if any) — used to render
+   *  +/- deltas next to each metric. Falls back to no-delta when
+   *  absent. */
+  previousRaw?: Record<string, unknown> | null;
   /** Snapshot captured_at — surfaces in the platform column underneath
    *  the icon + name so each row reads as data from a specific moment. */
   capturedAt?: string | null;
 }) {
   const stats = useMemo(() => extractStats(platform, raw), [platform, raw]);
+  const previousStats = useMemo(
+    () => extractStats(platform, previousRaw ?? null),
+    [platform, previousRaw],
+  );
+  const previousByLabel = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of previousStats) {
+      const n = Number(s.value.replace(/,/g, ''));
+      if (Number.isFinite(n)) m.set(s.label, n);
+    }
+    return m;
+  }, [previousStats]);
   const platformLabel = platform.toUpperCase().replace('GMB', 'Google Biz');
   const capturedLabel = capturedAt
     ? new Date(capturedAt).toLocaleString('en-US', {
@@ -1471,7 +1844,12 @@ function AnalyticsRow({
           </details>
         ) : (
           <ul className="flex flex-wrap gap-x-5 gap-y-2">
-            {stats.map((s) => (
+            {stats.map((s) => {
+              const todayN = Number(s.value.replace(/,/g, ''));
+              const yest = previousByLabel.get(s.label);
+              const hasDelta = Number.isFinite(todayN) && yest !== undefined;
+              const delta = hasDelta ? todayN - (yest as number) : 0;
+              return (
               <li key={s.label} className="min-w-0">
                 <p className="text-[10px] uppercase tracking-wider text-foreground/45 leading-tight">
                   {s.label}
@@ -1479,8 +1857,24 @@ function AnalyticsRow({
                 <p className="text-base font-bold text-foreground tabular-nums leading-tight">
                   {s.value}
                 </p>
+                {hasDelta && delta !== 0 && (
+                  <p
+                    className={`text-[10px] font-semibold tabular-nums leading-tight ${
+                      delta > 0 ? 'text-emerald-700' : 'text-red-700'
+                    }`}
+                    title="Change vs. previous day"
+                  >
+                    {delta > 0 ? '+' : ''}{delta.toLocaleString()}
+                  </p>
+                )}
+                {hasDelta && delta === 0 && (
+                  <p className="text-[10px] font-semibold tabular-nums leading-tight text-foreground/35">
+                    no change
+                  </p>
+                )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
