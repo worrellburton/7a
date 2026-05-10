@@ -690,26 +690,41 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
       )}
 
       <style jsx>{`
-        /* Outer ring (team) rotates clockwise on a slow 120s loop.
-           Inner ring (horses) rotates the same direction on an even
-           slower 180s loop so they read as one composed motion with
-           the horses gently trailing the team. */
-        @keyframes orbit-spin-rot {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-        .orbit-spin      { animation: orbit-spin-rot 120s linear infinite; }
-        .orbit-spin-slow { animation: orbit-spin-rot 180s linear infinite; }
+        /* Single source of truth for the rotation angle. Both the
+           ring and each avatar's counter-rotation read the same
+           registered custom property, so they can't drift out of
+           phase the way two paired keyframe animations did before
+           (which produced visible per-avatar rotation over time). */
+        @property --orbit-angle      { syntax: '<angle>'; initial-value: 0deg; inherits: true; }
+        @property --orbit-angle-slow { syntax: '<angle>'; initial-value: 0deg; inherits: true; }
 
-        /* Each avatar's counter-rotation runs at the same period as
-           its ring (120s outer, 180s inner) so faces stay upright
-           through the orbit. */
-        @keyframes orbit-counter-rot {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(-360deg); }
+        @keyframes orbit-angle-tick      { to { --orbit-angle: 360deg; } }
+        @keyframes orbit-angle-tick-slow { to { --orbit-angle-slow: 360deg; } }
+
+        /* Outer ring (team) ticks clockwise on a 120s loop. Inner
+           ring (horses) ticks on a slower 180s loop so the two read
+           as one composed motion with the horses gently trailing
+           the team. The ring rotation IS the variable — `transform:
+           rotate(var(...))` reads whatever the keyframes have set
+           this paint frame. */
+        .orbit-spin {
+          animation: orbit-angle-tick 120s linear infinite;
+          transform: rotate(var(--orbit-angle));
         }
-        .orbit-counter      { display: inline-block; animation: orbit-counter-rot 120s linear infinite; }
-        .orbit-counter-slow { display: inline-block; animation: orbit-counter-rot 180s linear infinite; }
+        .orbit-spin-slow {
+          animation: orbit-angle-tick-slow 180s linear infinite;
+          transform: rotate(var(--orbit-angle-slow));
+        }
+
+        /* Each avatar's counter rotation reads the same variable the
+           parent ring is animating and applies the negation. Because
+           it's a CSS variable read inside the same subtree (the @
+           property is inherits: true), the two transforms can't fall
+           out of phase — they're computed from the exact same value
+           every frame. The result: ring rotates around the centre,
+           individual avatars never rotate, no drift. */
+        .orbit-counter      { display: inline-block; transform: rotate(calc(-1 * var(--orbit-angle))); }
+        .orbit-counter-slow { display: inline-block; transform: rotate(calc(-1 * var(--orbit-angle-slow))); }
 
         /* When any avatar is hovered we freeze the rings (and their
            paired counter-rotations) so the trigger stays pinned under
