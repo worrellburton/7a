@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { PlatformIcon, type PlatformId } from './PlatformIcon';
 import { MediaPicker, type PickedMedia } from './MediaPicker';
@@ -123,7 +124,7 @@ export default function SocialMediaContent() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ fontFamily: 'var(--font-body)' }}>
-      <header className="mb-6">
+      <header className="mb-4">
         <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">Marketing &amp; Admissions</p>
         <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
           Social Media
@@ -133,26 +134,149 @@ export default function SocialMediaContent() {
         </p>
       </header>
 
+      <SubNav />
+
+      <SocialTabBody
+        accounts={accounts}
+        accountsLoading={accountsLoading}
+        accountsErr={accountsErr}
+        refreshAccounts={refreshAccounts}
+        history={history}
+        historyLoading={historyLoading}
+        historyErr={historyErr}
+        refreshHistory={refreshHistory}
+      />
+    </div>
+  );
+}
+
+// ── Sub-page tab strip ───────────────────────────────────────────
+//
+// Phase 1 of the 10-phase split. Three sub-pages — Overview /
+// Post / Creative — wired through the `?tab=` query param so the
+// state survives refresh and is shareable. Default is overview;
+// anything unknown also falls back to overview so a stale link
+// can't 404 the page.
+
+type Tab = 'overview' | 'post' | 'creative';
+
+const TABS: { id: Tab; label: string; description: string }[] = [
+  { id: 'overview', label: 'Overview', description: 'Connected accounts + analytics snapshot.' },
+  { id: 'post', label: 'Post', description: 'Compose and schedule across every channel.' },
+  { id: 'creative', label: 'Creative', description: 'Library, templates, and AI-assisted drafts.' },
+];
+
+function readTab(raw: string | null): Tab {
+  if (raw === 'post' || raw === 'creative') return raw;
+  return 'overview';
+}
+
+function SubNav() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const active = readTab(searchParams.get('tab'));
+  const select = (id: Tab) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (id === 'overview') next.delete('tab');
+    else next.set('tab', id);
+    const qs = next.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
+  return (
+    <div role="tablist" aria-label="Social media sections" className="mb-6 flex flex-wrap gap-1.5 rounded-2xl border border-black/10 bg-white p-1.5">
+      {TABS.map((t) => {
+        const selected = active === t.id;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            aria-controls={`tabpanel-${t.id}`}
+            onClick={() => select(t.id)}
+            title={t.description}
+            className={`flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+              selected
+                ? 'bg-foreground text-white shadow-sm'
+                : 'text-foreground/65 hover:bg-warm-bg/40'
+            }`}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface TabBodyProps {
+  accounts: AccountsResponse | null;
+  accountsLoading: boolean;
+  accountsErr: string | null;
+  refreshAccounts: () => void;
+  history: HistoryPost[];
+  historyLoading: boolean;
+  historyErr: string | null;
+  refreshHistory: () => void;
+}
+
+function SocialTabBody(props: TabBodyProps) {
+  const searchParams = useSearchParams();
+  const active = readTab(searchParams.get('tab'));
+  const {
+    accounts, accountsLoading, accountsErr, refreshAccounts,
+    history, historyLoading, historyErr, refreshHistory,
+  } = props;
+
+  if (active === 'post') {
+    return (
+      <div role="tabpanel" id="tabpanel-post" aria-labelledby="tab-post">
+        <Composer
+          connected={accounts?.activeSocialAccounts ?? []}
+          onPosted={() => { refreshHistory(); }}
+        />
+        <HistoryList
+          posts={history}
+          loading={historyLoading}
+          error={historyErr}
+          onChanged={refreshHistory}
+        />
+      </div>
+    );
+  }
+
+  if (active === 'creative') {
+    return (
+      <div role="tabpanel" id="tabpanel-creative" aria-labelledby="tab-creative">
+        <CreativeTabPlaceholder />
+      </div>
+    );
+  }
+
+  // Overview (default)
+  return (
+    <div role="tabpanel" id="tabpanel-overview" aria-labelledby="tab-overview">
       <ConnectedAccountsStrip
         accounts={accounts}
         loading={accountsLoading}
         error={accountsErr}
         onChanged={refreshAccounts}
       />
-
       <AnalyticsPanel connected={accounts?.activeSocialAccounts ?? []} />
+    </div>
+  );
+}
 
-      <Composer
-        connected={accounts?.activeSocialAccounts ?? []}
-        onPosted={() => { refreshHistory(); }}
-      />
-
-      <HistoryList
-        posts={history}
-        loading={historyLoading}
-        error={historyErr}
-        onChanged={refreshHistory}
-      />
+function CreativeTabPlaceholder() {
+  return (
+    <div className="rounded-2xl border border-dashed border-black/15 bg-white px-6 py-14 text-center">
+      <p className="text-xs uppercase tracking-[0.22em] text-foreground/40 mb-2">Creative</p>
+      <p className="text-base font-semibold text-foreground/85 mb-1">Library, templates, and AI drafts land here.</p>
+      <p className="text-sm text-foreground/55 max-w-md mx-auto">
+        Browse uploaded media, pick from saved templates, or draft a caption
+        with Claude — then send it straight to the Post tab.
+      </p>
     </div>
   );
 }
