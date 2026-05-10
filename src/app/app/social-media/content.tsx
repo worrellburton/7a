@@ -1117,10 +1117,18 @@ function CreativeTemplatesPanel() {
   const pathname = usePathname();
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const useTemplate = (t: PostTemplate) => {
-    pushComposeDraft({ caption: t.body, source: 'templates' });
+  const saveTemplateDraft = (t: PostTemplate) => {
+    const draft: SavedDraft = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      caption: t.body,
+      mediaUrls: [],
+    };
+    const existing = readSavedDrafts();
+    writeSavedDrafts([draft, ...existing]);
     const next = new URLSearchParams();
     next.set('tab', 'post');
+    next.set('sub', 'drafts');
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
@@ -1155,10 +1163,10 @@ function CreativeTemplatesPanel() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => useTemplate(t)}
+                  onClick={() => saveTemplateDraft(t)}
                   className="rounded-lg bg-primary text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-primary-dark"
                 >
-                  Use template
+                  Save as draft
                 </button>
               </div>
             </li>
