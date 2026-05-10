@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/supabase-server';
+import { getServerSupabase } from '@/lib/supabase-server';
+import { requireSuperAdmin } from '@/lib/social-media-auth';
 
 // POST /api/claude/social-caption — drafts three social-media caption
 // variants for a topic, tone, and target platform set. Used by the
@@ -32,8 +33,14 @@ type Body = {
 };
 
 export async function POST(req: NextRequest) {
-  const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Match the auth pattern used by every other /api/social-media/*
+  // route: cookie-based session check + super-admin gate. The Claude
+  // /profile-bio endpoint uses a Bearer header instead, but that's
+  // not what the social-media client surfaces send, hence the 401
+  // when this endpoint copied that pattern.
+  const supabase = await getServerSupabase();
+  const auth = await requireSuperAdmin(supabase);
+  if (auth.response) return auth.response;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
