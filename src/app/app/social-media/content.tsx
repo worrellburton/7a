@@ -365,9 +365,13 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
         </p>
       )}
       {hasAnySnapshot && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="rounded-xl border border-black/10 overflow-hidden divide-y divide-black/5 bg-warm-bg/30">
+          <div className="hidden sm:flex items-center text-[10px] uppercase tracking-wider text-foreground/45 font-semibold px-3 py-2 bg-white/60">
+            <span className="w-44 shrink-0">Platform</span>
+            <span>Engagement metrics</span>
+          </div>
           {connected.map((p) => (
-            <AnalyticsCard
+            <AnalyticsRow
               key={p}
               platform={p as PlatformId}
               raw={latest[p]?.raw ?? null}
@@ -380,44 +384,67 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
   );
 }
 
-function AnalyticsCard({
+function AnalyticsRow({
   platform, raw, capturedAt,
 }: {
   platform: PlatformId;
   raw: Record<string, unknown> | null;
-  /** Snapshot captured_at — surfaces in the card footer so each
-   *  platform tile reads as data from a specific moment. */
+  /** Snapshot captured_at — surfaces in the platform column underneath
+   *  the icon + name so each row reads as data from a specific moment. */
   capturedAt?: string | null;
 }) {
-  void capturedAt; // used in the footer below — see render block
   const stats = useMemo(() => extractStats(platform, raw), [platform, raw]);
+  const platformLabel = platform.toUpperCase().replace('GMB', 'Google Biz');
+  const capturedLabel = capturedAt
+    ? new Date(capturedAt).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      })
+    : null;
   return (
-    <div className="rounded-xl border border-black/10 bg-warm-bg/30 p-3">
-      <div className="flex items-center gap-2 mb-2">
-        <PlatformIcon platform={platform} size={16} />
-        <p className="text-[11px] font-bold uppercase tracking-wider text-foreground/65">
-          {platform.toUpperCase().replace('GMB', 'Google Biz')}
-        </p>
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-3 py-3 bg-white">
+      {/* Column A — platform identity. Fixed width on sm+ so every
+          row's metric strip starts at the same x position and the
+          rows read as a table. */}
+      <div className="flex items-center gap-2 sm:w-44 sm:shrink-0">
+        <PlatformIcon platform={platform} size={18} />
+        <div className="min-w-0">
+          <p className="text-[12px] font-bold uppercase tracking-wider text-foreground/85 leading-tight">
+            {platformLabel}
+          </p>
+          {capturedLabel && (
+            <p className="text-[10px] text-foreground/40 leading-tight">{capturedLabel}</p>
+          )}
+        </div>
       </div>
-      {!raw ? (
-        <p className="text-[11px] italic text-foreground/40">No data returned.</p>
-      ) : stats.length === 0 ? (
-        <details className="text-[11px] text-foreground/55">
-          <summary className="cursor-pointer hover:text-foreground">Raw response</summary>
-          <pre className="mt-2 max-h-48 overflow-auto text-[10px] text-foreground/55 bg-white rounded border border-black/5 p-2">
-            {JSON.stringify(raw, null, 2)}
-          </pre>
-        </details>
-      ) : (
-        <dl className="grid grid-cols-2 gap-2">
-          {stats.map((s) => (
-            <div key={s.label}>
-              <dt className="text-[10px] uppercase tracking-wider text-foreground/45">{s.label}</dt>
-              <dd className="text-base font-bold text-foreground">{s.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
+
+      {/* Column B — metric strip. flex-wrap so a platform with many
+          metrics (Instagram, TikTok) wraps cleanly instead of forcing
+          horizontal scroll. */}
+      <div className="min-w-0 flex-1">
+        {!raw ? (
+          <p className="text-[11px] italic text-foreground/40">No data returned.</p>
+        ) : stats.length === 0 ? (
+          <details className="text-[11px] text-foreground/55">
+            <summary className="cursor-pointer hover:text-foreground">Raw response</summary>
+            <pre className="mt-2 max-h-48 overflow-auto text-[10px] text-foreground/55 bg-warm-bg/40 rounded border border-black/5 p-2">
+              {JSON.stringify(raw, null, 2)}
+            </pre>
+          </details>
+        ) : (
+          <ul className="flex flex-wrap gap-x-5 gap-y-2">
+            {stats.map((s) => (
+              <li key={s.label} className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-foreground/45 leading-tight">
+                  {s.label}
+                </p>
+                <p className="text-base font-bold text-foreground tabular-nums leading-tight">
+                  {s.value}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
