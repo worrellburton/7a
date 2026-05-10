@@ -99,10 +99,22 @@ export function CallMobileRow(props: CallMobileRowProps) {
   const isInbound = direction === 'inbound';
   const isOutbound = direction === 'outbound';
 
-  const relTime = formatRelativeTime(call.called_at);
-  const absTime = `${formatTime(call.called_at)}`;
-  const dateLabel = formatDate(call.called_at);
-  const timeLabel = formatTime(call.called_at);
+  // CTM's primary timestamp is `called_at`, but a small slice of the
+  // synced rows show up with that field nulled (or in a format the
+  // parser bails on). Walk a short list of plausible siblings —
+  // `start_time`, `created`, `created_at`, `local_called_at` —
+  // before giving up so the row always shows *some* date instead of
+  // a bare em-dash.
+  const candidate =
+    [call.called_at, (call as Record<string, unknown>).local_called_at,
+     (call as Record<string, unknown>).start_time, (call as Record<string, unknown>).created_at,
+     (call as Record<string, unknown>).created]
+      .find((v): v is string | number => (typeof v === 'string' && v.length > 0) || typeof v === 'number')
+    ?? '';
+  const relTime = formatRelativeTime(typeof candidate === 'string' ? candidate : String(candidate));
+  const absTime = formatTime(typeof candidate === 'string' ? candidate : String(candidate));
+  const dateLabel = formatDate(typeof candidate === 'string' ? candidate : String(candidate));
+  const timeLabel = absTime;
   const duration = call.duration != null ? formatDuration(call.duration) : null;
   const [linkCopied, setLinkCopied] = useState(false);
   const callPageUrl = `/app/calls/${encodeURIComponent(String(call.id))}`;
@@ -209,18 +221,27 @@ export function CallMobileRow(props: CallMobileRowProps) {
           {/* Date + time + chevron stack. Date sits on top in the
               same heavier weight as the headline so a teammate can
               place the call from a thumb-scroll without expanding the
-              row; relative time + clock time go underneath. */}
+              row; relative time + clock time go underneath. When the
+              underlying timestamp can't be parsed (CTM bug + every
+              fallback field empty), we collapse to a single muted
+              "no date" line so the row doesn't scream em-dashes. */}
           <div className="shrink-0 flex items-center gap-2">
             <div className="text-right">
-              <p
-                className="text-[12px] font-semibold text-foreground/80 tabular-nums whitespace-nowrap"
-                title={relTime || absTime}
-              >
-                {dateLabel}
-              </p>
-              <p className="text-[10px] text-foreground/50 tabular-nums whitespace-nowrap">
-                {timeLabel}
-              </p>
+              {dateLabel !== '—' || timeLabel !== '—' ? (
+                <>
+                  <p
+                    className="text-[12px] font-semibold text-foreground/80 tabular-nums whitespace-nowrap"
+                    title={relTime || absTime}
+                  >
+                    {dateLabel}
+                  </p>
+                  <p className="text-[10px] text-foreground/50 tabular-nums whitespace-nowrap">
+                    {timeLabel}
+                  </p>
+                </>
+              ) : (
+                <p className="text-[10px] text-foreground/35 italic whitespace-nowrap">No date</p>
+              )}
               <p className="text-[10px] text-foreground/35 tabular-nums">
                 #{call.id}
               </p>
