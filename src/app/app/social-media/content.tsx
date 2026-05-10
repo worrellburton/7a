@@ -447,23 +447,129 @@ function PostTabBody({
   );
 }
 
+// ── Scheduled posts panel ───────────────────────────────────────────
+//
+// Phase 4 of the 10-phase split. Filters the same `history` payload
+// the History sub-tab uses, but keeps only rows whose scheduleDate
+// is in the future. Ayrshare returns scheduled rows with status
+// `scheduled` or `pending`; we treat both as "queued but unsent".
+// Each row renders compact: when, platforms, caption preview, and
+// a Cancel button that hits /api/social-media/delete (same endpoint
+// the History tab uses).
+
+function isScheduledPending(p: HistoryPost): boolean {
+  if (!p.scheduleDate) return false;
+  const status = (p.status || '').toLowerCase();
+  if (status && status !== 'scheduled' && status !== 'pending') return false;
+  const t = Date.parse(p.scheduleDate);
+  return Number.isFinite(t) && t > Date.now();
+}
+
 function ScheduledPanel({
-  posts, loading, error,
+  posts, loading, error, onChanged,
 }: {
   posts: HistoryPost[];
   loading: boolean;
   error: string | null;
   onChanged: () => void;
 }) {
-  void posts; void loading; void error;
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const queue = useMemo(() => {
+    return posts
+      .filter(isScheduledPending)
+      .sort((a, b) => Date.parse(a.scheduleDate || '') - Date.parse(b.scheduleDate || ''));
+  }, [posts]);
+
+  const cancel = async (id: string) => {
+    if (!confirm('Cancel this scheduled post?')) return;
+    setBusyId(id);
+    try {
+      const res = await fetch('/api/social-media/delete', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(json.error || json.message || `HTTP ${res.status}`);
+        return;
+      }
+      onChanged();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
-    <div className="rounded-2xl border border-dashed border-black/15 bg-white px-6 py-12 text-center">
-      <p className="text-xs uppercase tracking-[0.22em] text-foreground/40 mb-2">Scheduled</p>
-      <p className="text-sm text-foreground/55 max-w-md mx-auto">
-        Phase 4 wires the queued-but-unsent posts into this panel with a
-        cancel-or-edit affordance per row.
-      </p>
-    </div>
+    <section className="rounded-2xl border border-black/10 bg-white p-5">
+      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+        <div>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Scheduled posts</h2>
+          <p className="text-[11px] text-foreground/45 mt-0.5">
+            Queued but not yet sent. Cancel any row to pull it back.
+          </p>
+        </div>
+        {loading && <span className="text-xs text-foreground/40">Loading…</span>}
+      </div>
+      {error && (
+        <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 mb-3">
+          {error}
+        </p>
+      )}
+      {queue.length === 0 && !loading ? (
+        <div className="rounded-xl border border-dashed border-black/10 bg-warm-bg/30 px-5 py-10 text-center">
+          <p className="text-sm text-foreground/55 max-w-md mx-auto">
+            Nothing scheduled. Use Compose &rarr; <em>Schedule for later</em> to queue a post.
+          </p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-black/5">
+          {queue.map((p) => {
+            const id = (p.id ?? '') as string;
+            const when = p.scheduleDate
+              ? new Date(p.scheduleDate).toLocaleString('en-US', {
+                  weekday: 'short', month: 'short', day: 'numeric',
+                  hour: 'numeric', minute: '2-digit',
+                })
+              : '—';
+            const platforms = (p.platforms ?? []).join(', ');
+            const caption = (p.post ?? '').slice(0, 140);
+            return (
+              <li key={id || `${p.scheduleDate}-${p.post?.slice(0, 12)}`} className="flex items-start gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true" />
+                      {when}
+                    </span>
+                    {platforms && (
+                      <span className="text-[11px] text-foreground/55">{platforms}</span>
+                    )}
+                  </div>
+                  {caption && (
+                    <p className="text-[13px] text-foreground/80 line-clamp-2 leading-snug">
+                      {caption}
+                      {(p.post ?? '').length > 140 ? '…' : ''}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => id && cancel(id)}
+                  disabled={!id || busyId === id}
+                  className="shrink-0 rounded-lg border border-black/10 px-2.5 py-1 text-[11px] font-semibold text-foreground/65 hover:text-red-700 hover:border-red-300 disabled:opacity-40"
+                >
+                  {busyId === id ? 'Canceling…' : 'Cancel'}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 
