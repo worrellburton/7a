@@ -837,15 +837,128 @@ function CreativeLibraryPanel() {
   );
 }
 
+// ── Creative > Templates ─────────────────────────────────────────────
+//
+// Phase 7 of the 10-phase split. Curated set of reusable post drafts
+// the marketing team uses on a regular cadence. Templates are static
+// here (TEMPLATES const below); upgrading to DB-backed rows is a
+// later iteration once the team converges on a shared playbook.
+// Picking a template stashes the body via pushComposeDraft and
+// routes to ?tab=post — the Composer picks it up in phase 9.
+
+interface PostTemplate {
+  id: string;
+  title: string;
+  cadence: string;
+  description: string;
+  body: string;
+}
+
+const TEMPLATES: PostTemplate[] = [
+  {
+    id: 'wisdom-wednesday',
+    title: 'Wisdom Wednesday',
+    cadence: 'Weekly · Wednesday',
+    description: 'A quote or reflection from the week — pairs well with a herd or sunrise photo.',
+    body:
+      "Wisdom Wednesday — \n\n“[insert quote / reflection]”\n\nWhat’s landing for you this week?\n\n#SevenArrowsRecovery #WisdomWednesday #Recovery",
+  },
+  {
+    id: 'alumni-spotlight',
+    title: 'Alumni Spotlight',
+    cadence: 'Bi-weekly',
+    description: 'Celebrate an alum at a milestone (60/90 days, 6 months, 1 year sober).',
+    body:
+      "Alumni Spotlight — [first name] is celebrating [milestone] today.\n\n[1–2 sentences about their journey, what they’re doing now, what they’d say to someone just starting.]\n\nWe see you. We’re proud of you.\n\n#SevenArrowsRecovery #RecoveryWorks #AlumniSpotlight",
+  },
+  {
+    id: 'family-friday',
+    title: 'Family Friday',
+    cadence: 'Weekly · Friday',
+    description: 'Speaks to family members watching their loved one heal — empathy, not pitch.',
+    body:
+      "Family Friday — \n\nIf someone you love is in treatment right now, this is for you.\n\n[1–2 sentences naming a real, common family experience: hope, fatigue, fear, relief.]\n\nYou don’t have to figure this out alone. We’re here when you’re ready.\n\n#SevenArrowsRecovery #FamilyRecovery #SupportSystem",
+  },
+  {
+    id: 'staff-introduction',
+    title: 'Staff Introduction',
+    cadence: 'Monthly',
+    description: 'Introduce a clinician, nurse, equine specialist, or chef to humanize the team.',
+    body:
+      "Meet [name] — [role at Seven Arrows].\n\n[2–3 sentences: how long they’ve been with us, one specific thing clients say about them, one thing they love outside of work.]\n\nThis is who shows up for you at Seven Arrows.\n\n#SevenArrowsRecovery #MeetTheTeam",
+  },
+  {
+    id: 'tour-invite',
+    title: 'Tour Invite',
+    cadence: 'As needed',
+    description: 'CTA for a virtual or in-person ranch tour. Keep it warm, not salesy.',
+    body:
+      "Curious what 160 acres of recovery actually feels like?\n\nWe offer guided tours of the Seven Arrows ranch — the herd, the lodges, the river, the kitchen. No commitment, no pitch. Just a real look at the place that’s helped a lot of people start over.\n\nDM us or visit the link in bio to book.\n\n#SevenArrowsRecovery #RanchTour",
+  },
+  {
+    id: 'equine-moment',
+    title: 'Equine Moment',
+    cadence: 'Weekly',
+    description: 'Pair with a herd photo. Frames equine work without overclaiming.',
+    body:
+      "[Horse name] notices the smallest shifts — a held breath, a softened jaw, a step closer.\n\nThat’s the work, in a single moment: presence answered with presence.\n\n#SevenArrowsRecovery #EquineAssistedTherapy #SomaticHealing",
+  },
+];
+
 function CreativeTemplatesPanel() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const useTemplate = (t: PostTemplate) => {
+    pushComposeDraft({ caption: t.body, source: 'templates' });
+    const next = new URLSearchParams();
+    next.set('tab', 'post');
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  };
+
   return (
-    <div className="rounded-2xl border border-dashed border-black/15 bg-white px-6 py-12 text-center">
-      <p className="text-xs uppercase tracking-[0.22em] text-foreground/40 mb-2">Templates</p>
-      <p className="text-sm text-foreground/55 max-w-md mx-auto">
-        Phase 7 fills this in with reusable post drafts (Wisdom Wednesday, Alumni
-        Spotlight, etc.) and a one-click Use Template handoff.
-      </p>
-    </div>
+    <section className="rounded-2xl border border-black/10 bg-white p-5">
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Templates</h2>
+        <p className="text-[11px] text-foreground/45 mt-0.5">
+          One-click reusable drafts. Edit the placeholders in Compose before posting.
+        </p>
+      </div>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {TEMPLATES.map((t) => {
+          const open = openId === t.id;
+          return (
+            <li key={t.id} className="rounded-xl border border-black/10 bg-warm-bg/30 p-4 flex flex-col">
+              <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">{t.cadence}</p>
+              <p className="text-base font-bold text-foreground leading-tight mt-0.5">{t.title}</p>
+              <p className="text-xs text-foreground/60 mt-1.5 leading-relaxed">{t.description}</p>
+              {open && (
+                <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap text-[12px] text-foreground/75 bg-white rounded-lg border border-black/5 p-3 leading-relaxed">
+                  {t.body}
+                </pre>
+              )}
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOpenId(open ? null : t.id)}
+                  className="text-[11px] font-semibold text-foreground/55 hover:text-foreground"
+                >
+                  {open ? 'Hide preview' : 'Preview'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => useTemplate(t)}
+                  className="rounded-lg bg-primary text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-primary-dark"
+                >
+                  Use template
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
