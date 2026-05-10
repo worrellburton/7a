@@ -491,17 +491,17 @@ function OverviewSummary({ connected }: { connected: string[] }) {
 // phase 4 fills in; History wraps the existing HistoryList without
 // changing its props.
 
-type PostSub = 'compose' | 'scheduled' | 'history';
+type PostSub = 'drafts' | 'scheduled' | 'history';
 
 const POST_SUBS: { id: PostSub; label: string }[] = [
-  { id: 'compose', label: 'Compose' },
+  { id: 'drafts', label: 'Drafts' },
   { id: 'scheduled', label: 'Scheduled' },
   { id: 'history', label: 'History' },
 ];
 
 function readPostSub(raw: string | null): PostSub {
   if (raw === 'scheduled' || raw === 'history') return raw;
-  return 'compose';
+  return 'drafts';
 }
 
 function PostSubNav() {
@@ -512,7 +512,7 @@ function PostSubNav() {
   const select = (id: PostSub) => {
     const next = new URLSearchParams(searchParams.toString());
     next.set('tab', 'post');
-    if (id === 'compose') next.delete('sub');
+    if (id === 'drafts') next.delete('sub');
     else next.set('sub', id);
     const qs = next.toString();
     router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
@@ -565,11 +565,157 @@ function PostTabBody({
       />
     );
   }
+  // Default sub = drafts. Compose lives inside DraftsPanel and only
+  // mounts when the user clicks Publish on a specific draft.
   return (
-    <Composer
-      connected={accounts?.activeSocialAccounts ?? []}
+    <DraftsPanel
+      accounts={accounts}
       onPosted={refreshHistory}
     />
+  );
+}
+
+// ── Post > Drafts ────────────────────────────────────────────────────
+//
+// Lists every saved draft (created from Creative > AI's "Save draft"
+// or Templates' "Save as draft"). Each row is a card with the
+// caption preview, attached media chips, and three actions — Publish
+// (opens Composer prefilled inline), Duplicate (clone), Delete.
+// Composer is mounted inline when activeDraftId is set so the user
+// stays on the same screen through the publish flow.
+
+function DraftsPanel({
+  accounts, onPosted,
+}: {
+  accounts: AccountsResponse | null;
+  onPosted: () => void;
+}) {
+  const [drafts, setDrafts] = useState<SavedDraft[]>([]);
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDrafts(readSavedDrafts());
+    const onChange = () => setDrafts(readSavedDrafts());
+    window.addEventListener('social-media-drafts-changed', onChange);
+    window.addEventListener('storage', onChange);
+    return () => {
+      window.removeEventListener('social-media-drafts-changed', onChange);
+      window.removeEventListener('storage', onChange);
+    };
+  }, []);
+
+  const removeDraft = (id: string) => {
+    const next = drafts.filter((d) => d.id !== id);
+    setDrafts(next);
+    writeSavedDrafts(next);
+  };
+
+  const startPublish = (d: SavedDraft) => {
+    pushComposeDraft({ caption: d.caption, mediaUrls: d.mediaUrls, source: 'drafts' });
+    setActiveDraftId(d.id);
+  };
+
+  const cancelPublish = () => setActiveDraftId(null);
+
+  const onComposerPosted = () => {
+    // Successful publish — drop the draft, fall back to the list.
+    if (activeDraftId) removeDraft(activeDraftId);
+    setActiveDraftId(null);
+    onPosted();
+  };
+
+  if (activeDraftId) {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={cancelPublish}
+          className="mb-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-foreground/60 hover:text-foreground"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to drafts
+        </button>
+        <Composer
+          connected={accounts?.activeSocialAccounts ?? []}
+          onPosted={onComposerPosted}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-5">
+      <div className="mb-4">
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Drafts</h2>
+        <p className="text-[11px] text-foreground/45 mt-0.5">
+          Saved posts from Creative. Pick one and Publish.
+        </p>
+      </div>
+      {drafts.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-black/10 bg-warm-bg/30 px-5 py-10 text-center">
+          <p className="text-sm text-foreground/55 max-w-md mx-auto">
+            No drafts yet. Build one in <strong>Creative &rarr; Library &rarr; AI</strong>, or
+            start from a template in <strong>Creative &rarr; Templates</strong>.
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {drafts.map((d) => {
+            const created = new Date(d.createdAt).toLocaleString('en-US', {
+              month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+            });
+            const preview = d.caption.length > 240
+              ? `${d.caption.slice(0, 240)}…`
+              : d.caption;
+            return (
+              <li key={d.id} className="rounded-xl border border-black/10 bg-warm-bg/20 p-4">
+                <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">
+                    Saved {created}
+                  </p>
+                  {d.mediaUrls.length > 0 && (
+                    <p className="text-[10px] text-foreground/45">
+                      {d.mediaUrls.length} media attached
+                    </p>
+                  )}
+                </div>
+                <p className="text-sm text-foreground/85 whitespace-pre-wrap leading-relaxed">
+                  {preview}
+                </p>
+                {d.mediaUrls.length > 0 && (
+                  <ul className="mt-3 flex flex-wrap gap-2">
+                    {d.mediaUrls.slice(0, 6).map((url) => (
+                      <li key={url} className="w-12 h-12 rounded-lg overflow-hidden border border-black/10">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="Draft media" className="w-full h-full object-cover" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-4 flex items-center justify-end gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => removeDraft(d.id)}
+                    className="text-[12px] text-foreground/55 hover:text-red-700"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => startPublish(d)}
+                    className="rounded-lg bg-primary text-white px-3 py-1.5 text-[12px] font-semibold hover:bg-primary-dark"
+                  >
+                    Publish
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 
