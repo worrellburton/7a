@@ -232,15 +232,13 @@ function SocialTabBody(props: TabBodyProps) {
   if (active === 'post') {
     return (
       <div role="tabpanel" id="tabpanel-post" aria-labelledby="tab-post">
-        <Composer
-          connected={accounts?.activeSocialAccounts ?? []}
-          onPosted={() => { refreshHistory(); }}
-        />
-        <HistoryList
-          posts={history}
-          loading={historyLoading}
-          error={historyErr}
-          onChanged={refreshHistory}
+        <PostSubNav />
+        <PostTabBody
+          accounts={accounts}
+          history={history}
+          historyLoading={historyLoading}
+          historyErr={historyErr}
+          refreshHistory={refreshHistory}
         />
       </div>
     );
@@ -356,6 +354,116 @@ function OverviewSummary({ connected }: { connected: string[] }) {
         </div>
       ))}
     </section>
+  );
+}
+
+// ── Post sub-nav (Compose / Scheduled / History) ────────────────────
+//
+// Phase 3 of the 10-phase split. Splits the Post tab into three
+// sub-views via `?sub=` so each one is a deep-linkable surface.
+// Default sub is compose. Scheduled is a placeholder shell that
+// phase 4 fills in; History wraps the existing HistoryList without
+// changing its props.
+
+type PostSub = 'compose' | 'scheduled' | 'history';
+
+const POST_SUBS: { id: PostSub; label: string }[] = [
+  { id: 'compose', label: 'Compose' },
+  { id: 'scheduled', label: 'Scheduled' },
+  { id: 'history', label: 'History' },
+];
+
+function readPostSub(raw: string | null): PostSub {
+  if (raw === 'scheduled' || raw === 'history') return raw;
+  return 'compose';
+}
+
+function PostSubNav() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const active = readPostSub(searchParams.get('sub'));
+  const select = (id: PostSub) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('tab', 'post');
+    if (id === 'compose') next.delete('sub');
+    else next.set('sub', id);
+    const qs = next.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
+  return (
+    <div role="tablist" aria-label="Post sections" className="mb-5 flex flex-wrap gap-1 rounded-xl bg-white border border-black/10 p-1">
+      {POST_SUBS.map((s) => {
+        const selected = active === s.id;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => select(s.id)}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              selected ? 'bg-foreground text-white' : 'text-foreground/60 hover:bg-warm-bg/40'
+            }`}
+          >
+            {s.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PostTabBody({
+  accounts, history, historyLoading, historyErr, refreshHistory,
+}: {
+  accounts: AccountsResponse | null;
+  history: HistoryPost[];
+  historyLoading: boolean;
+  historyErr: string | null;
+  refreshHistory: () => void;
+}) {
+  const searchParams = useSearchParams();
+  const sub = readPostSub(searchParams.get('sub'));
+
+  if (sub === 'scheduled') {
+    return <ScheduledPanel posts={history} loading={historyLoading} error={historyErr} onChanged={refreshHistory} />;
+  }
+  if (sub === 'history') {
+    return (
+      <HistoryList
+        posts={history}
+        loading={historyLoading}
+        error={historyErr}
+        onChanged={refreshHistory}
+      />
+    );
+  }
+  return (
+    <Composer
+      connected={accounts?.activeSocialAccounts ?? []}
+      onPosted={refreshHistory}
+    />
+  );
+}
+
+function ScheduledPanel({
+  posts, loading, error,
+}: {
+  posts: HistoryPost[];
+  loading: boolean;
+  error: string | null;
+  onChanged: () => void;
+}) {
+  void posts; void loading; void error;
+  return (
+    <div className="rounded-2xl border border-dashed border-black/15 bg-white px-6 py-12 text-center">
+      <p className="text-xs uppercase tracking-[0.22em] text-foreground/40 mb-2">Scheduled</p>
+      <p className="text-sm text-foreground/55 max-w-md mx-auto">
+        Phase 4 wires the queued-but-unsent posts into this panel with a
+        cancel-or-edit affordance per row.
+      </p>
+    </div>
   );
 }
 
