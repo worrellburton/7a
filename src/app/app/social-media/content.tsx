@@ -1202,21 +1202,43 @@ function CreativeAiPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [variants, setVariants] = useState<string[]>([]);
+  const [stagedMedia, setStagedMedia] = useState<string[]>([]);
+
+  // Pull any media the user picked in Library so the AI prompt can
+  // describe what the post is built around. We peek without clearing
+  // — the stash is consumed when Save fires (success path) so a back
+  // navigation to Library + return still finds the same selection.
+  useEffect(() => {
+    const staged = readCreativeStaging();
+    if (staged?.mediaUrls?.length) setStagedMedia(staged.mediaUrls);
+  }, []);
 
   const generate = async () => {
-    if (!topic.trim()) {
-      setError('Topic is required.');
+    const trimmedTopic = topic.trim();
+    if (!trimmedTopic && stagedMedia.length === 0) {
+      setError('Add a topic or pick media in Library first.');
       return;
     }
     setBusy(true);
     setError(null);
     setVariants([]);
     try {
+      // Topic falls back to a media-anchored sentence so users can
+      // hit Generate after only picking photos in Library — Claude
+      // gets enough hint to draft something on-brand.
+      const effectiveTopic = trimmedTopic
+        || `A post built around ${stagedMedia.length} attached image${stagedMedia.length === 1 ? '' : 's'} from the Seven Arrows ranch.`;
       const res = await fetch('/api/claude/social-caption', {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ topic, tone, length, includeHashtags }),
+        body: JSON.stringify({
+          topic: effectiveTopic,
+          tone,
+          length,
+          includeHashtags,
+          mediaUrls: stagedMedia,
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1232,10 +1254,19 @@ function CreativeAiPanel() {
     }
   };
 
-  const sendToCompose = (caption: string) => {
-    pushComposeDraft({ caption, source: 'ai' });
+  const saveDraft = (caption: string) => {
+    const draft: SavedDraft = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      caption,
+      mediaUrls: stagedMedia,
+    };
+    const existing = readSavedDrafts();
+    writeSavedDrafts([draft, ...existing]);
+    clearCreativeStaging();
     const next = new URLSearchParams();
     next.set('tab', 'post');
+    next.set('sub', 'drafts');
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
@@ -1244,9 +1275,27 @@ function CreativeAiPanel() {
       <div className="mb-3">
         <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">AI captions</h2>
         <p className="text-[11px] text-foreground/45 mt-0.5">
-          Tell Claude what the post is about; pick from three drafts and send the best to Compose.
+          {stagedMedia.length > 0
+            ? `Drafting around ${stagedMedia.length} piece${stagedMedia.length === 1 ? '' : 's'} of media from Library. Save the best variant to land it on Post → Drafts.`
+            : 'Tell Claude what the post is about; Save the best variant and it lands on Post → Drafts.'}
         </p>
       </div>
+
+      {stagedMedia.length > 0 && (
+        <div className="mb-4 rounded-xl border border-black/10 bg-warm-bg/30 p-3">
+          <p className="text-[10px] uppercase tracking-wider text-foreground/55 font-semibold mb-2">
+            From Library ({stagedMedia.length})
+          </p>
+          <ul className="flex flex-wrap gap-2">
+            {stagedMedia.map((url) => (
+              <li key={url} className="relative w-14 h-14 rounded-lg overflow-hidden border border-black/10">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="Staged media" className="w-full h-full object-cover" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <label className="block">
@@ -1332,10 +1381,10 @@ function CreativeAiPanel() {
               <div className="mt-3 flex items-center justify-end">
                 <button
                   type="button"
-                  onClick={() => sendToCompose(v)}
+                  onClick={() => saveDraft(v)}
                   className="rounded-lg bg-primary text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-primary-dark"
                 >
-                  Send to Compose
+                  Save draft
                 </button>
               </div>
             </li>
