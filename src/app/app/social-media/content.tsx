@@ -3,9 +3,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+import { supabase } from '@/lib/supabase';
 import { PlatformIcon, type PlatformId } from './PlatformIcon';
 import { MediaPicker, type PickedMedia } from './MediaPicker';
 import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
+
+// ── Cross-tab Send-to-Compose handoff ────────────────────────────────
+//
+// Library (phase 6), Templates (phase 7), and AI (phase 8) all need a
+// way to ship a draft into the Compose form on the Post tab. We do
+// that with a sessionStorage stash + a window CustomEvent so the
+// Composer (which lives on a different sub-tab) can pick the draft up
+// the moment it mounts. Phase 9 wires Composer to actually consume
+// these — until then, the helpers only stash + navigate.
+
+interface ComposeDraft {
+  caption?: string;
+  mediaUrls?: string[];
+  source?: 'library' | 'templates' | 'ai';
+}
+const DRAFT_KEY = 'social_media_compose_draft_v1';
+function pushComposeDraft(draft: ComposeDraft) {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    window.dispatchEvent(new CustomEvent('social-media-compose-draft', { detail: draft }));
+  } catch { /* sessionStorage may be unavailable in private browsing */ }
+}
 
 // Marketing → Social Media. v1 wraps Ayrshare's API:
 //   * Connected accounts strip (one button per platform → JWT popup)
@@ -639,15 +662,178 @@ function CreativeTabBody() {
   return <CreativeLibraryPanel />;
 }
 
+// ── Creative > Library ───────────────────────────────────────────────
+//
+// Phase 6 of the 10-phase split. Reads site_images directly via the
+// same supabase client the MediaPicker uses (limit 200, newest first
+// — same query) and renders a thumbnail grid. Multi-select with a
+// running counter; a Send-to-Compose button stashes the picked URLs
+// via pushComposeDraft and navigates to /app/social-media?tab=post.
+// The Composer listens for the draft event in phase 9; until then,
+// the URL is staged in sessionStorage and reads as a no-op on the
+// Post tab (no regression for direct Compose usage).
+
+interface LibraryImageRow {
+  id: string;
+  public_url: string;
+  filename: string | null;
+  alt: string | null;
+  created_at: string;
+}
+
 function CreativeLibraryPanel() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [images, setImages] = useState<LibraryImageRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data, error: err } = await supabase
+          .from('site_images')
+          .select('id, public_url, filename, alt, created_at')
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (err) throw err;
+        if (cancelled) return;
+        setImages((data ?? []) as LibraryImageRow[]);
+        setError(null);
+      } catch (e) {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return images;
+    return images.filter((row) =>
+      (row.filename ?? '').toLowerCase().includes(q) ||
+      (row.alt ?? '').toLowerCase().includes(q),
+    );
+  }, [images, query]);
+
+  const toggle = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const sendToCompose = () => {
+    const urls = images
+      .filter((row) => selected.has(row.id))
+      .map((row) => row.public_url)
+      .filter((u): u is string => Boolean(u));
+    if (urls.length === 0) return;
+    pushComposeDraft({ mediaUrls: urls, source: 'library' });
+    const next = new URLSearchParams();
+    next.set('tab', 'post');
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  };
+
   return (
-    <div className="rounded-2xl border border-dashed border-black/15 bg-white px-6 py-12 text-center">
-      <p className="text-xs uppercase tracking-[0.22em] text-foreground/40 mb-2">Library</p>
-      <p className="text-sm text-foreground/55 max-w-md mx-auto">
-        Phase 6 wires the site_images gallery in here with multi-select and a
-        Send-to-Compose handoff that prefills Post &rarr; Compose.
-      </p>
-    </div>
+    <section className="rounded-2xl border border-black/10 bg-white p-5">
+      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+        <div>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Library</h2>
+          <p className="text-[11px] text-foreground/45 mt-0.5">
+            Pick photos to send into Compose. Up to 200 shown, newest first.
+          </p>
+        </div>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search filename or alt"
+          className="rounded-lg border border-black/10 px-3 py-1.5 text-xs w-56 max-w-full focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+      </div>
+
+      {error && (
+        <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 mb-3">
+          {error}
+        </p>
+      )}
+
+      {loading ? (
+        <p className="text-xs text-foreground/45 italic">Loading library…</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-foreground/55 italic">No images match.</p>
+      ) : (
+        <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+          {filtered.map((row) => {
+            const isSelected = selected.has(row.id);
+            const label = row.alt || row.filename || 'Image';
+            return (
+              <li key={row.id}>
+                <button
+                  type="button"
+                  onClick={() => toggle(row.id)}
+                  aria-pressed={isSelected}
+                  className={`relative block w-full aspect-square rounded-xl overflow-hidden border-2 transition-colors ${
+                    isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-transparent hover:border-foreground/20'
+                  }`}
+                  title={label}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={row.public_url}
+                    alt={label}
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                  />
+                  {isSelected && (
+                    <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white shadow">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-[12px] text-foreground/55">
+          <span className="font-semibold text-foreground/80">{selected.size}</span>
+          {' '}selected
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            disabled={selected.size === 0}
+            className="text-[12px] text-foreground/55 hover:text-foreground disabled:opacity-40"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={sendToCompose}
+            disabled={selected.size === 0}
+            className="rounded-lg bg-primary text-white px-4 py-1.5 text-[12px] font-semibold hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Send to Compose
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }
 
