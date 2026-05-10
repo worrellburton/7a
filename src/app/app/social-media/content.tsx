@@ -1,10 +1,34 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+import { supabase } from '@/lib/supabase';
 import { PlatformIcon, type PlatformId } from './PlatformIcon';
 import { MediaPicker, type PickedMedia } from './MediaPicker';
 import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
+
+// ── Cross-tab Send-to-Compose handoff ────────────────────────────────
+//
+// Library (phase 6), Templates (phase 7), and AI (phase 8) all need a
+// way to ship a draft into the Compose form on the Post tab. We do
+// that with a sessionStorage stash + a window CustomEvent so the
+// Composer (which lives on a different sub-tab) can pick the draft up
+// the moment it mounts. Phase 9 wires Composer to actually consume
+// these — until then, the helpers only stash + navigate.
+
+interface ComposeDraft {
+  caption?: string;
+  mediaUrls?: string[];
+  source?: 'library' | 'templates' | 'ai';
+}
+const DRAFT_KEY = 'social_media_compose_draft_v1';
+function pushComposeDraft(draft: ComposeDraft) {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    window.dispatchEvent(new CustomEvent('social-media-compose-draft', { detail: draft }));
+  } catch { /* sessionStorage may be unavailable in private browsing */ }
+}
 
 // Marketing → Social Media. v1 wraps Ayrshare's API:
 //   * Connected accounts strip (one button per platform → JWT popup)
@@ -123,7 +147,7 @@ export default function SocialMediaContent() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ fontFamily: 'var(--font-body)' }}>
-      <header className="mb-6">
+      <header className="mb-4">
         <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">Marketing &amp; Admissions</p>
         <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
           Social Media
@@ -133,27 +157,1042 @@ export default function SocialMediaContent() {
         </p>
       </header>
 
+      <SubNav />
+
+      <SocialTabBody
+        accounts={accounts}
+        accountsLoading={accountsLoading}
+        accountsErr={accountsErr}
+        refreshAccounts={refreshAccounts}
+        history={history}
+        historyLoading={historyLoading}
+        historyErr={historyErr}
+        refreshHistory={refreshHistory}
+      />
+    </div>
+  );
+}
+
+// ── Sub-page tab strip ───────────────────────────────────────────
+//
+// Phase 1 of the 10-phase split. Three sub-pages — Overview /
+// Post / Creative — wired through the `?tab=` query param so the
+// state survives refresh and is shareable. Default is overview;
+// anything unknown also falls back to overview so a stale link
+// can't 404 the page.
+
+type Tab = 'overview' | 'post' | 'creative';
+
+const TABS: { id: Tab; label: string; description: string }[] = [
+  { id: 'overview', label: 'Overview', description: 'Connected accounts + analytics snapshot.' },
+  { id: 'post', label: 'Post', description: 'Compose and schedule across every channel.' },
+  { id: 'creative', label: 'Creative', description: 'Library, templates, and AI-assisted drafts.' },
+];
+
+function readTab(raw: string | null): Tab {
+  if (raw === 'post' || raw === 'creative') return raw;
+  return 'overview';
+}
+
+// Phase 10: localStorage key that remembers the last top-level tab
+// the user landed on. When they hit /app/social-media without a
+// ?tab=, we replace the URL with their last choice so refresh +
+// fresh-link behaviour both feel consistent.
+const LAST_TAB_KEY = 'social_media_last_tab_v1';
+
+function SubNav() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tabRaw = searchParams.get('tab');
+  const active = readTab(tabRaw);
+
+  // Restore the last-used tab on first paint when no ?tab= is set.
+  // We replace (not push) so the back button still leaves the page.
+  useEffect(() => {
+    if (tabRaw !== null) {
+      try { localStorage.setItem(LAST_TAB_KEY, active); } catch { /* no-op */ }
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(LAST_TAB_KEY);
+      if (saved && saved !== 'overview' && (saved === 'post' || saved === 'creative')) {
+        const next = new URLSearchParams(searchParams.toString());
+        next.set('tab', saved);
+        router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+      }
+    } catch { /* no-op */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabRaw]);
+
+  const select = (id: Tab) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (id === 'overview') next.delete('tab');
+    else next.set('tab', id);
+    // Clear sub on top-level tab change so a stale ?sub=ai from
+    // Creative doesn't render an empty state under Post.
+    next.delete('sub');
+    const qs = next.toString();
+    try { localStorage.setItem(LAST_TAB_KEY, id); } catch { /* no-op */ }
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
+
+  // Arrow-key keyboard nav across the tab strip — left/right cycles,
+  // home/end jump to the ends. Matches the WAI-ARIA Authoring
+  // Practices recommendation for role=tablist.
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const idx = TABS.findIndex((t) => t.id === active);
+    if (idx < 0) return;
+    let nextIdx = idx;
+    if (e.key === 'ArrowRight') nextIdx = (idx + 1) % TABS.length;
+    else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + TABS.length) % TABS.length;
+    else if (e.key === 'Home') nextIdx = 0;
+    else if (e.key === 'End') nextIdx = TABS.length - 1;
+    else return;
+    e.preventDefault();
+    select(TABS[nextIdx].id);
+    tabRefs.current[nextIdx]?.focus();
+  };
+
+  return (
+    <div
+      role="tablist"
+      aria-label="Social media sections"
+      onKeyDown={onKeyDown}
+      className="mb-6 flex flex-wrap gap-1.5 rounded-2xl border border-black/10 bg-white p-1.5"
+    >
+      {TABS.map((t, i) => {
+        const selected = active === t.id;
+        return (
+          <button
+            key={t.id}
+            ref={(el) => { tabRefs.current[i] = el; }}
+            type="button"
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={selected}
+            aria-controls={`tabpanel-${t.id}`}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => select(t.id)}
+            title={t.description}
+            className={`flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+              selected
+                ? 'bg-foreground text-white shadow-sm'
+                : 'text-foreground/65 hover:bg-warm-bg/40'
+            }`}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface TabBodyProps {
+  accounts: AccountsResponse | null;
+  accountsLoading: boolean;
+  accountsErr: string | null;
+  refreshAccounts: () => void;
+  history: HistoryPost[];
+  historyLoading: boolean;
+  historyErr: string | null;
+  refreshHistory: () => void;
+}
+
+function SocialTabBody(props: TabBodyProps) {
+  const searchParams = useSearchParams();
+  const active = readTab(searchParams.get('tab'));
+  const {
+    accounts, accountsLoading, accountsErr, refreshAccounts,
+    history, historyLoading, historyErr, refreshHistory,
+  } = props;
+
+  if (active === 'post') {
+    return (
+      <div role="tabpanel" id="tabpanel-post" aria-labelledby="tab-post">
+        <PostSubNav />
+        <PostTabBody
+          accounts={accounts}
+          history={history}
+          historyLoading={historyLoading}
+          historyErr={historyErr}
+          refreshHistory={refreshHistory}
+        />
+      </div>
+    );
+  }
+
+  if (active === 'creative') {
+    return (
+      <div role="tabpanel" id="tabpanel-creative" aria-labelledby="tab-creative">
+        <CreativeSubNav />
+        <CreativeTabBody />
+      </div>
+    );
+  }
+
+  // Overview (default)
+  return (
+    <div role="tabpanel" id="tabpanel-overview" aria-labelledby="tab-overview">
+      <OverviewSummary connected={accounts?.activeSocialAccounts ?? []} />
       <ConnectedAccountsStrip
         accounts={accounts}
         loading={accountsLoading}
         error={accountsErr}
         onChanged={refreshAccounts}
       />
-
       <AnalyticsPanel connected={accounts?.activeSocialAccounts ?? []} />
+    </div>
+  );
+}
 
-      <Composer
-        connected={accounts?.activeSocialAccounts ?? []}
-        onPosted={() => { refreshHistory(); }}
-      />
+// ── Overview summary tiles ──────────────────────────────────────────
+//
+// Phase 2 of the 10-phase split. Three roll-up tiles above the
+// accounts strip: connected platforms, total followers across them,
+// and the freshness of the most recent analytics snapshot. The
+// follower total reads from the same /analytics/history endpoint
+// the AnalyticsPanel uses, so the numbers stay consistent without a
+// second cron job.
 
+function OverviewSummary({ connected }: { connected: string[] }) {
+  const [snapshots, setSnapshots] = useState<Record<string, { raw: Record<string, unknown> | null; captured_at: string | null }>>({});
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/social-media/analytics/history', {
+          credentials: 'include', cache: 'no-store',
+        });
+        if (!res.ok) return;
+        const json = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        const latest = (json.latest ?? {}) as Record<string, { raw: Record<string, unknown>; captured_at: string }>;
+        const out: typeof snapshots = {};
+        for (const [platform, row] of Object.entries(latest)) {
+          out[platform] = { raw: row.raw, captured_at: row.captured_at };
+        }
+        setSnapshots(out);
+      } catch {
+        /* leave empty — AnalyticsPanel will surface the real error */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const totalFollowers = useMemo(() => {
+    let sum = 0;
+    for (const platform of connected) {
+      const raw = snapshots[platform]?.raw ?? null;
+      const stats = extractStats(platform as PlatformId, raw);
+      const followers = stats.find((s) => s.label.toLowerCase() === 'followers');
+      if (followers) {
+        const n = Number(followers.value.replace(/,/g, ''));
+        if (Number.isFinite(n)) sum += n;
+      }
+    }
+    return sum;
+  }, [connected, snapshots]);
+
+  const freshest = useMemo(() => {
+    let max: string | null = null;
+    for (const k of Object.keys(snapshots)) {
+      const at = snapshots[k]?.captured_at;
+      if (at && (!max || at > max)) max = at;
+    }
+    return max;
+  }, [snapshots]);
+
+  const tiles: { label: string; value: string; sub?: string }[] = [
+    {
+      label: 'Connected platforms',
+      value: connected.length.toLocaleString(),
+      sub: connected.length === 0 ? 'Connect one in the strip below' : 'Sending posts on these channels',
+    },
+    {
+      label: 'Total followers',
+      value: totalFollowers.toLocaleString(),
+      sub: 'Sum across connected platforms',
+    },
+    {
+      label: 'Snapshot freshness',
+      value: freshest
+        ? new Date(freshest).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        : '—',
+      sub: 'Auto-refreshes daily at 6am',
+    },
+  ];
+
+  return (
+    <section aria-label="Overview summary" className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {tiles.map((t) => (
+        <div key={t.label} className="rounded-2xl border border-black/10 bg-white px-4 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">{t.label}</p>
+          <p className="text-xl font-bold text-foreground tabular-nums leading-tight mt-0.5">{t.value}</p>
+          {t.sub && <p className="text-[11px] text-foreground/45 mt-0.5">{t.sub}</p>}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+// ── Post sub-nav (Compose / Scheduled / History) ────────────────────
+//
+// Phase 3 of the 10-phase split. Splits the Post tab into three
+// sub-views via `?sub=` so each one is a deep-linkable surface.
+// Default sub is compose. Scheduled is a placeholder shell that
+// phase 4 fills in; History wraps the existing HistoryList without
+// changing its props.
+
+type PostSub = 'compose' | 'scheduled' | 'history';
+
+const POST_SUBS: { id: PostSub; label: string }[] = [
+  { id: 'compose', label: 'Compose' },
+  { id: 'scheduled', label: 'Scheduled' },
+  { id: 'history', label: 'History' },
+];
+
+function readPostSub(raw: string | null): PostSub {
+  if (raw === 'scheduled' || raw === 'history') return raw;
+  return 'compose';
+}
+
+function PostSubNav() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const active = readPostSub(searchParams.get('sub'));
+  const select = (id: PostSub) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('tab', 'post');
+    if (id === 'compose') next.delete('sub');
+    else next.set('sub', id);
+    const qs = next.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
+  return (
+    <div role="tablist" aria-label="Post sections" className="mb-5 flex flex-wrap gap-1 rounded-xl bg-white border border-black/10 p-1">
+      {POST_SUBS.map((s) => {
+        const selected = active === s.id;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => select(s.id)}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              selected ? 'bg-foreground text-white' : 'text-foreground/60 hover:bg-warm-bg/40'
+            }`}
+          >
+            {s.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PostTabBody({
+  accounts, history, historyLoading, historyErr, refreshHistory,
+}: {
+  accounts: AccountsResponse | null;
+  history: HistoryPost[];
+  historyLoading: boolean;
+  historyErr: string | null;
+  refreshHistory: () => void;
+}) {
+  const searchParams = useSearchParams();
+  const sub = readPostSub(searchParams.get('sub'));
+
+  if (sub === 'scheduled') {
+    return <ScheduledPanel posts={history} loading={historyLoading} error={historyErr} onChanged={refreshHistory} />;
+  }
+  if (sub === 'history') {
+    return (
       <HistoryList
         posts={history}
         loading={historyLoading}
         error={historyErr}
         onChanged={refreshHistory}
       />
+    );
+  }
+  return (
+    <Composer
+      connected={accounts?.activeSocialAccounts ?? []}
+      onPosted={refreshHistory}
+    />
+  );
+}
+
+// ── Scheduled posts panel ───────────────────────────────────────────
+//
+// Phase 4 of the 10-phase split. Filters the same `history` payload
+// the History sub-tab uses, but keeps only rows whose scheduleDate
+// is in the future. Ayrshare returns scheduled rows with status
+// `scheduled` or `pending`; we treat both as "queued but unsent".
+// Each row renders compact: when, platforms, caption preview, and
+// a Cancel button that hits /api/social-media/delete (same endpoint
+// the History tab uses).
+
+function isScheduledPending(p: HistoryPost): boolean {
+  if (!p.scheduleDate) return false;
+  const status = (p.status || '').toLowerCase();
+  if (status && status !== 'scheduled' && status !== 'pending') return false;
+  const t = Date.parse(p.scheduleDate);
+  return Number.isFinite(t) && t > Date.now();
+}
+
+function ScheduledPanel({
+  posts, loading, error, onChanged,
+}: {
+  posts: HistoryPost[];
+  loading: boolean;
+  error: string | null;
+  onChanged: () => void;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const queue = useMemo(() => {
+    return posts
+      .filter(isScheduledPending)
+      .sort((a, b) => Date.parse(a.scheduleDate || '') - Date.parse(b.scheduleDate || ''));
+  }, [posts]);
+
+  const cancel = async (id: string) => {
+    if (!confirm('Cancel this scheduled post?')) return;
+    setBusyId(id);
+    try {
+      const res = await fetch('/api/social-media/delete', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(json.error || json.message || `HTTP ${res.status}`);
+        return;
+      }
+      onChanged();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-5">
+      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+        <div>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Scheduled posts</h2>
+          <p className="text-[11px] text-foreground/45 mt-0.5">
+            Queued but not yet sent. Cancel any row to pull it back.
+          </p>
+        </div>
+        {loading && <span className="text-xs text-foreground/40">Loading…</span>}
+      </div>
+      {error && (
+        <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 mb-3">
+          {error}
+        </p>
+      )}
+      {queue.length === 0 && !loading ? (
+        <div className="rounded-xl border border-dashed border-black/10 bg-warm-bg/30 px-5 py-10 text-center">
+          <p className="text-sm text-foreground/55 max-w-md mx-auto">
+            Nothing scheduled. Use Compose &rarr; <em>Schedule for later</em> to queue a post.
+          </p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-black/5">
+          {queue.map((p) => {
+            const id = (p.id ?? '') as string;
+            const when = p.scheduleDate
+              ? new Date(p.scheduleDate).toLocaleString('en-US', {
+                  weekday: 'short', month: 'short', day: 'numeric',
+                  hour: 'numeric', minute: '2-digit',
+                })
+              : '—';
+            const platforms = (p.platforms ?? []).join(', ');
+            const caption = (p.post ?? '').slice(0, 140);
+            return (
+              <li key={id || `${p.scheduleDate}-${p.post?.slice(0, 12)}`} className="flex items-start gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true" />
+                      {when}
+                    </span>
+                    {platforms && (
+                      <span className="text-[11px] text-foreground/55">{platforms}</span>
+                    )}
+                  </div>
+                  {caption && (
+                    <p className="text-[13px] text-foreground/80 line-clamp-2 leading-snug">
+                      {caption}
+                      {(p.post ?? '').length > 140 ? '…' : ''}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => id && cancel(id)}
+                  disabled={!id || busyId === id}
+                  className="shrink-0 rounded-lg border border-black/10 px-2.5 py-1 text-[11px] font-semibold text-foreground/65 hover:text-red-700 hover:border-red-300 disabled:opacity-40"
+                >
+                  {busyId === id ? 'Canceling…' : 'Cancel'}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+// ── Creative sub-nav (Library / Templates / AI) ─────────────────────
+//
+// Phase 5 of the 10-phase split. Three sub-views via the same `?sub=`
+// query param the Post tab uses, but scoped to the Creative tab so
+// Compose state on the Post tab and the Library/Templates/AI state
+// here can both persist independently in the URL.
+
+type CreativeSub = 'library' | 'templates' | 'ai';
+
+const CREATIVE_SUBS: { id: CreativeSub; label: string; description: string }[] = [
+  { id: 'library', label: 'Library', description: 'Browse uploaded photos and videos.' },
+  { id: 'templates', label: 'Templates', description: 'Reusable post drafts with placeholders.' },
+  { id: 'ai', label: 'AI', description: 'Draft captions with Claude.' },
+];
+
+function readCreativeSub(raw: string | null): CreativeSub {
+  if (raw === 'templates' || raw === 'ai') return raw;
+  return 'library';
+}
+
+function CreativeSubNav() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const active = readCreativeSub(searchParams.get('sub'));
+  const select = (id: CreativeSub) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('tab', 'creative');
+    if (id === 'library') next.delete('sub');
+    else next.set('sub', id);
+    const qs = next.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
+  return (
+    <div role="tablist" aria-label="Creative sections" className="mb-5 flex flex-wrap gap-1 rounded-xl bg-white border border-black/10 p-1">
+      {CREATIVE_SUBS.map((s) => {
+        const selected = active === s.id;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => select(s.id)}
+            title={s.description}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              selected ? 'bg-foreground text-white' : 'text-foreground/60 hover:bg-warm-bg/40'
+            }`}
+          >
+            {s.label}
+          </button>
+        );
+      })}
     </div>
+  );
+}
+
+function CreativeTabBody() {
+  const searchParams = useSearchParams();
+  const sub = readCreativeSub(searchParams.get('sub'));
+  if (sub === 'templates') return <CreativeTemplatesPanel />;
+  if (sub === 'ai') return <CreativeAiPanel />;
+  return <CreativeLibraryPanel />;
+}
+
+// ── Creative > Library ───────────────────────────────────────────────
+//
+// Phase 6 of the 10-phase split. Reads site_images directly via the
+// same supabase client the MediaPicker uses (limit 200, newest first
+// — same query) and renders a thumbnail grid. Multi-select with a
+// running counter; a Send-to-Compose button stashes the picked URLs
+// via pushComposeDraft and navigates to /app/social-media?tab=post.
+// The Composer listens for the draft event in phase 9; until then,
+// the URL is staged in sessionStorage and reads as a no-op on the
+// Post tab (no regression for direct Compose usage).
+
+interface LibraryImageRow {
+  id: string;
+  public_url: string;
+  filename: string | null;
+  alt: string | null;
+  created_at: string;
+}
+
+function CreativeLibraryPanel() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [images, setImages] = useState<LibraryImageRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data, error: err } = await supabase
+          .from('site_images')
+          .select('id, public_url, filename, alt, created_at')
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (err) throw err;
+        if (cancelled) return;
+        setImages((data ?? []) as LibraryImageRow[]);
+        setError(null);
+      } catch (e) {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return images;
+    return images.filter((row) =>
+      (row.filename ?? '').toLowerCase().includes(q) ||
+      (row.alt ?? '').toLowerCase().includes(q),
+    );
+  }, [images, query]);
+
+  const toggle = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const sendToCompose = () => {
+    const urls = images
+      .filter((row) => selected.has(row.id))
+      .map((row) => row.public_url)
+      .filter((u): u is string => Boolean(u));
+    if (urls.length === 0) return;
+    pushComposeDraft({ mediaUrls: urls, source: 'library' });
+    const next = new URLSearchParams();
+    next.set('tab', 'post');
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  };
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-5">
+      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+        <div>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Library</h2>
+          <p className="text-[11px] text-foreground/45 mt-0.5">
+            Pick photos to send into Compose. Up to 200 shown, newest first.
+          </p>
+        </div>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search filename or alt"
+          className="rounded-lg border border-black/10 px-3 py-1.5 text-xs w-56 max-w-full focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+      </div>
+
+      {error && (
+        <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 mb-3">
+          {error}
+        </p>
+      )}
+
+      {loading ? (
+        <p className="text-xs text-foreground/45 italic">Loading library…</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-foreground/55 italic">No images match.</p>
+      ) : (
+        <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+          {filtered.map((row) => {
+            const isSelected = selected.has(row.id);
+            const label = row.alt || row.filename || 'Image';
+            return (
+              <li key={row.id}>
+                <button
+                  type="button"
+                  onClick={() => toggle(row.id)}
+                  aria-pressed={isSelected}
+                  className={`relative block w-full aspect-square rounded-xl overflow-hidden border-2 transition-colors ${
+                    isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-transparent hover:border-foreground/20'
+                  }`}
+                  title={label}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={row.public_url}
+                    alt={label}
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                  />
+                  {isSelected && (
+                    <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white shadow">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-[12px] text-foreground/55">
+          <span className="font-semibold text-foreground/80">{selected.size}</span>
+          {' '}selected
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            disabled={selected.size === 0}
+            className="text-[12px] text-foreground/55 hover:text-foreground disabled:opacity-40"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={sendToCompose}
+            disabled={selected.size === 0}
+            className="rounded-lg bg-primary text-white px-4 py-1.5 text-[12px] font-semibold hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Send to Compose
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── Creative > Templates ─────────────────────────────────────────────
+//
+// Phase 7 of the 10-phase split. Curated set of reusable post drafts
+// the marketing team uses on a regular cadence. Templates are static
+// here (TEMPLATES const below); upgrading to DB-backed rows is a
+// later iteration once the team converges on a shared playbook.
+// Picking a template stashes the body via pushComposeDraft and
+// routes to ?tab=post — the Composer picks it up in phase 9.
+
+interface PostTemplate {
+  id: string;
+  title: string;
+  cadence: string;
+  description: string;
+  body: string;
+}
+
+const TEMPLATES: PostTemplate[] = [
+  {
+    id: 'wisdom-wednesday',
+    title: 'Wisdom Wednesday',
+    cadence: 'Weekly · Wednesday',
+    description: 'A quote or reflection from the week — pairs well with a herd or sunrise photo.',
+    body:
+      "Wisdom Wednesday — \n\n“[insert quote / reflection]”\n\nWhat’s landing for you this week?\n\n#SevenArrowsRecovery #WisdomWednesday #Recovery",
+  },
+  {
+    id: 'alumni-spotlight',
+    title: 'Alumni Spotlight',
+    cadence: 'Bi-weekly',
+    description: 'Celebrate an alum at a milestone (60/90 days, 6 months, 1 year sober).',
+    body:
+      "Alumni Spotlight — [first name] is celebrating [milestone] today.\n\n[1–2 sentences about their journey, what they’re doing now, what they’d say to someone just starting.]\n\nWe see you. We’re proud of you.\n\n#SevenArrowsRecovery #RecoveryWorks #AlumniSpotlight",
+  },
+  {
+    id: 'family-friday',
+    title: 'Family Friday',
+    cadence: 'Weekly · Friday',
+    description: 'Speaks to family members watching their loved one heal — empathy, not pitch.',
+    body:
+      "Family Friday — \n\nIf someone you love is in treatment right now, this is for you.\n\n[1–2 sentences naming a real, common family experience: hope, fatigue, fear, relief.]\n\nYou don’t have to figure this out alone. We’re here when you’re ready.\n\n#SevenArrowsRecovery #FamilyRecovery #SupportSystem",
+  },
+  {
+    id: 'staff-introduction',
+    title: 'Staff Introduction',
+    cadence: 'Monthly',
+    description: 'Introduce a clinician, nurse, equine specialist, or chef to humanize the team.',
+    body:
+      "Meet [name] — [role at Seven Arrows].\n\n[2–3 sentences: how long they’ve been with us, one specific thing clients say about them, one thing they love outside of work.]\n\nThis is who shows up for you at Seven Arrows.\n\n#SevenArrowsRecovery #MeetTheTeam",
+  },
+  {
+    id: 'tour-invite',
+    title: 'Tour Invite',
+    cadence: 'As needed',
+    description: 'CTA for a virtual or in-person ranch tour. Keep it warm, not salesy.',
+    body:
+      "Curious what 160 acres of recovery actually feels like?\n\nWe offer guided tours of the Seven Arrows ranch — the herd, the lodges, the river, the kitchen. No commitment, no pitch. Just a real look at the place that’s helped a lot of people start over.\n\nDM us or visit the link in bio to book.\n\n#SevenArrowsRecovery #RanchTour",
+  },
+  {
+    id: 'equine-moment',
+    title: 'Equine Moment',
+    cadence: 'Weekly',
+    description: 'Pair with a herd photo. Frames equine work without overclaiming.',
+    body:
+      "[Horse name] notices the smallest shifts — a held breath, a softened jaw, a step closer.\n\nThat’s the work, in a single moment: presence answered with presence.\n\n#SevenArrowsRecovery #EquineAssistedTherapy #SomaticHealing",
+  },
+];
+
+function CreativeTemplatesPanel() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const useTemplate = (t: PostTemplate) => {
+    pushComposeDraft({ caption: t.body, source: 'templates' });
+    const next = new URLSearchParams();
+    next.set('tab', 'post');
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  };
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-5">
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Templates</h2>
+        <p className="text-[11px] text-foreground/45 mt-0.5">
+          One-click reusable drafts. Edit the placeholders in Compose before posting.
+        </p>
+      </div>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {TEMPLATES.map((t) => {
+          const open = openId === t.id;
+          return (
+            <li key={t.id} className="rounded-xl border border-black/10 bg-warm-bg/30 p-4 flex flex-col">
+              <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">{t.cadence}</p>
+              <p className="text-base font-bold text-foreground leading-tight mt-0.5">{t.title}</p>
+              <p className="text-xs text-foreground/60 mt-1.5 leading-relaxed">{t.description}</p>
+              {open && (
+                <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap text-[12px] text-foreground/75 bg-white rounded-lg border border-black/5 p-3 leading-relaxed">
+                  {t.body}
+                </pre>
+              )}
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOpenId(open ? null : t.id)}
+                  className="text-[11px] font-semibold text-foreground/55 hover:text-foreground"
+                >
+                  {open ? 'Hide preview' : 'Preview'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => useTemplate(t)}
+                  className="rounded-lg bg-primary text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-primary-dark"
+                >
+                  Use template
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+// ── Creative > AI ────────────────────────────────────────────────────
+//
+// Phase 8 of the 10-phase split. Claude-backed caption generator that
+// posts to /api/claude/social-caption and renders three draft variants
+// the user can pick from. Each draft has a "Send to Compose" button
+// that stashes it via pushComposeDraft and routes to the Post tab,
+// matching the Library + Templates handoff. The server holds the API
+// key — the browser only sends topic, tone, and platform metadata.
+
+const TONE_OPTIONS = [
+  'warm, grounded, trauma-informed',
+  'celebratory but humble',
+  'reflective and quiet',
+  'practical and informative',
+  'invitational, not salesy',
+];
+
+const LENGTH_OPTIONS: { id: 'short' | 'medium' | 'long'; label: string }[] = [
+  { id: 'short', label: 'Short' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'long', label: 'Long' },
+];
+
+function CreativeAiPanel() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [topic, setTopic] = useState('');
+  const [tone, setTone] = useState(TONE_OPTIONS[0]);
+  const [length, setLength] = useState<'short' | 'medium' | 'long'>('medium');
+  const [includeHashtags, setIncludeHashtags] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [variants, setVariants] = useState<string[]>([]);
+
+  const generate = async () => {
+    if (!topic.trim()) {
+      setError('Topic is required.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setVariants([]);
+    try {
+      const res = await fetch('/api/claude/social-caption', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ topic, tone, length, includeHashtags }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error || `HTTP ${res.status}`);
+      }
+      const list = Array.isArray(json.variants) ? (json.variants as string[]) : [];
+      setVariants(list);
+      if (list.length === 0) setError('Claude returned no usable variants — try a different topic.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendToCompose = (caption: string) => {
+    pushComposeDraft({ caption, source: 'ai' });
+    const next = new URLSearchParams();
+    next.set('tab', 'post');
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  };
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-5">
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">AI captions</h2>
+        <p className="text-[11px] text-foreground/45 mt-0.5">
+          Tell Claude what the post is about; pick from three drafts and send the best to Compose.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <label className="block">
+          <span className="text-[10px] uppercase tracking-wider text-foreground/55 font-semibold">Topic</span>
+          <textarea
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="e.g. Wisdom Wednesday quote about presence; new chef Sandra spotlight; trail ride photo from this morning"
+            rows={3}
+            className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
+          />
+        </label>
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-wider text-foreground/55 font-semibold">Tone</span>
+            <select
+              value={tone}
+              onChange={(e) => setTone(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              {TONE_OPTIONS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-foreground/55 font-semibold">Length</span>
+            <div className="mt-1 inline-flex rounded-lg border border-black/10 overflow-hidden">
+              {LENGTH_OPTIONS.map((l) => {
+                const selected = length === l.id;
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => setLength(l.id)}
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      selected ? 'bg-foreground text-white' : 'text-foreground/60 hover:bg-warm-bg/40'
+                    }`}
+                  >
+                    {l.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-foreground/65">
+            <input
+              type="checkbox"
+              checked={includeHashtags}
+              onChange={(e) => setIncludeHashtags(e.target.checked)}
+              className="rounded border-black/20 text-primary focus:ring-primary/30"
+            />
+            Include hashtags
+          </label>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <button
+          type="button"
+          onClick={generate}
+          disabled={busy || !topic.trim()}
+          className="rounded-lg bg-primary text-white px-4 py-2 text-sm font-semibold hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+        >
+          {busy && (
+            <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          )}
+          {busy ? 'Drafting…' : 'Draft 3 variants'}
+        </button>
+        {error && (
+          <span className="text-xs text-red-700">{error}</span>
+        )}
+      </div>
+
+      {variants.length > 0 && (
+        <ul className="space-y-3">
+          {variants.map((v, i) => (
+            <li key={i} className="rounded-xl border border-black/10 bg-warm-bg/30 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold mb-1.5">Draft {i + 1}</p>
+              <p className="text-sm text-foreground/85 whitespace-pre-wrap leading-relaxed">{v}</p>
+              <div className="mt-3 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => sendToCompose(v)}
+                  className="rounded-lg bg-primary text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-primary-dark"
+                >
+                  Send to Compose
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -365,9 +1404,13 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
         </p>
       )}
       {hasAnySnapshot && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="rounded-xl border border-black/10 overflow-hidden divide-y divide-black/5 bg-warm-bg/30">
+          <div className="hidden sm:flex items-center text-[10px] uppercase tracking-wider text-foreground/45 font-semibold px-3 py-2 bg-white/60">
+            <span className="w-44 shrink-0">Platform</span>
+            <span>Engagement metrics</span>
+          </div>
           {connected.map((p) => (
-            <AnalyticsCard
+            <AnalyticsRow
               key={p}
               platform={p as PlatformId}
               raw={latest[p]?.raw ?? null}
@@ -380,44 +1423,67 @@ function AnalyticsPanel({ connected }: { connected: string[] }) {
   );
 }
 
-function AnalyticsCard({
+function AnalyticsRow({
   platform, raw, capturedAt,
 }: {
   platform: PlatformId;
   raw: Record<string, unknown> | null;
-  /** Snapshot captured_at — surfaces in the card footer so each
-   *  platform tile reads as data from a specific moment. */
+  /** Snapshot captured_at — surfaces in the platform column underneath
+   *  the icon + name so each row reads as data from a specific moment. */
   capturedAt?: string | null;
 }) {
-  void capturedAt; // used in the footer below — see render block
   const stats = useMemo(() => extractStats(platform, raw), [platform, raw]);
+  const platformLabel = platform.toUpperCase().replace('GMB', 'Google Biz');
+  const capturedLabel = capturedAt
+    ? new Date(capturedAt).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      })
+    : null;
   return (
-    <div className="rounded-xl border border-black/10 bg-warm-bg/30 p-3">
-      <div className="flex items-center gap-2 mb-2">
-        <PlatformIcon platform={platform} size={16} />
-        <p className="text-[11px] font-bold uppercase tracking-wider text-foreground/65">
-          {platform.toUpperCase().replace('GMB', 'Google Biz')}
-        </p>
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-3 py-3 bg-white">
+      {/* Column A — platform identity. Fixed width on sm+ so every
+          row's metric strip starts at the same x position and the
+          rows read as a table. */}
+      <div className="flex items-center gap-2 sm:w-44 sm:shrink-0">
+        <PlatformIcon platform={platform} size={18} />
+        <div className="min-w-0">
+          <p className="text-[12px] font-bold uppercase tracking-wider text-foreground/85 leading-tight">
+            {platformLabel}
+          </p>
+          {capturedLabel && (
+            <p className="text-[10px] text-foreground/40 leading-tight">{capturedLabel}</p>
+          )}
+        </div>
       </div>
-      {!raw ? (
-        <p className="text-[11px] italic text-foreground/40">No data returned.</p>
-      ) : stats.length === 0 ? (
-        <details className="text-[11px] text-foreground/55">
-          <summary className="cursor-pointer hover:text-foreground">Raw response</summary>
-          <pre className="mt-2 max-h-48 overflow-auto text-[10px] text-foreground/55 bg-white rounded border border-black/5 p-2">
-            {JSON.stringify(raw, null, 2)}
-          </pre>
-        </details>
-      ) : (
-        <dl className="grid grid-cols-2 gap-2">
-          {stats.map((s) => (
-            <div key={s.label}>
-              <dt className="text-[10px] uppercase tracking-wider text-foreground/45">{s.label}</dt>
-              <dd className="text-base font-bold text-foreground">{s.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
+
+      {/* Column B — metric strip. flex-wrap so a platform with many
+          metrics (Instagram, TikTok) wraps cleanly instead of forcing
+          horizontal scroll. */}
+      <div className="min-w-0 flex-1">
+        {!raw ? (
+          <p className="text-[11px] italic text-foreground/40">No data returned.</p>
+        ) : stats.length === 0 ? (
+          <details className="text-[11px] text-foreground/55">
+            <summary className="cursor-pointer hover:text-foreground">Raw response</summary>
+            <pre className="mt-2 max-h-48 overflow-auto text-[10px] text-foreground/55 bg-warm-bg/40 rounded border border-black/5 p-2">
+              {JSON.stringify(raw, null, 2)}
+            </pre>
+          </details>
+        ) : (
+          <ul className="flex flex-wrap gap-x-5 gap-y-2">
+            {stats.map((s) => (
+              <li key={s.label} className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-foreground/45 leading-tight">
+                  {s.label}
+                </p>
+                <p className="text-base font-bold text-foreground tabular-nums leading-tight">
+                  {s.value}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
@@ -538,6 +1604,46 @@ function Composer({
   const [scheduleDate, setScheduleDate] = useState('');
   const [posting, setPosting] = useState(false);
   const [resultMsg, setResultMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [draftBanner, setDraftBanner] = useState<ComposeDraft['source'] | null>(null);
+
+  // Phase 9 of the 10-phase split: consume any draft stashed by the
+  // Library / Templates / AI sub-tabs. We read the sessionStorage
+  // stash on mount (covers refresh + tab-switch back), and also
+  // listen for the live CustomEvent so a draft pushed while the
+  // Composer is already mounted prefills the form immediately.
+  useEffect(() => {
+    const apply = (draft: ComposeDraft) => {
+      if (draft.caption) setText((prev) => prev || draft.caption || '');
+      if (draft.mediaUrls && draft.mediaUrls.length > 0) {
+        const next: PickedMedia[] = draft.mediaUrls.map((url) => ({
+          url,
+          thumbUrl: url,
+          label: url.split('/').pop() || 'Image',
+          kind: 'image',
+        }));
+        setPicked((prev) => {
+          // Merge — don't drop anything the user already added by hand.
+          const seen = new Set(prev.map((m) => m.url));
+          return [...prev, ...next.filter((m) => !seen.has(m.url))];
+        });
+      }
+      setDraftBanner(draft.source ?? null);
+    };
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as ComposeDraft;
+        apply(parsed);
+        sessionStorage.removeItem(DRAFT_KEY);
+      }
+    } catch { /* ignore — sessionStorage might be unavailable */ }
+    const onDraft = (e: Event) => {
+      const detail = (e as CustomEvent<ComposeDraft>).detail;
+      if (detail) apply(detail);
+    };
+    window.addEventListener('social-media-compose-draft', onDraft);
+    return () => window.removeEventListener('social-media-compose-draft', onDraft);
+  }, []);
   // Top-right delivery toast — see PostStatusToast for the visual.
   // Holds the lifecycle of the most recent submit so the toast can
   // animate from "sending" through per-platform results.
@@ -709,6 +1815,23 @@ function Composer({
       />
 
       <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">Compose</h2>
+
+      {draftBanner && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] text-emerald-900">
+          <span className="font-semibold">
+            Prefilled from{' '}
+            {draftBanner === 'library' ? 'Library' : draftBanner === 'templates' ? 'Templates' : 'AI'}.
+          </span>
+          <button
+            type="button"
+            onClick={() => setDraftBanner(null)}
+            className="text-emerald-800/70 hover:text-emerald-900"
+            aria-label="Dismiss prefill notice"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* "Post to" picker sits at the top — picking the channels is
           the most consequential decision per post, and seeing the
