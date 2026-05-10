@@ -962,15 +962,180 @@ function CreativeTemplatesPanel() {
   );
 }
 
+// ── Creative > AI ────────────────────────────────────────────────────
+//
+// Phase 8 of the 10-phase split. Claude-backed caption generator that
+// posts to /api/claude/social-caption and renders three draft variants
+// the user can pick from. Each draft has a "Send to Compose" button
+// that stashes it via pushComposeDraft and routes to the Post tab,
+// matching the Library + Templates handoff. The server holds the API
+// key — the browser only sends topic, tone, and platform metadata.
+
+const TONE_OPTIONS = [
+  'warm, grounded, trauma-informed',
+  'celebratory but humble',
+  'reflective and quiet',
+  'practical and informative',
+  'invitational, not salesy',
+];
+
+const LENGTH_OPTIONS: { id: 'short' | 'medium' | 'long'; label: string }[] = [
+  { id: 'short', label: 'Short' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'long', label: 'Long' },
+];
+
 function CreativeAiPanel() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [topic, setTopic] = useState('');
+  const [tone, setTone] = useState(TONE_OPTIONS[0]);
+  const [length, setLength] = useState<'short' | 'medium' | 'long'>('medium');
+  const [includeHashtags, setIncludeHashtags] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [variants, setVariants] = useState<string[]>([]);
+
+  const generate = async () => {
+    if (!topic.trim()) {
+      setError('Topic is required.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setVariants([]);
+    try {
+      const res = await fetch('/api/claude/social-caption', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ topic, tone, length, includeHashtags }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error || `HTTP ${res.status}`);
+      }
+      const list = Array.isArray(json.variants) ? (json.variants as string[]) : [];
+      setVariants(list);
+      if (list.length === 0) setError('Claude returned no usable variants — try a different topic.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendToCompose = (caption: string) => {
+    pushComposeDraft({ caption, source: 'ai' });
+    const next = new URLSearchParams();
+    next.set('tab', 'post');
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  };
+
   return (
-    <div className="rounded-2xl border border-dashed border-black/15 bg-white px-6 py-12 text-center">
-      <p className="text-xs uppercase tracking-[0.22em] text-foreground/40 mb-2">AI</p>
-      <p className="text-sm text-foreground/55 max-w-md mx-auto">
-        Phase 8 wires a Claude-backed caption generator with topic, tone, and
-        platform inputs. Drafts ship to Compose with one click.
-      </p>
-    </div>
+    <section className="rounded-2xl border border-black/10 bg-white p-5">
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">AI captions</h2>
+        <p className="text-[11px] text-foreground/45 mt-0.5">
+          Tell Claude what the post is about; pick from three drafts and send the best to Compose.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <label className="block">
+          <span className="text-[10px] uppercase tracking-wider text-foreground/55 font-semibold">Topic</span>
+          <textarea
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="e.g. Wisdom Wednesday quote about presence; new chef Sandra spotlight; trail ride photo from this morning"
+            rows={3}
+            className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
+          />
+        </label>
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-wider text-foreground/55 font-semibold">Tone</span>
+            <select
+              value={tone}
+              onChange={(e) => setTone(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              {TONE_OPTIONS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-foreground/55 font-semibold">Length</span>
+            <div className="mt-1 inline-flex rounded-lg border border-black/10 overflow-hidden">
+              {LENGTH_OPTIONS.map((l) => {
+                const selected = length === l.id;
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => setLength(l.id)}
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      selected ? 'bg-foreground text-white' : 'text-foreground/60 hover:bg-warm-bg/40'
+                    }`}
+                  >
+                    {l.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-foreground/65">
+            <input
+              type="checkbox"
+              checked={includeHashtags}
+              onChange={(e) => setIncludeHashtags(e.target.checked)}
+              className="rounded border-black/20 text-primary focus:ring-primary/30"
+            />
+            Include hashtags
+          </label>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <button
+          type="button"
+          onClick={generate}
+          disabled={busy || !topic.trim()}
+          className="rounded-lg bg-primary text-white px-4 py-2 text-sm font-semibold hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+        >
+          {busy && (
+            <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          )}
+          {busy ? 'Drafting…' : 'Draft 3 variants'}
+        </button>
+        {error && (
+          <span className="text-xs text-red-700">{error}</span>
+        )}
+      </div>
+
+      {variants.length > 0 && (
+        <ul className="space-y-3">
+          {variants.map((v, i) => (
+            <li key={i} className="rounded-xl border border-black/10 bg-warm-bg/30 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold mb-1.5">Draft {i + 1}</p>
+              <p className="text-sm text-foreground/85 whitespace-pre-wrap leading-relaxed">{v}</p>
+              <div className="mt-3 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => sendToCompose(v)}
+                  className="rounded-lg bg-primary text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-primary-dark"
+                >
+                  Send to Compose
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
