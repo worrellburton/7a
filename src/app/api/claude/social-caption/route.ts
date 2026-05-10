@@ -24,6 +24,11 @@ type Body = {
   platforms?: string[];
   length?: 'short' | 'medium' | 'long';
   includeHashtags?: boolean;
+  /** Optional: URLs the caption should be built around. If present we
+   *  surface a quick filename/path summary so Claude can mention what
+   *  the post is about (we don't fetch the bytes — the assistant
+   *  reasons from the URL strings). */
+  mediaUrls?: string[];
 };
 
 export async function POST(req: NextRequest) {
@@ -47,6 +52,7 @@ export async function POST(req: NextRequest) {
   const platforms = (body.platforms || []).filter(Boolean);
   const length = body.length === 'short' ? 'short' : body.length === 'long' ? 'long' : 'medium';
   const includeHashtags = body.includeHashtags !== false;
+  const mediaUrls = (body.mediaUrls || []).filter((u) => typeof u === 'string' && u.length > 0);
 
   const lengthGuidance =
     length === 'short'
@@ -64,9 +70,19 @@ export async function POST(req: NextRequest) {
     ? 'End each variant with 2–4 relevant hashtags (e.g. #SevenArrowsRecovery, #Recovery, #TraumaInformed). Keep them grounded — no spammy stack.'
     : 'No hashtags.';
 
+  // Surface filenames + a short URL hint when media is attached so
+  // Claude can write captions that reference what the post is about
+  // ("the trail at sunrise", "Wally's first day with us"), even
+  // though we don't ship the image bytes themselves.
+  const mediaContext = mediaUrls.length > 0
+    ? `\n\nThe post is built around ${mediaUrls.length} attached piece${mediaUrls.length === 1 ? '' : 's'} of media. URL hints (filenames + path):\n${mediaUrls
+        .map((u) => `  - ${u.split('/').slice(-2).join('/')}`)
+        .join('\n')}\n\nWrite captions that *reference* what's in the media in a believable way — when the filename or path suggests a subject (a horse name, a place, a moment), call it out naturally. If the hints are ambiguous, lean on the topic above instead of guessing wildly.`
+    : '';
+
   const prompt = `Organization: Seven Arrows Recovery — a boutique residential addiction-treatment ranch in Cochise County, Arizona. Trauma-informed, equine-assisted, holistic, evidence-based, JCAHO-accredited.
 
-Topic for the post: ${topic}
+Topic for the post: ${topic}${mediaContext}
 
 Tone: ${tone}.
 ${platformGuidance}
