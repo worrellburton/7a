@@ -20,7 +20,7 @@ import { PostStatusToast, type PostStatus, type PerPlatformResult } from './Post
 interface ComposeDraft {
   caption?: string;
   mediaUrls?: string[];
-  source?: 'library' | 'templates' | 'ai';
+  source?: 'library' | 'templates' | 'ai' | 'drafts';
 }
 const DRAFT_KEY = 'social_media_compose_draft_v1';
 function pushComposeDraft(draft: ComposeDraft) {
@@ -28,6 +28,51 @@ function pushComposeDraft(draft: ComposeDraft) {
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     window.dispatchEvent(new CustomEvent('social-media-compose-draft', { detail: draft }));
   } catch { /* sessionStorage may be unavailable in private browsing */ }
+}
+
+// Intermediate Library -> AI staging. Lives in sessionStorage under
+// a separate key so the Composer's pushComposeDraft consume-and-clear
+// path doesn't accidentally drop it. The AI panel reads this on
+// mount to pre-populate its media context; saving to drafts copies
+// the urls into the draft payload and then this stash is cleared.
+interface CreativeStaging { mediaUrls: string[] }
+const STAGING_KEY = 'social_media_creative_staging_v1';
+function pushCreativeStaging(s: CreativeStaging) {
+  try { sessionStorage.setItem(STAGING_KEY, JSON.stringify(s)); } catch { /* no-op */ }
+}
+function readCreativeStaging(): CreativeStaging | null {
+  try {
+    const raw = sessionStorage.getItem(STAGING_KEY);
+    return raw ? (JSON.parse(raw) as CreativeStaging) : null;
+  } catch { return null; }
+}
+function clearCreativeStaging() {
+  try { sessionStorage.removeItem(STAGING_KEY); } catch { /* no-op */ }
+}
+
+// Saved drafts — phase B/C of the wizard. Persisted in localStorage
+// so they survive refresh and tab close. List rendered under
+// Creative > Drafts; each has Edit / Send to Compose / Delete.
+interface SavedDraft {
+  id: string;
+  createdAt: string;
+  caption: string;
+  mediaUrls: string[];
+}
+const DRAFTS_KEY = 'social_media_saved_drafts_v1';
+function readSavedDrafts(): SavedDraft[] {
+  try {
+    const raw = localStorage.getItem(DRAFTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as SavedDraft[]) : [];
+  } catch { return []; }
+}
+function writeSavedDrafts(drafts: SavedDraft[]) {
+  try {
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+    window.dispatchEvent(new CustomEvent('social-media-drafts-changed'));
+  } catch { /* no-op */ }
 }
 
 // Marketing → Social Media. v1 wraps Ayrshare's API:
@@ -730,36 +775,81 @@ function CreativeTabBody() {
 // the URL is staged in sessionStorage and reads as a no-op on the
 // Post tab (no regression for direct Compose usage).
 
-interface LibraryImageRow {
+interface LibraryAsset {
   id: string;
-  public_url: string;
+  url: string;
+  thumbUrl: string;
   filename: string | null;
   alt: string | null;
   created_at: string;
+  kind: 'image' | 'video';
 }
+
+type LibraryFilter = 'all' | 'photos' | 'videos';
 
 function CreativeLibraryPanel() {
   const router = useRouter();
   const pathname = usePathname();
-  const [images, setImages] = useState<LibraryImageRow[]>([]);
+  const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<LibraryFilter>('all');
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const { data, error: err } = await supabase
-          .from('site_images')
-          .select('id, public_url, filename, alt, created_at')
-          .order('created_at', { ascending: false })
-          .limit(200);
-        if (err) throw err;
+        // Pull photos + videos in parallel; merge into a single
+        // chronological list so the filter is a pure client-side
+        // toggle once data lands.
+        const [imagesRes, videosRes] = await Promise.all([
+          supabase
+            .from('site_images')
+            .select('id, public_url, filename, alt, created_at')
+            .order('created_at', { ascending: false })
+            .limit(200),
+          supabase
+            .from('site_videos')
+            .select('id, video_url, thumbnail_url, filename, alt, created_at')
+            .order('created_at', { ascending: false })
+            .limit(80),
+        ]);
         if (cancelled) return;
-        setImages((data ?? []) as LibraryImageRow[]);
+        if (imagesRes.error) throw imagesRes.error;
+        const imageRows = (imagesRes.data ?? []) as Array<{
+          id: string; public_url: string; filename: string | null;
+          alt: string | null; created_at: string;
+        }>;
+        const videoRows = (videosRes.error ? [] : (videosRes.data ?? [])) as Array<{
+          id: string; video_url: string | null; thumbnail_url: string | null;
+          filename: string | null; alt: string | null; created_at: string;
+        }>;
+        const merged: LibraryAsset[] = [
+          ...imageRows.map<LibraryAsset>((r) => ({
+            id: `img:${r.id}`,
+            url: r.public_url,
+            thumbUrl: r.public_url,
+            filename: r.filename,
+            alt: r.alt,
+            created_at: r.created_at,
+            kind: 'image',
+          })),
+          ...videoRows
+            .filter((r) => Boolean(r.video_url))
+            .map<LibraryAsset>((r) => ({
+              id: `vid:${r.id}`,
+              url: r.video_url as string,
+              thumbUrl: r.thumbnail_url || (r.video_url as string),
+              filename: r.filename,
+              alt: r.alt,
+              created_at: r.created_at,
+              kind: 'video',
+            })),
+        ].sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+        setAssets(merged);
         setError(null);
       } catch (e) {
         if (cancelled) return;
@@ -773,12 +863,14 @@ function CreativeLibraryPanel() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return images;
-    return images.filter((row) =>
-      (row.filename ?? '').toLowerCase().includes(q) ||
-      (row.alt ?? '').toLowerCase().includes(q),
-    );
-  }, [images, query]);
+    return assets.filter((row) => {
+      if (filter === 'photos' && row.kind !== 'image') return false;
+      if (filter === 'videos' && row.kind !== 'video') return false;
+      if (!q) return true;
+      return (row.filename ?? '').toLowerCase().includes(q) ||
+        (row.alt ?? '').toLowerCase().includes(q);
+    });
+  }, [assets, filter, query]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -789,25 +881,35 @@ function CreativeLibraryPanel() {
     });
   };
 
-  const sendToCompose = () => {
-    const urls = images
+  const continueToAi = () => {
+    const urls = assets
       .filter((row) => selected.has(row.id))
-      .map((row) => row.public_url)
+      .map((row) => row.url)
       .filter((u): u is string => Boolean(u));
     if (urls.length === 0) return;
-    pushComposeDraft({ mediaUrls: urls, source: 'library' });
+    pushCreativeStaging({ mediaUrls: urls });
     const next = new URLSearchParams();
-    next.set('tab', 'post');
+    next.set('tab', 'creative');
+    next.set('sub', 'ai');
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
+  const counts = useMemo(() => {
+    let photos = 0, videos = 0;
+    for (const a of assets) {
+      if (a.kind === 'image') photos++;
+      else videos++;
+    }
+    return { photos, videos, all: photos + videos };
+  }, [assets]);
+
   return (
-    <section className="rounded-2xl border border-black/10 bg-white p-5">
+    <section className="rounded-2xl border border-black/10 bg-white p-5 pb-20 sm:pb-5">
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div>
           <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Library</h2>
           <p className="text-[11px] text-foreground/45 mt-0.5">
-            Pick photos to send into Compose. Up to 200 shown, newest first.
+            Pick the media you want a post built around. Continue takes you to AI for caption generation.
           </p>
         </div>
         <input
@@ -819,6 +921,30 @@ function CreativeLibraryPanel() {
         />
       </div>
 
+      {/* Photo / Video filter — pill bar matches the tab/sub-tab idiom
+          used elsewhere on the page so the control reads as a peer. */}
+      <div className="mb-4 inline-flex rounded-lg border border-black/10 overflow-hidden">
+        {([
+          { id: 'all', label: `All (${counts.all})` },
+          { id: 'photos', label: `Photos (${counts.photos})` },
+          { id: 'videos', label: `Videos (${counts.videos})` },
+        ] as const).map((opt) => {
+          const sel = filter === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setFilter(opt.id)}
+              className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                sel ? 'bg-foreground text-white' : 'text-foreground/60 hover:bg-warm-bg/40'
+              }`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
       {error && (
         <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 mb-3">
           {error}
@@ -828,12 +954,12 @@ function CreativeLibraryPanel() {
       {loading ? (
         <p className="text-xs text-foreground/45 italic">Loading library…</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-foreground/55 italic">No images match.</p>
+        <p className="text-sm text-foreground/55 italic">No media matches.</p>
       ) : (
         <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
           {filtered.map((row) => {
             const isSelected = selected.has(row.id);
-            const label = row.alt || row.filename || 'Image';
+            const label = row.alt || row.filename || (row.kind === 'video' ? 'Video' : 'Image');
             return (
               <li key={row.id}>
                 <button
@@ -847,11 +973,31 @@ function CreativeLibraryPanel() {
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={row.public_url}
+                    src={row.thumbUrl}
                     alt={label}
                     loading="lazy"
                     className="w-full h-full object-cover"
                   />
+                  {row.kind === 'video' && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-0 flex items-center justify-center bg-black/20"
+                    >
+                      <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/55 text-white">
+                        <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </span>
+                    </span>
+                  )}
+                  <span
+                    className={`absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold ${
+                      row.kind === 'video' ? 'bg-fuchsia-600/90 text-white' : 'bg-black/55 text-white'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {row.kind === 'video' ? 'Video' : 'Photo'}
+                  </span>
                   {isSelected && (
                     <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white shadow">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" aria-hidden="true">
@@ -866,7 +1012,11 @@ function CreativeLibraryPanel() {
         </ul>
       )}
 
-      <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+      {/* Sticky action footer — pinned to the bottom of the scroll
+          container so Continue is reachable without scrolling past
+          200 thumbnails. White background + top border so the
+          control reads as separate from the grid behind it. */}
+      <div className="sticky bottom-0 left-0 right-0 -mx-5 -mb-5 mt-4 px-5 py-3 bg-white/95 supports-[backdrop-filter]:bg-white/80 backdrop-blur border-t border-black/10 flex items-center justify-between gap-3 flex-wrap rounded-b-2xl">
         <p className="text-[12px] text-foreground/55">
           <span className="font-semibold text-foreground/80">{selected.size}</span>
           {' '}selected
@@ -882,11 +1032,11 @@ function CreativeLibraryPanel() {
           </button>
           <button
             type="button"
-            onClick={sendToCompose}
+            onClick={continueToAi}
             disabled={selected.size === 0}
             className="rounded-lg bg-primary text-white px-4 py-1.5 text-[12px] font-semibold hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Send to Compose
+            Continue
           </button>
         </div>
       </div>
