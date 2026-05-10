@@ -1050,7 +1050,8 @@ function CreativeLibraryPanel() {
   }, [assets]);
 
   return (
-    <section className="rounded-2xl border border-black/10 bg-white p-5 pb-20 sm:pb-5">
+    <>
+    <section className="rounded-2xl border border-black/10 bg-white p-5 pb-24">
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div>
           <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Library</h2>
@@ -1158,11 +1159,23 @@ function CreativeLibraryPanel() {
         </ul>
       )}
 
-      {/* Sticky action footer — pinned to the bottom of the scroll
-          container so Continue is reachable without scrolling past
-          200 thumbnails. White background + top border so the
-          control reads as separate from the grid behind it. */}
-      <div className="sticky bottom-0 left-0 right-0 -mx-5 -mb-5 mt-4 px-5 py-3 bg-white/95 supports-[backdrop-filter]:bg-white/80 backdrop-blur border-t border-black/10 flex items-center justify-between gap-3 flex-wrap rounded-b-2xl">
+    </section>
+
+    {/* Viewport-fixed action footer — `position: fixed bottom-0`
+        spans the full window width and stays put as the user
+        scrolls the panel grid, so Continue is one tap away no
+        matter how far down they are. The inner column re-uses the
+        same max-w-5xl + horizontal padding as the page wrapper so
+        the action chrome lines up with the rest of the layout.
+        Rendered as a sibling of the panel so the panel's own
+        rounded-2xl border isn't broken by the bar. The panel itself
+        carries pb-24 to clear scroll-room above this bar. */}
+    <div
+      role="region"
+      aria-label="Library selection"
+      className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 supports-[backdrop-filter]:bg-white/80 backdrop-blur border-t border-black/10"
+    >
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-[12px] text-foreground/55">
           <span className="font-semibold text-foreground/80">{selected.size}</span>
           {' '}selected
@@ -1186,7 +1199,8 @@ function CreativeLibraryPanel() {
           </button>
         </div>
       </div>
-    </section>
+    </div>
+    </>
   );
 }
 
