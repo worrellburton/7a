@@ -110,25 +110,43 @@ export function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function parseDate(dateStr: string | null | undefined): Date | null {
-  if (!dateStr) return null;
-  let d = new Date(dateStr);
+export function parseDate(dateStr: string | number | null | undefined): Date | null {
+  if (dateStr === null || dateStr === undefined || dateStr === '') return null;
+  // Numeric path: unix seconds (10 digits) or millis (13 digits).
+  if (typeof dateStr === 'number') {
+    if (dateStr > 1e9 && dateStr < 2e10) return new Date(dateStr * 1000);
+    if (dateStr > 1e12 && dateStr < 2e13) return new Date(dateStr);
+    return null;
+  }
+  const s = String(dateStr).trim();
+  if (!s) return null;
+  // Native parse — handles ISO 8601, RFC 2822, and most "well-formed"
+  // strings on every modern engine.
+  let d = new Date(s);
   if (!isNaN(d.getTime())) return d;
   // CTM occasionally returns "YYYY-MM-DD HH:MM:SS +ZZZZ" (sometimes
   // with double spaces, sometimes with the offset glued to the end).
   // Normalise to ISO 8601: first space → 'T', subsequent runs of
   // whitespace collapsed, then strip the space before the offset
   // sign so "+0000" / "-0700" lands directly on the time.
-  const normalised = String(dateStr)
+  const normalised = s
     .replace(' ', 'T')
     .replace(/\s+/g, '')
     .replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
   d = new Date(normalised);
   if (!isNaN(d.getTime())) return d;
-  // Unix timestamp — seconds (10 digits) or milliseconds (13 digits).
-  const n = Number(dateStr);
-  if (n > 1e9 && n < 2e10) return new Date(n * 1000);
-  if (n > 1e12 && n < 2e13) return new Date(n);
+  // Slash-style "2024/01/15 14:23:11" — replace separators with ISO.
+  const slashed = s
+    .replace(/^(\d{4})\/(\d{2})\/(\d{2})/, '$1-$2-$3')
+    .replace(' ', 'T');
+  d = new Date(slashed);
+  if (!isNaN(d.getTime())) return d;
+  // Numeric-as-string: unix seconds or millis.
+  const n = Number(s);
+  if (Number.isFinite(n)) {
+    if (n > 1e9 && n < 2e10) return new Date(n * 1000);
+    if (n > 1e12 && n < 2e13) return new Date(n);
+  }
   return null;
 }
 
