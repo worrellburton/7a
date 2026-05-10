@@ -194,29 +194,86 @@ function readTab(raw: string | null): Tab {
   return 'overview';
 }
 
+// Phase 10: localStorage key that remembers the last top-level tab
+// the user landed on. When they hit /app/social-media without a
+// ?tab=, we replace the URL with their last choice so refresh +
+// fresh-link behaviour both feel consistent.
+const LAST_TAB_KEY = 'social_media_last_tab_v1';
+
 function SubNav() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const active = readTab(searchParams.get('tab'));
+  const tabRaw = searchParams.get('tab');
+  const active = readTab(tabRaw);
+
+  // Restore the last-used tab on first paint when no ?tab= is set.
+  // We replace (not push) so the back button still leaves the page.
+  useEffect(() => {
+    if (tabRaw !== null) {
+      try { localStorage.setItem(LAST_TAB_KEY, active); } catch { /* no-op */ }
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(LAST_TAB_KEY);
+      if (saved && saved !== 'overview' && (saved === 'post' || saved === 'creative')) {
+        const next = new URLSearchParams(searchParams.toString());
+        next.set('tab', saved);
+        router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+      }
+    } catch { /* no-op */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabRaw]);
+
   const select = (id: Tab) => {
     const next = new URLSearchParams(searchParams.toString());
     if (id === 'overview') next.delete('tab');
     else next.set('tab', id);
+    // Clear sub on top-level tab change so a stale ?sub=ai from
+    // Creative doesn't render an empty state under Post.
+    next.delete('sub');
     const qs = next.toString();
+    try { localStorage.setItem(LAST_TAB_KEY, id); } catch { /* no-op */ }
     router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
   };
+
+  // Arrow-key keyboard nav across the tab strip — left/right cycles,
+  // home/end jump to the ends. Matches the WAI-ARIA Authoring
+  // Practices recommendation for role=tablist.
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const idx = TABS.findIndex((t) => t.id === active);
+    if (idx < 0) return;
+    let nextIdx = idx;
+    if (e.key === 'ArrowRight') nextIdx = (idx + 1) % TABS.length;
+    else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + TABS.length) % TABS.length;
+    else if (e.key === 'Home') nextIdx = 0;
+    else if (e.key === 'End') nextIdx = TABS.length - 1;
+    else return;
+    e.preventDefault();
+    select(TABS[nextIdx].id);
+    tabRefs.current[nextIdx]?.focus();
+  };
+
   return (
-    <div role="tablist" aria-label="Social media sections" className="mb-6 flex flex-wrap gap-1.5 rounded-2xl border border-black/10 bg-white p-1.5">
-      {TABS.map((t) => {
+    <div
+      role="tablist"
+      aria-label="Social media sections"
+      onKeyDown={onKeyDown}
+      className="mb-6 flex flex-wrap gap-1.5 rounded-2xl border border-black/10 bg-white p-1.5"
+    >
+      {TABS.map((t, i) => {
         const selected = active === t.id;
         return (
           <button
             key={t.id}
+            ref={(el) => { tabRefs.current[i] = el; }}
             type="button"
             role="tab"
+            id={`tab-${t.id}`}
             aria-selected={selected}
             aria-controls={`tabpanel-${t.id}`}
+            tabIndex={selected ? 0 : -1}
             onClick={() => select(t.id)}
             title={t.description}
             className={`flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
