@@ -87,11 +87,29 @@ function hueFromId(id: string): number {
   return Math.abs(h) % 360;
 }
 
+const SHOW_CURSORS_STORAGE_KEY = 'sa-show-other-cursors';
+
 export function PresenceCursors() {
   const { user } = useAuth();
   const pathname = usePathname();
   const [cursors, setCursors] = useState<Record<string, RemoteCursor>>({});
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  // Per-user toggle from the account popup in PlatformShell. When off,
+  // we still broadcast (so other users can see this cursor) but we
+  // don't paint anyone else's. Listens for the same CustomEvent the
+  // toggle dispatches so flipping it updates the renderer instantly.
+  const [showOthers, setShowOthers] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem(SHOW_CURSORS_STORAGE_KEY) !== 'off';
+  });
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ on?: boolean }>).detail;
+      if (typeof detail?.on === 'boolean') setShowOthers(detail.on);
+    };
+    window.addEventListener('show-cursors-change', onChange);
+    return () => window.removeEventListener('show-cursors-change', onChange);
+  }, []);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lastSentRef = useRef(0);
   // Cache the freshest profile for the current user — pulled from the `users`
@@ -373,6 +391,11 @@ export function PresenceCursors() {
   }, [hasCursors]);
 
   if (!user || viewport.w === 0) return null;
+  // Per-user opt-out lives in localStorage (toggled from the account
+  // popup in PlatformShell). When off, we render the broadcasting
+  // wrapper as nothing — outgoing broadcasts still fire so other
+  // people can see THIS user, just we don't paint theirs.
+  if (!showOthers) return null;
 
   // Only show cursors of teammates currently on the same page.
   const visible = Object.values(cursors).filter((c) => c.path === pathname);

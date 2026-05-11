@@ -25,8 +25,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ('name' in body) patch.name = trim(body.name, 200);
   if ('company' in body) patch.company = trim(body.company, 200);
   if ('company_website' in body) patch.company_website = trim(body.company_website, 500);
+  if ('rating' in body) {
+    const r = trim(body.rating, 20);
+    if (r === null || r === 'Tier 1' || r === 'Tier 2' || r === 'Tier 3') patch.rating = r;
+  }
   if ('role' in body) patch.role = trim(body.role, 200);
   if ('phone' in body) patch.phone = trim(body.phone, 60);
+  if ('phone_cell' in body) patch.phone_cell = trim(body.phone_cell, 60);
+  if ('phone_office' in body) patch.phone_office = trim(body.phone_office, 60);
   if ('email' in body) patch.email = trim(body.email, 200);
   if ('location' in body) patch.location = trim(body.location, 200);
   if ('formatted_address' in body) patch.formatted_address = trim(body.formatted_address, 400);
