@@ -154,6 +154,11 @@ function sortValue(c: Contact, key: string): string | number | null {
     case 'time_since':
       return c.last_contact_at ? new Date(c.last_contact_at).getTime() : null;
     case 'last_contact_by_name': return c.last_contact_by_name || null;
+    // Default sort: any activity on the row (field edit, log-a-contact,
+    // notes update) bumps updated_at, so sorting desc on this puts the
+    // most-recently-touched row at the top of the grid.
+    case 'updated_at':
+      return c.updated_at ? new Date(c.updated_at).getTime() : null;
     default: return null;
   }
 }
@@ -202,7 +207,12 @@ export default function ContactsContent() {
   // null) sink to the bottom automatically — sortValue returns null
   // for them and the sort comparator pushes nulls regardless of
   // direction.
-  const [sortKey, setSortKey] = useState<string>('last_contact_at');
+  // Default sort: most recent ANY-activity at the top. updated_at is
+  // bumped on every contacts-row write (field edits, contact logs,
+  // notes saves, optimistic UI from log-a-contact, etc.) so sorting
+  // desc on it produces the natural "things that just happened are
+  // first" feed admissions expects.
+  const [sortKey, setSortKey] = useState<string>('updated_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -925,7 +935,7 @@ function ContactsGrid({
               className="group/th sticky right-10 z-20 bg-[#faf8f5] shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
             >
               <span className="inline-flex items-center gap-1 truncate">
-                Last contact
+                Contact history
                 <SortIndicator active={sortKey === 'last_contact_at'} dir={sortDir} />
               </span>
               <ResizeHandle colKey="last_contact_summary" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
@@ -989,28 +999,25 @@ function ContactsGrid({
                       <PhoneIcon />
                       Contact
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => onHistory(c)}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold border transition-colors ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/70 border-black/10 hover:bg-warm-bg/60'}`}
-                      title={expandedDetailsId === c.id ? 'Hide details' : 'Show details + history'}
-                      aria-expanded={expandedDetailsId === c.id}
-                    >
-                      <span>History</span>
-                      <span className={`inline-flex transition-transform ${expandedDetailsId === c.id ? 'rotate-180' : ''}`}>
-                        <ChevronDownIcon />
-                      </span>
-                    </button>
                   </div>
                 </td>
                 <td className={`sticky right-10 z-10 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
                   <button
                     type="button"
                     onClick={() => onHistory(c)}
-                    className="block w-full text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
-                    title="View contact history"
+                    className="flex w-full items-start justify-between gap-2 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
+                    title={expandedDetailsId === c.id ? 'Hide history' : 'Show contact history'}
+                    aria-expanded={expandedDetailsId === c.id}
                   >
-                    <LastContactSummaryCell contact={c} />
+                    <span className="min-w-0 flex-1">
+                      <LastContactSummaryCell contact={c} />
+                    </span>
+                    <span
+                      className={`shrink-0 mt-1 inline-flex items-center justify-center w-6 h-6 rounded-md border transition-all ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground rotate-180' : 'bg-white text-foreground/55 border-black/10'}`}
+                      aria-hidden
+                    >
+                      <ChevronDownIcon />
+                    </span>
                   </button>
                 </td>
                 <td className={`sticky right-0 z-10 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
