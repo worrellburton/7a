@@ -181,8 +181,8 @@ export default function SubstancePage(data: SubstancePageData) {
             <Link href="/admissions#verify" className="btn-primary">
               Verify My Insurance
             </Link>
-            <a href="tel:+18669964308" className="btn-outline">
-              Call (866) 996-4308
+            <a href="tel:+18667181665" className="btn-outline">
+              Call (866) 718-1665
             </a>
           </div>
         </div>

@@ -217,7 +217,7 @@ function buildStediPayload(claim: Claim & { group_notes?: string; individual_not
     tradingPartnerServiceId: patient.payer_id,
     submitter: {
       organizationName: 'Seven Arrows Recovery LLC',
-      contactInformation: { name: 'Bobby Burton', phoneNumber: '8669964308' },
+      contactInformation: { name: 'Bobby Burton', phoneNumber: '8667181665' },
     },
     receiver: { organizationName: patient.payer_name },
     subscriber: {
@@ -1077,7 +1077,7 @@ export default function BillingContent() {
               <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-foreground/40">EIN</span><span className="font-mono text-foreground">86-0541237</span></div>
               <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-foreground/40">Taxonomy</span><span className="font-mono text-foreground">261QR0405X</span></div>
               <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-foreground/40">Place of Service</span><span className="font-mono text-foreground">55 (Residential)</span></div>
-              <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-foreground/40">Contact</span><span className="text-foreground">Bobby Burton · (866) 996-4308</span></div>
+              <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-foreground/40">Contact</span><span className="text-foreground">Bobby Burton · (866) 718-1665</span></div>
             </div>
           </div>
         </div>

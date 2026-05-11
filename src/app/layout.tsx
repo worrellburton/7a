@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     template: '%s',
   },
   description:
-    'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 996-4308.',
+    'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 718-1665.',
   keywords:
     'drug rehab Arizona,alcohol rehab Arizona,addiction treatment center Arizona,substance abuse treatment,residential treatment Arizona,holistic rehab,trauma-focused treatment,Forward-Facing Accelerated Recovery,boutique rehab,Swisshelm Mountains rehab,dual diagnosis treatment,Arizona drug treatment',
   openGraph: {
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     siteName: 'Seven Arrows Recovery',
     title: 'Seven Arrows Recovery | Drug Rehab in Arizona',
     description:
-      'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 996-4308.',
+      'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 718-1665.',
     images: [
       {
         url: '/images/facility-exterior-mountains.jpg',
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Seven Arrows Recovery | Drug Rehab in Arizona',
     description:
-      'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 996-4308.',
+      'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 718-1665.',
     images: ['/images/facility-exterior-mountains.jpg'],
   },
   robots: 'index, follow',
@@ -66,7 +66,7 @@ const organizationSchema = {
   logo: 'https://sevenarrowsrecoveryarizona.com/images/logo.png',
   contactPoint: {
     '@type': 'ContactPoint',
-    telephone: '+1-866-996-4308',
+    telephone: '+1-866-718-1665',
     contactType: 'admissions',
     areaServed: 'US',
     availableLanguage: ['English', 'Spanish'],

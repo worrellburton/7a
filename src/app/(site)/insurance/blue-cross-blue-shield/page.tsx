@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Blue Cross Blue Shield Rehab Coverage | Seven Arrows',
   description:
-    'Seven Arrows Recovery accepts Blue Cross Blue Shield (BCBS) for drug and alcohol rehab. Learn what BCBS covers for addiction treatment. Call (866) 996-4308.',
+    'Seven Arrows Recovery accepts Blue Cross Blue Shield (BCBS) for drug and alcohol rehab. Learn what BCBS covers for addiction treatment. Call (866) 718-1665.',
 };
 
 import Link from 'next/link';
@@ -23,7 +23,7 @@ const faqJsonLd = faqPageSchema([
   },
   {
     q: 'What does BCBS rehab coverage cost out-of-pocket?',
-    a: 'Your cost depends on your specific BCBS plan — deductible, coinsurance, and out-of-pocket maximum. Many BCBS PPO members pay a fraction of the billed rate. Call (866) 996-4308 for a free, confidential benefits check.',
+    a: 'Your cost depends on your specific BCBS plan — deductible, coinsurance, and out-of-pocket maximum. Many BCBS PPO members pay a fraction of the billed rate. Call (866) 718-1665 for a free, confidential benefits check.',
   },
   {
     q: 'Does BCBS cover dual-diagnosis treatment?',
@@ -84,7 +84,7 @@ const steps = [
     number: '01',
     title: 'Call With Your BCBS Info',
     description:
-      'Contact us at (866) 996-4308 with your BCBS member ID, group number, and plan type. Our team begins verifying benefits right away.',
+      'Contact us at (866) 718-1665 with your BCBS member ID, group number, and plan type. Our team begins verifying benefits right away.',
   },
   {
     number: '02',
@@ -121,7 +121,7 @@ export default function InsuranceBCBSPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Verify benefits · 24/7',
           },
           { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
@@ -144,7 +144,7 @@ export default function InsuranceBCBSPage() {
             Arizona that works with most Blue Cross Blue Shield plans. Through the Blue Card
             program, BCBS members from any state can typically use out-of-state providers at
             their home-plan benefit level — so an Arizona stay at Seven Arrows is usually
-            covered like an in-state member. Free benefits verification: (866) 996-4308.
+            covered like an in-state member. Free benefits verification: (866) 718-1665.
           </p>
         }
         bullets={[
@@ -204,8 +204,8 @@ export default function InsuranceBCBSPage() {
                 cost and with no obligation.
               </p>
               <div className="space-y-4">
-                <a href="tel:8669964308" className="btn-primary w-full text-center block">
-                  Call (866) 996-4308
+                <a href="tel:8667181665" className="btn-primary w-full text-center block">
+                  Call (866) 718-1665
                 </a>
                 <Link href="/admissions" className="btn-outline w-full text-center block">
                   Verify Insurance Online
@@ -310,7 +310,7 @@ export default function InsuranceBCBSPage() {
               },
               {
                 q: 'How much does rehab cost with BCBS insurance?',
-                a: 'Costs vary depending on your BCBS plan, deductible, copay, and out-of-network benefits. Seven Arrows works with most BCBS plans as an out-of-network provider. Call (866) 996-4308 for a free benefits verification before you commit.',
+                a: 'Costs vary depending on your BCBS plan, deductible, copay, and out-of-network benefits. Seven Arrows works with most BCBS plans as an out-of-network provider. Call (866) 718-1665 for a free benefits verification before you commit.',
               },
               {
                 q: 'Does BCBS cover out-of-state rehab?',
@@ -350,8 +350,8 @@ export default function InsuranceBCBSPage() {
             get you started.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="tel:8669964308" className="btn-primary">
-              Call (866) 996-4308
+            <a href="tel:8667181665" className="btn-primary">
+              Call (866) 718-1665
             </a>
             <Link href="/admissions" className="btn-outline">
               Verify Insurance Online

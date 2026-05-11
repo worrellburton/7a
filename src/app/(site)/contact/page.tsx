@@ -9,9 +9,9 @@ import { RanchAddress, RanchMap } from '@/components/RanchAddress';
 export const metadata: Metadata = {
   title: 'Contact Us | Seven Arrows Recovery',
   description:
-    'Call, email, or message Seven Arrows Recovery. Admissions answers 24/7 — no gatekeeping, no sales script. Confidential. (866) 996-4308.',
+    'Call, email, or message Seven Arrows Recovery. Admissions answers 24/7 — no gatekeeping, no sales script. Confidential. (866) 718-1665.',
   keywords:
-    'contact Seven Arrows Recovery, rehab admissions phone 866-996-4308, rehab contact Arizona, confidential rehab contact, 24/7 rehab admissions',
+    'contact Seven Arrows Recovery, rehab admissions phone 866-718-1665, rehab contact Arizona, confidential rehab contact, 24/7 rehab admissions',
   alternates: {
     canonical: 'https://sevenarrowsrecoveryarizona.com/contact',
   },
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Contact Us | Seven Arrows Recovery',
     description:
-      'Admissions answers 24/7. Call (866) 996-4308, email, or send a note via the form.',
+      'Admissions answers 24/7. Call (866) 718-1665, email, or send a note via the form.',
   },
 };
 

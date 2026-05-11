@@ -22,14 +22,14 @@ export default function TrustRibbon() {
     <div className="relative bg-foreground/95 text-white/90 border-b border-white/10 text-[11px] lg:text-[12px]" style={{ fontFamily: 'var(--font-body)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 h-9 lg:h-10">
         <a
-          href="tel:+18669964308"
+          href="tel:+18667181665"
           className="inline-flex items-center gap-2 font-semibold text-white hover:text-accent transition-colors"
         >
           <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-400">
             <span className="absolute inset-0 rounded-full bg-emerald-400/60 animate-ping" />
           </span>
           <span className="hidden sm:inline">Admissions line answered 24/7 —</span>
-          (866) 996-4308
+          (866) 718-1665
         </a>
 
         <div className="hidden md:flex items-center gap-4 tracking-[0.14em] uppercase text-[10px] text-white/55 font-semibold">

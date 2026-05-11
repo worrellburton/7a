@@ -20,7 +20,7 @@ interface CtaPhone {
   kind: 'phone';
   /** Tap target — defaults to the main admissions number. */
   href?: string;
-  /** Display number, e.g. "(866) 996-4308". */
+  /** Display number, e.g. "(866) 718-1665". */
   display: string;
   /** Eyebrow above the number, e.g. "ALUMNI LINE · 24/7". */
   eyebrow?: string;
@@ -136,7 +136,7 @@ function HeroCtaRow({ ctas }: { ctas: HeroCta[] }) {
           return (
             <a
               key={i}
-              href={c.href || 'tel:+18669964308'}
+              href={c.href || 'tel:+18667181665'}
               className="inline-flex items-center gap-3 bg-primary hover:bg-primary-dark transition-colors rounded-full pl-3.5 pr-5 py-3 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.45)] ring-1 ring-white/10"
             >
               <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/12 ring-1 ring-white/15">

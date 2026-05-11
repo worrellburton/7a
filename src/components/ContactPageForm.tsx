@@ -42,13 +42,13 @@ export default function ContactPageForm() {
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        setSubmitError(payload.error || `Could not send (HTTP ${res.status}). Please call (866) 996-4308.`);
+        setSubmitError(payload.error || `Could not send (HTTP ${res.status}). Please call (866) 718-1665.`);
         return;
       }
       setSubmitted(true);
     } catch (err) {
       console.error('[ContactPageForm] submit threw', err);
-      setSubmitError('Could not send. Please call (866) 996-4308.');
+      setSubmitError('Could not send. Please call (866) 718-1665.');
     } finally {
       setSubmitting(false);
     }
@@ -77,8 +77,8 @@ export default function ContactPageForm() {
         >
           Thank you for reaching out. A member of our team will get back to you as soon as
           possible. For immediate help, call{' '}
-          <a href="tel:8669964308" className="text-primary font-semibold">
-            (866) 996-4308
+          <a href="tel:8667181665" className="text-primary font-semibold">
+            (866) 718-1665
           </a>
           .
         </p>

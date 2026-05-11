@@ -192,7 +192,7 @@ export default function InsuranceCarousel() {
           Verify Insurance
         </Link>
         <a
-          href="tel:+18669964308"
+          href="tel:+18667181665"
           className="inline-flex items-center gap-2.5 text-foreground font-semibold border-b border-foreground/70 pb-1 tracking-[0.12em] uppercase text-[13px] hover:text-primary hover:border-primary transition-colors"
           style={{ fontFamily: 'var(--font-body)' }}
         >

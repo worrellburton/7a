@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Forward-Facing® Accelerated Recovery Treatment | Seven Arrows Recovery',
   description:
-    'Forward-Facing® Accelerated Recovery (FF-AR) treatment in Arizona — trauma-informed residential care that addresses addiction at its root. Call (866) 996-4308.',
+    'Forward-Facing® Accelerated Recovery (FF-AR) treatment in Arizona — trauma-informed residential care that addresses addiction at its root. Call (866) 718-1665.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -37,7 +37,7 @@ export default function TraumaTreatmentPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Clinical line · 24/7',
           },
           { kind: 'link', href: '/admissions', label: 'See the plan' },

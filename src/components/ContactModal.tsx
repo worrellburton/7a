@@ -92,12 +92,12 @@ export default function ContactModal({
       });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError('Could not send. Please call (866) 996-4308.');
+        setError('Could not send. Please call (866) 718-1665.');
         return;
       }
       setSubmitted(true);
     } catch {
-      setError('Could not send. Please call (866) 996-4308.');
+      setError('Could not send. Please call (866) 718-1665.');
     } finally {
       setSubmitting(false);
     }
@@ -135,7 +135,7 @@ export default function ContactModal({
                 Message Sent
               </h3>
               <p className="text-foreground/70 text-sm" style={{ fontFamily: 'var(--font-body)' }}>
-                Thank you for reaching out. A member of our team will get back to you shortly. For immediate help, call <a href="tel:8669964308" className="text-primary font-semibold">(866) 996-4308</a>.
+                Thank you for reaching out. A member of our team will get back to you shortly. For immediate help, call <a href="tel:8667181665" className="text-primary font-semibold">(866) 718-1665</a>.
               </p>
             </div>
           ) : (
@@ -144,7 +144,7 @@ export default function ContactModal({
                 Contact Us
               </h3>
               <p className="text-sm text-foreground/60 mb-5" style={{ fontFamily: 'var(--font-body)' }}>
-                Send a message and we&rsquo;ll get back to you. For immediate help, call <a href="tel:8669964308" className="text-primary font-semibold">(866) 996-4308</a>.
+                Send a message and we&rsquo;ll get back to you. For immediate help, call <a href="tel:8667181665" className="text-primary font-semibold">(866) 718-1665</a>.
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-3">

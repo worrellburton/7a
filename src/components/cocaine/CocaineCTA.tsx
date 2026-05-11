@@ -97,14 +97,14 @@ export default function CocaineCTA() {
           }}
         >
           <a
-            href="tel:+18669964308"
+            href="tel:+18667181665"
             className="group inline-flex items-center gap-3 bg-accent hover:bg-accent/90 text-foreground rounded-full px-8 py-4 text-base font-bold transition-colors shadow-2xl"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             <span className="relative w-2.5 h-2.5 rounded-full bg-foreground/90">
               <span className="absolute inset-0 rounded-full bg-foreground/40 animate-ping" />
             </span>
-            Call (866) 996-4308
+            Call (866) 718-1665
           </a>
           <Link
             href="/admissions"

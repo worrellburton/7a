@@ -898,9 +898,9 @@ function MegaMenuDropdown({
 
             {/* Footer CTA */}
             <div className="py-3" style={{ borderTop: `1px solid ${theme.border}` }}>
-              <a href="tel:+18669964308" className="flex items-center gap-2 text-[11px] text-primary font-semibold hover:text-primary-dark transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
+              <a href="tel:+18667181665" className="flex items-center gap-2 text-[11px] text-primary font-semibold hover:text-primary-dark transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
                 <PhoneIcon className="w-3 h-3" />
-                Questions? Call (866) 996-4308
+                Questions? Call (866) 718-1665
               </a>
             </div>
           </div>
@@ -1013,14 +1013,14 @@ export default function Header() {
 
           {/* Phone CTA — two-line, live-indicator dot, soft glow. */}
           <a
-            href="tel:+18669964308"
+            href="tel:+18667181665"
             className="group hidden lg:inline-flex items-center gap-3 bg-primary hover:bg-primary-dark text-white pl-2.5 pr-4 xl:pl-3 xl:pr-5 py-1.5 xl:py-2 rounded-full transition-all whitespace-nowrap shrink-0 ml-2 xl:ml-4"
             style={{
               fontFamily: 'var(--font-body)',
               boxShadow:
                 '0 12px 28px -10px rgba(107,42,20,0.55), inset 0 0 0 1px rgba(255,255,255,0.1)',
             }}
-            aria-label="Call us 24/7 at (866) 996-4308"
+            aria-label="Call us 24/7 at (866) 718-1665"
           >
             <span
               className="relative inline-flex items-center justify-center w-8 h-8 rounded-full shrink-0"
@@ -1043,7 +1043,7 @@ export default function Header() {
                 className="text-sm xl:text-[15px] font-bold tracking-wide"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                (866) 996-4308
+                (866) 718-1665
               </span>
             </span>
           </a>

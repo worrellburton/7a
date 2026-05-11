@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Drug Rehab in Arizona | Seven Arrows Recovery',
   description:
-    'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 996-4308.',
+    'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 718-1665.',
 };
 
 // Re-render the homepage at most every 60s so a Set-live / timeline
@@ -37,7 +37,7 @@ const structuredData = {
   description:
     "A boutique drug and alcohol rehab center in Arizona offering clinical and residential treatment with a Forward-Facing\u00ae Accelerated Recovery specialty approach.",
   url: "https://sevenarrowsrecoveryarizona.com",
-  telephone: "+1-866-996-4308",
+  telephone: "+1-866-718-1665",
   address: {
     "@type": "PostalAddress",
     streetAddress: "2491 W Jefferson Rd",
@@ -165,7 +165,7 @@ const faqSchema = {
       name: "What should I expect during the admissions process?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "The admissions process is simple and compassionate. Call us at (866) 996-4308 or fill out our contact form. We\u2019ll verify your insurance, discuss your situation, and guide you through every step. Many clients begin treatment within 24\u201348 hours of their first call.",
+        text: "The admissions process is simple and compassionate. Call us at (866) 718-1665 or fill out our contact form. We\u2019ll verify your insurance, discuss your situation, and guide you through every step. Many clients begin treatment within 24\u201348 hours of their first call.",
       },
     },
   ],

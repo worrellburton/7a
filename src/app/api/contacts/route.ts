@@ -82,8 +82,21 @@ export async function GET(req: NextRequest) {
       });
     }
   }
+  // Pull every partner.contact_id so the outreach grid knows which
+  // contacts already have a linked partner. Drives the "Add partner"
+  // vs. "View partner" affordance in the action menu — and lets us
+  // render a small badge in the row without a second round-trip.
+  const { data: partnerLinks } = await admin
+    .from('partners')
+    .select('id, contact_id')
+    .not('contact_id', 'is', null);
+  const partnerByContact = new Map<string, string>();
+  for (const p of (partnerLinks ?? []) as Array<{ id: string; contact_id: string }>) {
+    if (p.contact_id) partnerByContact.set(p.contact_id, p.id);
+  }
   const enriched = rows.map((r) => ({
     ...r,
+    partner_id: partnerByContact.get(r.id) ?? null,
     last_contact_by_name: r.last_contact_by ? userMap.get(r.last_contact_by)?.full_name ?? null : null,
     last_contact_by_avatar_url: r.last_contact_by ? userMap.get(r.last_contact_by)?.avatar_url ?? null : null,
   }));

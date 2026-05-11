@@ -145,8 +145,8 @@ export default function ExitIntentModal() {
             >
               No follow-up marketing unless you ask for one. If you want
               to talk now,{' '}
-              <a href="tel:+18669964308" className="text-primary font-semibold underline">
-                (866) 996-4308
+              <a href="tel:+18667181665" className="text-primary font-semibold underline">
+                (866) 718-1665
               </a>
               .
             </p>
@@ -235,8 +235,8 @@ export default function ExitIntentModal() {
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Prefer to talk now?{' '}
-              <a href="tel:+18669964308" className="text-primary font-semibold underline">
-                Call (866) 996-4308
+              <a href="tel:+18667181665" className="text-primary font-semibold underline">
+                Call (866) 718-1665
               </a>
               . Answered 24/7.
             </p>

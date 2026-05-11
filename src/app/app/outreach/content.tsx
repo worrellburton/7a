@@ -37,6 +37,7 @@ interface Contact {
   phone_cell: string | null;
   phone_office: string | null;
   email: string | null;
+  partner_id?: string | null;
   location: string | null;
   // Set when a user picks a place from the autocomplete dropdown.
   // formatted_address is what we display (canonical "City, ST, USA"
@@ -1454,6 +1455,7 @@ function ContactsGrid({
                   {actionMenuFor?.id === c.id && (
                     <ActionMenuPortal
                       rect={actionMenuFor.rect}
+                      hasPartner={!!c.partner_id}
                       onClose={() => setActionMenuFor(null)}
                       onContact={() => { setActionMenuFor(null); onContact(c); }}
                       onUpgrade={() => { setActionMenuFor(null); onUpgrade(c); }}
@@ -1531,6 +1533,7 @@ function ContactsGrid({
 
 function ActionMenuPortal({
   rect,
+  hasPartner,
   onClose,
   onContact,
   onUpgrade,
@@ -1538,6 +1541,10 @@ function ActionMenuPortal({
   onDelete,
 }: {
   rect: DOMRect;
+  // When true, the contact already has a partner record attached, so
+  // we hide the "Add partner" affordance (a second attach would 409
+  // on the API). Removal is done from the partnerships side.
+  hasPartner: boolean;
   onClose: () => void;
   onContact: () => void;
   onUpgrade: () => void;
@@ -1582,13 +1589,20 @@ function ActionMenuPortal({
       >
         View contact history
       </button>
-      <button
-        role="menuitem"
-        onClick={onUpgrade}
-        className="block w-full text-left px-3 py-2 text-xs text-primary hover:bg-primary/5"
-      >
-        Upgrade to Partner
-      </button>
+      {!hasPartner && (
+        <button
+          role="menuitem"
+          onClick={onUpgrade}
+          className="block w-full text-left px-3 py-2 text-xs text-primary hover:bg-primary/5"
+        >
+          Add partner
+        </button>
+      )}
+      {hasPartner && (
+        <div className="block px-3 py-2 text-[10px] uppercase tracking-wider text-emerald-700 bg-emerald-50/40">
+          ● Linked partner
+        </div>
+      )}
       <div className="border-t border-black/5" />
       <button
         role="menuitem"
@@ -2897,13 +2911,19 @@ function ContactMobileCard({
             <>
               <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
               <div role="menu" className="absolute right-0 bottom-full mb-1 z-20 w-48 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden">
-                <button
-                  role="menuitem"
-                  onClick={() => { setOpen(false); onUpgrade(); }}
-                  className="block w-full text-left px-3 py-2 text-xs text-primary hover:bg-primary/5"
-                >
-                  Upgrade to Partner
-                </button>
+                {!contact.partner_id ? (
+                  <button
+                    role="menuitem"
+                    onClick={() => { setOpen(false); onUpgrade(); }}
+                    className="block w-full text-left px-3 py-2 text-xs text-primary hover:bg-primary/5"
+                  >
+                    Add partner
+                  </button>
+                ) : (
+                  <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-emerald-700 bg-emerald-50/40">
+                    ● Linked partner
+                  </div>
+                )}
                 <div className="border-t border-black/5" />
                 <button
                   role="menuitem"

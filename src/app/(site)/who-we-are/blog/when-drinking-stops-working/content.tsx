@@ -387,8 +387,8 @@ export default function PageContent() {
                 Now that you have recognized the signs, let us talk about what treatment actually looks like. It is not what you see in movies — and it might be exactly what you need.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="tel:8669964308" className="btn-primary">
-                  Call (866) 996-4308
+                <a href="tel:8667181665" className="btn-primary">
+                  Call (866) 718-1665
                 </a>
                 <Link href="/who-we-are/recovery-roadmap" className="btn-outline">
                   View Full Series

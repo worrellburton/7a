@@ -143,10 +143,10 @@ export default function AlumniHero() {
             }}
           >
             <a
-              href="tel:+18669964308"
+              href="tel:+18667181665"
               className="group inline-flex items-center gap-3 rounded-full bg-primary hover:bg-primary-dark text-white pl-2.5 pr-5 py-2 transition-colors shadow-[0_18px_40px_-18px_rgba(0,0,0,0.7)]"
               style={{ fontFamily: 'var(--font-body)' }}
-              aria-label="Call us 24/7 at (866) 996-4308"
+              aria-label="Call us 24/7 at (866) 718-1665"
             >
               <span
                 className="relative inline-flex items-center justify-center w-9 h-9 rounded-full shrink-0"
@@ -163,7 +163,7 @@ export default function AlumniHero() {
                 <span className="text-[9px] font-semibold tracking-[0.22em] uppercase text-white/80">
                   Alumni line · 24/7
                 </span>
-                <span className="text-sm font-bold tracking-wide">(866) 996-4308</span>
+                <span className="text-sm font-bold tracking-wide">(866) 718-1665</span>
               </span>
             </a>
             <a
