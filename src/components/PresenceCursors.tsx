@@ -30,10 +30,15 @@ interface CursorPayload {
   // crash receivers on the new build — receivers normalise to
   // 'classic' when the field is missing or unrecognised.
   effect?: CursorEffectId;
-  x: number; // viewport-relative px
+  // DOCUMENT-relative coordinates (pageX / pageY = clientX/Y + scrollX/Y),
+  // not viewport-relative. Sender includes scroll position so receivers
+  // can anchor cursors to where the sender was actually pointing in the
+  // document — when either side scrolls, the cursor stays glued to the
+  // content under the sender's mouse, not at the same screen position.
+  x: number;
   y: number;
-  vw: number; // sender viewport size for proportional placement
-  vh: number;
+  vw: number; // sender's document width (was viewport width pre-fix);
+  vh: number; // kept as `vw/vh` on the wire for forward/backward compat.
   path: string;
   ts: number;
 }
@@ -326,10 +331,17 @@ export function PresenceCursors() {
           avatar_url: profile.avatar_url,
           color: profile.color,
           effect: profile.effect,
-          x: e.clientX,
-          y: e.clientY,
-          vw: window.innerWidth,
-          vh: window.innerHeight,
+          // pageX/pageY = clientX/Y + scrollX/Y. Document-relative so
+          // receivers can anchor the cursor to the same content the
+          // sender is hovering over, regardless of either side's
+          // scroll position.
+          x: e.pageX,
+          y: e.pageY,
+          // Document dimensions, not viewport. Lets receivers do
+          // proportional scaling when document widths differ (rare on
+          // a shared CRM page but cheap insurance).
+          vw: document.documentElement.scrollWidth,
+          vh: document.documentElement.scrollHeight,
           path: pathname || '/',
           ts: now,
         } as CursorPayload,
@@ -366,7 +378,7 @@ export function PresenceCursors() {
   const visible = Object.values(cursors).filter((c) => c.path === pathname);
 
   return (
-    <div className="hidden lg:block fixed inset-0 pointer-events-none z-[200] overflow-hidden">
+    <div className="hidden lg:block absolute inset-0 pointer-events-none z-[200]">
       {/* Local keyframes for the cursor flame trail. Two complementary
           loops on the flame element: a vertical "flicker" (scaleY +
           slight rotate) and a horizontal "wave" (skewX + translate),
@@ -402,10 +414,14 @@ export function PresenceCursors() {
       `}</style>
 
       {visible.map((c) => {
-        // Rescale to current viewport so cursors land in roughly the same
-        // visual location even when viewport sizes differ between clients.
-        const x = (c.x / Math.max(1, c.vw)) * viewport.w;
-        const y = (c.y / Math.max(1, c.vh)) * viewport.h;
+        // x / y are document-relative (pageX / pageY) and we render inside
+        // an `absolute inset-0` container that's anchored at the document
+        // origin, so the raw values position the cursor over the same
+        // content the sender was hovering — even when either side has
+        // scrolled. No viewport rescaling: on a shared CRM page the
+        // document layout is the same for everyone.
+        const x = c.x;
+        const y = c.y;
         const initial = (c.name || '?').charAt(0).toUpperCase();
         const baseColor = c.color || `hsl(${c.hue}, 70%, 50%)`;
 
@@ -435,12 +451,10 @@ export function PresenceCursors() {
         // frame so each effect renderer can iterate them without
         // repeating the (px - x, py - y) math.
         const trailPts = (c.trail ?? []).slice(0, -1).map((pt, i, arr) => {
-          const px = (pt.x / Math.max(1, c.vw)) * viewport.w;
-          const py = (pt.y / Math.max(1, c.vh)) * viewport.h;
           const ageMs = c.ts - pt.ts;
           const ageNorm = Math.max(0, Math.min(1, ageMs / TRAIL_LIFETIME_MS));
           const indexNorm = (i + 1) / Math.max(1, arr.length);
-          return { ts: pt.ts, dx: px - x, dy: py - y, ageNorm, indexNorm };
+          return { ts: pt.ts, dx: pt.x - x, dy: pt.y - y, ageNorm, indexNorm };
         });
 
         // Per-effect decoration — sits BEHIND the cursor arrow.
