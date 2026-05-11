@@ -97,13 +97,29 @@ export function SearchSelectCell({
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         title={display || 'Click to set'}
-        className={`inline-flex items-center gap-1 max-w-full text-left rounded-md px-1 -mx-1 py-0.5 cursor-pointer hover:bg-warm-bg/60 transition-colors ${className}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`group/sscell inline-flex items-center gap-1 max-w-full text-left rounded-md px-1.5 -mx-1.5 py-0.5 cursor-pointer hover:bg-warm-bg/60 transition-colors ${className}`}
       >
         {display ? (
           <span className="truncate text-foreground/75 whitespace-nowrap">{display}</span>
         ) : (
           <span className="text-foreground/30 italic text-[11px]">{placeholder}</span>
         )}
+        {/* Chevron makes the cell visually advertise that it's a
+            dropdown — admissions kept treating Company / Specialty as
+            plain text because the trigger had no affordance. Always
+            visible (slightly muted at rest, full strength on hover /
+            open) so the dropdown reads as a dropdown without needing
+            a hover discovery. */}
+        <span
+          aria-hidden
+          className={`shrink-0 ml-auto inline-flex items-center justify-center transition-all ${open ? 'rotate-180 text-foreground/70' : 'text-foreground/35 group-hover/sscell:text-foreground/65'}`}
+        >
+          <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+            <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
       </button>
       {open && pos && typeof document !== 'undefined' && createPortal(
         <div
