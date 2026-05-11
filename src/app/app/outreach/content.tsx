@@ -229,17 +229,20 @@ export default function ContactsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  // Table vs Map view-mode toggle. Persisted in the URL via ?view=map
-  // so the choice survives refresh + lets admissions bookmark either
-  // view directly.
-  const [viewMode, setViewMode] = useState<'table' | 'map'>('table');
+  // Table / Map / Insights view-mode toggle. Persisted in the URL via
+  // ?view=map / ?view=insights so the choice survives refresh + lets
+  // admissions bookmark each view directly. `table` is the default
+  // (no query param needed).
+  const [viewMode, setViewMode] = useState<'table' | 'map' | 'insights'>('table');
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get('view');
     if (v === 'map') setViewMode('map');
+    else if (v === 'insights') setViewMode('insights');
   }, []);
   useEffect(() => {
     const url = new URL(window.location.href);
     if (viewMode === 'map') url.searchParams.set('view', 'map');
+    else if (viewMode === 'insights') url.searchParams.set('view', 'insights');
     else url.searchParams.delete('view');
     window.history.replaceState({}, '', url.toString());
   }, [viewMode]);
@@ -873,27 +876,23 @@ export default function ContactsContent() {
           Insights tiles + search bar above remain visible in both
           views — they describe the underlying data, not the render. */}
       <div className="hidden md:flex items-center gap-1 mb-2 border-b border-black/10">
-        <button
-          type="button"
-          onClick={() => setViewMode('table')}
-          className={`relative px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors ${viewMode === 'table' ? 'text-foreground' : 'text-foreground/45 hover:text-foreground/70'}`}
-          aria-pressed={viewMode === 'table'}
-        >
-          Table
-          {viewMode === 'table' && <span className="absolute left-2 right-2 -bottom-px h-[2px] bg-primary rounded-t" />}
-        </button>
-        <button
-          type="button"
-          onClick={() => setViewMode('map')}
-          className={`relative px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors ${viewMode === 'map' ? 'text-foreground' : 'text-foreground/45 hover:text-foreground/70'}`}
-          aria-pressed={viewMode === 'map'}
-        >
-          Map
-          {viewMode === 'map' && <span className="absolute left-2 right-2 -bottom-px h-[2px] bg-primary rounded-t" />}
-        </button>
+        {(['table', 'map', 'insights'] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setViewMode(mode)}
+            className={`relative px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors ${viewMode === mode ? 'text-foreground' : 'text-foreground/45 hover:text-foreground/70'}`}
+            aria-pressed={viewMode === mode}
+          >
+            {mode}
+            {viewMode === mode && <span className="absolute left-2 right-2 -bottom-px h-[2px] bg-primary rounded-t" />}
+          </button>
+        ))}
       </div>
 
-      {viewMode === 'map' ? (
+      {viewMode === 'insights' ? (
+        <ContactsInsightsView contacts={sorted} />
+      ) : viewMode === 'map' ? (
         <ContactsMapView
           contacts={sorted}
           onLogContact={(c) => setLogTarget(c)}
@@ -1124,6 +1123,54 @@ function buildOutreachPinElement(contact: Contact, isTier1: boolean): HTMLElemen
   wrap.title = contact.name || '';
   wrap.innerHTML = isTier1 ? TIER1_PIN_SVG : REGULAR_PIN_SVG;
   return wrap;
+}
+
+// ─── Insights view ──────────────────────────────────────────────
+//
+// Outreach insights — a 10-phase analytics surface that sits next to
+// the Table / Map tabs and rolls the contact list into KPI tiles,
+// animated SVG charts, leaderboards, and conversion funnels. Phase 1
+// only frames the page (header + 12-column responsive grid + section
+// placeholders); each subsequent phase fills one of the panels.
+function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
+  return (
+    <div className="rounded-xl border border-black/10 bg-white px-5 sm:px-6 py-5 sm:py-6 space-y-5">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-lg sm:text-xl font-semibold text-foreground">Outreach insights</h2>
+          <p className="mt-0.5 text-[12px] text-foreground/60">
+            Live rollup of every contact in the grid — refreshes whenever a row, log, or rating changes.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-foreground/5 text-foreground/65 text-[10.5px] font-semibold tabular-nums">
+          {contacts.length} {contacts.length === 1 ? 'contact' : 'contacts'} in view
+        </span>
+      </div>
+
+      {/* Section placeholders — each phase replaces one of these with
+          the real chart so the layout shape is locked in from
+          phase 1 and reviewers can eyeball progress. */}
+      <div className="grid grid-cols-12 gap-4">
+        <InsightsPlaceholder span="col-span-12" label="Phase 2 — KPI strip" hint="Total, contacted this week / month, stale, never" />
+        <InsightsPlaceholder span="col-span-12 md:col-span-4" label="Phase 3 — Tier mix" hint="Tier 1 / 2 / 3 / unrated donut" />
+        <InsightsPlaceholder span="col-span-12 md:col-span-8" label="Phase 4 — 30-day touches" hint="Daily contact-log line chart" />
+        <InsightsPlaceholder span="col-span-12 md:col-span-6" label="Phase 5 — Contact methods" hint="Phone / In Person / Left Message bars" />
+        <InsightsPlaceholder span="col-span-12 md:col-span-6" label="Phase 6 — Top performers" hint="Most touches per teammate (30d)" />
+        <InsightsPlaceholder span="col-span-12 md:col-span-7" label="Phase 7 — Staleness funnel" hint="Fresh / cooling / stale / never" />
+        <InsightsPlaceholder span="col-span-12 md:col-span-5" label="Phase 9 — Partner conversion" hint="Contact → Partner funnel" />
+        <InsightsPlaceholder span="col-span-12" label="Phase 8 — Geographic concentration" hint="State-level heatmap" />
+      </div>
+    </div>
+  );
+}
+
+function InsightsPlaceholder({ span, label, hint }: { span: string; label: string; hint: string }) {
+  return (
+    <div className={`${span} rounded-xl border border-dashed border-black/15 bg-warm-bg/30 px-4 py-5 min-h-[140px] flex flex-col items-center justify-center text-center`}>
+      <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">{label}</p>
+      <p className="mt-1 text-[11.5px] text-foreground/45">{hint}</p>
+    </div>
+  );
 }
 
 // Outreach map view. Renders contacts with lat/lng as custom HTML
