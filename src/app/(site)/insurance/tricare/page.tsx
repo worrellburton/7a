@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'TRICARE Rehab Coverage | Seven Arrows Recovery',
   description:
-    'Seven Arrows Recovery accepts TRICARE for military addiction treatment in Arizona — detox, residential care, and therapy. Call (866) 996-4308.',
+    'Seven Arrows Recovery accepts TRICARE for military addiction treatment in Arizona — detox, residential care, and therapy. Call (866) 718-1665.',
 };
 
 import Link from 'next/link';
@@ -48,7 +48,7 @@ const steps = [
     number: '01',
     title: 'Call Our Military Admissions Line',
     description:
-      'Contact us at (866) 996-4308. Let us know you have TRICARE and share your sponsor information. We understand the military system and will guide you.',
+      'Contact us at (866) 718-1665. Let us know you have TRICARE and share your sponsor information. We understand the military system and will guide you.',
   },
   {
     number: '02',
@@ -83,7 +83,7 @@ export default function InsuranceTRICAREPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Military line · 24/7',
           },
           { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
@@ -143,8 +143,8 @@ export default function InsuranceTRICAREPage() {
                 verify your specific benefits and walk you through the process.
               </p>
               <div className="space-y-4">
-                <a href="tel:8669964308" className="btn-primary w-full text-center block">
-                  Call (866) 996-4308
+                <a href="tel:8667181665" className="btn-primary w-full text-center block">
+                  Call (866) 718-1665
                 </a>
                 <Link href="/admissions" className="btn-outline w-full text-center block">
                   Verify Insurance Online
@@ -306,7 +306,7 @@ export default function InsuranceTRICAREPage() {
               },
               {
                 q: 'How much does rehab cost with TRICARE?',
-                a: 'TRICARE Prime members typically have no out-of-pocket costs for substance abuse treatment at network facilities. TRICARE Select members may have copays or cost-shares depending on their plan and sponsor status. Active duty members pay nothing. Call (866) 996-4308 for details.',
+                a: 'TRICARE Prime members typically have no out-of-pocket costs for substance abuse treatment at network facilities. TRICARE Select members may have copays or cost-shares depending on their plan and sponsor status. Active duty members pay nothing. Call (866) 718-1665 for details.',
               },
               {
                 q: 'Does TRICARE require a referral for rehab?',
@@ -346,8 +346,8 @@ export default function InsuranceTRICAREPage() {
             process. Call now — confidential, no obligation.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="tel:8669964308" className="btn-primary">
-              Call (866) 996-4308
+            <a href="tel:8667181665" className="btn-primary">
+              Call (866) 718-1665
             </a>
             <Link href="/admissions" className="btn-outline">
               Verify Insurance Online

@@ -25,7 +25,7 @@ const faqs = [
   {
     question: 'Will my insurance cover residential treatment at Seven Arrows?',
     answer:
-      'We accept most major insurance plans including Aetna, Blue Cross Blue Shield, Cigna, Humana, UnitedHealthcare, Anthem, and TRICARE. Our admissions team provides free, confidential insurance verification so you know your coverage before committing. Call (866) 996-4308 to verify your benefits today.',
+      'We accept most major insurance plans including Aetna, Blue Cross Blue Shield, Cigna, Humana, UnitedHealthcare, Anthem, and TRICARE. Our admissions team provides free, confidential insurance verification so you know your coverage before committing. Call (866) 718-1665 to verify your benefits today.',
   },
   {
     question: 'How long is the residential program?',

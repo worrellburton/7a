@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Drug Rehab in Phoenix, AZ | Seven Arrows Recovery',
   description:
-    'Drug rehab for Phoenix, AZ residents at Seven Arrows Recovery — residential care, dual diagnosis, equine therapy, and coordinated detox. Call (866) 996-4308.',
+    'Drug rehab for Phoenix, AZ residents at Seven Arrows Recovery — residential care, dual diagnosis, equine therapy, and coordinated detox. Call (866) 718-1665.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -26,7 +26,7 @@ const faqJsonLd = faqPageSchema([
   },
   {
     q: 'What insurance plans do you accept for Phoenix clients?',
-    a: 'Aetna, Blue Cross Blue Shield, Cigna, UnitedHealthcare, TRICARE, Beacon Health, First Health Network, and most major carriers. Free benefits verification in roughly 15 minutes at (866) 996-4308.',
+    a: 'Aetna, Blue Cross Blue Shield, Cigna, UnitedHealthcare, TRICARE, Beacon Health, First Health Network, and most major carriers. Free benefits verification in roughly 15 minutes at (866) 718-1665.',
   },
 ]);
 
@@ -106,7 +106,7 @@ export default function LocationPhoenixPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Phoenix admissions · 24/7',
           },
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },
@@ -268,8 +268,8 @@ export default function LocationPhoenixPage() {
             to walk you through the next steps.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="tel:8669964308" className="btn-primary">
-              Call (866) 996-4308
+            <a href="tel:8667181665" className="btn-primary">
+              Call (866) 718-1665
             </a>
             <Link
               href="/contact"

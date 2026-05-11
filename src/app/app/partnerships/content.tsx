@@ -13,7 +13,7 @@
 //     via Supabase realtime (Phase 7)
 //   * Map View placeholder rendered with specialty-clustered pins
 //     (Phase 9)
-//   * Downgrade to Contact action (Phase 9) with a confirmation
+//   * Remove partner action (Phase 9) with a confirmation
 //     dialog and a clean entity conversion through the API.
 
 import { useAuth } from '@/lib/AuthProvider';
@@ -694,7 +694,7 @@ function PartnersGrid({
                         onClick={() => { setActionMenuFor(null); onDowngrade(row); }}
                         className="block w-full text-left px-3 py-2 text-xs text-rose-700 hover:bg-rose-50"
                       >
-                        Downgrade to Contact
+                        Remove partner
                       </button>
                     </div>
                   )}
@@ -994,7 +994,7 @@ function PartnerMobileCard({
                   onClick={() => { setOpen(false); onDowngrade(); }}
                   className="block w-full text-left px-3 py-2 text-xs text-rose-700 hover:bg-rose-50"
                 >
-                  Downgrade to Contact
+                  Remove partner
                 </button>
               </div>
             </>
@@ -1685,10 +1685,10 @@ function DowngradeConfirm({
         <div className="sm:hidden -mt-2 mb-3 flex justify-center">
           <span className="block w-10 h-1 rounded-full bg-foreground/15" />
         </div>
-        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-rose-700 mb-1">Downgrade to contact</p>
+        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-rose-700 mb-1">Remove partner</p>
         <h3 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{partner.name}</h3>
         <p className="mt-2 text-sm text-foreground/65 leading-snug">
-          The partner row will be removed from the active grid. Their PoC, contact info, and location move to a new entry in <span className="font-semibold text-foreground">Contacts</span>, with a note that it was downgraded from this partner.
+          The partner record will be deleted. The underlying outreach contact stays on <span className="font-semibold text-foreground">Outreach</span> with its full engagement history — you can add a partner back to them later if you change your mind.
         </p>
         <div className="mt-5 flex items-center justify-end gap-2">
           <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-xs font-semibold text-foreground/65 hover:bg-warm-bg/60">
@@ -1700,7 +1700,7 @@ function DowngradeConfirm({
             onClick={async () => { setSubmitting(true); try { await onConfirm(); } finally { setSubmitting(false); } }}
             className="px-4 py-2 rounded-lg bg-rose-600 text-white text-xs font-semibold uppercase tracking-wider hover:bg-rose-700 disabled:opacity-50"
           >
-            {submitting ? 'Working…' : 'Downgrade'}
+            {submitting ? 'Working…' : 'Remove partner'}
           </button>
         </div>
       </div>

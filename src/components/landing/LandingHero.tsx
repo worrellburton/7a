@@ -162,14 +162,14 @@ export default function LandingHero() {
               }}
             >
               <a
-                href="tel:+18669964308"
+                href="tel:+18667181665"
                 className="inline-flex items-center gap-3 bg-accent hover:bg-accent/90 text-foreground rounded-full px-7 py-3.5 text-base font-bold transition-colors shadow-xl"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 <span className="relative w-2.5 h-2.5 rounded-full bg-foreground/90">
                   <span className="absolute inset-0 rounded-full bg-foreground/40 animate-ping" />
                 </span>
-                Call (866) 996-4308
+                Call (866) 718-1665
               </a>
               <Link
                 href="#landing-insurance"
@@ -182,7 +182,7 @@ export default function LandingHero() {
                 </svg>
               </Link>
               <a
-                href="sms:+18669964308"
+                href="sms:+18667181665"
                 className="inline-flex items-center gap-2 text-white/75 hover:text-accent text-sm font-semibold transition-colors underline decoration-white/20 hover:decoration-accent/60 underline-offset-4"
                 style={{ fontFamily: 'var(--font-body)' }}
               >

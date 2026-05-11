@@ -91,11 +91,11 @@ export default function HolisticCTA() {
           }}
         >
           <a
-            href="tel:+18669964308"
+            href="tel:+18667181665"
             className="inline-flex items-center gap-2 bg-white text-primary-dark hover:bg-warm-bg rounded-full px-8 py-4 text-sm font-semibold shadow-[0_24px_50px_-20px_rgba(0,0,0,0.7)] transition-all"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Call (866) 996-4308
+            Call (866) 718-1665
           </a>
           <Link
             href="/admissions#verify"

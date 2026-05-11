@@ -129,10 +129,10 @@ export default function BeforeFooterCTA() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
             <a
-              href="tel:+18669964308"
+              href="tel:+18667181665"
               className="group inline-flex items-center gap-3 rounded-full border-2 border-white pl-2.5 pr-5 py-2 text-white hover:bg-white hover:text-primary-dark transition-colors"
               style={{ fontFamily: 'var(--font-body)' }}
-              aria-label="Call us 24/7 at (866) 996-4308"
+              aria-label="Call us 24/7 at (866) 718-1665"
             >
               <span
                 className="relative inline-flex items-center justify-center w-9 h-9 rounded-full shrink-0"
@@ -156,7 +156,7 @@ export default function BeforeFooterCTA() {
                   className="text-sm font-bold tracking-wide"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  (866) 996-4308
+                  (866) 718-1665
                 </span>
               </span>
             </a>

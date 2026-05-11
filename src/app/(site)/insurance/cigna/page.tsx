@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Cigna Rehab Coverage | Seven Arrows Recovery',
   description:
-    'Seven Arrows Recovery accepts Cigna for addiction treatment in Arizona — detox, residential care, and therapy coverage. Call (866) 996-4308 to verify.',
+    'Seven Arrows Recovery accepts Cigna for addiction treatment in Arizona — detox, residential care, and therapy coverage. Call (866) 718-1665 to verify.',
 };
 
 import Link from 'next/link';
@@ -48,7 +48,7 @@ const steps = [
     number: '01',
     title: 'Share Your Cigna Details',
     description:
-      'Call (866) 996-4308 with your Cigna member ID and group number. Our admissions team is available 24 hours a day, 7 days a week.',
+      'Call (866) 718-1665 with your Cigna member ID and group number. Our admissions team is available 24 hours a day, 7 days a week.',
   },
   {
     number: '02',
@@ -83,7 +83,7 @@ export default function InsuranceCignaPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Verify benefits · 24/7',
           },
           { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
@@ -143,8 +143,8 @@ export default function InsuranceCignaPage() {
                 out-of-pocket costs before you commit.
               </p>
               <div className="space-y-4">
-                <a href="tel:8669964308" className="btn-primary w-full text-center block">
-                  Call (866) 996-4308
+                <a href="tel:8667181665" className="btn-primary w-full text-center block">
+                  Call (866) 718-1665
                 </a>
                 <Link href="/admissions" className="btn-outline w-full text-center block">
                   Verify Insurance Online
@@ -249,7 +249,7 @@ export default function InsuranceCignaPage() {
               },
               {
                 q: 'How much does rehab cost with Cigna?',
-                a: 'Your cost depends on your Cigna plan details including your deductible, copay, coinsurance, and out-of-pocket maximum. Many Cigna members pay a fraction of the total treatment cost. Call (866) 996-4308 for a free benefits check.',
+                a: 'Your cost depends on your Cigna plan details including your deductible, copay, coinsurance, and out-of-pocket maximum. Many Cigna members pay a fraction of the total treatment cost. Call (866) 718-1665 for a free benefits check.',
               },
               {
                 q: 'Does Cigna cover residential rehab?',
@@ -288,8 +288,8 @@ export default function InsuranceCignaPage() {
             Recovery. Call now to verify your benefits — our admissions team is available 24/7.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="tel:8669964308" className="btn-primary">
-              Call (866) 996-4308
+            <a href="tel:8667181665" className="btn-primary">
+              Call (866) 718-1665
             </a>
             <Link href="/admissions" className="btn-outline">
               Verify Insurance Online

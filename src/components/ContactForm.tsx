@@ -165,13 +165,13 @@ export default function ContactForm() {
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        setSubmitError(payload.error || `Could not send (HTTP ${res.status}). Please call (866) 996-4308.`);
+        setSubmitError(payload.error || `Could not send (HTTP ${res.status}). Please call (866) 718-1665.`);
         return;
       }
       setSubmitted(true);
     } catch (err) {
       console.error('[ContactForm] submit threw', err);
-      setSubmitError('Could not send. Please call (866) 996-4308.');
+      setSubmitError('Could not send. Please call (866) 718-1665.');
     } finally {
       setSubmitting(false);
     }

@@ -485,7 +485,7 @@ export default function PageContent() {
               Our admissions team is available 24/7 to walk you through the process. The call is free, confidential, and there&apos;s zero pressure.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a href="tel:8669964308" className="btn-primary">Call (866) 996-4308</a>
+              <a href="tel:8667181665" className="btn-primary">Call (866) 718-1665</a>
               <Link href="/admissions" className="btn-outline border-white text-white hover:bg-white hover:text-foreground">Start Admissions</Link>
             </div>
           </div>

@@ -76,11 +76,11 @@ export default function FAQIntake() {
           }}
         >
           <a
-            href="tel:+18669964308"
+            href="tel:+18667181665"
             className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-full px-7 py-3.5 text-sm font-semibold shadow-[0_18px_40px_-18px_rgba(0,0,0,0.3)] transition-all"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Call (866) 996-4308
+            Call (866) 718-1665
           </a>
           <Link
             href="/contact"

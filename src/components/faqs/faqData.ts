@@ -98,7 +98,7 @@ export const faqCategories: FaqCategory[] = [
       {
         id: 'how-to-start',
         q: 'How do I get started with admissions?',
-        a: 'Call our admissions team at (866) 996-4308 or fill out the contact form. We run a confidential phone assessment, verify your insurance benefits (usually within 15 to 30 minutes), and coordinate travel. Many clients are admitted within 24 to 48 hours of their first call.',
+        a: 'Call our admissions team at (866) 718-1665 or fill out the contact form. We run a confidential phone assessment, verify your insurance benefits (usually within 15 to 30 minutes), and coordinate travel. Many clients are admitted within 24 to 48 hours of their first call.',
         personas: ['client', 'family', 'military', 'professional', 'private-pay'],
       },
       {
@@ -141,7 +141,7 @@ export const faqCategories: FaqCategory[] = [
       {
         id: 'insurance-verification',
         q: 'How do I verify my insurance?',
-        a: 'Call (866) 996-4308 with your insurance card or submit our online form. Our admissions team runs a free, confidential benefits check and returns typical coverage details (deductible, copay, authorized days) within 15 to 30 minutes during business hours.',
+        a: 'Call (866) 718-1665 with your insurance card or submit our online form. Our admissions team runs a free, confidential benefits check and returns typical coverage details (deductible, copay, authorized days) within 15 to 30 minutes during business hours.',
         personas: ['client', 'family', 'military', 'professional'],
       },
       {

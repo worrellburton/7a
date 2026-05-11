@@ -37,7 +37,7 @@ export default function InterventionsPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Intervention line · 24/7',
           },
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },
