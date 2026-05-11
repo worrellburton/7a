@@ -3041,10 +3041,6 @@ function LastContactSummaryCell({ contact }: { contact: Contact }) {
   }
 
   const s = staleness(contact.last_contact_at);
-  const pillTone =
-    s === 'fresh' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-    s === 'cooling' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-    'bg-rose-50 text-rose-700 border-rose-200';
   const textTone =
     s === 'fresh' ? 'text-emerald-700' :
     s === 'cooling' ? 'text-amber-700' :
@@ -3065,22 +3061,24 @@ function LastContactSummaryCell({ contact }: { contact: Contact }) {
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 flex-wrap leading-tight">
-          <p className="text-[11.5px] font-semibold text-foreground truncate max-w-[140px]">
-            {contact.last_contact_by_name || '—'}
-          </p>
+        {/* Top row: just the contacter's name. Freshness pill moved
+            out — the colored time on the bottom row already conveys
+            "how long ago" without the duplicate. */}
+        <p className="text-[11.5px] font-semibold text-foreground truncate leading-tight">
+          {contact.last_contact_by_name || '—'}
+        </p>
+        {/* Bottom row: method pill (Phone / In Person / Left Message)
+            followed by the colored relative time + absolute timestamp.
+            The method pill lives here now so the top row reads as a
+            clean "who" and the bottom reads as "how + when". */}
+        <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[10.5px] leading-tight" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
           {contact.last_contact_method && (
             <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
               {contact.last_contact_method}
             </span>
           )}
-          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border whitespace-nowrap ${pillTone}`}>
-            {fmtAgoLong(contact.last_contact_at)}
-          </span>
-        </div>
-        <div className="mt-1 text-[10.5px] leading-tight" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
           <span className={`font-semibold ${textTone}`}>{fmtAgo(contact.last_contact_at)}</span>
-          <span className="text-foreground/45"> · {fmtAbsolute(contact.last_contact_at)}</span>
+          <span className="text-foreground/45">· {fmtAbsolute(contact.last_contact_at)}</span>
         </div>
       </div>
     </div>
