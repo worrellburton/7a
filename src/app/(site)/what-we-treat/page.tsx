@@ -98,7 +98,7 @@ export default function WhatWeTreatPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Admissions · 24/7',
           },
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },
@@ -169,10 +169,10 @@ export default function WhatWeTreatPage() {
               Contact Us
             </Link>
             <a
-              href="tel:8669964308"
+              href="tel:8667181665"
               className="btn-primary"
             >
-              Call (866) 996-4308
+              Call (866) 718-1665
             </a>
           </div>
         </div>

@@ -33,7 +33,7 @@ export default function SubstancePage10Phase({ content }: { content: SubstanceCo
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Admissions · 24/7',
           },
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },

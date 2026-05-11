@@ -39,8 +39,8 @@ export default function DualCTA() {
           it is the work that actually lasts.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center" style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(12px)', transition: 'all 0.95s cubic-bezier(0.16,1,0.3,1) 0.55s' }}>
-          <a href="tel:+18669964308" className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-full px-8 py-4 text-sm font-semibold shadow-[0_20px_50px_-18px_rgba(0,0,0,0.7)] transition-all" style={{ fontFamily: 'var(--font-body)' }}>
-            Call (866) 996-4308
+          <a href="tel:+18667181665" className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-full px-8 py-4 text-sm font-semibold shadow-[0_20px_50px_-18px_rgba(0,0,0,0.7)] transition-all" style={{ fontFamily: 'var(--font-body)' }}>
+            Call (866) 718-1665
           </a>
           <Link href="/admissions#verify" className="inline-flex items-center gap-2 border border-white/35 hover:border-white text-white hover:bg-white/10 rounded-full px-8 py-4 text-sm font-semibold transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
             Verify Insurance

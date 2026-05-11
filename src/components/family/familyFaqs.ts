@@ -42,6 +42,6 @@ export const familyFaqs: FamilyFaq[] = [
   },
   {
     q: 'My adult child is refusing treatment. Can you help?',
-    a: 'Yes. Our admissions team can walk you through the difficult process of approaching a loved one about treatment. In some situations we coordinate a professional interventionist to facilitate a structured family meeting. Call (866) 996-4308 to discuss your specific situation.',
+    a: 'Yes. Our admissions team can walk you through the difficult process of approaching a loved one about treatment. In some situations we coordinate a professional interventionist to facilitate a structured family meeting. Call (866) 718-1665 to discuss your specific situation.',
   },
 ];

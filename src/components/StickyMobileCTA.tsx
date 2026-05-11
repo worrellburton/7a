@@ -23,8 +23,8 @@ export default function StickyMobileCTA() {
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 60px)' }}
     >
       <a
-        href="tel:+18669964308"
-        aria-label="Call (866) 996-4308 — available 24/7"
+        href="tel:+18667181665"
+        aria-label="Call (866) 718-1665 — available 24/7"
         className="inline-flex items-center gap-3 bg-primary active:bg-primary-dark transition-colors rounded-full pl-2.5 pr-5 py-2 shadow-[0_12px_30px_-6px_rgba(42,15,10,0.55)] ring-1 ring-black/5"
       >
         {/* Icon disc with the green ping dot pinned to its upper-
@@ -62,7 +62,7 @@ export default function StickyMobileCTA() {
             className="text-sm font-bold tracking-wide text-white"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            (866) 996-4308
+            (866) 718-1665
           </span>
         </span>
       </a>

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'UnitedHealthcare Rehab Coverage | Seven Arrows Recovery',
   description:
-    'Seven Arrows Recovery accepts UnitedHealthcare for addiction treatment in Arizona — detox, residential care, and therapy coverage. Call (866) 996-4308.',
+    'Seven Arrows Recovery accepts UnitedHealthcare for addiction treatment in Arizona — detox, residential care, and therapy coverage. Call (866) 718-1665.',
 };
 
 import Link from 'next/link';
@@ -48,7 +48,7 @@ const steps = [
     number: '01',
     title: 'Call With Your UHC Member ID',
     description:
-      'Reach our admissions team at (866) 996-4308 with your UnitedHealthcare member ID and group number. We are available around the clock.',
+      'Reach our admissions team at (866) 718-1665 with your UnitedHealthcare member ID and group number. We are available around the clock.',
   },
   {
     number: '02',
@@ -83,7 +83,7 @@ export default function InsuranceUHCPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Verify benefits · 24/7',
           },
           { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
@@ -143,8 +143,8 @@ export default function InsuranceUHCPage() {
                 you make any decisions.
               </p>
               <div className="space-y-4">
-                <a href="tel:8669964308" className="btn-primary w-full text-center block">
-                  Call (866) 996-4308
+                <a href="tel:8667181665" className="btn-primary w-full text-center block">
+                  Call (866) 718-1665
                 </a>
                 <Link href="/admissions" className="btn-outline w-full text-center block">
                   Verify Insurance Online
@@ -249,7 +249,7 @@ export default function InsuranceUHCPage() {
               },
               {
                 q: 'How much does rehab cost with UnitedHealthcare?',
-                a: 'Costs depend on your UHC plan type, deductible, copay, and coinsurance. Many UnitedHealthcare members have significant coverage for addiction treatment with manageable out-of-pocket costs. Call (866) 996-4308 for a free benefits verification.',
+                a: 'Costs depend on your UHC plan type, deductible, copay, and coinsurance. Many UnitedHealthcare members have significant coverage for addiction treatment with manageable out-of-pocket costs. Call (866) 718-1665 for a free benefits verification.',
               },
               {
                 q: 'Does UHC require prior authorization for rehab?',
@@ -289,8 +289,8 @@ export default function InsuranceUHCPage() {
             are here 24/7.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="tel:8669964308" className="btn-primary">
-              Call (866) 996-4308
+            <a href="tel:8667181665" className="btn-primary">
+              Call (866) 718-1665
             </a>
             <Link href="/admissions" className="btn-outline">
               Verify Insurance Online

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Humana Rehab Coverage | Seven Arrows Recovery',
   description:
-    'Seven Arrows Recovery accepts Humana for addiction treatment in Arizona — detox, residential care, and therapy coverage. Call (866) 996-4308.',
+    'Seven Arrows Recovery accepts Humana for addiction treatment in Arizona — detox, residential care, and therapy coverage. Call (866) 718-1665.',
 };
 
 import Link from 'next/link';
@@ -48,7 +48,7 @@ const steps = [
     number: '01',
     title: 'Call With Your Humana Info',
     description:
-      'Contact our admissions team at (866) 996-4308 with your Humana member ID. We are available 24 hours a day, 365 days a year.',
+      'Contact our admissions team at (866) 718-1665 with your Humana member ID. We are available 24 hours a day, 365 days a year.',
   },
   {
     number: '02',
@@ -83,7 +83,7 @@ export default function InsuranceHumanaPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Verify benefits · 24/7',
           },
           { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
@@ -141,8 +141,8 @@ export default function InsuranceHumanaPage() {
                 behavioral health benefits and provide a clear estimate of your coverage and costs.
               </p>
               <div className="space-y-4">
-                <a href="tel:8669964308" className="btn-primary w-full text-center block">
-                  Call (866) 996-4308
+                <a href="tel:8667181665" className="btn-primary w-full text-center block">
+                  Call (866) 718-1665
                 </a>
                 <Link href="/admissions" className="btn-outline w-full text-center block">
                   Verify Insurance Online
@@ -247,7 +247,7 @@ export default function InsuranceHumanaPage() {
               },
               {
                 q: 'How much does rehab cost with Humana insurance?',
-                a: 'Your out-of-pocket cost depends on your specific Humana plan, deductible, copay, and coinsurance. Humana members with strong behavioral health benefits often pay a small fraction of total treatment costs. Call (866) 996-4308 for a free benefits check.',
+                a: 'Your out-of-pocket cost depends on your specific Humana plan, deductible, copay, and coinsurance. Humana members with strong behavioral health benefits often pay a small fraction of total treatment costs. Call (866) 718-1665 for a free benefits check.',
               },
               {
                 q: 'Does Humana cover residential inpatient rehab?',
@@ -255,7 +255,7 @@ export default function InsuranceHumanaPage() {
               },
               {
                 q: 'Does Humana Military/TRICARE cover rehab?',
-                a: 'Humana Military manages the TRICARE East Region. If you have TRICARE through Humana Military, please see our dedicated TRICARE coverage page or call (866) 996-4308 for specific benefits information.',
+                a: 'Humana Military manages the TRICARE East Region. If you have TRICARE through Humana Military, please see our dedicated TRICARE coverage page or call (866) 718-1665 for specific benefits information.',
               },
             ].map((faq) => (
               <div key={faq.q} className="bg-warm-card rounded-2xl p-8">
@@ -287,8 +287,8 @@ export default function InsuranceHumanaPage() {
             coordination. Call now — we are available 24/7.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="tel:8669964308" className="btn-primary">
-              Call (866) 996-4308
+            <a href="tel:8667181665" className="btn-primary">
+              Call (866) 718-1665
             </a>
             <Link href="/admissions" className="btn-outline">
               Verify Insurance Online

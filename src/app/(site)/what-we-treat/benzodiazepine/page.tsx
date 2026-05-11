@@ -5,7 +5,7 @@ import { benzoContent } from '@/lib/substances/benzodiazepine';
 export const metadata: Metadata = {
   title: 'Benzodiazepine Addiction Treatment | Seven Arrows Recovery',
   description:
-    'Medically supervised benzo tapering and residential treatment in Arizona — individualized long-arc tapers and 24/7 monitoring. Call (866) 996-4308.',
+    'Medically supervised benzo tapering and residential treatment in Arizona — individualized long-arc tapers and 24/7 monitoring. Call (866) 718-1665.',
 };
 
 export default function BenzoAddictionPage() {

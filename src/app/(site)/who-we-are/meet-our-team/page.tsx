@@ -54,7 +54,7 @@ export default async function MeetOurTeamPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Admissions · 24/7',
           },
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },
@@ -142,7 +142,7 @@ export default async function MeetOurTeamPage() {
 
           <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4">
             <a
-              href="tel:+18669964308"
+              href="tel:+18667181665"
               className="inline-flex items-center gap-3 bg-primary hover:bg-primary-dark transition-colors rounded-full pl-3.5 pr-5 py-3 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.45)] ring-1 ring-white/10"
             >
               <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/12 ring-1 ring-white/15">
@@ -174,7 +174,7 @@ export default async function MeetOurTeamPage() {
                   className="text-white font-bold text-base sm:text-lg tracking-tight"
                   style={{ fontFamily: 'var(--font-display)' }}
                 >
-                  (866) 996-4308
+                  (866) 718-1665
                 </span>
               </span>
             </a>

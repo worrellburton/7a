@@ -115,14 +115,14 @@ export default function LandingClose() {
           }}
         >
           <a
-            href="tel:+18669964308"
+            href="tel:+18667181665"
             className="group inline-flex items-center gap-3 bg-accent hover:bg-accent/90 text-foreground rounded-full px-8 py-4 text-base font-bold transition-colors shadow-2xl"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             <span className="relative w-2.5 h-2.5 rounded-full bg-foreground/90">
               <span className="absolute inset-0 rounded-full bg-foreground/40 animate-ping" />
             </span>
-            Call (866) 996-4308
+            Call (866) 718-1665
           </a>
           <Link
             href="#landing-insurance"
@@ -132,7 +132,7 @@ export default function LandingClose() {
             Verify my insurance
           </Link>
           <a
-            href="sms:+18669964308"
+            href="sms:+18667181665"
             className="inline-flex items-center gap-2 text-white/70 hover:text-accent font-semibold transition-colors underline decoration-white/20 hover:decoration-accent/60 underline-offset-4"
             style={{ fontFamily: 'var(--font-body)' }}
           >

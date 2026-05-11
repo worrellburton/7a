@@ -82,8 +82,8 @@ export default function PageContent() {
                 You don&rsquo;t have to walk this road alone. Our admissions team in Arizona is ready to listen, answer your questions, and help you find the next right step &mdash; whatever that looks like for you or your loved one.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="tel:8669964308" className="btn-primary">
-                  Call (866) 996-4308
+                <a href="tel:8667181665" className="btn-primary">
+                  Call (866) 718-1665
                 </a>
                 <Link href="/admissions" className="btn-outline">
                   Start Admissions

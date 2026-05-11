@@ -15,8 +15,8 @@ export const RANCH_ADDRESS = {
   country: 'United States',
 } as const;
 
-export const RANCH_PHONE = '(866) 996-4308';
-export const RANCH_PHONE_TEL = '+18669964308';
+export const RANCH_PHONE = '(866) 718-1665';
+export const RANCH_PHONE_TEL = '+18667181665';
 
 /** Single-line "2491 W Jefferson Rd, Elfrida, AZ 85610" — useful for
  *  inline copy where multi-line breaks read awkwardly. */

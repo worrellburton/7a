@@ -97,8 +97,8 @@ export default function WhyCTA() {
               transition: 'all 0.95s cubic-bezier(0.16,1,0.3,1) 0.55s',
             }}
           >
-            <a href="tel:+18669964308" className="btn-primary">
-              Call (866) 996-4308
+            <a href="tel:+18667181665" className="btn-primary">
+              Call (866) 718-1665
             </a>
             <Link
               href="/admissions#verify"
@@ -145,8 +145,8 @@ export default function WhyCTA() {
               <p>Elfrida, AZ 85610</p>
               <p>Cochise County, Arizona</p>
               <p className="pt-3">
-                <a href="tel:+18669964308" className="text-white text-lg font-bold hover:text-accent transition-colors" style={{ fontFamily: 'var(--font-display)' }}>
-                  (866) 996-4308
+                <a href="tel:+18667181665" className="text-white text-lg font-bold hover:text-accent transition-colors" style={{ fontFamily: 'var(--font-display)' }}>
+                  (866) 718-1665
                 </a>
               </p>
               <p className="text-sm text-white/55 pt-1">

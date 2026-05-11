@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Cocaine Addiction Treatment | Seven Arrows Recovery',
   description:
-    'Residential cocaine addiction treatment in Arizona — trauma-informed care, cardiac-safe stabilization, and nervous-system work. Call (866) 996-4308.',
+    'Residential cocaine addiction treatment in Arizona — trauma-informed care, cardiac-safe stabilization, and nervous-system work. Call (866) 718-1665.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -36,7 +36,7 @@ export default function CocaineAddictionPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Admissions · 24/7',
           },
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },

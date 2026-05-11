@@ -1041,6 +1041,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   {item.label}
                 </Link>
               ))}
+              <ShowCursorsToggle />
               <button
                 onClick={() => { signOut(); setUserMenuOpen(false); }}
                 className="flex items-center gap-2.5 w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
@@ -1368,5 +1369,52 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
       </div>
     </div>
+  );
+}
+
+// Toggle row in the account popup menu. Lets each user opt in / out of
+// seeing other people's live cursors moving across the page. Choice is
+// localStorage-only — no per-user DB column — so it's instant and
+// survives reloads without a round-trip. PresenceCursors reads the
+// same key and listens for the 'show-cursors-change' CustomEvent so a
+// toggle here updates the renderer in real time, no reload needed.
+const SHOW_CURSORS_STORAGE_KEY = 'sa-show-other-cursors';
+function ShowCursorsToggle() {
+  const [on, setOn] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem(SHOW_CURSORS_STORAGE_KEY) !== 'off';
+  });
+
+  function toggle() {
+    const next = !on;
+    setOn(next);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(SHOW_CURSORS_STORAGE_KEY, next ? 'on' : 'off');
+      window.dispatchEvent(new CustomEvent('show-cursors-change', { detail: { on: next } }));
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      role="menuitemcheckbox"
+      aria-checked={on}
+      className="flex items-center justify-between w-full gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      <span className="inline-flex items-center gap-2.5">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l7.5 18 2.5-7 7-2.5L3 3z" />
+        </svg>
+        Show teammates&apos; cursors
+      </span>
+      <span
+        className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${on ? 'bg-primary' : 'bg-foreground/20'}`}
+        aria-hidden
+      >
+        <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${on ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+      </span>
+    </button>
   );
 }

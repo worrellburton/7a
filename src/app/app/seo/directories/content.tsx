@@ -3626,7 +3626,7 @@ function useCanonicalNap(): CanonicalNap {
 }
 
 // Loose equality for NAP comparison: lowercased + non-alphanum
-// stripped. This means "(866) 996-4308" matches "8669964308" and
+// stripped. This means "(866) 718-1665" matches "8667181665" and
 // "2491 W. Jefferson Rd." matches "2491 W Jefferson Rd" — both real
 // variations directories produce. Any null/empty side returns false
 // (we don't claim a match when we don't know).
@@ -5773,7 +5773,7 @@ function NapCell({
           <div className="space-y-2">
             <NapInput label="Name" value={draftName} onChange={setDraftName} canonical={canonical.name} placeholder="Seven Arrows Recovery" />
             <NapInput label="Address" value={draftAddress} onChange={setDraftAddress} canonical={canonical.address} placeholder="2491 W Jefferson Rd, Elfrida, AZ 85610" />
-            <NapInput label="Phone" value={draftPhone} onChange={setDraftPhone} canonical={canonical.phone} placeholder="(866) 996-4308" />
+            <NapInput label="Phone" value={draftPhone} onChange={setDraftPhone} canonical={canonical.phone} placeholder="(866) 718-1665" />
           </div>
           <div className="mt-3 flex items-center justify-between gap-2">
             {hasAny ? (

@@ -13,12 +13,13 @@
 //     via Supabase realtime (Phase 7)
 //   * Map View placeholder rendered with specialty-clustered pins
 //     (Phase 9)
-//   * Downgrade to Contact action (Phase 9) with a confirmation
+//   * Remove partner action (Phase 9) with a confirmation
 //     dialog and a clean entity conversion through the API.
 
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { SearchSelectCell } from '@/components/SearchSelectCell';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -345,6 +346,25 @@ export default function PartnershipsContent() {
     setEditing(null);
   }
 
+  // Inline patch used by the in-grid SearchSelectCell on the Specialty
+  // column — separate from handleUpdate because we don't want to touch
+  // the edit-modal state. Optimistic so the row jumps to its new
+  // specialty group immediately; realtime reconciles if the server
+  // pushes back something different.
+  async function onInlineSpecialty(id: string, next: string | null) {
+    if (!session?.access_token) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, specialty: next } : r)));
+    const res = await fetch(`/api/partnerships/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ specialty: next }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(`Couldn't save specialty: ${json.error ?? res.status}`);
+    }
+  }
+
   async function handleLogContact(target: Partner, method: ContactMethod, comments: string) {
     if (!session?.access_token) return;
     const optimisticAt = new Date().toISOString();
@@ -501,6 +521,8 @@ export default function PartnershipsContent() {
           onHistory={(p) => setHistoryTarget(p)}
           actionMenuFor={actionMenuFor}
           setActionMenuFor={setActionMenuFor}
+          specialties={specialties}
+          onInlineSpecialty={onInlineSpecialty}
         />
       ) : (
         <PartnersMapView rows={filtered} />
@@ -567,6 +589,8 @@ function PartnersGrid({
   onHistory,
   actionMenuFor,
   setActionMenuFor,
+  specialties,
+  onInlineSpecialty,
 }: {
   loading: boolean;
   rows: { row: Partner; priority: number; isFirstOfGroup: boolean }[];
@@ -579,6 +603,8 @@ function PartnersGrid({
   onHistory: (p: Partner) => void;
   actionMenuFor: string | null;
   setActionMenuFor: (id: string | null) => void;
+  specialties: string[];
+  onInlineSpecialty: (id: string, next: string | null) => Promise<void> | void;
 }) {
   return (
     <>
@@ -623,7 +649,7 @@ function PartnersGrid({
                     key={c.key}
                     className={`px-3 py-0 h-12 max-w-[260px] overflow-hidden whitespace-nowrap ${c.align === 'right' ? 'text-right' : ''} ${c.key === 'priority' ? 'sticky left-0 bg-white z-[1] font-semibold tabular-nums text-foreground/55' : ''}`}
                   >
-                    <CellRenderer column={c} partner={row} priority={priority} onEdit={onEdit} />
+                    <CellRenderer column={c} partner={row} priority={priority} onEdit={onEdit} specialties={specialties} onInlineSpecialty={onInlineSpecialty} />
                   </td>
                 ))}
                 <td className="px-2 py-0 h-12 text-right relative align-middle">
@@ -668,7 +694,7 @@ function PartnersGrid({
                         onClick={() => { setActionMenuFor(null); onDowngrade(row); }}
                         className="block w-full text-left px-3 py-2 text-xs text-rose-700 hover:bg-rose-50"
                       >
-                        Downgrade to Contact
+                        Remove partner
                       </button>
                     </div>
                   )}
@@ -718,11 +744,15 @@ function CellRenderer({
   partner,
   priority,
   onEdit,
+  specialties,
+  onInlineSpecialty,
 }: {
   column: ColumnDef;
   partner: Partner;
   priority: number;
   onEdit: (p: Partner) => void;
+  specialties: string[];
+  onInlineSpecialty: (id: string, next: string | null) => Promise<void> | void;
 }) {
   switch (column.key) {
     case 'priority':
@@ -745,7 +775,14 @@ function CellRenderer({
         </span>
       );
     case 'specialty':
-      return <span className="text-foreground/75 truncate block">{partner.specialty || <Em />}</span>;
+      return (
+        <SearchSelectCell
+          value={partner.specialty}
+          options={specialties}
+          onSave={(next) => onInlineSpecialty(partner.id, next)}
+          placeholder="Set specialty…"
+        />
+      );
     case 'location':
       return <span className="text-foreground/65 truncate block">{partner.location || <Em />}</span>;
     case 'poc':
@@ -957,7 +994,7 @@ function PartnerMobileCard({
                   onClick={() => { setOpen(false); onDowngrade(); }}
                   className="block w-full text-left px-3 py-2 text-xs text-rose-700 hover:bg-rose-50"
                 >
-                  Downgrade to Contact
+                  Remove partner
                 </button>
               </div>
             </>
@@ -1648,10 +1685,10 @@ function DowngradeConfirm({
         <div className="sm:hidden -mt-2 mb-3 flex justify-center">
           <span className="block w-10 h-1 rounded-full bg-foreground/15" />
         </div>
-        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-rose-700 mb-1">Downgrade to contact</p>
+        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-rose-700 mb-1">Remove partner</p>
         <h3 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{partner.name}</h3>
         <p className="mt-2 text-sm text-foreground/65 leading-snug">
-          The partner row will be removed from the active grid. Their PoC, contact info, and location move to a new entry in <span className="font-semibold text-foreground">Contacts</span>, with a note that it was downgraded from this partner.
+          The partner record will be deleted. The underlying outreach contact stays on <span className="font-semibold text-foreground">Outreach</span> with its full engagement history — you can add a partner back to them later if you change your mind.
         </p>
         <div className="mt-5 flex items-center justify-end gap-2">
           <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-xs font-semibold text-foreground/65 hover:bg-warm-bg/60">
@@ -1663,7 +1700,7 @@ function DowngradeConfirm({
             onClick={async () => { setSubmitting(true); try { await onConfirm(); } finally { setSubmitting(false); } }}
             className="px-4 py-2 rounded-lg bg-rose-600 text-white text-xs font-semibold uppercase tracking-wider hover:bg-rose-700 disabled:opacity-50"
           >
-            {submitting ? 'Working…' : 'Downgrade'}
+            {submitting ? 'Working…' : 'Remove partner'}
           </button>
         </div>
       </div>

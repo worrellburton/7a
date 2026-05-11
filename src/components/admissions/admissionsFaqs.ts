@@ -11,7 +11,7 @@ export interface AdmissionsFaq {
 export const admissionsFaqs: AdmissionsFaq[] = [
   {
     q: 'How do I start the admissions process?',
-    a: 'Call (866) 996-4308 or submit the insurance-verification form. An admissions counselor runs a brief phone assessment, verifies your benefits, and schedules your arrival — most callers can be admitted within 24 to 48 hours.',
+    a: 'Call (866) 718-1665 or submit the insurance-verification form. An admissions counselor runs a brief phone assessment, verifies your benefits, and schedules your arrival — most callers can be admitted within 24 to 48 hours.',
   },
   {
     q: 'Are admissions counselors available 24/7?',

@@ -24,10 +24,10 @@ const s = {
 const channels: Channel[] = [
   {
     title: 'Call',
-    primary: '(866) 996-4308',
+    primary: '(866) 718-1665',
     meta: '24/7 · compassionate admissions team member',
     body: 'The fastest path. Real person picks up. Insurance check runs in parallel while we talk.',
-    href: 'tel:+18669964308',
+    href: 'tel:+18667181665',
     glyph: (
       <svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}>
         <path d="M29 22v4a3 3 0 0 1-3.3 3 26.4 26.4 0 0 1-11.5-4.1 26 26 0 0 1-8-8A26.4 26.4 0 0 1 2.1 5.3 3 3 0 0 1 5.1 2h4a3 3 0 0 1 3 2.3 20 20 0 0 0 1 4c.4.9.2 2-.5 2.7L11 12.5a21.3 21.3 0 0 0 8 8l1.5-1.5a2.8 2.8 0 0 1 2.7-.5 20 20 0 0 0 4 1A3 3 0 0 1 29 22z" />
@@ -49,10 +49,10 @@ const channels: Channel[] = [
   },
   {
     title: 'Text',
-    primary: '(866) 996-4308',
+    primary: '(866) 718-1665',
     meta: 'Same number · texts answered same-day',
     body: 'Send a text if a phone call isn\'t an option in the moment. A human will respond — not a bot.',
-    href: 'sms:+18669964308',
+    href: 'sms:+18667181665',
     glyph: (
       <svg viewBox="0 0 32 32" className="w-7 h-7" aria-hidden="true" {...s}>
         <path d="M27 7v14a3 3 0 0 1-3 3H13l-6 5v-5H8a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h16a3 3 0 0 1 3 3z" />

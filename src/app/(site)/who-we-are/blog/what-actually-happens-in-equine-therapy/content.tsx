@@ -446,8 +446,8 @@ export default function PageContent() {
                 You don&apos;t have to decide anything today. A confidential conversation with our admissions team is the next step — free, unhurried, and entirely yours.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="tel:8669964308" className="btn-primary">
-                  Call (866) 996-4308
+                <a href="tel:8667181665" className="btn-primary">
+                  Call (866) 718-1665
                 </a>
                 <Link href="/admissions" className="btn-outline">
                   Start Admissions

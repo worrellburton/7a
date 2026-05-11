@@ -166,10 +166,10 @@ export default async function TeamMemberPage({ params }: Params) {
 
               <div className="mt-7 flex flex-wrap gap-3">
                 <a
-                  href="tel:+18669964308"
+                  href="tel:+18667181665"
                   className="inline-flex items-center gap-2 bg-white text-primary-dark hover:bg-warm-bg rounded-full px-6 py-3 text-sm font-semibold transition-colors"
                 >
-                  Call (866) 996-4308
+                  Call (866) 718-1665
                 </a>
                 <Link
                   href="/contact"
@@ -357,10 +357,10 @@ export default async function TeamMemberPage({ params }: Params) {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
             <a
-              href="tel:+18669964308"
+              href="tel:+18667181665"
               className="inline-flex items-center gap-2 bg-white text-primary-dark hover:bg-warm-bg rounded-full px-7 py-3.5 text-sm font-semibold transition-colors"
             >
-              Call (866) 996-4308
+              Call (866) 718-1665
             </a>
             <Link
               href="/admissions#verify"

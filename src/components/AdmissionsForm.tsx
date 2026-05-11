@@ -101,7 +101,7 @@ export default function AdmissionsForm() {
       ]);
       const uploadFailure = front.error || back.error;
       if (uploadFailure) {
-        setUploadError(`Card photo upload failed (${uploadFailure}). Please try again or call (866) 996-4308.`);
+        setUploadError(`Card photo upload failed (${uploadFailure}). Please try again or call (866) 718-1665.`);
         setSubmitting(false);
         return;
       }
@@ -121,14 +121,14 @@ export default function AdmissionsForm() {
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        setUploadError(payload.error || `Could not send (HTTP ${res.status}). Please call (866) 996-4308.`);
+        setUploadError(payload.error || `Could not send (HTTP ${res.status}). Please call (866) 718-1665.`);
         setSubmitting(false);
         return;
       }
       setSubmitted(true);
     } catch (err) {
       console.error('[AdmissionsForm] submit threw', err);
-      setUploadError('Could not send. Please call (866) 996-4308.');
+      setUploadError('Could not send. Please call (866) 718-1665.');
     } finally {
       setSubmitting(false);
     }
@@ -157,8 +157,8 @@ export default function AdmissionsForm() {
         >
           Our admissions team will reach out to you shortly. If you need immediate assistance,
           please call us at{' '}
-          <a href="tel:+18669964308" className="text-primary font-semibold">
-            (866) 996-4308
+          <a href="tel:+18667181665" className="text-primary font-semibold">
+            (866) 718-1665
           </a>
           .
         </p>

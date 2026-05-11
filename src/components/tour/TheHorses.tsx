@@ -126,7 +126,7 @@ export default function TheHorses() {
                 Discover the equine program
               </Link>
               <a
-                href="tel:+18669964308"
+                href="tel:+18667181665"
                 className="inline-flex items-center justify-center gap-2 text-foreground font-semibold border-b border-foreground/70 pb-1 tracking-[0.1em] uppercase text-[12px] hover:text-primary hover:border-primary transition-colors"
                 style={{ fontFamily: 'var(--font-body)' }}
               >

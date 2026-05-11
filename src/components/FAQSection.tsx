@@ -31,7 +31,7 @@ const faqs: Faq[] = [
   {
     question: "I'm thinking about treatment — how do I actually start?",
     answer:
-      'Call (866) 996-4308 or fill out the form on this page. An admissions counselor answers 24/7, asks a few questions about what is going on, verifies your insurance, and walks you through next steps. No sales pitch; you can hang up at any point. Many clients begin treatment within 24–48 hours of that first call.',
+      'Call (866) 718-1665 or fill out the form on this page. An admissions counselor answers 24/7, asks a few questions about what is going on, verifies your insurance, and walks you through next steps. No sales pitch; you can hang up at any point. Many clients begin treatment within 24–48 hours of that first call.',
     persona: 'self',
   },
   {

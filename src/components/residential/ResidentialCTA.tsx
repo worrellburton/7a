@@ -89,8 +89,8 @@ export default function ResidentialCTA() {
             transition: 'all 0.95s cubic-bezier(0.16,1,0.3,1) 0.55s',
           }}
         >
-          <a href="tel:+18669964308" className="btn-primary">
-            Call (866) 996-4308
+          <a href="tel:+18667181665" className="btn-primary">
+            Call (866) 718-1665
           </a>
           <Link
             href="/admissions#verify"
