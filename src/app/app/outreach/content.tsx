@@ -84,9 +84,10 @@ const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
   location: 180,
   notes: 280,
   actions: 200,
-  last_contact_by_name: 220,
-  time_since: 150,
-  last_contact_at: 160,
+  // Merged engagement column (replaces last_contact_by_name + time_since
+  // + last_contact_at). Needs room for avatar + name + method chip +
+  // freshness pill on row 1 and the relative + absolute date on row 2.
+  last_contact_summary: 320,
 };
 const RESIZE_MIN_PX = 70;
 const RESIZE_MAX_PX = 900;
@@ -175,8 +176,6 @@ export default function ContactsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [filterMethod, setFilterMethod] = useState<string>('');
-  const [filterStaleness, setFilterStaleness] = useState<string>('');
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showCols, setShowCols] = useState(false);
@@ -367,15 +366,13 @@ export default function ContactsContent() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    if (!q) return rows;
     return rows.filter((r) => {
-      if (filterMethod && r.last_contact_method !== filterMethod) return false;
-      if (filterStaleness && staleness(r.last_contact_at) !== filterStaleness) return false;
-      if (!q) return true;
       const hay = [r.name, r.company, r.role, r.phone, r.email, r.location, r.notes]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, search, filterMethod, filterStaleness]);
+  }, [rows, search]);
 
   // Headline counts for the insight tiles at the top of the page.
   // Always computed against the unfiltered `rows` (not the filtered
@@ -587,8 +584,8 @@ export default function ContactsContent() {
     <div className="p-4 sm:p-6 lg:p-8 w-full pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">Outreach</h1>
-          <p className="text-sm text-foreground/55 mt-0.5">
+          <h1 className="text-base font-semibold text-foreground tracking-tight">Outreach</h1>
+          <p className="text-[13px] text-foreground/55 mt-0.5">
             Outreach tracker for referrers, leads, and downgraded partners.
             {rows.length > 0 && (
               <span className="ml-1 text-foreground/40">· {rows.length} {rows.length === 1 ? 'contact' : 'contacts'}</span>
@@ -628,34 +625,11 @@ export default function ContactsContent() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, phone, email, notes…"
-            className="w-full pl-9 pr-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full pl-9 pr-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-[13px] sm:text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/35">
             <SearchIcon />
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={filterMethod}
-            onChange={(e) => setFilterMethod(e.target.value)}
-            className="flex-1 sm:flex-none min-w-0 px-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-          >
-            <option value="">All methods</option>
-            <option value="Phone">Phone</option>
-            <option value="In Person">In Person</option>
-            <option value="Left Message">Left Message</option>
-          </select>
-          <select
-            value={filterStaleness}
-            onChange={(e) => setFilterStaleness(e.target.value)}
-            className="flex-1 sm:flex-none min-w-0 px-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-          >
-            <option value="">Any freshness</option>
-            <option value="fresh">Fresh (&lt; 7d)</option>
-            <option value="cooling">Cooling (7–21d)</option>
-            <option value="stale">Stale (&gt; 21d)</option>
-            <option value="never">Never contacted</option>
-          </select>
         </div>
         {/* Manage Columns only matters for the desktop table; on
             mobile every field is visible inside each card. */}
@@ -671,7 +645,7 @@ export default function ContactsContent() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
       )}
 
       <ContactsGrid
@@ -758,7 +732,7 @@ function NotesEditor({
   }
   return (
     <div>
-      <p className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 mb-1.5">Notes</p>
+      <p className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 mb-1.5">Notes</p>
       <textarea
         ref={taRef}
         value={value}
@@ -769,25 +743,25 @@ function NotesEditor({
         }}
         rows={4}
         placeholder="Write a note about this contact…"
-        className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-[13px] text-foreground/85 leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
+        className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-[12px] text-foreground/85 leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
       />
       <div className="mt-2 flex items-center gap-2">
         <button
           type="button"
           onClick={() => void commit()}
           disabled={saving || !dirty}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[12px] font-semibold shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[11px] font-semibold shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex items-center px-3 py-1.5 rounded-md bg-white text-foreground/70 text-[12px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
+          className="inline-flex items-center px-3 py-1.5 rounded-md bg-white text-foreground/70 text-[11px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
         >
           Cancel
         </button>
-        <span className="ml-auto text-[11px] text-foreground/40">⌘↵ saves · Esc cancels</span>
+        <span className="ml-auto text-[10px] text-foreground/40">⌘↵ saves · Esc cancels</span>
       </div>
     </div>
   );
@@ -852,7 +826,19 @@ function ContactsGrid({
   // Click the notes cell to toggle. Persists across rerenders via a
   // simple id string; null when collapsed.
   const [expandedNotesId, setExpandedNotesId] = useState<string | null>(null);
-  const totalCols = columns.length + 5;
+  // Trailing columns the user can't reorder/hide: Actions + the merged
+  // Last Contact summary + the action-menu expander. Was 5 (Actions,
+  // Last Contacted By, Time Since, Last Contact, expander); now 3
+  // since the three engagement columns folded into LastContactSummaryCell.
+  const totalCols = columns.length + 3;
+
+  // All three trailing columns (Actions, Last Contact summary, and the
+  // expander) are sticky to the right edge of the scrollable table.
+  // Their right offsets stack: expander hugs right: 0, summary sits to
+  // its left, Actions sits to the left of the summary. The summary width
+  // is user-resizable so we read it from the live columnWidths map.
+  const summaryWidth = columnWidths['last_contact_summary'] ?? DEFAULT_COL_WIDTHS_PX['last_contact_summary'];
+  const actionsStickyRightPx = EXPANDER_COL_WIDTH_PX + summaryWidth;
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -865,7 +851,7 @@ function ContactsGrid({
         data-outreach-table
         className="overflow-x-auto rounded-xl border border-black/10 bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <table className="w-full text-sm table-fixed">
+        <table className="w-full text-[13px] table-fixed">
         {/* <colgroup> drives the actual column widths so resize is
             cheap (only one node per column needs its width set, not
             every cell). Default widths from `DEFAULT_COL_WIDTHS_PX`
@@ -876,13 +862,13 @@ function ContactsGrid({
             const w = columnWidths[c.key] ?? DEFAULT_COL_WIDTHS_PX[c.key] ?? 180;
             return <col key={c.key} style={{ width: `${w}px` }} />;
           })}
-          {(['actions', 'last_contact_by_name', 'time_since', 'last_contact_at'] as const).map((k) => {
+          {(['actions', 'last_contact_summary'] as const).map((k) => {
             const w = columnWidths[k] ?? DEFAULT_COL_WIDTHS_PX[k];
             return <col key={k} style={{ width: `${w}px` }} />;
           })}
           <col style={{ width: `${EXPANDER_COL_WIDTH_PX}px` }} />
         </colgroup>
-        <thead className="bg-warm-bg/50 text-left text-[11px] uppercase tracking-wider text-foreground/55">
+        <thead className="bg-warm-bg/50 text-left text-[10px] uppercase tracking-wider text-foreground/55">
           <tr>
             {columns.map((c) => (
               <th
@@ -899,7 +885,7 @@ function ContactsGrid({
                   {c.label}
                   {c.key === 'name' && (
                     <span
-                      className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1.5 rounded-full bg-foreground/10 text-foreground/65 text-[10px] font-bold tabular-nums"
+                      className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1.5 rounded-full bg-foreground/10 text-foreground/65 text-[9px] font-bold tabular-nums"
                       title={`${rows.length} contact${rows.length === 1 ? '' : 's'}`}
                     >
                       {rows.length}
@@ -916,38 +902,25 @@ function ContactsGrid({
                 />
               </th>
             ))}
-            {/* Engagement / action columns — fixed at the far right
-                so admissions sees them no matter how the grid is
-                customised. Order: Contact button, Last contact by,
-                Time since (colored pill), Last contact date, actions menu. */}
-            <th data-col-key="actions" className="group/th relative px-3 py-2 whitespace-nowrap">
+            {/* Trailing fixed columns — pinned to the far right of the
+                grid no matter how the user reorders/hides the dynamic
+                left-side columns. Order:
+                  1. Actions (Contact + History buttons)
+                  2. Last contact summary (avatar + name + method +
+                     freshness pill + relative + absolute date — rolled
+                     up from the old Last Contacted By / Time Since /
+                     Last Contact trio)
+                  3. Action-menu expander (3-dot) */}
+            <th
+              data-col-key="actions"
+              style={{ right: `${actionsStickyRightPx}px` }}
+              className="group/th sticky z-20 bg-[#faf8f5] shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2 whitespace-nowrap"
+            >
               <span className="truncate">Actions</span>
               <ResizeHandle colKey="actions" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
             <th
-              data-col-key="last_contact_by_name"
-              onClick={() => onSort('last_contact_by_name')}
-              className="group/th relative px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
-            >
-              <span className="inline-flex items-center gap-1 truncate">
-                Last contacted by
-                <SortIndicator active={sortKey === 'last_contact_by_name'} dir={sortDir} />
-              </span>
-              <ResizeHandle colKey="last_contact_by_name" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
-            </th>
-            <th
-              data-col-key="time_since"
-              onClick={() => onSort('time_since')}
-              className="group/th relative px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
-            >
-              <span className="inline-flex items-center gap-1 truncate">
-                Time since
-                <SortIndicator active={sortKey === 'time_since'} dir={sortDir} />
-              </span>
-              <ResizeHandle colKey="time_since" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
-            </th>
-            <th
-              data-col-key="last_contact_at"
+              data-col-key="last_contact_summary"
               onClick={() => onSort('last_contact_at')}
               className="group/th sticky right-10 z-20 bg-[#faf8f5] shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
             >
@@ -955,7 +928,7 @@ function ContactsGrid({
                 Last contact
                 <SortIndicator active={sortKey === 'last_contact_at'} dir={sortDir} />
               </span>
-              <ResizeHandle colKey="last_contact_at" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
+              <ResizeHandle colKey="last_contact_summary" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
             <th className="sticky right-0 z-20 bg-[#faf8f5] px-3 py-2" />
           </tr>
@@ -963,13 +936,13 @@ function ContactsGrid({
         <tbody className="divide-y divide-black/5">
           {loading ? (
             <tr>
-              <td colSpan={columns.length + 5} className="px-3 py-12 text-center text-foreground/45">
+              <td colSpan={totalCols} className="px-3 py-12 text-center text-foreground/45">
                 Loading contacts…
               </td>
             </tr>
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length + 5} className="px-3 py-12 text-center text-foreground/45">
+              <td colSpan={totalCols} className="px-3 py-12 text-center text-foreground/45">
                 No contacts yet. Click <span className="font-semibold">Add contact</span> to start.
               </td>
             </tr>
@@ -991,7 +964,7 @@ function ContactsGrid({
                           {c.notes ? (
                             <span className="text-foreground/75 truncate block max-w-[420px]">{c.notes}</span>
                           ) : (
-                            <span className="text-foreground/30 italic text-[12px]">Add notes…</span>
+                            <span className="text-foreground/30 italic text-[11px]">Add notes…</span>
                           )}
                         </div>
                       </td>
@@ -1003,12 +976,15 @@ function ContactsGrid({
                     </td>
                   );
                 })}
-                <td className="px-3 py-2.5">
+                <td
+                  style={{ right: `${actionsStickyRightPx}px` }}
+                  className={`sticky z-10 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}
+                >
                   <div className="inline-flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => onContact(c)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[11px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
                     >
                       <PhoneIcon />
                       Contact
@@ -1016,7 +992,7 @@ function ContactsGrid({
                     <button
                       type="button"
                       onClick={() => onHistory(c)}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/70 border-black/10 hover:bg-warm-bg/60'}`}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold border transition-colors ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/70 border-black/10 hover:bg-warm-bg/60'}`}
                       title={expandedDetailsId === c.id ? 'Hide details' : 'Show details + history'}
                       aria-expanded={expandedDetailsId === c.id}
                     >
@@ -1027,12 +1003,6 @@ function ContactsGrid({
                     </button>
                   </div>
                 </td>
-                <td className="px-3 py-2.5">
-                  <LastContactedBy contact={c} />
-                </td>
-                <td className="px-3 py-2.5">
-                  <TimeSinceCell contact={c} />
-                </td>
                 <td className={`sticky right-10 z-10 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
                   <button
                     type="button"
@@ -1040,7 +1010,7 @@ function ContactsGrid({
                     className="block w-full text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
                     title="View contact history"
                   >
-                    <LastContactCell contact={c} />
+                    <LastContactSummaryCell contact={c} />
                   </button>
                 </td>
                 <td className={`sticky right-0 z-10 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
@@ -1109,11 +1079,11 @@ function ContactsGrid({
           inline + the same engagement actions. */}
       <div className="md:hidden flex flex-col gap-3">
         {loading ? (
-          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-sm text-foreground/45">
+          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-[13px] text-foreground/45">
             Loading contacts…
           </div>
         ) : rows.length === 0 ? (
-          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-sm text-foreground/45">
+          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-[13px] text-foreground/45">
             No contacts yet. Tap <span className="font-semibold">Add contact</span> to start.
           </div>
         ) : (
@@ -1400,7 +1370,7 @@ function FloatingScrollbar({ tableRef }: { tableRef: React.RefObject<HTMLDivElem
           page during quiet states. */}
       <div
         aria-hidden
-        className={`pointer-events-none absolute -top-9 -translate-x-1/2 px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap text-foreground/85 bg-white/65 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 ring-1 ring-black/5 shadow-[0_8px_22px_-10px_rgba(60,48,42,0.35)] transition-all duration-200 ease-out ${showTooltip ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}
+        className={`pointer-events-none absolute -top-9 -translate-x-1/2 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap text-foreground/85 bg-white/65 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 ring-1 ring-black/5 shadow-[0_8px_22px_-10px_rgba(60,48,42,0.35)] transition-all duration-200 ease-out ${showTooltip ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}
         style={{ left: thumbCenter }}
       >
         {tooltipText}
@@ -1529,7 +1499,7 @@ function ContactCell({
             )}
           </div>
           {contact.source === 'downgrade-from-partner' && (
-            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-foreground/40 whitespace-nowrap">From partner</p>
+            <p className="mt-0.5 text-[9px] uppercase tracking-wider text-foreground/40 whitespace-nowrap">From partner</p>
           )}
         </div>
       );
@@ -1643,7 +1613,7 @@ function EditableTextCell({
           if (e.key === 'Enter') { e.preventDefault(); void commit(); }
           else if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false); }
         }}
-        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${mono ? 'font-mono tabular-nums' : ''}`}
+        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${mono ? 'font-mono tabular-nums' : ''}`}
       />
     );
   }
@@ -1660,7 +1630,7 @@ function EditableTextCell({
       {display ? (
         <span className={`${mono ? 'font-mono tabular-nums' : ''} truncate`}>{display}</span>
       ) : (
-        <span className="text-foreground/30 italic text-[12px]">{placeholder ?? 'Click to add'}</span>
+        <span className="text-foreground/30 italic text-[11px]">{placeholder ?? 'Click to add'}</span>
       )}
       {copyable && display && (
         <button
@@ -1693,9 +1663,67 @@ function InsightTile({
     'text-foreground/85 bg-warm-bg/50 border-black/10';
   return (
     <div className={`rounded-xl border px-4 py-3 ${toneCx}`}>
-      <p className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70 truncate">{label}</p>
+      <p className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70 truncate">{label}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums leading-none">{value.toLocaleString()}</p>
     </div>
+  );
+}
+
+// Designed instant-hover popover used by the Phone / Email icon cells.
+// Native browser title="..." has a ~700ms delay before it appears and
+// renders as the OS default styling; admissions wants the phone number
+// / email address legible the moment they mouse over the icon, with
+// a quick pop-in animation. We render via a portal at viewport-fixed
+// coordinates so the popover isn't clipped by the table's overflow.
+function HoverPopover({
+  value,
+  copied,
+  children,
+}: {
+  value: string;
+  copied: boolean;
+  children: React.ReactNode;
+}) {
+  const triggerRef = useRef<HTMLSpanElement | null>(null);
+  const [hovering, setHovering] = useState(false);
+  const [rect, setRect] = useState<{ left: number; top: number } | null>(null);
+
+  function enter() {
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setRect({ left: r.left + r.width / 2, top: r.top });
+    }
+    setHovering(true);
+  }
+  function leave() { setHovering(false); }
+
+  return (
+    <span
+      ref={triggerRef}
+      onMouseEnter={enter}
+      onMouseLeave={leave}
+      onFocus={enter}
+      onBlur={leave}
+      className="inline-flex"
+    >
+      {children}
+      {hovering && rect && typeof document !== 'undefined' && createPortal(
+        <div
+          role="tooltip"
+          style={{ left: rect.left, top: rect.top - 6 }}
+          className="fixed z-[1000] pointer-events-none -translate-x-1/2 -translate-y-full"
+        >
+          <div className="tooltip-pop-in relative">
+            <div className="whitespace-nowrap rounded-md bg-foreground text-white text-[10.5px] font-semibold px-2.5 py-1 shadow-lg">
+              {value}
+              <span className="ml-1.5 text-white/55 font-medium">{copied ? 'copied' : 'click to copy'}</span>
+            </div>
+            <span className="absolute left-1/2 top-full -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-foreground" />
+          </div>
+        </div>,
+        document.body,
+      )}
+    </span>
   );
 }
 
@@ -1739,7 +1767,7 @@ function IconCopyCell({
           if (e.key === 'Enter') { e.preventDefault(); void commit(); }
           else if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false); }
         }}
-        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${kind === 'phone' ? 'font-mono tabular-nums' : ''}`}
+        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${kind === 'phone' ? 'font-mono tabular-nums' : ''}`}
       />
     );
   }
@@ -1760,22 +1788,23 @@ function IconCopyCell({
 
   return (
     <div className="group/icc inline-flex items-center gap-1">
-      <button
-        type="button"
-        onClick={async (e) => {
-          e.stopPropagation();
-          try {
-            await navigator.clipboard.writeText(value);
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1400);
-          } catch { /* clipboard blocked — silent */ }
-        }}
-        title={`${value} · click to copy`}
-        aria-label={`Copy ${kind} — ${value}`}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-foreground hover:bg-warm-bg transition-colors"
-      >
-        {copied ? <CheckIcon /> : (kind === 'phone' ? <PhoneIcon /> : <EmailIcon />)}
-      </button>
+      <HoverPopover value={value} copied={copied}>
+        <button
+          type="button"
+          onClick={async (e) => {
+            e.stopPropagation();
+            try {
+              await navigator.clipboard.writeText(value);
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1400);
+            } catch { /* clipboard blocked — silent */ }
+          }}
+          aria-label={`Copy ${kind} — ${value}`}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-foreground hover:bg-warm-bg transition-colors"
+        >
+          {copied ? <CheckIcon /> : (kind === 'phone' ? <PhoneIcon /> : <EmailIcon />)}
+        </button>
+      </HoverPopover>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setEditing(true); }}
@@ -1807,42 +1836,42 @@ function ContactMobileCard({
     <div className="rounded-xl border border-black/10 bg-white p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-foreground text-base leading-tight">{contact.name}</p>
+          <p className="font-semibold text-foreground text-[13px] leading-tight">{contact.name}</p>
           {contact.company && (
-            <p className="mt-0.5 text-[12px] font-semibold text-foreground/70">{contact.company}</p>
+            <p className="mt-0.5 text-[11px] font-semibold text-foreground/70">{contact.company}</p>
           )}
           {contact.role && (
-            <p className="mt-0.5 text-[12px] text-foreground/60">{contact.role}</p>
+            <p className="mt-0.5 text-[11px] text-foreground/60">{contact.role}</p>
           )}
           {contact.source === 'downgrade-from-partner' && (
-            <p className="mt-1 text-[10px] uppercase tracking-wider text-foreground/40">From partner</p>
+            <p className="mt-1 text-[9px] uppercase tracking-wider text-foreground/40">From partner</p>
           )}
         </div>
         <TimeSinceCell contact={contact} />
       </div>
 
-      <dl className="mt-3 space-y-1.5 text-[13px]">
+      <dl className="mt-3 space-y-1.5 text-[12px]">
         {contact.phone && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Phone</dt>
+            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Phone</dt>
             <dd className="min-w-0 flex-1"><CopyableCell value={contact.phone} mono /></dd>
           </div>
         )}
         {contact.email && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Email</dt>
+            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Email</dt>
             <dd className="min-w-0 flex-1 break-all"><CopyableCell value={contact.email} /></dd>
           </div>
         )}
         {contact.location && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Location</dt>
+            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Location</dt>
             <dd className="text-foreground/75">{contact.location}</dd>
           </div>
         )}
         {contact.notes && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Notes</dt>
+            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Notes</dt>
             <dd className="text-foreground/75 whitespace-pre-wrap">{contact.notes}</dd>
           </div>
         )}
@@ -1858,18 +1887,18 @@ function ContactMobileCard({
               className="w-7 h-7 rounded-full object-cover bg-warm-bg"
             />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[11px] font-semibold text-foreground/55">
+            <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
               {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
             </div>
           )}
           <div className="min-w-0 flex-1 leading-tight">
-            <p className="text-[12px] font-semibold text-foreground truncate">
+            <p className="text-[11px] font-semibold text-foreground truncate">
               {contact.last_contact_by_name || 'Unknown'}
             </p>
-            <p className="text-[10.5px] text-foreground/45">{fmtAbsolute(contact.last_contact_at)}</p>
+            <p className="text-[9px] text-foreground/45">{fmtAbsolute(contact.last_contact_at)}</p>
           </div>
           {contact.last_contact_method && (
-            <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
+            <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
               {contact.last_contact_method}
             </span>
           )}
@@ -1880,7 +1909,7 @@ function ContactMobileCard({
         <button
           type="button"
           onClick={onContact}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-white text-[12px] font-semibold hover:bg-primary/90 transition-colors"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-semibold hover:bg-primary/90 transition-colors"
         >
           <PhoneIcon />
           Contact
@@ -1888,7 +1917,7 @@ function ContactMobileCard({
         <button
           type="button"
           onClick={onHistory}
-          className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-md border border-black/10 text-[12px] font-semibold text-foreground/75 hover:bg-warm-bg/60 transition-colors"
+          className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-md border border-black/10 text-[11px] font-semibold text-foreground/75 hover:bg-warm-bg/60 transition-colors"
         >
           History
         </button>
@@ -1959,40 +1988,10 @@ function CopyableCell({ value, mono }: { value: string; mono?: boolean }) {
   );
 }
 
-function LastContactedBy({ contact }: { contact: Contact }) {
-  if (!contact.last_contact_at) return <Em />;
-  return (
-    <div className="flex items-center gap-2">
-      {contact.last_contact_by_avatar_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={contact.last_contact_by_avatar_url}
-          alt=""
-          className="w-7 h-7 rounded-full object-cover border border-black/10"
-        />
-      ) : (
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[11px] font-bold border border-primary/20">
-          {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
-        </span>
-      )}
-      <div className="min-w-0">
-        <p className="text-[12.5px] font-semibold text-foreground truncate">
-          {contact.last_contact_by_name || '—'}
-        </p>
-        {contact.last_contact_method && (
-          <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
-            {contact.last_contact_method}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
+// Standalone freshness pill — still used by the mobile card layout
+// where the avatar / name / dates render in separate <dl> rows. The
+// desktop grid inlines this logic inside LastContactSummaryCell.
 function TimeSinceCell({ contact }: { contact: Contact }) {
-  // Re-render every 30s so values like "2 minutes" → "3 minutes"
-  // tick forward without a page refresh. Cheap — just a counter
-  // bump that React diffs against a pure render.
   const [, force] = useState(0);
   useEffect(() => {
     const t = setInterval(() => force((n) => n + 1), 30_000);
@@ -2000,21 +1999,19 @@ function TimeSinceCell({ contact }: { contact: Contact }) {
   }, []);
   if (!contact.last_contact_at) {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/10">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/10">
         Never
       </span>
     );
   }
   const s = staleness(contact.last_contact_at);
   const tone =
-    s === 'fresh'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      : s === 'cooling'
-        ? 'bg-amber-50 text-amber-700 border-amber-200'
-        : 'bg-rose-50 text-rose-700 border-rose-200';
+    s === 'fresh' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+    s === 'cooling' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+    'bg-rose-50 text-rose-700 border-rose-200';
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${tone}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${tone}`}
       title={fmtAbsolute(contact.last_contact_at) ?? ''}
     >
       {fmtAgoLong(contact.last_contact_at)}
@@ -2022,20 +2019,78 @@ function TimeSinceCell({ contact }: { contact: Contact }) {
   );
 }
 
-function LastContactCell({ contact }: { contact: Contact }) {
+// Single cell that rolls up the three old engagement columns (Last
+// Contacted By, Time Since, Last Contact) into one compact strip:
+// avatar + name + method chip on top, freshness pill + relative + absolute
+// time on the bottom. Re-renders every 30s so "2 minutes" → "3 minutes"
+// ticks forward without a page refresh — same cheap counter bump the
+// old TimeSinceCell used.
+function LastContactSummaryCell({ contact }: { contact: Contact }) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => force((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
   if (!contact.last_contact_at) {
-    return <span className="text-foreground/40 text-[11px] italic">never contacted</span>;
+    return (
+      <div className="flex items-center gap-2.5">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-foreground/5 border border-foreground/10 text-foreground/30 text-[11px] shrink-0">
+          —
+        </span>
+        <div className="min-w-0">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/10">
+            Never
+          </span>
+          <p className="text-foreground/35 text-[10px] italic mt-0.5">never contacted</p>
+        </div>
+      </div>
+    );
   }
-  const tone =
-    staleness(contact.last_contact_at) === 'fresh'
-      ? 'text-emerald-700'
-      : staleness(contact.last_contact_at) === 'cooling'
-        ? 'text-amber-700'
-        : 'text-rose-700';
+
+  const s = staleness(contact.last_contact_at);
+  const pillTone =
+    s === 'fresh' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+    s === 'cooling' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+    'bg-rose-50 text-rose-700 border-rose-200';
+  const textTone =
+    s === 'fresh' ? 'text-emerald-700' :
+    s === 'cooling' ? 'text-amber-700' :
+    'text-rose-700';
+
   return (
-    <div className="text-[12px]">
-      <p className={`font-semibold ${tone}`}>{fmtAgo(contact.last_contact_at)}</p>
-      <p className="text-foreground/45 mt-0.5 whitespace-nowrap">{fmtAbsolute(contact.last_contact_at)}</p>
+    <div className="flex items-start gap-2.5 min-w-0">
+      {contact.last_contact_by_avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={contact.last_contact_by_avatar_url}
+          alt=""
+          className="w-7 h-7 rounded-full object-cover border border-black/10 shrink-0 mt-0.5"
+        />
+      ) : (
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20 shrink-0 mt-0.5">
+          {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 flex-wrap leading-tight">
+          <p className="text-[11.5px] font-semibold text-foreground truncate max-w-[140px]">
+            {contact.last_contact_by_name || '—'}
+          </p>
+          {contact.last_contact_method && (
+            <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
+              {contact.last_contact_method}
+            </span>
+          )}
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border whitespace-nowrap ${pillTone}`}>
+            {fmtAgoLong(contact.last_contact_at)}
+          </span>
+        </div>
+        <div className="mt-1 text-[10.5px] leading-tight" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
+          <span className={`font-semibold ${textTone}`}>{fmtAgo(contact.last_contact_at)}</span>
+          <span className="text-foreground/45"> · {fmtAbsolute(contact.last_contact_at)}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2079,7 +2134,7 @@ function ManageColumnsButton({
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 z-30 w-60 rounded-xl border border-black/10 bg-white shadow-lg overflow-hidden">
-          <p className="px-3 py-2 text-[10px] font-bold tracking-[0.2em] uppercase text-foreground/45 border-b border-black/5">
+          <p className="px-3 py-2 text-[9px] font-bold tracking-[0.2em] uppercase text-foreground/45 border-b border-black/5">
             Visible columns
           </p>
           <ul className="py-1 max-h-80 overflow-y-auto">
@@ -2087,7 +2142,7 @@ function ManageColumnsButton({
               const checked = visibleCols.includes(c.key);
               return (
                 <li key={c.key}>
-                  <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-warm-bg/60 cursor-pointer text-[12.5px]">
+                  <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-warm-bg/60 cursor-pointer text-[11.5px]">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -2100,7 +2155,7 @@ function ManageColumnsButton({
               );
             })}
           </ul>
-          <p className="px-3 py-2 border-t border-black/5 text-[10px] text-foreground/45">
+          <p className="px-3 py-2 border-t border-black/5 text-[9px] text-foreground/45">
             Saves for everyone — drag headers to reorder.
           </p>
         </div>
@@ -2249,10 +2304,10 @@ function LogContactModal({
               className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left"
               aria-expanded={showTranscript}
             >
-              <span className="text-[12px] font-semibold text-foreground/75">
+              <span className="text-[11px] font-semibold text-foreground/75">
                 Paste transcript {transcript.trim() && <span className="ml-1 text-primary">· {transcript.trim().length.toLocaleString()} chars</span>}
               </span>
-              <span className="text-[11px] text-foreground/50">
+              <span className="text-[10px] text-foreground/50">
                 {showTranscript ? 'Hide' : 'Claude will summarise it for the history'}
               </span>
             </button>
@@ -2262,10 +2317,10 @@ function LogContactModal({
                   value={transcript}
                   onChange={(e) => setTranscript(e.target.value)}
                   rows={8}
-                  className="modal-input resize-y font-mono text-[12px]"
+                  className="modal-input resize-y font-mono text-[11px]"
                   placeholder="Paste a call recording / meeting transcript here. We'll save the full text and Claude will write a short summary that shows up in the contact history."
                 />
-                <p className="mt-1.5 text-[11px] text-foreground/50">
+                <p className="mt-1.5 text-[10px] text-foreground/50">
                   Stored privately. Only people who can see this contact will be able to open the full transcript.
                 </p>
               </div>
@@ -2342,14 +2397,14 @@ function ContactDetailsDrawer({
     <div className="rounded-xl border border-black/10 bg-white shadow-sm">
       <div className="flex items-start justify-between gap-4 border-b border-black/5 px-5 py-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/40">Contact details</p>
-          <p className="mt-0.5 text-base font-semibold text-foreground truncate">{contact.name}</p>
+          <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground/40">Contact details</p>
+          <p className="mt-0.5 text-[13px] font-semibold text-foreground truncate">{contact.name}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={onLogContact}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[11px] font-semibold hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[10px] font-semibold hover:bg-primary/90 transition-colors"
           >
             <PhoneIcon />
             Log a contact
@@ -2367,16 +2422,16 @@ function ContactDetailsDrawer({
 
       <div className="grid md:grid-cols-2 gap-x-6">
         <div className="px-5 py-4 md:border-r md:border-black/5">
-          <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-[13px]">
+          <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-[12px]">
             {detailRows.map((r) => (
               <Fragment key={r.label}>
-                <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">{r.label}</dt>
+                <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">{r.label}</dt>
                 <dd className="text-foreground/80 break-words">{r.value || <span className="text-foreground/30 italic">—</span>}</dd>
               </Fragment>
             ))}
             {contact.notes && (
               <>
-                <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">Notes</dt>
+                <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">Notes</dt>
                 <dd className="text-foreground/80 whitespace-pre-wrap leading-relaxed">{contact.notes}</dd>
               </>
             )}
@@ -2385,7 +2440,7 @@ function ContactDetailsDrawer({
 
         <div className="px-5 py-4">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/45">Contact history</p>
+            <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground/45">Contact history</p>
             <p className="text-xs text-foreground/45">
               {logs == null
                 ? 'Loading…'
@@ -2395,7 +2450,7 @@ function ContactDetailsDrawer({
             </p>
           </div>
           {error && (
-            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
           )}
           {logs && logs.length > 0 && (
             <ol className="relative border-l border-black/10 ml-2">
@@ -2415,24 +2470,24 @@ function ContactDetailsDrawer({
                         className="w-7 h-7 rounded-full object-cover bg-warm-bg"
                       />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
+                      <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[9px] font-semibold text-foreground/55">
                         {(log.contacted_by_name || '?').charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <p className="text-[13px] font-semibold text-foreground">
+                        <p className="text-[12px] font-semibold text-foreground">
                           {log.contacted_by_name || 'Unknown'}
                         </p>
-                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[log.method]}`}>
+                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[log.method]}`}>
                           {log.method}
                         </span>
-                        <span className="text-[11px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
+                        <span className="text-[10px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
                           {fmtAgo(log.contacted_at)}
                         </span>
                       </div>
                       {log.comments && (
-                        <p className="mt-1 text-[13px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
+                        <p className="mt-1 text-[12px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
                           {log.comments}
                         </p>
                       )}
@@ -2502,21 +2557,21 @@ function TranscriptBlock({
         </span>
         <div className="min-w-0 flex-1">
           {summary ? (
-            <p className="text-[12px] text-foreground/80 whitespace-pre-wrap leading-relaxed">{summary}</p>
+            <p className="text-[11px] text-foreground/80 whitespace-pre-wrap leading-relaxed">{summary}</p>
           ) : (
-            <p className="text-[12px] text-foreground/45 italic">Summary unavailable.</p>
+            <p className="text-[11px] text-foreground/45 italic">Summary unavailable.</p>
           )}
           {hasTranscript && (
             <button
               type="button"
               onClick={toggle}
-              className="mt-1 text-[11px] font-semibold text-primary hover:underline"
+              className="mt-1 text-[10px] font-semibold text-primary hover:underline"
             >
               {expanded ? 'Hide full transcript' : 'View full transcript'}
             </button>
           )}
           {expanded && hasTranscript && (
-            <div className="mt-2 max-h-64 overflow-y-auto rounded border border-black/10 bg-white px-2 py-1.5 text-[11px] text-foreground/75 font-mono whitespace-pre-wrap">
+            <div className="mt-2 max-h-64 overflow-y-auto rounded border border-black/10 bg-white px-2 py-1.5 text-[10px] text-foreground/75 font-mono whitespace-pre-wrap">
               {loading ? 'Loading transcript…' : err ? `Failed to load: ${err}` : (transcript ?? '')}
             </div>
           )}
@@ -2593,7 +2648,7 @@ function UpgradeToPartnerModal({
     >
       <form onSubmit={submit}>
         <div className="px-6 py-5">
-          <div className="rounded-lg bg-warm-bg/60 border border-black/5 px-4 py-3 mb-5 text-[12px] text-foreground/65 leading-snug">
+          <div className="rounded-lg bg-warm-bg/60 border border-black/5 px-4 py-3 mb-5 text-[11px] text-foreground/65 leading-snug">
             Pre-filled from <span className="font-semibold text-foreground">{contact.name}</span>:
             point of contact, contact info{contact.location ? ', and location' : ''}. Fill in the
             partner-specific fields below — the contact will be removed from the
@@ -2641,7 +2696,7 @@ function UpgradeToPartnerModal({
                       type="button"
                       key={c}
                       onClick={() => setInsurance((prev) => toggleArray(prev, c))}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors ${
                         active ? 'bg-primary/10 text-primary border-primary/25' : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
                       }`}
                     >
@@ -2668,7 +2723,7 @@ function UpgradeToPartnerModal({
                       key={l}
                       disabled={!isFacility}
                       onClick={() => setLevels((prev) => toggleArray(prev, l))}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors ${
                         active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
                       }`}
                     >
@@ -2725,8 +2780,8 @@ function ModalShell({
         </div>
         <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
-            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">{eyebrow}</p>
-            <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{title}</h2>
+            <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-foreground/45">{eyebrow}</p>
+            <h2 className="text-base font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{title}</h2>
           </div>
           <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground p-2 -mr-2" aria-label="Close">
             <CloseIcon />
@@ -2774,11 +2829,11 @@ function ModalField({
 }) {
   return (
     <div className={full ? 'sm:col-span-2' : ''}>
-      <label className={`block text-[10px] font-bold tracking-[0.18em] uppercase mb-1 ${disabled ? 'text-foreground/30' : 'text-foreground/55'}`}>
+      <label className={`block text-[9px] font-bold tracking-[0.18em] uppercase mb-1 ${disabled ? 'text-foreground/30' : 'text-foreground/55'}`}>
         {label} {required && <span className="text-primary">*</span>}
       </label>
       {children}
-      {hint && <p className={`mt-1 text-[11px] ${disabled ? 'text-foreground/30' : 'text-foreground/45'}`}>{hint}</p>}
+      {hint && <p className={`mt-1 text-[10px] ${disabled ? 'text-foreground/30' : 'text-foreground/45'}`}>{hint}</p>}
     </div>
   );
 }
@@ -3010,8 +3065,8 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
         </div>
         <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
-            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Bulk import</p>
-            <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Import contacts from CSV</h2>
+            <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-foreground/45">Bulk import</p>
+            <h2 className="text-base font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Import contacts from CSV</h2>
           </div>
           <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground p-2 -mr-2" aria-label="Close">
             <CloseIcon />
@@ -3021,7 +3076,7 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
         <div className="px-6 py-5 space-y-4">
           {/* Step 1: pick file */}
           <div>
-            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">1 · Upload CSV</p>
+            <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">1 · Upload CSV</p>
             <label className="block rounded-xl border-2 border-dashed border-black/15 bg-warm-bg/30 px-4 py-6 text-center cursor-pointer hover:border-primary/45 hover:bg-primary/5 transition-colors">
               <input
                 type="file"
@@ -3029,12 +3084,12 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
                 className="sr-only"
                 onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
               />
-              <p className="text-sm font-semibold text-foreground">{file ? file.name : 'Click to choose a .csv'}</p>
-              <p className="mt-1 text-[11.5px] text-foreground/55">
+              <p className="text-[13px] font-semibold text-foreground">{file ? file.name : 'Click to choose a .csv'}</p>
+              <p className="mt-1 text-[10.5px] text-foreground/55">
                 Up to 1MB. Headers will be auto-detected — column names like &quot;Phone #&quot; or &quot;City, State&quot; are fine.
               </p>
             </label>
-            <div className="mt-2 flex items-center justify-between text-[11px]">
+            <div className="mt-2 flex items-center justify-between text-[10px]">
               <button type="button" onClick={downloadTemplate} className="text-primary hover:underline">
                 Download template CSV
               </button>
@@ -3049,11 +3104,11 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
           {/* Step 2: AI normalise */}
           {parsed && parsed.rows.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
+              <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
                 2 · Let Claude normalise
               </p>
               <div className="rounded-xl border border-black/10 bg-white px-4 py-3">
-                <p className="text-[12.5px] text-foreground/65 leading-snug">
+                <p className="text-[11.5px] text-foreground/65 leading-snug">
                   Claude maps your headers to our schema, combines split first / last name columns,
                   normalises phone numbers, and tidies whitespace. The server re-validates every row
                   before insert, so a bad mapping can&apos;t bypass the rules.
@@ -3062,7 +3117,7 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
                   type="button"
                   onClick={runAi}
                   disabled={normalising || !!normalised}
-                  className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-primary-dark disabled:opacity-50"
+                  className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-primary-dark disabled:opacity-50"
                 >
                   {normalising ? (
                     <>
@@ -3073,7 +3128,7 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
                     : 'Normalise with Claude'}
                 </button>
                 {aiNotes && (
-                  <p className="mt-2 text-[11.5px] text-foreground/55 italic">{aiNotes}</p>
+                  <p className="mt-2 text-[10.5px] text-foreground/55 italic">{aiNotes}</p>
                 )}
               </div>
             </div>
@@ -3082,10 +3137,10 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
           {/* Step 3: preview + import */}
           {normalised && normalised.length > 0 && !result && (
             <div>
-              <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">3 · Preview &amp; import</p>
+              <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">3 · Preview &amp; import</p>
               <div className="overflow-x-auto rounded-xl border border-black/10 bg-white max-h-72">
-                <table className="w-full text-[12.5px]">
-                  <thead className="bg-warm-bg/60 text-left text-[10.5px] uppercase tracking-wider text-foreground/55 sticky top-0">
+                <table className="w-full text-[11.5px]">
+                  <thead className="bg-warm-bg/60 text-left text-[9px] uppercase tracking-wider text-foreground/55 sticky top-0">
                     <tr>
                       <th className="px-3 py-2">Name</th>
                       <th className="px-3 py-2">Role</th>
@@ -3108,13 +3163,13 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
                 </table>
               </div>
               {normalised.length > 50 && (
-                <p className="mt-1 text-[11px] text-foreground/45">+ {normalised.length - 50} more not shown</p>
+                <p className="mt-1 text-[10px] text-foreground/45">+ {normalised.length - 50} more not shown</p>
               )}
               <button
                 type="button"
                 onClick={runImport}
                 disabled={importing}
-                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85 disabled:opacity-50"
+                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-foreground text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-foreground/85 disabled:opacity-50"
               >
                 {importing ? (
                   <>
@@ -3129,12 +3184,12 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
           {/* Done */}
           {result && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
-              <p className="text-sm font-semibold text-emerald-900">
+              <p className="text-[13px] font-semibold text-emerald-900">
                 Created {result.created} {result.created === 1 ? 'contact' : 'contacts'}
                 {result.skipped > 0 && <span className="text-foreground/55"> · {result.skipped} skipped</span>}
               </p>
               {result.errors.length > 0 && (
-                <ul className="mt-2 space-y-0.5 text-[12px] text-foreground/70 max-h-32 overflow-y-auto">
+                <ul className="mt-2 space-y-0.5 text-[11px] text-foreground/70 max-h-32 overflow-y-auto">
                   {result.errors.slice(0, 20).map((e, i) => (
                     <li key={i}><span className="text-foreground/45">Row {e.row}:</span> {e.reason}</li>
                   ))}
@@ -3147,7 +3202,7 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
           )}
 
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
           )}
         </div>
 

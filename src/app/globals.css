@@ -487,3 +487,20 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
     animation: none;
   }
 }
+
+/* Hover popovers on the outreach Phone / Email icons. The popover is
+   rendered into a portal at the icon's viewport coordinates so it can
+   escape the table's overflow-clip. Mount-time-only animation: a fast
+   pop-in (opacity + scale from the bottom-centre origin) that completes
+   in 120ms so the value reads as "instant" while still feeling crafted. */
+@keyframes tooltip-pop-in {
+  0% { opacity: 0; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.tooltip-pop-in {
+  animation: tooltip-pop-in 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: bottom center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-pop-in { animation: none; }
+}
