@@ -76,23 +76,25 @@ interface ColumnDef {
 
 const ALL_COLUMNS: ColumnDef[] = [
   // Column order locked in by admissions:
-  //   Name → Rating → Company → Site → Contact → Location → Role/Relation → Notes
-  // Rating sits up front (right after Name) so the tier is the first
-  // qualifier you see. Site → Contact → Location flow as a contiguous
-  // outreach block. Contact history + Actions are sticky on the right
-  // (rendered outside this array).
+  //   Name → Rating → Company → Site → Contact → Location → Notes → Role/Relation
+  // Rating leads (right after Name) so the tier qualifier is the
+  // first thing you see. Site → Contact → Location flow as a
+  // contiguous outreach block. Notes lives just after Location so the
+  // free-text context sits next to the address. Role / Relation
+  // anchors the right end. Contact history + Actions are sticky on
+  // the right (rendered outside this array).
   { key: 'name', label: 'Name' },
   { key: 'rating', label: 'Rating' },
   { key: 'company', label: 'Company' },
   { key: 'website', label: 'Site', align: 'left' },
-  // Single merged "Contact" cell. Renders the cell phone, office
-  // phone, email, and pin (location) as four icon buttons in a row.
-  // Each carries its own hover popover + click-to-copy / click-to-
-  // open-link, and the pin opens the place autocomplete editor.
+  // Merged "Contact" cell. Renders the cell phone, office phone, and
+  // email as 3 icon buttons in a row. Each carries its own hover
+  // popover + click-to-copy / click-to-open-link. Location moved out
+  // to its own column right after this one.
   { key: 'contact', label: 'Contact' },
   { key: 'location', label: 'Location' },
-  { key: 'role', label: 'Role / Relation' },
   { key: 'notes', label: 'Notes' },
+  { key: 'role', label: 'Role / Relation' },
 ];
 
 
@@ -465,34 +467,38 @@ export default function ContactsContent() {
   }, [session?.access_token]);
 
   function applyPrefs(visible: unknown, order: unknown) {
-    // The contacts grid gains new columns over time (website / rating
-    // / merged contact / last_contact_summary). A `shared_grid_prefs`
-    // row written before those landed only carries the old keys, so
-    // filtering visible_columns to "just stored keys" makes the new
-    // columns flash on first paint (from DEFAULT_VISIBLE) and then
-    // disappear when prefs land — that was the bug admins reported.
-    //
-    // Fix: top up the stored set with any missing keys from
-    // DEFAULT_VISIBLE / DEFAULT_ORDER and, if we had to top up, persist
-    // the patched set back so this is a one-time auto-migration. After
-    // that, the stored row has every known key and the admin's
-    // explicit hide / reorder preferences are respected normally.
+    // The contacts grid gains/reshuffles columns over time. The shared
+    // `shared_grid_prefs` row can carry an order written before newer
+    // columns existed — appending missing keys at the end of the
+    // stored array (which the previous version did) leaves them
+    // stranded at the right of the table (e.g. Rating drifted past
+    // Notes once it was introduced). When stored prefs are missing
+    // ANY canonical key, reset both visible_columns and column_order
+    // to the canonical DEFAULT_VISIBLE / DEFAULT_ORDER and persist
+    // back — a one-shot auto-migration that re-aligns every connected
+    // viewer to the layout the code currently expects. Admins can
+    // still drag-reorder afterwards and that customisation will stick
+    // (next load has no missing keys → reset doesn't fire).
     const known = (arr: unknown): string[] | null => (
       Array.isArray(arr) && arr.length > 0 ? (arr as string[]).filter((k) => k in COL_BY_KEY) : null
     );
     const storedV = known(visible);
     const storedO = known(order);
-    const v0 = storedV ?? DEFAULT_VISIBLE;
-    const o0 = storedO ?? DEFAULT_ORDER;
-    const missingV = DEFAULT_VISIBLE.filter((k) => !v0.includes(k));
-    const missingO = DEFAULT_ORDER.filter((k) => !o0.includes(k));
-    const v = [...v0, ...missingV];
-    const o = [...o0, ...missingO];
+    const missingV = storedV ? DEFAULT_VISIBLE.filter((k) => !storedV.includes(k)) : [];
+    const missingO = storedO ? DEFAULT_ORDER.filter((k) => !storedO.includes(k)) : [];
+    const stale = !storedV || !storedO || missingV.length > 0 || missingO.length > 0;
+    const v = stale ? DEFAULT_VISIBLE.slice() : storedV!;
+    const o = stale ? DEFAULT_ORDER.slice() : storedO!;
     setVisibleCols(v);
     setColumnOrder(o);
-    if (missingV.length > 0 || missingO.length > 0) {
+    if (stale) {
       // eslint-disable-next-line no-console
-      console.info('[outreach] topping up shared_grid_prefs with new column keys', { addedVisible: missingV, addedOrder: missingO });
+      console.info('[outreach] resetting shared_grid_prefs to canonical column layout', {
+        missingFromVisible: missingV,
+        missingFromOrder: missingO,
+        hadStoredVisible: !!storedV,
+        hadStoredOrder: !!storedO,
+      });
       void persistPrefs(v, o);
     }
   }
