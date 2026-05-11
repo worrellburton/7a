@@ -1070,9 +1070,67 @@ function loadGoogleMaps(apiKey: string): Promise<GoogleNamespace> {
   return mapsLoadPromise;
 }
 
-// Outreach map view. Renders contacts with lat/lng as classic Google
+// SVG markup for a Tier 1 (premium) pin: gold + amber teardrop body
+// with a white inner dot, flame plume above, and a pulsing radial
+// glow halo at the base. The flame uses three stacked teardrops
+// (red / amber / yellow) so the inner / outer flame layers shimmer
+// independently. Larger than the regular pin (32x44 vs 22x32) so the
+// "best partners" cluster reads as the loudest thing on the map.
+const TIER1_PIN_SVG = `
+  <span class="sa-pin-glow" aria-hidden="true"></span>
+  <span class="sa-pin-flame" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M11 1 C 7 5, 4 8, 4 12 a7 7 0 1 0 14 0 c 0-3-3-6-7-11z" fill="#ef4444"/>
+      <path d="M11 5 C 8.5 8, 7 10, 7 13 a4 4 0 1 0 8 0 c 0-2.5-2-4-4-8z" fill="#f59e0b"/>
+      <path d="M11 9 C 9.5 11, 9 12, 9 13.5 a2 2 0 1 0 4 0 c 0-1.5-1-2-2-4.5z" fill="#fde047"/>
+    </svg>
+  </span>
+  <svg class="sa-pin-body" width="32" height="44" viewBox="0 0 22 32" xmlns="http://www.w3.org/2000/svg">
+    <path d="M11 0C4.92 0 0 4.92 0 11c0 8.25 11 21 11 21s11-12.75 11-21C22 4.92 17.08 0 11 0z" fill="url(#sa-pin-tier1-grad)" stroke="#fbbf24" stroke-width="0.6"/>
+    <circle cx="11" cy="11" r="4.4" fill="#fff"/>
+    <defs>
+      <linearGradient id="sa-pin-tier1-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#fbbf24"/>
+        <stop offset="60%" stop-color="#f59e0b"/>
+        <stop offset="100%" stop-color="#b45309"/>
+      </linearGradient>
+    </defs>
+  </svg>
+`;
+
+// SVG markup for the regular pin (Tier 2 / Tier 3 / unrated). Sized
+// at 22x32 — about 70% of the Tier 1 footprint so the premium
+// partners visibly tower over the rest at the same zoom level. Body
+// fill is the brand copper.
+const REGULAR_PIN_SVG = `
+  <svg class="sa-pin-body" width="22" height="32" viewBox="0 0 22 32" xmlns="http://www.w3.org/2000/svg">
+    <path d="M11 0C4.92 0 0 4.92 0 11c0 8.25 11 21 11 21s11-12.75 11-21C22 4.92 17.08 0 11 0z" fill="#bc6b4a"/>
+    <circle cx="11" cy="11" r="4.2" fill="#fff"/>
+  </svg>
+`;
+
+// Build the absolutely-positioned wrapper element that the OverlayView
+// places at the marker's projected pixel. Tier 1 picks up the
+// `sa-pin-tier1` class which lights up the flame + glow keyframes in
+// globals.css; everything else gets the smaller plain pin. The title
+// attribute carries the contact name so the browser's native tooltip
+// surfaces it on hover (safe because `title` is auto-escaped by the
+// DOM API — we never feed `name` into innerHTML).
+function buildOutreachPinElement(contact: Contact, isTier1: boolean): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = `sa-outreach-pin ${isTier1 ? 'sa-pin-tier1' : 'sa-pin-regular'}`;
+  wrap.setAttribute('role', 'button');
+  wrap.setAttribute('aria-label', `${contact.name || 'Contact'}${isTier1 ? ' — Tier 1' : ''}`);
+  wrap.title = contact.name || '';
+  wrap.innerHTML = isTier1 ? TIER1_PIN_SVG : REGULAR_PIN_SVG;
+  return wrap;
+}
+
+// Outreach map view. Renders contacts with lat/lng as custom HTML
 // markers on a US-centred map; click a marker to open a side panel
 // with the contact's contact-card info + jump-to-table affordance.
+// Tier 1 contacts get a larger animated-flame / glowing pin so the
+// premium partners visibly tower over the rest at the same zoom level.
 // Contacts without lat/lng land in a "not on map" footer with a hint
 // to add a Location via the autocomplete cell so they show up.
 function ContactsMapView({
@@ -1134,6 +1192,8 @@ function ContactsMapView({
     if (!ready || !mapRef.current) return;
     const g = getGoogle();
     if (!g?.maps) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const maps = g.maps as any;
 
     // Clear existing
     for (const m of markersRef.current) {
@@ -1144,20 +1204,68 @@ function ContactsMapView({
 
     if (mapped.length === 0) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const bounds = new (g.maps as any).LatLngBounds();
-    for (const c of mapped) {
+    // Custom HTML pin via OverlayView so we can layer CSS animations
+    // on top of the marker (animated flame + glow halo for Tier 1).
+    // The classic google.maps.Marker only accepts static SVG/PNG icons
+    // and can't host child DOM elements, which is why we drop down to
+    // OverlayView here. The class is defined inside the effect because
+    // OverlayView is only available once Maps JS has loaded.
+    class HtmlPinMarker extends maps.OverlayView {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const marker = new (g.maps as any).Marker({
-        position: { lat: c.lat as number, lng: c.lng as number },
-        map: mapRef.current,
-        title: c.name,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        animation: (g.maps as any).Animation?.DROP,
-      });
-      marker.addListener('click', () => setSelected(c));
+      position: any;
+      el: HTMLElement;
+      onClick: () => void;
+      mounted: HTMLElement | null = null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      constructor(position: any, el: HTMLElement, onClick: () => void) {
+        super();
+        this.position = position;
+        this.el = el;
+        this.onClick = onClick;
+      }
+      onAdd() {
+        this.el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.onClick();
+        });
+        this.getPanes().overlayMouseTarget.appendChild(this.el);
+        this.mounted = this.el;
+      }
+      draw() {
+        const projection = this.getProjection();
+        if (!projection || !this.mounted) return;
+        const point = projection.fromLatLngToDivPixel(this.position);
+        if (point) {
+          this.mounted.style.left = `${point.x}px`;
+          this.mounted.style.top = `${point.y}px`;
+        }
+      }
+      onRemove() {
+        if (this.mounted && this.mounted.parentNode) {
+          this.mounted.parentNode.removeChild(this.mounted);
+        }
+        this.mounted = null;
+      }
+    }
+
+    const bounds = new maps.LatLngBounds();
+    // Render Tier 1 pins LAST so they paint on top of every other pin
+    // when their bounding boxes overlap. The flame plume + glow halo
+    // would otherwise get clipped by neighbouring pins at busy zoom
+    // levels.
+    const ordered = mapped.slice().sort((a, b) => {
+      const aT1 = a.rating === 'Tier 1' ? 1 : 0;
+      const bT1 = b.rating === 'Tier 1' ? 1 : 0;
+      return aT1 - bT1;
+    });
+    for (const c of ordered) {
+      const isTier1 = c.rating === 'Tier 1';
+      const el = buildOutreachPinElement(c, isTier1);
+      const ll = new maps.LatLng(c.lat as number, c.lng as number);
+      const marker = new HtmlPinMarker(ll, el, () => setSelected(c));
+      marker.setMap(mapRef.current);
       markersRef.current.push(marker);
-      bounds.extend({ lat: c.lat as number, lng: c.lng as number });
+      bounds.extend(ll);
     }
     // Auto-fit if we have more than one pin; for a single pin keep the
     // US-wide zoom (single-pin fitBounds maxes out the zoom which feels
