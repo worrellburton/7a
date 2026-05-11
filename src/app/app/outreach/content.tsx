@@ -1161,7 +1161,7 @@ function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
         <TopPerformersLeaderboard contacts={contacts} />
         <StalenessFunnel contacts={contacts} />
         <InsightsPlaceholder span="col-span-12 md:col-span-5" label="Phase 9 — Partner conversion" hint="Contact → Partner funnel" />
-        <InsightsPlaceholder span="col-span-12" label="Phase 8 — Geographic concentration" hint="State-level heatmap" />
+        <GeographicConcentration contacts={contacts} />
       </div>
     </div>
   );
@@ -1894,6 +1894,109 @@ function StalenessFunnel({ contacts }: { contacts: Contact[] }) {
             })}
           </ul>
         </>
+      )}
+    </div>
+  );
+}
+
+// Geographic concentration. Pulls the 2-letter state code out of
+// each contact's `formatted_address` (Google's canonical format is
+// "Street, City, ST ZIP, USA"), buckets them, ranks by count, and
+// renders the top 10 as horizontal bars + a row of state code +
+// count + percent. Each bar is colour-graded from the brand copper
+// (rank 1) toward muted (rank 10) so the leaderboard reads as a
+// concentration ramp, not a wall of identical bars. State abbrev is
+// rendered in a square chip on the left so admissions can scan a
+// vertical column of "TX | AZ | CA" at a glance. Bars grow from
+// 0 to share-of-#1 on mount with a 60ms per-row stagger so the
+// list cascades down. Contacts whose `formatted_address` doesn't
+// match the canonical pattern get rolled into an "Other / unknown"
+// stat at the bottom right of the card so the rollup never silently
+// drops rows.
+const STATE_REGEX = /,\s*([A-Z]{2})\s+\d{4,5}(?:-\d{4})?/;
+function GeographicConcentration({ contacts }: { contacts: Contact[] }) {
+  const { rows, unmatched } = useMemo(() => {
+    const counts = new Map<string, number>();
+    let unknown = 0;
+    for (const c of contacts) {
+      const addr = c.formatted_address ?? '';
+      const m = STATE_REGEX.exec(addr);
+      if (m) {
+        const st = m[1];
+        counts.set(st, (counts.get(st) ?? 0) + 1);
+      } else if (addr || c.location) {
+        unknown += 1;
+      }
+    }
+    const r = Array.from(counts.entries())
+      .map(([state, count]) => ({ state, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+    return { rows: r, unmatched: unknown };
+  }, [contacts]);
+
+  const top = rows[0]?.count ?? 1;
+  const total = contacts.length;
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(false);
+    const id = window.requestAnimationFrame(() => setMounted(true));
+    return () => window.cancelAnimationFrame(id);
+  }, [rows]);
+
+  return (
+    <div className="col-span-12 rounded-xl border border-black/10 bg-white px-4 py-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">Geographic concentration · top states</p>
+        <span className="text-[10.5px] text-foreground/45 tabular-nums">
+          {rows.length} {rows.length === 1 ? 'state' : 'states'}
+          {unmatched > 0 ? ` · ${unmatched} unmapped` : ''}
+        </span>
+      </div>
+      {rows.length === 0 ? (
+        <div className="flex items-center justify-center h-[160px] text-[11.5px] text-foreground/45 text-center px-4">
+          No contacts have a recognised US state in their address.<br />
+          Use the Location column on a row and pick from the place autocomplete to populate this chart.
+        </div>
+      ) : (
+        <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+          {rows.map((r, i) => {
+            const share = r.count / top;
+            const pct = total === 0 ? 0 : r.count / total;
+            // Colour ramp: top of the leaderboard is the brand
+            // copper, bottom is muted. Linearly interpolate alpha so
+            // rank 1 is fully saturated and rank 10 is around 35%.
+            const alpha = 1 - (i / Math.max(1, rows.length - 1)) * 0.6;
+            const bg = `linear-gradient(90deg, rgba(188,107,74,${alpha.toFixed(2)}), rgba(107,42,20,${alpha.toFixed(2)}))`;
+            return (
+              <li key={r.state} className="flex items-center gap-2.5">
+                <span className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-foreground/5 text-foreground/80 text-[11px] font-bold tabular-nums">
+                  {r.state}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[11.5px] text-foreground/65">Rank #{i + 1}</span>
+                    <span className="text-[11px] text-foreground/55 tabular-nums shrink-0">
+                      {r.count} <span className="text-foreground/35">·</span> {(pct * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-foreground/5 overflow-hidden">
+                    <span
+                      className="block h-full rounded-full"
+                      style={{
+                        width: `${(mounted ? share : 0) * 100}%`,
+                        background: bg,
+                        transition: 'width 900ms cubic-bezier(0.22, 1, 0.36, 1)',
+                        transitionDelay: `${i * 60}ms`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );
