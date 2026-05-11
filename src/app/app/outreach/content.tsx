@@ -78,9 +78,11 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: 'website', label: 'Site', align: 'left' },
   { key: 'rating', label: 'Rating' },
   { key: 'role', label: 'Role / Relation' },
-  { key: 'phone', label: 'Phone' },
-  { key: 'email', label: 'Email' },
-  { key: 'location', label: 'Location' },
+  // Single merged "Contact" cell. Renders the cell phone, office
+  // phone, email, and pin (location) as four icon buttons in a row.
+  // Each carries its own hover popover + click-to-copy / click-to-
+  // open-link, and the pin opens the place autocomplete editor.
+  { key: 'contact', label: 'Contact' },
   { key: 'notes', label: 'Notes' },
 ];
 
@@ -105,9 +107,10 @@ const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
   website: 60,
   rating: 110,
   role: 180,
-  phone: 110,
-  email: 60,
-  location: 180,
+  // Merged "Contact" column — needs room for 4 icons (cell, office,
+  // email, pin) plus their hover affordances. 200px keeps them
+  // breathing without crowding adjacent columns.
+  contact: 200,
   notes: 280,
   actions: 140,
   // Merged engagement column (replaces last_contact_by_name + time_since
@@ -175,6 +178,10 @@ function sortValue(c: Contact, key: string): string | number | null {
     case 'phone': return c.phone || null;
     case 'email': return c.email || null;
     case 'location': return c.location || null;
+    // Merged Contact column sorts by location (most useful pivot —
+    // groups admissions can read by city / state / time zone). Phone /
+    // email aren't great sort keys anyway.
+    case 'contact': return c.formatted_address || c.location || null;
     case 'notes': return c.notes || null;
     case 'last_contact_at':
     case 'time_since':
@@ -238,7 +245,12 @@ export default function ContactsContent() {
     void fetch('/api/outreach/geocode', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ limit: 100 }),
+      // retry_failed: true so the map view re-attempts any rows that
+      // previously came back empty — e.g. when the user first wired
+      // up the integration and the Geocoding API wasn't enabled yet.
+      // Cheap on quota since most pipelines have far fewer than 100
+      // pending rows.
+      body: JSON.stringify({ limit: 100, retry_failed: true }),
     }).then(async (r) => {
       if (!r.ok) return;
       // Pull the freshly-geocoded rows back in. Realtime would do this
@@ -480,7 +492,7 @@ export default function ContactsContent() {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => {
-      const hay = [r.name, r.company, r.role, r.phone, r.email, r.location, r.notes]
+      const hay = [r.name, r.company, r.company_website, r.role, r.phone, r.phone_cell, r.phone_office, r.email, r.location, r.formatted_address, r.notes]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
@@ -1310,7 +1322,7 @@ function ContactsGrid({
             <th
               data-col-key="actions"
               style={{ right: `${actionsStickyRightPx}px` }}
-              className="group/th sticky z-20 bg-[#faf8f5] shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2 whitespace-nowrap"
+              className="group/th sticky z-20 bg-[#faf8f5]/70 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2 whitespace-nowrap"
             >
               <span className="truncate">Actions</span>
               <ResizeHandle colKey="actions" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
@@ -1318,7 +1330,7 @@ function ContactsGrid({
             <th
               data-col-key="last_contact_summary"
               onClick={() => onSort('last_contact_at')}
-              className="group/th sticky right-10 z-20 bg-[#faf8f5] shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
+              className="group/th sticky right-10 z-20 bg-[#faf8f5]/70 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
             >
               <span className="inline-flex items-center gap-1 truncate">
                 Contact history
@@ -1326,7 +1338,7 @@ function ContactsGrid({
               </span>
               <ResizeHandle colKey="last_contact_summary" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
-            <th className="sticky right-0 z-20 bg-[#faf8f5] px-3 py-2" />
+            <th className="sticky right-0 z-20 bg-[#faf8f5]/70 backdrop-blur-md backdrop-saturate-150 px-3 py-2" />
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5">
@@ -1374,7 +1386,7 @@ function ContactsGrid({
                 })}
                 <td
                   style={{ right: `${actionsStickyRightPx}px` }}
-                  className={`sticky z-10 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}
+                  className={`sticky z-10 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed]/72 group-hover:bg-[#f7e8df]/85' : 'bg-white/65 group-hover:bg-white/85'}`}
                 >
                   <div className="inline-flex items-center gap-1.5">
                     <button
@@ -1387,7 +1399,7 @@ function ContactsGrid({
                     </button>
                   </div>
                 </td>
-                <td className={`sticky right-10 z-10 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
+                <td className={`sticky right-10 z-10 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed]/72 group-hover:bg-[#f7e8df]/85' : 'bg-white/65 group-hover:bg-white/85'}`}>
                   <button
                     type="button"
                     onClick={() => onHistory(c)}
@@ -1406,7 +1418,7 @@ function ContactsGrid({
                     </span>
                   </button>
                 </td>
-                <td className={`sticky right-0 z-10 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
+                <td className={`sticky right-0 z-10 backdrop-blur-md backdrop-saturate-150 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed]/72 group-hover:bg-[#f7e8df]/85' : 'bg-white/65 group-hover:bg-white/85'}`}>
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1484,9 +1496,12 @@ function ContactsGrid({
             <ContactMobileCard
               key={c.id}
               contact={c}
+              expanded={expandedDetailsId === c.id}
+              accessToken={accessToken}
               onContact={() => onContact(c)}
               onUpgrade={() => onUpgrade(c)}
               onHistory={() => onHistory(c)}
+              onOpenLog={() => onOpenLog(c)}
               onDelete={() => onDelete(c)}
             />
           ))
@@ -1930,9 +1945,9 @@ function ContactCell({
           placeholder="Add role…"
         />
       );
-    case 'phone':
+    case 'contact':
       return (
-        <div className="inline-flex items-center gap-1">
+        <div className="inline-flex items-center gap-0.5">
           <IconCopyCell
             value={contact.phone_cell ?? contact.phone}
             onSave={save('phone_cell')}
@@ -1947,23 +1962,18 @@ function ContactCell({
             emptyLabel="Add office number…"
             tz={contact.tz}
           />
+          <IconCopyCell
+            value={contact.email}
+            onSave={save('email')}
+            kind="email"
+            emptyLabel="Add email…"
+          />
+          <PlaceAutocompleteCell
+            contact={contact}
+            onSavePlace={(patch) => onSavePatch(contact.id, patch)}
+            iconOnly
+          />
         </div>
-      );
-    case 'email':
-      return (
-        <IconCopyCell
-          value={contact.email}
-          onSave={save('email')}
-          kind="email"
-          emptyLabel="Add email…"
-        />
-      );
-    case 'location':
-      return (
-        <PlaceAutocompleteCell
-          contact={contact}
-          onSavePlace={(patch) => onSavePatch(contact.id, patch)}
-        />
       );
     case 'notes':
       return contact.notes
@@ -2551,9 +2561,16 @@ interface PlaceSuggestion {
 function PlaceAutocompleteCell({
   contact,
   onSavePlace,
+  iconOnly = false,
 }: {
   contact: Contact;
   onSavePlace: (patch: Partial<Contact>) => Promise<void> | void;
+  // When true, the collapsed state renders as just a pin icon (no
+  // address text) so the cell fits inside the merged "Contact"
+  // column alongside the phone / email icons. Hovering the pin
+  // shows the full address via the same HoverPopover the phone
+  // icons use.
+  iconOnly?: boolean;
 }) {
   const display = contact.formatted_address || contact.location || '';
   const [editing, setEditing] = useState(false);
@@ -2734,15 +2751,21 @@ function localTimeInTz(tz: string | null | undefined): { label: string; abbr: st
 
 function ContactMobileCard({
   contact,
+  expanded,
+  accessToken,
   onContact,
   onUpgrade,
   onHistory,
+  onOpenLog,
   onDelete,
 }: {
   contact: Contact;
+  expanded: boolean;
+  accessToken: string | null;
   onContact: () => void;
   onUpgrade: () => void;
   onHistory: () => void;
+  onOpenLog: () => void;
   onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -2831,9 +2854,13 @@ function ContactMobileCard({
         <button
           type="button"
           onClick={onHistory}
-          className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-md border border-black/10 text-[11px] font-semibold text-foreground/75 hover:bg-warm-bg/60 transition-colors"
+          className={`flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-md text-[11px] font-semibold border transition-colors ${expanded ? 'bg-foreground text-white border-foreground' : 'border-black/10 text-foreground/75 hover:bg-warm-bg/60'}`}
+          aria-expanded={expanded}
         >
           History
+          <span className={`inline-flex transition-transform ${expanded ? 'rotate-180' : ''}`}>
+            <ChevronDownIcon />
+          </span>
         </button>
         <div className="relative">
           <button
@@ -2870,6 +2897,17 @@ function ContactMobileCard({
           )}
         </div>
       </div>
+
+      {expanded && (
+        <div className="mt-3 pt-3 border-t border-black/5">
+          <ContactDetailsDrawer
+            contact={contact}
+            accessToken={accessToken}
+            onLogContact={onOpenLog}
+            onClose={onHistory}
+          />
+        </div>
+      )}
     </div>
   );
 }
