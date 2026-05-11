@@ -23,13 +23,18 @@ import { createPortal } from 'react-dom';
 
 type ContactMethod = 'Phone' | 'In Person' | 'Left Message';
 
+type ContactRating = 'Tier 1' | 'Tier 2' | 'Tier 3';
+
 interface Contact {
   id: string;
   name: string;
   company: string | null;
   company_website: string | null;
+  rating: ContactRating | null;
   role: string | null;
   phone: string | null;
+  phone_cell: string | null;
+  phone_office: string | null;
   email: string | null;
   location: string | null;
   // Set when a user picks a place from the autocomplete dropdown.
@@ -70,12 +75,21 @@ interface ColumnDef {
 const ALL_COLUMNS: ColumnDef[] = [
   { key: 'name', label: 'Name' },
   { key: 'company', label: 'Company' },
+  { key: 'website', label: 'Site', align: 'left' },
+  { key: 'rating', label: 'Rating' },
   { key: 'role', label: 'Role / Relation' },
   { key: 'phone', label: 'Phone' },
   { key: 'email', label: 'Email' },
   { key: 'location', label: 'Location' },
   { key: 'notes', label: 'Notes' },
 ];
+
+const RATING_TONES: Record<ContactRating, string> = {
+  'Tier 1': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Tier 2': 'bg-amber-50 text-amber-700 border-amber-200',
+  'Tier 3': 'bg-foreground/5 text-foreground/60 border-foreground/15',
+};
+const RATING_OPTIONS: ContactRating[] = ['Tier 1', 'Tier 2', 'Tier 3'];
 const DEFAULT_VISIBLE = ALL_COLUMNS.map((c) => c.key);
 const DEFAULT_ORDER = ALL_COLUMNS.map((c) => c.key);
 const COL_BY_KEY = Object.fromEntries(ALL_COLUMNS.map((c) => [c.key, c])) as Record<string, ColumnDef>;
@@ -88,12 +102,14 @@ const COL_BY_KEY = Object.fromEntries(ALL_COLUMNS.map((c) => [c.key, c])) as Rec
 const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
   name: 200,
   company: 180,
+  website: 60,
+  rating: 110,
   role: 180,
-  phone: 80,
-  email: 80,
+  phone: 110,
+  email: 60,
   location: 180,
   notes: 280,
-  actions: 200,
+  actions: 140,
   // Merged engagement column (replaces last_contact_by_name + time_since
   // + last_contact_at). Needs room for avatar + name + method chip +
   // freshness pill on row 1 and the relative + absolute date on row 2.
@@ -578,7 +594,7 @@ export default function ContactsContent() {
     setShowAdd(false);
   }
 
-  async function handleLogContact(target: Contact, method: ContactMethod, comments: string, transcript: string) {
+  async function handleLogContact(target: Contact, method: ContactMethod, comments: string, transcript: string, durationSeconds: number) {
     if (!session?.access_token) return;
     // Optimistic UI — bump the row before the request resolves so
     // the grid reflects the action immediately.
@@ -604,7 +620,7 @@ export default function ContactsContent() {
     const res = await fetch(`/api/contacts/${target.id}/log-contact`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ method, comments, transcript }),
+      body: JSON.stringify({ method, comments, transcript, duration_seconds: durationSeconds }),
     });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
@@ -634,7 +650,7 @@ export default function ContactsContent() {
   // grid reflects the saved text immediately. The realtime postgres
   // subscription will reconcile if the server pushes back something
   // different.
-  async function handleSaveField(id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) {
+  async function handleSaveField(id: string, field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location' | 'notes', value: string) {
     if (!session?.access_token) return;
     const trimmed = value.trim();
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: trimmed || null } : r)));
@@ -845,7 +861,7 @@ export default function ContactsContent() {
         <LogContactModal
           contact={logTarget}
           onClose={() => setLogTarget(null)}
-          onSubmit={(method, comments, transcript) => handleLogContact(logTarget, method, comments, transcript)}
+          onSubmit={(method, comments, transcript, durationSeconds) => handleLogContact(logTarget, method, comments, transcript, durationSeconds)}
         />
       )}
       {upgradeTarget && (
@@ -1188,7 +1204,7 @@ function ContactsGrid({
   onHistory: (c: Contact) => void;
   onDelete: (c: Contact) => void;
   onSaveNotes: (id: string, notes: string) => Promise<void>;
-  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
   onSavePatch: (id: string, patch: Partial<Contact>) => Promise<void>;
   actionMenuFor: { id: string; rect: DOMRect } | null;
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
@@ -1854,11 +1870,11 @@ function ContactCell({
 }: {
   column: ColumnDef;
   contact: Contact;
-  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
   onSavePatch: (id: string, patch: Partial<Contact>) => Promise<void>;
   isNew?: boolean;
 }) {
-  const save = (field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location') => (next: string) =>
+  const save = (field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location') => (next: string) =>
     onSaveField(contact.id, field, next);
   switch (column.key) {
     case 'name':
@@ -1884,10 +1900,25 @@ function ContactCell({
       );
     case 'company':
       return (
-        <CompanyCell
-          contact={contact}
-          onSaveCompany={save('company')}
-          onSaveWebsite={(url) => onSavePatch(contact.id, { company_website: url.trim() || null })}
+        <EditableTextCell
+          value={contact.company}
+          onSave={save('company')}
+          className="text-foreground/75 whitespace-nowrap"
+          placeholder="Add company…"
+        />
+      );
+    case 'website':
+      return (
+        <WebsiteCell
+          value={contact.company_website}
+          onSave={(url) => onSavePatch(contact.id, { company_website: url.trim() || null })}
+        />
+      );
+    case 'rating':
+      return (
+        <RatingCell
+          value={contact.rating}
+          onSave={(next) => onSavePatch(contact.id, { rating: next })}
         />
       );
     case 'role':
@@ -1901,13 +1932,22 @@ function ContactCell({
       );
     case 'phone':
       return (
-        <IconCopyCell
-          value={contact.phone}
-          onSave={save('phone')}
-          kind="phone"
-          emptyLabel="Add phone…"
-          tz={contact.tz}
-        />
+        <div className="inline-flex items-center gap-1">
+          <IconCopyCell
+            value={contact.phone_cell ?? contact.phone}
+            onSave={save('phone_cell')}
+            kind="cell"
+            emptyLabel="Add cell number…"
+            tz={contact.tz}
+          />
+          <IconCopyCell
+            value={contact.phone_office}
+            onSave={save('phone_office')}
+            kind="office"
+            emptyLabel="Add office number…"
+            tz={contact.tz}
+          />
+        </div>
       );
     case 'email':
       return (
@@ -2113,6 +2153,15 @@ function HoverPopover({
   );
 }
 
+type IconCellKind = 'phone' | 'cell' | 'office' | 'email';
+function IconForKind({ kind }: { kind: IconCellKind }) {
+  switch (kind) {
+    case 'phone': return <PhoneIcon />;
+    case 'cell': return <CellPhoneIcon />;
+    case 'office': return <OfficePhoneIcon />;
+    case 'email': return <EmailIcon />;
+  }
+}
 function IconCopyCell({
   value,
   onSave,
@@ -2122,14 +2171,15 @@ function IconCopyCell({
 }: {
   value: string | null | undefined;
   onSave: (next: string) => Promise<void> | void;
-  kind: 'phone' | 'email';
+  kind: IconCellKind;
   emptyLabel: string;
-  // IANA timezone id (e.g. "America/Phoenix"). When set on a phone
-  // cell, the hover popover gains a "Local: 9:03 AM MST" subtitle so
-  // admissions can see whether it's a polite hour to dial before
-  // they actually pick up the phone.
+  // IANA timezone id (e.g. "America/Phoenix"). When set on a phone /
+  // cell / office cell, the hover popover gains a "Local: 9:03 AM MST"
+  // subtitle so admissions can see whether it's a polite hour to dial
+  // before they actually pick up the phone.
   tz?: string | null;
 }) {
+  const isPhone = kind === 'phone' || kind === 'cell' || kind === 'office';
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
   const [copied, setCopied] = useState(false);
@@ -2150,7 +2200,7 @@ function IconCopyCell({
     return (
       <input
         ref={inputRef}
-        type={kind === 'phone' ? 'tel' : 'email'}
+        type={isPhone ? 'tel' : 'email'}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => void commit()}
@@ -2159,7 +2209,7 @@ function IconCopyCell({
           if (e.key === 'Enter') { e.preventDefault(); void commit(); }
           else if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false); }
         }}
-        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${kind === 'phone' ? 'font-mono tabular-nums' : ''}`}
+        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${isPhone ? 'font-mono tabular-nums' : ''}`}
       />
     );
   }
@@ -2173,19 +2223,22 @@ function IconCopyCell({
         aria-label={emptyLabel}
         className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/25 hover:text-foreground/55 hover:bg-warm-bg/60 transition-colors"
       >
-        {kind === 'phone' ? <PhoneIcon /> : <EmailIcon />}
+        <IconForKind kind={kind} />
       </button>
     );
   }
 
+  const kindLabel = kind === 'cell' ? 'cell' : kind === 'office' ? 'office' : kind;
   return (
     <div className="group/icc inline-flex items-center gap-1">
       <HoverPopover
         value={value}
         copied={copied}
-        subtitle={kind === 'phone' ? (() => {
+        subtitle={isPhone ? (() => {
           const lt = localTimeInTz(tz);
-          return lt ? `Local: ${lt.label}${lt.abbr ? ` · ${lt.abbr}` : ''}` : undefined;
+          const labelPrefix = kind === 'cell' ? 'Cell · ' : kind === 'office' ? 'Office · ' : '';
+          if (lt) return `${labelPrefix}Local: ${lt.label}${lt.abbr ? ` · ${lt.abbr}` : ''}`;
+          return labelPrefix ? labelPrefix.replace(/ · $/, '') : undefined;
         })() : undefined}
       >
         <button
@@ -2198,10 +2251,10 @@ function IconCopyCell({
               window.setTimeout(() => setCopied(false), 1400);
             } catch { /* clipboard blocked — silent */ }
           }}
-          aria-label={`Copy ${kind} — ${value}`}
+          aria-label={`Copy ${kindLabel} — ${value}`}
           className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-foreground hover:bg-warm-bg transition-colors"
         >
-          {copied ? <CheckIcon /> : (kind === 'phone' ? <PhoneIcon /> : <EmailIcon />)}
+          {copied ? <CheckIcon /> : <IconForKind kind={kind} />}
         </button>
       </HoverPopover>
       <button
@@ -2214,6 +2267,179 @@ function IconCopyCell({
         <PencilIcon />
       </button>
     </div>
+  );
+}
+
+// Standalone external-link icon for the new Website column. When the
+// row has a company_website saved, the cell shows the globe icon as a
+// clickable link with a hover popover revealing the full URL. Empty
+// cells render a faded plus-globe affordance that flips to an inline
+// URL input on click — same pattern as the empty-state phone / email
+// icons elsewhere in the grid.
+function WebsiteCell({
+  value,
+  onSave,
+}: {
+  value: string | null | undefined;
+  onSave: (next: string) => Promise<void> | void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? '');
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => { if (!editing) setDraft(value ?? ''); }, [value, editing]);
+  useEffect(() => { if (editing) { inputRef.current?.focus(); inputRef.current?.select(); } }, [editing]);
+
+  async function commit() {
+    setEditing(false);
+    if (draft.trim() !== (value ?? '').trim()) await onSave(draft);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="url"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); void commit(); }
+          else if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false); }
+        }}
+        placeholder="https://example.com"
+        className="w-44 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+      />
+    );
+  }
+
+  const href = value ? normaliseUrl(value) : null;
+  if (!href) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        title="Add website"
+        aria-label="Add website"
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/25 hover:text-foreground/55 hover:bg-warm-bg/60 transition-colors"
+      >
+        <GlobeIcon />
+      </button>
+    );
+  }
+
+  return (
+    <div className="group/web inline-flex items-center gap-1">
+      <HoverPopover value={value ?? ''} copied={false}>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Open ${value} in a new tab`}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-primary hover:bg-warm-bg transition-colors"
+        >
+          <ExternalLinkIcon />
+        </a>
+      </HoverPopover>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        title="Edit"
+        aria-label="Edit"
+        className="opacity-0 group-hover/web:opacity-100 transition-opacity inline-flex items-center justify-center w-5 h-5 rounded text-foreground/35 hover:text-foreground/70"
+      >
+        <PencilIcon />
+      </button>
+    </div>
+  );
+}
+
+// Tier 1 / Tier 2 / Tier 3 pill that flips to a small popup with the
+// three options + a Clear row. Portal-rendered at the trigger's
+// viewport rect so the popup escapes the table's overflow-x-auto
+// clipping context (same trick as HoverPopover).
+function RatingCell({
+  value,
+  onSave,
+}: {
+  value: ContactRating | null;
+  onSave: (next: ContactRating | null) => Promise<void> | void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (open) { setOpen(false); return; }
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPos({ left: r.left, top: r.bottom + 4 });
+    }
+    setOpen(true);
+  }
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (popRef.current?.contains(t)) return;
+      if (triggerRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const triggerCx = value
+    ? RATING_TONES[value]
+    : 'bg-foreground/5 text-foreground/45 border-foreground/15';
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={toggle}
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${triggerCx}`}
+        title={value ? `Rating: ${value}` : 'Set rating'}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        {value ?? '— Set tier —'}
+        <ChevronDownIcon />
+      </button>
+      {open && pos && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={popRef}
+          style={{ left: pos.left, top: pos.top }}
+          className="fixed z-[1000] w-36 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden tooltip-pop-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {RATING_OPTIONS.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); setOpen(false); void onSave(t); }}
+              className={`flex w-full items-center justify-between px-2.5 py-1.5 text-left text-[11px] font-semibold hover:bg-warm-bg/60 transition-colors ${value === t ? 'text-foreground' : 'text-foreground/70'}`}
+            >
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${RATING_TONES[t]}`}>{t}</span>
+              {value === t && <CheckIcon />}
+            </button>
+          ))}
+          {value && (
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); setOpen(false); void onSave(null); }}
+              className="block w-full px-2.5 py-1.5 text-left text-[10.5px] text-rose-700 hover:bg-rose-50 border-t border-black/5"
+            >
+              Clear rating
+            </button>
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -2338,22 +2564,38 @@ function PlaceAutocompleteCell({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const debounceRef = useRef<number | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  // Where to anchor the portal-rendered dropdown — read off the input
+  // wrapper's bounding rect when we open. Kept in state so re-renders
+  // while editing don't lose the anchor position.
+  const [dropRect, setDropRect] = useState<{ left: number; top: number; width: number } | null>(null);
 
   useEffect(() => { if (!editing) setDraft(display); }, [display, editing]);
   useEffect(() => {
     if (editing) {
       inputRef.current?.focus();
       inputRef.current?.select();
+      if (wrapperRef.current) {
+        const r = wrapperRef.current.getBoundingClientRect();
+        setDropRect({ left: r.left, top: r.bottom + 4, width: r.width });
+      }
     } else {
       setSuggestions([]);
+      setDropRect(null);
     }
   }, [editing]);
 
-  // Close on outside click.
+  // Close on outside click — the dropdown lives in a portal so we
+  // check BOTH the wrapper (input) and the dropdown for the click
+  // target before closing. Without the dropdown-ref check, clicking
+  // a suggestion would close the dropdown before its mousedown fired.
   useEffect(() => {
     if (!editing) return;
     const onDoc = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setEditing(false);
+      const t = e.target as Node;
+      if (wrapperRef.current?.contains(t)) return;
+      if (dropdownRef.current?.contains(t)) return;
+      setEditing(false);
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -2438,8 +2680,16 @@ function PlaceAutocompleteCell({
         placeholder="Search a city, state, or address…"
         className="w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30"
       />
-      {(loading || resolving || suggestions.length > 0) && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden">
+      {/* Suggestions render in a portal so the table's overflow-x-auto
+          (which implicitly clips overflow-y) doesn't hide them, AND so
+          their clicks aren't captured by the row's own click handlers. */}
+      {dropRect && (loading || resolving || suggestions.length > 0) && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{ left: dropRect.left, top: dropRect.top, width: Math.max(260, dropRect.width) }}
+          className="fixed z-[1000] rounded-lg border border-black/10 bg-white shadow-xl overflow-hidden tooltip-pop-in"
+          onClick={(e) => e.stopPropagation()}
+        >
           {resolving ? (
             <div className="px-3 py-2 text-[11px] text-foreground/55">Saving location…</div>
           ) : loading && suggestions.length === 0 ? (
@@ -2460,7 +2710,8 @@ function PlaceAutocompleteCell({
               </button>
             ))
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -2910,12 +3161,34 @@ function LogContactModal({
 }: {
   contact: Contact;
   onClose: () => void;
-  onSubmit: (method: ContactMethod, comments: string, transcript: string) => Promise<void> | void;
+  onSubmit: (method: ContactMethod, comments: string, transcript: string, durationSeconds: number) => Promise<void> | void;
 }) {
   const [method, setMethod] = useState<ContactMethod>('Phone');
   const [comments, setComments] = useState('');
   const [transcript, setTranscript] = useState('');
   const [showTranscript, setShowTranscript] = useState(false);
+  // Call duration captured as minutes + seconds for a forgiving entry
+  // UI; we serialise to seconds on submit. Defaults to 30s the moment
+  // the user picks "Left Message" — a typical brief voicemail length
+  // — so admissions doesn't have to manually type it for every drop.
+  // The "userTouched" ref guards against the auto-default clobbering a
+  // value the admin has already typed.
+  const [durationMin, setDurationMin] = useState<string>('');
+  const [durationSec, setDurationSec] = useState<string>('');
+  const durationTouchedRef = useRef(false);
+  useEffect(() => {
+    if (method === 'Left Message' && !durationTouchedRef.current) {
+      setDurationMin('0');
+      setDurationSec('30');
+    }
+  }, [method]);
+  const totalSeconds = (() => {
+    const m = parseInt(durationMin, 10);
+    const s = parseInt(durationSec, 10);
+    return (Number.isFinite(m) ? m : 0) * 60 + (Number.isFinite(s) ? s : 0);
+  })();
+  const durationValid = totalSeconds > 0;
+
   const [submitting, setSubmitting] = useState(false);
   return (
     <ModalShell
@@ -2926,9 +3199,10 @@ function LogContactModal({
       <form
         onSubmit={async (e) => {
           e.preventDefault();
+          if (!durationValid) return;
           setSubmitting(true);
           try {
-            await onSubmit(method, comments.trim(), transcript.trim());
+            await onSubmit(method, comments.trim(), transcript.trim(), totalSeconds);
           } finally {
             setSubmitting(false);
           }
@@ -2945,6 +3219,32 @@ function LogContactModal({
               <option value="In Person">In Person</option>
               <option value="Left Message">Left Message</option>
             </select>
+          </ModalField>
+          <ModalField label="Duration" required hint={method === 'Left Message' ? 'Voicemails default to 30 seconds — adjust if you held the line longer.' : 'How long was the call / conversation?'}>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={720}
+                value={durationMin}
+                onChange={(e) => { durationTouchedRef.current = true; setDurationMin(e.target.value); }}
+                placeholder="0"
+                className="modal-input w-20 text-center tabular-nums"
+                aria-label="Minutes"
+              />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55">min</span>
+              <input
+                type="number"
+                min={0}
+                max={59}
+                value={durationSec}
+                onChange={(e) => { durationTouchedRef.current = true; setDurationSec(e.target.value); }}
+                placeholder="0"
+                className="modal-input w-20 text-center tabular-nums"
+                aria-label="Seconds"
+              />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55">sec</span>
+            </div>
           </ModalField>
           <ModalField label="Comments / notes" hint="What did you talk about? Any next steps?">
             <textarea
@@ -2992,7 +3292,7 @@ function LogContactModal({
         </div>
         <ModalFooter
           submitting={submitting}
-          submitDisabled={false}
+          submitDisabled={!durationValid}
           submitLabel={transcript.trim() ? 'Log contact + summarise' : 'Log contact'}
           onCancel={onClose}
         />
@@ -3011,8 +3311,19 @@ interface ContactLog {
   contacted_at: string;
   contacted_by_name: string | null;
   contacted_by_avatar_url: string | null;
+  duration_seconds: number | null;
   transcript_storage_path: string | null;
   transcript_summary: string | null;
+}
+
+// Format a raw seconds count as "MM:SS" (or "0:30") for the contact-
+// history timeline. Returns null if the input is null / zero so the
+// caller can hide the field rather than render a misleading "0:00".
+function fmtDuration(seconds: number | null | undefined): string | null {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return null;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 function ContactDetailsDrawer({
@@ -3145,6 +3456,11 @@ function ContactDetailsDrawer({
                         <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[log.method]}`}>
                           {log.method}
                         </span>
+                        {fmtDuration(log.duration_seconds) && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-semibold border bg-foreground/5 text-foreground/65 border-foreground/15 tabular-nums">
+                            {fmtDuration(log.duration_seconds)}
+                          </span>
+                        )}
                         <span className="text-[10px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
                           {fmtAgo(log.contacted_at)}
                         </span>
@@ -3541,6 +3857,14 @@ function ColumnsIcon() {
 }
 function PhoneIcon() {
   return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.86 19.86 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.86 19.86 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.13.95.36 1.88.7 2.77a2 2 0 01-.45 2.11L8 9.91a16 16 0 006 6l1.31-1.31a2 2 0 012.11-.45c.89.34 1.82.57 2.77.7A2 2 0 0122 16.92z"/></svg>;
+}
+function CellPhoneIcon() {
+  // Mobile handset — distinguishes the "cell" phone column entry.
+  return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>;
+}
+function OfficePhoneIcon() {
+  // Desk phone — distinguishes the "office" phone column entry.
+  return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="10" width="18" height="10" rx="2"/><path d="M7 10V6a2 2 0 012-2h6a2 2 0 012 2v4"/><path d="M8 15h.01M12 15h.01M16 15h.01"/></svg>;
 }
 function EmailIcon() {
   return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>;

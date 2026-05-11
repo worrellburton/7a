@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const admin = getAdminSupabase();
   const { data: logs, error } = await admin
     .from('contact_logs')
-    .select('id, method, comments, contacted_by, contacted_at, transcript_storage_path, transcript_summary')
+    .select('id, method, comments, contacted_by, contacted_at, duration_seconds, transcript_storage_path, transcript_summary')
     .eq('contact_id', id)
     .order('contacted_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -28,6 +28,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     comments: string | null;
     contacted_by: string | null;
     contacted_at: string;
+    duration_seconds: number | null;
     transcript_storage_path: string | null;
     transcript_summary: string | null;
   }>;

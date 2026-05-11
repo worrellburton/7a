@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { id } = await ctx.params;
 
-  let body: { method?: string; comments?: string; transcript?: string } = {};
+  let body: { method?: string; comments?: string; transcript?: string; duration_seconds?: unknown } = {};
   try { body = await req.json(); } catch { /* allow empty */ }
 
   const method = typeof body.method === 'string' ? body.method.trim() : '';
@@ -40,6 +40,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const transcriptRaw = typeof body.transcript === 'string' ? body.transcript : '';
   const transcript = transcriptRaw.trim().slice(0, TRANSCRIPT_MAX_CHARS);
 
+  // Duration in seconds is required. Voicemails auto-default to 30 on
+  // the client; we still validate server-side so a malformed request
+  // can't sneak a null past us.
+  const durRaw = typeof body.duration_seconds === 'number'
+    ? body.duration_seconds
+    : typeof body.duration_seconds === 'string' && body.duration_seconds.trim()
+    ? Number(body.duration_seconds)
+    : NaN;
+  if (!Number.isFinite(durRaw) || durRaw < 0 || durRaw > 60 * 60 * 12) {
+    return NextResponse.json({ error: 'duration_seconds is required (0–43200)' }, { status: 400 });
+  }
+  const duration_seconds = Math.round(durRaw);
+
   const admin = getAdminSupabase();
   const now = new Date().toISOString();
 
@@ -49,6 +62,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       contact_id: id,
       method,
       comments,
+      duration_seconds,
       contacted_by: user.id,
       contacted_at: now,
     })
