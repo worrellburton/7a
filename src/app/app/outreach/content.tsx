@@ -191,6 +191,51 @@ export default function ContactsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  // Table vs Map view-mode toggle. Persisted in the URL via ?view=map
+  // so the choice survives refresh + lets admissions bookmark either
+  // view directly.
+  const [viewMode, setViewMode] = useState<'table' | 'map'>('table');
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('view');
+    if (v === 'map') setViewMode('map');
+  }, []);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (viewMode === 'map') url.searchParams.set('view', 'map');
+    else url.searchParams.delete('view');
+    window.history.replaceState({}, '', url.toString());
+  }, [viewMode]);
+
+  // First time the user opens the map view, fire a single backfill
+  // round through POST /api/outreach/geocode so legacy rows that have
+  // a freeform `location` but no lat/lng get pinned without us
+  // shipping a separate "geocode now" button. Capped to 100 rows /
+  // call server-side so this is safe to fire eagerly.
+  const geocodedThisSessionRef = useRef(false);
+  useEffect(() => {
+    if (viewMode !== 'map') return;
+    if (geocodedThisSessionRef.current) return;
+    if (!session?.access_token) return;
+    const pending = rows.some((r) => r.location && (r.lat == null || r.lng == null));
+    if (!pending) return;
+    geocodedThisSessionRef.current = true;
+    void fetch('/api/outreach/geocode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ limit: 100 }),
+    }).then(async (r) => {
+      if (!r.ok) return;
+      // Pull the freshly-geocoded rows back in. Realtime would do this
+      // for us too eventually, but the explicit refetch makes the map
+      // pop full immediately instead of trickling in pin-by-pin.
+      const list = await fetch('/api/contacts', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      }).then((r2) => (r2.ok ? r2.json() : null)).catch(() => null);
+      if (list && Array.isArray((list as { rows?: Contact[] }).rows)) {
+        setRows((list as { rows: Contact[] }).rows);
+      }
+    }).catch(() => { /* silent — map will just show fewer pins */ });
+  }, [viewMode, session?.access_token, rows]);
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showCols, setShowCols] = useState(false);
@@ -722,6 +767,41 @@ export default function ContactsContent() {
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
       )}
 
+      {/* View-mode tabs sit on top of the table card so the toggle
+          stays in muscle-memory regardless of which view is active.
+          Insights tiles + search bar above remain visible in both
+          views — they describe the underlying data, not the render. */}
+      <div className="hidden md:flex items-center gap-1 mb-2 border-b border-black/10">
+        <button
+          type="button"
+          onClick={() => setViewMode('table')}
+          className={`relative px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors ${viewMode === 'table' ? 'text-foreground' : 'text-foreground/45 hover:text-foreground/70'}`}
+          aria-pressed={viewMode === 'table'}
+        >
+          Table
+          {viewMode === 'table' && <span className="absolute left-2 right-2 -bottom-px h-[2px] bg-primary rounded-t" />}
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode('map')}
+          className={`relative px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors ${viewMode === 'map' ? 'text-foreground' : 'text-foreground/45 hover:text-foreground/70'}`}
+          aria-pressed={viewMode === 'map'}
+        >
+          Map
+          {viewMode === 'map' && <span className="absolute left-2 right-2 -bottom-px h-[2px] bg-primary rounded-t" />}
+        </button>
+      </div>
+
+      {viewMode === 'map' ? (
+        <ContactsMapView
+          contacts={sorted}
+          onLogContact={(c) => setLogTarget(c)}
+          onOpenDetails={(c) => {
+            setViewMode('table');
+            setExpandedDetailsId(c.id);
+          }}
+        />
+      ) : (
       <ContactsGrid
         loading={loading}
         rows={sorted}
@@ -750,6 +830,7 @@ export default function ContactsContent() {
         onResizeStart={() => { resizingRef.current = true; }}
         onResizeEnd={() => { resizingRef.current = false; }}
       />
+      )}
 
       {showAdd && (
         <AddContactModal onClose={() => setShowAdd(false)} onSubmit={handleAdd} />
@@ -843,6 +924,228 @@ function NotesEditor({
 }
 
 // ─── Grid ───────────────────────────────────────────────────────
+
+// Lazy-load Google Maps JS once across the app and cache the promise so
+// repeat mounts of the map view don't kick off a second <script>. The
+// `marker` library carries AdvancedMarkerElement but we use the classic
+// Marker too (still works on the latest weekly channel and doesn't
+// require a mapId in GCP). Returns the loaded `google` namespace.
+// Loose type — Google Maps doesn't ship in our dependency tree and
+// pulling @types/google.maps just for the few methods the map view
+// touches would be overkill. Every call site treats the namespace as
+// unknown and either type-guards (typeof, in) or casts narrowly.
+type GoogleNamespace = { maps?: unknown } | undefined;
+let mapsLoadPromise: Promise<GoogleNamespace> | null = null;
+function getGoogle(): GoogleNamespace {
+  if (typeof window === 'undefined') return undefined;
+  return (window as unknown as { google?: GoogleNamespace }).google;
+}
+function loadGoogleMaps(apiKey: string): Promise<GoogleNamespace> {
+  if (typeof window === 'undefined') return Promise.reject(new Error('SSR'));
+  const existingGoogle = getGoogle();
+  if (existingGoogle && existingGoogle.maps) return Promise.resolve(existingGoogle);
+  if (mapsLoadPromise) return mapsLoadPromise;
+  mapsLoadPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-google-maps-loader]') as HTMLScriptElement | null;
+    const handle = (s: HTMLScriptElement) => {
+      s.addEventListener('load', () => {
+        const g = getGoogle();
+        if (g && g.maps) resolve(g);
+        else reject(new Error('Maps JS loaded but window.google missing'));
+      });
+      s.addEventListener('error', () => reject(new Error('Failed to load Google Maps JS')));
+    };
+    if (existing) { handle(existing); return; }
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=marker&v=weekly`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleMapsLoader = 'true';
+    handle(script);
+    document.head.appendChild(script);
+  });
+  return mapsLoadPromise;
+}
+
+// Outreach map view. Renders contacts with lat/lng as classic Google
+// markers on a US-centred map; click a marker to open a side panel
+// with the contact's contact-card info + jump-to-table affordance.
+// Contacts without lat/lng land in a "not on map" footer with a hint
+// to add a Location via the autocomplete cell so they show up.
+function ContactsMapView({
+  contacts,
+  onLogContact,
+  onOpenDetails,
+}: {
+  contacts: Contact[];
+  onLogContact: (c: Contact) => void;
+  onOpenDetails: (c: Contact) => void;
+}) {
+  const mapEl = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<unknown>(null);
+  const markersRef = useRef<unknown[]>([]);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Contact | null>(null);
+
+  const mapped = useMemo(
+    () => contacts.filter((c) => typeof c.lat === 'number' && typeof c.lng === 'number'),
+    [contacts],
+  );
+  const unmappedCount = contacts.length - mapped.length;
+
+  // Load the JS API + initialise the map once.
+  useEffect(() => {
+    const apiKey =
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+      || process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_API_KEY
+      || '';
+    if (!apiKey) {
+      setError('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set in this environment. Set the env var (Maps JavaScript API enabled on the Google Cloud project) and reload to see the map.');
+      return;
+    }
+    let cancelled = false;
+    loadGoogleMaps(apiKey)
+      .then((g) => {
+        if (cancelled || !mapEl.current) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const Map = (g as any).maps.Map;
+        const map = new Map(mapEl.current, {
+          center: { lat: 39.5, lng: -98.35 },
+          zoom: 4,
+          disableDefaultUI: false,
+          streetViewControl: false,
+          mapTypeControl: false,
+          fullscreenControl: false,
+          clickableIcons: false,
+        });
+        mapRef.current = map;
+        setReady(true);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    return () => { cancelled = true; };
+  }, []);
+
+  // Reconcile markers whenever the contact set changes.
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    const g = getGoogle();
+    if (!g?.maps) return;
+
+    // Clear existing
+    for (const m of markersRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (m as any).setMap?.(null);
+    }
+    markersRef.current = [];
+
+    if (mapped.length === 0) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bounds = new (g.maps as any).LatLngBounds();
+    for (const c of mapped) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const marker = new (g.maps as any).Marker({
+        position: { lat: c.lat as number, lng: c.lng as number },
+        map: mapRef.current,
+        title: c.name,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        animation: (g.maps as any).Animation?.DROP,
+      });
+      marker.addListener('click', () => setSelected(c));
+      markersRef.current.push(marker);
+      bounds.extend({ lat: c.lat as number, lng: c.lng as number });
+    }
+    // Auto-fit if we have more than one pin; for a single pin keep the
+    // US-wide zoom (single-pin fitBounds maxes out the zoom which feels
+    // jarring).
+    if (mapped.length > 1) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mapRef.current as any).fitBounds(bounds, 80);
+    }
+  }, [ready, mapped]);
+
+  return (
+    <div className="relative rounded-xl border border-black/10 bg-white overflow-hidden">
+      {error ? (
+        <div className="px-5 py-12 text-center text-[13px] text-foreground/55 whitespace-pre-wrap">
+          {error}
+        </div>
+      ) : (
+        <>
+          <div ref={mapEl} className="w-full h-[640px]" />
+          {!ready && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/80 text-[12px] text-foreground/55">
+              Loading map…
+            </div>
+          )}
+          {/* Side panel for the currently selected pin. */}
+          {selected && (
+            <div className="absolute top-3 right-3 w-72 rounded-xl border border-black/10 bg-white shadow-xl overflow-hidden">
+              <div className="flex items-start justify-between gap-2 px-3 py-2 border-b border-black/5">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-foreground truncate">{selected.name}</p>
+                  {selected.company && (
+                    <p className="text-[11px] text-foreground/65 truncate">{selected.company}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="inline-flex items-center justify-center w-6 h-6 rounded text-foreground/40 hover:text-foreground hover:bg-warm-bg/60"
+                  aria-label="Close"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <div className="px-3 py-2 space-y-1.5 text-[11.5px] text-foreground/75">
+                {selected.role && <p><span className="text-foreground/40">Role:</span> {selected.role}</p>}
+                {(selected.formatted_address || selected.location) && (
+                  <p><span className="text-foreground/40">Location:</span> {selected.formatted_address || selected.location}</p>
+                )}
+                {selected.phone && <p><span className="text-foreground/40">Phone:</span> {selected.phone}</p>}
+                {selected.email && <p className="truncate"><span className="text-foreground/40">Email:</span> {selected.email}</p>}
+                {selected.tz && (() => {
+                  const lt = localTimeInTz(selected.tz);
+                  return lt ? <p><span className="text-foreground/40">Local time:</span> {lt.label}{lt.abbr ? ` · ${lt.abbr}` : ''}</p> : null;
+                })()}
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-2 border-t border-black/5">
+                <button
+                  type="button"
+                  onClick={() => onLogContact(selected)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
+                >
+                  <PhoneIcon />
+                  Contact
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenDetails(selected)}
+                  className="inline-flex items-center px-2.5 py-1 rounded-md bg-white text-foreground/70 text-[10px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
+                >
+                  Open details
+                </button>
+              </div>
+            </div>
+          )}
+          {/* Unmapped footer pill. */}
+          <div className="absolute bottom-3 left-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/95 border border-black/10 shadow-sm text-[10.5px]">
+            <span className="font-semibold text-foreground">{mapped.length}</span>
+            <span className="text-foreground/55">on map</span>
+            {unmappedCount > 0 && (
+              <>
+                <span className="text-foreground/25">·</span>
+                <span className="font-semibold text-foreground/70">{unmappedCount}</span>
+                <span className="text-foreground/55">missing location</span>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function ContactsGrid({
   loading,
