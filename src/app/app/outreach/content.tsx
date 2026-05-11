@@ -27,10 +27,20 @@ interface Contact {
   id: string;
   name: string;
   company: string | null;
+  company_website: string | null;
   role: string | null;
   phone: string | null;
   email: string | null;
   location: string | null;
+  // Set when a user picks a place from the autocomplete dropdown.
+  // formatted_address is what we display (canonical "City, ST, USA"
+  // from Google); place_id pins the row to a stable Google entity;
+  // lat / lng / tz drive the map view + local-time label.
+  formatted_address?: string | null;
+  place_id?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  tz?: string | null;
   notes: string | null;
   source: string | null;
   source_partner_id: string | null;
