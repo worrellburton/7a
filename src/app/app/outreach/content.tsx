@@ -178,7 +178,11 @@ export default function ContactsContent() {
   const [showCols, setShowCols] = useState(false);
   const [logTarget, setLogTarget] = useState<Contact | null>(null);
   const [upgradeTarget, setUpgradeTarget] = useState<Contact | null>(null);
-  const [historyTarget, setHistoryTarget] = useState<Contact | null>(null);
+  // Click "History" (or the row's expand chevron) toggles an inline
+  // details drawer beneath the row. We hold the contact's id rather
+  // than the whole contact so realtime row updates flow through to
+  // the open drawer automatically.
+  const [expandedDetailsId, setExpandedDetailsId] = useState<string | null>(null);
   const [actionMenuFor, setActionMenuFor] = useState<{ id: string; rect: DOMRect } | null>(null);
 
   const [visibleCols, setVisibleCols] = useState<string[] | null>(null);
@@ -315,6 +319,28 @@ export default function ContactsContent() {
       return hay.includes(q);
     });
   }, [rows, search, filterMethod, filterStaleness]);
+
+  // Headline counts for the insight tiles at the top of the page.
+  // Always computed against the unfiltered `rows` (not the filtered
+  // view) because the tiles describe the whole pipeline, not what's
+  // currently visible after a search/method/freshness filter.
+  const insights = useMemo(() => {
+    const now = Date.now();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const monthMs = 30 * 24 * 60 * 60 * 1000;
+    let week = 0;
+    let month = 0;
+    let total = 0;
+    let never = 0;
+    for (const r of rows) {
+      if (!r.last_contact_at) { never += 1; continue; }
+      total += 1;
+      const age = now - new Date(r.last_contact_at).getTime();
+      if (age <= weekMs) week += 1;
+      if (age <= monthMs) month += 1;
+    }
+    return { week, month, total, never };
+  }, [rows]);
 
   const sorted = useMemo(() => {
     const arr = filtered.slice();
@@ -513,6 +539,13 @@ export default function ContactsContent() {
         </div>
       </header>
 
+      <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <InsightTile label="Contacted this week" value={insights.week} tone="fresh" />
+        <InsightTile label="Contacted this month" value={insights.month} tone="cooling" />
+        <InsightTile label="Total contacted" value={insights.total} tone="neutral" />
+        <InsightTile label="Never contacted" value={insights.never} tone="stale" />
+      </div>
+
       <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
         <div className="relative w-full sm:flex-1 sm:min-w-[220px] sm:max-w-md">
           <input
@@ -576,7 +609,10 @@ export default function ContactsContent() {
         onColDrop={onColDrop}
         onContact={(c) => setLogTarget(c)}
         onUpgrade={(c) => setUpgradeTarget(c)}
-        onHistory={(c) => setHistoryTarget(c)}
+        onHistory={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
+        expandedDetailsId={expandedDetailsId}
+        accessToken={session?.access_token ?? null}
+        onOpenLog={(c) => setLogTarget(c)}
         onDelete={(c) => handleDelete(c)}
         onSaveNotes={handleSaveNotes}
         onSaveField={handleSaveField}
@@ -610,14 +646,6 @@ export default function ContactsContent() {
           contact={upgradeTarget}
           onClose={() => setUpgradeTarget(null)}
           onSubmit={(payload) => handleUpgrade(upgradeTarget, payload)}
-        />
-      )}
-      {historyTarget && (
-        <ContactHistoryModal
-          contact={historyTarget}
-          accessToken={session?.access_token ?? null}
-          onClose={() => setHistoryTarget(null)}
-          onLogContact={() => { setLogTarget(historyTarget); setHistoryTarget(null); }}
         />
       )}
     </div>
@@ -712,6 +740,9 @@ function ContactsGrid({
   onCommitColumnWidth,
   onResizeStart,
   onResizeEnd,
+  expandedDetailsId,
+  accessToken,
+  onOpenLog,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -734,6 +765,9 @@ function ContactsGrid({
   onCommitColumnWidth: (key: string, widthPx: number) => void;
   onResizeStart: () => void;
   onResizeEnd: () => void;
+  expandedDetailsId: string | null;
+  accessToken: string | null;
+  onOpenLog: (c: Contact) => void;
 }) {
   // Tracks the row whose notes-editor strip is currently expanded.
   // Click the notes cell to toggle. Persists across rerenders via a
@@ -903,10 +937,14 @@ function ContactsGrid({
                     <button
                       type="button"
                       onClick={() => onHistory(c)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white text-foreground/70 text-[11px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
-                      title="View contact history"
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/70 border-black/10 hover:bg-warm-bg/60'}`}
+                      title={expandedDetailsId === c.id ? 'Hide details' : 'Show details + history'}
+                      aria-expanded={expandedDetailsId === c.id}
                     >
-                      History
+                      <span>History</span>
+                      <span className={`inline-flex transition-transform ${expandedDetailsId === c.id ? 'rotate-180' : ''}`}>
+                        <ChevronDownIcon />
+                      </span>
                     </button>
                   </div>
                 </td>
@@ -963,6 +1001,18 @@ function ContactsGrid({
                         await onSaveNotes(c.id, next);
                         setExpandedNotesId(null);
                       }}
+                    />
+                  </td>
+                </tr>
+              )}
+              {expandedDetailsId === c.id && (
+                <tr className="bg-warm-bg/30">
+                  <td colSpan={totalCols} className="px-4 py-4">
+                    <ContactDetailsDrawer
+                      contact={c}
+                      accessToken={accessToken}
+                      onLogContact={() => onOpenLog(c)}
+                      onClose={() => onHistory(c)}
                     />
                   </td>
                 </tr>
@@ -1406,25 +1456,20 @@ function ContactCell({
       );
     case 'phone':
       return (
-        <EditableTextCell
+        <IconCopyCell
           value={contact.phone}
           onSave={save('phone')}
-          type="tel"
-          className="text-foreground/85"
-          mono
-          copyable
-          placeholder="Add phone…"
+          kind="phone"
+          emptyLabel="Add phone…"
         />
       );
     case 'email':
       return (
-        <EditableTextCell
+        <IconCopyCell
           value={contact.email}
           onSave={save('email')}
-          type="email"
-          className="text-foreground/85"
-          copyable
-          placeholder="Add email…"
+          kind="email"
+          emptyLabel="Add email…"
         />
       );
     case 'location':
@@ -1531,6 +1576,118 @@ function EditableTextCell({
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
       )}
+    </div>
+  );
+}
+
+function InsightTile({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'fresh' | 'cooling' | 'stale' | 'neutral';
+}) {
+  const toneCx =
+    tone === 'fresh' ? 'text-emerald-700 bg-emerald-50/60 border-emerald-200/70' :
+    tone === 'cooling' ? 'text-amber-700 bg-amber-50/60 border-amber-200/70' :
+    tone === 'stale' ? 'text-rose-700 bg-rose-50/60 border-rose-200/70' :
+    'text-foreground/85 bg-warm-bg/50 border-black/10';
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${toneCx}`}>
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70 truncate">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums leading-none">{value.toLocaleString()}</p>
+    </div>
+  );
+}
+
+function IconCopyCell({
+  value,
+  onSave,
+  kind,
+  emptyLabel,
+}: {
+  value: string | null | undefined;
+  onSave: (next: string) => Promise<void> | void;
+  kind: 'phone' | 'email';
+  emptyLabel: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? '');
+  const [copied, setCopied] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => { if (!editing) setDraft(value ?? ''); }, [value, editing]);
+  useEffect(() => {
+    if (editing) { inputRef.current?.focus(); inputRef.current?.select(); }
+  }, [editing]);
+
+  async function commit() {
+    const next = draft.trim();
+    setEditing(false);
+    if (next !== (value ?? '').trim()) await onSave(next);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type={kind === 'phone' ? 'tel' : 'email'}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => void commit()}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); void commit(); }
+          else if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false); }
+        }}
+        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${kind === 'phone' ? 'font-mono tabular-nums' : ''}`}
+      />
+    );
+  }
+
+  if (!value) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        title={emptyLabel}
+        aria-label={emptyLabel}
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/25 hover:text-foreground/55 hover:bg-warm-bg/60 transition-colors"
+      >
+        {kind === 'phone' ? <PhoneIcon /> : <EmailIcon />}
+      </button>
+    );
+  }
+
+  return (
+    <div className="group/icc inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={async (e) => {
+          e.stopPropagation();
+          try {
+            await navigator.clipboard.writeText(value);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1400);
+          } catch { /* clipboard blocked — silent */ }
+        }}
+        title={`${value} · click to copy`}
+        aria-label={`Copy ${kind} — ${value}`}
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-foreground hover:bg-warm-bg transition-colors"
+      >
+        {copied ? <CheckIcon /> : (kind === 'phone' ? <PhoneIcon /> : <EmailIcon />)}
+      </button>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        title="Edit"
+        aria-label="Edit"
+        className="opacity-0 group-hover/icc:opacity-100 transition-opacity inline-flex items-center justify-center w-5 h-5 rounded text-foreground/35 hover:text-foreground/70"
+      >
+        <PencilIcon />
+      </button>
     </div>
   );
 }
@@ -1997,16 +2154,16 @@ interface ContactLog {
   contacted_by_avatar_url: string | null;
 }
 
-function ContactHistoryModal({
+function ContactDetailsDrawer({
   contact,
   accessToken,
-  onClose,
   onLogContact,
+  onClose,
 }: {
   contact: Contact;
   accessToken: string | null;
-  onClose: () => void;
   onLogContact: () => void;
+  onClose: () => void;
 }) {
   const [logs, setLogs] = useState<ContactLog[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -2027,17 +2184,24 @@ function ContactHistoryModal({
     return () => { cancelled = true; };
   }, [accessToken, contact.id]);
 
+  const detailRows: { label: string; value: string | null | undefined }[] = [
+    { label: 'Role / Relation', value: contact.role },
+    { label: 'Phone', value: contact.phone },
+    { label: 'Email', value: contact.email },
+    { label: 'Location', value: contact.location },
+    { label: 'Source', value: contact.source === 'downgrade-from-partner' ? 'Downgraded from partner' : contact.source },
+    { label: 'Added', value: fmtAbsolute(contact.created_at) },
+    { label: 'Updated', value: fmtAbsolute(contact.updated_at) },
+  ];
+
   return (
-    <ModalShell title={contact.name} eyebrow="Contact history" onClose={onClose}>
-      <div className="px-6 py-5">
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-xs text-foreground/55">
-            {logs == null
-              ? 'Loading…'
-              : logs.length === 0
-              ? 'No contact history yet.'
-              : `${logs.length} ${logs.length === 1 ? 'entry' : 'entries'}, newest first.`}
-          </p>
+    <div className="rounded-xl border border-black/10 bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-4 border-b border-black/5 px-5 py-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/40">Contact details</p>
+          <p className="mt-0.5 text-base font-semibold text-foreground truncate">{contact.name}</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={onLogContact}
@@ -2046,59 +2210,97 @@ function ContactHistoryModal({
             <PhoneIcon />
             Log a contact
           </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/40 hover:text-foreground hover:bg-warm-bg/60 transition-colors"
+            aria-label="Collapse details"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-x-6">
+        <div className="px-5 py-4 md:border-r md:border-black/5">
+          <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-[13px]">
+            {detailRows.map((r) => (
+              <Fragment key={r.label}>
+                <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">{r.label}</dt>
+                <dd className="text-foreground/80 break-words">{r.value || <span className="text-foreground/30 italic">—</span>}</dd>
+              </Fragment>
+            ))}
+            {contact.notes && (
+              <>
+                <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">Notes</dt>
+                <dd className="text-foreground/80 whitespace-pre-wrap leading-relaxed">{contact.notes}</dd>
+              </>
+            )}
+          </dl>
         </div>
 
-        {error && (
-          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-        )}
-
-        {logs && logs.length > 0 && (
-          <ol className="relative border-l border-black/10 ml-3">
-            {logs.map((log, i) => (
-              <li key={log.id} className="relative pl-5 pb-5 last:pb-0">
-                <span
-                  className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                    i === 0 ? 'bg-primary' : 'bg-foreground/30'
-                  }`}
-                />
-                <div className="flex items-start gap-3">
-                  {log.contacted_by_avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={log.contacted_by_avatar_url}
-                      alt={log.contacted_by_name ?? 'User'}
-                      className="w-8 h-8 rounded-full object-cover bg-warm-bg"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-warm-bg flex items-center justify-center text-[11px] font-semibold text-foreground/55">
-                      {(log.contacted_by_name || '?').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <p className="text-sm font-semibold text-foreground">
-                        {log.contacted_by_name || 'Unknown'}
-                      </p>
-                      <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[log.method]}`}>
-                        {log.method}
-                      </span>
-                      <span className="text-[11px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
-                        {fmtAgo(log.contacted_at)} · {fmtAbsolute(log.contacted_at)}
-                      </span>
-                    </div>
-                    {log.comments && (
-                      <p className="mt-1.5 text-sm text-foreground/75 whitespace-pre-wrap leading-relaxed">
-                        {log.comments}
-                      </p>
+        <div className="px-5 py-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/45">Contact history</p>
+            <p className="text-xs text-foreground/45">
+              {logs == null
+                ? 'Loading…'
+                : logs.length === 0
+                ? 'No history yet'
+                : `${logs.length} ${logs.length === 1 ? 'entry' : 'entries'}`}
+            </p>
+          </div>
+          {error && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          )}
+          {logs && logs.length > 0 && (
+            <ol className="relative border-l border-black/10 ml-2">
+              {logs.map((log, i) => (
+                <li key={log.id} className="relative pl-4 pb-4 last:pb-0">
+                  <span
+                    className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                      i === 0 ? 'bg-primary' : 'bg-foreground/30'
+                    }`}
+                  />
+                  <div className="flex items-start gap-2.5">
+                    {log.contacted_by_avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={log.contacted_by_avatar_url}
+                        alt={log.contacted_by_name ?? 'User'}
+                        className="w-7 h-7 rounded-full object-cover bg-warm-bg"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
+                        {(log.contacted_by_name || '?').charAt(0).toUpperCase()}
+                      </div>
                     )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <p className="text-[13px] font-semibold text-foreground">
+                          {log.contacted_by_name || 'Unknown'}
+                        </p>
+                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[log.method]}`}>
+                          {log.method}
+                        </span>
+                        <span className="text-[11px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
+                          {fmtAgo(log.contacted_at)}
+                        </span>
+                      </div>
+                      {log.comments && (
+                        <p className="mt-1 text-[13px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
+                          {log.comments}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
       </div>
-    </ModalShell>
+    </div>
   );
 }
 
@@ -2399,6 +2601,15 @@ function ColumnsIcon() {
 }
 function PhoneIcon() {
   return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.86 19.86 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.86 19.86 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.13.95.36 1.88.7 2.77a2 2 0 01-.45 2.11L8 9.91a16 16 0 006 6l1.31-1.31a2 2 0 012.11-.45c.89.34 1.82.57 2.77.7A2 2 0 0122 16.92z"/></svg>;
+}
+function EmailIcon() {
+  return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>;
+}
+function PencilIcon() {
+  return <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>;
+}
+function ChevronDownIcon() {
+  return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>;
 }
 function DotsIcon() {
   return <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>;
