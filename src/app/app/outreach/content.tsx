@@ -1160,7 +1160,7 @@ function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
         <ContactMethodMixBars contacts={contacts} />
         <TopPerformersLeaderboard contacts={contacts} />
         <StalenessFunnel contacts={contacts} />
-        <InsightsPlaceholder span="col-span-12 md:col-span-5" label="Phase 9 — Partner conversion" hint="Contact → Partner funnel" />
+        <PartnerConversionFunnel contacts={contacts} />
         <GeographicConcentration contacts={contacts} />
       </div>
     </div>
@@ -1997,6 +1997,133 @@ function GeographicConcentration({ contacts }: { contacts: Contact[] }) {
             );
           })}
         </ul>
+      )}
+    </div>
+  );
+}
+
+// Partner conversion funnel. Three stages: every contact in the
+// pipeline → contacts that have been touched at least once →
+// contacts that converted into a partner (partner_id is non-null).
+// Drawn as three stacked SVG trapezoids whose widths taper from the
+// total width down toward the conversion stage, each shaded with
+// the conventional pipeline gradient (cool blue at the top → warm
+// gold at the bottom for the "converted" stage). On mount the
+// trapezoids reveal via a clip-path that sweeps from height 0 to
+// full height, top-to-bottom, with a 120ms per-stage stagger so the
+// funnel paints from the widest stage down to the conversion
+// stage. Each stage carries a count + percent-of-prior chip so the
+// conversion rates read at a glance. Empty pipelines collapse to a
+// muted hint.
+function PartnerConversionFunnel({ contacts }: { contacts: Contact[] }) {
+  const stages = useMemo(() => {
+    const total = contacts.length;
+    let touched = 0;
+    let converted = 0;
+    for (const c of contacts) {
+      if (c.last_contact_at) touched++;
+      if (c.partner_id) converted++;
+    }
+    return [
+      { key: 'all',       label: 'All contacts',  count: total,     color: ['#bae6fd', '#0ea5e9'], help: 'Every row currently in view.' },
+      { key: 'touched',   label: 'Contacted',     count: touched,   color: ['#a7f3d0', '#10b981'], help: 'Have at least one logged touch.' },
+      { key: 'converted', label: 'Partner',       count: converted, color: ['#fde68a', '#f59e0b'], help: 'Upgraded to a full partner record.' },
+    ];
+  }, [contacts]);
+
+  const top = Math.max(1, stages[0].count);
+  const W = 420;
+  const stageH = 64;
+  const gap = 8;
+  const H = stages.length * stageH + (stages.length - 1) * gap;
+
+  // Each stage's top + bottom width is a share of the leading stage.
+  // Top width matches the previous stage's bottom width so the funnel
+  // reads as one continuous taper.
+  const widths = stages.map((s) => Math.max(40, (s.count / top) * W));
+  const inset = (w: number) => (W - w) / 2;
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(false);
+    const id = window.requestAnimationFrame(() => setMounted(true));
+    return () => window.cancelAnimationFrame(id);
+  }, [stages[0].count, stages[1].count, stages[2].count]);
+
+  return (
+    <div className="col-span-12 md:col-span-5 rounded-xl border border-black/10 bg-white px-4 py-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">Partner conversion funnel</p>
+        <span className="text-[10.5px] text-foreground/45 tabular-nums">{stages[0].count} in</span>
+      </div>
+      {stages[0].count === 0 ? (
+        <div className="flex items-center justify-center h-[200px] text-[11.5px] text-foreground/45">
+          No contacts in view.
+        </div>
+      ) : (
+        <div className="mt-2 flex flex-col sm:flex-row items-center gap-3">
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[260px] h-auto" role="img" aria-label="Partner conversion funnel">
+            <defs>
+              {stages.map((s, i) => (
+                <linearGradient key={s.key} id={`sa-funnel-${i}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={s.color[0]} />
+                  <stop offset="100%" stopColor={s.color[1]} />
+                </linearGradient>
+              ))}
+              <clipPath id="sa-funnel-clip" clipPathUnits="userSpaceOnUse">
+                <rect x="0" y="0" width={W} height={mounted ? H : 0} style={{ transition: 'height 1000ms cubic-bezier(0.22, 1, 0.36, 1)' }} />
+              </clipPath>
+            </defs>
+            <g clipPath="url(#sa-funnel-clip)">
+              {stages.map((s, i) => {
+                const yTop = i * (stageH + gap);
+                const yBot = yTop + stageH;
+                const topW = i === 0 ? widths[i] : widths[i - 1];
+                const botW = widths[i];
+                const xtl = inset(topW);
+                const xtr = W - inset(topW);
+                const xbl = inset(botW);
+                const xbr = W - inset(botW);
+                return (
+                  <g key={s.key} style={{ opacity: mounted ? 1 : 0, transition: `opacity 600ms ease-out ${i * 120}ms` }}>
+                    <path
+                      d={`M ${xtl} ${yTop} L ${xtr} ${yTop} L ${xbr} ${yBot} L ${xbl} ${yBot} Z`}
+                      fill={`url(#sa-funnel-${i})`}
+                      stroke="rgba(0,0,0,0.06)"
+                    />
+                    <text x={W / 2} y={yTop + stageH / 2 - 4} textAnchor="middle" className="fill-white" style={{ fontSize: 18, fontWeight: 600 }}>
+                      {s.count.toLocaleString()}
+                    </text>
+                    <text x={W / 2} y={yTop + stageH / 2 + 13} textAnchor="middle" className="fill-white/85" style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+                      {s.label}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
+          {/* Conversion-rate chips column. Each chip pairs with a
+              stage and reads the conversion vs. the prior stage. */}
+          <ul className="flex-1 w-full space-y-1.5">
+            {stages.map((s, i) => {
+              const prior = i === 0 ? s.count : stages[i - 1].count;
+              const rate = prior === 0 ? 0 : s.count / prior;
+              return (
+                <li key={s.key} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md bg-foreground/5" title={s.help}>
+                  <span className="text-[11px] font-semibold text-foreground/75">{s.label}</span>
+                  <span className="text-[11px] text-foreground/55 tabular-nums">
+                    {s.count}
+                    {i > 0 && (
+                      <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full bg-white/80 border border-black/5 text-[10px] font-semibold text-foreground/65">
+                        {(rate * 100).toFixed(0)}% of prior
+                      </span>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );
