@@ -1157,7 +1157,7 @@ function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
       <div className="grid grid-cols-12 gap-4">
         <TierMixDonut contacts={contacts} />
         <ThirtyDayTouchesChart contacts={contacts} />
-        <InsightsPlaceholder span="col-span-12 md:col-span-6" label="Phase 5 — Contact methods" hint="Phone / In Person / Left Message bars" />
+        <ContactMethodMixBars contacts={contacts} />
         <InsightsPlaceholder span="col-span-12 md:col-span-6" label="Phase 6 — Top performers" hint="Most touches per teammate (30d)" />
         <InsightsPlaceholder span="col-span-12 md:col-span-7" label="Phase 7 — Staleness funnel" hint="Fresh / cooling / stale / never" />
         <InsightsPlaceholder span="col-span-12 md:col-span-5" label="Phase 9 — Partner conversion" hint="Contact → Partner funnel" />
@@ -1596,6 +1596,90 @@ function ThirtyDayTouchesChart({ contacts }: { contacts: Contact[] }) {
           );
         })()}
       </div>
+    </div>
+  );
+}
+
+// Contact-method mix horizontal bars. Buckets every contact by its
+// `last_contact_method` (Phone / In Person / Left Message / never).
+// Each row shows the method label + the absolute count + a horizontal
+// bar that grows from 0 to its share of the largest bucket on mount
+// via a 900ms ease-out CSS transition. The bars are scaled relative
+// to the LARGEST bucket (not to total) so a tiny method doesn't
+// disappear next to a dominant one — admissions can still see
+// "Left Message" exists even if it's 1 vs 80 phone calls.
+function ContactMethodMixBars({ contacts }: { contacts: Contact[] }) {
+  const buckets = useMemo(() => {
+    const out: Record<'Phone' | 'In Person' | 'Left Message' | 'Never', number> = {
+      Phone: 0, 'In Person': 0, 'Left Message': 0, Never: 0,
+    };
+    for (const c of contacts) {
+      if (!c.last_contact_method) out.Never += 1;
+      else out[c.last_contact_method] += 1;
+    }
+    return out;
+  }, [contacts]);
+  const total = contacts.length;
+  const max = Math.max(1, ...Object.values(buckets));
+
+  const ROWS: Array<{ key: keyof typeof buckets; label: string; tone: string; bar: string; help: string }> = [
+    { key: 'Phone',        label: 'Phone',        tone: 'text-emerald-700', bar: 'linear-gradient(90deg, #10b981, #059669)', help: 'Last touch was a phone call.' },
+    { key: 'In Person',    label: 'In person',    tone: 'text-sky-700',     bar: 'linear-gradient(90deg, #38bdf8, #0284c7)', help: 'Last touch was in person.' },
+    { key: 'Left Message', label: 'Left message', tone: 'text-amber-700',   bar: 'linear-gradient(90deg, #fbbf24, #d97706)', help: 'Last touch ended in voicemail / unreturned.' },
+    { key: 'Never',        label: 'Never',        tone: 'text-foreground/55', bar: 'linear-gradient(90deg, rgba(0,0,0,0.18), rgba(0,0,0,0.32))', help: 'Contact has no log entry yet.' },
+  ];
+
+  // Mount animation — bars grow from 0% to their share-of-max width
+  // on the next animation frame so the page feels alive when you
+  // land on Insights. Re-fires when the bucket counts change so a
+  // logged-contact action makes its bar visibly grow.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(false);
+    const id = window.requestAnimationFrame(() => setMounted(true));
+    return () => window.cancelAnimationFrame(id);
+  }, [buckets.Phone, buckets['In Person'], buckets['Left Message'], buckets.Never]);
+
+  return (
+    <div className="col-span-12 md:col-span-6 rounded-xl border border-black/10 bg-white px-4 py-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">Contact methods</p>
+        <span className="text-[10.5px] text-foreground/45 tabular-nums">{total} contacts</span>
+      </div>
+      {total === 0 ? (
+        <div className="flex items-center justify-center h-[160px] text-[11.5px] text-foreground/45">
+          No contacts in view.
+        </div>
+      ) : (
+        <ul className="mt-2 space-y-2.5">
+          {ROWS.map((r, i) => {
+            const v = buckets[r.key];
+            const share = max === 0 ? 0 : v / max;
+            const pct = total === 0 ? 0 : v / total;
+            return (
+              <li key={r.key} title={r.help} className="space-y-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className={`text-[12px] font-semibold ${r.tone}`}>{r.label}</span>
+                  <span className="text-[11px] text-foreground/55 tabular-nums">
+                    {v} <span className="text-foreground/35">·</span> {(pct * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div className="h-2.5 rounded-full bg-foreground/5 overflow-hidden">
+                  <span
+                    className="block h-full rounded-full"
+                    style={{
+                      width: `${(mounted ? share : 0) * 100}%`,
+                      background: r.bar,
+                      transition: 'width 900ms cubic-bezier(0.22, 1, 0.36, 1)',
+                      transitionDelay: `${i * 100}ms`,
+                    }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
