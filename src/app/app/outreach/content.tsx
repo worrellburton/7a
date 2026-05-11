@@ -485,7 +485,7 @@ export default function ContactsContent() {
     <div className="p-4 sm:p-6 lg:p-8 w-full pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">Contacts</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight">Outreach</h1>
           <p className="text-sm text-foreground/55 mt-0.5">
             Outreach tracker for referrers, leads, and downgraded partners.
             {rows.length > 0 && (
