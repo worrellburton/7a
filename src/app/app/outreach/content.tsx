@@ -75,42 +75,26 @@ interface ColumnDef {
 }
 
 const ALL_COLUMNS: ColumnDef[] = [
-  // Contact history pinned as the first column. Admissions reads
-  // "when did we last touch this person" before everything else, so
-  // it leads the row. The cell is the same LastContactSummaryCell
-  // that previously sat sticky-right (avatar + name + method chip,
-  // relative + absolute date underneath); rendering it here means
-  // it scrolls with the rest of the row instead of getting jammed
-  // up against the Actions column on the far edge.
-  { key: 'last_contact_summary', label: 'Contact history' },
+  // Column order locked in by admissions:
+  //   Name → Rating → Company → Site → Contact → Location → Role/Relation → Notes
+  // Rating sits up front (right after Name) so the tier is the first
+  // qualifier you see. Site → Contact → Location flow as a contiguous
+  // outreach block. Contact history + Actions are sticky on the right
+  // (rendered outside this array).
   { key: 'name', label: 'Name' },
+  { key: 'rating', label: 'Rating' },
   { key: 'company', label: 'Company' },
   { key: 'website', label: 'Site', align: 'left' },
-  { key: 'rating', label: 'Rating' },
-  { key: 'role', label: 'Role / Relation' },
   // Single merged "Contact" cell. Renders the cell phone, office
   // phone, email, and pin (location) as four icon buttons in a row.
   // Each carries its own hover popover + click-to-copy / click-to-
   // open-link, and the pin opens the place autocomplete editor.
   { key: 'contact', label: 'Contact' },
+  { key: 'location', label: 'Location' },
+  { key: 'role', label: 'Role / Relation' },
   { key: 'notes', label: 'Notes' },
 ];
 
-// Always-on column keys — admins can't hide or reorder these out of
-// position. Currently just `last_contact_summary` so "when did we last
-// touch this person" is always the first thing on screen even if a
-// stale `shared_grid_prefs` row tried to hide / reorder it.
-const ALWAYS_FIRST_KEYS = ['last_contact_summary'] as const;
-
-// Promote ALWAYS_FIRST_KEYS to the front of any visible/order array
-// while preserving the relative order of the rest. Used in applyPrefs
-// + every setColumnOrder / setVisibleCols path so drag-reorder, hide,
-// and stale-prefs paths all converge on "Contact history first".
-function enforceAlwaysFirst(keys: string[]): string[] {
-  const head = ALWAYS_FIRST_KEYS.filter((k) => keys.includes(k));
-  const tail = keys.filter((k) => !ALWAYS_FIRST_KEYS.includes(k as (typeof ALWAYS_FIRST_KEYS)[number]));
-  return [...head, ...tail];
-}
 
 const RATING_TONES: Record<ContactRating, string> = {
   'Tier 1': 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -133,10 +117,11 @@ const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
   website: 60,
   rating: 110,
   role: 180,
-  // Merged "Contact" column — needs room for 4 icons (cell, office,
-  // email, pin) plus their hover affordances. 200px keeps them
-  // breathing without crowding adjacent columns.
-  contact: 200,
+  // "Contact" column — 3 icons (cell, office, email) plus their hover
+  // affordances. 160px keeps them breathing without crowding adjacent
+  // columns. The pin/Location editor lives in its own column now.
+  contact: 160,
+  location: 240,
   notes: 280,
   actions: 140,
   // Merged engagement column (replaces last_contact_by_name + time_since
@@ -204,10 +189,11 @@ function sortValue(c: Contact, key: string): string | number | null {
     case 'phone': return c.phone || null;
     case 'email': return c.email || null;
     case 'location': return c.location || null;
-    // Merged Contact column sorts by location (most useful pivot —
-    // groups admissions can read by city / state / time zone). Phone /
-    // email aren't great sort keys anyway.
-    case 'contact': return c.formatted_address || c.location || null;
+    // The Contact column is now just phone / email icons (Location
+    // moved out to its own column). Sort by the most useful contact
+    // string admissions actually looks at — cell number first, then
+    // office, then email — so identical phone numbers cluster.
+    case 'contact': return c.phone_cell || c.phone || c.phone_office || c.email || null;
     case 'notes': return c.notes || null;
     case 'last_contact_at':
     case 'time_since':
@@ -322,10 +308,11 @@ export default function ContactsContent() {
   // notes saves, optimistic UI from log-a-contact, etc.) so sorting
   // desc on it produces the natural "things that just happened are
   // first" feed admissions expects.
-  // Default sort keys the grid by "most recently contacted" so the
-  // row admissions just touched sits at the top. Mirrors the
-  // last_contact_summary column being the leftmost, always-on column.
-  const [sortKey, setSortKey] = useState<string>('last_contact_summary');
+  // Default sort keys the grid by "most recently contacted" desc so
+  // the row admissions just touched sits at the top. The Contact
+  // history column is sticky on the right; clicking its header
+  // toggles asc/desc on the same key.
+  const [sortKey, setSortKey] = useState<string>('last_contact_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -499,8 +486,8 @@ export default function ContactsContent() {
     const o0 = storedO ?? DEFAULT_ORDER;
     const missingV = DEFAULT_VISIBLE.filter((k) => !v0.includes(k));
     const missingO = DEFAULT_ORDER.filter((k) => !o0.includes(k));
-    const v = enforceAlwaysFirst([...v0, ...missingV]);
-    const o = enforceAlwaysFirst([...o0, ...missingO]);
+    const v = [...v0, ...missingV];
+    const o = [...o0, ...missingO];
     setVisibleCols(v);
     setColumnOrder(o);
     if (missingV.length > 0 || missingO.length > 0) {
@@ -637,8 +624,8 @@ export default function ContactsContent() {
   }, [filtered, sortKey, sortDir, isNewToUser]);
 
   const visibleColumnsResolved = useMemo(() => {
-    const order = enforceAlwaysFirst(columnOrder ?? DEFAULT_ORDER);
-    const visible = new Set(enforceAlwaysFirst(visibleCols ?? DEFAULT_VISIBLE));
+    const order = columnOrder ?? DEFAULT_ORDER;
+    const visible = new Set(visibleCols ?? DEFAULT_VISIBLE);
     return order.filter((k) => visible.has(k)).map((k) => COL_BY_KEY[k]).filter(Boolean);
   }, [columnOrder, visibleCols]);
 
@@ -650,30 +637,21 @@ export default function ContactsContent() {
     const dragKey = dragKeyRef.current;
     dragKeyRef.current = null;
     if (!dragKey || dragKey === targetKey) return;
-    // Block reordering the always-first columns out of position. The
-    // user can't drag last_contact_summary off index 0, and can't drop
-    // another column above it. Silent no-op so the drag handle still
-    // grabs but the drop just lands the row back where it was.
-    if (ALWAYS_FIRST_KEYS.includes(dragKey as (typeof ALWAYS_FIRST_KEYS)[number])) return;
-    if (ALWAYS_FIRST_KEYS.includes(targetKey as (typeof ALWAYS_FIRST_KEYS)[number])) return;
     const next = (columnOrder ?? DEFAULT_ORDER).slice();
     const from = next.indexOf(dragKey);
     const to = next.indexOf(targetKey);
     if (from === -1 || to === -1) return;
     next.splice(from, 1);
     next.splice(to, 0, dragKey);
-    const enforced = enforceAlwaysFirst(next);
-    setColumnOrder(enforced);
-    void persistPrefs(visibleCols ?? DEFAULT_VISIBLE, enforced);
+    setColumnOrder(next);
+    void persistPrefs(visibleCols ?? DEFAULT_VISIBLE, next);
   }
 
   function toggleVisible(key: string) {
-    // Always-first columns are not hideable.
-    if (ALWAYS_FIRST_KEYS.includes(key as (typeof ALWAYS_FIRST_KEYS)[number])) return;
     const v = new Set(visibleCols ?? DEFAULT_VISIBLE);
     if (v.has(key)) v.delete(key);
     else v.add(key);
-    const next = enforceAlwaysFirst(Array.from(v));
+    const next = Array.from(v);
     setVisibleCols(next);
     void persistPrefs(next, columnOrder ?? DEFAULT_ORDER);
   }
@@ -1331,23 +1309,14 @@ function ContactsGrid({
   const [expandedNotesId, setExpandedNotesId] = useState<string | null>(null);
   // Trailing columns the user can't reorder/hide: Actions + the merged
   // Last Contact summary + the action-menu expander. Was 5 (Actions,
-  // Was 5 (Last Contacted By + Time Since + Last Contact + actions +
-  // expander), then 3 once the three engagement columns folded into
-  // LastContactSummaryCell, and now 2 since last_contact_summary
-  // itself moved to the leftmost scrollable column. Only Actions and
-  // the 3-dot expander remain sticky on the right.
-  const totalCols = columns.length + 2;
-
-  // Both trailing columns (Actions and the
-  // expander) are sticky to the right edge of the scrollable table.
-  // Their right offsets stack: expander hugs right: 0, summary sits to
-  // its left, Actions sits to the left of the summary. The summary width
-  // is user-resizable so we read it from the live columnWidths map.
-  // Trailing sticky cells: just Actions + the 3-dot expander now that
-  // last_contact_summary has moved to the leftmost scrollable column.
-  // Actions sits at `right=EXPANDER_COL_WIDTH_PX` so it never overlaps
-  // the 3-dot menu pinned at right-0.
-  const actionsStickyRightPx = EXPANDER_COL_WIDTH_PX;
+  // 3 trailing sticky-right cells (Actions + Contact history +
+  // 3-dot expander). The expander hugs right: 0, Contact history
+  // sits to its left, and Actions sits to the left of Contact history.
+  // Contact history is user-resizable so we read its live width from
+  // the columnWidths map to position Actions correctly.
+  const totalCols = columns.length + 3;
+  const summaryWidth = columnWidths['last_contact_summary'] ?? DEFAULT_COL_WIDTHS_PX['last_contact_summary'];
+  const actionsStickyRightPx = EXPANDER_COL_WIDTH_PX + summaryWidth;
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -1371,7 +1340,7 @@ function ContactsGrid({
             const w = columnWidths[c.key] ?? DEFAULT_COL_WIDTHS_PX[c.key] ?? 180;
             return <col key={c.key} style={{ width: `${w}px` }} />;
           })}
-          {(['actions'] as const).map((k) => {
+          {(['actions', 'last_contact_summary'] as const).map((k) => {
             const w = columnWidths[k] ?? DEFAULT_COL_WIDTHS_PX[k];
             return <col key={k} style={{ width: `${w}px` }} />;
           })}
@@ -1428,6 +1397,17 @@ function ContactsGrid({
               <span className="truncate">Actions</span>
               <ResizeHandle colKey="actions" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
+            <th
+              data-col-key="last_contact_summary"
+              onClick={() => onSort('last_contact_at')}
+              className="group/th sticky right-10 z-20 bg-[#faf8f5]/70 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
+            >
+              <span className="inline-flex items-center gap-1 truncate">
+                Contact history
+                <SortIndicator active={sortKey === 'last_contact_at'} dir={sortDir} />
+              </span>
+              <ResizeHandle colKey="last_contact_summary" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
+            </th>
             <th className="sticky right-0 z-20 bg-[#faf8f5]/70 backdrop-blur-md backdrop-saturate-150 px-3 py-2" />
           </tr>
         </thead>
@@ -1449,35 +1429,6 @@ function ContactsGrid({
               <Fragment key={c.id}>
               <tr className={`group align-top transition-colors ${isNewToUser(c) ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}>
                 {columns.map((col) => {
-                  if (col.key === 'last_contact_summary') {
-                    // Contact-history cell — now the leftmost column.
-                    // Clicking expands the mobile inline history block
-                    // (onHistory); the chevron mirrors that state.
-                    // Inlined here rather than in ContactCell so the
-                    // column keeps the same expand affordance the old
-                    // sticky-right version had.
-                    return (
-                      <td key={col.key} className="px-3 py-2.5">
-                        <button
-                          type="button"
-                          onClick={() => onHistory(c)}
-                          className="flex w-full items-start justify-between gap-2 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
-                          title={expandedDetailsId === c.id ? 'Hide history' : 'Show contact history'}
-                          aria-expanded={expandedDetailsId === c.id}
-                        >
-                          <span className="min-w-0 flex-1">
-                            <LastContactSummaryCell contact={c} />
-                          </span>
-                          <span
-                            className={`shrink-0 mt-1 inline-flex items-center justify-center w-6 h-6 rounded-md border transition-all ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground rotate-180' : 'bg-white text-foreground/55 border-black/10'}`}
-                            aria-hidden
-                          >
-                            <ChevronDownIcon />
-                          </span>
-                        </button>
-                      </td>
-                    );
-                  }
                   if (col.key === 'notes') {
                     const isExpanded = expandedNotesId === c.id;
                     return (
@@ -1517,6 +1468,25 @@ function ContactsGrid({
                       Contact
                     </button>
                   </div>
+                </td>
+                <td className={`sticky right-10 z-10 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed]/72 group-hover:bg-[#f7e8df]/85' : 'bg-white/65 group-hover:bg-white/85'}`}>
+                  <button
+                    type="button"
+                    onClick={() => onHistory(c)}
+                    className="flex w-full items-start justify-between gap-2 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
+                    title={expandedDetailsId === c.id ? 'Hide history' : 'Show contact history'}
+                    aria-expanded={expandedDetailsId === c.id}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <LastContactSummaryCell contact={c} />
+                    </span>
+                    <span
+                      className={`shrink-0 mt-1 inline-flex items-center justify-center w-6 h-6 rounded-md border transition-all ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground rotate-180' : 'bg-white text-foreground/55 border-black/10'}`}
+                      aria-hidden
+                    >
+                      <ChevronDownIcon />
+                    </span>
+                  </button>
                 </td>
                 <td className={`sticky right-0 z-10 backdrop-blur-md backdrop-saturate-150 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed]/72 group-hover:bg-[#f7e8df]/85' : 'bg-white/65 group-hover:bg-white/85'}`}>
                   <button
@@ -2085,12 +2055,14 @@ function ContactCell({
             kind="email"
             emptyLabel="Add email…"
           />
-          <PlaceAutocompleteCell
-            contact={contact}
-            onSavePlace={(patch) => onSavePatch(contact.id, patch)}
-            iconOnly
-          />
         </div>
+      );
+    case 'location':
+      return (
+        <PlaceAutocompleteCell
+          contact={contact}
+          onSavePlace={(patch) => onSavePatch(contact.id, patch)}
+        />
       );
     case 'notes':
       return contact.notes
