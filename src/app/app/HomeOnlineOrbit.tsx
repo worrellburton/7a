@@ -704,8 +704,8 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
         /* Outer ring (team) ticks clockwise on a 120s loop. Inner
            ring (horses) ticks on a slower 180s loop so the two read
            as one composed motion with the horses gently trailing
-           the team. The ring rotation IS the variable — `transform:
-           rotate(var(...))` reads whatever the keyframes have set
+           the team. The ring rotation IS the variable — transform:
+           rotate(var(...)) reads whatever the keyframes have set
            this paint frame. */
         .orbit-spin {
           animation: orbit-angle-tick 120s linear infinite;

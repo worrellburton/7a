@@ -836,7 +836,7 @@ function ContactsGrid({
             <th
               data-col-key="last_contact_at"
               onClick={() => onSort('last_contact_at')}
-              className="group/th relative px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
+              className="group/th sticky right-10 z-20 bg-[#faf8f5] shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
             >
               <span className="inline-flex items-center gap-1 truncate">
                 Last contact
@@ -844,7 +844,7 @@ function ContactsGrid({
               </span>
               <ResizeHandle colKey="last_contact_at" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
-            <th className="px-3 py-2" />
+            <th className="sticky right-0 z-20 bg-[#faf8f5] px-3 py-2" />
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5">
@@ -863,7 +863,7 @@ function ContactsGrid({
           ) : (
             rows.map((c) => (
               <Fragment key={c.id}>
-              <tr className="align-top hover:bg-warm-bg/40 transition-colors">
+              <tr className="group align-top hover:bg-warm-bg/40 transition-colors">
                 {columns.map((col) => {
                   if (col.key === 'notes') {
                     const isExpanded = expandedNotesId === c.id;
@@ -916,7 +916,7 @@ function ContactsGrid({
                 <td className="px-3 py-2.5">
                   <TimeSinceCell contact={c} />
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="sticky right-10 z-10 bg-white group-hover:bg-[#fcfaf8] shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2.5 transition-colors">
                   <button
                     type="button"
                     onClick={() => onHistory(c)}
@@ -926,7 +926,7 @@ function ContactsGrid({
                     <LastContactCell contact={c} />
                   </button>
                 </td>
-                <td className="px-2 py-2.5 text-right">
+                <td className="sticky right-0 z-10 bg-white group-hover:bg-[#fcfaf8] px-2 py-2.5 text-right transition-colors">
                   <button
                     type="button"
                     onClick={(e) => {
