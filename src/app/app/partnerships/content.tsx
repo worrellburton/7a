@@ -19,6 +19,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { SearchSelectCell } from '@/components/SearchSelectCell';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -345,6 +346,25 @@ export default function PartnershipsContent() {
     setEditing(null);
   }
 
+  // Inline patch used by the in-grid SearchSelectCell on the Specialty
+  // column — separate from handleUpdate because we don't want to touch
+  // the edit-modal state. Optimistic so the row jumps to its new
+  // specialty group immediately; realtime reconciles if the server
+  // pushes back something different.
+  async function onInlineSpecialty(id: string, next: string | null) {
+    if (!session?.access_token) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, specialty: next } : r)));
+    const res = await fetch(`/api/partnerships/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ specialty: next }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(`Couldn't save specialty: ${json.error ?? res.status}`);
+    }
+  }
+
   async function handleLogContact(target: Partner, method: ContactMethod, comments: string) {
     if (!session?.access_token) return;
     const optimisticAt = new Date().toISOString();
@@ -501,6 +521,8 @@ export default function PartnershipsContent() {
           onHistory={(p) => setHistoryTarget(p)}
           actionMenuFor={actionMenuFor}
           setActionMenuFor={setActionMenuFor}
+          specialties={specialties}
+          onInlineSpecialty={onInlineSpecialty}
         />
       ) : (
         <PartnersMapView rows={filtered} />
@@ -567,6 +589,8 @@ function PartnersGrid({
   onHistory,
   actionMenuFor,
   setActionMenuFor,
+  specialties,
+  onInlineSpecialty,
 }: {
   loading: boolean;
   rows: { row: Partner; priority: number; isFirstOfGroup: boolean }[];
@@ -579,6 +603,8 @@ function PartnersGrid({
   onHistory: (p: Partner) => void;
   actionMenuFor: string | null;
   setActionMenuFor: (id: string | null) => void;
+  specialties: string[];
+  onInlineSpecialty: (id: string, next: string | null) => Promise<void> | void;
 }) {
   return (
     <>
@@ -623,7 +649,7 @@ function PartnersGrid({
                     key={c.key}
                     className={`px-3 py-0 h-12 max-w-[260px] overflow-hidden whitespace-nowrap ${c.align === 'right' ? 'text-right' : ''} ${c.key === 'priority' ? 'sticky left-0 bg-white z-[1] font-semibold tabular-nums text-foreground/55' : ''}`}
                   >
-                    <CellRenderer column={c} partner={row} priority={priority} onEdit={onEdit} />
+                    <CellRenderer column={c} partner={row} priority={priority} onEdit={onEdit} specialties={specialties} onInlineSpecialty={onInlineSpecialty} />
                   </td>
                 ))}
                 <td className="px-2 py-0 h-12 text-right relative align-middle">
@@ -718,11 +744,15 @@ function CellRenderer({
   partner,
   priority,
   onEdit,
+  specialties,
+  onInlineSpecialty,
 }: {
   column: ColumnDef;
   partner: Partner;
   priority: number;
   onEdit: (p: Partner) => void;
+  specialties: string[];
+  onInlineSpecialty: (id: string, next: string | null) => Promise<void> | void;
 }) {
   switch (column.key) {
     case 'priority':
@@ -745,7 +775,14 @@ function CellRenderer({
         </span>
       );
     case 'specialty':
-      return <span className="text-foreground/75 truncate block">{partner.specialty || <Em />}</span>;
+      return (
+        <SearchSelectCell
+          value={partner.specialty}
+          options={specialties}
+          onSave={(next) => onInlineSpecialty(partner.id, next)}
+          placeholder="Set specialty…"
+        />
+      );
     case 'location':
       return <span className="text-foreground/65 truncate block">{partner.location || <Em />}</span>;
     case 'poc':
