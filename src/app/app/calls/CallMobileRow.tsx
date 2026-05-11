@@ -106,13 +106,14 @@ export function CallMobileRow(props: CallMobileRowProps) {
   // plausible siblings and pick the first one parseDate can actually
   // read — *not* the first non-empty one, because a placeholder
   // string like "0000-00-00 00:00:00" would short-circuit otherwise.
+  const looseCall = call as unknown as Record<string, unknown>;
   const candidates = [
     call.called_at,
-    (call as Record<string, unknown>).local_called_at,
-    (call as Record<string, unknown>).start_time,
-    (call as Record<string, unknown>).local_start_time,
-    (call as Record<string, unknown>).created_at,
-    (call as Record<string, unknown>).created,
+    looseCall.local_called_at,
+    looseCall.start_time,
+    looseCall.local_start_time,
+    looseCall.created_at,
+    looseCall.created,
   ];
   let timestamp = '';
   for (const c of candidates) {
