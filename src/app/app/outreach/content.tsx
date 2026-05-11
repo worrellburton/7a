@@ -264,8 +264,39 @@ export default function ContactsContent() {
           setRows((prev) => prev.filter((p) => p.id !== old.id));
         } else {
           const row = payload.new as Contact;
+          // Detect when the realtime row introduces a `last_contact_by`
+          // that the client doesn't yet have a joined name for. The
+          // realtime payload only carries raw columns; without this
+          // lookup the cell renders "—" because last_contact_by_name
+          // stays null until the next full /api/contacts refetch.
+          // public.users.users_select_authenticated allows any signed-
+          // in user to SELECT, so we can pull the missing display
+          // fields straight from the client.
           setRows((prev) => {
             const ix = prev.findIndex((p) => p.id === row.id);
+            const existing = ix === -1 ? null : prev[ix];
+            const needsLookup =
+              !!row.last_contact_by &&
+              (!existing
+                || existing.last_contact_by !== row.last_contact_by
+                || !existing.last_contact_by_name);
+            if (needsLookup) {
+              void supabase
+                .from('users')
+                .select('full_name, avatar_url')
+                .eq('id', row.last_contact_by as string)
+                .maybeSingle()
+                .then(({ data }) => {
+                  if (!data) return;
+                  const name = (data as { full_name?: string | null }).full_name ?? null;
+                  const avatar = (data as { avatar_url?: string | null }).avatar_url ?? null;
+                  setRows((cur) => cur.map((r) => (
+                    r.id === row.id
+                      ? { ...r, last_contact_by_name: name, last_contact_by_avatar_url: avatar }
+                      : r
+                  )));
+                });
+            }
             if (ix === -1) return [row, ...prev];
             const copy = prev.slice();
             // Preserve any joined display name we already had — the
