@@ -891,7 +891,7 @@ export default function ContactsContent() {
       </div>
 
       {viewMode === 'insights' ? (
-        <ContactsInsightsView contacts={sorted} />
+        <ContactsInsightsView contacts={sorted} loading={loading} />
       ) : viewMode === 'map' ? (
         <ContactsMapView
           contacts={sorted}
@@ -1132,10 +1132,16 @@ function buildOutreachPinElement(contact: Contact, isTier1: boolean): HTMLElemen
 // animated SVG charts, leaderboards, and conversion funnels. Phase 1
 // only frames the page (header + 12-column responsive grid + section
 // placeholders); each subsequent phase fills one of the panels.
-function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
+function ContactsInsightsView({ contacts, loading }: { contacts: Contact[]; loading: boolean }) {
   const kpis = useMemo(() => computeOutreachKpis(contacts), [contacts]);
+  // `loading` is true on first paint before the initial fetch resolves.
+  // Render a skeleton in that window so the view doesn't flash a sea of
+  // empty-state messages before the real data lands.
+  if (loading && contacts.length === 0) {
+    return <ContactsInsightsSkeleton />;
+  }
   return (
-    <div className="rounded-xl border border-black/10 bg-white px-5 sm:px-6 py-5 sm:py-6 space-y-5">
+    <div className="sa-outreach-insights rounded-xl border border-black/10 bg-white px-5 sm:px-6 py-5 sm:py-6 space-y-5">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-lg sm:text-xl font-semibold text-foreground">Outreach insights</h2>
@@ -1151,9 +1157,9 @@ function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
       {/* Phase 2 — KPI strip */}
       <KpiStrip kpis={kpis} />
 
-      {/* Section placeholders — each phase replaces one of these with
-          the real chart so the layout shape is locked in from
-          phase 1 and reviewers can eyeball progress. */}
+      {/* All charts share a 12-column responsive grid; the layout
+          shape was locked in from phase 1 and each subsequent phase
+          replaced one dashed placeholder. */}
       <div className="grid grid-cols-12 gap-4">
         <TierMixDonut contacts={contacts} />
         <ThirtyDayTouchesChart contacts={contacts} />
@@ -1162,6 +1168,44 @@ function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
         <StalenessFunnel contacts={contacts} />
         <PartnerConversionFunnel contacts={contacts} />
         <GeographicConcentration contacts={contacts} />
+      </div>
+
+      <p className="text-[10px] text-foreground/40 text-right tabular-nums">
+        Live · derived client-side from the contacts table · last refresh {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+      </p>
+    </div>
+  );
+}
+
+// Mounted on the first paint of the Insights tab when the page is
+// still fetching the initial contact list. Matches the real chart
+// grid 1:1 so the layout doesn't shift when data lands; the panes
+// shimmer via the existing sa-skeleton-shimmer keyframe rather than
+// a hard "Loading…" string. Reduced-motion users get the panes at
+// rest opacity instead of the shimmer.
+function ContactsInsightsSkeleton() {
+  return (
+    <div className="sa-outreach-insights rounded-xl border border-black/10 bg-white px-5 sm:px-6 py-5 sm:py-6 space-y-5">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div className="space-y-2">
+          <div className="sa-insights-skel h-5 w-44 rounded-md" />
+          <div className="sa-insights-skel h-3 w-72 rounded-md" />
+        </div>
+        <div className="sa-insights-skel h-6 w-28 rounded-full" />
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="sa-insights-skel h-[88px] rounded-xl" />
+        ))}
+      </div>
+      <div className="grid grid-cols-12 gap-4">
+        <div className="sa-insights-skel col-span-12 md:col-span-4 h-[230px] rounded-xl" />
+        <div className="sa-insights-skel col-span-12 md:col-span-8 h-[230px] rounded-xl" />
+        <div className="sa-insights-skel col-span-12 md:col-span-6 h-[200px] rounded-xl" />
+        <div className="sa-insights-skel col-span-12 md:col-span-6 h-[200px] rounded-xl" />
+        <div className="sa-insights-skel col-span-12 md:col-span-7 h-[200px] rounded-xl" />
+        <div className="sa-insights-skel col-span-12 md:col-span-5 h-[200px] rounded-xl" />
+        <div className="sa-insights-skel col-span-12 h-[260px] rounded-xl" />
       </div>
     </div>
   );

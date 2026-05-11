@@ -442,6 +442,51 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
   }
 }
 
+/* Outreach insights — loading skeleton shimmer + a single
+   prefers-reduced-motion override that quiets every chart animation
+   on the Insights tab at once. The skeleton uses a soft warm-tone
+   gradient that drifts left-to-right over 1.4s; reduced-motion
+   pauses the drift and leaves the gradient at rest position so the
+   pane still reads as a placeholder. The .sa-outreach-insights
+   wrapper class is on every Insights surface (real and skeleton);
+   under reduced-motion every CSS transition + animation inside it
+   collapses to instant — covers the KPI strip bars, the donut
+   sweep, the line-chart stroke reveal, the method bars, the
+   leaderboard bars, the staleness segments, the funnel clip-path,
+   and the geographic ramp without each chart needing its own
+   reduced-motion guard. */
+.sa-insights-skel {
+  background: linear-gradient(
+    100deg,
+    rgba(245, 240, 235, 0.45) 0%,
+    rgba(245, 240, 235, 0.95) 35%,
+    rgba(255, 255, 255, 1)    50%,
+    rgba(245, 240, 235, 0.95) 65%,
+    rgba(245, 240, 235, 0.45) 100%
+  );
+  background-size: 200% 100%;
+  animation: sa-insights-skel-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes sa-insights-skel-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-insights-skel {
+    animation: none;
+    background: rgba(245, 240, 235, 0.7);
+  }
+  .sa-outreach-insights *,
+  .sa-outreach-insights *::before,
+  .sa-outreach-insights *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
 /* Outreach map pins — the premium pin (Tier 1) gets a larger
    teardrop body, an animated flame plume above, and a pulsing gold
    glow halo at the base; everything else gets a smaller plain copper
