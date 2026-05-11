@@ -23,6 +23,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const patch: Record<string, unknown> = {};
   if ('name' in body) patch.name = trim(body.name, 200);
+  if ('company' in body) patch.company = trim(body.company, 200);
   if ('role' in body) patch.role = trim(body.role, 200);
   if ('phone' in body) patch.phone = trim(body.phone, 60);
   if ('email' in body) patch.email = trim(body.email, 200);

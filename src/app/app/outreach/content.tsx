@@ -26,6 +26,7 @@ type ContactMethod = 'Phone' | 'In Person' | 'Left Message';
 interface Contact {
   id: string;
   name: string;
+  company: string | null;
   role: string | null;
   phone: string | null;
   email: string | null;
@@ -58,6 +59,7 @@ interface ColumnDef {
 
 const ALL_COLUMNS: ColumnDef[] = [
   { key: 'name', label: 'Name' },
+  { key: 'company', label: 'Company' },
   { key: 'role', label: 'Role / Relation' },
   { key: 'phone', label: 'Phone' },
   { key: 'email', label: 'Email' },
@@ -75,9 +77,10 @@ const COL_BY_KEY = Object.fromEntries(ALL_COLUMNS.map((c) => [c.key, c])) as Rec
 // the table header.
 const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
   name: 200,
+  company: 180,
   role: 180,
-  phone: 160,
-  email: 220,
+  phone: 80,
+  email: 80,
   location: 180,
   notes: 280,
   actions: 200,
@@ -140,6 +143,7 @@ function fmtAgoLong(iso: string | null): string {
 function sortValue(c: Contact, key: string): string | number | null {
   switch (key) {
     case 'name': return c.name || null;
+    case 'company': return c.company || null;
     case 'role': return c.role || null;
     case 'phone': return c.phone || null;
     case 'email': return c.email || null;
@@ -178,7 +182,11 @@ export default function ContactsContent() {
   const [showCols, setShowCols] = useState(false);
   const [logTarget, setLogTarget] = useState<Contact | null>(null);
   const [upgradeTarget, setUpgradeTarget] = useState<Contact | null>(null);
-  const [historyTarget, setHistoryTarget] = useState<Contact | null>(null);
+  // Click "History" (or the row's expand chevron) toggles an inline
+  // details drawer beneath the row. We hold the contact's id rather
+  // than the whole contact so realtime row updates flow through to
+  // the open drawer automatically.
+  const [expandedDetailsId, setExpandedDetailsId] = useState<string | null>(null);
   const [actionMenuFor, setActionMenuFor] = useState<{ id: string; rect: DOMRect } | null>(null);
 
   const [visibleCols, setVisibleCols] = useState<string[] | null>(null);
@@ -202,6 +210,16 @@ export default function ContactsContent() {
     else { setSortKey(key); setSortDir('asc'); }
   }
 
+  // "New since you were last here" tracking. seenAt is loaded once on
+  // mount from /api/outreach/seen — any contact whose updated_at is
+  // greater than seenAt renders highlighted and bubbles to the top of
+  // the sort. pageLoadAt is captured at the same time and persisted as
+  // the user's new seenAt when they leave the page (visibilitychange /
+  // beforeunload), so the highlight survives the rest of this session
+  // and clears on the next visit.
+  const [seenAt, setSeenAt] = useState<string | null>(null);
+  const pageLoadAtRef = useRef<string>(new Date().toISOString());
+
   // Initial fetch + realtime subscriptions for contacts + shared prefs.
   useEffect(() => {
     if (!session?.access_token) return;
@@ -212,6 +230,11 @@ export default function ContactsContent() {
       .then((json) => { if (!cancelled && json) setRows(json.rows ?? []); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
       .finally(() => { if (!cancelled) setLoading(false); });
+
+    fetch('/api/outreach/seen', { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then(async (r) => (r.ok ? ((await r.json()) as { seen_at: string | null }) : null))
+      .then((j) => { if (!cancelled && j) setSeenAt(j.seen_at); })
+      .catch(() => { /* not fatal — falls back to no highlights */ });
 
     fetch('/api/contacts/prefs', { headers: { Authorization: `Bearer ${session.access_token}` } })
       .then(async (r) => (r.ok ? await r.json() : null))
@@ -263,6 +286,44 @@ export default function ContactsContent() {
     };
   }, [session?.access_token, user?.id]);
 
+  // Persist "I just saw this page" when the user navigates away,
+  // closes the tab, or backgrounds the tab. We stamp it to the
+  // pageLoadAt we captured on mount (not now()) so contacts updated
+  // WHILE the user was looking at the page still highlight as "new"
+  // on the NEXT visit — which is the natural read of "I haven't
+  // seen those yet, they appeared after I opened the page".
+  //
+  // sendBeacon keeps the POST alive across navigation; the fetch
+  // fallback covers browsers that block beacons for non-Blob bodies.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const token = session.access_token;
+    const persist = () => {
+      const payload = JSON.stringify({ at: pageLoadAtRef.current });
+      try {
+        const blob = new Blob([payload], { type: 'application/json' });
+        const sent = typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function'
+          ? navigator.sendBeacon('/api/outreach/seen', blob)
+          : false;
+        if (sent) return;
+      } catch { /* fall through to fetch */ }
+      void fetch('/api/outreach/seen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: payload,
+        keepalive: true,
+      });
+    };
+    const onVisibility = () => { if (document.visibilityState === 'hidden') persist(); };
+    window.addEventListener('pagehide', persist);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', persist);
+      document.removeEventListener('visibilitychange', onVisibility);
+      persist();
+    };
+  }, [session?.access_token]);
+
   function applyPrefs(visible: unknown, order: unknown) {
     const v = Array.isArray(visible) && visible.length > 0
       ? (visible as string[]).filter((k) => k in COL_BY_KEY)
@@ -310,15 +371,56 @@ export default function ContactsContent() {
       if (filterMethod && r.last_contact_method !== filterMethod) return false;
       if (filterStaleness && staleness(r.last_contact_at) !== filterStaleness) return false;
       if (!q) return true;
-      const hay = [r.name, r.role, r.phone, r.email, r.location, r.notes]
+      const hay = [r.name, r.company, r.role, r.phone, r.email, r.location, r.notes]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
   }, [rows, search, filterMethod, filterStaleness]);
 
+  // Headline counts for the insight tiles at the top of the page.
+  // Always computed against the unfiltered `rows` (not the filtered
+  // view) because the tiles describe the whole pipeline, not what's
+  // currently visible after a search/method/freshness filter.
+  const insights = useMemo(() => {
+    const now = Date.now();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const monthMs = 30 * 24 * 60 * 60 * 1000;
+    let week = 0;
+    let month = 0;
+    let total = 0;
+    let never = 0;
+    for (const r of rows) {
+      if (!r.last_contact_at) { never += 1; continue; }
+      total += 1;
+      const age = now - new Date(r.last_contact_at).getTime();
+      if (age <= weekMs) week += 1;
+      if (age <= monthMs) month += 1;
+    }
+    return { week, month, total, never };
+  }, [rows]);
+
+  // Helper used by both the sort and the row renderer: a contact is
+  // "new" to this user iff updated_at is strictly newer than the
+  // user's stored last_outreach_seen_at. seenAt = null means the user
+  // has never visited the page before — in that case we don't flood
+  // them with highlights on every row, so we treat null as "infinitely
+  // recent" (nothing is new yet).
+  const isNewToUser = useMemo(() => {
+    if (!seenAt) return (_c: Contact) => false;
+    const seenMs = new Date(seenAt).getTime();
+    return (c: Contact) => new Date(c.updated_at).getTime() > seenMs;
+  }, [seenAt]);
+
   const sorted = useMemo(() => {
     const arr = filtered.slice();
     arr.sort((a, b) => {
+      // Brand-new-since-last-visit rows always bubble to the very
+      // top regardless of the active column sort, so admissions can
+      // see the day's changes first.
+      const aNew = isNewToUser(a);
+      const bNew = isNewToUser(b);
+      if (aNew !== bNew) return aNew ? -1 : 1;
+
       const va = sortValue(a, sortKey);
       const vb = sortValue(b, sortKey);
       // Nulls always sink to the bottom regardless of direction.
@@ -331,7 +433,7 @@ export default function ContactsContent() {
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return arr;
-  }, [filtered, sortKey, sortDir]);
+  }, [filtered, sortKey, sortDir, isNewToUser]);
 
   const visibleColumnsResolved = useMemo(() => {
     const order = columnOrder ?? DEFAULT_ORDER;
@@ -383,7 +485,7 @@ export default function ContactsContent() {
     setShowAdd(false);
   }
 
-  async function handleLogContact(target: Contact, method: ContactMethod, comments: string) {
+  async function handleLogContact(target: Contact, method: ContactMethod, comments: string, transcript: string) {
     if (!session?.access_token) return;
     // Optimistic UI — bump the row before the request resolves so
     // the grid reflects the action immediately.
@@ -409,7 +511,7 @@ export default function ContactsContent() {
     const res = await fetch(`/api/contacts/${target.id}/log-contact`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ method, comments }),
+      body: JSON.stringify({ method, comments, transcript }),
     });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
@@ -439,7 +541,7 @@ export default function ContactsContent() {
   // grid reflects the saved text immediately. The realtime postgres
   // subscription will reconcile if the server pushes back something
   // different.
-  async function handleSaveField(id: string, field: 'name' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) {
+  async function handleSaveField(id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) {
     if (!session?.access_token) return;
     const trimmed = value.trim();
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: trimmed || null } : r)));
@@ -485,7 +587,7 @@ export default function ContactsContent() {
     <div className="p-4 sm:p-6 lg:p-8 w-full pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">Contacts</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight">Outreach</h1>
           <p className="text-sm text-foreground/55 mt-0.5">
             Outreach tracker for referrers, leads, and downgraded partners.
             {rows.length > 0 && (
@@ -512,6 +614,13 @@ export default function ContactsContent() {
           </button>
         </div>
       </header>
+
+      <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <InsightTile label="Contacted this week" value={insights.week} tone="fresh" />
+        <InsightTile label="Contacted this month" value={insights.month} tone="cooling" />
+        <InsightTile label="Total contacted" value={insights.total} tone="neutral" />
+        <InsightTile label="Never contacted" value={insights.never} tone="stale" />
+      </div>
 
       <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
         <div className="relative w-full sm:flex-1 sm:min-w-[220px] sm:max-w-md">
@@ -576,7 +685,11 @@ export default function ContactsContent() {
         onColDrop={onColDrop}
         onContact={(c) => setLogTarget(c)}
         onUpgrade={(c) => setUpgradeTarget(c)}
-        onHistory={(c) => setHistoryTarget(c)}
+        onHistory={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
+        expandedDetailsId={expandedDetailsId}
+        accessToken={session?.access_token ?? null}
+        onOpenLog={(c) => setLogTarget(c)}
+        isNewToUser={isNewToUser}
         onDelete={(c) => handleDelete(c)}
         onSaveNotes={handleSaveNotes}
         onSaveField={handleSaveField}
@@ -602,7 +715,7 @@ export default function ContactsContent() {
         <LogContactModal
           contact={logTarget}
           onClose={() => setLogTarget(null)}
-          onSubmit={(method, comments) => handleLogContact(logTarget, method, comments)}
+          onSubmit={(method, comments, transcript) => handleLogContact(logTarget, method, comments, transcript)}
         />
       )}
       {upgradeTarget && (
@@ -610,14 +723,6 @@ export default function ContactsContent() {
           contact={upgradeTarget}
           onClose={() => setUpgradeTarget(null)}
           onSubmit={(payload) => handleUpgrade(upgradeTarget, payload)}
-        />
-      )}
-      {historyTarget && (
-        <ContactHistoryModal
-          contact={historyTarget}
-          accessToken={session?.access_token ?? null}
-          onClose={() => setHistoryTarget(null)}
-          onLogContact={() => { setLogTarget(historyTarget); setHistoryTarget(null); }}
         />
       )}
     </div>
@@ -712,6 +817,10 @@ function ContactsGrid({
   onCommitColumnWidth,
   onResizeStart,
   onResizeEnd,
+  expandedDetailsId,
+  accessToken,
+  onOpenLog,
+  isNewToUser,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -726,7 +835,7 @@ function ContactsGrid({
   onHistory: (c: Contact) => void;
   onDelete: (c: Contact) => void;
   onSaveNotes: (id: string, notes: string) => Promise<void>;
-  onSaveField: (id: string, field: 'name' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
   actionMenuFor: { id: string; rect: DOMRect } | null;
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
   columnWidths: Record<string, number>;
@@ -734,6 +843,10 @@ function ContactsGrid({
   onCommitColumnWidth: (key: string, widthPx: number) => void;
   onResizeStart: () => void;
   onResizeEnd: () => void;
+  expandedDetailsId: string | null;
+  accessToken: string | null;
+  onOpenLog: (c: Contact) => void;
+  isNewToUser: (c: Contact) => boolean;
 }) {
   // Tracks the row whose notes-editor strip is currently expanded.
   // Click the notes cell to toggle. Persists across rerenders via a
@@ -836,7 +949,7 @@ function ContactsGrid({
             <th
               data-col-key="last_contact_at"
               onClick={() => onSort('last_contact_at')}
-              className="group/th relative px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
+              className="group/th sticky right-10 z-20 bg-[#faf8f5] shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
             >
               <span className="inline-flex items-center gap-1 truncate">
                 Last contact
@@ -844,7 +957,7 @@ function ContactsGrid({
               </span>
               <ResizeHandle colKey="last_contact_at" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
-            <th className="px-3 py-2" />
+            <th className="sticky right-0 z-20 bg-[#faf8f5] px-3 py-2" />
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5">
@@ -863,7 +976,7 @@ function ContactsGrid({
           ) : (
             rows.map((c) => (
               <Fragment key={c.id}>
-              <tr className="align-top hover:bg-warm-bg/40 transition-colors">
+              <tr className={`group align-top transition-colors ${isNewToUser(c) ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}>
                 {columns.map((col) => {
                   if (col.key === 'notes') {
                     const isExpanded = expandedNotesId === c.id;
@@ -886,7 +999,7 @@ function ContactsGrid({
                   }
                   return (
                     <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      <ContactCell column={col} contact={c} onSaveField={onSaveField} />
+                      <ContactCell column={col} contact={c} onSaveField={onSaveField} isNew={isNewToUser(c)} />
                     </td>
                   );
                 })}
@@ -903,10 +1016,14 @@ function ContactsGrid({
                     <button
                       type="button"
                       onClick={() => onHistory(c)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white text-foreground/70 text-[11px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
-                      title="View contact history"
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/70 border-black/10 hover:bg-warm-bg/60'}`}
+                      title={expandedDetailsId === c.id ? 'Hide details' : 'Show details + history'}
+                      aria-expanded={expandedDetailsId === c.id}
                     >
-                      History
+                      <span>History</span>
+                      <span className={`inline-flex transition-transform ${expandedDetailsId === c.id ? 'rotate-180' : ''}`}>
+                        <ChevronDownIcon />
+                      </span>
                     </button>
                   </div>
                 </td>
@@ -916,7 +1033,7 @@ function ContactsGrid({
                 <td className="px-3 py-2.5">
                   <TimeSinceCell contact={c} />
                 </td>
-                <td className="px-3 py-2.5">
+                <td className={`sticky right-10 z-10 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
                   <button
                     type="button"
                     onClick={() => onHistory(c)}
@@ -926,7 +1043,7 @@ function ContactsGrid({
                     <LastContactCell contact={c} />
                   </button>
                 </td>
-                <td className="px-2 py-2.5 text-right">
+                <td className={`sticky right-0 z-10 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
                   <button
                     type="button"
                     onClick={(e) => {
@@ -963,6 +1080,18 @@ function ContactsGrid({
                         await onSaveNotes(c.id, next);
                         setExpandedNotesId(null);
                       }}
+                    />
+                  </td>
+                </tr>
+              )}
+              {expandedDetailsId === c.id && (
+                <tr className="bg-warm-bg/30">
+                  <td colSpan={totalCols} className="px-4 py-4">
+                    <ContactDetailsDrawer
+                      contact={c}
+                      accessToken={accessToken}
+                      onLogContact={() => onOpenLog(c)}
+                      onClose={() => onHistory(c)}
                     />
                   </td>
                 </tr>
@@ -1373,27 +1502,45 @@ function ContactCell({
   column,
   contact,
   onSaveField,
+  isNew = false,
 }: {
   column: ColumnDef;
   contact: Contact;
-  onSaveField: (id: string, field: 'name' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  isNew?: boolean;
 }) {
-  const save = (field: 'name' | 'role' | 'phone' | 'email' | 'location') => (next: string) =>
+  const save = (field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location') => (next: string) =>
     onSaveField(contact.id, field, next);
   switch (column.key) {
     case 'name':
       return (
         <div>
-          <EditableTextCell
-            value={contact.name}
-            onSave={save('name')}
-            className="font-semibold text-foreground whitespace-nowrap"
-            placeholder="Add name…"
-          />
+          <div className="flex items-center gap-1.5 min-w-0">
+            <EditableTextCell
+              value={contact.name}
+              onSave={save('name')}
+              className="font-semibold text-foreground whitespace-nowrap min-w-0"
+              placeholder="Add name…"
+            />
+            {isNew && (
+              <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full bg-primary text-white text-[9px] font-bold uppercase tracking-wider">
+                New
+              </span>
+            )}
+          </div>
           {contact.source === 'downgrade-from-partner' && (
             <p className="mt-0.5 text-[10px] uppercase tracking-wider text-foreground/40 whitespace-nowrap">From partner</p>
           )}
         </div>
+      );
+    case 'company':
+      return (
+        <EditableTextCell
+          value={contact.company}
+          onSave={save('company')}
+          className="text-foreground/75 whitespace-nowrap"
+          placeholder="Add company…"
+        />
       );
     case 'role':
       return (
@@ -1406,25 +1553,20 @@ function ContactCell({
       );
     case 'phone':
       return (
-        <EditableTextCell
+        <IconCopyCell
           value={contact.phone}
           onSave={save('phone')}
-          type="tel"
-          className="text-foreground/85"
-          mono
-          copyable
-          placeholder="Add phone…"
+          kind="phone"
+          emptyLabel="Add phone…"
         />
       );
     case 'email':
       return (
-        <EditableTextCell
+        <IconCopyCell
           value={contact.email}
           onSave={save('email')}
-          type="email"
-          className="text-foreground/85"
-          copyable
-          placeholder="Add email…"
+          kind="email"
+          emptyLabel="Add email…"
         />
       );
     case 'location':
@@ -1535,6 +1677,118 @@ function EditableTextCell({
   );
 }
 
+function InsightTile({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'fresh' | 'cooling' | 'stale' | 'neutral';
+}) {
+  const toneCx =
+    tone === 'fresh' ? 'text-emerald-700 bg-emerald-50/60 border-emerald-200/70' :
+    tone === 'cooling' ? 'text-amber-700 bg-amber-50/60 border-amber-200/70' :
+    tone === 'stale' ? 'text-rose-700 bg-rose-50/60 border-rose-200/70' :
+    'text-foreground/85 bg-warm-bg/50 border-black/10';
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${toneCx}`}>
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70 truncate">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums leading-none">{value.toLocaleString()}</p>
+    </div>
+  );
+}
+
+function IconCopyCell({
+  value,
+  onSave,
+  kind,
+  emptyLabel,
+}: {
+  value: string | null | undefined;
+  onSave: (next: string) => Promise<void> | void;
+  kind: 'phone' | 'email';
+  emptyLabel: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? '');
+  const [copied, setCopied] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => { if (!editing) setDraft(value ?? ''); }, [value, editing]);
+  useEffect(() => {
+    if (editing) { inputRef.current?.focus(); inputRef.current?.select(); }
+  }, [editing]);
+
+  async function commit() {
+    const next = draft.trim();
+    setEditing(false);
+    if (next !== (value ?? '').trim()) await onSave(next);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type={kind === 'phone' ? 'tel' : 'email'}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => void commit()}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); void commit(); }
+          else if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false); }
+        }}
+        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${kind === 'phone' ? 'font-mono tabular-nums' : ''}`}
+      />
+    );
+  }
+
+  if (!value) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        title={emptyLabel}
+        aria-label={emptyLabel}
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/25 hover:text-foreground/55 hover:bg-warm-bg/60 transition-colors"
+      >
+        {kind === 'phone' ? <PhoneIcon /> : <EmailIcon />}
+      </button>
+    );
+  }
+
+  return (
+    <div className="group/icc inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={async (e) => {
+          e.stopPropagation();
+          try {
+            await navigator.clipboard.writeText(value);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1400);
+          } catch { /* clipboard blocked — silent */ }
+        }}
+        title={`${value} · click to copy`}
+        aria-label={`Copy ${kind} — ${value}`}
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-foreground hover:bg-warm-bg transition-colors"
+      >
+        {copied ? <CheckIcon /> : (kind === 'phone' ? <PhoneIcon /> : <EmailIcon />)}
+      </button>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        title="Edit"
+        aria-label="Edit"
+        className="opacity-0 group-hover/icc:opacity-100 transition-opacity inline-flex items-center justify-center w-5 h-5 rounded text-foreground/35 hover:text-foreground/70"
+      >
+        <PencilIcon />
+      </button>
+    </div>
+  );
+}
+
 function ContactMobileCard({
   contact,
   onContact,
@@ -1554,6 +1808,9 @@ function ContactMobileCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-foreground text-base leading-tight">{contact.name}</p>
+          {contact.company && (
+            <p className="mt-0.5 text-[12px] font-semibold text-foreground/70">{contact.company}</p>
+          )}
           {contact.role && (
             <p className="mt-0.5 text-[12px] text-foreground/60">{contact.role}</p>
           )}
@@ -1862,6 +2119,7 @@ function AddContactModal({
   onSubmit: (payload: Partial<Contact>) => Promise<void> | void;
 }) {
   const [name, setName] = useState('');
+  const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -1876,6 +2134,7 @@ function AddContactModal({
     try {
       await onSubmit({
         name: name.trim(),
+        company: company.trim() || null,
         role: role.trim() || null,
         phone: phone.trim() || null,
         email: email.trim() || null,
@@ -1893,6 +2152,9 @@ function AddContactModal({
         <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ModalField label="Name" required>
             <input value={name} onChange={(e) => setName(e.target.value)} required className="modal-input" />
+          </ModalField>
+          <ModalField label="Company">
+            <input value={company} onChange={(e) => setCompany(e.target.value)} className="modal-input" placeholder="Mountain House · Lumina Recovery" />
           </ModalField>
           <ModalField label="Role / Relation">
             <input value={role} onChange={(e) => setRole(e.target.value)} className="modal-input" placeholder="Therapist · Family · Alum" />
@@ -1930,10 +2192,12 @@ function LogContactModal({
 }: {
   contact: Contact;
   onClose: () => void;
-  onSubmit: (method: ContactMethod, comments: string) => Promise<void> | void;
+  onSubmit: (method: ContactMethod, comments: string, transcript: string) => Promise<void> | void;
 }) {
   const [method, setMethod] = useState<ContactMethod>('Phone');
   const [comments, setComments] = useState('');
+  const [transcript, setTranscript] = useState('');
+  const [showTranscript, setShowTranscript] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   return (
     <ModalShell
@@ -1946,7 +2210,7 @@ function LogContactModal({
           e.preventDefault();
           setSubmitting(true);
           try {
-            await onSubmit(method, comments.trim());
+            await onSubmit(method, comments.trim(), transcript.trim());
           } finally {
             setSubmitting(false);
           }
@@ -1973,11 +2237,45 @@ function LogContactModal({
               placeholder="They mentioned a referral coming next week — follow up on Tuesday."
             />
           </ModalField>
+
+          {/* Optional: paste a call / meeting transcript. We stash the
+              raw text in Supabase Storage and send it to Claude for a
+              short summary that lives on the log entry so the inline
+              history drawer can show it at a glance. */}
+          <div className="rounded-lg border border-dashed border-black/15 bg-warm-bg/30">
+            <button
+              type="button"
+              onClick={() => setShowTranscript((v) => !v)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left"
+              aria-expanded={showTranscript}
+            >
+              <span className="text-[12px] font-semibold text-foreground/75">
+                Paste transcript {transcript.trim() && <span className="ml-1 text-primary">· {transcript.trim().length.toLocaleString()} chars</span>}
+              </span>
+              <span className="text-[11px] text-foreground/50">
+                {showTranscript ? 'Hide' : 'Claude will summarise it for the history'}
+              </span>
+            </button>
+            {showTranscript && (
+              <div className="px-3 pb-3">
+                <textarea
+                  value={transcript}
+                  onChange={(e) => setTranscript(e.target.value)}
+                  rows={8}
+                  className="modal-input resize-y font-mono text-[12px]"
+                  placeholder="Paste a call recording / meeting transcript here. We'll save the full text and Claude will write a short summary that shows up in the contact history."
+                />
+                <p className="mt-1.5 text-[11px] text-foreground/50">
+                  Stored privately. Only people who can see this contact will be able to open the full transcript.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
         <ModalFooter
           submitting={submitting}
           submitDisabled={false}
-          submitLabel="Log contact"
+          submitLabel={transcript.trim() ? 'Log contact + summarise' : 'Log contact'}
           onCancel={onClose}
         />
       </form>
@@ -1995,18 +2293,20 @@ interface ContactLog {
   contacted_at: string;
   contacted_by_name: string | null;
   contacted_by_avatar_url: string | null;
+  transcript_storage_path: string | null;
+  transcript_summary: string | null;
 }
 
-function ContactHistoryModal({
+function ContactDetailsDrawer({
   contact,
   accessToken,
-  onClose,
   onLogContact,
+  onClose,
 }: {
   contact: Contact;
   accessToken: string | null;
-  onClose: () => void;
   onLogContact: () => void;
+  onClose: () => void;
 }) {
   const [logs, setLogs] = useState<ContactLog[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -2027,17 +2327,25 @@ function ContactHistoryModal({
     return () => { cancelled = true; };
   }, [accessToken, contact.id]);
 
+  const detailRows: { label: string; value: string | null | undefined }[] = [
+    { label: 'Company', value: contact.company },
+    { label: 'Role / Relation', value: contact.role },
+    { label: 'Phone', value: contact.phone },
+    { label: 'Email', value: contact.email },
+    { label: 'Location', value: contact.location },
+    { label: 'Source', value: contact.source === 'downgrade-from-partner' ? 'Downgraded from partner' : contact.source },
+    { label: 'Added', value: fmtAbsolute(contact.created_at) },
+    { label: 'Updated', value: fmtAbsolute(contact.updated_at) },
+  ];
+
   return (
-    <ModalShell title={contact.name} eyebrow="Contact history" onClose={onClose}>
-      <div className="px-6 py-5">
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-xs text-foreground/55">
-            {logs == null
-              ? 'Loading…'
-              : logs.length === 0
-              ? 'No contact history yet.'
-              : `${logs.length} ${logs.length === 1 ? 'entry' : 'entries'}, newest first.`}
-          </p>
+    <div className="rounded-xl border border-black/10 bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-4 border-b border-black/5 px-5 py-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/40">Contact details</p>
+          <p className="mt-0.5 text-base font-semibold text-foreground truncate">{contact.name}</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={onLogContact}
@@ -2046,59 +2354,175 @@ function ContactHistoryModal({
             <PhoneIcon />
             Log a contact
           </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/40 hover:text-foreground hover:bg-warm-bg/60 transition-colors"
+            aria-label="Collapse details"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-x-6">
+        <div className="px-5 py-4 md:border-r md:border-black/5">
+          <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-[13px]">
+            {detailRows.map((r) => (
+              <Fragment key={r.label}>
+                <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">{r.label}</dt>
+                <dd className="text-foreground/80 break-words">{r.value || <span className="text-foreground/30 italic">—</span>}</dd>
+              </Fragment>
+            ))}
+            {contact.notes && (
+              <>
+                <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">Notes</dt>
+                <dd className="text-foreground/80 whitespace-pre-wrap leading-relaxed">{contact.notes}</dd>
+              </>
+            )}
+          </dl>
         </div>
 
-        {error && (
-          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-        )}
-
-        {logs && logs.length > 0 && (
-          <ol className="relative border-l border-black/10 ml-3">
-            {logs.map((log, i) => (
-              <li key={log.id} className="relative pl-5 pb-5 last:pb-0">
-                <span
-                  className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                    i === 0 ? 'bg-primary' : 'bg-foreground/30'
-                  }`}
-                />
-                <div className="flex items-start gap-3">
-                  {log.contacted_by_avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={log.contacted_by_avatar_url}
-                      alt={log.contacted_by_name ?? 'User'}
-                      className="w-8 h-8 rounded-full object-cover bg-warm-bg"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-warm-bg flex items-center justify-center text-[11px] font-semibold text-foreground/55">
-                      {(log.contacted_by_name || '?').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <p className="text-sm font-semibold text-foreground">
-                        {log.contacted_by_name || 'Unknown'}
-                      </p>
-                      <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[log.method]}`}>
-                        {log.method}
-                      </span>
-                      <span className="text-[11px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
-                        {fmtAgo(log.contacted_at)} · {fmtAbsolute(log.contacted_at)}
-                      </span>
-                    </div>
-                    {log.comments && (
-                      <p className="mt-1.5 text-sm text-foreground/75 whitespace-pre-wrap leading-relaxed">
-                        {log.comments}
-                      </p>
+        <div className="px-5 py-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/45">Contact history</p>
+            <p className="text-xs text-foreground/45">
+              {logs == null
+                ? 'Loading…'
+                : logs.length === 0
+                ? 'No history yet'
+                : `${logs.length} ${logs.length === 1 ? 'entry' : 'entries'}`}
+            </p>
+          </div>
+          {error && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          )}
+          {logs && logs.length > 0 && (
+            <ol className="relative border-l border-black/10 ml-2">
+              {logs.map((log, i) => (
+                <li key={log.id} className="relative pl-4 pb-4 last:pb-0">
+                  <span
+                    className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                      i === 0 ? 'bg-primary' : 'bg-foreground/30'
+                    }`}
+                  />
+                  <div className="flex items-start gap-2.5">
+                    {log.contacted_by_avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={log.contacted_by_avatar_url}
+                        alt={log.contacted_by_name ?? 'User'}
+                        className="w-7 h-7 rounded-full object-cover bg-warm-bg"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
+                        {(log.contacted_by_name || '?').charAt(0).toUpperCase()}
+                      </div>
                     )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <p className="text-[13px] font-semibold text-foreground">
+                          {log.contacted_by_name || 'Unknown'}
+                        </p>
+                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[log.method]}`}>
+                          {log.method}
+                        </span>
+                        <span className="text-[11px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
+                          {fmtAgo(log.contacted_at)}
+                        </span>
+                      </div>
+                      {log.comments && (
+                        <p className="mt-1 text-[13px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
+                          {log.comments}
+                        </p>
+                      )}
+                      {(log.transcript_summary || log.transcript_storage_path) && (
+                        <TranscriptBlock
+                          contactId={contact.id}
+                          logId={log.id}
+                          summary={log.transcript_summary}
+                          hasTranscript={!!log.transcript_storage_path}
+                          accessToken={accessToken}
+                        />
+                      )}
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
       </div>
-    </ModalShell>
+    </div>
+  );
+}
+
+function TranscriptBlock({
+  contactId,
+  logId,
+  summary,
+  hasTranscript,
+  accessToken,
+}: {
+  contactId: string;
+  logId: string;
+  summary: string | null;
+  hasTranscript: boolean;
+  accessToken: string | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function toggle() {
+    if (expanded) { setExpanded(false); return; }
+    setExpanded(true);
+    if (transcript != null || !hasTranscript || !accessToken) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/contacts/${contactId}/transcript/${logId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setTranscript(await r.text());
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-md border border-primary/15 bg-primary/[0.04] px-2.5 py-2">
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-primary/10 text-primary">
+          Transcript
+        </span>
+        <div className="min-w-0 flex-1">
+          {summary ? (
+            <p className="text-[12px] text-foreground/80 whitespace-pre-wrap leading-relaxed">{summary}</p>
+          ) : (
+            <p className="text-[12px] text-foreground/45 italic">Summary unavailable.</p>
+          )}
+          {hasTranscript && (
+            <button
+              type="button"
+              onClick={toggle}
+              className="mt-1 text-[11px] font-semibold text-primary hover:underline"
+            >
+              {expanded ? 'Hide full transcript' : 'View full transcript'}
+            </button>
+          )}
+          {expanded && hasTranscript && (
+            <div className="mt-2 max-h-64 overflow-y-auto rounded border border-black/10 bg-white px-2 py-1.5 text-[11px] text-foreground/75 font-mono whitespace-pre-wrap">
+              {loading ? 'Loading transcript…' : err ? `Failed to load: ${err}` : (transcript ?? '')}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2399,6 +2823,15 @@ function ColumnsIcon() {
 }
 function PhoneIcon() {
   return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.86 19.86 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.86 19.86 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.13.95.36 1.88.7 2.77a2 2 0 01-.45 2.11L8 9.91a16 16 0 006 6l1.31-1.31a2 2 0 012.11-.45c.89.34 1.82.57 2.77.7A2 2 0 0122 16.92z"/></svg>;
+}
+function EmailIcon() {
+  return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>;
+}
+function PencilIcon() {
+  return <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>;
+}
+function ChevronDownIcon() {
+  return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>;
 }
 function DotsIcon() {
   return <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>;

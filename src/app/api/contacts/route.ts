@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
 
 interface ContactBody {
   name?: string;
+  company?: string | null;
   role?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
   const admin = getAdminSupabase();
   const { data, error } = await admin
     .from('contacts')
-    .select('id, name, role, phone, email, location, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, created_at, updated_at')
+    .select('id, name, company, role, phone, email, location, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, created_at, updated_at')
     .order('last_contact_at', { ascending: false, nullsFirst: false })
     .order('name', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
   type Row = {
     id: string;
     name: string;
+    company: string | null;
     role: string | null;
     phone: string | null;
     email: string | null;
@@ -93,6 +95,7 @@ export async function POST(req: NextRequest) {
     .from('contacts')
     .insert({
       name,
+      company: trim(body.company, 200),
       role: trim(body.role, 200),
       phone: trim(body.phone, 60),
       email: trim(body.email, 200),
