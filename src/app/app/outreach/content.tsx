@@ -26,6 +26,7 @@ type ContactMethod = 'Phone' | 'In Person' | 'Left Message';
 interface Contact {
   id: string;
   name: string;
+  company: string | null;
   role: string | null;
   phone: string | null;
   email: string | null;
@@ -58,6 +59,7 @@ interface ColumnDef {
 
 const ALL_COLUMNS: ColumnDef[] = [
   { key: 'name', label: 'Name' },
+  { key: 'company', label: 'Company' },
   { key: 'role', label: 'Role / Relation' },
   { key: 'phone', label: 'Phone' },
   { key: 'email', label: 'Email' },
@@ -75,9 +77,10 @@ const COL_BY_KEY = Object.fromEntries(ALL_COLUMNS.map((c) => [c.key, c])) as Rec
 // the table header.
 const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
   name: 200,
+  company: 180,
   role: 180,
-  phone: 160,
-  email: 220,
+  phone: 80,
+  email: 80,
   location: 180,
   notes: 280,
   actions: 200,
@@ -140,6 +143,7 @@ function fmtAgoLong(iso: string | null): string {
 function sortValue(c: Contact, key: string): string | number | null {
   switch (key) {
     case 'name': return c.name || null;
+    case 'company': return c.company || null;
     case 'role': return c.role || null;
     case 'phone': return c.phone || null;
     case 'email': return c.email || null;
@@ -206,6 +210,16 @@ export default function ContactsContent() {
     else { setSortKey(key); setSortDir('asc'); }
   }
 
+  // "New since you were last here" tracking. seenAt is loaded once on
+  // mount from /api/outreach/seen — any contact whose updated_at is
+  // greater than seenAt renders highlighted and bubbles to the top of
+  // the sort. pageLoadAt is captured at the same time and persisted as
+  // the user's new seenAt when they leave the page (visibilitychange /
+  // beforeunload), so the highlight survives the rest of this session
+  // and clears on the next visit.
+  const [seenAt, setSeenAt] = useState<string | null>(null);
+  const pageLoadAtRef = useRef<string>(new Date().toISOString());
+
   // Initial fetch + realtime subscriptions for contacts + shared prefs.
   useEffect(() => {
     if (!session?.access_token) return;
@@ -216,6 +230,11 @@ export default function ContactsContent() {
       .then((json) => { if (!cancelled && json) setRows(json.rows ?? []); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
       .finally(() => { if (!cancelled) setLoading(false); });
+
+    fetch('/api/outreach/seen', { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then(async (r) => (r.ok ? ((await r.json()) as { seen_at: string | null }) : null))
+      .then((j) => { if (!cancelled && j) setSeenAt(j.seen_at); })
+      .catch(() => { /* not fatal — falls back to no highlights */ });
 
     fetch('/api/contacts/prefs', { headers: { Authorization: `Bearer ${session.access_token}` } })
       .then(async (r) => (r.ok ? await r.json() : null))
@@ -267,6 +286,44 @@ export default function ContactsContent() {
     };
   }, [session?.access_token, user?.id]);
 
+  // Persist "I just saw this page" when the user navigates away,
+  // closes the tab, or backgrounds the tab. We stamp it to the
+  // pageLoadAt we captured on mount (not now()) so contacts updated
+  // WHILE the user was looking at the page still highlight as "new"
+  // on the NEXT visit — which is the natural read of "I haven't
+  // seen those yet, they appeared after I opened the page".
+  //
+  // sendBeacon keeps the POST alive across navigation; the fetch
+  // fallback covers browsers that block beacons for non-Blob bodies.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const token = session.access_token;
+    const persist = () => {
+      const payload = JSON.stringify({ at: pageLoadAtRef.current });
+      try {
+        const blob = new Blob([payload], { type: 'application/json' });
+        const sent = typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function'
+          ? navigator.sendBeacon('/api/outreach/seen', blob)
+          : false;
+        if (sent) return;
+      } catch { /* fall through to fetch */ }
+      void fetch('/api/outreach/seen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: payload,
+        keepalive: true,
+      });
+    };
+    const onVisibility = () => { if (document.visibilityState === 'hidden') persist(); };
+    window.addEventListener('pagehide', persist);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', persist);
+      document.removeEventListener('visibilitychange', onVisibility);
+      persist();
+    };
+  }, [session?.access_token]);
+
   function applyPrefs(visible: unknown, order: unknown) {
     const v = Array.isArray(visible) && visible.length > 0
       ? (visible as string[]).filter((k) => k in COL_BY_KEY)
@@ -314,7 +371,7 @@ export default function ContactsContent() {
       if (filterMethod && r.last_contact_method !== filterMethod) return false;
       if (filterStaleness && staleness(r.last_contact_at) !== filterStaleness) return false;
       if (!q) return true;
-      const hay = [r.name, r.role, r.phone, r.email, r.location, r.notes]
+      const hay = [r.name, r.company, r.role, r.phone, r.email, r.location, r.notes]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
@@ -342,9 +399,28 @@ export default function ContactsContent() {
     return { week, month, total, never };
   }, [rows]);
 
+  // Helper used by both the sort and the row renderer: a contact is
+  // "new" to this user iff updated_at is strictly newer than the
+  // user's stored last_outreach_seen_at. seenAt = null means the user
+  // has never visited the page before — in that case we don't flood
+  // them with highlights on every row, so we treat null as "infinitely
+  // recent" (nothing is new yet).
+  const isNewToUser = useMemo(() => {
+    if (!seenAt) return (_c: Contact) => false;
+    const seenMs = new Date(seenAt).getTime();
+    return (c: Contact) => new Date(c.updated_at).getTime() > seenMs;
+  }, [seenAt]);
+
   const sorted = useMemo(() => {
     const arr = filtered.slice();
     arr.sort((a, b) => {
+      // Brand-new-since-last-visit rows always bubble to the very
+      // top regardless of the active column sort, so admissions can
+      // see the day's changes first.
+      const aNew = isNewToUser(a);
+      const bNew = isNewToUser(b);
+      if (aNew !== bNew) return aNew ? -1 : 1;
+
       const va = sortValue(a, sortKey);
       const vb = sortValue(b, sortKey);
       // Nulls always sink to the bottom regardless of direction.
@@ -357,7 +433,7 @@ export default function ContactsContent() {
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return arr;
-  }, [filtered, sortKey, sortDir]);
+  }, [filtered, sortKey, sortDir, isNewToUser]);
 
   const visibleColumnsResolved = useMemo(() => {
     const order = columnOrder ?? DEFAULT_ORDER;
@@ -409,7 +485,7 @@ export default function ContactsContent() {
     setShowAdd(false);
   }
 
-  async function handleLogContact(target: Contact, method: ContactMethod, comments: string) {
+  async function handleLogContact(target: Contact, method: ContactMethod, comments: string, transcript: string) {
     if (!session?.access_token) return;
     // Optimistic UI — bump the row before the request resolves so
     // the grid reflects the action immediately.
@@ -435,7 +511,7 @@ export default function ContactsContent() {
     const res = await fetch(`/api/contacts/${target.id}/log-contact`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ method, comments }),
+      body: JSON.stringify({ method, comments, transcript }),
     });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
@@ -465,7 +541,7 @@ export default function ContactsContent() {
   // grid reflects the saved text immediately. The realtime postgres
   // subscription will reconcile if the server pushes back something
   // different.
-  async function handleSaveField(id: string, field: 'name' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) {
+  async function handleSaveField(id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) {
     if (!session?.access_token) return;
     const trimmed = value.trim();
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: trimmed || null } : r)));
@@ -613,6 +689,7 @@ export default function ContactsContent() {
         expandedDetailsId={expandedDetailsId}
         accessToken={session?.access_token ?? null}
         onOpenLog={(c) => setLogTarget(c)}
+        isNewToUser={isNewToUser}
         onDelete={(c) => handleDelete(c)}
         onSaveNotes={handleSaveNotes}
         onSaveField={handleSaveField}
@@ -638,7 +715,7 @@ export default function ContactsContent() {
         <LogContactModal
           contact={logTarget}
           onClose={() => setLogTarget(null)}
-          onSubmit={(method, comments) => handleLogContact(logTarget, method, comments)}
+          onSubmit={(method, comments, transcript) => handleLogContact(logTarget, method, comments, transcript)}
         />
       )}
       {upgradeTarget && (
@@ -743,6 +820,7 @@ function ContactsGrid({
   expandedDetailsId,
   accessToken,
   onOpenLog,
+  isNewToUser,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -757,7 +835,7 @@ function ContactsGrid({
   onHistory: (c: Contact) => void;
   onDelete: (c: Contact) => void;
   onSaveNotes: (id: string, notes: string) => Promise<void>;
-  onSaveField: (id: string, field: 'name' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
   actionMenuFor: { id: string; rect: DOMRect } | null;
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
   columnWidths: Record<string, number>;
@@ -768,6 +846,7 @@ function ContactsGrid({
   expandedDetailsId: string | null;
   accessToken: string | null;
   onOpenLog: (c: Contact) => void;
+  isNewToUser: (c: Contact) => boolean;
 }) {
   // Tracks the row whose notes-editor strip is currently expanded.
   // Click the notes cell to toggle. Persists across rerenders via a
@@ -897,7 +976,7 @@ function ContactsGrid({
           ) : (
             rows.map((c) => (
               <Fragment key={c.id}>
-              <tr className="group align-top hover:bg-warm-bg/40 transition-colors">
+              <tr className={`group align-top transition-colors ${isNewToUser(c) ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}>
                 {columns.map((col) => {
                   if (col.key === 'notes') {
                     const isExpanded = expandedNotesId === c.id;
@@ -920,7 +999,7 @@ function ContactsGrid({
                   }
                   return (
                     <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      <ContactCell column={col} contact={c} onSaveField={onSaveField} />
+                      <ContactCell column={col} contact={c} onSaveField={onSaveField} isNew={isNewToUser(c)} />
                     </td>
                   );
                 })}
@@ -954,7 +1033,7 @@ function ContactsGrid({
                 <td className="px-3 py-2.5">
                   <TimeSinceCell contact={c} />
                 </td>
-                <td className="sticky right-10 z-10 bg-white group-hover:bg-[#fcfaf8] shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2.5 transition-colors">
+                <td className={`sticky right-10 z-10 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
                   <button
                     type="button"
                     onClick={() => onHistory(c)}
@@ -964,7 +1043,7 @@ function ContactsGrid({
                     <LastContactCell contact={c} />
                   </button>
                 </td>
-                <td className="sticky right-0 z-10 bg-white group-hover:bg-[#fcfaf8] px-2 py-2.5 text-right transition-colors">
+                <td className={`sticky right-0 z-10 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1423,27 +1502,45 @@ function ContactCell({
   column,
   contact,
   onSaveField,
+  isNew = false,
 }: {
   column: ColumnDef;
   contact: Contact;
-  onSaveField: (id: string, field: 'name' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  isNew?: boolean;
 }) {
-  const save = (field: 'name' | 'role' | 'phone' | 'email' | 'location') => (next: string) =>
+  const save = (field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location') => (next: string) =>
     onSaveField(contact.id, field, next);
   switch (column.key) {
     case 'name':
       return (
         <div>
-          <EditableTextCell
-            value={contact.name}
-            onSave={save('name')}
-            className="font-semibold text-foreground whitespace-nowrap"
-            placeholder="Add name…"
-          />
+          <div className="flex items-center gap-1.5 min-w-0">
+            <EditableTextCell
+              value={contact.name}
+              onSave={save('name')}
+              className="font-semibold text-foreground whitespace-nowrap min-w-0"
+              placeholder="Add name…"
+            />
+            {isNew && (
+              <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full bg-primary text-white text-[9px] font-bold uppercase tracking-wider">
+                New
+              </span>
+            )}
+          </div>
           {contact.source === 'downgrade-from-partner' && (
             <p className="mt-0.5 text-[10px] uppercase tracking-wider text-foreground/40 whitespace-nowrap">From partner</p>
           )}
         </div>
+      );
+    case 'company':
+      return (
+        <EditableTextCell
+          value={contact.company}
+          onSave={save('company')}
+          className="text-foreground/75 whitespace-nowrap"
+          placeholder="Add company…"
+        />
       );
     case 'role':
       return (
@@ -1711,6 +1808,9 @@ function ContactMobileCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-foreground text-base leading-tight">{contact.name}</p>
+          {contact.company && (
+            <p className="mt-0.5 text-[12px] font-semibold text-foreground/70">{contact.company}</p>
+          )}
           {contact.role && (
             <p className="mt-0.5 text-[12px] text-foreground/60">{contact.role}</p>
           )}
@@ -2019,6 +2119,7 @@ function AddContactModal({
   onSubmit: (payload: Partial<Contact>) => Promise<void> | void;
 }) {
   const [name, setName] = useState('');
+  const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -2033,6 +2134,7 @@ function AddContactModal({
     try {
       await onSubmit({
         name: name.trim(),
+        company: company.trim() || null,
         role: role.trim() || null,
         phone: phone.trim() || null,
         email: email.trim() || null,
@@ -2050,6 +2152,9 @@ function AddContactModal({
         <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ModalField label="Name" required>
             <input value={name} onChange={(e) => setName(e.target.value)} required className="modal-input" />
+          </ModalField>
+          <ModalField label="Company">
+            <input value={company} onChange={(e) => setCompany(e.target.value)} className="modal-input" placeholder="Mountain House · Lumina Recovery" />
           </ModalField>
           <ModalField label="Role / Relation">
             <input value={role} onChange={(e) => setRole(e.target.value)} className="modal-input" placeholder="Therapist · Family · Alum" />
@@ -2087,10 +2192,12 @@ function LogContactModal({
 }: {
   contact: Contact;
   onClose: () => void;
-  onSubmit: (method: ContactMethod, comments: string) => Promise<void> | void;
+  onSubmit: (method: ContactMethod, comments: string, transcript: string) => Promise<void> | void;
 }) {
   const [method, setMethod] = useState<ContactMethod>('Phone');
   const [comments, setComments] = useState('');
+  const [transcript, setTranscript] = useState('');
+  const [showTranscript, setShowTranscript] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   return (
     <ModalShell
@@ -2103,7 +2210,7 @@ function LogContactModal({
           e.preventDefault();
           setSubmitting(true);
           try {
-            await onSubmit(method, comments.trim());
+            await onSubmit(method, comments.trim(), transcript.trim());
           } finally {
             setSubmitting(false);
           }
@@ -2130,11 +2237,45 @@ function LogContactModal({
               placeholder="They mentioned a referral coming next week — follow up on Tuesday."
             />
           </ModalField>
+
+          {/* Optional: paste a call / meeting transcript. We stash the
+              raw text in Supabase Storage and send it to Claude for a
+              short summary that lives on the log entry so the inline
+              history drawer can show it at a glance. */}
+          <div className="rounded-lg border border-dashed border-black/15 bg-warm-bg/30">
+            <button
+              type="button"
+              onClick={() => setShowTranscript((v) => !v)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left"
+              aria-expanded={showTranscript}
+            >
+              <span className="text-[12px] font-semibold text-foreground/75">
+                Paste transcript {transcript.trim() && <span className="ml-1 text-primary">· {transcript.trim().length.toLocaleString()} chars</span>}
+              </span>
+              <span className="text-[11px] text-foreground/50">
+                {showTranscript ? 'Hide' : 'Claude will summarise it for the history'}
+              </span>
+            </button>
+            {showTranscript && (
+              <div className="px-3 pb-3">
+                <textarea
+                  value={transcript}
+                  onChange={(e) => setTranscript(e.target.value)}
+                  rows={8}
+                  className="modal-input resize-y font-mono text-[12px]"
+                  placeholder="Paste a call recording / meeting transcript here. We'll save the full text and Claude will write a short summary that shows up in the contact history."
+                />
+                <p className="mt-1.5 text-[11px] text-foreground/50">
+                  Stored privately. Only people who can see this contact will be able to open the full transcript.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
         <ModalFooter
           submitting={submitting}
           submitDisabled={false}
-          submitLabel="Log contact"
+          submitLabel={transcript.trim() ? 'Log contact + summarise' : 'Log contact'}
           onCancel={onClose}
         />
       </form>
@@ -2152,6 +2293,8 @@ interface ContactLog {
   contacted_at: string;
   contacted_by_name: string | null;
   contacted_by_avatar_url: string | null;
+  transcript_storage_path: string | null;
+  transcript_summary: string | null;
 }
 
 function ContactDetailsDrawer({
@@ -2185,6 +2328,7 @@ function ContactDetailsDrawer({
   }, [accessToken, contact.id]);
 
   const detailRows: { label: string; value: string | null | undefined }[] = [
+    { label: 'Company', value: contact.company },
     { label: 'Role / Relation', value: contact.role },
     { label: 'Phone', value: contact.phone },
     { label: 'Email', value: contact.email },
@@ -2292,11 +2436,89 @@ function ContactDetailsDrawer({
                           {log.comments}
                         </p>
                       )}
+                      {(log.transcript_summary || log.transcript_storage_path) && (
+                        <TranscriptBlock
+                          contactId={contact.id}
+                          logId={log.id}
+                          summary={log.transcript_summary}
+                          hasTranscript={!!log.transcript_storage_path}
+                          accessToken={accessToken}
+                        />
+                      )}
                     </div>
                   </div>
                 </li>
               ))}
             </ol>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TranscriptBlock({
+  contactId,
+  logId,
+  summary,
+  hasTranscript,
+  accessToken,
+}: {
+  contactId: string;
+  logId: string;
+  summary: string | null;
+  hasTranscript: boolean;
+  accessToken: string | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function toggle() {
+    if (expanded) { setExpanded(false); return; }
+    setExpanded(true);
+    if (transcript != null || !hasTranscript || !accessToken) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/contacts/${contactId}/transcript/${logId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setTranscript(await r.text());
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-md border border-primary/15 bg-primary/[0.04] px-2.5 py-2">
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-primary/10 text-primary">
+          Transcript
+        </span>
+        <div className="min-w-0 flex-1">
+          {summary ? (
+            <p className="text-[12px] text-foreground/80 whitespace-pre-wrap leading-relaxed">{summary}</p>
+          ) : (
+            <p className="text-[12px] text-foreground/45 italic">Summary unavailable.</p>
+          )}
+          {hasTranscript && (
+            <button
+              type="button"
+              onClick={toggle}
+              className="mt-1 text-[11px] font-semibold text-primary hover:underline"
+            >
+              {expanded ? 'Hide full transcript' : 'View full transcript'}
+            </button>
+          )}
+          {expanded && hasTranscript && (
+            <div className="mt-2 max-h-64 overflow-y-auto rounded border border-black/10 bg-white px-2 py-1.5 text-[11px] text-foreground/75 font-mono whitespace-pre-wrap">
+              {loading ? 'Loading transcript…' : err ? `Failed to load: ${err}` : (transcript ?? '')}
+            </div>
           )}
         </div>
       </div>
