@@ -442,6 +442,101 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
   }
 }
 
+/* Outreach map pins — the premium pin (Tier 1) gets a larger
+   teardrop body, an animated flame plume above, and a pulsing gold
+   glow halo at the base; everything else gets a smaller plain copper
+   pin so the premium partners visibly tower over the rest. The
+   wrapper is positioned by Google Maps OverlayView and translated
+   so the bottom-centre of the pin sits exactly on the lat/lng. */
+.sa-outreach-pin {
+  position: absolute;
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  /* Anchor the pin's tip on the lat/lng coordinate. */
+  transform: translate(-50%, -100%);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  transition: transform 120ms ease;
+}
+.sa-outreach-pin:hover {
+  transform: translate(-50%, -100%) scale(1.08);
+  z-index: 1000;
+}
+.sa-pin-regular {
+  width: 22px;
+  height: 32px;
+}
+.sa-pin-tier1 {
+  width: 32px;
+  height: 60px; /* extra headroom for the flame plume */
+  z-index: 5;
+}
+.sa-pin-tier1 .sa-pin-body {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.sa-pin-regular .sa-pin-body {
+  display: block;
+}
+/* Pulsing gold halo at the base of the Tier 1 pin. Sits behind the
+   teardrop body via z-index, breathes from a tight tight ring out to
+   a soft 24px radius and back. */
+.sa-pin-tier1 .sa-pin-glow {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  width: 36px;
+  height: 18px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(251 191 36 / 0.75), rgb(251 191 36 / 0));
+  filter: blur(2px);
+  animation: sa-pin-glow 1.8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes sa-pin-glow {
+  0%, 100% { opacity: 0.45; transform: translateX(-50%) scale(0.8); }
+  50%      { opacity: 0.95; transform: translateX(-50%) scale(1.25); }
+}
+/* Flame plume above the Tier 1 pin. The wrapper rocks gently
+   side-to-side; the SVG inside flickers its opacity so the inner
+   yellow tongue pulses brighter than the outer red mantle. */
+.sa-pin-tier1 .sa-pin-flame {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translateX(-50%);
+  transform-origin: 50% 100%;
+  animation: sa-pin-flame-dance 0.5s ease-in-out infinite alternate;
+  z-index: 6;
+  pointer-events: none;
+}
+.sa-pin-tier1 .sa-pin-flame svg {
+  display: block;
+  animation: sa-pin-flame-flicker 0.45s ease-in-out infinite alternate;
+}
+@keyframes sa-pin-flame-dance {
+  0%   { transform: translateX(-50%) scale(0.9, 0.95) skewX(-3deg); }
+  100% { transform: translateX(-50%) scale(1.06, 1.1)  skewX(3deg); }
+}
+@keyframes sa-pin-flame-flicker {
+  0%   { opacity: 0.7; }
+  100% { opacity: 1;   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-pin-tier1 .sa-pin-glow,
+  .sa-pin-tier1 .sa-pin-flame,
+  .sa-pin-tier1 .sa-pin-flame svg {
+    animation: none;
+  }
+  .sa-pin-tier1 .sa-pin-glow { opacity: 0.7; }
+}
+
 /* Wavy text — used by the home-page mission tagline. Each glyph is
    wrapped in a `<span class="sa-wave-letter">` and given a custom
    `--i` index that staggers the wave so the line looks like it's
