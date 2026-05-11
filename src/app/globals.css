@@ -404,6 +404,44 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
   }
 }
 
+/* Tier 1 premium glow — the highest contact-rating chip on
+   /app/outreach. Soft emerald + gold halo that breathes slowly so a
+   Tier 1 row catches the eye without screaming for attention. */
+@keyframes sa-tier1-premium {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 rgb(16 185 129 / 0.55),
+      0 0 6px 0 rgb(245 158 11 / 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgb(16 185 129 / 0),
+      0 0 14px 2px rgb(245 158 11 / 0.55);
+  }
+}
+.sa-tier1-premium {
+  position: relative;
+  animation: sa-tier1-premium 2.2s ease-in-out infinite;
+  background-image: linear-gradient(110deg, rgb(236 253 245) 0%, rgb(254 243 199) 50%, rgb(236 253 245) 100%);
+  background-size: 220% 100%;
+  background-position: 0% 50%;
+  animation-name: sa-tier1-premium, sa-tier1-shimmer;
+  animation-duration: 2.2s, 4.4s;
+  animation-timing-function: ease-in-out, linear;
+  animation-iteration-count: infinite, infinite;
+}
+@keyframes sa-tier1-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 220% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-tier1-premium {
+    animation: none;
+    box-shadow: 0 0 0 1px rgb(16 185 129 / 0.45), 0 0 8px 0 rgb(245 158 11 / 0.35);
+    background-image: none;
+  }
+}
+
 /* Wavy text — used by the home-page mission tagline. Each glyph is
    wrapped in a `<span class="sa-wave-letter">` and given a custom
    `--i` index that staggers the wave so the line looks like it's
