@@ -190,8 +190,13 @@ export default function ContactsContent() {
   // every admin sees the same layout in lockstep.
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
 
-  const [sortKey, setSortKey] = useState<string>('name');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  // Default sort: contact with the most recent outreach action goes
+  // to the top. Contacts with no logged contact (`last_contact_at`
+  // null) sink to the bottom automatically — sortValue returns null
+  // for them and the sort comparator pushes nulls regardless of
+  // direction.
+  const [sortKey, setSortKey] = useState<string>('last_contact_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortKey(key); setSortDir('asc'); }
