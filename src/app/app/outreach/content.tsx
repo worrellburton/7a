@@ -1156,7 +1156,7 @@ function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
           phase 1 and reviewers can eyeball progress. */}
       <div className="grid grid-cols-12 gap-4">
         <TierMixDonut contacts={contacts} />
-        <InsightsPlaceholder span="col-span-12 md:col-span-8" label="Phase 4 — 30-day touches" hint="Daily contact-log line chart" />
+        <ThirtyDayTouchesChart contacts={contacts} />
         <InsightsPlaceholder span="col-span-12 md:col-span-6" label="Phase 5 — Contact methods" hint="Phone / In Person / Left Message bars" />
         <InsightsPlaceholder span="col-span-12 md:col-span-6" label="Phase 6 — Top performers" hint="Most touches per teammate (30d)" />
         <InsightsPlaceholder span="col-span-12 md:col-span-7" label="Phase 7 — Staleness funnel" hint="Fresh / cooling / stale / never" />
@@ -1401,6 +1401,201 @@ function TierMixDonut({ contacts }: { contacts: Contact[] }) {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+// 30-day daily touches line chart. Buckets every contact whose
+// `last_contact_at` falls inside the last 30 days into one of 30
+// daily slots (00:00 local → 23:59 local), then draws an area + line
+// SVG that reveals via stroke-dashoffset on mount. Only the row's
+// most-recent touch is counted (the Contact[] feed doesn't carry full
+// log history) — multiple touches on the same row in the same day
+// still contribute one to that day's bucket, which is fine for the
+// "activity heat" signal we want here. Hovering anywhere on the
+// chart snaps a vertical guideline + a tooltip to the nearest day.
+function ThirtyDayTouchesChart({ contacts }: { contacts: Contact[] }) {
+  const days = useMemo(() => {
+    // 30 trailing days, oldest → newest. Each entry carries the
+    // bucket midnight + a touch count.
+    const out: Array<{ date: Date; key: string; count: number }> = [];
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      out.push({ date: d, key, count: 0 });
+    }
+    const idx: Record<string, number> = {};
+    for (let i = 0; i < out.length; i++) idx[out[i].key] = i;
+    for (const c of contacts) {
+      if (!c.last_contact_at) continue;
+      const d = new Date(c.last_contact_at);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (k in idx) out[idx[k]].count += 1;
+    }
+    return out;
+  }, [contacts]);
+
+  const total = days.reduce((acc, d) => acc + d.count, 0);
+  const max = Math.max(1, ...days.map((d) => d.count));
+  const W = 720;
+  const H = 220;
+  const padL = 28;
+  const padR = 12;
+  const padT = 14;
+  const padB = 26;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const xFor = (i: number) => padL + (i / (days.length - 1 || 1)) * innerW;
+  const yFor = (v: number) => padT + innerH - (v / max) * innerH;
+
+  // Smooth path via cardinal-spline-ish midpoint blending — keeps the
+  // line silky without pulling in d3.
+  const linePath = useMemo(() => {
+    if (days.length === 0) return '';
+    const pts = days.map((d, i) => [xFor(i), yFor(d.count)] as [number, number]);
+    let p = `M ${pts[0][0]} ${pts[0][1]}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x0, y0] = pts[i];
+      const [x1, y1] = pts[i + 1];
+      const xm = (x0 + x1) / 2;
+      p += ` Q ${x0} ${y0}, ${xm} ${(y0 + y1) / 2}`;
+      if (i === pts.length - 2) p += ` T ${x1} ${y1}`;
+    }
+    return p;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days, max]);
+  const areaPath = useMemo(() => {
+    if (!linePath) return '';
+    const last = days.length - 1;
+    return `${linePath} L ${xFor(last)} ${padT + innerH} L ${xFor(0)} ${padT + innerH} Z`;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linePath, days]);
+
+  // stroke-dashoffset reveal — measure the path length once we have a
+  // ref to the rendered <path>. Initial render uses an estimate, then
+  // we replace it with the real getTotalLength() after mount.
+  const lineRef = useRef<SVGPathElement | null>(null);
+  const [pathLen, setPathLen] = useState(2000);
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => {
+    setRevealed(false);
+    if (lineRef.current) {
+      try { setPathLen(lineRef.current.getTotalLength()); } catch { /* SVG not measurable */ }
+    }
+    const id = window.requestAnimationFrame(() => setRevealed(true));
+    return () => window.cancelAnimationFrame(id);
+  }, [linePath]);
+
+  // Hover guideline + tooltip — find the nearest day to the cursor's x.
+  const wrapRef = useRef<SVGSVGElement | null>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  function onMove(e: React.MouseEvent<SVGSVGElement>) {
+    const r = (wrapRef.current as SVGSVGElement).getBoundingClientRect();
+    const xPx = e.clientX - r.left;
+    const xSvg = (xPx / r.width) * W;
+    const within = (xSvg - padL) / innerW;
+    const i = Math.round(within * (days.length - 1));
+    if (Number.isFinite(i)) setHoverIdx(Math.min(days.length - 1, Math.max(0, i)));
+  }
+  function onLeave() { setHoverIdx(null); }
+
+  // X-axis labels at every 5th day so they don't crowd; format as
+  // "Jul 12" using the user's locale.
+  const xTicks = days.filter((_, i) => i % 5 === 0 || i === days.length - 1);
+  const yTicks = [0, Math.ceil(max / 2), max];
+
+  return (
+    <div className="col-span-12 md:col-span-8 rounded-xl border border-black/10 bg-white px-4 py-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">Last 30 days · daily touches</p>
+        <span className="text-[10.5px] text-foreground/45 tabular-nums">{total} {total === 1 ? 'touch' : 'touches'}</span>
+      </div>
+      <div className="mt-2 relative">
+        <svg
+          ref={wrapRef}
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full h-[220px]"
+          role="img"
+          aria-label={`Daily touches over the last 30 days. Total ${total}.`}
+          onMouseMove={onMove}
+          onMouseLeave={onLeave}
+        >
+          <defs>
+            <linearGradient id="sa-touches-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgb(188 107 74 / 0.45)" />
+              <stop offset="100%" stopColor="rgb(188 107 74 / 0)" />
+            </linearGradient>
+          </defs>
+          {/* horizontal grid lines */}
+          {yTicks.map((v) => (
+            <g key={v}>
+              <line x1={padL} x2={W - padR} y1={yFor(v)} y2={yFor(v)} stroke="rgb(0 0 0 / 0.06)" strokeWidth={1} />
+              <text x={padL - 6} y={yFor(v) + 3} textAnchor="end" className="fill-foreground/45" style={{ fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{v}</text>
+            </g>
+          ))}
+          {/* x-axis tick labels */}
+          {xTicks.map((d, i) => (
+            <text
+              key={d.key}
+              x={xFor(days.indexOf(d))}
+              y={H - 8}
+              textAnchor={i === 0 ? 'start' : i === xTicks.length - 1 ? 'end' : 'middle'}
+              className="fill-foreground/55"
+              style={{ fontSize: 9 }}
+            >
+              {d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </text>
+          ))}
+          {/* area fill — fades in alongside the line */}
+          <path
+            d={areaPath}
+            fill="url(#sa-touches-fill)"
+            style={{ opacity: revealed ? 1 : 0, transition: 'opacity 700ms ease-out 200ms' }}
+          />
+          {/* line — stroke-dashoffset reveal */}
+          <path
+            ref={lineRef}
+            d={linePath}
+            fill="none"
+            stroke="#bc6b4a"
+            strokeWidth={2.25}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray={pathLen}
+            strokeDashoffset={revealed ? 0 : pathLen}
+            style={{ transition: 'stroke-dashoffset 1100ms cubic-bezier(0.22, 1, 0.36, 1)' }}
+          />
+          {/* hover guideline + dot */}
+          {hoverIdx !== null && (
+            <g>
+              <line
+                x1={xFor(hoverIdx)} x2={xFor(hoverIdx)}
+                y1={padT} y2={padT + innerH}
+                stroke="rgb(0 0 0 / 0.18)" strokeDasharray="3 3"
+              />
+              <circle cx={xFor(hoverIdx)} cy={yFor(days[hoverIdx].count)} r={4.5} fill="#bc6b4a" stroke="white" strokeWidth={2} />
+            </g>
+          )}
+        </svg>
+        {/* HTML tooltip — easier to style than an SVG <foreignObject>. */}
+        {hoverIdx !== null && (() => {
+          const d = days[hoverIdx];
+          const r = wrapRef.current?.getBoundingClientRect();
+          const px = r ? (xFor(hoverIdx) / W) * r.width : 0;
+          return (
+            <div
+              className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-md bg-foreground text-white text-[10.5px] px-2 py-1.5 shadow-lg whitespace-nowrap"
+              style={{ left: `${px}px`, top: `${(yFor(d.count) / H) * 220 - 4}px` }}
+            >
+              <p className="font-semibold tabular-nums">{d.count} {d.count === 1 ? 'touch' : 'touches'}</p>
+              <p className="text-white/65 text-[9.5px]">{d.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+            </div>
+          );
+        })()}
+      </div>
     </div>
   );
 }
