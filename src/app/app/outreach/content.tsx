@@ -1159,7 +1159,7 @@ function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
         <ThirtyDayTouchesChart contacts={contacts} />
         <ContactMethodMixBars contacts={contacts} />
         <TopPerformersLeaderboard contacts={contacts} />
-        <InsightsPlaceholder span="col-span-12 md:col-span-7" label="Phase 7 — Staleness funnel" hint="Fresh / cooling / stale / never" />
+        <StalenessFunnel contacts={contacts} />
         <InsightsPlaceholder span="col-span-12 md:col-span-5" label="Phase 9 — Partner conversion" hint="Contact → Partner funnel" />
         <InsightsPlaceholder span="col-span-12" label="Phase 8 — Geographic concentration" hint="State-level heatmap" />
       </div>
@@ -1783,6 +1783,117 @@ function TopPerformersLeaderboard({ contacts }: { contacts: Contact[] }) {
             );
           })}
         </ol>
+      )}
+    </div>
+  );
+}
+
+// Staleness funnel. Buckets every contact by how long since the last
+// touch — Fresh (<7d) / Cooling (7-21d) / Stale (>21d, ever touched)
+// / Never (no log) — and renders a single stacked horizontal bar
+// where each segment widens to its share of total on mount. Same
+// thresholds as the existing `staleness()` helper used by the row
+// tint hints in the table, so the colour language is consistent
+// across surfaces. Hover any segment to halo it + reveal a count
+// chip; click any segment to filter the contact list by that bucket
+// (TODO in a later pass — this phase just establishes the visual).
+function StalenessFunnel({ contacts }: { contacts: Contact[] }) {
+  const buckets = useMemo(() => {
+    const out = { Fresh: 0, Cooling: 0, Stale: 0, Never: 0 };
+    for (const c of contacts) {
+      if (!c.last_contact_at) { out.Never += 1; continue; }
+      const days = (Date.now() - new Date(c.last_contact_at).getTime()) / 86_400_000;
+      if (days < 7) out.Fresh += 1;
+      else if (days < 21) out.Cooling += 1;
+      else out.Stale += 1;
+    }
+    return out;
+  }, [contacts]);
+  const total = contacts.length;
+  const SEGMENTS: Array<{ key: keyof typeof buckets; label: string; help: string; color: string; tone: string }> = [
+    { key: 'Fresh',   label: 'Fresh',   help: '< 7 days since last touch', color: '#10b981', tone: 'text-emerald-700' },
+    { key: 'Cooling', label: 'Cooling', help: '7 to 21 days since last touch', color: '#fbbf24', tone: 'text-amber-700' },
+    { key: 'Stale',   label: 'Stale',   help: '> 21 days since last touch', color: '#f43f5e', tone: 'text-rose-700' },
+    { key: 'Never',   label: 'Never',   help: 'No log entry yet', color: '#9ca3af', tone: 'text-foreground/55' },
+  ];
+
+  const [mounted, setMounted] = useState(false);
+  const [hover, setHover] = useState<keyof typeof buckets | null>(null);
+  useEffect(() => {
+    setMounted(false);
+    const id = window.requestAnimationFrame(() => setMounted(true));
+    return () => window.cancelAnimationFrame(id);
+  }, [buckets.Fresh, buckets.Cooling, buckets.Stale, buckets.Never]);
+
+  return (
+    <div className="col-span-12 md:col-span-7 rounded-xl border border-black/10 bg-white px-4 py-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">Staleness funnel</p>
+        <span className="text-[10.5px] text-foreground/45 tabular-nums">{total} contacts</span>
+      </div>
+      {total === 0 ? (
+        <div className="flex items-center justify-center h-[160px] text-[11.5px] text-foreground/45">
+          No contacts in view.
+        </div>
+      ) : (
+        <>
+          {/* Stacked bar — one row, four segments, with a thin
+              divider between segments so adjacent same-ish tones don't
+              blur into each other. */}
+          <div className="mt-3 flex h-7 rounded-full overflow-hidden border border-black/5 bg-foreground/5">
+            {SEGMENTS.map((s, i) => {
+              const v = buckets[s.key];
+              const share = total === 0 ? 0 : v / total;
+              const isHover = hover === s.key;
+              return (
+                <span
+                  key={s.key}
+                  onMouseEnter={() => setHover(s.key)}
+                  onMouseLeave={() => setHover(null)}
+                  className="relative h-full"
+                  style={{
+                    flexBasis: `${(mounted ? share : 0) * 100}%`,
+                    flexGrow: 0,
+                    flexShrink: 0,
+                    background: s.color,
+                    transition: 'flex-basis 900ms cubic-bezier(0.22, 1, 0.36, 1)',
+                    transitionDelay: `${i * 90}ms`,
+                    boxShadow: isHover ? 'inset 0 0 0 2px rgba(0,0,0,0.18)' : 'none',
+                    cursor: 'default',
+                  }}
+                  title={`${s.label} — ${v} (${(share * 100).toFixed(1)}%)`}
+                />
+              );
+            })}
+          </div>
+          {/* Legend rows underneath — same color squares + label +
+              count + percent. Hover here also highlights the segment
+              above so the two read as one composed control. */}
+          <ul className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {SEGMENTS.map((s) => {
+              const v = buckets[s.key];
+              const share = total === 0 ? 0 : v / total;
+              const isHover = hover === s.key;
+              return (
+                <li
+                  key={s.key}
+                  onMouseEnter={() => setHover(s.key)}
+                  onMouseLeave={() => setHover(null)}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${isHover ? 'bg-foreground/5' : ''}`}
+                  title={s.help}
+                >
+                  <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} aria-hidden />
+                  <span className="min-w-0 flex-1">
+                    <p className={`text-[11.5px] font-semibold leading-none ${s.tone}`}>{s.label}</p>
+                    <p className="mt-0.5 text-[10px] text-foreground/55 tabular-nums">
+                      {v} <span className="text-foreground/30">·</span> {(share * 100).toFixed(0)}%
+                    </p>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
     </div>
   );
