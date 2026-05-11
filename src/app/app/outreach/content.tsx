@@ -1133,6 +1133,7 @@ function buildOutreachPinElement(contact: Contact, isTier1: boolean): HTMLElemen
 // only frames the page (header + 12-column responsive grid + section
 // placeholders); each subsequent phase fills one of the panels.
 function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
+  const kpis = useMemo(() => computeOutreachKpis(contacts), [contacts]);
   return (
     <div className="rounded-xl border border-black/10 bg-white px-5 sm:px-6 py-5 sm:py-6 space-y-5">
       <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -1147,11 +1148,13 @@ function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
         </span>
       </div>
 
+      {/* Phase 2 — KPI strip */}
+      <KpiStrip kpis={kpis} />
+
       {/* Section placeholders — each phase replaces one of these with
           the real chart so the layout shape is locked in from
           phase 1 and reviewers can eyeball progress. */}
       <div className="grid grid-cols-12 gap-4">
-        <InsightsPlaceholder span="col-span-12" label="Phase 2 — KPI strip" hint="Total, contacted this week / month, stale, never" />
         <InsightsPlaceholder span="col-span-12 md:col-span-4" label="Phase 3 — Tier mix" hint="Tier 1 / 2 / 3 / unrated donut" />
         <InsightsPlaceholder span="col-span-12 md:col-span-8" label="Phase 4 — 30-day touches" hint="Daily contact-log line chart" />
         <InsightsPlaceholder span="col-span-12 md:col-span-6" label="Phase 5 — Contact methods" hint="Phone / In Person / Left Message bars" />
@@ -1159,6 +1162,94 @@ function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
         <InsightsPlaceholder span="col-span-12 md:col-span-7" label="Phase 7 — Staleness funnel" hint="Fresh / cooling / stale / never" />
         <InsightsPlaceholder span="col-span-12 md:col-span-5" label="Phase 9 — Partner conversion" hint="Contact → Partner funnel" />
         <InsightsPlaceholder span="col-span-12" label="Phase 8 — Geographic concentration" hint="State-level heatmap" />
+      </div>
+    </div>
+  );
+}
+
+interface OutreachKpis {
+  total: number;
+  contactedWeek: number;
+  contactedMonth: number;
+  stale: number;
+  never: number;
+  tier1: number;
+}
+
+function computeOutreachKpis(contacts: Contact[]): OutreachKpis {
+  const now = Date.now();
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const monthMs = 30 * 24 * 60 * 60 * 1000;
+  const staleMs = 30 * 24 * 60 * 60 * 1000; // > 30d since last touch
+  let contactedWeek = 0;
+  let contactedMonth = 0;
+  let stale = 0;
+  let never = 0;
+  let tier1 = 0;
+  for (const c of contacts) {
+    if (c.rating === 'Tier 1') tier1++;
+    if (!c.last_contact_at) {
+      never++;
+      continue;
+    }
+    const ms = now - new Date(c.last_contact_at).getTime();
+    if (ms < weekMs) contactedWeek++;
+    if (ms < monthMs) contactedMonth++;
+    if (ms > staleMs) stale++;
+  }
+  return { total: contacts.length, contactedWeek, contactedMonth, stale, never, tier1 };
+}
+
+function KpiStrip({ kpis }: { kpis: OutreachKpis }) {
+  // Six tiles, each with its own accent. Bottom strip animates a tiny
+  // proportion bar so admissions can eyeball "is this big or small
+  // relative to the whole pipeline" without doing the math. The bar
+  // scales horizontally on mount via a CSS transition, which gives
+  // every tile a quiet "fill" beat when the page first paints.
+  const total = Math.max(1, kpis.total);
+  const tiles: Array<{ label: string; value: number; tone: string; bar: string; help: string }> = [
+    { label: 'Total contacts', value: kpis.total, tone: 'text-foreground', bar: 'bg-foreground/55', help: 'Every row currently in view (search / filter applied).' },
+    { label: 'Tier 1', value: kpis.tier1, tone: 'text-amber-700', bar: 'bg-amber-500', help: 'Premium partners flagged Tier 1 in the rating cell.' },
+    { label: 'Contacted this week', value: kpis.contactedWeek, tone: 'text-emerald-700', bar: 'bg-emerald-500', help: 'Last contact logged within the last 7 days.' },
+    { label: 'Contacted this month', value: kpis.contactedMonth, tone: 'text-sky-700', bar: 'bg-sky-500', help: 'Last contact logged within the last 30 days.' },
+    { label: 'Stale (>30d)', value: kpis.stale, tone: 'text-rose-700', bar: 'bg-rose-500', help: 'No outreach in the last 30 days — owed a touch.' },
+    { label: 'Never contacted', value: kpis.never, tone: 'text-foreground/65', bar: 'bg-foreground/35', help: 'No log entry yet.' },
+  ];
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {tiles.map((t) => (
+        <KpiTile key={t.label} {...t} share={t.value / total} />
+      ))}
+    </div>
+  );
+}
+
+function KpiTile({
+  label, value, tone, bar, help, share,
+}: { label: string; value: number; tone: string; bar: string; help: string; share: number }) {
+  // Bar grows from 0% width to its share on mount via CSS transition
+  // — tiny but reads as the page exhaling once data lands. Re-runs on
+  // value change because React keys the inner span by `share` so
+  // remounts trigger the transition again.
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => setW(Math.min(1, Math.max(0, share))));
+    return () => window.cancelAnimationFrame(id);
+  }, [share]);
+  return (
+    <div
+      className="rounded-xl border border-black/10 bg-warm-bg/30 px-3.5 py-3 flex flex-col gap-2 transition-shadow hover:shadow-sm"
+      title={help}
+    >
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-foreground/55 truncate">{label}</p>
+      <p className={`text-[22px] sm:text-[26px] font-semibold tabular-nums leading-none ${tone}`}>
+        {value.toLocaleString()}
+      </p>
+      <div className="h-1.5 rounded-full bg-foreground/5 overflow-hidden">
+        <span
+          className={`block h-full rounded-full ${bar} transition-[width] duration-700 ease-out`}
+          style={{ width: `${(w * 100).toFixed(1)}%` }}
+        />
       </div>
     </div>
   );
