@@ -607,6 +607,29 @@ export default function ContactsContent() {
     }
   }
 
+  // Multi-field save used by interactions that touch more than one
+  // column at once: the PlaceAutocomplete dropdown stores location +
+  // formatted_address + place_id + tz + lat + lng in a single click;
+  // the Company cell saves company_website alongside company. Same
+  // optimistic-update + PATCH pattern as handleSaveField, just with
+  // a generic patch object.
+  async function handleSavePatch(id: string, patch: Partial<Contact>) {
+    if (!session?.access_token) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    const res = await fetch(`/api/contacts/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(`Couldn't save: ${json.error ?? res.status}`);
+    }
+  }
+
   async function handleSaveNotes(id: string, notes: string) {
     return handleSaveField(id, 'notes', notes);
   }
@@ -718,6 +741,7 @@ export default function ContactsContent() {
         onDelete={(c) => handleDelete(c)}
         onSaveNotes={handleSaveNotes}
         onSaveField={handleSaveField}
+        onSavePatch={handleSavePatch}
         actionMenuFor={actionMenuFor}
         setActionMenuFor={setActionMenuFor}
         columnWidths={columnWidths}
@@ -835,6 +859,7 @@ function ContactsGrid({
   onDelete,
   onSaveNotes,
   onSaveField,
+  onSavePatch,
   actionMenuFor,
   setActionMenuFor,
   columnWidths,
@@ -861,6 +886,7 @@ function ContactsGrid({
   onDelete: (c: Contact) => void;
   onSaveNotes: (id: string, notes: string) => Promise<void>;
   onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  onSavePatch: (id: string, patch: Partial<Contact>) => Promise<void>;
   actionMenuFor: { id: string; rect: DOMRect } | null;
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
   columnWidths: Record<string, number>;
@@ -1023,7 +1049,7 @@ function ContactsGrid({
                   }
                   return (
                     <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      <ContactCell column={col} contact={c} onSaveField={onSaveField} isNew={isNewToUser(c)} />
+                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} />
                     </td>
                   );
                 })}
@@ -1520,11 +1546,13 @@ function ContactCell({
   column,
   contact,
   onSaveField,
+  onSavePatch,
   isNew = false,
 }: {
   column: ColumnDef;
   contact: Contact;
   onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  onSavePatch: (id: string, patch: Partial<Contact>) => Promise<void>;
   isNew?: boolean;
 }) {
   const save = (field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location') => (next: string) =>
@@ -1553,11 +1581,10 @@ function ContactCell({
       );
     case 'company':
       return (
-        <EditableTextCell
-          value={contact.company}
-          onSave={save('company')}
-          className="text-foreground/75 whitespace-nowrap"
-          placeholder="Add company…"
+        <CompanyCell
+          contact={contact}
+          onSaveCompany={save('company')}
+          onSaveWebsite={(url) => onSavePatch(contact.id, { company_website: url.trim() || null })}
         />
       );
     case 'role':
@@ -1576,6 +1603,7 @@ function ContactCell({
           onSave={save('phone')}
           kind="phone"
           emptyLabel="Add phone…"
+          tz={contact.tz}
         />
       );
     case 'email':
@@ -1589,11 +1617,9 @@ function ContactCell({
       );
     case 'location':
       return (
-        <EditableTextCell
-          value={contact.location}
-          onSave={save('location')}
-          className="text-foreground/65 whitespace-nowrap"
-          placeholder="Add location…"
+        <PlaceAutocompleteCell
+          contact={contact}
+          onSavePlace={(patch) => onSavePatch(contact.id, patch)}
         />
       );
     case 'notes':
@@ -1726,10 +1752,12 @@ function InsightTile({
 function HoverPopover({
   value,
   copied,
+  subtitle,
   children,
 }: {
   value: string;
   copied: boolean;
+  subtitle?: string;
   children: React.ReactNode;
 }) {
   const triggerRef = useRef<HTMLSpanElement | null>(null);
@@ -1763,8 +1791,15 @@ function HoverPopover({
         >
           <div className="tooltip-pop-in relative">
             <div className="whitespace-nowrap rounded-md bg-foreground text-white text-[10.5px] font-semibold px-2.5 py-1 shadow-lg">
-              {value}
-              <span className="ml-1.5 text-white/55 font-medium">{copied ? 'copied' : 'click to copy'}</span>
+              <div className="flex items-center gap-1.5">
+                <span>{value}</span>
+                <span className="text-white/55 font-medium">{copied ? 'copied' : 'click to copy'}</span>
+              </div>
+              {subtitle && (
+                <div className="mt-0.5 text-[9px] font-medium text-white/70">
+                  {subtitle}
+                </div>
+              )}
             </div>
             <span className="absolute left-1/2 top-full -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-foreground" />
           </div>
@@ -1780,11 +1815,17 @@ function IconCopyCell({
   onSave,
   kind,
   emptyLabel,
+  tz,
 }: {
   value: string | null | undefined;
   onSave: (next: string) => Promise<void> | void;
   kind: 'phone' | 'email';
   emptyLabel: string;
+  // IANA timezone id (e.g. "America/Phoenix"). When set on a phone
+  // cell, the hover popover gains a "Local: 9:03 AM MST" subtitle so
+  // admissions can see whether it's a polite hour to dial before
+  // they actually pick up the phone.
+  tz?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
@@ -1836,7 +1877,14 @@ function IconCopyCell({
 
   return (
     <div className="group/icc inline-flex items-center gap-1">
-      <HoverPopover value={value} copied={copied}>
+      <HoverPopover
+        value={value}
+        copied={copied}
+        subtitle={kind === 'phone' ? (() => {
+          const lt = localTimeInTz(tz);
+          return lt ? `Local: ${lt.label}${lt.abbr ? ` · ${lt.abbr}` : ''}` : undefined;
+        })() : undefined}
+      >
         <button
           type="button"
           onClick={async (e) => {
@@ -1864,6 +1912,270 @@ function IconCopyCell({
       </button>
     </div>
   );
+}
+
+// Coerce a freeform URL ("seven-arrows.com", "http://x.com", etc.) into
+// an https:// link safe to drop into href / window.open. Leaves valid
+// http/https URLs alone, rejects anything that doesn't parse so we
+// don't accidentally render a javascript: link from bad input.
+function normaliseUrl(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const withScheme = /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  try {
+    const u = new URL(withScheme);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+// Inline editor + external-link affordance for the Company column.
+// Click the company name to edit in place; click the globe icon (or the
+// "+ Add website" affordance when there isn't one yet) to open the
+// website in a new tab / drop a URL onto the row.
+function CompanyCell({
+  contact,
+  onSaveCompany,
+  onSaveWebsite,
+}: {
+  contact: Contact;
+  onSaveCompany: (next: string) => Promise<void> | void;
+  onSaveWebsite: (next: string) => Promise<void> | void;
+}) {
+  const [editingUrl, setEditingUrl] = useState(false);
+  const [draftUrl, setDraftUrl] = useState(contact.company_website ?? '');
+  const urlRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => { if (!editingUrl) setDraftUrl(contact.company_website ?? ''); }, [contact.company_website, editingUrl]);
+  useEffect(() => { if (editingUrl) { urlRef.current?.focus(); urlRef.current?.select(); } }, [editingUrl]);
+
+  const href = contact.company_website ? normaliseUrl(contact.company_website) : null;
+
+  return (
+    <div className="group/co inline-flex items-center gap-1 min-w-0">
+      <EditableTextCell
+        value={contact.company}
+        onSave={onSaveCompany}
+        className="text-foreground/75 whitespace-nowrap"
+        placeholder="Add company…"
+      />
+      {contact.company && !editingUrl && (
+        href ? (
+          <HoverPopover value={contact.company_website ?? ''} copied={false}>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Open ${contact.company_website} in a new tab`}
+              className="inline-flex items-center justify-center w-5 h-5 rounded text-foreground/45 hover:text-primary hover:bg-warm-bg/60 transition-colors"
+            >
+              <ExternalLinkIcon />
+            </a>
+          </HoverPopover>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setEditingUrl(true); }}
+            title="Add company website"
+            aria-label="Add company website"
+            className="opacity-0 group-hover/co:opacity-100 transition-opacity inline-flex items-center justify-center w-5 h-5 rounded text-foreground/35 hover:text-foreground/70"
+          >
+            <GlobeIcon />
+          </button>
+        )
+      )}
+      {contact.company && editingUrl && (
+        <input
+          ref={urlRef}
+          type="url"
+          value={draftUrl}
+          onChange={(e) => setDraftUrl(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={() => { setEditingUrl(false); void onSaveWebsite(draftUrl); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); setEditingUrl(false); void onSaveWebsite(draftUrl); }
+            else if (e.key === 'Escape') { e.preventDefault(); setEditingUrl(false); }
+          }}
+          placeholder="https://example.com"
+          className="w-44 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+      )}
+    </div>
+  );
+}
+
+// Place autocomplete for the Location column. Types into the input
+// debounce-hits /api/outreach/place-autocomplete; clicking a suggestion
+// hits /api/outreach/place-details, which returns formatted_address +
+// lat / lng + IANA tz. We save all four (plus place_id and the raw
+// `location` string as a redundant fallback for legacy reads) in one
+// PATCH via onSavePlace so the row gets pinned on the map AND gets a
+// timezone for the phone popover in a single click.
+interface PlaceSuggestion {
+  place_id: string;
+  description: string;
+  main: string;
+  secondary: string;
+}
+function PlaceAutocompleteCell({
+  contact,
+  onSavePlace,
+}: {
+  contact: Contact;
+  onSavePlace: (patch: Partial<Contact>) => Promise<void> | void;
+}) {
+  const display = contact.formatted_address || contact.location || '';
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(display);
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const debounceRef = useRef<number | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => { if (!editing) setDraft(display); }, [display, editing]);
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } else {
+      setSuggestions([]);
+    }
+  }, [editing]);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!editing) return;
+    const onDoc = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setEditing(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [editing]);
+
+  function onDraftChange(next: string) {
+    setDraft(next);
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    if (next.trim().length < 2) { setSuggestions([]); return; }
+    debounceRef.current = window.setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/outreach/place-autocomplete?input=${encodeURIComponent(next)}`);
+        if (!res.ok) { setSuggestions([]); return; }
+        const json = (await res.json()) as { suggestions?: PlaceSuggestion[] };
+        setSuggestions(json.suggestions ?? []);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 200);
+  }
+
+  async function pick(s: PlaceSuggestion) {
+    setResolving(true);
+    try {
+      const res = await fetch(`/api/outreach/place-details?place_id=${encodeURIComponent(s.place_id)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as {
+        place_id?: string;
+        formatted_address?: string | null;
+        lat?: number | null;
+        lng?: number | null;
+        tz?: string | null;
+      };
+      await onSavePlace({
+        location: json.formatted_address ?? s.description,
+        formatted_address: json.formatted_address ?? s.description,
+        place_id: json.place_id ?? s.place_id,
+        tz: json.tz ?? null,
+        lat: json.lat ?? null,
+        lng: json.lng ?? null,
+      });
+      setEditing(false);
+    } finally {
+      setResolving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        className="group/loc inline-flex items-center gap-1.5 max-w-full rounded-md px-1 -mx-1 py-0.5 cursor-text hover:bg-warm-bg/60 transition-colors"
+        title={contact.tz ? `${display} · ${contact.tz}` : (display || 'Add location')}
+      >
+        {display ? (
+          <>
+            <PinIcon />
+            <span className="text-foreground/65 whitespace-nowrap truncate">{display}</span>
+          </>
+        ) : (
+          <span className="text-foreground/30 italic text-[11px]">Add location…</span>
+        )}
+      </button>
+    );
+  }
+
+  return (
+    <div ref={wrapperRef} className="relative" onClick={(e) => e.stopPropagation()}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={draft}
+        onChange={(e) => onDraftChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') { e.preventDefault(); setEditing(false); }
+          else if (e.key === 'Enter' && suggestions[0]) { e.preventDefault(); void pick(suggestions[0]); }
+        }}
+        placeholder="Search a city, state, or address…"
+        className="w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+      />
+      {(loading || resolving || suggestions.length > 0) && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden">
+          {resolving ? (
+            <div className="px-3 py-2 text-[11px] text-foreground/55">Saving location…</div>
+          ) : loading && suggestions.length === 0 ? (
+            <div className="px-3 py-2 text-[11px] text-foreground/55">Searching…</div>
+          ) : (
+            suggestions.map((s) => (
+              <button
+                key={s.place_id}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); void pick(s); }}
+                className="flex w-full items-start gap-2 px-3 py-1.5 text-left hover:bg-warm-bg/60 transition-colors"
+              >
+                <span className="mt-0.5 text-foreground/40 shrink-0"><PinIcon /></span>
+                <span className="min-w-0">
+                  <span className="block text-[12px] font-semibold text-foreground truncate">{s.main}</span>
+                  {s.secondary && <span className="block text-[10.5px] text-foreground/55 truncate">{s.secondary}</span>}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Compute current local time + short tz abbreviation in a contact's
+// IANA timezone. Returns null if the tz is missing or unparseable.
+function localTimeInTz(tz: string | null | undefined): { label: string; abbr: string } | null {
+  if (!tz) return null;
+  try {
+    const now = new Date();
+    const time = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(now);
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' }).formatToParts(now);
+    const abbr = parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
+    return { label: time, abbr };
+  } catch {
+    return null;
+  }
 }
 
 function ContactMobileCard({
@@ -2935,6 +3247,15 @@ function PencilIcon() {
 }
 function ChevronDownIcon() {
   return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>;
+}
+function GlobeIcon() {
+  return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>;
+}
+function ExternalLinkIcon() {
+  return <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 3h7v7"/><path d="M21 3l-9 9"/><path d="M21 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h5"/></svg>;
+}
+function PinIcon() {
+  return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 22s-7-7-7-12a7 7 0 0114 0c0 5-7 12-7 12z"/><circle cx="12" cy="10" r="3"/></svg>;
 }
 function DotsIcon() {
   return <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>;
