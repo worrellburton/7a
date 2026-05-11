@@ -1158,7 +1158,7 @@ function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
         <TierMixDonut contacts={contacts} />
         <ThirtyDayTouchesChart contacts={contacts} />
         <ContactMethodMixBars contacts={contacts} />
-        <InsightsPlaceholder span="col-span-12 md:col-span-6" label="Phase 6 — Top performers" hint="Most touches per teammate (30d)" />
+        <TopPerformersLeaderboard contacts={contacts} />
         <InsightsPlaceholder span="col-span-12 md:col-span-7" label="Phase 7 — Staleness funnel" hint="Fresh / cooling / stale / never" />
         <InsightsPlaceholder span="col-span-12 md:col-span-5" label="Phase 9 — Partner conversion" hint="Contact → Partner funnel" />
         <InsightsPlaceholder span="col-span-12" label="Phase 8 — Geographic concentration" hint="State-level heatmap" />
@@ -1679,6 +1679,110 @@ function ContactMethodMixBars({ contacts }: { contacts: Contact[] }) {
             );
           })}
         </ul>
+      )}
+    </div>
+  );
+}
+
+// Top performers leaderboard. Counts how many times each teammate
+// appears as the `last_contact_by_name` on a contact row over the
+// last 30 days, ranks them desc, takes the top 5, and renders an
+// avatar + name + bar + count list. Bars grow from 0 to share-of-#1
+// on mount with a 100ms per-row stagger so the leaderboard cascades
+// in. Same data shape the LastContactSummaryCell already reads —
+// the avatar URL falls through to a generated initials chip when
+// the user hasn't uploaded a photo yet. If nobody has logged a touch
+// in the window the panel renders an empty-state hint instead of
+// an empty list.
+function TopPerformersLeaderboard({ contacts }: { contacts: Contact[] }) {
+  const performers = useMemo(() => {
+    const monthMs = 30 * 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - monthMs;
+    const counts = new Map<string, { name: string; avatar: string | null; count: number }>();
+    for (const c of contacts) {
+      if (!c.last_contact_at) continue;
+      const ts = new Date(c.last_contact_at).getTime();
+      if (Number.isNaN(ts) || ts < cutoff) continue;
+      const name = (c.last_contact_by_name ?? '').trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      const prev = counts.get(key);
+      if (prev) {
+        prev.count += 1;
+        if (!prev.avatar && c.last_contact_by_avatar_url) prev.avatar = c.last_contact_by_avatar_url;
+      } else {
+        counts.set(key, { name, avatar: c.last_contact_by_avatar_url ?? null, count: 1 });
+      }
+    }
+    return Array.from(counts.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [contacts]);
+
+  const topCount = Math.max(1, ...performers.map((p) => p.count));
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(false);
+    const id = window.requestAnimationFrame(() => setMounted(true));
+    return () => window.cancelAnimationFrame(id);
+  }, [performers]);
+
+  return (
+    <div className="col-span-12 md:col-span-6 rounded-xl border border-black/10 bg-white px-4 py-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">Top performers · last 30 days</p>
+        <span className="text-[10.5px] text-foreground/45 tabular-nums">{performers.length} {performers.length === 1 ? 'teammate' : 'teammates'}</span>
+      </div>
+      {performers.length === 0 ? (
+        <div className="flex items-center justify-center h-[160px] text-[11.5px] text-foreground/45 text-center px-4">
+          No outreach logged in the last 30 days.<br />
+          Click <span className="text-foreground/65 font-semibold">Contact</span> on any row to start the leaderboard.
+        </div>
+      ) : (
+        <ol className="mt-2 space-y-2">
+          {performers.map((p, i) => {
+            const share = p.count / topCount;
+            const initials = p.name.split(/\s+/).map((s) => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
+            const isLeader = i === 0;
+            return (
+              <li key={p.name} className="flex items-center gap-2.5">
+                <span
+                  className={`shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-bold tabular-nums ${isLeader ? 'bg-amber-100 text-amber-700' : 'bg-foreground/5 text-foreground/55'}`}
+                  title={`Rank #${i + 1}`}
+                >
+                  {i + 1}
+                </span>
+                {p.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.avatar} alt="" className="shrink-0 w-7 h-7 rounded-full object-cover border border-black/10" />
+                ) : (
+                  <span className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20">
+                    {initials}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[12px] font-semibold text-foreground truncate">{p.name}</span>
+                    <span className="text-[11px] text-foreground/55 tabular-nums shrink-0">
+                      {p.count} {p.count === 1 ? 'touch' : 'touches'}
+                    </span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-foreground/5 overflow-hidden">
+                    <span
+                      className="block h-full rounded-full"
+                      style={{
+                        width: `${(mounted ? share : 0) * 100}%`,
+                        background: isLeader
+                          ? 'linear-gradient(90deg, #fbbf24, #f59e0b)'
+                          : 'linear-gradient(90deg, #bc6b4a, #6b2a14)',
+                        transition: 'width 900ms cubic-bezier(0.22, 1, 0.36, 1)',
+                        transitionDelay: `${i * 100}ms`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       )}
     </div>
   );
