@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { SearchSelectCell } from '@/components/SearchSelectCell';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -498,6 +499,20 @@ export default function ContactsContent() {
     });
   }, [rows, search]);
 
+  // Sorted, deduplicated list of every company string currently in
+  // the contacts table. Drives the SearchSelect dropdown on the
+  // Company column so admissions picks an existing facility name out
+  // of the list — keeps the data clean as multiple contacts at the
+  // same partner / referrer org accumulate.
+  const companyOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) {
+      const v = (r.company ?? '').trim();
+      if (v) set.add(v);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+  }, [rows]);
+
   // Headline counts for the insight tiles at the top of the page.
   // Always computed against the unfiltered `rows` (not the filtered
   // view) because the tiles describe the whole pipeline, not what's
@@ -850,6 +865,7 @@ export default function ContactsContent() {
         onSaveNotes={handleSaveNotes}
         onSaveField={handleSaveField}
         onSavePatch={handleSavePatch}
+        companyOptions={companyOptions}
         actionMenuFor={actionMenuFor}
         setActionMenuFor={setActionMenuFor}
         columnWidths={columnWidths}
@@ -1202,6 +1218,7 @@ function ContactsGrid({
   accessToken,
   onOpenLog,
   isNewToUser,
+  companyOptions,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -1229,6 +1246,7 @@ function ContactsGrid({
   accessToken: string | null;
   onOpenLog: (c: Contact) => void;
   isNewToUser: (c: Contact) => boolean;
+  companyOptions: string[];
 }) {
   // Tracks the row whose notes-editor strip is currently expanded.
   // Click the notes cell to toggle. Persists across rerenders via a
@@ -1380,7 +1398,7 @@ function ContactsGrid({
                   }
                   return (
                     <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} />
+                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} companyOptions={companyOptions} />
                     </td>
                   );
                 })}
@@ -1882,12 +1900,14 @@ function ContactCell({
   onSaveField,
   onSavePatch,
   isNew = false,
+  companyOptions = [],
 }: {
   column: ColumnDef;
   contact: Contact;
   onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
   onSavePatch: (id: string, patch: Partial<Contact>) => Promise<void>;
   isNew?: boolean;
+  companyOptions?: string[];
 }) {
   const save = (field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location') => (next: string) =>
     onSaveField(contact.id, field, next);
@@ -1915,10 +1935,10 @@ function ContactCell({
       );
     case 'company':
       return (
-        <EditableTextCell
+        <SearchSelectCell
           value={contact.company}
-          onSave={save('company')}
-          className="text-foreground/75 whitespace-nowrap"
+          options={companyOptions}
+          onSave={(next) => onSaveField(contact.id, 'company', next ?? '')}
           placeholder="Add company…"
         />
       );
