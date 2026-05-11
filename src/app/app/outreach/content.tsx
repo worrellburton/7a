@@ -1155,7 +1155,7 @@ function ContactsInsightsView({ contacts }: { contacts: Contact[] }) {
           the real chart so the layout shape is locked in from
           phase 1 and reviewers can eyeball progress. */}
       <div className="grid grid-cols-12 gap-4">
-        <InsightsPlaceholder span="col-span-12 md:col-span-4" label="Phase 3 — Tier mix" hint="Tier 1 / 2 / 3 / unrated donut" />
+        <TierMixDonut contacts={contacts} />
         <InsightsPlaceholder span="col-span-12 md:col-span-8" label="Phase 4 — 30-day touches" hint="Daily contact-log line chart" />
         <InsightsPlaceholder span="col-span-12 md:col-span-6" label="Phase 5 — Contact methods" hint="Phone / In Person / Left Message bars" />
         <InsightsPlaceholder span="col-span-12 md:col-span-6" label="Phase 6 — Top performers" hint="Most touches per teammate (30d)" />
@@ -1251,6 +1251,156 @@ function KpiTile({
           style={{ width: `${(w * 100).toFixed(1)}%` }}
         />
       </div>
+    </div>
+  );
+}
+
+// Tier mix donut. SVG ring of four stacked arcs (Tier 1 / 2 / 3 /
+// unrated) drawn via stroke-dasharray + stroke-dashoffset on a single
+// circle path per slice. On mount each slice's offset shrinks from
+// "fully hidden" (offset = circumference) down to its target offset
+// over 700ms, so the wedges sweep clockwise from 12 o'clock to fill
+// the ring in one beat. Hovering any slice slightly thickens its
+// stroke + bumps a paired legend row's background so the ring and
+// the legend read as one control. The center label flips between
+// the total count and the hovered slice count.
+const TIER_PALETTE: Array<{ key: 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Unrated'; label: string; color: string; tint: string }> = [
+  { key: 'Tier 1', label: 'Tier 1', color: '#f59e0b', tint: 'bg-amber-50' },
+  { key: 'Tier 2', label: 'Tier 2', color: '#0ea5e9', tint: 'bg-sky-50' },
+  { key: 'Tier 3', label: 'Tier 3', color: '#a3a3a3', tint: 'bg-foreground/5' },
+  { key: 'Unrated', label: 'Unrated', color: '#e5e7eb', tint: 'bg-foreground/5' },
+];
+
+function TierMixDonut({ contacts }: { contacts: Contact[] }) {
+  const counts = useMemo(() => {
+    const out: Record<'Tier 1' | 'Tier 2' | 'Tier 3' | 'Unrated', number> = {
+      'Tier 1': 0, 'Tier 2': 0, 'Tier 3': 0, 'Unrated': 0,
+    };
+    for (const c of contacts) {
+      const k = (c.rating ?? 'Unrated') as keyof typeof out;
+      out[k] = (out[k] ?? 0) + 1;
+    }
+    return out;
+  }, [contacts]);
+  const total = contacts.length;
+  const [hover, setHover] = useState<string | null>(null);
+
+  // Geometry. The viewBox is square; r = 60 leaves room for stroke
+  // width 22 to render comfortably inside a 160 box. Circumference is
+  // pre-computed so the slice math doesn't recompute on every render.
+  const r = 60;
+  const cx = 80;
+  const cy = 80;
+  const C = 2 * Math.PI * r;
+
+  // Translate per-tier counts into rotation + arc-length offsets.
+  // Each slice starts at the previous slice's end and consumes a
+  // share of the circumference equal to its proportion.
+  const slices: Array<{ key: string; color: string; rotation: number; length: number; share: number; count: number }> = [];
+  let cursor = 0;
+  for (const t of TIER_PALETTE) {
+    const count = counts[t.key];
+    const share = total > 0 ? count / total : 0;
+    const length = share * C;
+    slices.push({ key: t.key, color: t.color, rotation: cursor, length, share, count });
+    cursor += share * 360;
+  }
+
+  // Mount animation: ring starts hidden (offset = C), then in the
+  // next frame snaps to its target offset so the CSS transition
+  // sweeps the slices in. Re-fires when total changes so adding /
+  // removing a contact replays the reveal.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(false);
+    const id = window.requestAnimationFrame(() => setMounted(true));
+    return () => window.cancelAnimationFrame(id);
+  }, [total, counts]);
+
+  const centerCount = hover
+    ? counts[hover as keyof typeof counts] ?? 0
+    : total;
+  const centerLabel = hover ?? 'Total';
+
+  return (
+    <div className="col-span-12 md:col-span-4 rounded-xl border border-black/10 bg-white px-4 py-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">Tier mix</p>
+        <span className="text-[10.5px] text-foreground/45 tabular-nums">{total} total</span>
+      </div>
+      {total === 0 ? (
+        <div className="flex items-center justify-center h-[160px] text-[11.5px] text-foreground/45">
+          No contacts in view.
+        </div>
+      ) : (
+        <div className="mt-2 flex flex-col sm:flex-row items-center gap-4">
+          <svg viewBox="0 0 160 160" className="w-[160px] h-[160px] shrink-0" role="img" aria-label="Tier mix donut">
+            {/* Track ring underneath so an empty / single-tier mix still reads as a circle. */}
+            <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgb(0 0 0 / 0.05)" strokeWidth={22} />
+            {slices.map((s) => {
+              if (s.length <= 0.0001) return null;
+              const target = C - s.length;
+              return (
+                <circle
+                  key={s.key}
+                  cx={cx}
+                  cy={cy}
+                  r={r}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth={hover === s.key ? 26 : 22}
+                  strokeLinecap="butt"
+                  strokeDasharray={`${s.length} ${C - s.length}`}
+                  strokeDashoffset={mounted ? target : C}
+                  transform={`rotate(${s.rotation - 90} ${cx} ${cy})`}
+                  style={{
+                    transition: 'stroke-dashoffset 700ms ease-out, stroke-width 160ms ease',
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={() => setHover(s.key)}
+                  onMouseLeave={() => setHover(null)}
+                >
+                  <title>{`${s.key}: ${s.count} (${(s.share * 100).toFixed(1)}%)`}</title>
+                </circle>
+              );
+            })}
+            {/* Center text — flips between Total and the hovered slice. */}
+            <text x={cx} y={cy - 4} textAnchor="middle" className="fill-foreground" style={{ fontSize: 22, fontWeight: 600 }}>
+              {centerCount.toLocaleString()}
+            </text>
+            <text x={cx} y={cy + 14} textAnchor="middle" className="fill-foreground/55" style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+              {centerLabel}
+            </text>
+          </svg>
+          <ul className="flex-1 w-full space-y-1.5">
+            {TIER_PALETTE.map((t) => {
+              const c = counts[t.key];
+              const share = total > 0 ? c / total : 0;
+              const isHover = hover === t.key;
+              return (
+                <li
+                  key={t.key}
+                  onMouseEnter={() => setHover(t.key)}
+                  onMouseLeave={() => setHover(null)}
+                  className={`flex items-center justify-between gap-2 px-2 py-1 rounded-md cursor-default transition-colors ${isHover ? t.tint : ''}`}
+                >
+                  <span className="inline-flex items-center gap-2 min-w-0">
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                      style={{ background: t.color }}
+                      aria-hidden
+                    />
+                    <span className="text-[12px] text-foreground/80 truncate">{t.label}</span>
+                  </span>
+                  <span className="text-[11px] text-foreground/55 tabular-nums shrink-0">
+                    {c} <span className="text-foreground/35">·</span> {(share * 100).toFixed(0)}%
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
