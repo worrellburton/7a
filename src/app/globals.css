@@ -32,6 +32,20 @@ body {
   line-height: 1.6;
 }
 
+/* Tailwind v4 dropped the legacy `cursor: pointer` on buttons (and
+   role="button") and never set one on interactive anchors. Restore the
+   classic "if it does something on click, the cursor changes" UX
+   site-wide so every action button, icon-only button, dropdown
+   toggle, etc. signals affordance without needing an extra
+   cursor-pointer utility on every call site. Disabled / aria-disabled
+   stays on the default cursor so users see the difference. */
+button:not(:disabled):not([aria-disabled="true"]),
+[role="button"]:not(:disabled):not([aria-disabled="true"]),
+summary,
+a[href] {
+  cursor: pointer;
+}
+
 /* Admin portal: zoom everything ~20% smaller across the board on larger
    viewports. Using `zoom` scales Tailwind rem utilities, px values,
    spacing, and images together so pages feel 2-3 type-scale steps tighter
@@ -486,4 +500,21 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
   .cursor-effect-pulse-ring {
     animation: none;
   }
+}
+
+/* Hover popovers on the outreach Phone / Email icons. The popover is
+   rendered into a portal at the icon's viewport coordinates so it can
+   escape the table's overflow-clip. Mount-time-only animation: a fast
+   pop-in (opacity + scale from the bottom-centre origin) that completes
+   in 120ms so the value reads as "instant" while still feeling crafted. */
+@keyframes tooltip-pop-in {
+  0% { opacity: 0; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.tooltip-pop-in {
+  animation: tooltip-pop-in 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: bottom center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-pop-in { animation: none; }
 }

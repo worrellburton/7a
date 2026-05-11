@@ -27,10 +27,20 @@ interface Contact {
   id: string;
   name: string;
   company: string | null;
+  company_website: string | null;
   role: string | null;
   phone: string | null;
   email: string | null;
   location: string | null;
+  // Set when a user picks a place from the autocomplete dropdown.
+  // formatted_address is what we display (canonical "City, ST, USA"
+  // from Google); place_id pins the row to a stable Google entity;
+  // lat / lng / tz drive the map view + local-time label.
+  formatted_address?: string | null;
+  place_id?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  tz?: string | null;
   notes: string | null;
   source: string | null;
   source_partner_id: string | null;
@@ -84,9 +94,10 @@ const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
   location: 180,
   notes: 280,
   actions: 200,
-  last_contact_by_name: 220,
-  time_since: 150,
-  last_contact_at: 160,
+  // Merged engagement column (replaces last_contact_by_name + time_since
+  // + last_contact_at). Needs room for avatar + name + method chip +
+  // freshness pill on row 1 and the relative + absolute date on row 2.
+  last_contact_summary: 320,
 };
 const RESIZE_MIN_PX = 70;
 const RESIZE_MAX_PX = 900;
@@ -153,6 +164,11 @@ function sortValue(c: Contact, key: string): string | number | null {
     case 'time_since':
       return c.last_contact_at ? new Date(c.last_contact_at).getTime() : null;
     case 'last_contact_by_name': return c.last_contact_by_name || null;
+    // Default sort: any activity on the row (field edit, log-a-contact,
+    // notes update) bumps updated_at, so sorting desc on this puts the
+    // most-recently-touched row at the top of the grid.
+    case 'updated_at':
+      return c.updated_at ? new Date(c.updated_at).getTime() : null;
     default: return null;
   }
 }
@@ -175,8 +191,51 @@ export default function ContactsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [filterMethod, setFilterMethod] = useState<string>('');
-  const [filterStaleness, setFilterStaleness] = useState<string>('');
+  // Table vs Map view-mode toggle. Persisted in the URL via ?view=map
+  // so the choice survives refresh + lets admissions bookmark either
+  // view directly.
+  const [viewMode, setViewMode] = useState<'table' | 'map'>('table');
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('view');
+    if (v === 'map') setViewMode('map');
+  }, []);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (viewMode === 'map') url.searchParams.set('view', 'map');
+    else url.searchParams.delete('view');
+    window.history.replaceState({}, '', url.toString());
+  }, [viewMode]);
+
+  // First time the user opens the map view, fire a single backfill
+  // round through POST /api/outreach/geocode so legacy rows that have
+  // a freeform `location` but no lat/lng get pinned without us
+  // shipping a separate "geocode now" button. Capped to 100 rows /
+  // call server-side so this is safe to fire eagerly.
+  const geocodedThisSessionRef = useRef(false);
+  useEffect(() => {
+    if (viewMode !== 'map') return;
+    if (geocodedThisSessionRef.current) return;
+    if (!session?.access_token) return;
+    const pending = rows.some((r) => r.location && (r.lat == null || r.lng == null));
+    if (!pending) return;
+    geocodedThisSessionRef.current = true;
+    void fetch('/api/outreach/geocode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ limit: 100 }),
+    }).then(async (r) => {
+      if (!r.ok) return;
+      // Pull the freshly-geocoded rows back in. Realtime would do this
+      // for us too eventually, but the explicit refetch makes the map
+      // pop full immediately instead of trickling in pin-by-pin.
+      const list = await fetch('/api/contacts', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      }).then((r2) => (r2.ok ? r2.json() : null)).catch(() => null);
+      if (list && Array.isArray((list as { rows?: Contact[] }).rows)) {
+        setRows((list as { rows: Contact[] }).rows);
+      }
+    }).catch(() => { /* silent — map will just show fewer pins */ });
+  }, [viewMode, session?.access_token, rows]);
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showCols, setShowCols] = useState(false);
@@ -203,7 +262,12 @@ export default function ContactsContent() {
   // null) sink to the bottom automatically — sortValue returns null
   // for them and the sort comparator pushes nulls regardless of
   // direction.
-  const [sortKey, setSortKey] = useState<string>('last_contact_at');
+  // Default sort: most recent ANY-activity at the top. updated_at is
+  // bumped on every contacts-row write (field edits, contact logs,
+  // notes saves, optimistic UI from log-a-contact, etc.) so sorting
+  // desc on it produces the natural "things that just happened are
+  // first" feed admissions expects.
+  const [sortKey, setSortKey] = useState<string>('updated_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -255,8 +319,39 @@ export default function ContactsContent() {
           setRows((prev) => prev.filter((p) => p.id !== old.id));
         } else {
           const row = payload.new as Contact;
+          // Detect when the realtime row introduces a `last_contact_by`
+          // that the client doesn't yet have a joined name for. The
+          // realtime payload only carries raw columns; without this
+          // lookup the cell renders "—" because last_contact_by_name
+          // stays null until the next full /api/contacts refetch.
+          // public.users.users_select_authenticated allows any signed-
+          // in user to SELECT, so we can pull the missing display
+          // fields straight from the client.
           setRows((prev) => {
             const ix = prev.findIndex((p) => p.id === row.id);
+            const existing = ix === -1 ? null : prev[ix];
+            const needsLookup =
+              !!row.last_contact_by &&
+              (!existing
+                || existing.last_contact_by !== row.last_contact_by
+                || !existing.last_contact_by_name);
+            if (needsLookup) {
+              void supabase
+                .from('users')
+                .select('full_name, avatar_url')
+                .eq('id', row.last_contact_by as string)
+                .maybeSingle()
+                .then(({ data }) => {
+                  if (!data) return;
+                  const name = (data as { full_name?: string | null }).full_name ?? null;
+                  const avatar = (data as { avatar_url?: string | null }).avatar_url ?? null;
+                  setRows((cur) => cur.map((r) => (
+                    r.id === row.id
+                      ? { ...r, last_contact_by_name: name, last_contact_by_avatar_url: avatar }
+                      : r
+                  )));
+                });
+            }
             if (ix === -1) return [row, ...prev];
             const copy = prev.slice();
             // Preserve any joined display name we already had — the
@@ -367,15 +462,13 @@ export default function ContactsContent() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    if (!q) return rows;
     return rows.filter((r) => {
-      if (filterMethod && r.last_contact_method !== filterMethod) return false;
-      if (filterStaleness && staleness(r.last_contact_at) !== filterStaleness) return false;
-      if (!q) return true;
       const hay = [r.name, r.company, r.role, r.phone, r.email, r.location, r.notes]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, search, filterMethod, filterStaleness]);
+  }, [rows, search]);
 
   // Headline counts for the insight tiles at the top of the page.
   // Always computed against the unfiltered `rows` (not the filtered
@@ -559,6 +652,29 @@ export default function ContactsContent() {
     }
   }
 
+  // Multi-field save used by interactions that touch more than one
+  // column at once: the PlaceAutocomplete dropdown stores location +
+  // formatted_address + place_id + tz + lat + lng in a single click;
+  // the Company cell saves company_website alongside company. Same
+  // optimistic-update + PATCH pattern as handleSaveField, just with
+  // a generic patch object.
+  async function handleSavePatch(id: string, patch: Partial<Contact>) {
+    if (!session?.access_token) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    const res = await fetch(`/api/contacts/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(`Couldn't save: ${json.error ?? res.status}`);
+    }
+  }
+
   async function handleSaveNotes(id: string, notes: string) {
     return handleSaveField(id, 'notes', notes);
   }
@@ -587,8 +703,8 @@ export default function ContactsContent() {
     <div className="p-4 sm:p-6 lg:p-8 w-full pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">Outreach</h1>
-          <p className="text-sm text-foreground/55 mt-0.5">
+          <h1 className="text-base font-semibold text-foreground tracking-tight">Outreach</h1>
+          <p className="text-[13px] text-foreground/55 mt-0.5">
             Outreach tracker for referrers, leads, and downgraded partners.
             {rows.length > 0 && (
               <span className="ml-1 text-foreground/40">· {rows.length} {rows.length === 1 ? 'contact' : 'contacts'}</span>
@@ -628,34 +744,11 @@ export default function ContactsContent() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, phone, email, notes…"
-            className="w-full pl-9 pr-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full pl-9 pr-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-[13px] sm:text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/35">
             <SearchIcon />
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={filterMethod}
-            onChange={(e) => setFilterMethod(e.target.value)}
-            className="flex-1 sm:flex-none min-w-0 px-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-          >
-            <option value="">All methods</option>
-            <option value="Phone">Phone</option>
-            <option value="In Person">In Person</option>
-            <option value="Left Message">Left Message</option>
-          </select>
-          <select
-            value={filterStaleness}
-            onChange={(e) => setFilterStaleness(e.target.value)}
-            className="flex-1 sm:flex-none min-w-0 px-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-          >
-            <option value="">Any freshness</option>
-            <option value="fresh">Fresh (&lt; 7d)</option>
-            <option value="cooling">Cooling (7–21d)</option>
-            <option value="stale">Stale (&gt; 21d)</option>
-            <option value="never">Never contacted</option>
-          </select>
         </div>
         {/* Manage Columns only matters for the desktop table; on
             mobile every field is visible inside each card. */}
@@ -671,9 +764,44 @@ export default function ContactsContent() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
       )}
 
+      {/* View-mode tabs sit on top of the table card so the toggle
+          stays in muscle-memory regardless of which view is active.
+          Insights tiles + search bar above remain visible in both
+          views — they describe the underlying data, not the render. */}
+      <div className="hidden md:flex items-center gap-1 mb-2 border-b border-black/10">
+        <button
+          type="button"
+          onClick={() => setViewMode('table')}
+          className={`relative px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors ${viewMode === 'table' ? 'text-foreground' : 'text-foreground/45 hover:text-foreground/70'}`}
+          aria-pressed={viewMode === 'table'}
+        >
+          Table
+          {viewMode === 'table' && <span className="absolute left-2 right-2 -bottom-px h-[2px] bg-primary rounded-t" />}
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode('map')}
+          className={`relative px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors ${viewMode === 'map' ? 'text-foreground' : 'text-foreground/45 hover:text-foreground/70'}`}
+          aria-pressed={viewMode === 'map'}
+        >
+          Map
+          {viewMode === 'map' && <span className="absolute left-2 right-2 -bottom-px h-[2px] bg-primary rounded-t" />}
+        </button>
+      </div>
+
+      {viewMode === 'map' ? (
+        <ContactsMapView
+          contacts={sorted}
+          onLogContact={(c) => setLogTarget(c)}
+          onOpenDetails={(c) => {
+            setViewMode('table');
+            setExpandedDetailsId(c.id);
+          }}
+        />
+      ) : (
       <ContactsGrid
         loading={loading}
         rows={sorted}
@@ -693,6 +821,7 @@ export default function ContactsContent() {
         onDelete={(c) => handleDelete(c)}
         onSaveNotes={handleSaveNotes}
         onSaveField={handleSaveField}
+        onSavePatch={handleSavePatch}
         actionMenuFor={actionMenuFor}
         setActionMenuFor={setActionMenuFor}
         columnWidths={columnWidths}
@@ -701,6 +830,7 @@ export default function ContactsContent() {
         onResizeStart={() => { resizingRef.current = true; }}
         onResizeEnd={() => { resizingRef.current = false; }}
       />
+      )}
 
       {showAdd && (
         <AddContactModal onClose={() => setShowAdd(false)} onSubmit={handleAdd} />
@@ -758,7 +888,7 @@ function NotesEditor({
   }
   return (
     <div>
-      <p className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 mb-1.5">Notes</p>
+      <p className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 mb-1.5">Notes</p>
       <textarea
         ref={taRef}
         value={value}
@@ -769,31 +899,253 @@ function NotesEditor({
         }}
         rows={4}
         placeholder="Write a note about this contact…"
-        className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-[13px] text-foreground/85 leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
+        className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-[12px] text-foreground/85 leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
       />
       <div className="mt-2 flex items-center gap-2">
         <button
           type="button"
           onClick={() => void commit()}
           disabled={saving || !dirty}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[12px] font-semibold shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[11px] font-semibold shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex items-center px-3 py-1.5 rounded-md bg-white text-foreground/70 text-[12px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
+          className="inline-flex items-center px-3 py-1.5 rounded-md bg-white text-foreground/70 text-[11px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
         >
           Cancel
         </button>
-        <span className="ml-auto text-[11px] text-foreground/40">⌘↵ saves · Esc cancels</span>
+        <span className="ml-auto text-[10px] text-foreground/40">⌘↵ saves · Esc cancels</span>
       </div>
     </div>
   );
 }
 
 // ─── Grid ───────────────────────────────────────────────────────
+
+// Lazy-load Google Maps JS once across the app and cache the promise so
+// repeat mounts of the map view don't kick off a second <script>. The
+// `marker` library carries AdvancedMarkerElement but we use the classic
+// Marker too (still works on the latest weekly channel and doesn't
+// require a mapId in GCP). Returns the loaded `google` namespace.
+// Loose type — Google Maps doesn't ship in our dependency tree and
+// pulling @types/google.maps just for the few methods the map view
+// touches would be overkill. Every call site treats the namespace as
+// unknown and either type-guards (typeof, in) or casts narrowly.
+type GoogleNamespace = { maps?: unknown } | undefined;
+let mapsLoadPromise: Promise<GoogleNamespace> | null = null;
+function getGoogle(): GoogleNamespace {
+  if (typeof window === 'undefined') return undefined;
+  return (window as unknown as { google?: GoogleNamespace }).google;
+}
+function loadGoogleMaps(apiKey: string): Promise<GoogleNamespace> {
+  if (typeof window === 'undefined') return Promise.reject(new Error('SSR'));
+  const existingGoogle = getGoogle();
+  if (existingGoogle && existingGoogle.maps) return Promise.resolve(existingGoogle);
+  if (mapsLoadPromise) return mapsLoadPromise;
+  mapsLoadPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-google-maps-loader]') as HTMLScriptElement | null;
+    const handle = (s: HTMLScriptElement) => {
+      s.addEventListener('load', () => {
+        const g = getGoogle();
+        if (g && g.maps) resolve(g);
+        else reject(new Error('Maps JS loaded but window.google missing'));
+      });
+      s.addEventListener('error', () => reject(new Error('Failed to load Google Maps JS')));
+    };
+    if (existing) { handle(existing); return; }
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=marker&v=weekly`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleMapsLoader = 'true';
+    handle(script);
+    document.head.appendChild(script);
+  });
+  return mapsLoadPromise;
+}
+
+// Outreach map view. Renders contacts with lat/lng as classic Google
+// markers on a US-centred map; click a marker to open a side panel
+// with the contact's contact-card info + jump-to-table affordance.
+// Contacts without lat/lng land in a "not on map" footer with a hint
+// to add a Location via the autocomplete cell so they show up.
+function ContactsMapView({
+  contacts,
+  onLogContact,
+  onOpenDetails,
+}: {
+  contacts: Contact[];
+  onLogContact: (c: Contact) => void;
+  onOpenDetails: (c: Contact) => void;
+}) {
+  const mapEl = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<unknown>(null);
+  const markersRef = useRef<unknown[]>([]);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Contact | null>(null);
+
+  const mapped = useMemo(
+    () => contacts.filter((c) => typeof c.lat === 'number' && typeof c.lng === 'number'),
+    [contacts],
+  );
+  const unmappedCount = contacts.length - mapped.length;
+
+  // Load the JS API + initialise the map once.
+  useEffect(() => {
+    const apiKey =
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+      || process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_API_KEY
+      || '';
+    if (!apiKey) {
+      setError('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set in this environment. Set the env var (Maps JavaScript API enabled on the Google Cloud project) and reload to see the map.');
+      return;
+    }
+    let cancelled = false;
+    loadGoogleMaps(apiKey)
+      .then((g) => {
+        if (cancelled || !mapEl.current) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const Map = (g as any).maps.Map;
+        const map = new Map(mapEl.current, {
+          center: { lat: 39.5, lng: -98.35 },
+          zoom: 4,
+          disableDefaultUI: false,
+          streetViewControl: false,
+          mapTypeControl: false,
+          fullscreenControl: false,
+          clickableIcons: false,
+        });
+        mapRef.current = map;
+        setReady(true);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    return () => { cancelled = true; };
+  }, []);
+
+  // Reconcile markers whenever the contact set changes.
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    const g = getGoogle();
+    if (!g?.maps) return;
+
+    // Clear existing
+    for (const m of markersRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (m as any).setMap?.(null);
+    }
+    markersRef.current = [];
+
+    if (mapped.length === 0) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bounds = new (g.maps as any).LatLngBounds();
+    for (const c of mapped) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const marker = new (g.maps as any).Marker({
+        position: { lat: c.lat as number, lng: c.lng as number },
+        map: mapRef.current,
+        title: c.name,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        animation: (g.maps as any).Animation?.DROP,
+      });
+      marker.addListener('click', () => setSelected(c));
+      markersRef.current.push(marker);
+      bounds.extend({ lat: c.lat as number, lng: c.lng as number });
+    }
+    // Auto-fit if we have more than one pin; for a single pin keep the
+    // US-wide zoom (single-pin fitBounds maxes out the zoom which feels
+    // jarring).
+    if (mapped.length > 1) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mapRef.current as any).fitBounds(bounds, 80);
+    }
+  }, [ready, mapped]);
+
+  return (
+    <div className="relative rounded-xl border border-black/10 bg-white overflow-hidden">
+      {error ? (
+        <div className="px-5 py-12 text-center text-[13px] text-foreground/55 whitespace-pre-wrap">
+          {error}
+        </div>
+      ) : (
+        <>
+          <div ref={mapEl} className="w-full h-[640px]" />
+          {!ready && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/80 text-[12px] text-foreground/55">
+              Loading map…
+            </div>
+          )}
+          {/* Side panel for the currently selected pin. */}
+          {selected && (
+            <div className="absolute top-3 right-3 w-72 rounded-xl border border-black/10 bg-white shadow-xl overflow-hidden">
+              <div className="flex items-start justify-between gap-2 px-3 py-2 border-b border-black/5">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-foreground truncate">{selected.name}</p>
+                  {selected.company && (
+                    <p className="text-[11px] text-foreground/65 truncate">{selected.company}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="inline-flex items-center justify-center w-6 h-6 rounded text-foreground/40 hover:text-foreground hover:bg-warm-bg/60"
+                  aria-label="Close"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <div className="px-3 py-2 space-y-1.5 text-[11.5px] text-foreground/75">
+                {selected.role && <p><span className="text-foreground/40">Role:</span> {selected.role}</p>}
+                {(selected.formatted_address || selected.location) && (
+                  <p><span className="text-foreground/40">Location:</span> {selected.formatted_address || selected.location}</p>
+                )}
+                {selected.phone && <p><span className="text-foreground/40">Phone:</span> {selected.phone}</p>}
+                {selected.email && <p className="truncate"><span className="text-foreground/40">Email:</span> {selected.email}</p>}
+                {selected.tz && (() => {
+                  const lt = localTimeInTz(selected.tz);
+                  return lt ? <p><span className="text-foreground/40">Local time:</span> {lt.label}{lt.abbr ? ` · ${lt.abbr}` : ''}</p> : null;
+                })()}
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-2 border-t border-black/5">
+                <button
+                  type="button"
+                  onClick={() => onLogContact(selected)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
+                >
+                  <PhoneIcon />
+                  Contact
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenDetails(selected)}
+                  className="inline-flex items-center px-2.5 py-1 rounded-md bg-white text-foreground/70 text-[10px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
+                >
+                  Open details
+                </button>
+              </div>
+            </div>
+          )}
+          {/* Unmapped footer pill. */}
+          <div className="absolute bottom-3 left-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/95 border border-black/10 shadow-sm text-[10.5px]">
+            <span className="font-semibold text-foreground">{mapped.length}</span>
+            <span className="text-foreground/55">on map</span>
+            {unmappedCount > 0 && (
+              <>
+                <span className="text-foreground/25">·</span>
+                <span className="font-semibold text-foreground/70">{unmappedCount}</span>
+                <span className="text-foreground/55">missing location</span>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function ContactsGrid({
   loading,
@@ -810,6 +1162,7 @@ function ContactsGrid({
   onDelete,
   onSaveNotes,
   onSaveField,
+  onSavePatch,
   actionMenuFor,
   setActionMenuFor,
   columnWidths,
@@ -836,6 +1189,7 @@ function ContactsGrid({
   onDelete: (c: Contact) => void;
   onSaveNotes: (id: string, notes: string) => Promise<void>;
   onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  onSavePatch: (id: string, patch: Partial<Contact>) => Promise<void>;
   actionMenuFor: { id: string; rect: DOMRect } | null;
   setActionMenuFor: (v: { id: string; rect: DOMRect } | null) => void;
   columnWidths: Record<string, number>;
@@ -852,7 +1206,19 @@ function ContactsGrid({
   // Click the notes cell to toggle. Persists across rerenders via a
   // simple id string; null when collapsed.
   const [expandedNotesId, setExpandedNotesId] = useState<string | null>(null);
-  const totalCols = columns.length + 5;
+  // Trailing columns the user can't reorder/hide: Actions + the merged
+  // Last Contact summary + the action-menu expander. Was 5 (Actions,
+  // Last Contacted By, Time Since, Last Contact, expander); now 3
+  // since the three engagement columns folded into LastContactSummaryCell.
+  const totalCols = columns.length + 3;
+
+  // All three trailing columns (Actions, Last Contact summary, and the
+  // expander) are sticky to the right edge of the scrollable table.
+  // Their right offsets stack: expander hugs right: 0, summary sits to
+  // its left, Actions sits to the left of the summary. The summary width
+  // is user-resizable so we read it from the live columnWidths map.
+  const summaryWidth = columnWidths['last_contact_summary'] ?? DEFAULT_COL_WIDTHS_PX['last_contact_summary'];
+  const actionsStickyRightPx = EXPANDER_COL_WIDTH_PX + summaryWidth;
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -865,7 +1231,7 @@ function ContactsGrid({
         data-outreach-table
         className="overflow-x-auto rounded-xl border border-black/10 bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <table className="w-full text-sm table-fixed">
+        <table className="w-full text-[13px] table-fixed">
         {/* <colgroup> drives the actual column widths so resize is
             cheap (only one node per column needs its width set, not
             every cell). Default widths from `DEFAULT_COL_WIDTHS_PX`
@@ -876,13 +1242,13 @@ function ContactsGrid({
             const w = columnWidths[c.key] ?? DEFAULT_COL_WIDTHS_PX[c.key] ?? 180;
             return <col key={c.key} style={{ width: `${w}px` }} />;
           })}
-          {(['actions', 'last_contact_by_name', 'time_since', 'last_contact_at'] as const).map((k) => {
+          {(['actions', 'last_contact_summary'] as const).map((k) => {
             const w = columnWidths[k] ?? DEFAULT_COL_WIDTHS_PX[k];
             return <col key={k} style={{ width: `${w}px` }} />;
           })}
           <col style={{ width: `${EXPANDER_COL_WIDTH_PX}px` }} />
         </colgroup>
-        <thead className="bg-warm-bg/50 text-left text-[11px] uppercase tracking-wider text-foreground/55">
+        <thead className="bg-warm-bg/50 text-left text-[10px] uppercase tracking-wider text-foreground/55">
           <tr>
             {columns.map((c) => (
               <th
@@ -899,7 +1265,7 @@ function ContactsGrid({
                   {c.label}
                   {c.key === 'name' && (
                     <span
-                      className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1.5 rounded-full bg-foreground/10 text-foreground/65 text-[10px] font-bold tabular-nums"
+                      className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1.5 rounded-full bg-foreground/10 text-foreground/65 text-[9px] font-bold tabular-nums"
                       title={`${rows.length} contact${rows.length === 1 ? '' : 's'}`}
                     >
                       {rows.length}
@@ -916,46 +1282,33 @@ function ContactsGrid({
                 />
               </th>
             ))}
-            {/* Engagement / action columns — fixed at the far right
-                so admissions sees them no matter how the grid is
-                customised. Order: Contact button, Last contact by,
-                Time since (colored pill), Last contact date, actions menu. */}
-            <th data-col-key="actions" className="group/th relative px-3 py-2 whitespace-nowrap">
+            {/* Trailing fixed columns — pinned to the far right of the
+                grid no matter how the user reorders/hides the dynamic
+                left-side columns. Order:
+                  1. Actions (Contact + History buttons)
+                  2. Last contact summary (avatar + name + method +
+                     freshness pill + relative + absolute date — rolled
+                     up from the old Last Contacted By / Time Since /
+                     Last Contact trio)
+                  3. Action-menu expander (3-dot) */}
+            <th
+              data-col-key="actions"
+              style={{ right: `${actionsStickyRightPx}px` }}
+              className="group/th sticky z-20 bg-[#faf8f5] shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2 whitespace-nowrap"
+            >
               <span className="truncate">Actions</span>
               <ResizeHandle colKey="actions" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
             <th
-              data-col-key="last_contact_by_name"
-              onClick={() => onSort('last_contact_by_name')}
-              className="group/th relative px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
-            >
-              <span className="inline-flex items-center gap-1 truncate">
-                Last contacted by
-                <SortIndicator active={sortKey === 'last_contact_by_name'} dir={sortDir} />
-              </span>
-              <ResizeHandle colKey="last_contact_by_name" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
-            </th>
-            <th
-              data-col-key="time_since"
-              onClick={() => onSort('time_since')}
-              className="group/th relative px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
-            >
-              <span className="inline-flex items-center gap-1 truncate">
-                Time since
-                <SortIndicator active={sortKey === 'time_since'} dir={sortDir} />
-              </span>
-              <ResizeHandle colKey="time_since" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
-            </th>
-            <th
-              data-col-key="last_contact_at"
+              data-col-key="last_contact_summary"
               onClick={() => onSort('last_contact_at')}
               className="group/th sticky right-10 z-20 bg-[#faf8f5] shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
             >
               <span className="inline-flex items-center gap-1 truncate">
-                Last contact
+                Contact history
                 <SortIndicator active={sortKey === 'last_contact_at'} dir={sortDir} />
               </span>
-              <ResizeHandle colKey="last_contact_at" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
+              <ResizeHandle colKey="last_contact_summary" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
             <th className="sticky right-0 z-20 bg-[#faf8f5] px-3 py-2" />
           </tr>
@@ -963,13 +1316,13 @@ function ContactsGrid({
         <tbody className="divide-y divide-black/5">
           {loading ? (
             <tr>
-              <td colSpan={columns.length + 5} className="px-3 py-12 text-center text-foreground/45">
+              <td colSpan={totalCols} className="px-3 py-12 text-center text-foreground/45">
                 Loading contacts…
               </td>
             </tr>
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length + 5} className="px-3 py-12 text-center text-foreground/45">
+              <td colSpan={totalCols} className="px-3 py-12 text-center text-foreground/45">
                 No contacts yet. Click <span className="font-semibold">Add contact</span> to start.
               </td>
             </tr>
@@ -991,7 +1344,7 @@ function ContactsGrid({
                           {c.notes ? (
                             <span className="text-foreground/75 truncate block max-w-[420px]">{c.notes}</span>
                           ) : (
-                            <span className="text-foreground/30 italic text-[12px]">Add notes…</span>
+                            <span className="text-foreground/30 italic text-[11px]">Add notes…</span>
                           )}
                         </div>
                       </td>
@@ -999,48 +1352,42 @@ function ContactsGrid({
                   }
                   return (
                     <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      <ContactCell column={col} contact={c} onSaveField={onSaveField} isNew={isNewToUser(c)} />
+                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} />
                     </td>
                   );
                 })}
-                <td className="px-3 py-2.5">
+                <td
+                  style={{ right: `${actionsStickyRightPx}px` }}
+                  className={`sticky z-10 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}
+                >
                   <div className="inline-flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => onContact(c)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[11px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
                     >
                       <PhoneIcon />
                       Contact
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => onHistory(c)}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/70 border-black/10 hover:bg-warm-bg/60'}`}
-                      title={expandedDetailsId === c.id ? 'Hide details' : 'Show details + history'}
-                      aria-expanded={expandedDetailsId === c.id}
-                    >
-                      <span>History</span>
-                      <span className={`inline-flex transition-transform ${expandedDetailsId === c.id ? 'rotate-180' : ''}`}>
-                        <ChevronDownIcon />
-                      </span>
-                    </button>
                   </div>
-                </td>
-                <td className="px-3 py-2.5">
-                  <LastContactedBy contact={c} />
-                </td>
-                <td className="px-3 py-2.5">
-                  <TimeSinceCell contact={c} />
                 </td>
                 <td className={`sticky right-10 z-10 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.08)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
                   <button
                     type="button"
                     onClick={() => onHistory(c)}
-                    className="block w-full text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
-                    title="View contact history"
+                    className="flex w-full items-start justify-between gap-2 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
+                    title={expandedDetailsId === c.id ? 'Hide history' : 'Show contact history'}
+                    aria-expanded={expandedDetailsId === c.id}
                   >
-                    <LastContactCell contact={c} />
+                    <span className="min-w-0 flex-1">
+                      <LastContactSummaryCell contact={c} />
+                    </span>
+                    <span
+                      className={`shrink-0 mt-1 inline-flex items-center justify-center w-6 h-6 rounded-md border transition-all ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground rotate-180' : 'bg-white text-foreground/55 border-black/10'}`}
+                      aria-hidden
+                    >
+                      <ChevronDownIcon />
+                    </span>
                   </button>
                 </td>
                 <td className={`sticky right-0 z-10 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white group-hover:bg-[#fcfaf8]'}`}>
@@ -1109,11 +1456,11 @@ function ContactsGrid({
           inline + the same engagement actions. */}
       <div className="md:hidden flex flex-col gap-3">
         {loading ? (
-          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-sm text-foreground/45">
+          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-[13px] text-foreground/45">
             Loading contacts…
           </div>
         ) : rows.length === 0 ? (
-          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-sm text-foreground/45">
+          <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-[13px] text-foreground/45">
             No contacts yet. Tap <span className="font-semibold">Add contact</span> to start.
           </div>
         ) : (
@@ -1400,7 +1747,7 @@ function FloatingScrollbar({ tableRef }: { tableRef: React.RefObject<HTMLDivElem
           page during quiet states. */}
       <div
         aria-hidden
-        className={`pointer-events-none absolute -top-9 -translate-x-1/2 px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap text-foreground/85 bg-white/65 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 ring-1 ring-black/5 shadow-[0_8px_22px_-10px_rgba(60,48,42,0.35)] transition-all duration-200 ease-out ${showTooltip ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}
+        className={`pointer-events-none absolute -top-9 -translate-x-1/2 px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap text-foreground/85 bg-white/65 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 ring-1 ring-black/5 shadow-[0_8px_22px_-10px_rgba(60,48,42,0.35)] transition-all duration-200 ease-out ${showTooltip ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}
         style={{ left: thumbCenter }}
       >
         {tooltipText}
@@ -1502,11 +1849,13 @@ function ContactCell({
   column,
   contact,
   onSaveField,
+  onSavePatch,
   isNew = false,
 }: {
   column: ColumnDef;
   contact: Contact;
   onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  onSavePatch: (id: string, patch: Partial<Contact>) => Promise<void>;
   isNew?: boolean;
 }) {
   const save = (field: 'name' | 'company' | 'role' | 'phone' | 'email' | 'location') => (next: string) =>
@@ -1529,17 +1878,16 @@ function ContactCell({
             )}
           </div>
           {contact.source === 'downgrade-from-partner' && (
-            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-foreground/40 whitespace-nowrap">From partner</p>
+            <p className="mt-0.5 text-[9px] uppercase tracking-wider text-foreground/40 whitespace-nowrap">From partner</p>
           )}
         </div>
       );
     case 'company':
       return (
-        <EditableTextCell
-          value={contact.company}
-          onSave={save('company')}
-          className="text-foreground/75 whitespace-nowrap"
-          placeholder="Add company…"
+        <CompanyCell
+          contact={contact}
+          onSaveCompany={save('company')}
+          onSaveWebsite={(url) => onSavePatch(contact.id, { company_website: url.trim() || null })}
         />
       );
     case 'role':
@@ -1558,6 +1906,7 @@ function ContactCell({
           onSave={save('phone')}
           kind="phone"
           emptyLabel="Add phone…"
+          tz={contact.tz}
         />
       );
     case 'email':
@@ -1571,11 +1920,9 @@ function ContactCell({
       );
     case 'location':
       return (
-        <EditableTextCell
-          value={contact.location}
-          onSave={save('location')}
-          className="text-foreground/65 whitespace-nowrap"
-          placeholder="Add location…"
+        <PlaceAutocompleteCell
+          contact={contact}
+          onSavePlace={(patch) => onSavePatch(contact.id, patch)}
         />
       );
     case 'notes':
@@ -1643,7 +1990,7 @@ function EditableTextCell({
           if (e.key === 'Enter') { e.preventDefault(); void commit(); }
           else if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false); }
         }}
-        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${mono ? 'font-mono tabular-nums' : ''}`}
+        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${mono ? 'font-mono tabular-nums' : ''}`}
       />
     );
   }
@@ -1660,7 +2007,7 @@ function EditableTextCell({
       {display ? (
         <span className={`${mono ? 'font-mono tabular-nums' : ''} truncate`}>{display}</span>
       ) : (
-        <span className="text-foreground/30 italic text-[12px]">{placeholder ?? 'Click to add'}</span>
+        <span className="text-foreground/30 italic text-[11px]">{placeholder ?? 'Click to add'}</span>
       )}
       {copyable && display && (
         <button
@@ -1693,9 +2040,76 @@ function InsightTile({
     'text-foreground/85 bg-warm-bg/50 border-black/10';
   return (
     <div className={`rounded-xl border px-4 py-3 ${toneCx}`}>
-      <p className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70 truncate">{label}</p>
+      <p className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70 truncate">{label}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums leading-none">{value.toLocaleString()}</p>
     </div>
+  );
+}
+
+// Designed instant-hover popover used by the Phone / Email icon cells.
+// Native browser title="..." has a ~700ms delay before it appears and
+// renders as the OS default styling; admissions wants the phone number
+// / email address legible the moment they mouse over the icon, with
+// a quick pop-in animation. We render via a portal at viewport-fixed
+// coordinates so the popover isn't clipped by the table's overflow.
+function HoverPopover({
+  value,
+  copied,
+  subtitle,
+  children,
+}: {
+  value: string;
+  copied: boolean;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  const triggerRef = useRef<HTMLSpanElement | null>(null);
+  const [hovering, setHovering] = useState(false);
+  const [rect, setRect] = useState<{ left: number; top: number } | null>(null);
+
+  function enter() {
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setRect({ left: r.left + r.width / 2, top: r.top });
+    }
+    setHovering(true);
+  }
+  function leave() { setHovering(false); }
+
+  return (
+    <span
+      ref={triggerRef}
+      onMouseEnter={enter}
+      onMouseLeave={leave}
+      onFocus={enter}
+      onBlur={leave}
+      className="inline-flex"
+    >
+      {children}
+      {hovering && rect && typeof document !== 'undefined' && createPortal(
+        <div
+          role="tooltip"
+          style={{ left: rect.left, top: rect.top - 6 }}
+          className="fixed z-[1000] pointer-events-none -translate-x-1/2 -translate-y-full"
+        >
+          <div className="tooltip-pop-in relative">
+            <div className="whitespace-nowrap rounded-md bg-foreground text-white text-[10.5px] font-semibold px-2.5 py-1 shadow-lg">
+              <div className="flex items-center gap-1.5">
+                <span>{value}</span>
+                <span className="text-white/55 font-medium">{copied ? 'copied' : 'click to copy'}</span>
+              </div>
+              {subtitle && (
+                <div className="mt-0.5 text-[9px] font-medium text-white/70">
+                  {subtitle}
+                </div>
+              )}
+            </div>
+            <span className="absolute left-1/2 top-full -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-foreground" />
+          </div>
+        </div>,
+        document.body,
+      )}
+    </span>
   );
 }
 
@@ -1704,11 +2118,17 @@ function IconCopyCell({
   onSave,
   kind,
   emptyLabel,
+  tz,
 }: {
   value: string | null | undefined;
   onSave: (next: string) => Promise<void> | void;
   kind: 'phone' | 'email';
   emptyLabel: string;
+  // IANA timezone id (e.g. "America/Phoenix"). When set on a phone
+  // cell, the hover popover gains a "Local: 9:03 AM MST" subtitle so
+  // admissions can see whether it's a polite hour to dial before
+  // they actually pick up the phone.
+  tz?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
@@ -1739,7 +2159,7 @@ function IconCopyCell({
           if (e.key === 'Enter') { e.preventDefault(); void commit(); }
           else if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false); }
         }}
-        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${kind === 'phone' ? 'font-mono tabular-nums' : ''}`}
+        className={`w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30 ${kind === 'phone' ? 'font-mono tabular-nums' : ''}`}
       />
     );
   }
@@ -1760,22 +2180,30 @@ function IconCopyCell({
 
   return (
     <div className="group/icc inline-flex items-center gap-1">
-      <button
-        type="button"
-        onClick={async (e) => {
-          e.stopPropagation();
-          try {
-            await navigator.clipboard.writeText(value);
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1400);
-          } catch { /* clipboard blocked — silent */ }
-        }}
-        title={`${value} · click to copy`}
-        aria-label={`Copy ${kind} — ${value}`}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-foreground hover:bg-warm-bg transition-colors"
+      <HoverPopover
+        value={value}
+        copied={copied}
+        subtitle={kind === 'phone' ? (() => {
+          const lt = localTimeInTz(tz);
+          return lt ? `Local: ${lt.label}${lt.abbr ? ` · ${lt.abbr}` : ''}` : undefined;
+        })() : undefined}
       >
-        {copied ? <CheckIcon /> : (kind === 'phone' ? <PhoneIcon /> : <EmailIcon />)}
-      </button>
+        <button
+          type="button"
+          onClick={async (e) => {
+            e.stopPropagation();
+            try {
+              await navigator.clipboard.writeText(value);
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1400);
+            } catch { /* clipboard blocked — silent */ }
+          }}
+          aria-label={`Copy ${kind} — ${value}`}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-foreground hover:bg-warm-bg transition-colors"
+        >
+          {copied ? <CheckIcon /> : (kind === 'phone' ? <PhoneIcon /> : <EmailIcon />)}
+        </button>
+      </HoverPopover>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setEditing(true); }}
@@ -1787,6 +2215,270 @@ function IconCopyCell({
       </button>
     </div>
   );
+}
+
+// Coerce a freeform URL ("seven-arrows.com", "http://x.com", etc.) into
+// an https:// link safe to drop into href / window.open. Leaves valid
+// http/https URLs alone, rejects anything that doesn't parse so we
+// don't accidentally render a javascript: link from bad input.
+function normaliseUrl(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const withScheme = /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  try {
+    const u = new URL(withScheme);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+// Inline editor + external-link affordance for the Company column.
+// Click the company name to edit in place; click the globe icon (or the
+// "+ Add website" affordance when there isn't one yet) to open the
+// website in a new tab / drop a URL onto the row.
+function CompanyCell({
+  contact,
+  onSaveCompany,
+  onSaveWebsite,
+}: {
+  contact: Contact;
+  onSaveCompany: (next: string) => Promise<void> | void;
+  onSaveWebsite: (next: string) => Promise<void> | void;
+}) {
+  const [editingUrl, setEditingUrl] = useState(false);
+  const [draftUrl, setDraftUrl] = useState(contact.company_website ?? '');
+  const urlRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => { if (!editingUrl) setDraftUrl(contact.company_website ?? ''); }, [contact.company_website, editingUrl]);
+  useEffect(() => { if (editingUrl) { urlRef.current?.focus(); urlRef.current?.select(); } }, [editingUrl]);
+
+  const href = contact.company_website ? normaliseUrl(contact.company_website) : null;
+
+  return (
+    <div className="group/co inline-flex items-center gap-1 min-w-0">
+      <EditableTextCell
+        value={contact.company}
+        onSave={onSaveCompany}
+        className="text-foreground/75 whitespace-nowrap"
+        placeholder="Add company…"
+      />
+      {contact.company && !editingUrl && (
+        href ? (
+          <HoverPopover value={contact.company_website ?? ''} copied={false}>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Open ${contact.company_website} in a new tab`}
+              className="inline-flex items-center justify-center w-5 h-5 rounded text-foreground/45 hover:text-primary hover:bg-warm-bg/60 transition-colors"
+            >
+              <ExternalLinkIcon />
+            </a>
+          </HoverPopover>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setEditingUrl(true); }}
+            title="Add company website"
+            aria-label="Add company website"
+            className="opacity-0 group-hover/co:opacity-100 transition-opacity inline-flex items-center justify-center w-5 h-5 rounded text-foreground/35 hover:text-foreground/70"
+          >
+            <GlobeIcon />
+          </button>
+        )
+      )}
+      {contact.company && editingUrl && (
+        <input
+          ref={urlRef}
+          type="url"
+          value={draftUrl}
+          onChange={(e) => setDraftUrl(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={() => { setEditingUrl(false); void onSaveWebsite(draftUrl); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); setEditingUrl(false); void onSaveWebsite(draftUrl); }
+            else if (e.key === 'Escape') { e.preventDefault(); setEditingUrl(false); }
+          }}
+          placeholder="https://example.com"
+          className="w-44 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+      )}
+    </div>
+  );
+}
+
+// Place autocomplete for the Location column. Types into the input
+// debounce-hits /api/outreach/place-autocomplete; clicking a suggestion
+// hits /api/outreach/place-details, which returns formatted_address +
+// lat / lng + IANA tz. We save all four (plus place_id and the raw
+// `location` string as a redundant fallback for legacy reads) in one
+// PATCH via onSavePlace so the row gets pinned on the map AND gets a
+// timezone for the phone popover in a single click.
+interface PlaceSuggestion {
+  place_id: string;
+  description: string;
+  main: string;
+  secondary: string;
+}
+function PlaceAutocompleteCell({
+  contact,
+  onSavePlace,
+}: {
+  contact: Contact;
+  onSavePlace: (patch: Partial<Contact>) => Promise<void> | void;
+}) {
+  const display = contact.formatted_address || contact.location || '';
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(display);
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const debounceRef = useRef<number | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => { if (!editing) setDraft(display); }, [display, editing]);
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } else {
+      setSuggestions([]);
+    }
+  }, [editing]);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!editing) return;
+    const onDoc = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setEditing(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [editing]);
+
+  function onDraftChange(next: string) {
+    setDraft(next);
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    if (next.trim().length < 2) { setSuggestions([]); return; }
+    debounceRef.current = window.setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/outreach/place-autocomplete?input=${encodeURIComponent(next)}`);
+        if (!res.ok) { setSuggestions([]); return; }
+        const json = (await res.json()) as { suggestions?: PlaceSuggestion[] };
+        setSuggestions(json.suggestions ?? []);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 200);
+  }
+
+  async function pick(s: PlaceSuggestion) {
+    setResolving(true);
+    try {
+      const res = await fetch(`/api/outreach/place-details?place_id=${encodeURIComponent(s.place_id)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as {
+        place_id?: string;
+        formatted_address?: string | null;
+        lat?: number | null;
+        lng?: number | null;
+        tz?: string | null;
+      };
+      await onSavePlace({
+        location: json.formatted_address ?? s.description,
+        formatted_address: json.formatted_address ?? s.description,
+        place_id: json.place_id ?? s.place_id,
+        tz: json.tz ?? null,
+        lat: json.lat ?? null,
+        lng: json.lng ?? null,
+      });
+      setEditing(false);
+    } finally {
+      setResolving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        className="group/loc inline-flex items-center gap-1.5 max-w-full rounded-md px-1 -mx-1 py-0.5 cursor-text hover:bg-warm-bg/60 transition-colors"
+        title={contact.tz ? `${display} · ${contact.tz}` : (display || 'Add location')}
+      >
+        {display ? (
+          <>
+            <PinIcon />
+            <span className="text-foreground/65 whitespace-nowrap truncate">{display}</span>
+          </>
+        ) : (
+          <span className="text-foreground/30 italic text-[11px]">Add location…</span>
+        )}
+      </button>
+    );
+  }
+
+  return (
+    <div ref={wrapperRef} className="relative" onClick={(e) => e.stopPropagation()}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={draft}
+        onChange={(e) => onDraftChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') { e.preventDefault(); setEditing(false); }
+          else if (e.key === 'Enter' && suggestions[0]) { e.preventDefault(); void pick(suggestions[0]); }
+        }}
+        placeholder="Search a city, state, or address…"
+        className="w-full min-w-0 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+      />
+      {(loading || resolving || suggestions.length > 0) && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden">
+          {resolving ? (
+            <div className="px-3 py-2 text-[11px] text-foreground/55">Saving location…</div>
+          ) : loading && suggestions.length === 0 ? (
+            <div className="px-3 py-2 text-[11px] text-foreground/55">Searching…</div>
+          ) : (
+            suggestions.map((s) => (
+              <button
+                key={s.place_id}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); void pick(s); }}
+                className="flex w-full items-start gap-2 px-3 py-1.5 text-left hover:bg-warm-bg/60 transition-colors"
+              >
+                <span className="mt-0.5 text-foreground/40 shrink-0"><PinIcon /></span>
+                <span className="min-w-0">
+                  <span className="block text-[12px] font-semibold text-foreground truncate">{s.main}</span>
+                  {s.secondary && <span className="block text-[10.5px] text-foreground/55 truncate">{s.secondary}</span>}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Compute current local time + short tz abbreviation in a contact's
+// IANA timezone. Returns null if the tz is missing or unparseable.
+function localTimeInTz(tz: string | null | undefined): { label: string; abbr: string } | null {
+  if (!tz) return null;
+  try {
+    const now = new Date();
+    const time = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(now);
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' }).formatToParts(now);
+    const abbr = parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
+    return { label: time, abbr };
+  } catch {
+    return null;
+  }
 }
 
 function ContactMobileCard({
@@ -1807,42 +2499,42 @@ function ContactMobileCard({
     <div className="rounded-xl border border-black/10 bg-white p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-foreground text-base leading-tight">{contact.name}</p>
+          <p className="font-semibold text-foreground text-[13px] leading-tight">{contact.name}</p>
           {contact.company && (
-            <p className="mt-0.5 text-[12px] font-semibold text-foreground/70">{contact.company}</p>
+            <p className="mt-0.5 text-[11px] font-semibold text-foreground/70">{contact.company}</p>
           )}
           {contact.role && (
-            <p className="mt-0.5 text-[12px] text-foreground/60">{contact.role}</p>
+            <p className="mt-0.5 text-[11px] text-foreground/60">{contact.role}</p>
           )}
           {contact.source === 'downgrade-from-partner' && (
-            <p className="mt-1 text-[10px] uppercase tracking-wider text-foreground/40">From partner</p>
+            <p className="mt-1 text-[9px] uppercase tracking-wider text-foreground/40">From partner</p>
           )}
         </div>
         <TimeSinceCell contact={contact} />
       </div>
 
-      <dl className="mt-3 space-y-1.5 text-[13px]">
+      <dl className="mt-3 space-y-1.5 text-[12px]">
         {contact.phone && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Phone</dt>
+            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Phone</dt>
             <dd className="min-w-0 flex-1"><CopyableCell value={contact.phone} mono /></dd>
           </div>
         )}
         {contact.email && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Email</dt>
+            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Email</dt>
             <dd className="min-w-0 flex-1 break-all"><CopyableCell value={contact.email} /></dd>
           </div>
         )}
         {contact.location && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Location</dt>
+            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Location</dt>
             <dd className="text-foreground/75">{contact.location}</dd>
           </div>
         )}
         {contact.notes && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Notes</dt>
+            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Notes</dt>
             <dd className="text-foreground/75 whitespace-pre-wrap">{contact.notes}</dd>
           </div>
         )}
@@ -1858,18 +2550,18 @@ function ContactMobileCard({
               className="w-7 h-7 rounded-full object-cover bg-warm-bg"
             />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[11px] font-semibold text-foreground/55">
+            <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
               {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
             </div>
           )}
           <div className="min-w-0 flex-1 leading-tight">
-            <p className="text-[12px] font-semibold text-foreground truncate">
+            <p className="text-[11px] font-semibold text-foreground truncate">
               {contact.last_contact_by_name || 'Unknown'}
             </p>
-            <p className="text-[10.5px] text-foreground/45">{fmtAbsolute(contact.last_contact_at)}</p>
+            <p className="text-[9px] text-foreground/45">{fmtAbsolute(contact.last_contact_at)}</p>
           </div>
           {contact.last_contact_method && (
-            <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
+            <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
               {contact.last_contact_method}
             </span>
           )}
@@ -1880,7 +2572,7 @@ function ContactMobileCard({
         <button
           type="button"
           onClick={onContact}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-white text-[12px] font-semibold hover:bg-primary/90 transition-colors"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-semibold hover:bg-primary/90 transition-colors"
         >
           <PhoneIcon />
           Contact
@@ -1888,7 +2580,7 @@ function ContactMobileCard({
         <button
           type="button"
           onClick={onHistory}
-          className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-md border border-black/10 text-[12px] font-semibold text-foreground/75 hover:bg-warm-bg/60 transition-colors"
+          className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-md border border-black/10 text-[11px] font-semibold text-foreground/75 hover:bg-warm-bg/60 transition-colors"
         >
           History
         </button>
@@ -1959,40 +2651,10 @@ function CopyableCell({ value, mono }: { value: string; mono?: boolean }) {
   );
 }
 
-function LastContactedBy({ contact }: { contact: Contact }) {
-  if (!contact.last_contact_at) return <Em />;
-  return (
-    <div className="flex items-center gap-2">
-      {contact.last_contact_by_avatar_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={contact.last_contact_by_avatar_url}
-          alt=""
-          className="w-7 h-7 rounded-full object-cover border border-black/10"
-        />
-      ) : (
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[11px] font-bold border border-primary/20">
-          {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
-        </span>
-      )}
-      <div className="min-w-0">
-        <p className="text-[12.5px] font-semibold text-foreground truncate">
-          {contact.last_contact_by_name || '—'}
-        </p>
-        {contact.last_contact_method && (
-          <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
-            {contact.last_contact_method}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
+// Standalone freshness pill — still used by the mobile card layout
+// where the avatar / name / dates render in separate <dl> rows. The
+// desktop grid inlines this logic inside LastContactSummaryCell.
 function TimeSinceCell({ contact }: { contact: Contact }) {
-  // Re-render every 30s so values like "2 minutes" → "3 minutes"
-  // tick forward without a page refresh. Cheap — just a counter
-  // bump that React diffs against a pure render.
   const [, force] = useState(0);
   useEffect(() => {
     const t = setInterval(() => force((n) => n + 1), 30_000);
@@ -2000,21 +2662,19 @@ function TimeSinceCell({ contact }: { contact: Contact }) {
   }, []);
   if (!contact.last_contact_at) {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/10">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/10">
         Never
       </span>
     );
   }
   const s = staleness(contact.last_contact_at);
   const tone =
-    s === 'fresh'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      : s === 'cooling'
-        ? 'bg-amber-50 text-amber-700 border-amber-200'
-        : 'bg-rose-50 text-rose-700 border-rose-200';
+    s === 'fresh' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+    s === 'cooling' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+    'bg-rose-50 text-rose-700 border-rose-200';
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${tone}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${tone}`}
       title={fmtAbsolute(contact.last_contact_at) ?? ''}
     >
       {fmtAgoLong(contact.last_contact_at)}
@@ -2022,20 +2682,78 @@ function TimeSinceCell({ contact }: { contact: Contact }) {
   );
 }
 
-function LastContactCell({ contact }: { contact: Contact }) {
+// Single cell that rolls up the three old engagement columns (Last
+// Contacted By, Time Since, Last Contact) into one compact strip:
+// avatar + name + method chip on top, freshness pill + relative + absolute
+// time on the bottom. Re-renders every 30s so "2 minutes" → "3 minutes"
+// ticks forward without a page refresh — same cheap counter bump the
+// old TimeSinceCell used.
+function LastContactSummaryCell({ contact }: { contact: Contact }) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => force((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
   if (!contact.last_contact_at) {
-    return <span className="text-foreground/40 text-[11px] italic">never contacted</span>;
+    return (
+      <div className="flex items-center gap-2.5">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-foreground/5 border border-foreground/10 text-foreground/30 text-[11px] shrink-0">
+          —
+        </span>
+        <div className="min-w-0">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/10">
+            Never
+          </span>
+          <p className="text-foreground/35 text-[10px] italic mt-0.5">never contacted</p>
+        </div>
+      </div>
+    );
   }
-  const tone =
-    staleness(contact.last_contact_at) === 'fresh'
-      ? 'text-emerald-700'
-      : staleness(contact.last_contact_at) === 'cooling'
-        ? 'text-amber-700'
-        : 'text-rose-700';
+
+  const s = staleness(contact.last_contact_at);
+  const pillTone =
+    s === 'fresh' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+    s === 'cooling' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+    'bg-rose-50 text-rose-700 border-rose-200';
+  const textTone =
+    s === 'fresh' ? 'text-emerald-700' :
+    s === 'cooling' ? 'text-amber-700' :
+    'text-rose-700';
+
   return (
-    <div className="text-[12px]">
-      <p className={`font-semibold ${tone}`}>{fmtAgo(contact.last_contact_at)}</p>
-      <p className="text-foreground/45 mt-0.5 whitespace-nowrap">{fmtAbsolute(contact.last_contact_at)}</p>
+    <div className="flex items-start gap-2.5 min-w-0">
+      {contact.last_contact_by_avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={contact.last_contact_by_avatar_url}
+          alt=""
+          className="w-7 h-7 rounded-full object-cover border border-black/10 shrink-0 mt-0.5"
+        />
+      ) : (
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20 shrink-0 mt-0.5">
+          {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 flex-wrap leading-tight">
+          <p className="text-[11.5px] font-semibold text-foreground truncate max-w-[140px]">
+            {contact.last_contact_by_name || '—'}
+          </p>
+          {contact.last_contact_method && (
+            <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
+              {contact.last_contact_method}
+            </span>
+          )}
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border whitespace-nowrap ${pillTone}`}>
+            {fmtAgoLong(contact.last_contact_at)}
+          </span>
+        </div>
+        <div className="mt-1 text-[10.5px] leading-tight" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
+          <span className={`font-semibold ${textTone}`}>{fmtAgo(contact.last_contact_at)}</span>
+          <span className="text-foreground/45"> · {fmtAbsolute(contact.last_contact_at)}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2079,7 +2797,7 @@ function ManageColumnsButton({
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 z-30 w-60 rounded-xl border border-black/10 bg-white shadow-lg overflow-hidden">
-          <p className="px-3 py-2 text-[10px] font-bold tracking-[0.2em] uppercase text-foreground/45 border-b border-black/5">
+          <p className="px-3 py-2 text-[9px] font-bold tracking-[0.2em] uppercase text-foreground/45 border-b border-black/5">
             Visible columns
           </p>
           <ul className="py-1 max-h-80 overflow-y-auto">
@@ -2087,7 +2805,7 @@ function ManageColumnsButton({
               const checked = visibleCols.includes(c.key);
               return (
                 <li key={c.key}>
-                  <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-warm-bg/60 cursor-pointer text-[12.5px]">
+                  <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-warm-bg/60 cursor-pointer text-[11.5px]">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -2100,7 +2818,7 @@ function ManageColumnsButton({
               );
             })}
           </ul>
-          <p className="px-3 py-2 border-t border-black/5 text-[10px] text-foreground/45">
+          <p className="px-3 py-2 border-t border-black/5 text-[9px] text-foreground/45">
             Saves for everyone — drag headers to reorder.
           </p>
         </div>
@@ -2249,10 +2967,10 @@ function LogContactModal({
               className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left"
               aria-expanded={showTranscript}
             >
-              <span className="text-[12px] font-semibold text-foreground/75">
+              <span className="text-[11px] font-semibold text-foreground/75">
                 Paste transcript {transcript.trim() && <span className="ml-1 text-primary">· {transcript.trim().length.toLocaleString()} chars</span>}
               </span>
-              <span className="text-[11px] text-foreground/50">
+              <span className="text-[10px] text-foreground/50">
                 {showTranscript ? 'Hide' : 'Claude will summarise it for the history'}
               </span>
             </button>
@@ -2262,10 +2980,10 @@ function LogContactModal({
                   value={transcript}
                   onChange={(e) => setTranscript(e.target.value)}
                   rows={8}
-                  className="modal-input resize-y font-mono text-[12px]"
+                  className="modal-input resize-y font-mono text-[11px]"
                   placeholder="Paste a call recording / meeting transcript here. We'll save the full text and Claude will write a short summary that shows up in the contact history."
                 />
-                <p className="mt-1.5 text-[11px] text-foreground/50">
+                <p className="mt-1.5 text-[10px] text-foreground/50">
                   Stored privately. Only people who can see this contact will be able to open the full transcript.
                 </p>
               </div>
@@ -2342,14 +3060,14 @@ function ContactDetailsDrawer({
     <div className="rounded-xl border border-black/10 bg-white shadow-sm">
       <div className="flex items-start justify-between gap-4 border-b border-black/5 px-5 py-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/40">Contact details</p>
-          <p className="mt-0.5 text-base font-semibold text-foreground truncate">{contact.name}</p>
+          <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground/40">Contact details</p>
+          <p className="mt-0.5 text-[13px] font-semibold text-foreground truncate">{contact.name}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={onLogContact}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[11px] font-semibold hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[10px] font-semibold hover:bg-primary/90 transition-colors"
           >
             <PhoneIcon />
             Log a contact
@@ -2367,16 +3085,16 @@ function ContactDetailsDrawer({
 
       <div className="grid md:grid-cols-2 gap-x-6">
         <div className="px-5 py-4 md:border-r md:border-black/5">
-          <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-[13px]">
+          <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-[12px]">
             {detailRows.map((r) => (
               <Fragment key={r.label}>
-                <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">{r.label}</dt>
+                <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">{r.label}</dt>
                 <dd className="text-foreground/80 break-words">{r.value || <span className="text-foreground/30 italic">—</span>}</dd>
               </Fragment>
             ))}
             {contact.notes && (
               <>
-                <dt className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">Notes</dt>
+                <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">Notes</dt>
                 <dd className="text-foreground/80 whitespace-pre-wrap leading-relaxed">{contact.notes}</dd>
               </>
             )}
@@ -2385,7 +3103,7 @@ function ContactDetailsDrawer({
 
         <div className="px-5 py-4">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/45">Contact history</p>
+            <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground/45">Contact history</p>
             <p className="text-xs text-foreground/45">
               {logs == null
                 ? 'Loading…'
@@ -2395,7 +3113,7 @@ function ContactDetailsDrawer({
             </p>
           </div>
           {error && (
-            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
           )}
           {logs && logs.length > 0 && (
             <ol className="relative border-l border-black/10 ml-2">
@@ -2415,24 +3133,24 @@ function ContactDetailsDrawer({
                         className="w-7 h-7 rounded-full object-cover bg-warm-bg"
                       />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
+                      <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[9px] font-semibold text-foreground/55">
                         {(log.contacted_by_name || '?').charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <p className="text-[13px] font-semibold text-foreground">
+                        <p className="text-[12px] font-semibold text-foreground">
                           {log.contacted_by_name || 'Unknown'}
                         </p>
-                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${METHOD_TONES[log.method]}`}>
+                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[log.method]}`}>
                           {log.method}
                         </span>
-                        <span className="text-[11px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
+                        <span className="text-[10px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
                           {fmtAgo(log.contacted_at)}
                         </span>
                       </div>
                       {log.comments && (
-                        <p className="mt-1 text-[13px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
+                        <p className="mt-1 text-[12px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
                           {log.comments}
                         </p>
                       )}
@@ -2502,21 +3220,21 @@ function TranscriptBlock({
         </span>
         <div className="min-w-0 flex-1">
           {summary ? (
-            <p className="text-[12px] text-foreground/80 whitespace-pre-wrap leading-relaxed">{summary}</p>
+            <p className="text-[11px] text-foreground/80 whitespace-pre-wrap leading-relaxed">{summary}</p>
           ) : (
-            <p className="text-[12px] text-foreground/45 italic">Summary unavailable.</p>
+            <p className="text-[11px] text-foreground/45 italic">Summary unavailable.</p>
           )}
           {hasTranscript && (
             <button
               type="button"
               onClick={toggle}
-              className="mt-1 text-[11px] font-semibold text-primary hover:underline"
+              className="mt-1 text-[10px] font-semibold text-primary hover:underline"
             >
               {expanded ? 'Hide full transcript' : 'View full transcript'}
             </button>
           )}
           {expanded && hasTranscript && (
-            <div className="mt-2 max-h-64 overflow-y-auto rounded border border-black/10 bg-white px-2 py-1.5 text-[11px] text-foreground/75 font-mono whitespace-pre-wrap">
+            <div className="mt-2 max-h-64 overflow-y-auto rounded border border-black/10 bg-white px-2 py-1.5 text-[10px] text-foreground/75 font-mono whitespace-pre-wrap">
               {loading ? 'Loading transcript…' : err ? `Failed to load: ${err}` : (transcript ?? '')}
             </div>
           )}
@@ -2593,7 +3311,7 @@ function UpgradeToPartnerModal({
     >
       <form onSubmit={submit}>
         <div className="px-6 py-5">
-          <div className="rounded-lg bg-warm-bg/60 border border-black/5 px-4 py-3 mb-5 text-[12px] text-foreground/65 leading-snug">
+          <div className="rounded-lg bg-warm-bg/60 border border-black/5 px-4 py-3 mb-5 text-[11px] text-foreground/65 leading-snug">
             Pre-filled from <span className="font-semibold text-foreground">{contact.name}</span>:
             point of contact, contact info{contact.location ? ', and location' : ''}. Fill in the
             partner-specific fields below — the contact will be removed from the
@@ -2641,7 +3359,7 @@ function UpgradeToPartnerModal({
                       type="button"
                       key={c}
                       onClick={() => setInsurance((prev) => toggleArray(prev, c))}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors ${
                         active ? 'bg-primary/10 text-primary border-primary/25' : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
                       }`}
                     >
@@ -2668,7 +3386,7 @@ function UpgradeToPartnerModal({
                       key={l}
                       disabled={!isFacility}
                       onClick={() => setLevels((prev) => toggleArray(prev, l))}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors ${
                         active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
                       }`}
                     >
@@ -2725,8 +3443,8 @@ function ModalShell({
         </div>
         <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
-            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">{eyebrow}</p>
-            <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{title}</h2>
+            <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-foreground/45">{eyebrow}</p>
+            <h2 className="text-base font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{title}</h2>
           </div>
           <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground p-2 -mr-2" aria-label="Close">
             <CloseIcon />
@@ -2774,11 +3492,11 @@ function ModalField({
 }) {
   return (
     <div className={full ? 'sm:col-span-2' : ''}>
-      <label className={`block text-[10px] font-bold tracking-[0.18em] uppercase mb-1 ${disabled ? 'text-foreground/30' : 'text-foreground/55'}`}>
+      <label className={`block text-[9px] font-bold tracking-[0.18em] uppercase mb-1 ${disabled ? 'text-foreground/30' : 'text-foreground/55'}`}>
         {label} {required && <span className="text-primary">*</span>}
       </label>
       {children}
-      {hint && <p className={`mt-1 text-[11px] ${disabled ? 'text-foreground/30' : 'text-foreground/45'}`}>{hint}</p>}
+      {hint && <p className={`mt-1 text-[10px] ${disabled ? 'text-foreground/30' : 'text-foreground/45'}`}>{hint}</p>}
     </div>
   );
 }
@@ -2832,6 +3550,15 @@ function PencilIcon() {
 }
 function ChevronDownIcon() {
   return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>;
+}
+function GlobeIcon() {
+  return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>;
+}
+function ExternalLinkIcon() {
+  return <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 3h7v7"/><path d="M21 3l-9 9"/><path d="M21 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h5"/></svg>;
+}
+function PinIcon() {
+  return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 22s-7-7-7-12a7 7 0 0114 0c0 5-7 12-7 12z"/><circle cx="12" cy="10" r="3"/></svg>;
 }
 function DotsIcon() {
   return <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>;
@@ -3010,8 +3737,8 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
         </div>
         <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
           <div>
-            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Bulk import</p>
-            <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Import contacts from CSV</h2>
+            <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-foreground/45">Bulk import</p>
+            <h2 className="text-base font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Import contacts from CSV</h2>
           </div>
           <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground p-2 -mr-2" aria-label="Close">
             <CloseIcon />
@@ -3021,7 +3748,7 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
         <div className="px-6 py-5 space-y-4">
           {/* Step 1: pick file */}
           <div>
-            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">1 · Upload CSV</p>
+            <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">1 · Upload CSV</p>
             <label className="block rounded-xl border-2 border-dashed border-black/15 bg-warm-bg/30 px-4 py-6 text-center cursor-pointer hover:border-primary/45 hover:bg-primary/5 transition-colors">
               <input
                 type="file"
@@ -3029,12 +3756,12 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
                 className="sr-only"
                 onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
               />
-              <p className="text-sm font-semibold text-foreground">{file ? file.name : 'Click to choose a .csv'}</p>
-              <p className="mt-1 text-[11.5px] text-foreground/55">
+              <p className="text-[13px] font-semibold text-foreground">{file ? file.name : 'Click to choose a .csv'}</p>
+              <p className="mt-1 text-[10.5px] text-foreground/55">
                 Up to 1MB. Headers will be auto-detected — column names like &quot;Phone #&quot; or &quot;City, State&quot; are fine.
               </p>
             </label>
-            <div className="mt-2 flex items-center justify-between text-[11px]">
+            <div className="mt-2 flex items-center justify-between text-[10px]">
               <button type="button" onClick={downloadTemplate} className="text-primary hover:underline">
                 Download template CSV
               </button>
@@ -3049,11 +3776,11 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
           {/* Step 2: AI normalise */}
           {parsed && parsed.rows.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
+              <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
                 2 · Let Claude normalise
               </p>
               <div className="rounded-xl border border-black/10 bg-white px-4 py-3">
-                <p className="text-[12.5px] text-foreground/65 leading-snug">
+                <p className="text-[11.5px] text-foreground/65 leading-snug">
                   Claude maps your headers to our schema, combines split first / last name columns,
                   normalises phone numbers, and tidies whitespace. The server re-validates every row
                   before insert, so a bad mapping can&apos;t bypass the rules.
@@ -3062,7 +3789,7 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
                   type="button"
                   onClick={runAi}
                   disabled={normalising || !!normalised}
-                  className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-primary-dark disabled:opacity-50"
+                  className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-primary-dark disabled:opacity-50"
                 >
                   {normalising ? (
                     <>
@@ -3073,7 +3800,7 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
                     : 'Normalise with Claude'}
                 </button>
                 {aiNotes && (
-                  <p className="mt-2 text-[11.5px] text-foreground/55 italic">{aiNotes}</p>
+                  <p className="mt-2 text-[10.5px] text-foreground/55 italic">{aiNotes}</p>
                 )}
               </div>
             </div>
@@ -3082,10 +3809,10 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
           {/* Step 3: preview + import */}
           {normalised && normalised.length > 0 && !result && (
             <div>
-              <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">3 · Preview &amp; import</p>
+              <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">3 · Preview &amp; import</p>
               <div className="overflow-x-auto rounded-xl border border-black/10 bg-white max-h-72">
-                <table className="w-full text-[12.5px]">
-                  <thead className="bg-warm-bg/60 text-left text-[10.5px] uppercase tracking-wider text-foreground/55 sticky top-0">
+                <table className="w-full text-[11.5px]">
+                  <thead className="bg-warm-bg/60 text-left text-[9px] uppercase tracking-wider text-foreground/55 sticky top-0">
                     <tr>
                       <th className="px-3 py-2">Name</th>
                       <th className="px-3 py-2">Role</th>
@@ -3108,13 +3835,13 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
                 </table>
               </div>
               {normalised.length > 50 && (
-                <p className="mt-1 text-[11px] text-foreground/45">+ {normalised.length - 50} more not shown</p>
+                <p className="mt-1 text-[10px] text-foreground/45">+ {normalised.length - 50} more not shown</p>
               )}
               <button
                 type="button"
                 onClick={runImport}
                 disabled={importing}
-                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85 disabled:opacity-50"
+                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-foreground text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-foreground/85 disabled:opacity-50"
               >
                 {importing ? (
                   <>
@@ -3129,12 +3856,12 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
           {/* Done */}
           {result && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
-              <p className="text-sm font-semibold text-emerald-900">
+              <p className="text-[13px] font-semibold text-emerald-900">
                 Created {result.created} {result.created === 1 ? 'contact' : 'contacts'}
                 {result.skipped > 0 && <span className="text-foreground/55"> · {result.skipped} skipped</span>}
               </p>
               {result.errors.length > 0 && (
-                <ul className="mt-2 space-y-0.5 text-[12px] text-foreground/70 max-h-32 overflow-y-auto">
+                <ul className="mt-2 space-y-0.5 text-[11px] text-foreground/70 max-h-32 overflow-y-auto">
                   {result.errors.slice(0, 20).map((e, i) => (
                     <li key={i}><span className="text-foreground/45">Row {e.row}:</span> {e.reason}</li>
                   ))}
@@ -3147,7 +3874,7 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
           )}
 
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
           )}
         </div>
 
