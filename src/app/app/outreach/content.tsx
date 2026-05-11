@@ -514,6 +514,20 @@ export default function ContactsContent() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
   }, [rows]);
 
+  // Same pattern as companyOptions: seed the Role/Relation dropdown with
+  // the canonical PARTNER_TYPES, then union in whatever ad-hoc role
+  // strings already exist on rows so legacy values aren't hidden from
+  // the picker. SearchSelectCell still allows "+ Add new" so admissions
+  // can introduce a fresh role on the fly.
+  const roleOptions = useMemo(() => {
+    const set = new Set<string>(PARTNER_TYPES);
+    for (const r of rows) {
+      const v = (r.role ?? '').trim();
+      if (v) set.add(v);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+  }, [rows]);
+
   // Headline counts for the insight tiles at the top of the page.
   // Always computed against the unfiltered `rows` (not the filtered
   // view) because the tiles describe the whole pipeline, not what's
@@ -867,6 +881,7 @@ export default function ContactsContent() {
         onSaveField={handleSaveField}
         onSavePatch={handleSavePatch}
         companyOptions={companyOptions}
+        roleOptions={roleOptions}
         actionMenuFor={actionMenuFor}
         setActionMenuFor={setActionMenuFor}
         columnWidths={columnWidths}
@@ -1220,6 +1235,7 @@ function ContactsGrid({
   onOpenLog,
   isNewToUser,
   companyOptions,
+  roleOptions,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -1248,6 +1264,7 @@ function ContactsGrid({
   onOpenLog: (c: Contact) => void;
   isNewToUser: (c: Contact) => boolean;
   companyOptions: string[];
+  roleOptions: string[];
 }) {
   // Tracks the row whose notes-editor strip is currently expanded.
   // Click the notes cell to toggle. Persists across rerenders via a
@@ -1399,7 +1416,7 @@ function ContactsGrid({
                   }
                   return (
                     <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} companyOptions={companyOptions} />
+                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} companyOptions={companyOptions} roleOptions={roleOptions} />
                     </td>
                   );
                 })}
@@ -1915,6 +1932,7 @@ function ContactCell({
   onSavePatch,
   isNew = false,
   companyOptions = [],
+  roleOptions = [],
 }: {
   column: ColumnDef;
   contact: Contact;
@@ -1922,6 +1940,7 @@ function ContactCell({
   onSavePatch: (id: string, patch: Partial<Contact>) => Promise<void>;
   isNew?: boolean;
   companyOptions?: string[];
+  roleOptions?: string[];
 }) {
   const save = (field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location') => (next: string) =>
     onSaveField(contact.id, field, next);
@@ -1972,10 +1991,10 @@ function ContactCell({
       );
     case 'role':
       return (
-        <EditableTextCell
+        <SearchSelectCell
           value={contact.role}
-          onSave={save('role')}
-          className="text-foreground/70"
+          options={roleOptions}
+          onSave={(next) => onSaveField(contact.id, 'role', next ?? '')}
           placeholder="Add role…"
         />
       );
@@ -2445,11 +2464,12 @@ function RatingCell({
         ref={triggerRef}
         type="button"
         onClick={toggle}
-        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${triggerCx}`}
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${triggerCx} ${value === 'Tier 1' ? 'sa-tier1-premium' : ''}`}
         title={value ? `Rating: ${value}` : 'Set rating'}
         aria-haspopup="menu"
         aria-expanded={open}
       >
+        {value === 'Tier 1' && <span aria-hidden className="text-amber-500">★</span>}
         {value ?? '— Set tier —'}
         <ChevronDownIcon />
       </button>
@@ -2467,7 +2487,10 @@ function RatingCell({
               onMouseDown={(e) => { e.preventDefault(); setOpen(false); void onSave(t); }}
               className={`flex w-full items-center justify-between px-2.5 py-1.5 text-left text-[11px] font-semibold hover:bg-warm-bg/60 transition-colors ${value === t ? 'text-foreground' : 'text-foreground/70'}`}
             >
-              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${RATING_TONES[t]}`}>{t}</span>
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${RATING_TONES[t]} ${t === 'Tier 1' ? 'sa-tier1-premium' : ''}`}>
+                {t === 'Tier 1' && <span aria-hidden className="text-amber-500">★</span>}
+                {t}
+              </span>
               {value === t && <CheckIcon />}
             </button>
           ))}
