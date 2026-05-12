@@ -123,7 +123,14 @@ const ALL_COLUMNS: ColumnDef[] = [
 // keep them adjacent in the same order — they get re-grouped together
 // if any one of them is moved, so the strip never fragments.
 const IDENTITY_GROUP: readonly string[] = ['website', 'company', 'type', 'specialty'] as const;
-const TYPE_OPTIONS: readonly string[] = ['Detox', 'PHP', 'IOP'] as const;
+// Seed vocabulary for the Type pill dropdown. The first three are the
+// "first-touch" outreach tags admissions used before this column
+// existed; PARTNER_TYPES is appended so the dropdown mirrors what the
+// partnerships page offers (a contact upgraded into a partner can
+// keep the same tag with no re-entry). De-duplicated below.
+const TYPE_OPTIONS: readonly string[] = Array.from(new Set<string>(
+  ['Detox', 'PHP', 'IOP', ...PARTNER_TYPES]
+));
 
 
 const RATING_TONES: Record<ContactRating, string> = {
@@ -3956,10 +3963,18 @@ function RatingCell({
 // is unioned with TYPE_OPTIONS so admissions can introduce new tags
 // inline (typed via the modal / API) and they show up alongside the
 // canonical three.
+// Mirrors the partnerships page palette so a contact and its linked
+// partner read with the same tag color across surfaces. PHP / IOP
+// aren't in PARTNER_TYPES so they get their own distinct tones.
 const TYPE_TONES: Record<string, string> = {
-  Detox: 'bg-sky-50 text-sky-700 border-sky-200',
+  Detox: 'bg-rose-50 text-rose-800 border-rose-200',
+  RTC: 'bg-amber-50 text-amber-800 border-amber-200',
+  Outpatient: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  'Extended Care': 'bg-teal-50 text-teal-800 border-teal-200',
+  Interventionist: 'bg-blue-50 text-blue-800 border-blue-200',
+  Therapist: 'bg-indigo-50 text-indigo-800 border-indigo-200',
   PHP: 'bg-violet-50 text-violet-700 border-violet-200',
-  IOP: 'bg-teal-50 text-teal-700 border-teal-200',
+  IOP: 'bg-cyan-50 text-cyan-700 border-cyan-200',
 };
 function TypeCell({
   value,
