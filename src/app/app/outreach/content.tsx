@@ -3204,7 +3204,13 @@ function ContactCell({
       );
     case 'contact':
       return (
-        <div className="inline-flex items-center gap-0.5">
+        // Cluster the three icons (cell / office / email) into a
+        // single visual unit so admissions reads "this row's contact
+        // surface" as one widget, not three loose buttons. Hairline
+        // border + warm-bg fill behind the row, gap-0 so adjacent
+        // hover states line up flush, and px-0.5 keeps the leading /
+        // trailing icons from kissing the container edge.
+        <div className="inline-flex items-center gap-0 px-0.5 rounded-lg border border-foreground/10 bg-foreground/[0.025]">
           <IconCopyCell
             value={contact.phone_cell ?? contact.phone}
             onSave={save('phone_cell')}
