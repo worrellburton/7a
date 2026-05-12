@@ -1570,12 +1570,12 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
                     </Td>
                     <Td>
                       {r.message ? (
-                        <p className="text-xs text-foreground/80 line-clamp-3 whitespace-pre-wrap max-w-[340px]">{r.message}</p>
+                        <p className="text-xs text-foreground/80 whitespace-pre-wrap break-words max-w-[420px]">{r.message}</p>
                       ) : (
                         <span className="text-foreground/40">—</span>
                       )}
                       {(r.page_url || r.referrer) && (
-                        <p className="text-[11px] text-foreground/40 mt-1 truncate max-w-[340px]">
+                        <p className="text-[11px] text-foreground/40 mt-1 truncate max-w-[420px]">
                           {r.page_url ? `From: ${r.page_url}` : `Referrer: ${r.referrer}`}
                         </p>
                       )}
