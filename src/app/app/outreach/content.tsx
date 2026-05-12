@@ -31,6 +31,15 @@ interface Contact {
   name: string;
   company: string | null;
   company_website: string | null;
+  // Categorical service-type tag (Detox / PHP / IOP …). Mirrors the
+  // partnerships.type column semantically but with a smaller starting
+  // vocabulary the outreach team uses on first touch. Open-vocabulary
+  // — admissions can add new tags inline and they survive as options.
+  type: string | null;
+  // Free-text clinical specialty / focus area (Trauma, Eating Disorders,
+  // …). Mirrors partners.specialty so a contact upgraded into a partner
+  // carries the same tag with no re-entry.
+  specialty: string | null;
   rating: ContactRating | null;
   role: string | null;
   phone: string | null;
@@ -76,17 +85,29 @@ interface ColumnDef {
 
 const ALL_COLUMNS: ColumnDef[] = [
   // Column order locked in by admissions:
-  //   Name → Rating → Company → Site → Contact → Location → Notes → Role/Relation
+  //   Name → Rating → Site → Company → Type → Specialty/Focus → Contact → Location → Notes → Role/Relation
   // Rating leads (right after Name) so the tier qualifier is the
-  // first thing you see. Site → Contact → Location flow as a
-  // contiguous outreach block. Notes lives just after Location so the
-  // free-text context sits next to the address. Role / Relation
-  // anchors the right end. Contact history + Actions are sticky on
-  // the right (rendered outside this array).
+  // first thing you see. Site → Company → Type → Specialty / Focus
+  // sit as a contiguous "who is this contact / what do they do" block —
+  // the four columns are intentionally adjacent so the eye reads them
+  // as one identity strip and admissions can't reorder them apart
+  // without re-grouping deliberately. Contact → Location follow as the
+  // outreach block. Notes lives just after Location so the free-text
+  // context sits next to the address. Role / Relation anchors the
+  // right end. Contact history + Actions are sticky on the right
+  // (rendered outside this array).
   { key: 'name', label: 'Name' },
   { key: 'rating', label: 'Rating' },
-  { key: 'company', label: 'Company' },
   { key: 'website', label: 'Site', align: 'left' },
+  { key: 'company', label: 'Company' },
+  // "Type" mirrors partnerships.type — a categorical service-type tag
+  // (Detox / PHP / IOP …). Open vocabulary on the DB; the picker seeds
+  // the three starting options and surfaces new tags inline.
+  { key: 'type', label: 'Type' },
+  // "Specialty / Focus" mirrors partnerships.specialty — free-text,
+  // searched + selected via SearchSelectCell, with options sourced from
+  // every value already in the dataset so new tags propagate.
+  { key: 'specialty', label: 'Specialty / Focus' },
   // Merged "Contact" cell. Renders the cell phone, office phone, and
   // email as 3 icon buttons in a row. Each carries its own hover
   // popover + click-to-copy / click-to-open-link. Location moved out
@@ -96,6 +117,13 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: 'notes', label: 'Notes' },
   { key: 'role', label: 'Role / Relation' },
 ];
+
+// Site → Company → Type → Specialty/Focus render as one visual identity
+// strip. Drag-reorder and the column-picker both consult this set to
+// keep them adjacent in the same order — they get re-grouped together
+// if any one of them is moved, so the strip never fragments.
+const IDENTITY_GROUP: readonly string[] = ['website', 'company', 'type', 'specialty'] as const;
+const TYPE_OPTIONS: readonly string[] = ['Detox', 'PHP', 'IOP'] as const;
 
 
 const RATING_TONES: Record<ContactRating, string> = {
@@ -117,6 +145,8 @@ const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
   name: 200,
   company: 180,
   website: 60,
+  type: 110,
+  specialty: 180,
   rating: 110,
   role: 180,
   // "Contact" column — 3 icons (cell, office, email) plus their hover
@@ -284,6 +314,10 @@ export default function ContactsContent() {
   }, [viewMode, session?.access_token, rows]);
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  // "Add with Claude" flow — opens a wizard modal that asks Claude
+  // for candidate referrers/leads, lets admissions cherry-pick which
+  // ones to keep, and bulk-inserts the selected rows.
+  const [showSuggest, setShowSuggest] = useState(false);
   const [showCols, setShowCols] = useState(false);
   const [logTarget, setLogTarget] = useState<Contact | null>(null);
   const [upgradeTarget, setUpgradeTarget] = useState<Contact | null>(null);
@@ -574,6 +608,28 @@ export default function ContactsContent() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
   }, [rows]);
 
+  // Type & Specialty options: seed Type with the three canonical
+  // starting tags (Detox / PHP / IOP) plus anything admissions has
+  // already typed in. Specialty is fully open-vocabulary — only
+  // seeded with values already on rows so the suggestion list
+  // doesn't lie about what's "official".
+  const typeOptions = useMemo(() => {
+    const set = new Set<string>(TYPE_OPTIONS);
+    for (const r of rows) {
+      const v = (r.type ?? '').trim();
+      if (v) set.add(v);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+  }, [rows]);
+  const specialtyOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) {
+      const v = (r.specialty ?? '').trim();
+      if (v) set.add(v);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+  }, [rows]);
+
   // Headline counts for the insight tiles at the top of the page.
   // Always computed against the unfiltered `rows` (not the filtered
   // view) because the tiles describe the whole pipeline, not what's
@@ -818,6 +874,14 @@ export default function ContactsContent() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setShowSuggest(true)}
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 sm:py-2 rounded-lg border border-primary/30 bg-primary/5 text-primary text-xs font-semibold uppercase tracking-wider hover:bg-primary/10 transition-colors"
+          >
+            <SparkleIcon />
+            Add with Claude
+          </button>
+          <button
+            type="button"
             onClick={() => setShowImport(true)}
             className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-foreground text-xs font-semibold uppercase tracking-wider hover:bg-warm-bg/60 transition-colors"
           >
@@ -924,6 +988,8 @@ export default function ContactsContent() {
         onSavePatch={handleSavePatch}
         companyOptions={companyOptions}
         roleOptions={roleOptions}
+        typeOptions={typeOptions}
+        specialtyOptions={specialtyOptions}
         actionMenuFor={actionMenuFor}
         setActionMenuFor={setActionMenuFor}
         columnWidths={columnWidths}
@@ -936,6 +1002,21 @@ export default function ContactsContent() {
 
       {showAdd && (
         <AddContactModal onClose={() => setShowAdd(false)} onSubmit={handleAdd} />
+      )}
+      {showSuggest && (
+        <SuggestWithClaudeModal
+          token={session?.access_token ?? null}
+          onClose={() => setShowSuggest(false)}
+          onInserted={(inserted) => {
+            // Optimistic prepend so the new rows show up in the grid
+            // immediately. Realtime will reconcile if the server picks
+            // up something slightly different (e.g. trigger-set columns).
+            if (inserted.length > 0) {
+              setRows((prev) => [...inserted, ...prev]);
+            }
+            setShowSuggest(false);
+          }}
+        />
       )}
       {showImport && (
         <ImportCsvModal
@@ -2443,6 +2524,8 @@ function ContactsGrid({
   isNewToUser,
   companyOptions,
   roleOptions,
+  typeOptions,
+  specialtyOptions,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -2472,6 +2555,8 @@ function ContactsGrid({
   isNewToUser: (c: Contact) => boolean;
   companyOptions: string[];
   roleOptions: string[];
+  typeOptions: string[];
+  specialtyOptions: string[];
 }) {
   // Tracks the row whose notes-editor strip is currently expanded.
   // Click the notes cell to toggle. Persists across rerenders via a
@@ -2620,7 +2705,7 @@ function ContactsGrid({
                   }
                   return (
                     <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} companyOptions={companyOptions} roleOptions={roleOptions} />
+                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} companyOptions={companyOptions} roleOptions={roleOptions} typeOptions={typeOptions} specialtyOptions={specialtyOptions} />
                     </td>
                   );
                 })}
@@ -3137,6 +3222,8 @@ function ContactCell({
   isNew = false,
   companyOptions = [],
   roleOptions = [],
+  typeOptions = [],
+  specialtyOptions = [],
 }: {
   column: ColumnDef;
   contact: Contact;
@@ -3145,6 +3232,8 @@ function ContactCell({
   isNew?: boolean;
   companyOptions?: string[];
   roleOptions?: string[];
+  typeOptions?: string[];
+  specialtyOptions?: string[];
 }) {
   const save = (field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location') => (next: string) =>
     onSaveField(contact.id, field, next);
@@ -3191,6 +3280,23 @@ function ContactCell({
         <RatingCell
           value={contact.rating}
           onSave={(next) => onSavePatch(contact.id, { rating: next })}
+        />
+      );
+    case 'type':
+      return (
+        <TypeCell
+          value={contact.type}
+          options={typeOptions}
+          onSave={(next) => onSavePatch(contact.id, { type: next })}
+        />
+      );
+    case 'specialty':
+      return (
+        <SearchSelectCell
+          value={contact.specialty}
+          options={specialtyOptions}
+          onSave={(next) => onSavePatch(contact.id, { specialty: next ?? null })}
+          placeholder="Set specialty…"
         />
       );
     case 'role':
@@ -3371,25 +3477,50 @@ function HoverPopover({
   value,
   copied,
   subtitle,
+  onEdit,
   children,
 }: {
   value: string;
   copied: boolean;
   subtitle?: string;
+  // Optional edit callback. When set, the popover renders a small pencil
+  // button alongside the value — clicking it fires `onEdit` and gives
+  // every hover-revealed icon a single, predictable place to edit from.
+  // (Per UX direction: the pencil lives inside the hover surface, not
+  // floating to the right of the cell where it crowds adjacent
+  // columns.) Switches the popover to pointer-events-auto so the
+  // button is actually clickable; otherwise the popover stays a
+  // pointer-events-none tooltip.
+  onEdit?: () => void;
   children: React.ReactNode;
 }) {
   const triggerRef = useRef<HTMLSpanElement | null>(null);
   const [hovering, setHovering] = useState(false);
   const [rect, setRect] = useState<{ left: number; top: number } | null>(null);
+  // 120ms grace window so the user can slide the cursor from the
+  // trigger into the popover (where the Edit pencil lives) without the
+  // popover dismissing mid-movement. Only relevant when onEdit is set —
+  // the pointer-events-none branch doesn't need it.
+  const closeTimer = useRef<number | null>(null);
 
   function enter() {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
     if (triggerRef.current) {
       const r = triggerRef.current.getBoundingClientRect();
       setRect({ left: r.left + r.width / 2, top: r.top });
     }
     setHovering(true);
   }
-  function leave() { setHovering(false); }
+  function leave() {
+    if (onEdit) {
+      closeTimer.current = window.setTimeout(() => setHovering(false), 120);
+    } else {
+      setHovering(false);
+    }
+  }
 
   return (
     <span
@@ -3405,13 +3536,26 @@ function HoverPopover({
         <div
           role="tooltip"
           style={{ left: rect.left, top: rect.top - 6 }}
-          className="fixed z-[1000] pointer-events-none -translate-x-1/2 -translate-y-full"
+          className={`fixed z-[1000] -translate-x-1/2 -translate-y-full ${onEdit ? '' : 'pointer-events-none'}`}
+          onMouseEnter={onEdit ? enter : undefined}
+          onMouseLeave={onEdit ? leave : undefined}
         >
           <div className="tooltip-pop-in relative">
             <div className="whitespace-nowrap rounded-md bg-foreground text-white text-[10.5px] font-semibold px-2.5 py-1 shadow-lg">
               <div className="flex items-center gap-1.5">
                 <span>{value}</span>
                 <span className="text-white/55 font-medium">{copied ? 'copied' : 'click to copy'}</span>
+                {onEdit && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onEdit(); setHovering(false); }}
+                    aria-label="Edit"
+                    title="Edit"
+                    className="ml-0.5 inline-flex items-center justify-center w-4 h-4 rounded text-white/65 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <PencilIcon />
+                  </button>
+                )}
               </div>
               {subtitle && (
                 <div className="mt-0.5 text-[9px] font-medium text-white/70">
@@ -3505,10 +3649,11 @@ function IconCopyCell({
 
   const kindLabel = kind === 'cell' ? 'cell' : kind === 'office' ? 'office' : kind;
   return (
-    <div className="group/icc inline-flex items-center gap-1">
+    <div className="inline-flex items-center">
       <HoverPopover
         value={value}
         copied={copied}
+        onEdit={() => setEditing(true)}
         subtitle={isPhone ? (() => {
           const lt = localTimeInTz(tz);
           const labelPrefix = kind === 'cell' ? 'Cell · ' : kind === 'office' ? 'Office · ' : '';
@@ -3532,15 +3677,6 @@ function IconCopyCell({
           {copied ? <CheckIcon /> : <IconForKind kind={kind} />}
         </button>
       </HoverPopover>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-        title="Edit"
-        aria-label="Edit"
-        className="opacity-0 group-hover/icc:opacity-100 transition-opacity inline-flex items-center justify-center w-5 h-5 rounded text-foreground/35 hover:text-foreground/70"
-      >
-        <PencilIcon />
-      </button>
     </div>
   );
 }
@@ -3558,74 +3694,89 @@ function WebsiteCell({
   value: string | null | undefined;
   onSave: (next: string) => Promise<void> | void;
 }) {
+  // Site is a deliberately narrow column (60px default) so the editor
+  // can't render in-flow — a 176px input would have crashed into the
+  // adjacent Company / Rating cells (the overlap admissions hit before
+  // this refactor). Instead the editor portals to document.body and
+  // anchors to the trigger's viewport rect, giving it room to breathe
+  // without bumping the grid layout.
+  const triggerRef = useRef<HTMLDivElement | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
   useEffect(() => { if (!editing) setDraft(value ?? ''); }, [value, editing]);
-  useEffect(() => { if (editing) { inputRef.current?.focus(); inputRef.current?.select(); } }, [editing]);
+  useEffect(() => {
+    if (!editing) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPos({ left: r.left, top: r.bottom + 4 });
+    }
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [editing]);
 
   async function commit() {
     setEditing(false);
     if (draft.trim() !== (value ?? '').trim()) await onSave(draft);
   }
 
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        type="url"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onClick={(e) => e.stopPropagation()}
-        onBlur={() => void commit()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); void commit(); }
-          else if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false); }
-        }}
-        placeholder="https://example.com"
-        className="w-44 rounded-md border border-primary/40 bg-white px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/30"
-      />
-    );
-  }
-
   const href = value ? normaliseUrl(value) : null;
-  if (!href) {
-    return (
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-        title="Add website"
-        aria-label="Add website"
-        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/25 hover:text-foreground/55 hover:bg-warm-bg/60 transition-colors"
-      >
-        <GlobeIcon />
-      </button>
-    );
-  }
 
   return (
-    <div className="group/web inline-flex items-center gap-1">
-      <HoverPopover value={value ?? ''} copied={false}>
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          aria-label={`Open ${value} in a new tab`}
-          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-primary hover:bg-warm-bg transition-colors"
+    <div ref={triggerRef} className="inline-flex items-center">
+      {href ? (
+        <HoverPopover
+          value={value ?? ''}
+          copied={false}
+          onEdit={() => setEditing(true)}
         >
-          <ExternalLinkIcon />
-        </a>
-      </HoverPopover>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-        title="Edit"
-        aria-label="Edit"
-        className="opacity-0 group-hover/web:opacity-100 transition-opacity inline-flex items-center justify-center w-5 h-5 rounded text-foreground/35 hover:text-foreground/70"
-      >
-        <PencilIcon />
-      </button>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Open ${value} in a new tab`}
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-primary hover:bg-warm-bg transition-colors"
+          >
+            <ExternalLinkIcon />
+          </a>
+        </HoverPopover>
+      ) : (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          title="Add website"
+          aria-label="Add website"
+          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/25 hover:text-foreground/55 hover:bg-warm-bg/60 transition-colors"
+        >
+          <GlobeIcon />
+        </button>
+      )}
+      {editing && pos && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{ left: pos.left, top: pos.top }}
+          className="fixed z-[1000] tooltip-pop-in"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <input
+            ref={inputRef}
+            type="url"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => void commit()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); void commit(); }
+              else if (e.key === 'Escape') { e.preventDefault(); setDraft(value ?? ''); setEditing(false); }
+            }}
+            placeholder="https://example.com"
+            className="w-56 rounded-md border border-primary/40 bg-white px-2 py-1 text-[12px] shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
@@ -3713,6 +3864,116 @@ function RatingCell({
               className="block w-full px-2.5 py-1.5 text-left text-[10.5px] text-rose-700 hover:bg-rose-50 border-t border-black/5"
             >
               Clear rating
+            </button>
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+// Service-type tag (Detox / PHP / IOP …). Same UX as RatingCell — a
+// pill that opens a portal-rendered menu of options. The options list
+// is unioned with TYPE_OPTIONS so admissions can introduce new tags
+// inline (typed via the modal / API) and they show up alongside the
+// canonical three.
+const TYPE_TONES: Record<string, string> = {
+  Detox: 'bg-sky-50 text-sky-700 border-sky-200',
+  PHP: 'bg-violet-50 text-violet-700 border-violet-200',
+  IOP: 'bg-teal-50 text-teal-700 border-teal-200',
+};
+function TypeCell({
+  value,
+  options,
+  onSave,
+}: {
+  value: string | null;
+  options: string[];
+  onSave: (next: string | null) => Promise<void> | void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  // Unioned, deduped list — TYPE_OPTIONS first (canonical), then any
+  // ad-hoc strings the page collected from `rows`. Stable ordering so
+  // the menu doesn't reshuffle as new rows stream in.
+  const merged = useMemo(() => {
+    const set = new Set<string>(TYPE_OPTIONS);
+    for (const o of options) if (o.trim()) set.add(o.trim());
+    return Array.from(set);
+  }, [options]);
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (open) { setOpen(false); return; }
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPos({ left: r.left, top: r.bottom + 4 });
+    }
+    setOpen(true);
+  }
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (popRef.current?.contains(t)) return;
+      if (triggerRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const tone = value && TYPE_TONES[value]
+    ? TYPE_TONES[value]
+    : value
+      ? 'bg-foreground/5 text-foreground/70 border-foreground/15'
+      : 'bg-foreground/5 text-foreground/45 border-foreground/15';
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={toggle}
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${tone}`}
+        title={value ? `Type: ${value}` : 'Set type'}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        {value ?? '— Set type —'}
+        <ChevronDownIcon />
+      </button>
+      {open && pos && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={popRef}
+          style={{ left: pos.left, top: pos.top }}
+          className="fixed z-[1000] w-36 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden tooltip-pop-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {merged.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); setOpen(false); void onSave(t); }}
+              className={`flex w-full items-center justify-between px-2.5 py-1.5 text-left text-[11px] font-semibold hover:bg-warm-bg/60 transition-colors ${value === t ? 'text-foreground' : 'text-foreground/70'}`}
+            >
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${TYPE_TONES[t] ?? 'bg-foreground/5 text-foreground/70 border-foreground/15'}`}>
+                {t}
+              </span>
+              {value === t && <CheckIcon />}
+            </button>
+          ))}
+          {value && (
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); setOpen(false); void onSave(null); }}
+              className="block w-full px-2.5 py-1.5 text-left text-[10.5px] text-rose-700 hover:bg-rose-50 border-t border-black/5"
+            >
+              Clear type
             </button>
           )}
         </div>,
@@ -4043,8 +4304,26 @@ function ContactMobileCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-foreground text-[13px] leading-tight">{contact.name}</p>
+          {/* Rating + Type pills sit just under the name on mobile so
+              the qualifier hierarchy (who → how good → what they offer)
+              reads in one glance without scrolling into the field list. */}
+          {(contact.rating || contact.type) && (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {contact.rating && (
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${RATING_TONES[contact.rating]} ${contact.rating === 'Tier 1' ? 'sa-tier1-premium' : ''}`}>
+                  {contact.rating === 'Tier 1' && <span aria-hidden className="text-amber-500">★</span>}
+                  {contact.rating}
+                </span>
+              )}
+              {contact.type && (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${TYPE_TONES[contact.type] ?? 'bg-foreground/5 text-foreground/70 border-foreground/15'}`}>
+                  {contact.type}
+                </span>
+              )}
+            </div>
+          )}
           {contact.company && (
-            <p className="mt-0.5 text-[11px] font-semibold text-foreground/70">{contact.company}</p>
+            <p className="mt-1 text-[11px] font-semibold text-foreground/70">{contact.company}</p>
           )}
           {contact.role && (
             <p className="mt-0.5 text-[11px] text-foreground/60">{contact.role}</p>
@@ -4057,6 +4336,34 @@ function ContactMobileCard({
       </div>
 
       <dl className="mt-3 space-y-1.5 text-[12px]">
+        {contact.specialty && (
+          <div className="flex items-baseline gap-2">
+            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Focus</dt>
+            <dd className="text-foreground/75">{contact.specialty}</dd>
+          </div>
+        )}
+        {contact.company_website && (() => {
+          const href = normaliseUrl(contact.company_website);
+          return (
+            <div className="flex items-baseline gap-2">
+              <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Site</dt>
+              <dd className="min-w-0 flex-1 break-all">
+                {href ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    {contact.company_website}
+                  </a>
+                ) : (
+                  <span className="text-foreground/60">{contact.company_website}</span>
+                )}
+              </dd>
+            </div>
+          );
+        })()}
         {contact.phone && (
           <div className="flex items-baseline gap-2">
             <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Phone</dt>
@@ -4400,6 +4707,9 @@ function AddContactModal({
 }) {
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
+  const [website, setWebsite] = useState('');
+  const [type, setType] = useState('');
+  const [specialty, setSpecialty] = useState('');
   const [role, setRole] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -4415,6 +4725,9 @@ function AddContactModal({
       await onSubmit({
         name: name.trim(),
         company: company.trim() || null,
+        company_website: website.trim() || null,
+        type: type.trim() || null,
+        specialty: specialty.trim() || null,
         role: role.trim() || null,
         phone: phone.trim() || null,
         email: email.trim() || null,
@@ -4435,6 +4748,18 @@ function AddContactModal({
           </ModalField>
           <ModalField label="Company">
             <input value={company} onChange={(e) => setCompany(e.target.value)} className="modal-input" placeholder="Mountain House · Lumina Recovery" />
+          </ModalField>
+          <ModalField label="Site">
+            <input value={website} onChange={(e) => setWebsite(e.target.value)} className="modal-input" placeholder="https://example.com" type="url" />
+          </ModalField>
+          <ModalField label="Type">
+            <select value={type} onChange={(e) => setType(e.target.value)} className="modal-input">
+              <option value="">— Select —</option>
+              {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </ModalField>
+          <ModalField label="Specialty / Focus">
+            <input value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="modal-input" placeholder="Trauma · Eating Disorders · Dual Diagnosis" />
           </ModalField>
           <ModalField label="Role / Relation">
             <input value={role} onChange={(e) => setRole(e.target.value)} className="modal-input" placeholder="Therapist · Family · Alum" />
@@ -4459,6 +4784,267 @@ function AddContactModal({
           onCancel={onClose}
         />
       </form>
+    </ModalShell>
+  );
+}
+
+// ─── Add-with-Claude modal ────────────────────────────────────
+//
+// 10-phase wizard the admissions team triggers from the "Add with
+// Claude" button in the header:
+//   1. Modal opens in `prompt` phase with an optional free-text
+//      steer ("focus on AZ detox", "alumni referrers", etc.).
+//   2. Admin clicks "Find candidates" — POST /api/contacts/suggest
+//      sends the steer + the current roster to Claude, which returns
+//      a JSON array of candidate contacts.
+//   3. While waiting we render a soft "Claude is researching…"
+//      placeholder so the click feels responsive.
+//   4. Suggestions come back; we move to the `review` phase.
+//   5. Each suggestion renders as a row with a checkbox (all
+//      pre-checked) and the candidate's company / type / focus /
+//      role / location / notes.
+//   6. Admin can uncheck any rows they don't want — bulk select-all
+//      and clear-all controls keep large lists wieldy.
+//   7. "Continue" enables once at least one row is checked.
+//   8. POST /api/contacts/bulk inserts the chosen rows server-side,
+//      tagged with source='add-with-claude' for later audit.
+//   9. Inserted rows return to the parent via `onInserted` so the
+//      grid prepends them optimistically (realtime reconciles).
+//  10. On error at any step the phase pins to `error` with a retry
+//      affordance — phases 1/2 are idempotent so re-suggesting is
+//      safe.
+
+interface ClaudeSuggestion {
+  name: string;
+  company: string | null;
+  company_website: string | null;
+  type: string | null;
+  specialty: string | null;
+  role: string | null;
+  location: string | null;
+  notes: string | null;
+}
+
+function SuggestWithClaudeModal({
+  token,
+  onClose,
+  onInserted,
+}: {
+  token: string | null;
+  onClose: () => void;
+  onInserted: (rows: Contact[]) => void;
+}) {
+  type Phase = 'prompt' | 'loading' | 'review' | 'submitting' | 'error';
+  const [phase, setPhase] = useState<Phase>('prompt');
+  const [steer, setSteer] = useState('');
+  const [count, setCount] = useState(8);
+  const [suggestions, setSuggestions] = useState<ClaudeSuggestion[]>([]);
+  // Phase 6: per-row checked state — a Set of indices into `suggestions`.
+  // Pre-populated with every index when suggestions land so admissions
+  // can opt-OUT rather than opt-in (the common case is "accept most
+  // of them").
+  const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  async function findCandidates() {
+    if (!token) return;
+    setPhase('loading');
+    setErrorMsg(null);
+    try {
+      const res = await fetch('/api/contacts/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ prompt: steer.trim(), count }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErrorMsg(typeof json?.error === 'string' ? json.error : `Request failed (${res.status})`);
+        setPhase('error');
+        return;
+      }
+      const list = Array.isArray(json?.contacts) ? (json.contacts as ClaudeSuggestion[]) : [];
+      setSuggestions(list);
+      setChecked(new Set(list.map((_, i) => i)));
+      setPhase(list.length === 0 ? 'error' : 'review');
+      if (list.length === 0) setErrorMsg('Claude did not suggest any contacts. Try a different steer.');
+    } catch (e) {
+      setErrorMsg(String(e));
+      setPhase('error');
+    }
+  }
+
+  async function continueWithChecked() {
+    if (!token) return;
+    const picked = suggestions.filter((_, i) => checked.has(i));
+    if (picked.length === 0) return;
+    setPhase('submitting');
+    setErrorMsg(null);
+    try {
+      const res = await fetch('/api/contacts/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ contacts: picked }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErrorMsg(typeof json?.error === 'string' ? json.error : `Request failed (${res.status})`);
+        setPhase('error');
+        return;
+      }
+      onInserted(Array.isArray(json?.inserted) ? (json.inserted as Contact[]) : []);
+    } catch (e) {
+      setErrorMsg(String(e));
+      setPhase('error');
+    }
+  }
+
+  function toggleAll(all: boolean) {
+    setChecked(all ? new Set(suggestions.map((_, i) => i)) : new Set());
+  }
+  function toggleOne(i: number) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  }
+
+  return (
+    <ModalShell title="Add with Claude" eyebrow="AI-assisted outreach" onClose={onClose}>
+      {phase === 'prompt' && (
+        <div className="px-6 py-5 space-y-4">
+          <p className="text-[12.5px] text-foreground/65 leading-relaxed">
+            Claude will research realistic candidate contacts the admissions team might want to track — referrers, clinical partners, alumni leads. You'll get a list with checkboxes; only the ones you keep get added.
+          </p>
+          <ModalField label="Steer (optional)" full hint="e.g. 'Arizona detox owners', 'PHP programs we haven't reached yet'">
+            <textarea
+              value={steer}
+              onChange={(e) => setSteer(e.target.value)}
+              rows={3}
+              className="modal-input resize-none"
+              placeholder="Tell Claude what kind of contacts to look for…"
+            />
+          </ModalField>
+          <ModalField label="How many to suggest">
+            <select value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))} className="modal-input">
+              <option value={5}>5</option>
+              <option value={8}>8</option>
+              <option value={10}>10</option>
+              <option value={15}>15</option>
+            </select>
+          </ModalField>
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/5">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-semibold text-foreground/60 hover:bg-warm-bg/60">Cancel</button>
+            <button
+              type="button"
+              onClick={() => void findCandidates()}
+              disabled={!token}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-xs font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-40"
+            >
+              <SparkleIcon />
+              Find candidates
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase === 'loading' && (
+        <div className="px-6 py-12 flex flex-col items-center justify-center gap-3 text-center">
+          <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary animate-pulse">
+            <SparkleIcon />
+          </span>
+          <p className="text-[13px] font-semibold text-foreground">Claude is researching…</p>
+          <p className="text-[11px] text-foreground/55">Cross-referencing the existing roster and drafting candidates. Takes ~10–20 seconds.</p>
+        </div>
+      )}
+
+      {phase === 'review' && (
+        <div className="px-0 sm:px-0 py-0">
+          <div className="px-6 pt-5 pb-3 flex items-center justify-between border-b border-black/5">
+            <div>
+              <p className="text-[12.5px] font-semibold text-foreground">{checked.size} of {suggestions.length} selected</p>
+              <p className="text-[11px] text-foreground/55">Uncheck anyone you don't want to add. Click Continue when ready.</p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button type="button" onClick={() => toggleAll(true)} className="px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Select all</button>
+              <button type="button" onClick={() => toggleAll(false)} className="px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Clear</button>
+            </div>
+          </div>
+          <ul className="divide-y divide-black/5 max-h-[55vh] overflow-y-auto">
+            {suggestions.map((s, i) => {
+              const isOn = checked.has(i);
+              return (
+                <li key={i} className={`px-6 py-3 transition-colors ${isOn ? 'bg-white' : 'bg-warm-bg/30'}`}>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isOn}
+                      onChange={() => toggleOne(i)}
+                      className="mt-1 accent-primary w-4 h-4 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center flex-wrap gap-2">
+                        <span className="font-semibold text-[13px] text-foreground">{s.name}</span>
+                        {s.type && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold border ${TYPE_TONES[s.type] ?? 'bg-foreground/5 text-foreground/70 border-foreground/15'}`}>{s.type}</span>
+                        )}
+                        {s.role && <span className="text-[11px] text-foreground/55">{s.role}</span>}
+                      </div>
+                      <div className="mt-0.5 flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-foreground/65">
+                        {s.company && <span className="font-medium">{s.company}</span>}
+                        {s.company_website && (
+                          <a href={normaliseUrl(s.company_website) ?? '#'} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{s.company_website}</a>
+                        )}
+                        {s.location && <span>· {s.location}</span>}
+                        {s.specialty && <span>· {s.specialty}</span>}
+                      </div>
+                      {s.notes && (
+                        <p className="mt-1 text-[11.5px] text-foreground/70 leading-snug">{s.notes}</p>
+                      )}
+                    </div>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="px-6 py-3 border-t border-black/5 flex items-center justify-end gap-2">
+            <button type="button" onClick={() => setPhase('prompt')} className="px-4 py-2 rounded-lg text-xs font-semibold text-foreground/60 hover:bg-warm-bg/60">Back</button>
+            <button
+              type="button"
+              onClick={() => void continueWithChecked()}
+              disabled={checked.size === 0}
+              className="px-4 py-2 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 disabled:opacity-40"
+            >
+              Continue · Add {checked.size}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase === 'submitting' && (
+        <div className="px-6 py-12 flex flex-col items-center justify-center gap-3 text-center">
+          <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-foreground/5 text-foreground/55 animate-pulse">
+            <PlusIcon />
+          </span>
+          <p className="text-[13px] font-semibold text-foreground">Adding contacts…</p>
+        </div>
+      )}
+
+      {phase === 'error' && (
+        <div className="px-6 py-8 space-y-4 text-center">
+          <p className="text-[12.5px] font-semibold text-rose-700">{errorMsg ?? 'Something went wrong.'}</p>
+          <div className="flex items-center justify-center gap-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-semibold text-foreground/60 hover:bg-warm-bg/60">Close</button>
+            <button
+              type="button"
+              onClick={() => setPhase('prompt')}
+              className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-semibold uppercase tracking-wider hover:bg-primary/90"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      )}
     </ModalShell>
   );
 }
@@ -5159,6 +5745,11 @@ function ModalFooter({
 
 function PlusIcon() {
   return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>;
+}
+function SparkleIcon() {
+  // Four-point sparkle — marks Claude-assisted affordances. Same shape
+  // used elsewhere in the app so admissions reads it as "AI helper".
+  return <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden><path d="M12 2l1.6 5.6L19 9l-5.4 1.6L12 16l-1.6-5.4L5 9l5.4-1.4L12 2zm6.5 11l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6z"/></svg>;
 }
 function SearchIcon() {
   return <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>;
