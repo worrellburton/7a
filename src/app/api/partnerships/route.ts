@@ -15,6 +15,7 @@ const FACILITY_TYPES = new Set(['Detox', 'RTC', 'Outpatient', 'Extended Care']);
 interface PartnerBody {
   name?: string;
   type?: string;
+  rating?: string | null;
   specialty?: string | null;
   location?: string | null;
   poc?: string | null;
@@ -50,9 +51,14 @@ function normaliseBody(body: PartnerBody) {
   const insurance = arrayOfStrings(body.insurance);
   const isFacility = FACILITY_TYPES.has(type);
   const levels_of_care = isFacility ? arrayOfStrings(body.levels_of_care) : null;
+  // Rating mirrors contacts.rating — same vocabulary so the partner
+  // and outreach surfaces don't drift apart. NULL clears.
+  const ratingRaw = trim(body.rating, 20);
+  const rating = ratingRaw && ['Tier 1', 'Tier 2', 'Tier 3'].includes(ratingRaw) ? ratingRaw : null;
   return {
     name,
     type,
+    rating,
     specialty: trim(body.specialty, 120),
     location: trim(body.location, 200),
     poc: trim(body.poc, 200),

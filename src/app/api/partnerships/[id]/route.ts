@@ -34,6 +34,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const patch: Record<string, unknown> = { updated_by: user.id };
   if ('name' in body) patch.name = trim(body.name, 200);
   if ('type' in body) patch.type = typeof body.type === 'string' ? body.type.trim() : null;
+  if ('rating' in body) {
+    // Mirrors contacts.rating vocabulary so the two surfaces don't drift.
+    const r = trim(body.rating, 20);
+    if (r === null || r === 'Tier 1' || r === 'Tier 2' || r === 'Tier 3') patch.rating = r;
+  }
   if ('specialty' in body) patch.specialty = trim(body.specialty, 120);
   if ('location' in body) patch.location = trim(body.location, 200);
   if ('poc' in body) patch.poc = trim(body.poc, 200);
