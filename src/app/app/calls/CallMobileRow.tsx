@@ -240,22 +240,29 @@ export function CallMobileRow(props: CallMobileRowProps) {
               "no date" line so the row doesn't scream em-dashes. */}
           <div className="shrink-0 flex items-center gap-2">
             <div className="text-right">
+              {/* Date / time stack — matches the desktop DATE / TIME
+                  column so the field reads at the same prominence on
+                  both surfaces. Date sits on top in foreground weight
+                  with the year always rendered (no abbreviated "May 11"
+                  on mobile); clock time underneath. The relative-time
+                  string lives in the tooltip so the visual stays
+                  compact. */}
               {dateLabel !== '—' || timeLabel !== '—' ? (
                 <>
                   <p
-                    className="text-[12px] font-semibold text-foreground/80 tabular-nums whitespace-nowrap"
+                    className="text-[12.5px] font-semibold text-foreground tabular-nums whitespace-nowrap leading-tight"
                     title={relTime || absTime}
                   >
                     {dateLabel}
                   </p>
-                  <p className="text-[10px] text-foreground/50 tabular-nums whitespace-nowrap">
+                  <p className="text-[11px] text-foreground/55 tabular-nums whitespace-nowrap leading-tight mt-0.5">
                     {timeLabel}
                   </p>
                 </>
               ) : (
                 <p className="text-[10px] text-foreground/35 italic whitespace-nowrap">No date</p>
               )}
-              <p className="text-[10px] text-foreground/35 tabular-nums">
+              <p className="text-[10px] text-foreground/35 tabular-nums mt-0.5">
                 #{call.id}
               </p>
             </div>
