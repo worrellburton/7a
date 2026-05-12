@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'contacts array is required' }, { status: 400 });
   }
   // Hard cap so a runaway client can't insert thousands of rows.
-  const slice = inbound.slice(0, 30);
+  const slice = inbound.slice(0, 50);
 
   const rows: Array<Record<string, unknown>> = [];
   for (const c of slice) {
