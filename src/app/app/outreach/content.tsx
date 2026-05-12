@@ -3894,8 +3894,13 @@ function TypeCell({
 }) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
+  const newInputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  // "+ Add new" affordance — typed value commits via Enter or the
+  // adjacent + button. Trimmed + de-duped against the existing list so
+  // admissions can't accidentally seed "PHP " with a trailing space.
+  const [newTag, setNewTag] = useState('');
 
   // Unioned, deduped list — TYPE_OPTIONS first (canonical), then any
   // ad-hoc strings the page collected from `rows`. Stable ordering so
@@ -3951,7 +3956,7 @@ function TypeCell({
         <div
           ref={popRef}
           style={{ left: pos.left, top: pos.top }}
-          className="fixed z-[1000] w-36 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden tooltip-pop-in"
+          className="fixed z-[1000] w-44 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden tooltip-pop-in"
           onClick={(e) => e.stopPropagation()}
         >
           {merged.map((t) => (
@@ -3967,6 +3972,55 @@ function TypeCell({
               {value === t && <CheckIcon />}
             </button>
           ))}
+          {/* + Add new — inline input so admissions can introduce a new
+              tag (RTC, Sober Living, etc.) without leaving the menu.
+              Trimmed + de-duped on submit; selecting the new value also
+              persists it via the parent's onSave, so future rows see
+              the tag in their dropdown automatically (typeOptions is
+              derived from rows on the page). */}
+          <div className="border-t border-black/5 px-2 py-1.5 bg-warm-bg/30">
+            <div className="flex items-center gap-1">
+              <input
+                ref={newInputRef}
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const t = newTag.trim();
+                    if (!t) return;
+                    setNewTag('');
+                    setOpen(false);
+                    void onSave(t);
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setNewTag('');
+                    setOpen(false);
+                  }
+                }}
+                placeholder="+ Add new…"
+                className="flex-1 min-w-0 rounded-md border border-black/10 bg-white px-2 py-1 text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const t = newTag.trim();
+                  if (!t) { newInputRef.current?.focus(); return; }
+                  setNewTag('');
+                  setOpen(false);
+                  void onSave(t);
+                }}
+                disabled={!newTag.trim()}
+                className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md bg-primary text-white text-[12px] font-bold hover:bg-primary/90 disabled:opacity-40 disabled:hover:bg-primary"
+                aria-label="Add type"
+                title="Add type"
+              >
+                +
+              </button>
+            </div>
+          </div>
           {value && (
             <button
               type="button"
