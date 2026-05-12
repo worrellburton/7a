@@ -15,7 +15,7 @@ interface BulkBody {
     name?: string;
     company?: string | null;
     company_website?: string | null;
-    type?: string | null;
+    type?: string | string[] | null;
     specialty?: string | null;
     role?: string | null;
     phone?: string | null;
@@ -30,6 +30,25 @@ function trim(value: unknown, max: number): string | null {
   const t = value.trim();
   if (!t) return null;
   return t.length > max ? t.slice(0, max) : t;
+}
+
+function normaliseTypeArray(value: unknown): string[] | null {
+  let raw: unknown[];
+  if (Array.isArray(value)) raw = value;
+  else if (typeof value === 'string') raw = value.split(',');
+  else return null;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of raw) {
+    if (typeof v !== 'string') continue;
+    const t = v.trim().slice(0, 60);
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out.length === 0 ? null : out;
 }
 
 export async function POST(req: NextRequest) {
@@ -53,7 +72,7 @@ export async function POST(req: NextRequest) {
       name,
       company: trim(c?.company, 200),
       company_website: trim(c?.company_website, 500),
-      type: trim(c?.type, 60),
+      type: normaliseTypeArray(c?.type),
       specialty: trim(c?.specialty, 200),
       role: trim(c?.role, 200),
       phone: trim(c?.phone, 60),
