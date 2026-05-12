@@ -13,6 +13,29 @@ function trim(value: unknown, max = 600): string | null {
   return t.length > max ? t.slice(0, max) : t;
 }
 
+// Accept either string[] or a comma/legacy string for contacts.type.
+// Empty input collapses to NULL so DB queries can use `type is null`
+// to find untagged rows. De-duped, trimmed, and capped at 60 chars
+// per tag. Returns null when no valid tags remain.
+function normaliseTypeArray(value: unknown): string[] | null {
+  let raw: unknown[];
+  if (Array.isArray(value)) raw = value;
+  else if (typeof value === 'string') raw = value.split(',');
+  else return null;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of raw) {
+    if (typeof v !== 'string') continue;
+    const t = v.trim().slice(0, 60);
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out.length === 0 ? null : out;
+}
+
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -25,7 +48,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ('name' in body) patch.name = trim(body.name, 200);
   if ('company' in body) patch.company = trim(body.company, 200);
   if ('company_website' in body) patch.company_website = trim(body.company_website, 500);
-  if ('type' in body) patch.type = trim(body.type, 60);
+  if ('type' in body) patch.type = normaliseTypeArray(body.type);
   if ('specialty' in body) patch.specialty = trim(body.specialty, 200);
   if ('rating' in body) {
     const r = trim(body.rating, 20);

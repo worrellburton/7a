@@ -28,7 +28,7 @@ interface SuggestedContact {
   name: string;
   company: string | null;
   company_website: string | null;
-  type: string | null;
+  type: string[] | null;
   specialty: string | null;
   role: string | null;
   location: string | null;
@@ -90,7 +90,7 @@ Output STRICT JSON only — no prose, no markdown fences. Shape:
       "name": "Full name of person OR org if no individual is known",
       "company": "Organization name or null",
       "company_website": "https://… or null",
-      "type": "Detox" | "PHP" | "IOP" | null,
+      "type": string[] | null,  // one or more of: "Detox", "PHP", "IOP", "RTC", "Outpatient", "Extended Care", "Interventionist", "Therapist" — pick every offering that applies (e.g. ["Detox","RTC"] for a facility with both tracks)
       "specialty": "Trauma · Eating Disorders · Dual Diagnosis · Family · etc. or null",
       "role": "Therapist | Interventionist | Owner | Admissions | etc. or null",
       "location": "City, ST or null",
@@ -171,7 +171,26 @@ ${userPrompt ? `Additional steer from admissions: ${userPrompt}\n\n` : ''}Sugges
           name: name.slice(0, 200),
           company: typeof c.company === 'string' && c.company.trim() ? c.company.trim().slice(0, 200) : null,
           company_website: typeof c.company_website === 'string' && c.company_website.trim() ? c.company_website.trim().slice(0, 500) : null,
-          type: typeof c.type === 'string' && c.type.trim() ? c.type.trim().slice(0, 60) : null,
+          type: (() => {
+            // Claude may return type as a string ("Detox") or an array
+            // (["Detox","RTC"]) — accept both, trim, dedupe, cap at
+            // 60 chars per tag, collapse to null on empty.
+            const raw: unknown[] = Array.isArray(c.type)
+              ? (c.type as unknown[])
+              : typeof c.type === 'string' ? c.type.split(',') : [];
+            const seen = new Set<string>();
+            const out: string[] = [];
+            for (const v of raw) {
+              if (typeof v !== 'string') continue;
+              const t = v.trim().slice(0, 60);
+              if (!t) continue;
+              const key = t.toLowerCase();
+              if (seen.has(key)) continue;
+              seen.add(key);
+              out.push(t);
+            }
+            return out.length === 0 ? null : out;
+          })(),
           specialty: typeof c.specialty === 'string' && c.specialty.trim() ? c.specialty.trim().slice(0, 200) : null,
           role: typeof c.role === 'string' && c.role.trim() ? c.role.trim().slice(0, 200) : null,
           location: typeof c.location === 'string' && c.location.trim() ? c.location.trim().slice(0, 200) : null,

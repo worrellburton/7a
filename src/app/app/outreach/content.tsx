@@ -31,11 +31,12 @@ interface Contact {
   name: string;
   company: string | null;
   company_website: string | null;
-  // Categorical service-type tag (Detox / PHP / IOP …). Mirrors the
-  // partnerships.type column semantically but with a smaller starting
-  // vocabulary the outreach team uses on first touch. Open-vocabulary
-  // — admissions can add new tags inline and they survive as options.
-  type: string | null;
+  // Multi-select service-type tags (Detox / PHP / IOP / RTC /
+  // Outpatient / …). Stored as text[] in the DB so a contact can carry
+  // more than one offering (e.g. a facility that runs both Detox and
+  // PHP tracks). Open-vocabulary — admissions can add new tags
+  // inline and they survive as options.
+  type: string[] | null;
   // Free-text clinical specialty / focus area (Trauma, Eating Disorders,
   // …). Mirrors partners.specialty so a contact upgraded into a partner
   // carries the same tag with no re-entry.
@@ -649,8 +650,10 @@ export default function ContactsContent() {
   const typeOptions = useMemo(() => {
     const set = new Set<string>(TYPE_OPTIONS);
     for (const r of rows) {
-      const v = (r.type ?? '').trim();
-      if (v) set.add(v);
+      for (const v of r.type ?? []) {
+        const t = v.trim();
+        if (t) set.add(t);
+      }
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
   }, [rows]);
@@ -3370,9 +3373,9 @@ function ContactCell({
     case 'type':
       return (
         <TypeCell
-          value={contact.type}
+          values={contact.type ?? []}
           options={typeOptions}
-          onSave={(next) => onSavePatch(contact.id, { type: next })}
+          onSave={(next) => onSavePatch(contact.id, { type: next.length === 0 ? null : next })}
         />
       );
     case 'specialty':
@@ -3977,13 +3980,13 @@ const TYPE_TONES: Record<string, string> = {
   IOP: 'bg-cyan-50 text-cyan-700 border-cyan-200',
 };
 function TypeCell({
-  value,
+  values,
   options,
   onSave,
 }: {
-  value: string | null;
+  values: string[];
   options: string[];
-  onSave: (next: string | null) => Promise<void> | void;
+  onSave: (next: string[]) => Promise<void> | void;
 }) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
@@ -3995,6 +3998,19 @@ function TypeCell({
   // admissions can't accidentally seed "PHP " with a trailing space.
   const [newTag, setNewTag] = useState('');
 
+  // Case-insensitive lookup so toggling "Detox" off when the row holds
+  // "detox" still removes the tag (handles legacy lowercase entries).
+  const has = (tag: string) => values.some((v) => v.trim().toLowerCase() === tag.trim().toLowerCase());
+  const toggle = (tag: string) => {
+    const t = tag.trim();
+    if (!t) return;
+    if (has(t)) {
+      void onSave(values.filter((v) => v.trim().toLowerCase() !== t.toLowerCase()));
+    } else {
+      void onSave([...values, t]);
+    }
+  };
+
   // Unioned, deduped list — TYPE_OPTIONS first (canonical), then any
   // ad-hoc strings the page collected from `rows`. Stable ordering so
   // the menu doesn't reshuffle as new rows stream in.
@@ -4004,15 +4020,6 @@ function TypeCell({
     return Array.from(set);
   }, [options]);
 
-  function toggle(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (open) { setOpen(false); return; }
-    if (triggerRef.current) {
-      const r = triggerRef.current.getBoundingClientRect();
-      setPos({ left: r.left, top: r.bottom + 4 });
-    }
-    setOpen(true);
-  }
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
@@ -4025,52 +4032,80 @@ function TypeCell({
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
-  const tone = value && TYPE_TONES[value]
-    ? TYPE_TONES[value]
-    : value
-      ? 'bg-foreground/5 text-foreground/70 border-foreground/15'
-      : 'bg-foreground/5 text-foreground/45 border-foreground/15';
+  function openMenu(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (open) { setOpen(false); return; }
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPos({ left: r.left, top: r.bottom + 4 });
+    }
+    setOpen(true);
+  }
 
   return (
     <>
+      {/* Trigger renders one chip per selected tag, or a "Set type" empty
+          state. Wraps if the row carries several values so the cell
+          doesn't blow out horizontally. */}
       <button
         ref={triggerRef}
         type="button"
-        onClick={toggle}
-        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${tone}`}
-        title={value ? `Type: ${value}` : 'Set type'}
+        onClick={openMenu}
+        className="inline-flex items-center gap-1 flex-wrap text-left"
+        title={values.length > 0 ? `Type: ${values.join(', ')}` : 'Set type'}
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        {value ?? '— Set type —'}
-        <ChevronDownIcon />
+        {values.length === 0 ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap bg-foreground/5 text-foreground/45 border-foreground/15">
+            — Set type —
+            <ChevronDownIcon />
+          </span>
+        ) : (
+          <>
+            {values.map((v) => (
+              <span
+                key={v}
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${TYPE_TONES[v] ?? 'bg-foreground/5 text-foreground/70 border-foreground/15'}`}
+              >
+                {v}
+              </span>
+            ))}
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-foreground/45 hover:text-foreground/80" aria-hidden>
+              <ChevronDownIcon />
+            </span>
+          </>
+        )}
       </button>
       {open && pos && typeof document !== 'undefined' && createPortal(
         <div
           ref={popRef}
           style={{ left: pos.left, top: pos.top }}
-          className="fixed z-[1000] w-44 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden tooltip-pop-in"
+          className="fixed z-[1000] w-48 rounded-lg border border-black/10 bg-white shadow-lg overflow-hidden tooltip-pop-in"
           onClick={(e) => e.stopPropagation()}
         >
-          {merged.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); setOpen(false); void onSave(t); }}
-              className={`flex w-full items-center justify-between px-2.5 py-1.5 text-left text-[11px] font-semibold hover:bg-warm-bg/60 transition-colors ${value === t ? 'text-foreground' : 'text-foreground/70'}`}
-            >
-              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${TYPE_TONES[t] ?? 'bg-foreground/5 text-foreground/70 border-foreground/15'}`}>
-                {t}
-              </span>
-              {value === t && <CheckIcon />}
-            </button>
-          ))}
-          {/* + Add new — inline input so admissions can introduce a new
-              tag (RTC, Sober Living, etc.) without leaving the menu.
-              Trimmed + de-duped on submit; selecting the new value also
-              persists it via the parent's onSave, so future rows see
-              the tag in their dropdown automatically (typeOptions is
-              derived from rows on the page). */}
+          {/* Multi-select: clicking a row toggles that tag without
+              closing the menu, so admissions can mark a facility
+              Detox + PHP in one open. Click outside (or Esc) closes. */}
+          {merged.map((t) => {
+            const on = has(t);
+            return (
+              <button
+                key={t}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); toggle(t); }}
+                className={`flex w-full items-center justify-between px-2.5 py-1.5 text-left text-[11px] font-semibold hover:bg-warm-bg/60 transition-colors ${on ? 'text-foreground' : 'text-foreground/70'}`}
+              >
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${TYPE_TONES[t] ?? 'bg-foreground/5 text-foreground/70 border-foreground/15'} ${on ? '' : 'opacity-60'}`}>
+                  {t}
+                </span>
+                {on && <CheckIcon />}
+              </button>
+            );
+          })}
+          {/* + Add new — admissions can introduce a new tag inline.
+              Trimmed + de-duped; the new tag is appended to the row's
+              array (multi-select) so existing tags stay selected. */}
           <div className="border-t border-black/5 px-2 py-1.5 bg-warm-bg/30">
             <div className="flex items-center gap-1">
               <input
@@ -4084,8 +4119,7 @@ function TypeCell({
                     const t = newTag.trim();
                     if (!t) return;
                     setNewTag('');
-                    setOpen(false);
-                    void onSave(t);
+                    if (!has(t)) void onSave([...values, t]);
                   } else if (e.key === 'Escape') {
                     e.preventDefault();
                     setNewTag('');
@@ -4102,8 +4136,7 @@ function TypeCell({
                   const t = newTag.trim();
                   if (!t) { newInputRef.current?.focus(); return; }
                   setNewTag('');
-                  setOpen(false);
-                  void onSave(t);
+                  if (!has(t)) void onSave([...values, t]);
                 }}
                 disabled={!newTag.trim()}
                 className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md bg-primary text-white text-[12px] font-bold hover:bg-primary/90 disabled:opacity-40 disabled:hover:bg-primary"
@@ -4114,13 +4147,13 @@ function TypeCell({
               </button>
             </div>
           </div>
-          {value && (
+          {values.length > 0 && (
             <button
               type="button"
-              onMouseDown={(e) => { e.preventDefault(); setOpen(false); void onSave(null); }}
+              onMouseDown={(e) => { e.preventDefault(); setOpen(false); void onSave([]); }}
               className="block w-full px-2.5 py-1.5 text-left text-[10.5px] text-rose-700 hover:bg-rose-50 border-t border-black/5"
             >
-              Clear type
+              Clear all
             </button>
           )}
         </div>,
@@ -4466,7 +4499,7 @@ function ContactMobileCard({
           {/* Rating + Type pills sit just under the name on mobile so
               the qualifier hierarchy (who → how good → what they offer)
               reads in one glance without scrolling into the field list. */}
-          {(contact.rating || contact.type) && (
+          {(contact.rating || (contact.type && contact.type.length > 0)) && (
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               {contact.rating && (
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${RATING_TONES[contact.rating]} ${contact.rating === 'Tier 1' ? 'sa-tier1-premium' : ''}`}>
@@ -4474,11 +4507,11 @@ function ContactMobileCard({
                   {contact.rating}
                 </span>
               )}
-              {contact.type && (
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${TYPE_TONES[contact.type] ?? 'bg-foreground/5 text-foreground/70 border-foreground/15'}`}>
-                  {contact.type}
+              {(contact.type ?? []).map((t) => (
+                <span key={t} className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${TYPE_TONES[t] ?? 'bg-foreground/5 text-foreground/70 border-foreground/15'}`}>
+                  {t}
                 </span>
-              )}
+              ))}
             </div>
           )}
           {contact.company && (
@@ -4868,7 +4901,7 @@ function AddContactModal({
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
   const [website, setWebsite] = useState('');
-  const [type, setType] = useState('');
+  const [types, setTypes] = useState<string[]>([]);
   const [specialty, setSpecialty] = useState('');
   const [role, setRole] = useState('');
   const [phone, setPhone] = useState('');
@@ -4886,7 +4919,7 @@ function AddContactModal({
         name: name.trim(),
         company: company.trim() || null,
         company_website: website.trim() || null,
-        type: type.trim() || null,
+        type: types.length === 0 ? null : types,
         specialty: specialty.trim() || null,
         role: role.trim() || null,
         phone: phone.trim() || null,
@@ -4912,11 +4945,22 @@ function AddContactModal({
           <ModalField label="Site">
             <input value={website} onChange={(e) => setWebsite(e.target.value)} className="modal-input" placeholder="https://example.com" type="url" />
           </ModalField>
-          <ModalField label="Type">
-            <select value={type} onChange={(e) => setType(e.target.value)} className="modal-input">
-              <option value="">— Select —</option>
-              {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
+          <ModalField label="Type" hint="Tap to toggle. Pick any combination.">
+            <div className="flex flex-wrap gap-1.5">
+              {TYPE_OPTIONS.map((t) => {
+                const on = types.includes(t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]))}
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold border transition-colors ${on ? (TYPE_TONES[t] ?? 'bg-foreground text-white border-foreground') : 'bg-white text-foreground/65 border-black/10 hover:bg-warm-bg/60'}`}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
           </ModalField>
           <ModalField label="Specialty / Focus">
             <input value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="modal-input" placeholder="Trauma · Eating Disorders · Dual Diagnosis" />
@@ -4978,7 +5022,7 @@ interface ClaudeSuggestion {
   name: string;
   company: string | null;
   company_website: string | null;
-  type: string | null;
+  type: string[] | null;
   specialty: string | null;
   role: string | null;
   location: string | null;
@@ -5147,9 +5191,9 @@ function SuggestWithClaudeModal({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center flex-wrap gap-2">
                         <span className="font-semibold text-[13px] text-foreground">{s.name}</span>
-                        {s.type && (
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold border ${TYPE_TONES[s.type] ?? 'bg-foreground/5 text-foreground/70 border-foreground/15'}`}>{s.type}</span>
-                        )}
+                        {(s.type ?? []).map((t) => (
+                          <span key={t} className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold border ${TYPE_TONES[t] ?? 'bg-foreground/5 text-foreground/70 border-foreground/15'}`}>{t}</span>
+                        ))}
                         {s.role && <span className="text-[11px] text-foreground/55">{s.role}</span>}
                       </div>
                       <div className="mt-0.5 flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-foreground/65">
@@ -5269,7 +5313,23 @@ function BatchEditBar({
     switch (field) {
       case 'company': patch = { company: value.trim() || null }; break;
       case 'rating': patch = { rating: rating || null }; break;
-      case 'type': patch = { type: value.trim() || null }; break;
+      case 'type': {
+        // Batch type input: comma-separated string of tags. We split,
+        // trim, dedupe (case-insensitive) and replace the array on
+        // every selected row. Empty input clears the field.
+        const parts: string[] = [];
+        const seen = new Set<string>();
+        for (const raw of value.split(',')) {
+          const t = raw.trim();
+          if (!t) continue;
+          const k = t.toLowerCase();
+          if (seen.has(k)) continue;
+          seen.add(k);
+          parts.push(t);
+        }
+        patch = { type: parts.length === 0 ? null : parts };
+        break;
+      }
       case 'specialty': patch = { specialty: value.trim() || null }; break;
       case 'location': patch = { location: value.trim() || null }; break;
       default: return;
@@ -5325,7 +5385,7 @@ function BatchEditBar({
                     list="batch-type-options"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    placeholder="Detox · PHP · IOP · …"
+                    placeholder="Comma-separated: Detox, PHP, IOP …"
                     className="flex-1 min-w-0 rounded-lg border border-white/15 bg-white/5 text-white placeholder-white/45 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 ) : field === 'specialty' ? (
