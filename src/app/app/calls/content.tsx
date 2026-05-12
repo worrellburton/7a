@@ -820,6 +820,13 @@ export default function CallsContent() {
         </div>
       )}
 
+      {/* Operator cheat sheet — the admissions call flow, collapsible
+          so it doesn't crowd the call log but stays one tap away for
+          newer reps. Open/closed state is persisted to localStorage
+          per browser so each rep's preference sticks across reloads
+          without needing a server round-trip. */}
+      <OperatorCheatSheet />
+
       {/* Error State — same glass language but tinted with the
           error palette so it reads as urgent without breaking
           the visual system. */}
@@ -1195,6 +1202,238 @@ export default function CallsContent() {
 }
 
 // Single glass tile used by the Insights row at the top of the page.
+// The admissions call flow rendered as a collapsible cheat sheet
+// above the call log. Content is owned here (not pulled from a CMS)
+// because it changes rarely and lives next to the team that uses it;
+// editing means a tiny PR rather than a database round-trip. Sections
+// mirror the numbered structure the admissions team works from so a
+// rep can scan to the step they're on mid-call.
+const CHEAT_SHEET_STORAGE_KEY = 'calls:operator-cheat-sheet:open';
+type CheatSheetSection = { n: number; title: string; lines: (string | { quote: string })[] };
+const CHEAT_SHEET_SECTIONS: CheatSheetSection[] = [
+  {
+    n: 1,
+    title: 'Initial Contact / Opening the Call',
+    lines: [
+      'Warm greeting and introduction.',
+      { quote: 'Thank you for calling [Program Name], this is [Name], how can I help you today?' },
+      'Build rapport quickly — tone matters more than script.',
+      'Identify caller type: self (potential client) or family member / referral source.',
+    ],
+  },
+  {
+    n: 2,
+    title: 'Immediate Needs & Safety Check',
+    lines: [
+      'Assess urgency:',
+      { quote: 'Are you safe right now?' },
+      { quote: 'When was your last use?' },
+      'Determine if detox is needed immediately.',
+      'If crisis-level → escalate appropriately (911, crisis line, or immediate detox placement).',
+    ],
+  },
+  {
+    n: 3,
+    title: 'Program Overview (If Appropriate)',
+    lines: [
+      'Brief explanation of services: detox (if applicable), residential / inpatient.',
+      'Keep it simple and tailored to what they shared.',
+      { quote: 'Based on what you’re telling me, we may be a good fit for…' },
+    ],
+  },
+  {
+    n: 4,
+    title: 'Information Gathering (Soft Intake Start)',
+    lines: [
+      'Collect essential details conversationally:',
+      'Full name · DOB · contact information.',
+      'Substance use history (type, frequency, amount).',
+      'Mental health concerns (if disclosed).',
+      'Current living situation.',
+    ],
+  },
+  {
+    n: 5,
+    title: 'Insurance Collection (VOB Trigger)',
+    lines: [
+      'Request insurance details: provider, member ID, group number (if applicable).',
+      'Ask for insurance card (front & back):',
+      { quote: 'You can text or email it to us, whatever is easiest for you.' },
+      'Action step: enter data into Dazos, then submit for VOB via the automated system (if integrated) or email to the VOB team.',
+    ],
+  },
+  {
+    n: 6,
+    title: 'Set Expectations for VOB',
+    lines: [
+      'Clearly explain next steps:',
+      { quote: 'We’re going to verify your insurance benefits now.' },
+      { quote: 'This usually takes about 20 min – 1 hr or so.' },
+      'Reassure:',
+      { quote: 'As soon as we have answers, we’ll call you back and go over everything with you.' },
+    ],
+  },
+  {
+    n: 7,
+    title: 'Engagement While Awaiting VOB',
+    lines: [
+      'Keep them emotionally engaged:',
+      { quote: 'What made you reach out today?' },
+      { quote: 'What are you hoping your life looks like after treatment?' },
+      'Initiate PAA (Pre-Authorization Assessment) if possible.',
+      'Address concerns: cost fears, work / family obligations, fear of treatment.',
+    ],
+  },
+  {
+    n: 8,
+    title: 'VOB Results Call (Follow-Up Call Flow)',
+    lines: [
+      'Reconnect:',
+      { quote: 'Hi [Name], this is [Name] from [Program], I have your insurance results.' },
+      'Review benefits: coverage details (keep it simple), any out-of-pocket costs, authorization requirements (if applicable).',
+      'Financial discussion — if balance exists, introduce the Payment Arrangement Agreement. Be transparent but supportive.',
+    ],
+  },
+  {
+    n: 9,
+    title: 'Clinical Recommendation',
+    lines: [
+      'Based on substance use, withdrawal risk, mental health, and environment.',
+      'Recommend detox, residential, or outpatient — or refer out if not appropriate.',
+    ],
+  },
+  {
+    n: 10,
+    title: 'Close for Admission',
+    lines: [
+      'Direct but supportive close:',
+      { quote: 'Based on everything, the best next step would be [level of care]. We can get you admitted as soon as today / tomorrow.' },
+      'Handle objections. Reinforce urgency without pressure.',
+    ],
+  },
+  {
+    n: 11,
+    title: 'Logistics & Intake Completion',
+    lines: [
+      'If client agrees, schedule admission date / time.',
+      'Provide what to bring, arrival instructions, and transportation options.',
+      'Complete intake documentation in the system.',
+    ],
+  },
+  {
+    n: 12,
+    title: 'If Not Admitting',
+    lines: [
+      'Offer alternatives: a different level of care or referral partners.',
+      'Leave the door open:',
+      { quote: 'If anything changes, we’re here for you.' },
+    ],
+  },
+  {
+    n: 13,
+    title: 'Follow-Up Protocol',
+    lines: [
+      'If no answer: call + text + email.',
+      'Example cadence: same-day follow-up, next day, 48 hours.',
+      'Keep tone supportive, not pushy.',
+    ],
+  },
+];
+const CHEAT_SHEET_PRINCIPLES = [
+  'Connection over script.',
+  'Clarity over complexity.',
+  'Speed matters (VOB turnaround).',
+];
+
+function OperatorCheatSheet() {
+  // Default-closed so the call log is the first thing on the page;
+  // reps who use the sheet often persist their open preference via
+  // localStorage. SSR safety: read in a useEffect rather than the
+  // initializer so the server-rendered HTML stays deterministic and
+  // hydration doesn't mismatch.
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(CHEAT_SHEET_STORAGE_KEY) === '1') setOpen(true);
+    } catch { /* private mode / disabled storage — fine, just stay closed */ }
+  }, []);
+  useEffect(() => {
+    try { window.localStorage.setItem(CHEAT_SHEET_STORAGE_KEY, open ? '1' : '0'); } catch { /* see above */ }
+  }, [open]);
+
+  return (
+    <div className="relative rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl shadow-[0_8px_24px_-16px_rgba(0,0,0,0.18)] mb-4 sm:mb-6">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/85 to-transparent" />
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls="operator-cheat-sheet-body"
+        className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-3 sm:py-3.5 text-left"
+      >
+        <span className="flex items-center gap-2.5 min-w-0">
+          <span aria-hidden="true" className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-[#bc6b4a]/12 text-[#bc6b4a] text-[13px] font-semibold">CF</span>
+          <span className="min-w-0">
+            <span className="block text-[13.5px] sm:text-sm font-semibold text-foreground">Operator cheat sheet</span>
+            <span className="block text-[11px] sm:text-xs text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>
+              Admissions call flow · inbound &amp; outbound · 13 steps
+            </span>
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className={`shrink-0 text-foreground/40 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        >
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div
+          id="operator-cheat-sheet-body"
+          className="px-4 sm:px-5 pb-4 sm:pb-5 pt-1 border-t border-black/5"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          <ol className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            {CHEAT_SHEET_SECTIONS.map((s) => (
+              <li key={s.n} className="break-inside-avoid">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[11px] font-semibold text-[#bc6b4a]/85 tabular-nums">{s.n}.</span>
+                  <h4 className="text-[12.5px] sm:text-[13px] font-semibold text-foreground tracking-tight">{s.title}</h4>
+                </div>
+                <ul className="mt-1.5 ml-5 space-y-1 text-[12px] sm:text-[12.5px] text-foreground/75 leading-snug">
+                  {s.lines.map((line, i) =>
+                    typeof line === 'string' ? (
+                      <li key={i} className="list-disc list-outside marker:text-foreground/30">{line}</li>
+                    ) : (
+                      <li key={i} className="list-none -ml-5 pl-3 border-l-2 border-[#bc6b4a]/30 italic text-foreground/70">
+                        &ldquo;{line.quote}&rdquo;
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-5 pt-4 border-t border-black/5">
+            <h4 className="text-[12px] sm:text-[12.5px] font-semibold text-foreground uppercase tracking-wider">Key principles</h4>
+            <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] sm:text-[12.5px] text-foreground/75">
+              {CHEAT_SHEET_PRINCIPLES.map((p) => (
+                <li key={p} className="inline-flex items-center gap-1.5">
+                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#bc6b4a]/60" />
+                  {p}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-[11.5px] text-foreground/55 italic leading-relaxed">
+              This call flow is a guide. Every caller is different — use judgment, adapt to the conversation, and meet the caller where they are while still working toward the next step in the admissions process.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Repeated 8x — extracted so each tile carries the same translucent
 // surface, sheen line, and shadow without 80 lines of duplicate
 // className. The `accent` prop adds a colored ring instead of a tint
