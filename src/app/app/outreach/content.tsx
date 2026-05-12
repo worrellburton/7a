@@ -182,6 +182,25 @@ const METHOD_TONES: Record<ContactMethod, string> = {
   'Left Message': 'bg-amber-50 text-amber-700 border-amber-200',
 };
 
+// Forgive bare-host input on Site / Website fields. Reps routinely
+// type "www.deletehis.com" or "rehab.com/contact" — the native
+// type="url" check rejects either because it requires a scheme, so
+// we strip type="url" from the inputs and normalise here on save:
+//   ""                    → null         (nothing typed)
+//   "www.deletehis.com"   → "https://www.deletehis.com"
+//   "http://x.com"        → "http://x.com"  (preserve what they typed)
+//   "https://x.com"       → "https://x.com"
+// Anything still ambiguous after normalisation hits the same
+// downstream consumers that already handle malformed URLs (the
+// website cell prepends https:// before opening, link components
+// rel=noopener so a typo can't hijack anything).
+function normalizeUrl(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) return v;
+  return `https://${v.replace(/^\/+/, '')}`;
+}
+
 function fmtAgo(iso: string | null): string {
   if (!iso) return '—';
   const ms = Date.now() - new Date(iso).getTime();
@@ -4918,7 +4937,7 @@ function AddContactModal({
       await onSubmit({
         name: name.trim(),
         company: company.trim() || null,
-        company_website: website.trim() || null,
+        company_website: normalizeUrl(website),
         type: types.length === 0 ? null : types,
         specialty: specialty.trim() || null,
         role: role.trim() || null,
@@ -4943,7 +4962,7 @@ function AddContactModal({
             <input value={company} onChange={(e) => setCompany(e.target.value)} className="modal-input" placeholder="Mountain House · Lumina Recovery" />
           </ModalField>
           <ModalField label="Site">
-            <input value={website} onChange={(e) => setWebsite(e.target.value)} className="modal-input" placeholder="https://example.com" type="url" />
+            <input value={website} onChange={(e) => setWebsite(e.target.value)} className="modal-input" placeholder="example.com" inputMode="url" autoComplete="url" />
           </ModalField>
           <ModalField label="Type" hint="Tap to toggle. Pick any combination.">
             <div className="flex flex-wrap gap-1.5">
@@ -5480,25 +5499,17 @@ function LogContactModal({
   const [comments, setComments] = useState('');
   const [transcript, setTranscript] = useState('');
   const [showTranscript, setShowTranscript] = useState(false);
-  // Call duration captured as minutes + seconds for a forgiving entry
-  // UI; we serialise to seconds on submit. Defaults to 30s the moment
-  // the user picks "Left Message" — a typical brief voicemail length
-  // — so admissions doesn't have to manually type it for every drop.
-  // The "userTouched" ref guards against the auto-default clobbering a
-  // value the admin has already typed.
+  // Duration captured as a single whole-minute count — reps were
+  // round-tripping every entry to the nearest minute anyway and the
+  // dual MIN+SEC field added a tab-stop with no real reporting value.
+  // Persisted to the DB as `duration_seconds` (minutes * 60) so the
+  // schema and downstream stats (avg call length, etc.) don't have
+  // to change. Left Message no longer auto-fills since "1 minute" is
+  // a worse default than letting the rep type the real duration.
   const [durationMin, setDurationMin] = useState<string>('');
-  const [durationSec, setDurationSec] = useState<string>('');
-  const durationTouchedRef = useRef(false);
-  useEffect(() => {
-    if (method === 'Left Message' && !durationTouchedRef.current) {
-      setDurationMin('0');
-      setDurationSec('30');
-    }
-  }, [method]);
   const totalSeconds = (() => {
     const m = parseInt(durationMin, 10);
-    const s = parseInt(durationSec, 10);
-    return (Number.isFinite(m) ? m : 0) * 60 + (Number.isFinite(s) ? s : 0);
+    return Number.isFinite(m) ? m * 60 : 0;
   })();
   const durationValid = totalSeconds > 0;
 
@@ -5533,30 +5544,20 @@ function LogContactModal({
               <option value="Left Message">Left Message</option>
             </select>
           </ModalField>
-          <ModalField label="Duration" required hint={method === 'Left Message' ? 'Voicemails default to 30 seconds — adjust if you held the line longer.' : 'How long was the call / conversation?'}>
+          <ModalField label="Duration" required hint="How long was the call / conversation, in minutes?">
             <div className="flex items-center gap-2">
               <input
                 type="number"
                 min={0}
                 max={720}
                 value={durationMin}
-                onChange={(e) => { durationTouchedRef.current = true; setDurationMin(e.target.value); }}
+                onChange={(e) => setDurationMin(e.target.value)}
                 placeholder="0"
-                className="modal-input w-20 text-center tabular-nums"
+                className="modal-input w-24 text-center tabular-nums"
                 aria-label="Minutes"
+                inputMode="numeric"
               />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55">min</span>
-              <input
-                type="number"
-                min={0}
-                max={59}
-                value={durationSec}
-                onChange={(e) => { durationTouchedRef.current = true; setDurationSec(e.target.value); }}
-                placeholder="0"
-                className="modal-input w-20 text-center tabular-nums"
-                aria-label="Seconds"
-              />
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55">sec</span>
             </div>
           </ModalField>
           <ModalField label="Comments / notes" hint="What did you talk about? Any next steps?">
@@ -5650,8 +5651,28 @@ function ContactDetailsDrawer({
   onLogContact: () => void;
   onClose: () => void;
 }) {
+  // Pulled from the same AuthProvider the page root uses — beats
+  // threading currentUserId through three levels of grid props just
+  // to gate the edit/delete buttons on history rows.
+  const { user } = useAuth();
+  const currentUserId = user?.id ?? null;
+
   const [logs, setLogs] = useState<ContactLog[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const reloadLogs = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const r = await fetch(`/api/contacts/${contact.id}/history`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((json as { error?: string }).error || `HTTP ${r.status}`);
+      setLogs((json as { rows: ContactLog[] }).rows ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [accessToken, contact.id]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -5742,65 +5763,291 @@ function ContactDetailsDrawer({
           {logs && logs.length > 0 && (
             <ol className="relative border-l border-black/10 ml-2">
               {logs.map((log, i) => (
-                <li key={log.id} className="relative pl-4 pb-4 last:pb-0">
-                  <span
-                    className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                      i === 0 ? 'bg-primary' : 'bg-foreground/30'
-                    }`}
-                  />
-                  <div className="flex items-start gap-2.5">
-                    {log.contacted_by_avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={log.contacted_by_avatar_url}
-                        alt={log.contacted_by_name ?? 'User'}
-                        className="w-7 h-7 rounded-full object-cover bg-warm-bg"
-                      />
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[9px] font-semibold text-foreground/55">
-                        {(log.contacted_by_name || '?').charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <p className="text-[12px] font-semibold text-foreground">
-                          {log.contacted_by_name || 'Unknown'}
-                        </p>
-                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[log.method]}`}>
-                          {log.method}
-                        </span>
-                        {fmtDuration(log.duration_seconds) && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-semibold border bg-foreground/5 text-foreground/65 border-foreground/15 tabular-nums">
-                            {fmtDuration(log.duration_seconds)}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
-                          {fmtAgo(log.contacted_at)}
-                        </span>
-                      </div>
-                      {log.comments && (
-                        <p className="mt-1 text-[12px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
-                          {log.comments}
-                        </p>
-                      )}
-                      {(log.transcript_summary || log.transcript_storage_path) && (
-                        <TranscriptBlock
-                          contactId={contact.id}
-                          logId={log.id}
-                          summary={log.transcript_summary}
-                          hasTranscript={!!log.transcript_storage_path}
-                          accessToken={accessToken}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </li>
+                <HistoryEntry
+                  key={log.id}
+                  log={log}
+                  isNewest={i === 0}
+                  contactId={contact.id}
+                  accessToken={accessToken}
+                  currentUserId={currentUserId}
+                  onMutated={reloadLogs}
+                />
               ))}
             </ol>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+// One row in the Contact-history timeline, with inline edit + delete
+// affordances scoped to the rep who logged the entry. The visible
+// row stays read-only by default; clicking the pencil flips this
+// component into an inline form (method · minutes · notes) that
+// PATCHes the log, and the trash flips it into a small confirm
+// prompt that DELETEs. Both paths call `onMutated` so the parent
+// drawer re-fetches the timeline (cheaper than threading optimistic
+// patch state through a list that's usually <20 entries long).
+function HistoryEntry({
+  log,
+  isNewest,
+  contactId,
+  accessToken,
+  currentUserId,
+  onMutated,
+}: {
+  log: ContactLog;
+  isNewest: boolean;
+  contactId: string;
+  accessToken: string | null;
+  currentUserId: string | null;
+  onMutated: () => void | Promise<void>;
+}) {
+  type Mode = 'view' | 'edit' | 'confirm-delete';
+  const [mode, setMode] = useState<Mode>('view');
+  const [method, setMethod] = useState<ContactMethod>(log.method);
+  const [comments, setComments] = useState<string>(log.comments ?? '');
+  const [durationMin, setDurationMin] = useState<string>(
+    log.duration_seconds != null && log.duration_seconds > 0
+      ? String(Math.round(log.duration_seconds / 60))
+      : '',
+  );
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const canEdit = currentUserId != null && log.contacted_by === currentUserId;
+
+  function startEdit() {
+    setMethod(log.method);
+    setComments(log.comments ?? '');
+    setDurationMin(
+      log.duration_seconds != null && log.duration_seconds > 0
+        ? String(Math.round(log.duration_seconds / 60))
+        : '',
+    );
+    setErr(null);
+    setMode('edit');
+  }
+
+  async function save() {
+    if (!accessToken) return;
+    const minutes = parseInt(durationMin, 10);
+    const seconds = Number.isFinite(minutes) ? Math.max(0, minutes) * 60 : 0;
+    if (seconds <= 0) { setErr('Duration must be at least 1 minute.'); return; }
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/contacts/${contactId}/history/${log.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ method, comments: comments.trim() || null, duration_seconds: seconds }),
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((json as { error?: string }).error || `HTTP ${r.status}`);
+      setMode('view');
+      await onMutated();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function destroy() {
+    if (!accessToken) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/contacts/${contactId}/history/${log.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((json as { error?: string }).error || `HTTP ${r.status}`);
+      await onMutated();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="relative pl-4 pb-4 last:pb-0 group/log">
+      <span
+        className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white ${
+          isNewest ? 'bg-primary' : 'bg-foreground/30'
+        }`}
+      />
+      <div className="flex items-start gap-2.5">
+        {log.contacted_by_avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={log.contacted_by_avatar_url}
+            alt={log.contacted_by_name ?? 'User'}
+            className="w-7 h-7 rounded-full object-cover bg-warm-bg"
+          />
+        ) : (
+          <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[9px] font-semibold text-foreground/55">
+            {(log.contacted_by_name || '?').charAt(0).toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-[12px] font-semibold text-foreground">
+              {log.contacted_by_name || 'Unknown'}
+            </p>
+            {mode === 'edit' ? (
+              <select
+                value={method}
+                onChange={(e) => setMethod(e.target.value as ContactMethod)}
+                className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold border border-black/10 bg-white"
+                disabled={busy}
+              >
+                <option value="Phone">Phone</option>
+                <option value="In Person">In Person</option>
+                <option value="Left Message">Left Message</option>
+              </select>
+            ) : (
+              <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[log.method]}`}>
+                {log.method}
+              </span>
+            )}
+            {mode === 'edit' ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border border-black/10 bg-white tabular-nums">
+                <input
+                  type="number"
+                  min={0}
+                  max={720}
+                  value={durationMin}
+                  onChange={(e) => setDurationMin(e.target.value)}
+                  className="w-10 text-center bg-transparent focus:outline-none"
+                  aria-label="Minutes"
+                  inputMode="numeric"
+                  disabled={busy}
+                />
+                <span className="text-foreground/55">min</span>
+              </span>
+            ) : (
+              fmtDuration(log.duration_seconds) && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-semibold border bg-foreground/5 text-foreground/65 border-foreground/15 tabular-nums">
+                  {fmtDuration(log.duration_seconds)}
+                </span>
+              )
+            )}
+            <span className="text-[10px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
+              {fmtAgo(log.contacted_at)}
+            </span>
+            {/* Edit/delete kebab — hidden on rows the current rep
+                didn't author. Becomes visible on hover so the
+                read-only timeline doesn't get loud. */}
+            {canEdit && mode === 'view' && (
+              <span className="ml-auto inline-flex items-center gap-0.5 opacity-0 group-hover/log:opacity-100 focus-within:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={startEdit}
+                  className="p-1 rounded-md text-foreground/45 hover:text-foreground hover:bg-warm-bg/60"
+                  aria-label="Edit entry"
+                  title="Edit"
+                >
+                  <PencilIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setErr(null); setMode('confirm-delete'); }}
+                  className="p-1 rounded-md text-foreground/45 hover:text-red-700 hover:bg-red-50"
+                  aria-label="Delete entry"
+                  title="Delete"
+                >
+                  <TrashIcon />
+                </button>
+              </span>
+            )}
+          </div>
+          {mode === 'edit' ? (
+            <div className="mt-1.5 space-y-1.5">
+              <textarea
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+                rows={3}
+                className="w-full px-2 py-1.5 rounded-md border border-black/10 bg-white text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/40 resize-y"
+                placeholder="Notes about this contact…"
+                disabled={busy}
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={busy}
+                  className="px-2.5 py-1 rounded-md bg-primary text-white text-[11px] font-semibold disabled:opacity-50"
+                >
+                  {busy ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMode('view'); setErr(null); }}
+                  disabled={busy}
+                  className="px-2.5 py-1 rounded-md text-foreground/65 hover:text-foreground text-[11px] font-semibold"
+                >
+                  Cancel
+                </button>
+                {err && <span className="text-[11px] text-red-700">{err}</span>}
+              </div>
+            </div>
+          ) : (
+            <>
+              {log.comments && (
+                <p className="mt-1 text-[12px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
+                  {log.comments}
+                </p>
+              )}
+              {(log.transcript_summary || log.transcript_storage_path) && (
+                <TranscriptBlock
+                  contactId={contactId}
+                  logId={log.id}
+                  summary={log.transcript_summary}
+                  hasTranscript={!!log.transcript_storage_path}
+                  accessToken={accessToken}
+                />
+              )}
+              {mode === 'confirm-delete' && (
+                <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px]">
+                  <span className="text-red-800 font-semibold">Delete this entry?</span>
+                  <button
+                    type="button"
+                    onClick={destroy}
+                    disabled={busy}
+                    className="px-2 py-0.5 rounded bg-red-700 text-white font-semibold disabled:opacity-50"
+                  >
+                    {busy ? 'Deleting…' : 'Delete'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('view')}
+                    disabled={busy}
+                    className="px-2 py-0.5 rounded text-red-800 font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  {err && <span className="text-red-800">· {err}</span>}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width={13} height={13} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 4h10" />
+      <path d="M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1" />
+      <path d="M4.5 4l.5 8.5A1.5 1.5 0 006.5 14h3a1.5 1.5 0 001.5-1.5L11.5 4" />
+      <path d="M7 7v4M9 7v4" />
+    </svg>
   );
 }
 
@@ -5923,7 +6170,7 @@ function UpgradeToPartnerModal({
         // Conditional rule, mirrored client-side, in the API
         // normaliser, and as a Postgres CHECK on partners.
         levels_of_care: isFacility ? levels : null,
-        website: website.trim() || null,
+        website: normalizeUrl(website),
         rep: rep.trim() || null,
         notes: notes.trim() || null,
       });
