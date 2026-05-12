@@ -58,6 +58,11 @@ interface SavedDraft {
   createdAt: string;
   caption: string;
   mediaUrls: string[];
+  // "Mark ready to go" flag. False on save (the default — drafts
+  // start as work-in-progress); true once the admin signs off that
+  // the draft is publishable as-is. The Post tab's publish flow only
+  // shows ready drafts, keeping in-progress text out of the picker.
+  ready?: boolean;
 }
 const DRAFTS_KEY = 'social_media_saved_drafts_v1';
 function readSavedDrafts(): SavedDraft[] {
@@ -591,7 +596,6 @@ function DraftsPanel({
   onPosted: () => void;
 }) {
   const [drafts, setDrafts] = useState<SavedDraft[]>([]);
-  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
 
   useEffect(() => {
     setDrafts(readSavedDrafts());
@@ -610,47 +614,41 @@ function DraftsPanel({
     writeSavedDrafts(next);
   };
 
-  const startPublish = (d: SavedDraft) => {
-    pushComposeDraft({ caption: d.caption, mediaUrls: d.mediaUrls, source: 'drafts' });
-    setActiveDraftId(d.id);
+  // Toggle the per-draft "ready to go" flag. Stays in localStorage
+  // alongside the rest of the draft so the marker survives refresh.
+  // Drafts list is sorted ready-first below so the admin can see at
+  // a glance which posts the publish flow will offer.
+  const toggleReady = (id: string) => {
+    const next = drafts.map((d) => (d.id === id ? { ...d, ready: !d.ready } : d));
+    setDrafts(next);
+    writeSavedDrafts(next);
   };
 
-  const cancelPublish = () => setActiveDraftId(null);
-
-  const onComposerPosted = () => {
-    // Successful publish — drop the draft, fall back to the list.
-    if (activeDraftId) removeDraft(activeDraftId);
-    setActiveDraftId(null);
-    onPosted();
-  };
-
-  if (activeDraftId) {
-    return (
-      <div>
-        <button
-          type="button"
-          onClick={cancelPublish}
-          className="mb-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-foreground/60 hover:text-foreground"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to drafts
-        </button>
-        <Composer
-          connected={accounts?.activeSocialAccounts ?? []}
-          onPosted={onComposerPosted}
-        />
-      </div>
-    );
-  }
+  const readyDrafts = drafts.filter((d) => d.ready);
+  const sortedDrafts = [...drafts].sort((a, b) => {
+    if (!!a.ready === !!b.ready) return 0;
+    return a.ready ? -1 : 1;
+  });
 
   return (
     <section className="rounded-2xl border border-black/10 bg-white p-5">
+      {/* Network-first publish flow. Mounts above the drafts list once
+          the admin marks at least one draft ready — keeps the picker
+          out of sight until there's actually something to publish. */}
+      {readyDrafts.length > 0 && (
+        <PublishReadyFlow
+          connected={accounts?.activeSocialAccounts ?? []}
+          readyDrafts={readyDrafts}
+          onPosted={(usedId) => {
+            removeDraft(usedId);
+            onPosted();
+          }}
+        />
+      )}
       <div className="mb-4">
         <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Drafts</h2>
         <p className="text-[11px] text-foreground/45 mt-0.5">
-          Saved posts from Creative. Pick one and Publish.
+          Saved posts from Creative. Mark a draft ready to go to make it pickable in the publish flow above.
         </p>
       </div>
       {drafts.length === 0 ? (
@@ -662,7 +660,7 @@ function DraftsPanel({
         </div>
       ) : (
         <ul className="space-y-3">
-          {drafts.map((d) => {
+          {sortedDrafts.map((d) => {
             const created = new Date(d.createdAt).toLocaleString('en-US', {
               month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
             });
@@ -670,11 +668,18 @@ function DraftsPanel({
               ? `${d.caption.slice(0, 240)}…`
               : d.caption;
             return (
-              <li key={d.id} className="rounded-xl border border-black/10 bg-warm-bg/20 p-4">
+              <li key={d.id} className={`rounded-xl border p-4 ${d.ready ? 'border-emerald-200 bg-emerald-50/40' : 'border-black/10 bg-warm-bg/20'}`}>
                 <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
-                  <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">
-                    Saved {created}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">
+                      Saved {created}
+                    </p>
+                    {d.ready && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <span aria-hidden>●</span> Ready to go
+                      </span>
+                    )}
+                  </div>
                   {d.mediaUrls.length > 0 && (
                     <p className="text-[10px] text-foreground/45">
                       {d.mediaUrls.length} media attached
@@ -704,10 +709,12 @@ function DraftsPanel({
                   </button>
                   <button
                     type="button"
-                    onClick={() => startPublish(d)}
-                    className="rounded-lg bg-primary text-white px-3 py-1.5 text-[12px] font-semibold hover:bg-primary-dark"
+                    onClick={() => toggleReady(d.id)}
+                    className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors ${d.ready
+                      ? 'border border-emerald-300 text-emerald-800 bg-white hover:bg-emerald-50'
+                      : 'bg-primary text-white hover:bg-primary-dark'}`}
                   >
-                    Publish
+                    {d.ready ? 'Move back to drafts' : 'Mark ready to go'}
                   </button>
                 </div>
               </li>
@@ -715,6 +722,221 @@ function DraftsPanel({
           })}
         </ul>
       )}
+    </section>
+  );
+}
+
+// ── Publish-ready flow ──────────────────────────────────────────────
+//
+// Three-step network-first publish flow that lives at the top of the
+// Drafts panel whenever there's at least one draft marked ready:
+//   1. Tick the social networks you want to publish to (seeded from
+//      the connected-accounts strip so a single-channel admin can
+//      send with one click).
+//   2. Pick a ready draft from the radio list (caption preview +
+//      media chips so you can confirm before sending).
+//   3. Post now, or schedule with a datetime picker.
+// The submit POSTs to /api/social-media/post — same Ayrshare endpoint
+// the Composer uses — and on success removes the draft from the
+// staging list and bumps the History/Scheduled panels via onPosted.
+
+function PublishReadyFlow({
+  connected,
+  readyDrafts,
+  onPosted,
+}: {
+  connected: string[];
+  readyDrafts: SavedDraft[];
+  onPosted: (draftId: string) => void;
+}) {
+  // Step 1: networks. Seeded once with every connected platform so
+  // the common single-account case is one click. Explicit ticks
+  // afterwards override.
+  const seededRef = useRef(false);
+  const [selectedNetworks, setSelectedNetworks] = useState<Set<Platform>>(() => new Set());
+  useEffect(() => {
+    if (seededRef.current) return;
+    if (connected.length === 0) return;
+    seededRef.current = true;
+    setSelectedNetworks(new Set(connected.filter((p): p is Platform => PLATFORMS.some((x) => x.id === p))));
+  }, [connected]);
+
+  // Step 2: which ready draft. Defaults to the first one so the
+  // admin doesn't have to scroll-select on a single-draft day.
+  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
+  useEffect(() => {
+    if (selectedDraftId && readyDrafts.some((d) => d.id === selectedDraftId)) return;
+    setSelectedDraftId(readyDrafts[0]?.id ?? null);
+  }, [readyDrafts, selectedDraftId]);
+
+  // Step 3: scheduling. `mode` toggles the datetime input on; the
+  // local string is converted to UTC at submit time.
+  const [mode, setMode] = useState<'now' | 'schedule'>('now');
+  const [scheduleAt, setScheduleAt] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggleNetwork = (id: Platform) => {
+    setSelectedNetworks((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectedDraft = readyDrafts.find((d) => d.id === selectedDraftId) || null;
+  const canSubmit =
+    selectedDraft !== null
+    && selectedNetworks.size > 0
+    && (mode === 'now' || (mode === 'schedule' && scheduleAt.trim().length > 0));
+
+  const submit = async () => {
+    if (!selectedDraft) { setError('Pick a ready draft to publish.'); return; }
+    if (selectedNetworks.size === 0) { setError('Pick at least one network.'); return; }
+    if (mode === 'schedule' && !scheduleAt) { setError('Pick a schedule date or switch to Post now.'); return; }
+    setError(null);
+    setSubmitting(true);
+    try {
+      const body: Record<string, unknown> = {
+        post: selectedDraft.caption,
+        platforms: Array.from(selectedNetworks),
+      };
+      if (selectedDraft.mediaUrls.length > 0) body.mediaUrls = selectedDraft.mediaUrls;
+      if (mode === 'schedule') body.scheduleDate = new Date(scheduleAt).toISOString();
+      const res = await fetch('/api/social-media/post', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error || json.message || `HTTP ${res.status}`);
+      }
+      onPosted(selectedDraft.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section className="rounded-2xl border border-primary/30 bg-primary/[0.04] p-5 mb-5">
+      <div className="mb-4">
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Publish</h2>
+        <p className="text-[11px] text-foreground/55 mt-0.5">
+          Pick the networks, choose a ready-to-go draft, then post now or schedule.
+        </p>
+      </div>
+
+      {/* Step 1 — networks */}
+      <div className="mb-4">
+        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Step 1 · Networks</p>
+        {connected.length === 0 ? (
+          <p className="text-[12px] text-foreground/55 italic">No connected accounts yet. Connect at least one channel under Overview.</p>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {PLATFORMS.filter((p) => connected.includes(p.id)).map((p) => {
+              const on = selectedNetworks.has(p.id);
+              return (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggleNetwork(p.id)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${on ? 'bg-primary text-white border-primary' : 'bg-white text-foreground/75 border-black/10 hover:bg-warm-bg/60'}`}
+                  >
+                    <span aria-hidden className={`inline-block w-2 h-2 rounded-full ${on ? 'bg-white' : 'bg-foreground/25'}`} />
+                    {p.label}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Step 2 — ready drafts */}
+      <div className="mb-4">
+        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Step 2 · Ready-to-go draft</p>
+        <ul className="space-y-2">
+          {readyDrafts.map((d) => {
+            const checked = selectedDraftId === d.id;
+            const preview = d.caption.length > 180 ? `${d.caption.slice(0, 180)}…` : d.caption;
+            return (
+              <li key={d.id}>
+                <label className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${checked ? 'border-primary bg-white' : 'border-black/10 bg-white/60 hover:bg-white'}`}>
+                  <input
+                    type="radio"
+                    name="ready-draft"
+                    checked={checked}
+                    onChange={() => setSelectedDraftId(d.id)}
+                    className="mt-0.5 accent-primary w-4 h-4 shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] text-foreground/55">Saved {new Date(d.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}{d.mediaUrls.length > 0 && ` · ${d.mediaUrls.length} media`}</p>
+                    <p className="mt-1 text-[13px] text-foreground/85 whitespace-pre-wrap leading-snug">{preview}</p>
+                    {d.mediaUrls.length > 0 && (
+                      <ul className="mt-2 flex flex-wrap gap-1.5">
+                        {d.mediaUrls.slice(0, 6).map((url) => (
+                          <li key={url} className="w-10 h-10 rounded-md overflow-hidden border border-black/10">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={url} alt="Draft media" className="w-full h-full object-cover" />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      {/* Step 3 — post now or schedule */}
+      <div className="mb-4">
+        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Step 3 · When</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setMode('now')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${mode === 'now' ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/75 border-black/10 hover:bg-warm-bg/60'}`}
+          >
+            Post now
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('schedule')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${mode === 'schedule' ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/75 border-black/10 hover:bg-warm-bg/60'}`}
+          >
+            Schedule
+          </button>
+          {mode === 'schedule' && (
+            <input
+              type="datetime-local"
+              value={scheduleAt}
+              onChange={(e) => setScheduleAt(e.target.value)}
+              className="ml-2 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <p className="mb-3 text-[12px] text-rose-700 font-semibold">{error}</p>
+      )}
+
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => void submit()}
+          disabled={!canSubmit || submitting}
+          className="rounded-lg bg-primary text-white px-4 py-2 text-[13px] font-semibold hover:bg-primary-dark disabled:opacity-40"
+        >
+          {submitting ? 'Sending…' : mode === 'schedule' ? `Schedule to ${selectedNetworks.size} ${selectedNetworks.size === 1 ? 'network' : 'networks'}` : `Post now to ${selectedNetworks.size} ${selectedNetworks.size === 1 ? 'network' : 'networks'}`}
+        </button>
+      </div>
     </section>
   );
 }

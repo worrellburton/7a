@@ -951,7 +951,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   return (
                     <div key={`nav-group-${label}`}>
                       <p
-                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-all duration-500 ease-out whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 ${navMounted ? 'translate-x-0' : '-translate-x-3'}`}
+                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-transform duration-500 ease-out whitespace-nowrap ${navMounted ? 'translate-x-0' : '-translate-x-3'}`}
                         style={{ fontFamily: 'var(--font-body)', transitionDelay: `${hdrIdx * 50}ms` }}
                       >
                         {label}
@@ -973,7 +973,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   return (
                     <div key={dept.id}>
                       <p
-                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-all duration-500 ease-out whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 ${navMounted ? 'translate-x-0' : '-translate-x-3'}`}
+                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-transform duration-500 ease-out whitespace-nowrap ${navMounted ? 'translate-x-0' : '-translate-x-3'}`}
                         style={{ fontFamily: 'var(--font-body)', transitionDelay: `${hdrIdx * 50}ms` }}
                       >
                         {dept.name}
