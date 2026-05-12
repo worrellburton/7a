@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   let body: SuggestBody = {};
   try { body = (await req.json()) as SuggestBody; } catch { /* allow empty */ }
   const userPrompt = typeof body.prompt === 'string' ? body.prompt.trim().slice(0, 800) : '';
-  const requested = Math.min(Math.max(body.count ?? 8, 1), 15);
+  const requested = Math.min(Math.max(body.count ?? 8, 1), 50);
 
   // Pull the existing roster so Claude can dedupe + match style.
   const admin = getAdminSupabase();
@@ -116,7 +116,9 @@ ${userPrompt ? `Additional steer from admissions: ${userPrompt}\n\n` : ''}Sugges
       },
       body: JSON.stringify({
         model,
-        max_tokens: 2400,
+        // Scale token budget with the request count so 50 candidates
+        // have room — each suggestion is ~120–180 tokens.
+        max_tokens: Math.min(8000, 1000 + requested * 180),
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       }),

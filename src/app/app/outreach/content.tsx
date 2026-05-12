@@ -164,6 +164,9 @@ const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
 const RESIZE_MIN_PX = 70;
 const RESIZE_MAX_PX = 900;
 const EXPANDER_COL_WIDTH_PX = 40;
+// Leading checkbox column for batch-select. Fixed width on desktop;
+// hidden on mobile (mobile cards get their own inline checkbox).
+const SELECT_COL_WIDTH_PX = 36;
 
 const METHOD_TONES: Record<ContactMethod, string> = {
   Phone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -318,6 +321,29 @@ export default function ContactsContent() {
   // for candidate referrers/leads, lets admissions cherry-pick which
   // ones to keep, and bulk-inserts the selected rows.
   const [showSuggest, setShowSuggest] = useState(false);
+  // Batch-edit selection. Holds the contact ids the admin has ticked
+  // via the leading checkbox column. When > 0 a floating bottom bar
+  // appears with quick-set buttons for Company / Rating / Type /
+  // Specialty / Location — applies the same value to every selected
+  // row in parallel and clears on success.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  function toggleSelectOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function setSelectedFromList(ids: string[], on: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (on) next.add(id); else next.delete(id);
+      }
+      return next;
+    });
+  }
+  function clearSelection() { setSelectedIds(new Set()); }
   const [showCols, setShowCols] = useState(false);
   const [logTarget, setLogTarget] = useState<Contact | null>(null);
   const [upgradeTarget, setUpgradeTarget] = useState<Contact | null>(null);
@@ -997,7 +1023,26 @@ export default function ContactsContent() {
         onCommitColumnWidth={(key, w) => { void persistColumnWidth(key, w); }}
         onResizeStart={() => { resizingRef.current = true; }}
         onResizeEnd={() => { resizingRef.current = false; }}
+        selectedIds={selectedIds}
+        onToggleSelectOne={toggleSelectOne}
+        onToggleSelectMany={setSelectedFromList}
       />
+      )}
+      {selectedIds.size > 0 && (
+        <BatchEditBar
+          selectedIds={selectedIds}
+          token={session?.access_token ?? null}
+          rows={rows}
+          companyOptions={companyOptions}
+          typeOptions={typeOptions}
+          specialtyOptions={specialtyOptions}
+          onClear={clearSelection}
+          onApplied={(patch) => {
+            // Optimistic: stamp the patched fields locally so the grid
+            // reflects the change before the realtime echo arrives.
+            setRows((prev) => prev.map((r) => (selectedIds.has(r.id) ? { ...r, ...patch } : r)));
+          }}
+        />
       )}
 
       {showAdd && (
@@ -2526,6 +2571,9 @@ function ContactsGrid({
   roleOptions,
   typeOptions,
   specialtyOptions,
+  selectedIds,
+  onToggleSelectOne,
+  onToggleSelectMany,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -2557,6 +2605,9 @@ function ContactsGrid({
   roleOptions: string[];
   typeOptions: string[];
   specialtyOptions: string[];
+  selectedIds: Set<string>;
+  onToggleSelectOne: (id: string) => void;
+  onToggleSelectMany: (ids: string[], on: boolean) => void;
 }) {
   // Tracks the row whose notes-editor strip is currently expanded.
   // Click the notes cell to toggle. Persists across rerenders via a
@@ -2569,7 +2620,12 @@ function ContactsGrid({
   // sits to its left, and Actions sits to the left of Contact history.
   // Contact history is user-resizable so we read its live width from
   // the columnWidths map to position Actions correctly.
-  const totalCols = columns.length + 3;
+  // +1 for the leading checkbox column, +3 for the trailing sticky
+  // Actions / Contact-history summary / 3-dot expander columns.
+  const totalCols = columns.length + 4;
+  const visibleIds = useMemo(() => rows.map((r) => r.id), [rows]);
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someSelected = visibleIds.some((id) => selectedIds.has(id));
   const summaryWidth = columnWidths['last_contact_summary'] ?? DEFAULT_COL_WIDTHS_PX['last_contact_summary'];
   const actionsStickyRightPx = EXPANDER_COL_WIDTH_PX + summaryWidth;
 
@@ -2591,6 +2647,7 @@ function ContactsGrid({
             are overridden by the shared `column_widths` map when the
             org has saved a layout. */}
         <colgroup>
+          <col style={{ width: `${SELECT_COL_WIDTH_PX}px` }} />
           {columns.map((c) => {
             const w = columnWidths[c.key] ?? DEFAULT_COL_WIDTHS_PX[c.key] ?? 180;
             return <col key={c.key} style={{ width: `${w}px` }} />;
@@ -2603,6 +2660,16 @@ function ContactsGrid({
         </colgroup>
         <thead className="bg-warm-bg/50 text-left text-[10px] uppercase tracking-wider text-foreground/55">
           <tr>
+            <th className="px-2 py-2 text-center">
+              <input
+                type="checkbox"
+                aria-label={allSelected ? 'Deselect all' : 'Select all'}
+                checked={allSelected}
+                ref={(el) => { if (el) el.indeterminate = !allSelected && someSelected; }}
+                onChange={() => onToggleSelectMany(visibleIds, !allSelected)}
+                className="accent-primary w-4 h-4 cursor-pointer align-middle"
+              />
+            </th>
             {columns.map((c) => (
               <th
                 key={c.key}
@@ -2682,7 +2749,16 @@ function ContactsGrid({
           ) : (
             rows.map((c) => (
               <Fragment key={c.id}>
-              <tr className={`group align-top transition-colors ${isNewToUser(c) ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}>
+              <tr className={`group align-top transition-colors ${selectedIds.has(c.id) ? 'bg-primary/[0.06] hover:bg-primary/10' : isNewToUser(c) ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}>
+                <td className="px-2 py-2.5 text-center align-middle">
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${c.name}`}
+                    checked={selectedIds.has(c.id)}
+                    onChange={() => onToggleSelectOne(c.id)}
+                    className="accent-primary w-4 h-4 cursor-pointer"
+                  />
+                </td>
                 {columns.map((col) => {
                   if (col.key === 'notes') {
                     const isExpanded = expandedNotesId === c.id;
@@ -2824,6 +2900,8 @@ function ContactsGrid({
               contact={c}
               expanded={expandedDetailsId === c.id}
               accessToken={accessToken}
+              selected={selectedIds.has(c.id)}
+              onToggleSelect={() => onToggleSelectOne(c.id)}
               onContact={() => onContact(c)}
               onUpgrade={() => onUpgrade(c)}
               onHistory={() => onHistory(c)}
@@ -4337,6 +4415,8 @@ function ContactMobileCard({
   contact,
   expanded,
   accessToken,
+  selected,
+  onToggleSelect,
   onContact,
   onUpgrade,
   onHistory,
@@ -4346,6 +4426,8 @@ function ContactMobileCard({
   contact: Contact;
   expanded: boolean;
   accessToken: string | null;
+  selected: boolean;
+  onToggleSelect: () => void;
   onContact: () => void;
   onUpgrade: () => void;
   onHistory: () => void;
@@ -4354,9 +4436,17 @@ function ContactMobileCard({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-xl border border-black/10 bg-white p-4">
+    <div className={`rounded-xl border bg-white p-4 ${selected ? 'border-primary/40 ring-1 ring-primary/20' : 'border-black/10'}`}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 flex items-start gap-2">
+          <input
+            type="checkbox"
+            aria-label={`Select ${contact.name}`}
+            checked={selected}
+            onChange={onToggleSelect}
+            className="mt-1 accent-primary w-4 h-4 shrink-0"
+          />
+          <div className="min-w-0 flex-1">
           <p className="font-semibold text-foreground text-[13px] leading-tight">{contact.name}</p>
           {/* Rating + Type pills sit just under the name on mobile so
               the qualifier hierarchy (who → how good → what they offer)
@@ -4385,6 +4475,7 @@ function ContactMobileCard({
           {contact.source === 'downgrade-from-partner' && (
             <p className="mt-1 text-[9px] uppercase tracking-wider text-foreground/40">From partner</p>
           )}
+          </div>
         </div>
         <TimeSinceCell contact={contact} />
       </div>
@@ -4985,6 +5076,8 @@ function SuggestWithClaudeModal({
               <option value={8}>8</option>
               <option value={10}>10</option>
               <option value={15}>15</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
             </select>
           </ModalField>
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/5">
@@ -5100,6 +5193,200 @@ function SuggestWithClaudeModal({
         </div>
       )}
     </ModalShell>
+  );
+}
+
+// ─── Batch-edit floating bar ─────────────────────────────────
+//
+// Anchored to the bottom of the viewport whenever the leading
+// checkboxes have a non-empty selection. Provides five quick-set
+// affordances — Company / Rating / Type / Specialty/Focus / Location —
+// each of which expands into a small inline picker. On Apply we fan
+// out PATCH requests to /api/contacts/[id] for every selected row in
+// parallel. Optimistic: the parent stamps the same patch into local
+// rows so the grid reflects the change before the realtime echo lands.
+
+type BatchField = 'company' | 'rating' | 'type' | 'specialty' | 'location';
+
+function BatchEditBar({
+  selectedIds,
+  token,
+  rows,
+  companyOptions,
+  typeOptions,
+  specialtyOptions,
+  onClear,
+  onApplied,
+}: {
+  selectedIds: Set<string>;
+  token: string | null;
+  rows: Contact[];
+  companyOptions: string[];
+  typeOptions: string[];
+  specialtyOptions: string[];
+  onClear: () => void;
+  onApplied: (patch: Partial<Contact>) => void;
+}) {
+  const [field, setField] = useState<BatchField | null>(null);
+  const [value, setValue] = useState<string>('');
+  const [rating, setRating] = useState<ContactRating | ''>('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // The number selected (out of how many on the page) — affordance for
+  // a quick "you're about to change N rows" sanity check.
+  const count = selectedIds.size;
+  const totalOnPage = rows.length;
+
+  function open(next: BatchField) {
+    setField(next);
+    setValue('');
+    setRating('');
+  }
+  function close() {
+    setField(null);
+    setValue('');
+    setRating('');
+  }
+
+  async function apply() {
+    if (!token) return;
+    let patch: Partial<Contact> = {};
+    switch (field) {
+      case 'company': patch = { company: value.trim() || null }; break;
+      case 'rating': patch = { rating: rating || null }; break;
+      case 'type': patch = { type: value.trim() || null }; break;
+      case 'specialty': patch = { specialty: value.trim() || null }; break;
+      case 'location': patch = { location: value.trim() || null }; break;
+      default: return;
+    }
+    setSubmitting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      // Fan out PATCH per id. Server-side a real bulk endpoint would
+      // be cheaper; per-row calls keep the change isolated and the
+      // existing realtime channel reconciles automatically.
+      await Promise.allSettled(ids.map((id) => fetch(`/api/contacts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(patch),
+      })));
+      onApplied(patch);
+      close();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const FIELDS: { key: BatchField; label: string }[] = [
+    { key: 'company', label: 'Company' },
+    { key: 'rating', label: 'Rating' },
+    { key: 'type', label: 'Type' },
+    { key: 'specialty', label: 'Specialty / Focus' },
+    { key: 'location', label: 'Location' },
+  ];
+
+  return (
+    <div className="fixed inset-x-0 bottom-3 sm:bottom-5 z-40 px-3 sm:px-6 pointer-events-none">
+      <div className="max-w-3xl mx-auto pointer-events-auto">
+        <div className="rounded-2xl border border-black/10 bg-foreground text-white shadow-2xl ring-1 ring-black/20 overflow-hidden">
+          {field && (
+            <div className="px-4 sm:px-5 py-3 border-b border-white/10 bg-foreground/95">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] font-bold tracking-[0.16em] uppercase text-white/55">Set {FIELDS.find((f) => f.key === field)?.label} for {count} {count === 1 ? 'contact' : 'contacts'}</span>
+                <button type="button" onClick={close} className="ml-auto text-white/50 hover:text-white text-[11px] underline">Cancel</button>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {field === 'rating' ? (
+                  <select
+                    value={rating}
+                    onChange={(e) => setRating(e.target.value as ContactRating | '')}
+                    className="flex-1 min-w-0 rounded-lg border border-white/15 bg-white/5 text-white px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  >
+                    <option value="">— Select —</option>
+                    {RATING_OPTIONS.map((r) => <option key={r} value={r} className="text-foreground">{r}</option>)}
+                  </select>
+                ) : field === 'type' ? (
+                  <input
+                    list="batch-type-options"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder="Detox · PHP · IOP · …"
+                    className="flex-1 min-w-0 rounded-lg border border-white/15 bg-white/5 text-white placeholder-white/45 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                ) : field === 'specialty' ? (
+                  <input
+                    list="batch-specialty-options"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder="Trauma · Eating Disorders · …"
+                    className="flex-1 min-w-0 rounded-lg border border-white/15 bg-white/5 text-white placeholder-white/45 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                ) : field === 'company' ? (
+                  <input
+                    list="batch-company-options"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder="Company name"
+                    className="flex-1 min-w-0 rounded-lg border border-white/15 bg-white/5 text-white placeholder-white/45 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                ) : (
+                  <input
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder="City, ST"
+                    className="flex-1 min-w-0 rounded-lg border border-white/15 bg-white/5 text-white placeholder-white/45 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => void apply()}
+                  disabled={submitting || (field === 'rating' ? rating === '' : false)}
+                  className="px-4 py-2 rounded-lg bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-40"
+                >
+                  {submitting ? 'Applying…' : `Apply to ${count}`}
+                </button>
+              </div>
+              {/* datalists feed each input's suggestion drop-down */}
+              <datalist id="batch-type-options">
+                {typeOptions.map((o) => <option key={o} value={o} />)}
+                {TYPE_OPTIONS.filter((t) => !typeOptions.includes(t)).map((o) => <option key={o} value={o} />)}
+              </datalist>
+              <datalist id="batch-specialty-options">
+                {specialtyOptions.map((o) => <option key={o} value={o} />)}
+              </datalist>
+              <datalist id="batch-company-options">
+                {companyOptions.map((o) => <option key={o} value={o} />)}
+              </datalist>
+            </div>
+          )}
+          <div className="px-4 sm:px-5 py-2.5 flex items-center gap-2 sm:gap-3 flex-wrap">
+            <span className="text-[11.5px] font-semibold">
+              {count} of {totalOnPage} selected
+            </span>
+            <span className="text-white/30">·</span>
+            <div className="flex items-center gap-1 flex-wrap">
+              {FIELDS.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => open(f.key)}
+                  className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-colors ${field === f.key ? 'bg-primary text-white' : 'bg-white/10 text-white/85 hover:bg-white/20'}`}
+                >
+                  Set {f.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={onClear}
+              className="ml-auto text-white/55 hover:text-white text-[11px] underline"
+            >
+              Clear selection
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
