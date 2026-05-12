@@ -30,6 +30,18 @@ const FACILITY_TYPES: ReadonlySet<string> = new Set(['Detox', 'RTC', 'Outpatient
 
 type ContactMethod = 'Phone' | 'In Person' | 'Left Message';
 
+type ContactRating = 'Tier 1' | 'Tier 2' | 'Tier 3';
+
+// Same palette as outreach RatingCell so the pill reads identically on
+// both surfaces. "Tier 1" gets the premium sheen via .sa-tier1-premium
+// already defined in globals.
+const RATING_TONES: Record<ContactRating, string> = {
+  'Tier 1': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Tier 2': 'bg-amber-50 text-amber-700 border-amber-200',
+  'Tier 3': 'bg-foreground/5 text-foreground/60 border-foreground/15',
+};
+const RATING_OPTIONS: ContactRating[] = ['Tier 1', 'Tier 2', 'Tier 3'];
+
 const METHOD_TONES: Record<ContactMethod, string> = {
   Phone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   'In Person': 'bg-blue-50 text-blue-700 border-blue-200',
@@ -40,6 +52,10 @@ interface Partner {
   id: string;
   name: string;
   type: PartnerType;
+  // Outreach-style tier rating (Tier 1 / Tier 2 / Tier 3). Mirrors
+  // contacts.rating so the same pill renders here and on the
+  // outreach grid. NULL = unrated.
+  rating: ContactRating | null;
   specialty: string | null;
   location: string | null;
   poc: string | null;
@@ -72,9 +88,16 @@ interface ColumnDef {
   align?: 'left' | 'right';
 }
 
+// Column order mirrors the outreach identity strip — Name → Rating
+// → Website (Site) → Type → Specialty come first, then the partner-
+// specific fields (PoC, Contact info, Admissions line, …) flow in
+// after. The leading `priority` cell stays pinned far-left and is
+// not user-reorderable.
 const ALL_COLUMNS: ColumnDef[] = [
   { key: 'priority', label: '#', width: '52px', align: 'right' },
   { key: 'name', label: 'Name' },
+  { key: 'rating', label: 'Rating', width: '110px' },
+  { key: 'website', label: 'Site', width: '70px' },
   { key: 'type', label: 'Type', width: '130px' },
   { key: 'specialty', label: 'Specialty' },
   { key: 'location', label: 'Location' },
@@ -84,7 +107,6 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: 'cash_pay_rate', label: 'Cash rate', align: 'right', width: '110px' },
   { key: 'insurance', label: 'Insurance' },
   { key: 'levels_of_care', label: 'Levels of care' },
-  { key: 'website', label: 'Website' },
   { key: 'rep', label: 'Rep' },
   { key: 'notes', label: 'Notes' },
   { key: 'comments', label: 'Comments' },
@@ -768,9 +790,21 @@ function CellRenderer({
           {partner.name}
         </button>
       );
+    case 'rating': {
+      // Mirrors outreach's RatingCell pill (read-only here — the
+      // edit modal already exposes the field on partnerships and a
+      // future PR can swap this for the same inline picker).
+      if (!partner.rating) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/15 whitespace-nowrap">— Set tier —</span>;
+      return (
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${RATING_TONES[partner.rating]} ${partner.rating === 'Tier 1' ? 'sa-tier1-premium' : ''}`}>
+          {partner.rating === 'Tier 1' && <span aria-hidden className="text-amber-500">★</span>}
+          {partner.rating}
+        </span>
+      );
+    }
     case 'type':
       return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${TYPE_TONES[partner.type] ?? 'bg-warm-bg text-foreground/65 border-black/10'}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${TYPE_TONES[partner.type] ?? 'bg-warm-bg text-foreground/65 border-black/10'}`}>
           {partner.type}
         </span>
       );
@@ -811,10 +845,38 @@ function CellRenderer({
       return partner.levels_of_care && partner.levels_of_care.length > 0
         ? <BadgeList values={partner.levels_of_care} />
         : <Em />;
-    case 'website':
-      return partner.website
-        ? <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate inline-block max-w-[220px] align-middle">{partner.website.replace(/^https?:\/\//, '')}</a>
-        : <Em />;
+    case 'website': {
+      // Compact site icon, matching outreach's WebsiteCell visual.
+      // Empty rows render a faded globe (no link); filled rows render
+      // a clickable external-link icon with the URL exposed via hover
+      // title. Width is tight (70px) so the cell behaves like an
+      // affordance, not a wide text column.
+      if (!partner.website) {
+        return (
+          <span
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/25"
+            title="No website"
+            aria-label="No website"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a13.5 13.5 0 0 1 0 18M12 3a13.5 13.5 0 0 0 0 18"/></svg>
+          </span>
+        );
+      }
+      const href = /^https?:\/\//i.test(partner.website) ? partner.website : `https://${partner.website}`;
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title={partner.website}
+          aria-label={`Open ${partner.website} in a new tab`}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-primary hover:bg-warm-bg transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      );
+    }
     case 'rep':
       return <span className="text-foreground/75 truncate block">{partner.rep || <Em />}</span>;
     case 'notes':
@@ -873,7 +935,16 @@ function PartnerMobileCard({
             </button>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-semibold border ${TYPE_TONES[partner.type] ?? 'bg-warm-bg text-foreground/65 border-black/10'}`}>
+            {/* Mirror the outreach mobile card: rating + type pills sit
+                under the name in that order so the qualifier hierarchy
+                (who → how good → what they offer) reads in one glance. */}
+            {partner.rating && (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${RATING_TONES[partner.rating]} ${partner.rating === 'Tier 1' ? 'sa-tier1-premium' : ''}`}>
+                {partner.rating === 'Tier 1' && <span aria-hidden className="text-amber-500">★</span>}
+                {partner.rating}
+              </span>
+            )}
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${TYPE_TONES[partner.type] ?? 'bg-warm-bg text-foreground/65 border-black/10'}`}>
               {partner.type}
             </span>
             {partner.location && (
@@ -1238,6 +1309,7 @@ function PartnerForm({
 }) {
   const [type, setType] = useState<PartnerType>((initial?.type as PartnerType) ?? 'Detox');
   const [name, setName] = useState(initial?.name ?? '');
+  const [rating, setRating] = useState<ContactRating | ''>(initial?.rating ?? '');
   const [specialty, setSpecialty] = useState(initial?.specialty ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
   const [poc, setPoc] = useState(initial?.poc ?? '');
@@ -1264,6 +1336,7 @@ function PartnerForm({
     const payload: Partial<Partner> = {
       name: name.trim(),
       type,
+      rating: rating || null,
       specialty: specialty.trim() || null,
       location: location.trim() || null,
       poc: poc.trim() || null,
@@ -1316,6 +1389,12 @@ function PartnerForm({
           <Field label="Type" required>
             <select value={type} onChange={(e) => setType(e.target.value as PartnerType)} className="form-input">
               {PARTNER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </Field>
+          <Field label="Rating" hint="Mirrors outreach tier rating.">
+            <select value={rating} onChange={(e) => setRating(e.target.value as ContactRating | '')} className="form-input">
+              <option value="">— Set tier —</option>
+              {RATING_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </Field>
           <Field label="Specialty">
