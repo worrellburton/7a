@@ -12,8 +12,14 @@ export const dynamic = 'force-dynamic';
 interface ContactBody {
   name?: string;
   company?: string | null;
+  company_website?: string | null;
+  type?: string | null;
+  specialty?: string | null;
+  rating?: string | null;
   role?: string | null;
   phone?: string | null;
+  phone_cell?: string | null;
+  phone_office?: string | null;
   email?: string | null;
   location?: string | null;
   notes?: string | null;
@@ -33,7 +39,7 @@ export async function GET(req: NextRequest) {
   const admin = getAdminSupabase();
   const { data, error } = await admin
     .from('contacts')
-    .select('id, name, company, company_website, rating, role, phone, phone_cell, phone_office, email, location, formatted_address, place_id, tz, lat, lng, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, created_at, updated_at')
+    .select('id, name, company, company_website, type, specialty, rating, role, phone, phone_cell, phone_office, email, location, formatted_address, place_id, tz, lat, lng, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, created_at, updated_at')
     .order('last_contact_at', { ascending: false, nullsFirst: false })
     .order('name', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -45,6 +51,8 @@ export async function GET(req: NextRequest) {
     name: string;
     company: string | null;
     company_website: string | null;
+    type: string | null;
+    specialty: string | null;
     rating: string | null;
     role: string | null;
     phone: string | null;
@@ -118,8 +126,13 @@ export async function POST(req: NextRequest) {
     .insert({
       name,
       company: trim(body.company, 200),
+      company_website: trim(body.company_website, 500),
+      type: trim(body.type, 60),
+      specialty: trim(body.specialty, 200),
       role: trim(body.role, 200),
       phone: trim(body.phone, 60),
+      phone_cell: trim(body.phone_cell, 60),
+      phone_office: trim(body.phone_office, 60),
       email: trim(body.email, 200),
       location: trim(body.location, 200),
       notes: trim(body.notes, 4000),

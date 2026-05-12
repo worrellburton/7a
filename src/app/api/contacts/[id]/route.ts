@@ -25,6 +25,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ('name' in body) patch.name = trim(body.name, 200);
   if ('company' in body) patch.company = trim(body.company, 200);
   if ('company_website' in body) patch.company_website = trim(body.company_website, 500);
+  if ('type' in body) patch.type = trim(body.type, 60);
+  if ('specialty' in body) patch.specialty = trim(body.specialty, 200);
   if ('rating' in body) {
     const r = trim(body.rating, 20);
     if (r === null || r === 'Tier 1' || r === 'Tier 2' || r === 'Tier 3') patch.rating = r;
