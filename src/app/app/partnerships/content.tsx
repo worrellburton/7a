@@ -145,6 +145,31 @@ const TYPE_TONES: Record<PartnerType, string> = {
 const LEVELS_OF_CARE_OPTIONS = ['Detox', 'Inpatient', 'Residential', 'PHP', 'IOP', 'OP', 'Sober Living'];
 const COMMON_INSURANCE = ['Aetna', 'BCBS', 'Cigna', 'UnitedHealthcare', 'Humana', 'TRICARE', 'Anthem', 'Medicaid', 'Self-Pay', 'Other'];
 
+// Per-column default widths in px. Used when the shared row in
+// `shared_grid_prefs.column_widths` doesn't yet have an entry for a
+// column. Mirrors the outreach grid's DEFAULT_COL_WIDTHS_PX so the two
+// surfaces feel like the same component.
+const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
+  priority: 52,
+  name: 220,
+  rating: 110,
+  website: 70,
+  type: 130,
+  specialty: 200,
+  location: 180,
+  poc: 180,
+  contact_info: 200,
+  admissions_line: 160,
+  cash_pay_rate: 110,
+  insurance: 200,
+  levels_of_care: 200,
+  rep: 160,
+  notes: 280,
+  comments: 280,
+};
+const RESIZE_MIN_PX = 70;
+const RESIZE_MAX_PX = 900;
+
 // ─── Page ───────────────────────────────────────────────────────
 
 export default function PartnershipsContent() {
@@ -168,6 +193,17 @@ export default function PartnershipsContent() {
   // Shared column prefs (visible + order). null until first load.
   const [visibleCols, setVisibleCols] = useState<string[] | null>(null);
   const [columnOrder, setColumnOrder] = useState<string[] | null>(null);
+  // Column widths in px keyed by column key. Empty / missing keys
+  // fall back to DEFAULT_COL_WIDTHS_PX. Updated optimistically while
+  // the user drags a resize handle and persisted on pointer-up;
+  // realtime updates from `shared_grid_prefs` overwrite this state so
+  // every admin sees the same layout in lockstep — same pattern as
+  // the outreach grid.
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  // Guards a transient race: when the user is mid-drag, a realtime
+  // echo of our own width write can snap the column back to its
+  // pre-drag value before the drag ends.
+  const resizingRef = useRef(false);
 
   // Initial fetch + realtime subscriptions for partners + prefs.
   useEffect(() => {
@@ -188,6 +224,9 @@ export default function PartnershipsContent() {
       .then((json) => {
         if (cancelled || !json) return;
         applyPrefs(json.visible_columns, json.column_order);
+        if (json.column_widths && typeof json.column_widths === 'object') {
+          setColumnWidths(json.column_widths as Record<string, number>);
+        }
       });
 
     const channel = supabase
@@ -210,8 +249,12 @@ export default function PartnershipsContent() {
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_grid_prefs', filter: 'scope=eq.partners' }, (payload) => {
-        const row = payload.new as { visible_columns: string[]; column_order: string[] } | null;
-        if (row) applyPrefs(row.visible_columns, row.column_order);
+        const row = payload.new as { visible_columns: string[]; column_order: string[]; column_widths?: Record<string, number> } | null;
+        if (!row) return;
+        applyPrefs(row.visible_columns, row.column_order);
+        if (row.column_widths && typeof row.column_widths === 'object' && !resizingRef.current) {
+          setColumnWidths(row.column_widths as Record<string, number>);
+        }
       })
       .subscribe();
     return () => {
@@ -245,6 +288,21 @@ export default function PartnershipsContent() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ visible_columns: visible, column_order: order }),
+      });
+    },
+    [session?.access_token],
+  );
+
+  // Save a single column's width to the shared prefs row. Same partial
+  // payload outreach uses — the prefs API merges into existing widths
+  // so a resize call doesn't clobber visibility/order, and vice versa.
+  const persistColumnWidth = useCallback(
+    async (key: string, widthPx: number) => {
+      if (!session?.access_token) return;
+      await fetch('/api/partnerships/prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ column_widths: { [key]: Math.round(widthPx) } }),
       });
     },
     [session?.access_token],
@@ -545,6 +603,11 @@ export default function PartnershipsContent() {
           setActionMenuFor={setActionMenuFor}
           specialties={specialties}
           onInlineSpecialty={onInlineSpecialty}
+          columnWidths={columnWidths}
+          onResizeColumn={(key, w) => setColumnWidths((prev) => ({ ...prev, [key]: Math.round(w) }))}
+          onCommitColumnWidth={(key, w) => { void persistColumnWidth(key, w); }}
+          onResizeStart={() => { resizingRef.current = true; }}
+          onResizeEnd={() => { resizingRef.current = false; }}
         />
       ) : (
         <PartnersMapView rows={filtered} />
@@ -599,6 +662,85 @@ export default function PartnershipsContent() {
 
 // ─── Grid ───────────────────────────────────────────────────────
 
+// Right-edge column-resize grip rendered inside each <th>. The parent
+// <th> is positioned-relative + group/th so a faint hover affordance
+// shows on the handle without bleeding into the header label. Drag
+// updates the parent's columnWidths map; pointer-up triggers the
+// org-wide persist so every teammate's viewport hot-syncs via
+// realtime. Mirrors src/app/app/outreach/content.tsx's ResizeHandle.
+function ResizeHandle({
+  colKey,
+  onResize,
+  onCommit,
+  onStart,
+  onEnd,
+}: {
+  colKey: string;
+  onResize: (key: string, widthPx: number) => void;
+  onCommit: (key: string, widthPx: number) => void;
+  onStart: () => void;
+  onEnd: () => void;
+}) {
+  const [active, setActive] = useState(false);
+  const stateRef = useRef<{ startX: number; startWidth: number; lastWidth: number } | null>(null);
+
+  function findHeaderEl(currentTarget: HTMLElement): HTMLElement | null {
+    return currentTarget.closest(`th[data-col-key="${colKey}"]`) as HTMLElement | null;
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    const headerEl = findHeaderEl(e.currentTarget);
+    if (!headerEl) return;
+    const startWidth = headerEl.getBoundingClientRect().width;
+    stateRef.current = { startX: e.clientX, startWidth, lastWidth: startWidth };
+    setActive(true);
+    onStart();
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const s = stateRef.current;
+    if (!s) return;
+    e.preventDefault();
+    const dx = e.clientX - s.startX;
+    const next = Math.max(RESIZE_MIN_PX, Math.min(RESIZE_MAX_PX, s.startWidth + dx));
+    s.lastWidth = next;
+    onResize(colKey, next);
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const s = stateRef.current;
+    if (!s) return;
+    const finalWidth = s.lastWidth;
+    stateRef.current = null;
+    setActive(false);
+    onEnd();
+    onCommit(colKey, finalWidth);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Resize ${colKey} column`}
+      draggable={false}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      className={`absolute right-0 top-1 bottom-1 w-2 -mr-px rounded-full select-none cursor-col-resize touch-none transition-colors duration-150 ${active ? 'bg-[#bc6b4a]/80' : 'bg-transparent hover:bg-foreground/25 group-hover/th:bg-foreground/10'}`}
+    />
+  );
+}
+
 function PartnersGrid({
   loading,
   rows,
@@ -613,6 +755,11 @@ function PartnersGrid({
   setActionMenuFor,
   specialties,
   onInlineSpecialty,
+  columnWidths,
+  onResizeColumn,
+  onCommitColumnWidth,
+  onResizeStart,
+  onResizeEnd,
 }: {
   loading: boolean;
   rows: { row: Partner; priority: number; isFirstOfGroup: boolean }[];
@@ -627,11 +774,28 @@ function PartnersGrid({
   setActionMenuFor: (id: string | null) => void;
   specialties: string[];
   onInlineSpecialty: (id: string, next: string | null) => Promise<void> | void;
+  columnWidths: Record<string, number>;
+  onResizeColumn: (key: string, widthPx: number) => void;
+  onCommitColumnWidth: (key: string, widthPx: number) => void;
+  onResizeStart: () => void;
+  onResizeEnd: () => void;
 }) {
   return (
     <>
       <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
+        {/* <colgroup> drives actual column widths so resize is cheap
+            (only one node per column needs its width set, not every
+            cell). Mirrors the outreach grid pattern — widths come from
+            the shared `column_widths` map first, then per-column
+            defaults, then a sensible 180px fallback. */}
+        <colgroup>
+          {columns.map((c) => {
+            const w = columnWidths[c.key] ?? DEFAULT_COL_WIDTHS_PX[c.key] ?? 180;
+            return <col key={c.key} style={{ width: `${w}px` }} />;
+          })}
+          <col style={{ width: '40px' }} />
+        </colgroup>
         <thead className="bg-warm-bg/50 text-left text-[11px] uppercase tracking-wider text-foreground/55">
           <tr>
             {columns.map((c) => {
@@ -639,16 +803,29 @@ function PartnersGrid({
               return (
                 <th
                   key={c.key}
+                  data-col-key={c.key}
                   draggable={!isPriority}
                   onDragStart={() => onColDragStart(c.key)}
                   onDragOver={(e) => { if (!isPriority) e.preventDefault(); }}
                   onDrop={() => onColDrop(c.key)}
-                  className={`px-3 py-2 whitespace-nowrap select-none ${c.align === 'right' ? 'text-right' : ''} ${
+                  className={`group/th relative px-3 py-2 whitespace-nowrap select-none ${c.align === 'right' ? 'text-right' : ''} ${
                     isPriority ? 'sticky left-0 bg-warm-bg/50 z-10' : 'cursor-move'
                   }`}
-                  style={c.width ? { width: c.width } : undefined}
                 >
-                  {c.label}
+                  <span className="truncate">{c.label}</span>
+                  {/* Priority is a fixed slim column; no resize handle so
+                      the eye-anchor for "where am I in the list" never
+                      moves. Every other header gets a drag-to-resize
+                      handle, persisted org-wide via persistColumnWidth. */}
+                  {!isPriority && (
+                    <ResizeHandle
+                      colKey={c.key}
+                      onResize={onResizeColumn}
+                      onCommit={onCommitColumnWidth}
+                      onStart={onResizeStart}
+                      onEnd={onResizeEnd}
+                    />
+                  )}
                 </th>
               );
             })}
