@@ -434,7 +434,7 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, status, userKind, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const { user, loading, isAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
   const isAlumni = userKind === 'alumni';
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
@@ -647,10 +647,21 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // up here so the desktop nav, mobile nav, and popup menu all agree.
   const ALPHA_THRESHOLD = 10;
   const sidebarMode: 'alpha' | 'recency' = sidebarClickCount < ALPHA_THRESHOLD ? 'alpha' : 'alpha';
-  const alphaSortedPages = useMemo(
-    () => [...visibleNavPages].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })),
-    [visibleNavPages],
-  );
+  // Phase 6: in alpha mode, the most-recently-clicked accessible
+  // page floats to position 0; the rest stays alphabetical. Picking
+  // recents[0] (instead of a "today vs older" recency window) keeps
+  // the rule trivially predictable — the last page you clicked is
+  // always at the top, period. Pages the user can no longer see
+  // (perm changes / dept moves) are filtered out before the lookup.
+  const alphaSortedPages = useMemo(() => {
+    const sorted = [...visibleNavPages].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+    const visiblePaths = new Set(visibleNavPages.map((p) => p.path));
+    const mostRecentPath = sidebarRecentPaths.find((p) => visiblePaths.has(p));
+    if (!mostRecentPath) return sorted;
+    const floated = sorted.find((p) => p.path === mostRecentPath);
+    if (!floated) return sorted;
+    return [floated, ...sorted.filter((p) => p.path !== mostRecentPath)];
+  }, [visibleNavPages, sidebarRecentPaths]);
 
   const ungroupedPages = visibleNavPages.filter((p) => !p.departmentId && !p.navGroup);
 
