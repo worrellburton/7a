@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { nextBracketSlot, totalRounds } from '@/lib/connect4-bracket';
+import { incrementTournamentWin } from '@/lib/connect4-elo';
 
 interface BracketRow {
   id: string;
@@ -55,11 +56,14 @@ export async function advanceBracketIfNeeded(
 
   const next = nextBracketSlot(br.round, br.slot, totalRounds(t.size));
   if (!next) {
-    // No next slot — this was the final. Flip the tournament.
+    // No next slot — this was the final. Flip the tournament
+    // and bump the winner's tournament_wins counter for the
+    // leaderboard's "rings" metric.
     await admin
       .from('connect4_tournaments')
       .update({ status: 'complete', winner_id: m.winner_id, completed_at: new Date().toISOString() })
       .eq('id', br.tournament_id);
+    await incrementTournamentWin(admin, m.winner_id);
     return;
   }
 

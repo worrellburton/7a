@@ -18,6 +18,7 @@ import Board from './Board';
 import Lobby from './Lobby';
 import Tournament from './Tournament';
 import TournamentList from './TournamentList';
+import Leaderboard from './Leaderboard';
 
 interface MatchRow {
   id: string;
@@ -136,6 +137,7 @@ export default function Content() {
       <PageShell tagline="Challenge a teammate, jump into an in-flight match, or open a tournament bracket.">
         <Lobby />
         <TournamentList />
+        <Leaderboard />
       </PageShell>
     );
   }
