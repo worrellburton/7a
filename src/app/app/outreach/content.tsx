@@ -19,10 +19,17 @@ import { supabase } from '@/lib/supabase';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
+import {
+  CONTACT_METHODS,
+  CONTACT_METHOD_BY_VALUE,
+  ContactMethodPicker,
+  METHOD_TONES as SHARED_METHOD_TONES,
+  type ContactMethod as SharedContactMethod,
+} from '@/lib/contact-methods';
 
 // ─── Types ──────────────────────────────────────────────────────
 
-type ContactMethod = 'Phone' | 'In Person' | 'Left Message' | 'Text Message';
+type ContactMethod = SharedContactMethod;
 
 type ContactRating = 'Tier 1' | 'Tier 2' | 'Tier 3';
 
@@ -179,14 +186,7 @@ const EXPANDER_COL_WIDTH_PX = 40;
 // hidden on mobile (mobile cards get their own inline checkbox).
 const SELECT_COL_WIDTH_PX = 36;
 
-const METHOD_TONES: Record<ContactMethod, string> = {
-  Phone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'In Person': 'bg-blue-50 text-blue-700 border-blue-200',
-  'Left Message': 'bg-amber-50 text-amber-700 border-amber-200',
-  // Distinct violet so SMS doesn't blend with voicemail (amber) or
-  // in-person (blue) when admissions skims a column of chips.
-  'Text Message': 'bg-violet-50 text-violet-700 border-violet-200',
-};
+const METHOD_TONES = SHARED_METHOD_TONES;
 
 // Forgive bare-host input on Site / Website fields. Reps routinely
 // type "www.deletehis.com" or "rehab.com/contact" — the native
@@ -1847,45 +1847,61 @@ function ThirtyDayTouchesChart({ contacts }: { contacts: Contact[] }) {
 }
 
 // Contact-method mix horizontal bars. Buckets every contact by its
-// `last_contact_method` (Phone / In Person / Left Message / never).
-// Each row shows the method label + the absolute count + a horizontal
-// bar that grows from 0 to its share of the largest bucket on mount
-// via a 900ms ease-out CSS transition. The bars are scaled relative
-// to the LARGEST bucket (not to total) so a tiny method doesn't
-// disappear next to a dominant one — admissions can still see
-// "Left Message" exists even if it's 1 vs 80 phone calls.
+// `last_contact_method`. Rows are derived from the shared
+// CONTACT_METHODS registry so adding a new method (e.g. Smoke
+// Signals) needs no edits here. To keep the panel scannable we
+// only render method rows with at least 1 entry; the "Never"
+// bucket always shows.
 function ContactMethodMixBars({ contacts }: { contacts: Contact[] }) {
+  type BucketKey = ContactMethod | 'Never';
   const buckets = useMemo(() => {
-    const out: Record<'Phone' | 'In Person' | 'Left Message' | 'Text Message' | 'Never', number> = {
-      Phone: 0, 'In Person': 0, 'Left Message': 0, 'Text Message': 0, Never: 0,
-    };
+    const out = {} as Record<BucketKey, number>;
+    for (const m of CONTACT_METHODS) out[m.value] = 0;
+    out.Never = 0;
     for (const c of contacts) {
       if (!c.last_contact_method) out.Never += 1;
-      else out[c.last_contact_method] += 1;
+      else if (c.last_contact_method in out) out[c.last_contact_method as BucketKey] += 1;
+      else out.Never += 1;
     }
     return out;
   }, [contacts]);
   const total = contacts.length;
   const max = Math.max(1, ...Object.values(buckets));
 
-  const ROWS: Array<{ key: keyof typeof buckets; label: string; tone: string; bar: string; help: string }> = [
-    { key: 'Phone',        label: 'Phone',        tone: 'text-emerald-700', bar: 'linear-gradient(90deg, #10b981, #059669)', help: 'Last touch was a phone call.' },
-    { key: 'In Person',    label: 'In person',    tone: 'text-sky-700',     bar: 'linear-gradient(90deg, #38bdf8, #0284c7)', help: 'Last touch was in person.' },
-    { key: 'Left Message', label: 'Left message', tone: 'text-amber-700',   bar: 'linear-gradient(90deg, #fbbf24, #d97706)', help: 'Last touch ended in voicemail / unreturned.' },
-    { key: 'Text Message', label: 'Text message', tone: 'text-violet-700',  bar: 'linear-gradient(90deg, #a78bfa, #7c3aed)', help: 'Last touch was an SMS.' },
-    { key: 'Never',        label: 'Never',        tone: 'text-foreground/55', bar: 'linear-gradient(90deg, rgba(0,0,0,0.18), rgba(0,0,0,0.32))', help: 'Contact has no log entry yet.' },
-  ];
+  const ROWS = useMemo(() => {
+    const r: Array<{ key: BucketKey; label: string; tone: string; bar: string; help: string; Icon?: () => React.ReactNode }> = [];
+    for (const m of CONTACT_METHODS) {
+      if (buckets[m.value] === 0) continue;
+      r.push({
+        key: m.value,
+        label: m.label,
+        tone: m.tone.replace(/bg-\S+\s+/, '').replace(/border-\S+/, '').trim(),
+        bar: m.barGradient,
+        help: `Last touch was ${m.label.toLowerCase()}.`,
+        Icon: m.Icon,
+      });
+    }
+    r.push({
+      key: 'Never',
+      label: 'Never',
+      tone: 'text-foreground/55',
+      bar: 'linear-gradient(90deg, rgba(0,0,0,0.18), rgba(0,0,0,0.32))',
+      help: 'Contact has no log entry yet.',
+    });
+    return r;
+  }, [buckets]);
 
   // Mount animation — bars grow from 0% to their share-of-max width
   // on the next animation frame so the page feels alive when you
-  // land on Insights. Re-fires when the bucket counts change so a
+  // land on Insights. Re-fires when any bucket changes so a
   // logged-contact action makes its bar visibly grow.
+  const bucketSignature = ROWS.map((r) => buckets[r.key]).join('|');
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(false);
     const id = window.requestAnimationFrame(() => setMounted(true));
     return () => window.cancelAnimationFrame(id);
-  }, [buckets.Phone, buckets['In Person'], buckets['Left Message'], buckets.Never]);
+  }, [bucketSignature]);
 
   return (
     <div className="col-span-12 md:col-span-6 rounded-xl border border-black/10 bg-white px-4 py-4">
@@ -1906,7 +1922,10 @@ function ContactMethodMixBars({ contacts }: { contacts: Contact[] }) {
             return (
               <li key={r.key} title={r.help} className="space-y-1">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className={`text-[12px] font-semibold ${r.tone}`}>{r.label}</span>
+                  <span className={`flex items-center gap-1.5 text-[12px] font-semibold ${r.tone}`}>
+                    {r.Icon && <span className="opacity-80"><r.Icon /></span>}
+                    {r.label}
+                  </span>
                   <span className="text-[11px] text-foreground/55 tabular-nums">
                     {v} <span className="text-foreground/35">·</span> {(pct * 100).toFixed(0)}%
                   </span>
@@ -5585,16 +5604,7 @@ function LogContactModal({
       >
         <div className="px-6 py-5 space-y-4">
           <ModalField label="Method" required>
-            <select
-              value={method}
-              onChange={(e) => setMethod(e.target.value as ContactMethod)}
-              className="modal-input"
-            >
-              <option value="Phone">Phone</option>
-              <option value="In Person">In Person</option>
-              <option value="Left Message">Left Message</option>
-              <option value="Text Message">Text Message</option>
-            </select>
+            <ContactMethodPicker value={method} onChange={setMethod} />
           </ModalField>
           <ModalField label="Duration" required hint="How long was the call / conversation, in minutes?">
             <div className="flex items-center gap-2">

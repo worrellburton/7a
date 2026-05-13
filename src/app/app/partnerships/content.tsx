@@ -20,6 +20,11 @@ import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
+import {
+  ContactMethodPicker,
+  METHOD_TONES as SHARED_METHOD_TONES,
+  type ContactMethod as SharedContactMethod,
+} from '@/lib/contact-methods';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -28,7 +33,7 @@ type PartnerType = (typeof PARTNER_TYPES)[number];
 
 const FACILITY_TYPES: ReadonlySet<string> = new Set(['Detox', 'RTC', 'Outpatient', 'Extended Care']);
 
-type ContactMethod = 'Phone' | 'In Person' | 'Left Message' | 'Text Message';
+type ContactMethod = SharedContactMethod;
 
 type ContactRating = 'Tier 1' | 'Tier 2' | 'Tier 3';
 
@@ -42,12 +47,7 @@ const RATING_TONES: Record<ContactRating, string> = {
 };
 const RATING_OPTIONS: ContactRating[] = ['Tier 1', 'Tier 2', 'Tier 3'];
 
-const METHOD_TONES: Record<ContactMethod, string> = {
-  Phone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'In Person': 'bg-blue-50 text-blue-700 border-blue-200',
-  'Left Message': 'bg-amber-50 text-amber-700 border-amber-200',
-  'Text Message': 'bg-violet-50 text-violet-700 border-violet-200',
-};
+const METHOD_TONES = SHARED_METHOD_TONES;
 
 interface Partner {
   id: string;
@@ -1716,22 +1716,7 @@ function LogContactModal({
             <label className="block text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">
               Method <span className="text-primary">*</span>
             </label>
-            <div className="flex flex-wrap gap-2">
-              {(['Phone', 'In Person', 'Left Message', 'Text Message'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMethod(m)}
-                  className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
-                    method === m
-                      ? `${METHOD_TONES[m]} ring-2 ring-offset-1 ring-current/20`
-                      : 'bg-white text-foreground/65 border-black/10 hover:bg-warm-bg/60'
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
+            <ContactMethodPicker value={method} onChange={setMethod} />
           </div>
           <div>
             <label className="block text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-1">
