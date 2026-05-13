@@ -9,7 +9,7 @@
 // wired up to local-only state in this phase and to a Supabase
 // realtime channel in Phase 4 without touching the JSX.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { buildBoard, currentPlayer, findWinner, isColumnFull, COLS, ROWS, type Cell } from '@/lib/connect4';
 
 interface BoardProps {
@@ -34,6 +34,19 @@ export default function Connect4Board({ moves, onDrop, disabled = false, challen
   const win = findWinner(board);
   const winSet = new Set(win?.cells.map(([r, c]) => `${r}:${c}`));
   const [hoverCol, setHoverCol] = useState<number | null>(null);
+  // Phase 9 — last-dropped chip animation. We rebuild the board
+  // without the final move and find where that last chip would
+  // have landed; flag that (row, col) so its chip renders with
+  // the sa-c4-chip-drop keyframes for a single render. React's
+  // reconciliation will replace the node when the next move
+  // arrives, naturally re-firing the animation.
+  const lastDrop = useMemo<{ row: number; col: number } | null>(() => {
+    if (moves.length === 0) return null;
+    const col = moves[moves.length - 1];
+    const prevBoard = buildBoard(moves.slice(0, -1));
+    const row = lowestEmptyRowOfCol(prevBoard, col);
+    return row < 0 ? null : { row, col };
+  }, [moves]);
 
   return (
     <div className="inline-flex flex-col items-center gap-3">
@@ -99,7 +112,11 @@ export default function Connect4Board({ moves, onDrop, disabled = false, challen
                 >
                   {cell !== null && (
                     <span
-                      className={`absolute inset-1 rounded-full shadow-[inset_0_-3px_0_rgba(0,0,0,0.15)] ${PLAYER_TONES[cell].chip} ${inWin ? `ring-2 ring-offset-1 ${PLAYER_TONES[cell].ring}` : ''}`}
+                      key={`chip-${r}-${c}-${moves.length}`}
+                      className={`absolute inset-1 rounded-full shadow-[inset_0_-3px_0_rgba(0,0,0,0.15)] ${PLAYER_TONES[cell].chip} ${inWin ? `ring-2 ring-offset-1 ${PLAYER_TONES[cell].ring}` : ''} ${lastDrop && lastDrop.row === r && lastDrop.col === c ? 'sa-c4-chip-drop' : ''}`}
+                      style={lastDrop && lastDrop.row === r && lastDrop.col === c
+                        ? { ['--c4-drop-from' as string]: `${-(r + 1) * 44}px` }
+                        : undefined}
                       aria-hidden
                     />
                   )}
