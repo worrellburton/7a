@@ -47,13 +47,19 @@ export async function GET() {
 
   const admin = getAdminSupabase();
   // Try the full select first. If newer columns aren't there yet
-  // (attempts / admin_notes), fall back gracefully so the list
-  // doesn't blank out (CLAUDE.md "make reads resilient").
-  const FULL = 'id, full_name, phone, email, date_of_birth, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note, attempts, admin_notes';
+  // (attempts / admin_notes / stedi fields), fall back gracefully so
+  // the list doesn't blank out (CLAUDE.md "make reads resilient").
+  const STEDI_COLS = 'member_id, group_number, payer_id, payer_name, subscriber_relationship, subscriber_first_name, subscriber_last_name, subscriber_dob, card_ocr, card_ocr_at, eligibility_response, eligibility_checked_at';
+  const FULL = `id, full_name, phone, email, date_of_birth, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note, attempts, admin_notes, ${STEDI_COLS}`;
+  const MID3 = 'id, full_name, phone, email, date_of_birth, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note, attempts, admin_notes';
   const MID2 = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note, attempts, admin_notes';
   const MID  = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note';
   const MIN  = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path';
   let resp = await admin.from('vob_requests').select(FULL).order('received_at', { ascending: false });
+  if (resp.error && /(member_id|group_number|payer_|subscriber_|card_ocr|eligibility_)/i.test(resp.error.message)) {
+    console.warn('[vobs] stedi columns missing, degrading read:', resp.error.message);
+    resp = await admin.from('vob_requests').select(MID3).order('received_at', { ascending: false }) as typeof resp;
+  }
   if (resp.error && /date_of_birth/i.test(resp.error.message)) {
     console.warn('[vobs] date_of_birth column missing, degrading read:', resp.error.message);
     resp = await admin.from('vob_requests').select(MID2).order('received_at', { ascending: false }) as typeof resp;
@@ -91,6 +97,18 @@ export async function GET() {
     responded_note?: string | null;
     attempts?: unknown;
     admin_notes?: string | null;
+    member_id?: string | null;
+    group_number?: string | null;
+    payer_id?: string | null;
+    payer_name?: string | null;
+    subscriber_relationship?: string | null;
+    subscriber_first_name?: string | null;
+    subscriber_last_name?: string | null;
+    subscriber_dob?: string | null;
+    card_ocr?: unknown;
+    card_ocr_at?: string | null;
+    eligibility_response?: unknown;
+    eligibility_checked_at?: string | null;
   };
 
   const rawRows = (data ?? []) as RawRow[];
@@ -197,6 +215,18 @@ export async function GET() {
       responder_name: responder?.name ?? null,
       responder_avatar_url: responder?.avatar ?? null,
       seen_by_me: seenSet.has(r.id),
+      member_id: r.member_id ?? null,
+      group_number: r.group_number ?? null,
+      payer_id: r.payer_id ?? null,
+      payer_name: r.payer_name ?? null,
+      subscriber_relationship: r.subscriber_relationship ?? null,
+      subscriber_first_name: r.subscriber_first_name ?? null,
+      subscriber_last_name: r.subscriber_last_name ?? null,
+      subscriber_dob: r.subscriber_dob ?? null,
+      card_ocr: (r.card_ocr ?? null) as Record<string, unknown> | null,
+      card_ocr_at: r.card_ocr_at ?? null,
+      eligibility_response: (r.eligibility_response ?? null) as Record<string, unknown> | null,
+      eligibility_checked_at: r.eligibility_checked_at ?? null,
     };
   });
 
