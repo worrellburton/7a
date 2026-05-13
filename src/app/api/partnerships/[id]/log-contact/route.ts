@@ -10,7 +10,7 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_METHODS = new Set(['Phone', 'In Person', 'Left Message']);
+const ALLOWED_METHODS = new Set(['Phone', 'In Person', 'Left Message', 'Text Message']);
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getUserFromRequest(req);
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const method = typeof body.method === 'string' ? body.method.trim() : '';
   if (!ALLOWED_METHODS.has(method)) {
-    return NextResponse.json({ error: 'method must be Phone, In Person, or Left Message' }, { status: 400 });
+    return NextResponse.json({ error: 'method must be Phone, In Person, Left Message, or Text Message' }, { status: 400 });
   }
   const comments = typeof body.comments === 'string' ? body.comments.trim().slice(0, 4000) : null;
 
