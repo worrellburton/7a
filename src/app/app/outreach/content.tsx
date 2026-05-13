@@ -2895,7 +2895,7 @@ function ContactsGrid({
                       onClick={() => onContact(c)}
                       aria-label="Log a contact"
                       title="Log a contact"
-                      className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary text-[15px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
+                      className="sa-log-button shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary text-[15px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
                     >
                       <span aria-hidden>🪵</span>
                     </button>
@@ -4705,10 +4705,11 @@ function ContactMobileCard({
         <button
           type="button"
           onClick={onContact}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-white text-[11px] font-semibold hover:bg-primary/90 transition-colors"
+          aria-label="Log a contact"
+          title="Log a contact"
+          className="sa-log-button flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary/10 text-primary text-[18px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
         >
-          <PhoneIcon />
-          Contact
+          <span aria-hidden>🪵</span>
         </button>
         <button
           type="button"

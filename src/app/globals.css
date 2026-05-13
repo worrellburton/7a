@@ -992,3 +992,41 @@ tr:hover .sa-engagement-cell {
     animation: none;
   }
 }
+
+/* ─── Log emoji button · copper glow ─── */
+/*
+ * The 🪵 button on the outreach engagement column and the mobile
+ * card pulses with a soft copper halo so it reads as the primary
+ * call-to-action on each row. Two layers stacked in the
+ * keyframe: an outer drop glow (24px / 8px radius) and a tighter
+ * inset ring; opacity breathes from 0.55 → 0.90 → 0.55 over a
+ * 2.4s loop. Hover pins it at full intensity for the duration
+ * of the hover.
+ */
+@keyframes sa-log-button-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 rgba(188, 107, 74, 0.00),
+      0 0 12px 0 rgba(188, 107, 74, 0.32),
+      inset 0 0 0 1px rgba(188, 107, 74, 0.20);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(188, 107, 74, 0.12),
+      0 0 22px 4px rgba(188, 107, 74, 0.55),
+      inset 0 0 0 1px rgba(188, 107, 74, 0.45);
+  }
+}
+.sa-log-button {
+  animation: sa-log-button-pulse 2400ms ease-in-out infinite;
+}
+.sa-log-button:hover {
+  animation-play-state: paused;
+  box-shadow:
+    0 0 0 4px rgba(188, 107, 74, 0.18),
+    0 0 28px 6px rgba(188, 107, 74, 0.70),
+    inset 0 0 0 1px rgba(188, 107, 74, 0.55);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-log-button { animation: none; }
+}
