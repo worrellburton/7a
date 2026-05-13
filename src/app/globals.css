@@ -788,7 +788,12 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
 .sa-engagement-cell {
   backdrop-filter: blur(20px) saturate(170%);
   -webkit-backdrop-filter: blur(20px) saturate(170%);
-  position: relative;
+  /* Don't set position: relative here — the cell already gets
+     position: sticky from its inline Tailwind class. Overriding
+     it would un-stick the column. position: sticky also creates
+     a containing block for absolutely-positioned children, so
+     the ::before sheen + ::after hue overlays still anchor to
+     this cell without needing position: relative. */
 }
 .sa-engagement-cell::before {
   content: '';
@@ -932,11 +937,13 @@ tr:hover .sa-engagement-cell {
  * recolour here — the rgba(0,0,0,0.18) wash leaks gray into
  * the copper warmth. Re-state it tinted in the cascade.
  */
-[data-col-key="engagement"] {
-  /* Header cell echoes the body's copper glow so the column
-     reads as a single panel from header to bottom row. */
-  position: relative;
-}
+/*
+ * Header cell echoes the body's copper glow so the column reads
+ * as a single panel from header to bottom row. We do NOT override
+ * position here — the header gets `position: sticky` from its
+ * Tailwind class. The ::after edge-fade anchors to it via sticky
+ * (which establishes a containing block just like relative).
+ */
 [data-col-key="engagement"]::after {
   content: '';
   position: absolute;
