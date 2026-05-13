@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSidebarFlip } from './sidebar-flip';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
@@ -577,6 +578,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // on Escape and on every route change so the next visit starts
   // clean.
   const [navSearch, setNavSearch] = useState('');
+  // Phase 1 of the sidebar travel-and-landing animation: a FLIP
+  // position tracker. Each rendered nav row calls flip.register
+  // with its DOM element; the hook measures positions after every
+  // commit and stashes per-row vertical deltas for the animation
+  // phases that follow.
+  const flip = useSidebarFlip();
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
 
   // Load departments for sidebar grouping. Hidden departments are
@@ -982,6 +989,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 return (
                   <a
                     key={item.path}
+                    ref={(el) => flip.register(item.path, el)}
                     href={item.externalUrl}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -1006,6 +1014,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               return (
                 <Link
                   key={item.path}
+                  ref={(el) => flip.register(item.path, el)}
                   href={item.path}
                   onClick={(e) => {
                     // Record the click for the sidebar recency model
