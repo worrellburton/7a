@@ -1211,7 +1211,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 <Link
                   key={item.path}
                   href={item.path}
-                  onClick={() => { recordSidebarVisit(item.path); setUserMenuOpen(false); }}
+                  onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setUserMenuOpen(false); }}
                   className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
@@ -1355,7 +1355,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       <Link
                         key={item.path}
                         href={item.path}
-                        onClick={() => { recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
+                        onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
                         className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
                           isActive
                             ? 'bg-primary/10 text-primary'
@@ -1416,7 +1416,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                           <Link
                             key={item.path}
                             href={item.path}
-                            onClick={() => { recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
+                            onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
                             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                               isActive
                                 ? 'bg-primary/10 text-primary'
