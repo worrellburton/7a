@@ -653,29 +653,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // why phone numbers are 7 digits.
   const RECENCY_VISIBLE_COUNT = 7;
   const sidebarMode: 'alpha' | 'recency' = sidebarClickCount < ALPHA_THRESHOLD ? 'alpha' : 'recency';
-  // Phase 6: in alpha mode, the most-recently-clicked accessible
-  // page floats to position 0; the rest stays alphabetical. Picking
-  // recents[0] (instead of a "today vs older" recency window) keeps
-  // the rule trivially predictable — the last page you clicked is
-  // always at the top, period. Pages the user can no longer see
-  // (perm changes / dept moves) are filtered out before the lookup.
-  const alphaSortedPages = useMemo(() => {
-    const sorted = [...visibleNavPages].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
-    const visiblePaths = new Set(visibleNavPages.map((p) => p.path));
-    const mostRecentPath = sidebarRecentPaths.find((p) => visiblePaths.has(p));
-    if (!mostRecentPath) return sorted;
-    const floated = sorted.find((p) => p.path === mostRecentPath);
-    if (!floated) return sorted;
-    return [floated, ...sorted.filter((p) => p.path !== mostRecentPath)];
-  }, [visibleNavPages, sidebarRecentPaths]);
-
-  // Phase 7: once the user has >= ALPHA_THRESHOLD clicks, the sidebar
-  // re-orders by recency. The top of the list is the recency array
-  // intersected with currently-visible pages; any visible page the
-  // user hasn't clicked yet is appended at the bottom in alpha order
-  // so newly-permissioned pages don't disappear just because they
-  // have no recency rank. The first RECENCY_VISIBLE_COUNT entries
-  // surface in the main nav; the rest go to "Other pages" in Phase 8.
+  // Both modes use a single recency stack: every page the user has
+  // clicked, newest first, with never-clicked pages tail-padded in
+  // alpha order. Clicking a page promotes it to position 1 and the
+  // page that was previously #1 slides to #2, the prior #2 to #3,
+  // etc. — the nav reads as "recently viewed". Alpha mode renders
+  // the whole stack; recency mode (once they cross
+  // ALPHA_THRESHOLD clicks) caps the visible portion to the top
+  // RECENCY_VISIBLE_COUNT and tucks the rest into Other pages.
   const recencyOrderedPages = useMemo(() => {
     const byPath = new Map(visibleNavPages.map((p) => [p.path, p] as const));
     const ranked: typeof visibleNavPages = [];
@@ -1037,7 +1022,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             // clicks, we render just the top RECENCY_VISIBLE_COUNT
             // (Phase 8 adds the "Other pages" overflow under it).
             if (sidebarMode === 'alpha') {
-              return <>{alphaSortedPages.map(renderLink)}</>;
+              return <>{recencyOrderedPages.map(renderLink)}</>;
             }
             // Phase 7+: recency mode renders the top
             // RECENCY_VISIBLE_COUNT entries above an "Other pages"
@@ -1289,7 +1274,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       </Link>
                     );
                   };
-                  if (sidebarMode === 'alpha') return <>{alphaSortedPages.map(renderMobileLink)}</>;
+                  if (sidebarMode === 'alpha') return <>{recencyOrderedPages.map(renderMobileLink)}</>;
                   return (
                     <>
                       {recencyTopPages.map(renderMobileLink)}
