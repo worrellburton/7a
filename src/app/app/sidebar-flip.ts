@@ -1,36 +1,36 @@
 'use client';
 
 // FLIP (First-Last-Invert-Play) infrastructure for the recency
-// sidebar. Phases 1-2 of the 10-phase travel-and-landing animation.
+// sidebar. Phases 1-3 of the 10-phase travel-and-landing animation.
 //
-// Phase 1 (shipped): measure positions, expose deltas.
-// Phase 2 (this commit): apply the inverse transform and trigger
-//   the play-back so each reordered row visibly travels from its
-//   old position to its new one.
+// Phase 1 — position snapshots + delta computation.
+// Phase 2 — invert + play (the basic working animation).
+// Phase 3 (this commit) — paint stability + GPU promotion.
+//   * Double-rAF before the play leg, so Safari/WebKit always
+//     paint the inverted frame before the transition kicks off.
+//   * will-change: transform on movers during the animation, so
+//     the compositor promotes the row to its own layer and the
+//     tween runs entirely off the main thread.
+//   * Inline `transform: translateZ(0)` on the moving element
+//     during the animation, forcing GPU acceleration even on
+//     browsers that ignore will-change.
+//   * `transitionend` cleanup so the will-change / translateZ
+//     hints don't linger past the animation (which would otherwise
+//     leak GPU memory and keep the layer promoted forever).
 //
-// Subsequent phases (3-10) layer in: GPU hints, distance-scaled
-// easing, traveler spotlight, landing pulse, motion trail ghosts,
-// companion animations for shifted items, mobile parity, reduced-
-// motion handling, cancel-on-rapid-click, etc.
-//
-// All measurements live in refs; the hook never triggers a re-render
-// from its own side effects.
+// Subsequent phases (4-10) layer in: distance-scaled easing,
+// traveler spotlight, landing pulse, motion-trail ghosts,
+// companion animation for shifted items, mobile parity, reduced-
+// motion, cancel-on-rapid-click.
 
 import { useCallback, useLayoutEffect, useRef } from 'react';
 
 export interface FlipController {
-  /** Each nav row calls this with its DOM element on every render. */
   register: (path: string, el: HTMLElement | null) => void;
-  /** Map of path → vertical delta (px) since last commit. Cleared once consumed. */
   readDeltas: () => Map<string, number>;
-  /** Drop the cached snapshot so the next render starts fresh. */
   resetPositions: () => void;
 }
 
-// Single shared transition string used for the "Play" leg of the
-// FLIP. Phase 4 will replace this with a per-row, distance-scaled
-// curve; for Phase 2 a fixed cubic-bezier ease-out + 320ms reads
-// snappy without feeling abrupt.
 const FLIP_TRANSITION = 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)';
 
 export function useSidebarFlip(): FlipController {
@@ -43,25 +43,6 @@ export function useSidebarFlip(): FlipController {
     else elementsRef.current.delete(path);
   }, []);
 
-  // Layout effect runs after every commit, after DOM mutations but
-  // before paint. Order of operations per commit:
-  //
-  //   1. Measure each registered element's new top offset (the "L"
-  //      in FLIP — Last position).
-  //   2. Diff against last commit's snapshot to compute deltas.
-  //   3. For any path with a non-trivial delta, apply
-  //      transform: translateY({delta}px) and transition: none
-  //      SYNCHRONOUSLY — this rewinds the element to its previous
-  //      visual position before the browser paints.
-  //   4. Force a layout read (offsetWidth) so the inverse transform
-  //      is committed.
-  //   5. requestAnimationFrame: clear the transform and restore the
-  //      transition, letting the CSS engine tween from old →
-  //      new position over FLIP_TRANSITION's duration.
-  //
-  // This is the classic FLIP recipe; nothing here is fancy yet —
-  // Phase 3+ will add GPU hints, distance-scaled timing, and the
-  // visual treatments (spotlight, pulse, trail).
   useLayoutEffect(() => {
     const next = new Map<string, number>();
     const deltas = new Map<string, number>();
@@ -82,47 +63,60 @@ export function useSidebarFlip(): FlipController {
     prevPositionsRef.current = next;
     deltasRef.current = deltas;
 
-    // First render — no previous positions, nothing to invert.
     if (movers.length === 0) return;
 
-    // ── Invert leg of FLIP — pin each mover to its OLD pixel
-    // position by applying translateY of the delta we just
-    // computed (`prev - new` is positive for upward motion, so
-    // we translate the element DOWN by that amount to put it
-    // visually back where it was).
+    // ── Invert: rewind every mover to its previous visual position.
+    // GPU-promote each mover up-front so the upcoming transform is
+    // composited rather than re-rasterised on every tween frame.
+    // translateZ(0) covers browsers that don't honour will-change.
     for (const { el, dy } of movers) {
       el.style.transition = 'none';
-      el.style.transform = `translateY(${dy}px)`;
+      el.style.willChange = 'transform';
+      el.style.transform = `translate3d(0, ${dy}px, 0)`;
     }
 
-    // Force the browser to commit the inverse transform before
-    // we kick off the play. Reading offsetWidth is a synchronous
-    // layout read; voids any pending paint-batching that would
-    // otherwise collapse the invert+play into a single paint and
-    // skip the animation entirely.
+    // Commit the invert. offsetWidth is a synchronous layout read.
     void movers[0].el.offsetWidth;
 
-    // ── Play leg — on the next frame, clear the transform and
-    // re-enable the transition; CSS animates back to translateY(0)
-    // which is the new (correct) position. Two rAFs would be more
-    // bulletproof against Safari quirks, but a single one is
-    // enough here because the layout read above already committed
-    // the invert.
-    const raf = window.requestAnimationFrame(() => {
-      for (const { el } of movers) {
-        el.style.transition = FLIP_TRANSITION;
-        el.style.transform = 'translateY(0)';
-      }
+    // ── Play: double-rAF before clearing the transform. WebKit
+    // sometimes coalesces our single-rAF play with the layout that
+    // committed the invert, paints once, and skips the animation.
+    // Two rAFs guarantee the inverted frame paints first.
+    let raf2 = 0;
+    const raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        for (const { el } of movers) {
+          el.style.transition = FLIP_TRANSITION;
+          el.style.transform = 'translate3d(0, 0, 0)';
+        }
+      });
+    });
+
+    // ── Cleanup hints after the animation ends. Otherwise the
+    // will-change + translate3d keep the layer promoted forever
+    // and we pay GPU memory for every row that ever animated.
+    const cleanups = movers.map(({ el }) => {
+      const onEnd = (e: TransitionEvent) => {
+        if (e.propertyName !== 'transform') return;
+        el.removeEventListener('transitionend', onEnd);
+        if (!el.isConnected) return;
+        el.style.transition = '';
+        el.style.transform = '';
+        el.style.willChange = '';
+      };
+      el.addEventListener('transitionend', onEnd);
+      return () => el.removeEventListener('transitionend', onEnd);
     });
 
     return () => {
-      window.cancelAnimationFrame(raf);
-      // If we unmount mid-animation, clear inline styles so
-      // remounted rows don't render with a stale transform.
+      window.cancelAnimationFrame(raf1);
+      if (raf2) window.cancelAnimationFrame(raf2);
+      for (const off of cleanups) off();
       for (const { el } of movers) {
         if (el.isConnected) {
           el.style.transition = '';
           el.style.transform = '';
+          el.style.willChange = '';
         }
       }
     };
