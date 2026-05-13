@@ -572,6 +572,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     if (!mobileMenuOpen) setMobileAccountOpen(false);
   }, [mobileMenuOpen]);
   const [navMounted, setNavMounted] = useState(false);
+  // Sidebar search query — filters the visible nav entries by label
+  // / path substring. Only shown while the rail is expanded; clears
+  // on Escape and on every route change so the next visit starts
+  // clean.
+  const [navSearch, setNavSearch] = useState('');
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
 
   // Load departments for sidebar grouping. Hidden departments are
@@ -695,6 +700,19 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     return homePage ? [homePage, ...tail] : tail;
   }, [visibleNavPages, sidebarRecentPaths]);
   const recencyTopPages = recencyOrderedPages.slice(0, RECENCY_VISIBLE_COUNT);
+
+  // Apply the sidebar search query — when there's anything typed,
+  // flatten the whole accessible-pages set to label/path matches
+  // and short-circuit the recency/Other split so every hit is
+  // visible at once. Empty query falls through to the normal
+  // top-7 + Other-pages layout.
+  const searchQuery = navSearch.trim().toLowerCase();
+  const searchMatchedPages = searchQuery
+    ? recencyOrderedPages.filter((p) =>
+        p.label.toLowerCase().includes(searchQuery)
+        || p.path.toLowerCase().includes(searchQuery),
+      )
+    : null;
   // Spillover. Anything past the top-7 lives in the collapsible
   // "Other pages" section. Still ordered by recency (most-recent
   // first) so a page that just dropped out of the top-7 sits at the
@@ -917,6 +935,32 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           </Link>
         </div>
 
+        {/* Sidebar search — only visible inside the expanded rail.
+            Filters the visible page set by label / path substring.
+            Hidden in the collapsed (w-16) state via the same
+            group-hover/sidebar gate the Other-pages section uses,
+            so the icon-only rail isn't disrupted. */}
+        <div className="px-3 pt-1 pb-2 hidden group-hover/sidebar:block">
+          <label className="relative block">
+            <span aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground/35">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7" />
+                <path strokeLinecap="round" d="M21 21l-4.3-4.3" />
+              </svg>
+            </span>
+            <input
+              type="search"
+              value={navSearch}
+              onChange={(e) => setNavSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') setNavSearch(''); }}
+              placeholder="Search pages…"
+              className="w-full pl-8 pr-2.5 py-1.5 rounded-lg bg-white/60 border border-black/10 text-[13px] placeholder:text-foreground/35 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              style={{ fontFamily: 'var(--font-body)' }}
+              aria-label="Search pages"
+            />
+          </label>
+        </div>
+
         {/* Nav links — grouped by department */}
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           {(() => {
@@ -1063,6 +1107,21 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </Link>
               );
             };
+            // When the search box has anything typed, the nav
+            // short-circuits to a flat result list. The top-7 /
+            // Other-pages split only makes sense for the
+            // unfiltered case; while searching we want every hit
+            // visible regardless of recency rank.
+            if (searchMatchedPages != null) {
+              if (searchMatchedPages.length === 0) {
+                return (
+                  <p className="px-3 py-2 text-[12px] text-foreground/45 italic hidden group-hover/sidebar:block" style={{ fontFamily: 'var(--font-body)' }}>
+                    No pages match &ldquo;{navSearch}&rdquo;
+                  </p>
+                );
+              }
+              return <>{searchMatchedPages.map(renderLink)}</>;
+            }
             // Phase 4/5 of the sidebar overhaul: in alpha mode we
             // render every page the user can see as a single flat
             // alphabetical list — no dept headers, no navGroup
