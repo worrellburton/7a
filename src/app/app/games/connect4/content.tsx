@@ -1,10 +1,19 @@
 'use client';
 
-// Connect-4 tournament — Phase 1 page scaffold. Subsequent phases
-// fold in: match API + records, board UI, realtime sync, lobby /
-// matchmaking, bracket model + rendering, leaderboard, polish.
+// Connect-4 tournament — Phase 3 of the 10-phase build. The board
+// is now playable in a single-browser local-two-player mode (pass
+// the laptop back and forth). Phase 4 swaps onDrop's local
+// setState for the PATCH /api/games/connect4/[id] call + a
+// Supabase realtime subscription; nothing else here changes.
+
+import { useState } from 'react';
+import { findWinner, buildBoard } from '@/lib/connect4';
+import Board from './Board';
 
 export default function Content() {
+  const [moves, setMoves] = useState<number[]>([]);
+  const winner = findWinner(buildBoard(moves));
+
   return (
     <div className="p-4 sm:p-6 lg:p-10">
       <header className="mb-6">
@@ -13,19 +22,25 @@ export default function Content() {
           Connect-4 Tournament
         </h1>
         <p className="mt-1 text-sm text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
-          Head-to-head matches across the team, with a single-elimination bracket on demand.
+          Local pass-and-play for now — Phase 4 wires real-time so two browsers can share a board.
         </p>
       </header>
 
-      <section className="rounded-2xl border border-dashed border-black/15 bg-white/50 px-6 py-10 text-center">
-        <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-foreground/45">
-          Coming soon
-        </p>
-        <p className="mt-2 text-[13px] text-foreground/55 max-w-md mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
-          The board and lobby ship in Phase 3 of this 10-phase build. Phases 1-2 land the
-          schema and API so a match record can already be created.
-        </p>
-      </section>
+      <div className="flex flex-col items-start gap-4">
+        <Board
+          moves={moves}
+          onDrop={(col) => setMoves((prev) => [...prev, col])}
+          disabled={false}
+        />
+        <button
+          type="button"
+          onClick={() => setMoves([])}
+          className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {winner ? 'Play again' : 'Reset board'}
+        </button>
+      </div>
     </div>
   );
 }
