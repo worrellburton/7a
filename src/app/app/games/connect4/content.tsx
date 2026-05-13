@@ -16,6 +16,8 @@ import { supabase } from '@/lib/supabase';
 import { currentPlayer, COLS } from '@/lib/connect4';
 import Board from './Board';
 import Lobby from './Lobby';
+import Tournament from './Tournament';
+import TournamentList from './TournamentList';
 
 interface MatchRow {
   id: string;
@@ -32,6 +34,7 @@ export default function Content() {
   const { user, session } = useAuth();
   const searchParams = useSearchParams();
   const matchId = searchParams.get('match');
+  const tournamentId = searchParams.get('tournament');
 
 
   // Server-backed match state (live when ?match=<id> is set).
@@ -118,12 +121,21 @@ export default function Content() {
     [matchId, session?.access_token, match, isMyTurn],
   );
 
-  // ── No match in URL → lobby. Pick a teammate to challenge, or
-  // pick a match to join / spectate.
+  // ── Tournament view.
+  if (tournamentId && !matchId) {
+    return (
+      <PageShell tagline="Single-elimination bracket.">
+        <Tournament tournamentId={tournamentId} />
+      </PageShell>
+    );
+  }
+
+  // ── No match / no tournament in URL → lobby.
   if (!matchId) {
     return (
-      <PageShell tagline="Challenge a teammate or jump back into a match in progress.">
+      <PageShell tagline="Challenge a teammate, jump into an in-flight match, or open a tournament bracket.">
         <Lobby />
+        <TournamentList />
       </PageShell>
     );
   }
