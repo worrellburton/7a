@@ -359,7 +359,14 @@ export interface EligibilityPdfRow {
   eligibility_checked_at?: string | null;
 }
 
-export async function openEligibilityPdf(row: EligibilityPdfRow): Promise<void> {
+// When `existingWindow` is supplied and still open we navigate it to
+// the new blob URL instead of spawning a fresh popup — this is what
+// lets "Re-run eligibility check" refresh an already-open PDF
+// viewer without leaving stale data on screen.
+export async function openEligibilityPdf(
+  row: EligibilityPdfRow,
+  existingWindow?: Window | null,
+): Promise<Window | null> {
   const resp = row.eligibility_response ?? null;
   const highlights = parseHighlights(resp);
   const logoDataUrl = await loadLogoDataUrl();
@@ -373,12 +380,26 @@ export async function openEligibilityPdf(row: EligibilityPdfRow): Promise<void> 
   drawWarnings(pdf, highlights);
   drawFooterBand(pdf, row);
 
-  const blobUrl = pdf.output('bloburl');
-  const w = window.open(blobUrl as unknown as string, '_blank', 'noopener,noreferrer,width=900,height=1100');
+  const blobUrl = pdf.output('bloburl') as unknown as string;
+
+  if (existingWindow && !existingWindow.closed) {
+    try {
+      existingWindow.location.replace(blobUrl);
+      existingWindow.focus();
+      return existingWindow;
+    } catch {
+      // Cross-origin / blob navigation failures fall through to a
+      // fresh window so the user still sees the updated PDF.
+    }
+  }
+
+  const w = window.open(blobUrl, '_blank', 'noopener,noreferrer,width=900,height=1100');
   if (!w) {
     const safe = row.full_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'patient';
     pdf.save(`eligibility-${safe}.pdf`);
+    return null;
   }
+  return w;
 }
 
 // ─── Section: header band ───────────────────────────────────────

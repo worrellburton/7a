@@ -234,15 +234,49 @@ Return ONLY a single JSON object — no markdown, no commentary — with these k
   }
   const fields = normalizeFields(parsed);
 
+  // The "Payer ID" printed on a US insurance card is almost never
+  // the Stedi trading-partner id (it's usually the RX BIN, a CMS id,
+  // or a Change Healthcare code). Resolve the real Stedi id from
+  // the payer name we just OCR'd so the eligibility 270 has a shot
+  // at succeeding without manual intervention.
+  let resolvedStediId: string | null = null;
+  let resolvedDisplayName: string | null = null;
+  if (fields.payer_name) {
+    try {
+      const searchUrl = new URL('https://payers.us.stedi.com/2024-04-01/payers/search');
+      searchUrl.searchParams.set('query', fields.payer_name);
+      searchUrl.searchParams.set('eligibilityCheck', 'SUPPORTED');
+      const searchRes = await fetch(searchUrl.toString(), {
+        headers: { 'Authorization': process.env.STEDI_API_KEY || '' },
+      });
+      if (searchRes.ok) {
+        const searchJson = (await searchRes.json()) as {
+          items?: Array<{ payer?: { stediId?: string; displayName?: string } }>;
+        };
+        const top = searchJson.items?.[0]?.payer;
+        if (top?.stediId) {
+          resolvedStediId = top.stediId;
+          resolvedDisplayName = top.displayName || null;
+        }
+      }
+    } catch (err) {
+      console.warn('[card-ocr] Stedi payer search failed (non-fatal):', err);
+    }
+  }
+
   const nowIso = new Date().toISOString();
   const update: Record<string, unknown> = {
-    card_ocr: { ...fields, model, at: nowIso },
+    card_ocr: { ...fields, model, at: nowIso, resolvedStediId, resolvedDisplayName },
     card_ocr_at: nowIso,
   };
   if (fields.member_id) update.member_id = fields.member_id;
   if (fields.group_number) update.group_number = fields.group_number;
-  if (fields.payer_name) update.payer_name = fields.payer_name;
-  if (fields.payer_id) update.payer_id = fields.payer_id;
+  // Prefer Stedi's canonical name over the OCR'd one when we matched.
+  const finalPayerName = resolvedDisplayName || fields.payer_name;
+  if (finalPayerName) update.payer_name = finalPayerName;
+  // Stedi-resolved id wins over the OCR'd payer_id from the card.
+  const finalPayerId = resolvedStediId || fields.payer_id;
+  if (finalPayerId) update.payer_id = finalPayerId;
   if (fields.subscriber_first_name) update.subscriber_first_name = fields.subscriber_first_name;
   if (fields.subscriber_last_name) update.subscriber_last_name = fields.subscriber_last_name;
   if (fields.subscriber_dob) update.subscriber_dob = fields.subscriber_dob;
@@ -256,5 +290,19 @@ Return ONLY a single JSON object — no markdown, no commentary — with these k
     return NextResponse.json({ error: updErr.message, fields }, { status: 500 });
   }
 
-  return NextResponse.json({ id: vobId, fields, card_ocr_at: nowIso });
+  // Echo back the final, resolved values (not just what Claude saw)
+  // so the UI's local draft state lines up with what got written.
+  const responseFields = {
+    ...fields,
+    payer_name: finalPayerName,
+    payer_id: finalPayerId,
+  };
+  return NextResponse.json({
+    id: vobId,
+    fields: responseFields,
+    card_ocr_at: nowIso,
+    payer_resolution: resolvedStediId
+      ? { source: 'stedi', stediId: resolvedStediId, displayName: resolvedDisplayName }
+      : null,
+  });
 }

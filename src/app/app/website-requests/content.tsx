@@ -1454,12 +1454,55 @@ function VobExpandedDetail({
   // whenever the parent updates (e.g. after OCR writes back), but
   // keep keystroke-by-keystroke state local so typing is responsive
   // and doesn't round-trip through the server.
-  const [draft, setDraft] = useState<Record<StediFieldKey, string>>(() =>
-    Object.fromEntries(
-      STEDI_FIELD_KEYS.map((k) => [k, (row[k] as string | null) ?? '']),
-    ) as Record<StediFieldKey, string>,
-  );
-  const [dirty, setDirty] = useState<Set<StediFieldKey>>(new Set());
+  //
+  // When a subscriber field is empty but the patient already gave
+  // us the equivalent on the website form (DOB, full name), we
+  // default the draft to that value so eligibility checks aren't
+  // blocked on the admin re-typing what we already know. The auto-
+  // default lands in `dirty` so the next save persists it.
+  const buildInitialDraft = useCallback((): { draft: Record<StediFieldKey, string>; autoFilled: Set<StediFieldKey> } => {
+    const autoFilled = new Set<StediFieldKey>();
+    const entries: Array<[StediFieldKey, string]> = STEDI_FIELD_KEYS.map((k) => {
+      const current = (row[k] as string | null) ?? '';
+      if (current) return [k, current];
+      // Defaults derived from the website-form submission.
+      if (k === 'subscriber_dob' && row.date_of_birth) {
+        autoFilled.add(k);
+        return [k, row.date_of_birth];
+      }
+      if (k === 'subscriber_first_name' && !row.subscriber_first_name && row.full_name) {
+        const first = row.full_name.trim().split(/\s+/)[0] || '';
+        if (first) {
+          autoFilled.add(k);
+          return [k, first];
+        }
+      }
+      if (k === 'subscriber_last_name' && !row.subscriber_last_name && row.full_name) {
+        const parts = row.full_name.trim().split(/\s+/);
+        const last = parts.length > 1 ? parts.slice(1).join(' ') : '';
+        if (last) {
+          autoFilled.add(k);
+          return [k, last];
+        }
+      }
+      if (k === 'subscriber_relationship' && !row.subscriber_relationship) {
+        autoFilled.add(k);
+        return [k, 'self'];
+      }
+      if (k === 'payer_name' && !row.payer_name && row.insurance_provider) {
+        autoFilled.add(k);
+        return [k, row.insurance_provider];
+      }
+      return [k, current];
+    });
+    return {
+      draft: Object.fromEntries(entries) as Record<StediFieldKey, string>,
+      autoFilled,
+    };
+  }, [row]);
+
+  const [draft, setDraft] = useState<Record<StediFieldKey, string>>(() => buildInitialDraft().draft);
+  const [dirty, setDirty] = useState<Set<StediFieldKey>>(() => buildInitialDraft().autoFilled);
   const [savingFields, setSavingFields] = useState(false);
   const [ocrBusy, setOcrBusy] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
@@ -1467,12 +1510,9 @@ function VobExpandedDetail({
   const [eligError, setEligError] = useState<string | null>(null);
 
   useEffect(() => {
-    setDraft(
-      Object.fromEntries(
-        STEDI_FIELD_KEYS.map((k) => [k, (row[k] as string | null) ?? '']),
-      ) as Record<StediFieldKey, string>,
-    );
-    setDirty(new Set());
+    const { draft: next, autoFilled } = buildInitialDraft();
+    setDraft(next);
+    setDirty(autoFilled);
   }, [
     row.id,
     row.member_id,
@@ -1483,6 +1523,7 @@ function VobExpandedDetail({
     row.subscriber_first_name,
     row.subscriber_last_name,
     row.subscriber_dob,
+    buildInitialDraft,
   ]);
 
   const handleChange = (k: StediFieldKey, v: string) => {
@@ -1544,10 +1585,40 @@ function VobExpandedDetail({
     }
   };
 
+  // Holds the popup window opened by "View eligibility PDF" so a
+  // subsequent re-run can navigate the same window to the refreshed
+  // blob URL instead of leaving stale data on screen.
+  const pdfWindowRef = useRef<Window | null>(null);
+
+  const refreshOpenPdf = async (
+    nextResponse: Record<string, unknown> | null,
+    nextCheckedAt: string,
+  ) => {
+    const win = pdfWindowRef.current;
+    if (!win || win.closed) return;
+    const refreshed: VobRow = {
+      ...row,
+      eligibility_response: nextResponse,
+      eligibility_checked_at: nextCheckedAt,
+    };
+    try {
+      pdfWindowRef.current = await openEligibilityPdf(refreshed, win);
+    } catch (e) {
+      console.error('pdf refresh failed', e);
+    }
+  };
+
   const runEligibility = async () => {
     setEligBusy(true);
     setEligError(null);
     try {
+      // Stedi reads from the DB, so unsaved edits never reach it.
+      // Auto-save anything dirty before firing the 270 — otherwise
+      // a freshly-OCR'd row with an unsaved payer_id fails with
+      // "Cannot run eligibility check - missing: payer_id".
+      if (dirty.size > 0) {
+        await saveFields();
+      }
       const res = await fetch('/api/stedi/eligibility', {
         method: 'POST',
         credentials: 'include',
@@ -1562,17 +1633,16 @@ function VobExpandedDetail({
       if (!res.ok) {
         // Persist the failure body too so the panel reflects what happened.
         if (json.response) {
-          onPatch({
-            eligibility_response: json.response,
-            eligibility_checked_at: new Date().toISOString(),
-          });
+          const checkedAt = new Date().toISOString();
+          onPatch({ eligibility_response: json.response, eligibility_checked_at: checkedAt });
+          await refreshOpenPdf(json.response, checkedAt);
         }
         throw new Error(json.error || `HTTP ${res.status}`);
       }
-      onPatch({
-        eligibility_response: json.response ?? null,
-        eligibility_checked_at: json.eligibility_checked_at ?? new Date().toISOString(),
-      });
+      const nextResponse = json.response ?? null;
+      const checkedAt = json.eligibility_checked_at ?? new Date().toISOString();
+      onPatch({ eligibility_response: nextResponse, eligibility_checked_at: checkedAt });
+      await refreshOpenPdf(nextResponse, checkedAt);
     } catch (e) {
       setEligError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1580,9 +1650,13 @@ function VobExpandedDetail({
     }
   };
 
-  const handleOpenPdf = () => {
+  const handleOpenPdf = async () => {
     if (!row.eligibility_response) return;
-    openEligibilityPdf(row).catch((e) => console.error('pdf open failed', e));
+    try {
+      pdfWindowRef.current = await openEligibilityPdf(row, pdfWindowRef.current);
+    } catch (e) {
+      console.error('pdf open failed', e);
+    }
   };
 
   const hasCard = !!(row.card_front_url || row.card_back_url);
