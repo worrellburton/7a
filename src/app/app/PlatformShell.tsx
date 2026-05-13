@@ -646,7 +646,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // Phase 7 will flip them into recency mode. We compute this once
   // up here so the desktop nav, mobile nav, and popup menu all agree.
   const ALPHA_THRESHOLD = 10;
-  const sidebarMode: 'alpha' | 'recency' = sidebarClickCount < ALPHA_THRESHOLD ? 'alpha' : 'alpha';
+  // RECENCY_VISIBLE_COUNT is the cap on visible nav entries once
+  // the user is in recency mode. Anything past this falls into the
+  // "Other pages" dropdown (Phase 8). Sized to 7 because that's the
+  // size most reps eyeball-scan without paging — same intuition as
+  // why phone numbers are 7 digits.
+  const RECENCY_VISIBLE_COUNT = 7;
+  const sidebarMode: 'alpha' | 'recency' = sidebarClickCount < ALPHA_THRESHOLD ? 'alpha' : 'recency';
   // Phase 6: in alpha mode, the most-recently-clicked accessible
   // page floats to position 0; the rest stays alphabetical. Picking
   // recents[0] (instead of a "today vs older" recency window) keeps
@@ -662,6 +668,31 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     if (!floated) return sorted;
     return [floated, ...sorted.filter((p) => p.path !== mostRecentPath)];
   }, [visibleNavPages, sidebarRecentPaths]);
+
+  // Phase 7: once the user has >= ALPHA_THRESHOLD clicks, the sidebar
+  // re-orders by recency. The top of the list is the recency array
+  // intersected with currently-visible pages; any visible page the
+  // user hasn't clicked yet is appended at the bottom in alpha order
+  // so newly-permissioned pages don't disappear just because they
+  // have no recency rank. The first RECENCY_VISIBLE_COUNT entries
+  // surface in the main nav; the rest go to "Other pages" in Phase 8.
+  const recencyOrderedPages = useMemo(() => {
+    const byPath = new Map(visibleNavPages.map((p) => [p.path, p] as const));
+    const ranked: typeof visibleNavPages = [];
+    const seen = new Set<string>();
+    for (const path of sidebarRecentPaths) {
+      const hit = byPath.get(path);
+      if (hit && !seen.has(path)) {
+        ranked.push(hit);
+        seen.add(path);
+      }
+    }
+    const leftover = visibleNavPages
+      .filter((p) => !seen.has(p.path))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+    return [...ranked, ...leftover];
+  }, [visibleNavPages, sidebarRecentPaths]);
+  const recencyTopPages = recencyOrderedPages.slice(0, RECENCY_VISIBLE_COUNT);
 
   const ungroupedPages = visibleNavPages.filter((p) => !p.departmentId && !p.navGroup);
 
@@ -980,13 +1011,17 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </Link>
               );
             };
-            // Phase 4 of the sidebar recency overhaul: in alpha mode
-            // we render every page the user can see as a single
-            // flat alphabetical list — no dept headers, no
-            // navGroup chunks. Phase 7 will replace this with the
-            // recency layout once the user crosses 10 clicks.
+            // Phase 4/5 of the sidebar overhaul: in alpha mode we
+            // render every page the user can see as a single flat
+            // alphabetical list — no dept headers, no navGroup
+            // chunks. Phase 7: once they cross ALPHA_THRESHOLD
+            // clicks, we render just the top RECENCY_VISIBLE_COUNT
+            // (Phase 8 adds the "Other pages" overflow under it).
             if (sidebarMode === 'alpha') {
               return <>{alphaSortedPages.map(renderLink)}</>;
+            }
+            if (sidebarMode === 'recency') {
+              return <>{recencyTopPages.map(renderLink)}</>;
             }
             return (
               <>
@@ -1215,7 +1250,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   shrink below content height so the inner scroll
                   engages. */}
               <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
-                {alphaSortedPages.map((item) => {
+                {(sidebarMode === 'recency' ? recencyTopPages : alphaSortedPages).map((item) => {
                   const isActive = pathname === item.path;
                   return (
                     <Link
