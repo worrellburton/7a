@@ -167,6 +167,22 @@ export function useSidebarFlip(): FlipController {
         el.style.transform = '';
         el.style.willChange = '';
         el.classList.remove('sa-flip-traveler');
+        // Phase 6: landing pulse on the traveler. The row has
+        // just settled at the top; fire a one-shot keyframe
+        // (defined in globals.css as sa-flip-landing) that
+        // bounces 0 → -3px → 0 over 360ms with a soft copper
+        // ring flash that fades out alongside. The class is
+        // added briefly and then removed via animationend so a
+        // future reorder can re-trigger the keyframes.
+        if (el === travelerEl) {
+          el.classList.add('sa-flip-landing');
+          const onLandEnd = (ae: AnimationEvent) => {
+            if (ae.animationName !== 'sa-flip-landing-anim') return;
+            el.removeEventListener('animationend', onLandEnd);
+            el.classList.remove('sa-flip-landing');
+          };
+          el.addEventListener('animationend', onLandEnd);
+        }
       };
       el.addEventListener('transitionend', onEnd);
       return () => el.removeEventListener('transitionend', onEnd);
@@ -182,6 +198,7 @@ export function useSidebarFlip(): FlipController {
           el.style.transform = '';
           el.style.willChange = '';
           el.classList.remove('sa-flip-traveler');
+          el.classList.remove('sa-flip-landing');
         }
       }
     };
