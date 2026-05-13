@@ -434,7 +434,7 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, status, userKind, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const { user, loading, isAdmin, departmentId, status, userKind, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
   const isAlumni = userKind === 'alumni';
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
@@ -852,6 +852,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   key={item.path}
                   href={item.path}
                   onClick={(e) => {
+                    // Record the click for the sidebar recency model
+                    // (Phase 3). Fires regardless of whether the route
+                    // actually changes — a re-click on the current page
+                    // still expresses preference.
+                    recordSidebarVisit(item.path);
                     // If we're already on this pathname but with a query
                     // string (e.g. /app/calls?tab=operators), Next.js's
                     // default Link behavior can skip the navigation and
@@ -1040,7 +1045,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 <Link
                   key={item.path}
                   href={item.path}
-                  onClick={() => setUserMenuOpen(false)}
+                  onClick={() => { recordSidebarVisit(item.path); setUserMenuOpen(false); }}
                   className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
@@ -1178,7 +1183,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     <Link
                       key={item.path}
                       href={item.path}
-                      onClick={() => setMobileMenuOpen(false)}
+                      onClick={() => { recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
                       className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
                         isActive
                           ? 'bg-primary/10 text-primary'
@@ -1215,7 +1220,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                         <Link
                           key={item.path}
                           href={item.path}
-                          onClick={() => setMobileMenuOpen(false)}
+                          onClick={() => { recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
                           className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
                             isActive
                               ? 'bg-primary/10 text-primary'
@@ -1246,7 +1251,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                         <Link
                           key={item.path}
                           href={item.path}
-                          onClick={() => setMobileMenuOpen(false)}
+                          onClick={() => { recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
                           className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
                             isActive
                               ? 'bg-primary/10 text-primary'
@@ -1280,7 +1285,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                           <Link
                             key={item.path}
                             href={item.path}
-                            onClick={() => setMobileMenuOpen(false)}
+                            onClick={() => { recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
                             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                               isActive
                                 ? 'bg-primary/10 text-primary'
