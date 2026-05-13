@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import PageHero from '@/components/PageHero';
-import { EPISODES_BY_NUMBER, episodeHref } from '@/lib/episodes';
+import { EPISODES_BY_NUMBER, episodeHref, episodeImage } from '@/lib/episodes';
 
 const CURRENT_SLUG = 'salutogenic-not-pathological';
 
@@ -773,7 +773,7 @@ export default function PageContent() {
                 >
                   <div className="relative">
                     <img
-                      src={ep.image}
+                      src={episodeImage(ep)}
                       alt={ep.imageAlt}
                       className="h-40 w-full object-cover"
                       loading="lazy"

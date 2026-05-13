@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { EPISODES } from '@/lib/episodes';
+import { EPISODES, episodeImage } from '@/lib/episodes';
 import PageContent from './content';
 
 const SLUG = 'your-therapists-nervous-system';
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     url,
     title: ep.title,
     description,
-    images: [{ url: ep.image, alt: ep.imageAlt }],
+    images: [{ url: episodeImage(ep), alt: ep.imageAlt }],
     siteName: 'Seven Arrows Recovery',
     publishedTime: ep.publishedAt,
     authors: ['Seven Arrows Recovery Clinical Team'],
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: ep.title,
     description,
-    images: [ep.image],
+    images: [episodeImage(ep)],
   },
 };
 
@@ -49,7 +49,7 @@ const articleJsonLd = {
   '@type': 'Article',
   headline: ep.title,
   description,
-  image: [ep.image],
+  image: [episodeImage(ep)],
   datePublished: ep.publishedAt,
   dateModified: ep.publishedAt,
   author: {

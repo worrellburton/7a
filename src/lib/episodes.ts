@@ -667,3 +667,56 @@ export function episodeHref(slug: string): string {
   if (ep?.href) return ep.href;
   return `/who-we-are/blog/${slug}`;
 }
+
+// ── Image rotation ────────────────────────────────────────────
+//
+// Most legacy episodes (8-51, plus a couple from the original 7)
+// were imported with the same placeholder photo
+// (/images/resident-reading-window.jpg) before per-article art
+// could be commissioned. Without rotation, the Recovery Roadmap
+// listing renders the same woman-reading-by-a-window photo on
+// roughly 45 cards in a row — which makes the page feel like a
+// duplicate / broken render even though every entry is unique.
+//
+// `episodeImage(ep)` returns the entry's own image unless that
+// image is the known placeholder, in which case it picks from
+// LEGACY_ROTATION_IMAGES by `(number - 1) % len`. Cycling on the
+// episode number ensures:
+//   - the image is stable per-episode (same slug always renders
+//     the same photo), so og:image / share previews stay
+//     coherent over time;
+//   - adjacent episodes never collide (44 placeholder rows over
+//     a 15-image rotation gives a gap of ≥ 15 between repeats);
+//   - new placeholder episodes inserted later just continue the
+//     cycle.
+//
+// The rotation pool is intentionally drawn from the in-repo
+// /public/images/ catalog — Unsplash sources were deliberately
+// excluded so the page stays self-hosted and won't break if a
+// remote photo is reorganized upstream.
+const LEGACY_PLACEHOLDER = '/images/resident-reading-window.jpg';
+
+const LEGACY_ROTATION_IMAGES: string[] = [
+  '/images/equine-therapy-portrait.jpg',
+  '/images/horses-grazing.jpg',
+  '/images/horse-sketch-artwork.jpg',
+  '/images/campfire-ceremony-circle.webp',
+  '/images/common-area-living-room.jpg',
+  '/images/covered-porch-desert-view.jpg',
+  '/images/embrace-connection.jpg',
+  '/images/facility-exterior-mountains.jpg',
+  '/images/group-gathering-pavilion.jpg',
+  '/images/group-sunset-desert.jpg',
+  '/images/group-therapy-room.jpg',
+  '/images/individual-therapy-session.jpg',
+  '/images/resident-reading-window.jpg',
+  '/images/sign-night-sky-milky-way.jpg',
+  '/images/sound-healing-session.jpg',
+];
+
+export function episodeImage(ep: Pick<Episode, 'image' | 'number'>): string {
+  if (ep.image !== LEGACY_PLACEHOLDER) return ep.image;
+  const i = ((ep.number - 1) % LEGACY_ROTATION_IMAGES.length + LEGACY_ROTATION_IMAGES.length)
+    % LEGACY_ROTATION_IMAGES.length;
+  return LEGACY_ROTATION_IMAGES[i];
+}
