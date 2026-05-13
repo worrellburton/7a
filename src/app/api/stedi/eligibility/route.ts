@@ -135,7 +135,10 @@ export async function POST(req: Request) {
   const stediRes = await fetch(STEDI_URL, {
     method: 'POST',
     headers: {
-      'Authorization': `Key ${stediKey}`,
+      // Stedi's eligibility + payer-search endpoints want the raw
+      // API key as the Authorization value (NOT "Key <key>", which
+      // the legacy claims proxy still uses).
+      'Authorization': stediKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
