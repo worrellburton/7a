@@ -756,3 +756,19 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
   60%  { opacity: 0.08;                        transform: translate3d(0, var(--ghost-drift, -16px), 0); filter: blur(1.5px); }
   100% { opacity: 0;                           transform: translate3d(0, var(--ghost-drift, -16px), 0); filter: blur(2px); }
 }
+
+/* ─── Sidebar travel animation · Phase 8 · companion rows ─── */
+/*
+ * Quiet stylistic mark on rows that shift to make room for the
+ * traveler. No glow, no scale — just a subtle hint of texture
+ * that reads "I moved on purpose" instead of "I twitched". The
+ * filter is barely perceptible (~3% desaturation) so the eye
+ * stays locked on the traveler while still registering that the
+ * surroundings rearranged in lock-step.
+ */
+.sa-flip-companion {
+  filter: saturate(0.96);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-flip-companion { filter: none; }
+}

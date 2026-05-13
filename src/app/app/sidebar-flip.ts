@@ -51,11 +51,21 @@ const MIN_DURATION_MS = 220;
 const MAX_DURATION_MS = 520;
 const SATURATION_DISTANCE = 360;
 const FLIP_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+// Phase 8 — companion rows (everything that wasn't the traveler)
+// use a softer, slightly faster curve so they feel like they're
+// "making room" rather than competing with the traveler. Same
+// duration scale, but capped to ~75% of the traveler's max so a
+// huge reorder finishes the companions ahead of the hero.
+const COMPANION_MIN_DURATION_MS = 200;
+const COMPANION_MAX_DURATION_MS = 380;
+const COMPANION_EASE = 'cubic-bezier(0.4, 0, 0.2, 1)';
 
-function flipDuration(dy: number): number {
+function flipDuration(dy: number, role: 'traveler' | 'companion' = 'traveler'): number {
   const abs = Math.abs(dy);
   const t = Math.min(1, abs / SATURATION_DISTANCE);
-  return Math.round(MIN_DURATION_MS + (MAX_DURATION_MS - MIN_DURATION_MS) * t);
+  const min = role === 'companion' ? COMPANION_MIN_DURATION_MS : MIN_DURATION_MS;
+  const max = role === 'companion' ? COMPANION_MAX_DURATION_MS : MAX_DURATION_MS;
+  return Math.round(min + (max - min) * t);
 }
 
 // Phase 7 — spawn three offset ghosts that fade out behind the
@@ -186,19 +196,20 @@ export function useSidebarFlip(): FlipController {
     const raf1 = window.requestAnimationFrame(() => {
       raf2 = window.requestAnimationFrame(() => {
         for (const { el, dy } of movers) {
-          // Phase 4: per-row duration. Each mover gets its own
-          // transition string sized to its travel distance, so a
-          // big jump reads as deliberate and a small hop stays
-          // snappy. Phase 5 also tweens the spotlight's box-shadow
-          // alongside the transform so the glow rises and falls
-          // with the row instead of snapping in/out at the
-          // endpoints — hence the multi-property transition list
-          // on the traveler.
-          const dur = flipDuration(dy);
+          // Phase 4 + 8: per-row duration + role-aware curve.
+          // The traveler gets the expressive cubic-bezier so its
+          // arrival reads as a deliberate move; companions get a
+          // tighter material-style ease so they feel like they
+          // stepped aside. Companion durations are also slightly
+          // shorter at the saturation end so the hero is the last
+          // thing to settle into place.
           if (el === travelerEl) {
+            const dur = flipDuration(dy, 'traveler');
             el.style.transition = `transform ${dur}ms ${FLIP_EASE}, box-shadow ${dur}ms ${FLIP_EASE}`;
           } else {
-            el.style.transition = `transform ${dur}ms ${FLIP_EASE}`;
+            const dur = flipDuration(dy, 'companion');
+            el.style.transition = `transform ${dur}ms ${COMPANION_EASE}`;
+            el.classList.add('sa-flip-companion');
           }
           el.style.transform = 'translate3d(0, 0, 0)';
         }
@@ -235,6 +246,7 @@ export function useSidebarFlip(): FlipController {
         el.style.transform = '';
         el.style.willChange = '';
         el.classList.remove('sa-flip-traveler');
+        el.classList.remove('sa-flip-companion');
         // Phase 6: landing pulse on the traveler. The row has
         // just settled at the top; fire a one-shot keyframe
         // (defined in globals.css as sa-flip-landing) that
@@ -267,6 +279,7 @@ export function useSidebarFlip(): FlipController {
           el.style.willChange = '';
           el.classList.remove('sa-flip-traveler');
           el.classList.remove('sa-flip-landing');
+          el.classList.remove('sa-flip-companion');
         }
       }
     };
