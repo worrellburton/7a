@@ -1192,14 +1192,19 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </button>
               </div>
 
-              {/* Nav links — grouped by department.
-                  `min-h-0` is the critical bit for mobile scroll: in a
-                  flex column the default min-height is `auto`, which
-                  lets this nav grow to fit its content and disables
-                  the inner overflow-y-auto. min-h-0 lets it shrink
-                  below content height so the inner scroll engages. */}
+              {/* Nav links — flat alphabetical list (Phase 4/5 of the
+                  sidebar overhaul). Department / navGroup headers
+                  were dropped in Phase 5; the page_permissions data
+                  still owns dept membership for access control, the
+                  nav just doesn't visualise it anymore.
+                  `min-h-0` is the critical bit for mobile scroll: in
+                  a flex column the default min-height is `auto`,
+                  which lets this nav grow to fit its content and
+                  disables the inner overflow-y-auto. min-h-0 lets it
+                  shrink below content height so the inner scroll
+                  engages. */}
               <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
-                {ungroupedPages.map((item) => {
+                {alphaSortedPages.map((item) => {
                   const isActive = pathname === item.path;
                   return (
                     <Link
@@ -1228,69 +1233,6 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     </Link>
                   );
                 })}
-                {navGroupGroups.map(({ label, pages }) => (
-                  <div key={`mobile-nav-group-${label}`}>
-                    <p
-                      className="px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {label}
-                    </p>
-                    {pages.map((item) => {
-                      const isActive = pathname === item.path;
-                      return (
-                        <Link
-                          key={item.path}
-                          href={item.path}
-                          onClick={() => { recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
-                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
-                            isActive
-                              ? 'bg-primary/10 text-primary'
-                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                          }`}
-                          style={{ fontFamily: 'var(--font-body)' }}
-                        >
-                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                            {getPageIcon(item.path)}
-                          </span>
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ))}
-                {deptGroups.map(({ dept, pages }) => (
-                  <div key={dept.id}>
-                    <p
-                      className="px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {dept.name}
-                    </p>
-                    {pages.map((item) => {
-                      const isActive = pathname === item.path;
-                      return (
-                        <Link
-                          key={item.path}
-                          href={item.path}
-                          onClick={() => { recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
-                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
-                            isActive
-                              ? 'bg-primary/10 text-primary'
-                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                          }`}
-                          style={{ fontFamily: 'var(--font-body)' }}
-                        >
-                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                            {getPageIcon(item.path)}
-                          </span>
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ))}
-
               </nav>
 
               {/* Account section — collapsed by default. Tapping the
