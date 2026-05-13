@@ -5999,11 +5999,12 @@ function HistoryEntry({
             <span className="text-[10px] text-foreground/45" title={fmtAbsolute(log.contacted_at) ?? ''}>
               {fmtAgo(log.contacted_at)}
             </span>
-            {/* Edit/delete kebab — hidden on rows the current rep
-                didn't author. Becomes visible on hover so the
-                read-only timeline doesn't get loud. */}
+            {/* Edit/delete — sits inline right after the ago
+                timestamp so it reads as "row-level actions for THIS
+                touchpoint", not "actions for the timeline." Only
+                shown on rows the current rep authored (canEdit). */}
             {canEdit && mode === 'view' && (
-              <span className="ml-auto inline-flex items-center gap-0.5">
+              <span className="inline-flex items-center gap-0.5">
                 <button
                   type="button"
                   onClick={startEdit}

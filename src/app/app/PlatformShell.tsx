@@ -662,20 +662,31 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // ALPHA_THRESHOLD clicks) caps the visible portion to the top
   // RECENCY_VISIBLE_COUNT and tucks the rest into Other pages.
   const recencyOrderedPages = useMemo(() => {
-    const byPath = new Map(visibleNavPages.map((p) => [p.path, p] as const));
+    // Home is permanently pinned to position 1 and excluded from
+    // recency reordering. Visiting Home still bumps its
+    // sidebar_recent_paths rank server-side (so it acts like a
+    // normal click for the click counter / Other-pages threshold),
+    // but visually it never leaves the top — the rest of the stack
+    // fills positions 2..N below it.
+    const HOME_PATH = '/app';
+    const homePage = visibleNavPages.find((p) => p.path === HOME_PATH);
+    const nonHomeVisible = visibleNavPages.filter((p) => p.path !== HOME_PATH);
+    const byPath = new Map(nonHomeVisible.map((p) => [p.path, p] as const));
     const ranked: typeof visibleNavPages = [];
     const seen = new Set<string>();
     for (const path of sidebarRecentPaths) {
+      if (path === HOME_PATH) continue;
       const hit = byPath.get(path);
       if (hit && !seen.has(path)) {
         ranked.push(hit);
         seen.add(path);
       }
     }
-    const leftover = visibleNavPages
+    const leftover = nonHomeVisible
       .filter((p) => !seen.has(p.path))
       .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
-    return [...ranked, ...leftover];
+    const tail = [...ranked, ...leftover];
+    return homePage ? [homePage, ...tail] : tail;
   }, [visibleNavPages, sidebarRecentPaths]);
   const recencyTopPages = recencyOrderedPages.slice(0, RECENCY_VISIBLE_COUNT);
   // Spillover. Anything past the top-7 lives in the collapsible
@@ -1034,7 +1045,17 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <>
                 {recencyTopPages.map(renderLink)}
                 {recencyOtherPages.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-foreground/10">
+                  // The rail is icon-only at rest; the Other-pages
+                  // section is text-first (label + chevron, plus
+                  // the items underneath which would otherwise
+                  // bleed icons into the w-16 gutter). Render the
+                  // whole subtree only when the rail is hovered
+                  // out to w-64 — `hidden group-hover/sidebar:block`
+                  // is more reliable than opacity+max-h here
+                  // because Tailwind's `hidden` class triggers
+                  // display:none, which hard-blocks layout for the
+                  // icon stack entirely.
+                  <div className="mt-2 pt-2 border-t border-foreground/10 hidden group-hover/sidebar:block">
                     <button
                       type="button"
                       onClick={() => setOtherPagesOpen((v) => !v)}
