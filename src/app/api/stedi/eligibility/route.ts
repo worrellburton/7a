@@ -17,7 +17,11 @@ import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 
 export const dynamic = 'force-dynamic';
 
-const STEDI_URL = 'https://healthcare.us.stedi.com/2024-04-01/eligibility';
+// Stedi real-time eligibility (270/271). Same base path the
+// professional-claims proxy in /api/stedi uses — Stedi groups every
+// Change Healthcare passthrough under change/medicalnetwork/<resource>/v3.
+const STEDI_URL =
+  'https://healthcare.us.stedi.com/2024-04-01/change/medicalnetwork/eligibility/v3';
 const STEDI_TRADING_PARTNER_ENV = 'STEDI_TRADING_PARTNER_SERVICE_ID';
 
 const PROVIDER_DEFAULTS = {
@@ -131,7 +135,10 @@ export async function POST(req: Request) {
   const stediRes = await fetch(STEDI_URL, {
     method: 'POST',
     headers: {
-      'Authorization': `Key ${stediKey}`,
+      // Stedi's eligibility + payer-search endpoints want the raw
+      // API key as the Authorization value (NOT "Key <key>", which
+      // the legacy claims proxy still uses).
+      'Authorization': stediKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
