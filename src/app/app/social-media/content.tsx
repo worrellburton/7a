@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { PlatformIcon, type PlatformId } from './PlatformIcon';
 import { MediaPicker, type PickedMedia } from './MediaPicker';
 import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
+import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from './platform-specs';
 
 // ── Cross-tab Send-to-Compose handoff ────────────────────────────────
 //
@@ -740,6 +741,171 @@ function DraftsPanel({
 // the Composer uses — and on success removes the draft from the
 // staging list and bumps the History/Scheduled panels via onPosted.
 
+// Aggregate every unique aspect ratio the selected networks accept,
+// across both image and video specs in PLATFORM_SPECS. Ratios live
+// in the data as plain strings ("1:1", "9:16") but several specs
+// pack a compound list ("16:9 / 1:1 / 4:5") for entries that accept
+// multiple crops — we split those into atomic ratios so each one
+// gets its own card. A ratio like "any" or "A4 / Letter" (Reddit
+// images, LinkedIn PDFs) falls through to a "Free / document"
+// bucket so the marketer still sees the deliverable surface area
+// without bogus aspect numbers.
+interface Deliverable {
+  /** Canonical ratio key, e.g. "1:1" or "9:16". "free" for ratio-agnostic specs. */
+  ratio: string;
+  /** True if any spec for this ratio is video. */
+  hasVideo: boolean;
+  /** True if any spec for this ratio is still image. */
+  hasImage: boolean;
+  /** Networks that need this ratio, in display order. */
+  networks: PlatformId[];
+  /** A short comma-joined label of what this ratio is FOR (Feed, Story, Reel, Pin, etc). */
+  uses: string[];
+  /** Best recommended pixel size we've seen for this ratio (max area wins). */
+  bestSize: string | null;
+}
+
+const RATIO_DISPLAY_ORDER = ['9:16', '4:5', '1:1', '5:8', '2:3', '4:3', '1.91:1', '16:9', 'free'];
+
+function deriveDeliverables(selected: Set<PlatformId>): Deliverable[] {
+  const map = new Map<string, Deliverable>();
+  // Pull just the "Story (9:16)"-style use label out of "Story (9:16)";
+  // gives the user a readable use chip without re-printing the ratio.
+  const useFromLabel = (label: string): string => label.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const atomicRatios = (raw: string): string[] => {
+    // "16:9 / 1:1 / 4:5" → ["16:9","1:1","4:5"]; "any" → ["free"].
+    const parts = raw.split(/\s*[/,]\s*/).map((s) => s.trim()).filter(Boolean);
+    if (parts.length === 0) return [];
+    return parts.map((p) => {
+      if (/^\d+(?:\.\d+)?\s*:\s*\d+(?:\.\d+)?$/.test(p)) return p.replace(/\s+/g, '');
+      return 'free';
+    });
+  };
+  const areaOf = (size: string | undefined): number => {
+    if (!size) return 0;
+    const m = size.match(/(\d{2,5})\s*[×x]\s*(\d{2,5})/);
+    if (!m) return 0;
+    return Number(m[1]) * Number(m[2]);
+  };
+  const upsert = (ratio: string, p: PlatformId, spec: MediaSpec | VideoSpec, isVideo: boolean) => {
+    const existing = map.get(ratio);
+    const use = useFromLabel(spec.label);
+    if (!existing) {
+      map.set(ratio, {
+        ratio,
+        hasVideo: isVideo,
+        hasImage: !isVideo,
+        networks: [p],
+        uses: [use],
+        bestSize: spec.size ?? null,
+      });
+      return;
+    }
+    if (isVideo) existing.hasVideo = true; else existing.hasImage = true;
+    if (!existing.networks.includes(p)) existing.networks.push(p);
+    if (!existing.uses.includes(use)) existing.uses.push(use);
+    if (spec.size && areaOf(spec.size) > areaOf(existing.bestSize ?? undefined)) {
+      existing.bestSize = spec.size;
+    }
+  };
+
+  for (const id of selected) {
+    const spec = PLATFORM_SPECS[id];
+    if (!spec) continue;
+    for (const img of spec.images) {
+      for (const r of atomicRatios(img.ratio)) upsert(r, id, img, false);
+    }
+    for (const vid of spec.videos) {
+      for (const r of atomicRatios(vid.ratio)) upsert(r, id, vid, true);
+    }
+  }
+
+  const list = Array.from(map.values());
+  list.sort((a, b) => {
+    const ai = RATIO_DISPLAY_ORDER.indexOf(a.ratio);
+    const bi = RATIO_DISPLAY_ORDER.indexOf(b.ratio);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+  return list;
+}
+
+function DeliverablesPanel({ selected }: { selected: Set<PlatformId> }) {
+  const items = useMemo(() => deriveDeliverables(selected), [selected]);
+  if (selected.size === 0) return null;
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-baseline justify-between gap-2 mb-2">
+        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55">
+          Deliverables · {items.length} {items.length === 1 ? 'crop' : 'crops'}
+        </p>
+        <p className="text-[10.5px] text-foreground/45">Every unique crop the selected networks accept.</p>
+      </div>
+      <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        {items.map((d) => <DeliverableCard key={d.ratio} d={d} />)}
+      </ul>
+    </div>
+  );
+}
+
+function DeliverableCard({ d }: { d: Deliverable }) {
+  // Visual preview — a tiny box drawn at the actual aspect ratio so
+  // the marketer can eyeball "tall / wide / square" before opening
+  // Canva. "free" deliverables (Reddit "any", LinkedIn PDF) get a
+  // dashed frame instead.
+  const previewStyle = (() => {
+    if (d.ratio === 'free') return { aspectRatio: '1 / 1' };
+    const m = d.ratio.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+    if (!m) return { aspectRatio: '1 / 1' };
+    return { aspectRatio: `${m[1]} / ${m[2]}` };
+  })();
+  const tone = d.hasVideo && d.hasImage
+    ? 'bg-violet-50 text-violet-700 border-violet-200'
+    : d.hasVideo
+    ? 'bg-rose-50 text-rose-700 border-rose-200'
+    : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  const typeLabel = d.hasVideo && d.hasImage ? 'Image + video' : d.hasVideo ? 'Video' : 'Image';
+
+  return (
+    <li className="rounded-lg border border-black/10 bg-white px-3 py-2.5 flex gap-2.5">
+      <div className="shrink-0 w-10 flex items-center justify-center">
+        <div
+          className={`w-9 max-h-12 rounded-sm ${d.ratio === 'free' ? 'border-2 border-dashed border-foreground/25 bg-warm-bg/40' : 'bg-foreground/10'}`}
+          style={previewStyle}
+          aria-hidden="true"
+        />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[12px] font-semibold text-foreground tabular-nums">
+            {d.ratio === 'free' ? 'Any ratio' : d.ratio}
+          </span>
+          <span className={`inline-block px-1 py-0.5 rounded text-[8.5px] font-semibold border ${tone}`}>
+            {typeLabel}
+          </span>
+        </div>
+        <p className="mt-0.5 text-[10.5px] text-foreground/55 leading-snug line-clamp-2" title={d.uses.join(' · ')}>
+          {d.uses.join(' · ')}
+        </p>
+        <div className="mt-1 flex items-center gap-1">
+          {d.networks.map((n) => (
+            <span
+              key={n}
+              className="inline-flex items-center justify-center w-4 h-4 text-foreground/60"
+              title={n}
+              aria-label={n}
+            >
+              <PlatformIcon platform={n} size={12} />
+            </span>
+          ))}
+          {d.bestSize && <span className="ml-auto text-[9.5px] text-foreground/40 tabular-nums">{d.bestSize}</span>}
+        </div>
+      </div>
+    </li>
+  );
+}
+
 function PublishReadyFlow({
   connected,
   readyDrafts,
@@ -855,6 +1021,13 @@ function PublishReadyFlow({
           </ul>
         )}
       </div>
+
+      {/* Deliverables — every unique aspect ratio the selected
+          networks accept. Surfaced here (between Networks and Draft)
+          so a marketer picking 5 channels can see at a glance the
+          full matrix of crops they need to produce, not just whatever
+          one ratio the chosen draft happens to ship with. */}
+      <DeliverablesPanel selected={selectedNetworks} />
 
       {/* Step 2 — ready drafts */}
       <div className="mb-4">

@@ -292,6 +292,11 @@ export default function ContactsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  // Tier filter sits inline next to the search bar. 'all' means
+  // "show every tier including unrated rows"; 'unrated' specifically
+  // narrows to rows where rating is null so the team can hunt down
+  // contacts that still need a tier assigned.
+  const [tierFilter, setTierFilter] = useState<'all' | ContactRating | 'unrated'>('all');
   // Table / Map / Insights view-mode toggle. Persisted in the URL via
   // ?view=map / ?view=insights so the choice survives refresh + lets
   // admissions bookmark each view directly. `table` is the default
@@ -628,13 +633,15 @@ export default function ContactsContent() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
     return rows.filter((r) => {
+      if (tierFilter === 'unrated') { if (r.rating != null) return false; }
+      else if (tierFilter !== 'all' && r.rating !== tierFilter) return false;
+      if (!q) return true;
       const hay = [r.name, r.company, r.company_website, r.role, r.phone, r.phone_cell, r.phone_office, r.email, r.location, r.formatted_address, r.notes]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, search]);
+  }, [rows, search, tierFilter]);
 
   // Sorted, deduplicated list of every company string currently in
   // the contacts table. Drives the SearchSelect dropdown on the
@@ -975,6 +982,40 @@ export default function ContactsContent() {
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/35">
             <SearchIcon />
           </span>
+        </div>
+        {/* Tier filters — one button per tier so admissions can
+            slice the grid to e.g. Tier 1 prospects in two clicks
+            instead of opening Manage Columns + sorting. Active
+            button picks up its tier's RATING_TONES palette so the
+            chip language stays consistent with the in-row rating
+            chips. */}
+        <div className="flex items-center gap-1 flex-wrap">
+          {([
+            { key: 'all', label: 'All tiers' },
+            { key: 'Tier 1', label: 'Tier 1' },
+            { key: 'Tier 2', label: 'Tier 2' },
+            { key: 'Tier 3', label: 'Tier 3' },
+            { key: 'unrated', label: 'Unrated' },
+          ] as const).map((t) => {
+            const active = tierFilter === t.key;
+            const tone =
+              t.key === 'Tier 1' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : t.key === 'Tier 2' ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : t.key === 'Tier 3' ? 'bg-foreground/5 text-foreground/70 border-foreground/15'
+              : t.key === 'unrated' ? 'bg-foreground/[0.04] text-foreground/60 border-foreground/15'
+              : 'bg-foreground text-white border-foreground';
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTierFilter(t.key)}
+                aria-pressed={active}
+                className={`px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold border transition-colors ${active ? tone : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'}`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
         </div>
         {/* Manage Columns only matters for the desktop table; on
             mobile every field is visible inside each card. */}
@@ -5385,7 +5426,7 @@ function BatchEditBar({
   ];
 
   return (
-    <div className="fixed inset-x-0 bottom-3 sm:bottom-5 z-40 px-3 sm:px-6 pointer-events-none">
+    <div className="fixed inset-x-0 bottom-10 sm:bottom-12 z-40 px-3 sm:px-6 pointer-events-none">
       <div className="max-w-3xl mx-auto pointer-events-auto">
         <div className="rounded-2xl border border-black/10 bg-foreground text-white shadow-2xl ring-1 ring-black/20 overflow-hidden">
           {field && (
@@ -5962,7 +6003,7 @@ function HistoryEntry({
                 didn't author. Becomes visible on hover so the
                 read-only timeline doesn't get loud. */}
             {canEdit && mode === 'view' && (
-              <span className="ml-auto inline-flex items-center gap-0.5 opacity-0 group-hover/log:opacity-100 focus-within:opacity-100 transition-opacity">
+              <span className="ml-auto inline-flex items-center gap-0.5">
                 <button
                   type="button"
                   onClick={startEdit}
