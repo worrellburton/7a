@@ -113,7 +113,7 @@ export default function Connect4Board({ moves, onDrop, disabled = false, challen
                   {cell !== null && (
                     <span
                       key={`chip-${r}-${c}-${moves.length}`}
-                      className={`absolute inset-1 rounded-full shadow-[inset_0_-3px_0_rgba(0,0,0,0.15)] ${PLAYER_TONES[cell].chip} ${inWin ? `ring-2 ring-offset-1 ${PLAYER_TONES[cell].ring}` : ''} ${lastDrop && lastDrop.row === r && lastDrop.col === c ? 'sa-c4-chip-drop' : ''}`}
+                      className={`absolute inset-1 rounded-full shadow-[inset_0_-3px_0_rgba(0,0,0,0.15)] ${PLAYER_TONES[cell].chip} ${inWin ? `sa-c4-win-cell ring-2 ring-offset-1 ${PLAYER_TONES[cell].ring}` : ''} ${lastDrop && lastDrop.row === r && lastDrop.col === c && !inWin ? 'sa-c4-last-move sa-c4-chip-drop' : ''}`}
                       style={lastDrop && lastDrop.row === r && lastDrop.col === c
                         ? { ['--c4-drop-from' as string]: `${-(r + 1) * 44}px` }
                         : undefined}
