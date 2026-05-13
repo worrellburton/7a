@@ -913,3 +913,64 @@ tr:hover .sa-engagement-cell {
 @media (prefers-reduced-motion: reduce) {
   .sa-engagement-cell-active { animation: none; }
 }
+
+/* ─── Outreach engagement column · Phase 9 · edge polish ─── */
+/*
+ * Two additions so the column reads as a continuous panel
+ * against the table rather than a stack of independent cells:
+ *
+ *  1. ::before on the engagement HEADER cell gets a strong
+ *     copper edge-fade gradient at its top so the head of the
+ *     "panel" picks up the same warm glow the body has.
+ *  2. The first and last engagement-cell rows in a scrolled
+ *     viewport pick up an extra vertical fade-in via
+ *     :is(:first-of-type, :last-of-type), so the panel's
+ *     top/bottom appear to taper into the table rather than
+ *     hard-cropping where the scroll begins.
+ *
+ * Tailwind's sticky-shadow inline class also gets a slight
+ * recolour here — the rgba(0,0,0,0.18) wash leaks gray into
+ * the copper warmth. Re-state it tinted in the cascade.
+ */
+[data-col-key="engagement"] {
+  /* Header cell echoes the body's copper glow so the column
+     reads as a single panel from header to bottom row. */
+  position: relative;
+}
+[data-col-key="engagement"]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(188, 107, 74, 0.45) 30%,
+    rgba(188, 107, 74, 0.45) 70%,
+    transparent 100%
+  );
+}
+
+/* Slightly warmer shadow alongside the cool inline -8px shadow,
+   so the gray cast doesn't show through the copper hue. */
+.sa-engagement-cell {
+  box-shadow:
+    -8px 0 16px -12px rgba(102, 70, 56, 0.20),
+    -14px 0 32px -16px rgba(188, 107, 74, 0.30);
+}
+tr.group:hover .sa-engagement-cell,
+tr:hover .sa-engagement-cell {
+  box-shadow:
+    -8px 0 16px -12px rgba(102, 70, 56, 0.24),
+    -20px 0 44px -16px rgba(188, 107, 74, 0.45);
+}
+.sa-engagement-cell-active {
+  box-shadow:
+    -8px 0 16px -12px rgba(102, 70, 56, 0.26),
+    -22px 0 48px -14px rgba(188, 107, 74, 0.58),
+    inset 1.5px 0 0 0 rgba(188, 107, 74, 0.85),
+    inset 0 0 0 1px rgba(188, 107, 74, 0.25);
+}
