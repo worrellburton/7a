@@ -2000,7 +2000,7 @@ function TopPerformersLeaderboard({ contacts }: { contacts: Contact[] }) {
       {performers.length === 0 ? (
         <div className="flex items-center justify-center h-[160px] text-[11.5px] text-foreground/45 text-center px-4">
           No outreach logged in the last 30 days.<br />
-          Click <span className="text-foreground/65 font-semibold">Contact</span> on any row to start the leaderboard.
+          Click the <span className="text-foreground/65 font-semibold">🪵</span> on any row to log a touchpoint and start the leaderboard.
         </div>
       ) : (
         <ol className="mt-2 space-y-2">
@@ -2893,10 +2893,11 @@ function ContactsGrid({
                     <button
                       type="button"
                       onClick={() => onContact(c)}
-                      className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
+                      aria-label="Log a contact"
+                      title="Log a contact"
+                      className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary text-[15px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
                     >
-                      <PhoneIcon />
-                      Contact
+                      <span aria-hidden>🪵</span>
                     </button>
                     <button
                       type="button"
