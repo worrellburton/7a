@@ -13,8 +13,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
-import { findWinner, buildBoard, currentPlayer, COLS } from '@/lib/connect4';
+import { currentPlayer, COLS } from '@/lib/connect4';
 import Board from './Board';
+import Lobby from './Lobby';
 
 interface MatchRow {
   id: string;
@@ -32,8 +33,6 @@ export default function Content() {
   const searchParams = useSearchParams();
   const matchId = searchParams.get('match');
 
-  // Local pass-and-play state (used when no ?match param is set).
-  const [localMoves, setLocalMoves] = useState<number[]>([]);
 
   // Server-backed match state (live when ?match=<id> is set).
   const [match, setMatch] = useState<MatchRow | null>(null);
@@ -119,20 +118,12 @@ export default function Content() {
     [matchId, session?.access_token, match, isMyTurn],
   );
 
-  // ── No match in URL → local pass-and-play demo (Phase 3 mode).
+  // ── No match in URL → lobby. Pick a teammate to challenge, or
+  // pick a match to join / spectate.
   if (!matchId) {
-    const winner = findWinner(buildBoard(localMoves));
     return (
-      <PageShell tagline="Local pass-and-play for now — pass the laptop back and forth, or open the lobby (Phase 5) to challenge a teammate.">
-        <Board moves={localMoves} onDrop={(c) => setLocalMoves((p) => [...p, c])} />
-        <button
-          type="button"
-          onClick={() => setLocalMoves([])}
-          className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          {winner ? 'Play again' : 'Reset board'}
-        </button>
+      <PageShell tagline="Challenge a teammate or jump back into a match in progress.">
+        <Lobby />
       </PageShell>
     );
   }
