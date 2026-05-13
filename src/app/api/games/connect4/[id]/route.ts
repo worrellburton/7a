@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 import { buildBoard, currentPlayer, findWinner, isBoardFull, isColumnFull, COLS } from '@/lib/connect4';
+import { advanceBracketIfNeeded } from '@/lib/connect4-advance';
 
 // GET   /api/games/connect4/[id]              — fetch one match
 // PATCH /api/games/connect4/[id] { column }   — drop a chip
@@ -107,6 +108,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (writeErr || !updated) {
     return NextResponse.json({ error: writeErr?.message ?? 'Update failed' }, { status: 500 });
   }
+  // If this match was part of a tournament bracket and just
+  // resolved, see if we can pair up the next round. Async but
+  // awaited so realtime fires after the next-round row exists.
+  if (win) {
+    await advanceBracketIfNeeded(admin, id);
+  }
   return NextResponse.json(updated);
 }
 
@@ -137,5 +144,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     .update({ status: 'forfeit', winner_id: winnerId, updated_at: new Date().toISOString() })
     .eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Forfeits also advance the bracket — winner is the opposite
+  // player; the rest of the auto-pair plumbing is identical.
+  await advanceBracketIfNeeded(admin, id);
   return NextResponse.json({ ok: true });
 }
