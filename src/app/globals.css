@@ -1030,3 +1030,23 @@ tr:hover .sa-engagement-cell {
 @media (prefers-reduced-motion: reduce) {
   .sa-log-button { animation: none; }
 }
+
+/* ─── Connect-4 board · Phase 9 · chip drop ─── */
+/*
+ * Last-dropped chip slides in from above the column. The
+ * starting Y offset is parameterised via --c4-drop-from set
+ * inline per-chip, so a chip landing in the bottom row falls
+ * further than one stacking near the top. A tiny overshoot at
+ * 85% gives the chip a satisfying tap-down on landing.
+ */
+@keyframes sa-c4-chip-drop {
+  0%   { transform: translateY(var(--c4-drop-from, -300px)); }
+  85%  { transform: translateY(4px); }
+  100% { transform: translateY(0); }
+}
+.sa-c4-chip-drop {
+  animation: sa-c4-chip-drop 380ms cubic-bezier(0.3, 1, 0.4, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-c4-chip-drop { animation: none; }
+}
