@@ -831,3 +831,27 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
     rgba(188, 107, 74, 0.02) 100%
   );
 }
+
+/* ─── Outreach engagement column · Phase 6 · resting glow ─── */
+/*
+ * Soft outer halo on every engagement cell at rest — sits to the
+ * LEFT of the cell so it reads as the column glowing into the
+ * scrolling table area without painting over neighboring rows.
+ * The shadow has zero vertical extent and a wide horizontal
+ * spread on the left side only; Phase 4's shadow on .sa-flip
+ * was a fully circumscribed drop. This one is directional.
+ *
+ * Box-shadow on the existing `shadow-[-8px_0_16px_-12px_…]`
+ * inline class is preserved; we ADD to it via the cascade
+ * specificity of this rule (class selector wins over inline only
+ * because the value here is more important). When Tailwind's
+ * arbitrary-value classes generate inline styles, we layer this
+ * shadow alongside rather than replacing — that's why we re-state
+ * the original -8px shadow inside the same declaration.
+ */
+.sa-engagement-cell {
+  box-shadow:
+    -8px 0 16px -12px rgba(0, 0, 0, 0.18),
+    -14px 0 32px -16px rgba(188, 107, 74, 0.30);
+  transition: box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
