@@ -717,39 +717,28 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   useEffect(() => {
     if (sidebarMode !== 'recency') { lastClickCountRef.current = sidebarClickCount; return; }
     if (sidebarClickCount > lastClickCountRef.current && recencyOtherPages.length > 0) {
-      setOtherPagesFlash(true);
-      const t = window.setTimeout(() => setOtherPagesFlash(false), 1200);
-      return () => window.clearTimeout(t);
+      // Respect prefers-reduced-motion — skip the flash entirely so
+      // users who've opted out of non-essential motion don't get a
+      // pulsing background every time they click a nav entry.
+      const prefersReducedMotion = typeof window !== 'undefined'
+        && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (!prefersReducedMotion) {
+        setOtherPagesFlash(true);
+        const t = window.setTimeout(() => setOtherPagesFlash(false), 1200);
+        lastClickCountRef.current = sidebarClickCount;
+        return () => window.clearTimeout(t);
+      }
     }
     lastClickCountRef.current = sidebarClickCount;
   }, [sidebarClickCount, sidebarMode, recencyOtherPages.length]);
 
-  const ungroupedPages = visibleNavPages.filter((p) => !p.departmentId && !p.navGroup);
-
-  // Preserve first-seen order of navGroups so Media shows up in the same
-  // spot across renders regardless of React's map ordering.
-  const navGroupLabels: string[] = [];
-  const navGroupPages: Record<string, PageConfig[]> = {};
-  for (const p of visibleNavPages) {
-    if (!p.navGroup) continue;
-    if (!navGroupPages[p.navGroup]) {
-      navGroupLabels.push(p.navGroup);
-      navGroupPages[p.navGroup] = [];
-    }
-    navGroupPages[p.navGroup].push(p);
-  }
-  const navGroupGroups = navGroupLabels.map((label) => ({
-    label,
-    pages: navGroupPages[label],
-  }));
-
-  const deptGroups: { dept: NavDepartment; pages: PageConfig[] }[] = [];
-  for (const dept of navDepartments) {
-    const deptPages = visibleNavPages.filter((p) => !p.navGroup && p.departmentId === dept.id);
-    if (deptPages.length > 0) {
-      deptGroups.push({ dept, pages: deptPages });
-    }
-  }
+  // Department / navGroup grouping is no longer rendered (Phase 5
+  // of the sidebar overhaul). PageConfig.departmentId still drives
+  // access control through canSeePage; we just don't visualise the
+  // grouping anymore. The navDepartments state + fetch is left in
+  // place because canSeePage chains into isPageAllowedForDepartment
+  // via the PagePermissions provider, which expects the department
+  // list to be loadable for permission editing.
 
   // Theme toggle removed — make sure no leftover localStorage value
   // re-applies the dark class after navigation, so the platform stays
@@ -1050,95 +1039,64 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             if (sidebarMode === 'alpha') {
               return <>{alphaSortedPages.map(renderLink)}</>;
             }
-            if (sidebarMode === 'recency') {
-              return (
-                <>
-                  {recencyTopPages.map(renderLink)}
-                  {recencyOtherPages.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-foreground/10">
-                      <button
-                        type="button"
-                        onClick={() => setOtherPagesOpen((v) => !v)}
-                        aria-expanded={otherPagesOpen}
-                        className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/45 hover:bg-warm-bg/60 transition-colors ${otherPagesFlash ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        <span>Other pages</span>
-                        <span aria-hidden className={`transition-transform duration-200 ${otherPagesOpen ? 'rotate-180' : ''}`}>▾</span>
-                      </button>
-                      {otherPagesOpen && (
-                        <div className="mt-0.5">{recencyOtherPages.map(renderLink)}</div>
-                      )}
-                    </div>
-                  )}
-                </>
-              );
-            }
+            // Phase 7+: recency mode renders the top
+            // RECENCY_VISIBLE_COUNT entries above an "Other pages"
+            // collapsible. The Marketing-team "Website" external
+            // link, which used to hang off the dept group, now
+            // renders unconditionally at the bottom of the nav
+            // outside this switch — see the <a> below the </nav>.
             return (
               <>
-                {ungroupedPages.map(renderLink)}
-                {navGroupGroups.map(({ label, pages }) => {
-                  const hdrIdx = animIdx++;
-                  return (
-                    <div key={`nav-group-${label}`}>
-                      <p
-                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-transform duration-500 ease-out whitespace-nowrap ${navMounted ? 'translate-x-0' : '-translate-x-3'}`}
-                        style={{ fontFamily: 'var(--font-body)', transitionDelay: `${hdrIdx * 50}ms` }}
-                      >
-                        {label}
-                      </p>
-                      {pages.map(renderLink)}
-                    </div>
-                  );
-                })}
-                {deptGroups.map(({ dept, pages }) => {
-                  const hdrIdx = animIdx++;
-                  // Marketing & Admissions gets an extra "Website"
-                  // entry that opens the public marketing site in a
-                  // new tab. Hardcoded here because the rest of the
-                  // sidebar is internal-only — adding an
-                  // external_url field to PagePermissions for one
-                  // link would be over-engineering.
-                  const isMarketing = dept.id === MARKETING_ADMISSIONS_DEPT_ID;
-                  const websiteIdx = isMarketing ? animIdx++ : -1;
-                  return (
-                    <div key={dept.id}>
-                      <p
-                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-transform duration-500 ease-out whitespace-nowrap ${navMounted ? 'translate-x-0' : '-translate-x-3'}`}
-                        style={{ fontFamily: 'var(--font-body)', transitionDelay: `${hdrIdx * 50}ms` }}
-                      >
-                        {dept.name}
-                      </p>
-                      {pages.map(renderLink)}
-                      {isMarketing && (
-                        <a
-                          href="https://www.sevenarrowsrecoveryarizona.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out text-foreground/60 hover:bg-warm-bg hover:text-foreground ${
-                            navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'
-                          }`}
-                          style={{ fontFamily: 'var(--font-body)', transitionDelay: `${websiteIdx * 50}ms` }}
-                        >
-                          <span className="text-foreground/40">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                              <circle cx="12" cy="12" r="9" />
-                              <path d="M3 12h18" />
-                              <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
-                            </svg>
-                          </span>
-                          <span className="flex-1 whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">Website</span>
-                          <svg className="w-3.5 h-3.5 text-foreground/35 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-6H18m0 0v4.5m0-4.5L10.5 13.5" />
-                          </svg>
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
+                {recencyTopPages.map(renderLink)}
+                {recencyOtherPages.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-foreground/10">
+                    <button
+                      type="button"
+                      onClick={() => setOtherPagesOpen((v) => !v)}
+                      aria-expanded={otherPagesOpen}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/45 hover:bg-warm-bg/60 transition-colors ${otherPagesFlash ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      <span>Other pages</span>
+                      <span aria-hidden className={`transition-transform duration-200 ${otherPagesOpen ? 'rotate-180' : ''}`}>▾</span>
+                    </button>
+                    {otherPagesOpen && (
+                      <div className="mt-0.5">{recencyOtherPages.map(renderLink)}</div>
+                    )}
+                  </div>
+                )}
               </>
             );
           })()}
+          {/* "Website" external link — preserved from the
+              Marketing-dept group that used to nest it. Surfaces
+              for Marketing & Admissions members (their primary or
+              extra dept), and for admins. Drops the same dept gate
+              the dept-group rendering used to enforce. */}
+          {(isAdmin
+            || departmentId === MARKETING_ADMISSIONS_DEPT_ID
+            || userExtraDepartmentIds.includes(MARKETING_ADMISSIONS_DEPT_ID)
+          ) && (
+            <a
+              href="https://www.sevenarrowsrecoveryarizona.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-foreground/60 hover:bg-warm-bg hover:text-foreground"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <span className="text-foreground/40">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M3 12h18" />
+                  <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
+                </svg>
+              </span>
+              <span className="flex-1 whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">Website</span>
+              <svg className="w-3.5 h-3.5 text-foreground/35 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-6H18m0 0v4.5m0-4.5L10.5 13.5" />
+              </svg>
+            </a>
+          )}
         </nav>
 
         {/* User settings — bottom left */}
