@@ -21,6 +21,11 @@ export interface PageConfig {
   // the `page_permissions` DB table — so product areas like Media can hang
   // off a shared header without needing a fake department row.
   navGroup?: string | null;
+  // When true, the page is visible exclusively to users with
+  // user_kind='alumni'. Staff / admins / super-admins lose sidebar
+  // entry + route access. Defaults to false; toggled per-page from
+  // /app/admin/user-permissions → Alumni tab.
+  alumniOnly?: boolean;
 }
 
 const defaultPages: PageConfig[] = [
@@ -209,7 +214,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
         const data = await db({
           action: 'select',
           table: 'page_permissions',
-          select: 'path, admin_only, section, sort_order, allowed_departments, department_id',
+          select: 'path, admin_only, section, sort_order, allowed_departments, department_id, alumni_only',
         });
 
         // Only apply DB overrides if query succeeded and returned data
@@ -235,6 +240,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
                   sort_order: typeof match.sort_order === 'number' ? match.sort_order : p.sort_order,
                   allowedDepartments: Array.isArray(match.allowed_departments) ? match.allowed_departments : [],
                   departmentId: match.department_id ?? null,
+                  alumniOnly: match.alumni_only === true,
                 };
               }
               return p;
