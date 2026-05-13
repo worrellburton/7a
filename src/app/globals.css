@@ -855,3 +855,20 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
     -14px 0 32px -16px rgba(188, 107, 74, 0.30);
   transition: box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* ─── Outreach engagement column · Phase 7 · hover lift ─── */
+/*
+ * When the table row is hovered, the engagement cell's halo
+ * intensifies and pulls slightly further left, like the column
+ * leaning into the cursor. Tailwind's `group-hover:` on the <tr>
+ * scopes this — the `.group` is the row, and the engagement
+ * cell sits inside it, so we can target via `.group:hover
+ * .sa-engagement-cell`. The transition primed in Phase 6 handles
+ * the timing.
+ */
+tr.group:hover .sa-engagement-cell,
+tr:hover .sa-engagement-cell {
+  box-shadow:
+    -8px 0 16px -12px rgba(0, 0, 0, 0.22),
+    -20px 0 44px -16px rgba(188, 107, 74, 0.42);
+}
