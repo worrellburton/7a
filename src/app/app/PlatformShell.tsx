@@ -1407,7 +1407,7 @@ function ShowCursorsToggle() {
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l7.5 18 2.5-7 7-2.5L3 3z" />
         </svg>
-        Show teammates&apos; cursors
+        Teammates&apos; cursors
       </span>
       <span
         className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${on ? 'bg-primary' : 'bg-foreground/20'}`}
