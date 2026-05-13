@@ -165,6 +165,18 @@ export function useSidebarFlip(): FlipController {
 
     if (movers.length === 0) return;
 
+    // Phase 9 — global reduced-motion gate. If the user has opted
+    // out of non-essential motion, we still want the sidebar to
+    // re-order (recency is information, not decoration), we just
+    // skip the invert + play and let the rows snap to their new
+    // positions. Skipping early is much cheaper than running the
+    // animation with degraded styles, and it keeps screen-reader
+    // / keyboard users on a deterministic, predictable layout.
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      travelerPathRef.current = null;
+      return;
+    }
+
     // Pick up the path the user just clicked (set via markTraveler).
     // We resolve it to the actual mover for fast lookup during the
     // play leg, then clear the ref so the next reorder (e.g. caused
