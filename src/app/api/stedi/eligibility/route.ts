@@ -17,7 +17,11 @@ import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 
 export const dynamic = 'force-dynamic';
 
-const STEDI_URL = 'https://healthcare.us.stedi.com/2024-04-01/eligibility';
+// Stedi real-time eligibility (270/271). Same base path the
+// professional-claims proxy in /api/stedi uses — Stedi groups every
+// Change Healthcare passthrough under change/medicalnetwork/<resource>/v3.
+const STEDI_URL =
+  'https://healthcare.us.stedi.com/2024-04-01/change/medicalnetwork/eligibility/v3';
 const STEDI_TRADING_PARTNER_ENV = 'STEDI_TRADING_PARTNER_SERVICE_ID';
 
 const PROVIDER_DEFAULTS = {
