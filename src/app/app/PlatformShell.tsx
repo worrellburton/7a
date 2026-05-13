@@ -993,7 +993,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     href={item.externalUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => recordSidebarVisit(item.path)}
+                    onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); }}
                     className={commonClassName}
                     style={commonStyle}
                   >
@@ -1017,6 +1017,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   ref={(el) => flip.register(item.path, el)}
                   href={item.path}
                   onClick={(e) => {
+                    // Tag the traveler so the FLIP hook can paint
+                    // a spotlight on it during its upcoming travel
+                    // (sidebar-flip Phase 5). Has to fire BEFORE
+                    // recordSidebarVisit because the state update
+                    // there schedules the re-render that the FLIP
+                    // hook reads markTraveler from.
+                    flip.markTraveler(item.path);
                     // Record the click for the sidebar recency model
                     // (Phase 3). Fires regardless of whether the route
                     // actually changes — a re-click on the current page
