@@ -1050,3 +1050,30 @@ tr:hover .sa-engagement-cell {
 @media (prefers-reduced-motion: reduce) {
   .sa-c4-chip-drop { animation: none; }
 }
+
+/* ─── Connect-4 board · Phase 10 · last-move ring + win pulse ─── */
+/*
+ * Last-move ring: a faint copper halo around the most recently
+ * dropped chip so the eye can find "where did the opponent just
+ * play" without having to remember. Decoupled from the drop
+ * animation (Phase 9) so it stays visible AFTER the chip lands.
+ *
+ * Win pulse: the four winning chips slowly throb so the resolved
+ * state reads as victorious rather than just "frozen." 2.4s
+ * loop, paused by prefers-reduced-motion.
+ */
+.sa-c4-last-move {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 12px 2px rgba(188, 107, 74, 0.55);
+}
+@keyframes sa-c4-win-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.00), inset 0 -3px 0 rgba(0, 0, 0, 0.15); }
+  50%      { box-shadow: 0 0 16px 4px rgba(16, 185, 129, 0.55), inset 0 -3px 0 rgba(0, 0, 0, 0.15); }
+}
+.sa-c4-win-cell {
+  animation: sa-c4-win-pulse 2400ms ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-c4-win-cell { animation: none; }
+}
