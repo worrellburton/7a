@@ -22,7 +22,7 @@ import { SearchSelectCell } from '@/components/SearchSelectCell';
 
 // ─── Types ──────────────────────────────────────────────────────
 
-type ContactMethod = 'Phone' | 'In Person' | 'Left Message';
+type ContactMethod = 'Phone' | 'In Person' | 'Left Message' | 'Text Message';
 
 type ContactRating = 'Tier 1' | 'Tier 2' | 'Tier 3';
 
@@ -180,6 +180,9 @@ const METHOD_TONES: Record<ContactMethod, string> = {
   Phone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   'In Person': 'bg-blue-50 text-blue-700 border-blue-200',
   'Left Message': 'bg-amber-50 text-amber-700 border-amber-200',
+  // Distinct violet so SMS doesn't blend with voicemail (amber) or
+  // in-person (blue) when admissions skims a column of chips.
+  'Text Message': 'bg-violet-50 text-violet-700 border-violet-200',
 };
 
 // Forgive bare-host input on Site / Website fields. Reps routinely
@@ -1809,8 +1812,8 @@ function ThirtyDayTouchesChart({ contacts }: { contacts: Contact[] }) {
 // "Left Message" exists even if it's 1 vs 80 phone calls.
 function ContactMethodMixBars({ contacts }: { contacts: Contact[] }) {
   const buckets = useMemo(() => {
-    const out: Record<'Phone' | 'In Person' | 'Left Message' | 'Never', number> = {
-      Phone: 0, 'In Person': 0, 'Left Message': 0, Never: 0,
+    const out: Record<'Phone' | 'In Person' | 'Left Message' | 'Text Message' | 'Never', number> = {
+      Phone: 0, 'In Person': 0, 'Left Message': 0, 'Text Message': 0, Never: 0,
     };
     for (const c of contacts) {
       if (!c.last_contact_method) out.Never += 1;
@@ -1825,6 +1828,7 @@ function ContactMethodMixBars({ contacts }: { contacts: Contact[] }) {
     { key: 'Phone',        label: 'Phone',        tone: 'text-emerald-700', bar: 'linear-gradient(90deg, #10b981, #059669)', help: 'Last touch was a phone call.' },
     { key: 'In Person',    label: 'In person',    tone: 'text-sky-700',     bar: 'linear-gradient(90deg, #38bdf8, #0284c7)', help: 'Last touch was in person.' },
     { key: 'Left Message', label: 'Left message', tone: 'text-amber-700',   bar: 'linear-gradient(90deg, #fbbf24, #d97706)', help: 'Last touch ended in voicemail / unreturned.' },
+    { key: 'Text Message', label: 'Text message', tone: 'text-violet-700',  bar: 'linear-gradient(90deg, #a78bfa, #7c3aed)', help: 'Last touch was an SMS.' },
     { key: 'Never',        label: 'Never',        tone: 'text-foreground/55', bar: 'linear-gradient(90deg, rgba(0,0,0,0.18), rgba(0,0,0,0.32))', help: 'Contact has no log entry yet.' },
   ];
 
@@ -2898,6 +2902,7 @@ function ContactsGrid({
                       accessToken={accessToken}
                       onLogContact={() => onOpenLog(c)}
                       onClose={() => onHistory(c)}
+                      historyOnly
                     />
                   </td>
                 </tr>
@@ -5542,6 +5547,7 @@ function LogContactModal({
               <option value="Phone">Phone</option>
               <option value="In Person">In Person</option>
               <option value="Left Message">Left Message</option>
+              <option value="Text Message">Text Message</option>
             </select>
           </ModalField>
           <ModalField label="Duration" required hint="How long was the call / conversation, in minutes?">
@@ -5645,11 +5651,18 @@ function ContactDetailsDrawer({
   accessToken,
   onLogContact,
   onClose,
+  historyOnly = false,
 }: {
   contact: Contact;
   accessToken: string | null;
   onLogContact: () => void;
   onClose: () => void;
+  // When true, the left "Contact details" pane is hidden and the
+  // history timeline gets the full width. The sticky-right
+  // "Contact history" cell on the desktop grid passes this — reps
+  // open that cell to see touchpoints, not to re-read the phone
+  // number that's already in the row above.
+  historyOnly?: boolean;
 }) {
   // Pulled from the same AuthProvider the page root uses — beats
   // threading currentUserId through three levels of grid props just
@@ -5705,7 +5718,7 @@ function ContactDetailsDrawer({
     <div className="rounded-xl border border-black/10 bg-white shadow-sm">
       <div className="flex items-start justify-between gap-4 border-b border-black/5 px-5 py-3">
         <div className="min-w-0">
-          <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground/40">Contact details</p>
+          <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground/40">{historyOnly ? 'Contact history' : 'Contact details'}</p>
           <p className="mt-0.5 text-[13px] font-semibold text-foreground truncate">{contact.name}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -5728,27 +5741,33 @@ function ContactDetailsDrawer({
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-x-6">
-        <div className="px-5 py-4 md:border-r md:border-black/5">
-          <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-[12px]">
-            {detailRows.map((r) => (
-              <Fragment key={r.label}>
-                <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">{r.label}</dt>
-                <dd className="text-foreground/80 break-words">{r.value || <span className="text-foreground/30 italic">—</span>}</dd>
-              </Fragment>
-            ))}
-            {contact.notes && (
-              <>
-                <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">Notes</dt>
-                <dd className="text-foreground/80 whitespace-pre-wrap leading-relaxed">{contact.notes}</dd>
-              </>
-            )}
-          </dl>
-        </div>
+      <div className={historyOnly ? '' : 'grid md:grid-cols-2 gap-x-6'}>
+        {!historyOnly && (
+          <div className="px-5 py-4 md:border-r md:border-black/5">
+            <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-[12px]">
+              {detailRows.map((r) => (
+                <Fragment key={r.label}>
+                  <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">{r.label}</dt>
+                  <dd className="text-foreground/80 break-words">{r.value || <span className="text-foreground/30 italic">—</span>}</dd>
+                </Fragment>
+              ))}
+              {contact.notes && (
+                <>
+                  <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">Notes</dt>
+                  <dd className="text-foreground/80 whitespace-pre-wrap leading-relaxed">{contact.notes}</dd>
+                </>
+              )}
+            </dl>
+          </div>
+        )}
 
         <div className="px-5 py-4">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground/45">Contact history</p>
+            {/* Inner label drops to "Touchpoints" in history-only
+                mode since the drawer's outer eyebrow already reads
+                "Contact history" — avoids two identical eyebrows
+                stacked on top of each other. */}
+            <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground/45">{historyOnly ? 'Touchpoints' : 'Contact history'}</p>
             <p className="text-xs text-foreground/45">
               {logs == null
                 ? 'Loading…'
@@ -5907,6 +5926,7 @@ function HistoryEntry({
                 <option value="Phone">Phone</option>
                 <option value="In Person">In Person</option>
                 <option value="Left Message">Left Message</option>
+                <option value="Text Message">Text Message</option>
               </select>
             ) : (
               <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[log.method]}`}>
