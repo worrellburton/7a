@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 const stats = [
   { value: 160, suffix: '', unit: 'private acres', label: 'at the base of the Swisshelm Mountains' },
-  { value: 10, suffix: '<', unit: 'small census', label: 'every client known by name, never a number' },
+  { value: 20, suffix: '<', unit: 'small census', label: 'every client known by name, never a number' },
   { value: 12, suffix: '+', unit: 'horses', label: 'on the ranch, partnered with our equine therapy program' },
   { value: 365, suffix: '', unit: 'desert sunsets', label: 'clear skies and wide-open land, year-round' },
 ];

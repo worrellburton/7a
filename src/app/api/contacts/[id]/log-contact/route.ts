@@ -20,7 +20,16 @@ import { summariseTranscript } from '@/lib/transcript-summary';
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_METHODS = new Set(['Phone', 'In Person', 'Left Message', 'Text Message']);
+const ALLOWED_METHODS = new Set([
+  'Phone',
+  'In Person',
+  'Left Message',
+  'Text Message',
+  'Email',
+  'Smoke Signals',
+  'Walkie Talkie',
+  'Tin Can Phone',
+]);
 const TRANSCRIPT_BUCKET = 'contact-transcripts';
 const TRANSCRIPT_MAX_CHARS = 250_000;
 
@@ -34,7 +43,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const method = typeof body.method === 'string' ? body.method.trim() : '';
   if (!ALLOWED_METHODS.has(method)) {
-    return NextResponse.json({ error: 'method must be Phone, In Person, Left Message, or Text Message' }, { status: 400 });
+    return NextResponse.json({ error: `method must be one of: ${Array.from(ALLOWED_METHODS).join(', ')}` }, { status: 400 });
   }
   const comments = typeof body.comments === 'string' ? body.comments.trim().slice(0, 4000) : null;
   const transcriptRaw = typeof body.transcript === 'string' ? body.transcript : '';

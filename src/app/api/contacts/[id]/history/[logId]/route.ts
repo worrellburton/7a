@@ -13,7 +13,16 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_METHODS = new Set(['Phone', 'In Person', 'Left Message', 'Text Message']);
+const ALLOWED_METHODS = new Set([
+  'Phone',
+  'In Person',
+  'Left Message',
+  'Text Message',
+  'Email',
+  'Smoke Signals',
+  'Walkie Talkie',
+  'Tin Can Phone',
+]);
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string; logId: string }> }) {
   const user = await getUserFromRequest(req);
@@ -43,7 +52,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (typeof body.method === 'string') {
     const m = body.method.trim();
     if (!ALLOWED_METHODS.has(m)) {
-      return NextResponse.json({ error: 'method must be Phone, In Person, Left Message, or Text Message' }, { status: 400 });
+      return NextResponse.json({ error: `method must be one of: ${Array.from(ALLOWED_METHODS).join(', ')}` }, { status: 400 });
     }
     patch.method = m;
   }
