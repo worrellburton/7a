@@ -693,6 +693,17 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     return [...ranked, ...leftover];
   }, [visibleNavPages, sidebarRecentPaths]);
   const recencyTopPages = recencyOrderedPages.slice(0, RECENCY_VISIBLE_COUNT);
+  // Spillover. Anything past the top-7 lives in the collapsible
+  // "Other pages" section. Still ordered by recency (most-recent
+  // first) so a page that just dropped out of the top-7 sits at the
+  // top of Other, matching the brief: "When a page goes to spot 8,
+  // put it in the top of other pages."
+  const recencyOtherPages = recencyOrderedPages.slice(RECENCY_VISIBLE_COUNT);
+  // Track the disclosure state for the Other pages section. Per-user
+  // persistence is overkill — a tab reload is cheap, and forgetting
+  // the collapsed state after each session matches how reps actually
+  // work the sidebar (open it when they need it, otherwise leave it).
+  const [otherPagesOpen, setOtherPagesOpen] = useState(false);
 
   const ungroupedPages = visibleNavPages.filter((p) => !p.departmentId && !p.navGroup);
 
@@ -1021,7 +1032,28 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               return <>{alphaSortedPages.map(renderLink)}</>;
             }
             if (sidebarMode === 'recency') {
-              return <>{recencyTopPages.map(renderLink)}</>;
+              return (
+                <>
+                  {recencyTopPages.map(renderLink)}
+                  {recencyOtherPages.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-foreground/10">
+                      <button
+                        type="button"
+                        onClick={() => setOtherPagesOpen((v) => !v)}
+                        aria-expanded={otherPagesOpen}
+                        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/45 hover:bg-warm-bg/60 transition-colors"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        <span>Other pages</span>
+                        <span aria-hidden className={`transition-transform duration-200 ${otherPagesOpen ? 'rotate-180' : ''}`}>▾</span>
+                      </button>
+                      {otherPagesOpen && (
+                        <div className="mt-0.5">{recencyOtherPages.map(renderLink)}</div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
             }
             return (
               <>
@@ -1250,35 +1282,58 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   shrink below content height so the inner scroll
                   engages. */}
               <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
-                {(sidebarMode === 'recency' ? recencyTopPages : alphaSortedPages).map((item) => {
-                  const isActive = pathname === item.path;
-                  return (
-                    <Link
-                      key={item.path}
-                      href={item.path}
-                      onClick={() => { recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
-                      className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                      }`}
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                        {getPageIcon(item.path)}
-                      </span>
-                      <span className="flex-1">{item.label}</span>
-                      {(navBadges[item.path] ?? 0) > 0 && (
-                        <span
-                          aria-label={`${navBadges[item.path]} new`}
-                          className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums"
-                        >
-                          {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
+                {(() => {
+                  const renderMobileLink = (item: PageConfig) => {
+                    const isActive = pathname === item.path;
+                    return (
+                      <Link
+                        key={item.path}
+                        href={item.path}
+                        onClick={() => { recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
+                        className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                          isActive
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                        }`}
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                          {getPageIcon(item.path)}
                         </span>
+                        <span className="flex-1">{item.label}</span>
+                        {(navBadges[item.path] ?? 0) > 0 && (
+                          <span
+                            aria-label={`${navBadges[item.path]} new`}
+                            className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums"
+                          >
+                            {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  };
+                  if (sidebarMode === 'alpha') return <>{alphaSortedPages.map(renderMobileLink)}</>;
+                  return (
+                    <>
+                      {recencyTopPages.map(renderMobileLink)}
+                      {recencyOtherPages.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-foreground/10">
+                          <button
+                            type="button"
+                            onClick={() => setOtherPagesOpen((v) => !v)}
+                            aria-expanded={otherPagesOpen}
+                            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/45 hover:bg-warm-bg/60"
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          >
+                            <span>Other pages</span>
+                            <span aria-hidden className={`transition-transform duration-200 ${otherPagesOpen ? 'rotate-180' : ''}`}>▾</span>
+                          </button>
+                          {otherPagesOpen && <div className="mt-0.5">{recencyOtherPages.map(renderMobileLink)}</div>}
+                        </div>
                       )}
-                    </Link>
+                    </>
                   );
-                })}
+                })()}
               </nav>
 
               {/* Account section — collapsed by default. Tapping the
