@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { jsPDF } from 'jspdf';
+import { openEligibilityPdf } from './eligibility-pdf';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 
@@ -1580,9 +1580,9 @@ function VobExpandedDetail({
     }
   };
 
-  const openEligibilityPdf = () => {
+  const handleOpenPdf = () => {
     if (!row.eligibility_response) return;
-    openVobEligibilityPdf(row);
+    openEligibilityPdf(row).catch((e) => console.error('pdf open failed', e));
   };
 
   const hasCard = !!(row.card_front_url || row.card_back_url);
@@ -1640,18 +1640,33 @@ function VobExpandedDetail({
             Insurance fields {dirty.size > 0 && <span className="text-amber-600 normal-case ml-1">· unsaved</span>}
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {STEDI_FIELD_KEYS.map((k) => (
-              <label key={k} className="block">
-                <span className="block text-[10px] uppercase tracking-wider text-foreground/50 mb-1">{STEDI_LABELS[k]}</span>
-                <input
-                  type={k === 'subscriber_dob' ? 'date' : 'text'}
-                  value={draft[k]}
-                  onChange={(e) => handleChange(k, e.target.value)}
-                  placeholder="—"
-                  className="w-full px-2.5 py-1.5 rounded-md border border-black/10 bg-white text-sm focus:outline-none focus:border-primary"
-                />
-              </label>
-            ))}
+            {STEDI_FIELD_KEYS.map((k) => {
+              if (k === 'payer_id') {
+                return (
+                  <PayerIdField
+                    key={k}
+                    value={draft.payer_id}
+                    onChange={(stediId, displayName) => {
+                      handleChange('payer_id', stediId);
+                      if (displayName && !draft.payer_name.trim()) handleChange('payer_name', displayName);
+                    }}
+                    initialQuery={draft.payer_name || row.insurance_provider || ''}
+                  />
+                );
+              }
+              return (
+                <label key={k} className="block">
+                  <span className="block text-[10px] uppercase tracking-wider text-foreground/50 mb-1">{STEDI_LABELS[k]}</span>
+                  <input
+                    type={k === 'subscriber_dob' ? 'date' : 'text'}
+                    value={draft[k]}
+                    onChange={(e) => handleChange(k, e.target.value)}
+                    placeholder="—"
+                    className="w-full px-2.5 py-1.5 rounded-md border border-black/10 bg-white text-sm focus:outline-none focus:border-primary"
+                  />
+                </label>
+              );
+            })}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
@@ -1679,7 +1694,7 @@ function VobExpandedDetail({
             </button>
             <button
               type="button"
-              onClick={openEligibilityPdf}
+              onClick={handleOpenPdf}
               disabled={!hasEligibility}
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-100 transition-colors"
             >
@@ -1698,6 +1713,147 @@ function VobExpandedDetail({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Payer ID field with built-in Stedi payer-directory search. The
+// number printed on most insurance cards is NOT a Stedi trading-
+// partner id — it's a CMS / Change Healthcare / RX BIN code, which
+// causes the 270 to come back with AAA-79 "Invalid Participant
+// Identification". This control lets the admin type the insurer
+// name, pick from Stedi's directory, and stamp the correct stediId.
+
+interface PayerSearchHit {
+  stediId: string;
+  displayName: string;
+  primaryPayerId: string | null;
+  aliases: string[];
+  eligibilitySupport: string | null;
+}
+
+function PayerIdField({
+  value,
+  onChange,
+  initialQuery,
+}: {
+  value: string;
+  onChange: (stediId: string, displayName?: string) => void;
+  initialQuery: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(initialQuery);
+  const [results, setResults] = useState<PayerSearchHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const debounceRef = useRef<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  // Close the dropdown when clicking outside.
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    const q = query.trim();
+    if (q.length < 2) { setResults([]); return; }
+    debounceRef.current = window.setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/stedi/payers/search?q=${encodeURIComponent(q)}`, {
+          credentials: 'include',
+        });
+        const json = (await res.json()) as { items?: PayerSearchHit[]; error?: string };
+        if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+        setResults(json.items ?? []);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+    return () => { if (debounceRef.current) window.clearTimeout(debounceRef.current); };
+  }, [open, query]);
+
+  return (
+    <div ref={wrapRef} className="block relative" data-no-toggle>
+      <span className="block text-[10px] uppercase tracking-wider text-foreground/50 mb-1">
+        Payer ID <span className="text-foreground/40 normal-case">(Stedi)</span>
+      </span>
+      <div className="flex gap-1">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => setOpen(true)}
+          placeholder="Search insurer to set"
+          className="flex-1 min-w-0 px-2.5 py-1.5 rounded-md border border-black/10 bg-white text-sm focus:outline-none focus:border-primary font-mono"
+        />
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="px-2.5 py-1.5 rounded-md text-xs font-medium bg-foreground/10 text-foreground/70 hover:bg-foreground/15 transition-colors"
+          title="Search Stedi payer directory"
+        >
+          {open ? 'Close' : 'Find'}
+        </button>
+      </div>
+      {open && (
+        <div className="absolute z-20 mt-1 w-[360px] max-w-[90vw] left-0 rounded-lg border border-black/10 bg-white shadow-lg p-2">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="e.g. Blue Cross Mississippi, Aetna, UnitedHealthcare…"
+            autoFocus
+            className="w-full px-2.5 py-1.5 rounded-md border border-black/10 bg-white text-sm focus:outline-none focus:border-primary"
+          />
+          <div className="mt-2 max-h-64 overflow-auto">
+            {loading && <p className="text-xs italic text-foreground/50 px-2 py-1">Searching Stedi directory…</p>}
+            {error && <p className="text-xs text-red-600 px-2 py-1">{error}</p>}
+            {!loading && !error && results.length === 0 && query.trim().length >= 2 && (
+              <p className="text-xs italic text-foreground/40 px-2 py-1">No payers match — try a shorter or differently-worded name.</p>
+            )}
+            {results.map((r) => {
+              const supported = r.eligibilitySupport === 'SUPPORTED';
+              return (
+                <button
+                  type="button"
+                  key={r.stediId}
+                  onClick={() => {
+                    onChange(r.stediId, r.displayName);
+                    setOpen(false);
+                  }}
+                  className="w-full text-left px-2 py-1.5 rounded-md hover:bg-warm-bg/50 transition-colors block"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold text-foreground truncate">{r.displayName}</span>
+                    <span className="text-[10px] font-mono text-foreground/45 flex-shrink-0">{r.stediId}</span>
+                  </div>
+                  <div className="text-[10px] text-foreground/50 flex gap-2">
+                    {r.primaryPayerId && <span>CMS {r.primaryPayerId}</span>}
+                    {!supported && r.eligibilitySupport && (
+                      <span className="text-amber-700">{r.eligibilitySupport.toLowerCase().replace(/_/g, ' ')}</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[10px] text-foreground/40 px-1">
+            Pick the row that matches the card. The stediId on the right is what Stedi 270 needs.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1726,114 +1882,6 @@ function CardImage({ url, label }: { url: string; label: string }) {
       <img src={url} alt={`${label} of insurance card`} className="w-full object-contain bg-white max-h-64" loading="lazy" />
     </a>
   );
-}
-
-// Eligibility PDF — generated entirely in the browser with jsPDF.
-// Stedi's 271 JSON shape varies by payer; we render whatever fields
-// look useful and dump the rest as JSON at the end so nothing is
-// hidden from the reviewer.
-function openVobEligibilityPdf(row: VobRow) {
-  const resp = row.eligibility_response as Record<string, unknown> | null;
-  if (!resp) return;
-  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-  const margin = 48;
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const maxWidth = pageWidth - margin * 2;
-  let y = margin;
-
-  const writeLine = (text: string, opts: { size?: number; bold?: boolean; gap?: number } = {}) => {
-    const { size = 11, bold = false, gap = 4 } = opts;
-    doc.setFont('helvetica', bold ? 'bold' : 'normal');
-    doc.setFontSize(size);
-    const lines = doc.splitTextToSize(text, maxWidth) as string[];
-    for (const line of lines) {
-      if (y > doc.internal.pageSize.getHeight() - margin) {
-        doc.addPage();
-        y = margin;
-      }
-      doc.text(line, margin, y);
-      y += size + gap;
-    }
-  };
-
-  writeLine('Insurance Eligibility Verification', { size: 18, bold: true, gap: 6 });
-  writeLine('Seven Arrows Recovery', { size: 11, gap: 10 });
-
-  writeLine('Patient', { size: 12, bold: true, gap: 4 });
-  writeLine(`Name: ${row.full_name || '—'}`);
-  writeLine(`DOB: ${row.date_of_birth || '—'}`);
-  if (row.phone) writeLine(`Phone: ${row.phone}`);
-  if (row.email) writeLine(`Email: ${row.email}`);
-  y += 6;
-
-  writeLine('Insurance', { size: 12, bold: true, gap: 4 });
-  writeLine(`Payer: ${row.payer_name || row.insurance_provider || '—'}`);
-  if (row.payer_id) writeLine(`Payer ID: ${row.payer_id}`);
-  if (row.member_id) writeLine(`Member ID: ${row.member_id}`);
-  if (row.group_number) writeLine(`Group #: ${row.group_number}`);
-  if (row.subscriber_relationship) writeLine(`Relationship: ${row.subscriber_relationship}`);
-  const subName = [row.subscriber_first_name, row.subscriber_last_name].filter(Boolean).join(' ');
-  if (subName) writeLine(`Subscriber: ${subName}`);
-  if (row.subscriber_dob) writeLine(`Subscriber DOB: ${row.subscriber_dob}`);
-  y += 6;
-
-  writeLine('Eligibility Result', { size: 12, bold: true, gap: 4 });
-  if (row.eligibility_checked_at) {
-    writeLine(`Checked at: ${new Date(row.eligibility_checked_at).toLocaleString()}`);
-  }
-  const planStatus = pickEligibilityHighlights(resp);
-  for (const [k, v] of planStatus) writeLine(`${k}: ${v}`);
-
-  y += 8;
-  writeLine('Raw 271 response (truncated to 6,000 chars)', { size: 10, bold: true, gap: 4 });
-  const raw = JSON.stringify(resp, null, 2).slice(0, 6000);
-  doc.setFont('courier', 'normal');
-  doc.setFontSize(8);
-  const rawLines = doc.splitTextToSize(raw, maxWidth) as string[];
-  for (const line of rawLines) {
-    if (y > doc.internal.pageSize.getHeight() - margin) {
-      doc.addPage();
-      y = margin;
-    }
-    doc.text(line, margin, y);
-    y += 10;
-  }
-
-  const blobUrl = doc.output('bloburl');
-  // Open as a popup so the user sees it as a separate window per
-  // their "popup auto generated PDF" requirement.
-  const w = window.open(blobUrl as unknown as string, '_blank', 'noopener,noreferrer,width=900,height=1100');
-  if (!w) {
-    // Popup blocked — fall back to triggering a download so the file
-    // is still reachable.
-    doc.save(`eligibility-${row.full_name.replace(/\s+/g, '-').toLowerCase()}.pdf`);
-  }
-}
-
-function pickEligibilityHighlights(resp: Record<string, unknown>): Array<[string, string]> {
-  const out: Array<[string, string]> = [];
-  const planStatus = (resp.planStatus as Array<Record<string, unknown>> | undefined) || [];
-  if (Array.isArray(planStatus) && planStatus.length > 0) {
-    for (const p of planStatus) {
-      const status = (p.statusCode as string) || (p.status as string) || '';
-      const name = (p.planCoverageDescription as string) || (p.serviceTypeCode as string) || '';
-      if (status || name) out.push([name || 'Plan', status || '—']);
-    }
-  }
-  const benefits = (resp.benefitsInformation as Array<Record<string, unknown>> | undefined) || [];
-  if (Array.isArray(benefits)) {
-    for (const b of benefits.slice(0, 8)) {
-      const code = (b.code as string) || '';
-      const name = (b.name as string) || '';
-      const amount =
-        (b.benefitAmount as string) ||
-        (b.benefitPercent as string) ||
-        '';
-      if (name || code) out.push([`${name || code}`, amount || '—']);
-    }
-  }
-  if (out.length === 0) out.push(['Status', 'See raw response below']);
-  return out;
 }
 
 // ------------- Forms (non-careers contact submissions) --------------------
