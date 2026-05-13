@@ -704,6 +704,25 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // the collapsed state after each session matches how reps actually
   // work the sidebar (open it when they need it, otherwise leave it).
   const [otherPagesOpen, setOtherPagesOpen] = useState(false);
+  // Phase 9 — spillover animation. We can't observe the actual
+  // "page X just bumped to position 8" moment server-side (the API
+  // round-trip is fire-and-forget and the list mutates in one local
+  // setState), but we *can* react to a click happening while we're
+  // in recency mode AND Other has entries. When that combination
+  // is observed, we briefly pulse the Other-pages header so the
+  // user gets a visual cue that "something just landed in here".
+  // 1200ms is long enough to read, short enough to not feel sticky.
+  const [otherPagesFlash, setOtherPagesFlash] = useState(false);
+  const lastClickCountRef = useRef(sidebarClickCount);
+  useEffect(() => {
+    if (sidebarMode !== 'recency') { lastClickCountRef.current = sidebarClickCount; return; }
+    if (sidebarClickCount > lastClickCountRef.current && recencyOtherPages.length > 0) {
+      setOtherPagesFlash(true);
+      const t = window.setTimeout(() => setOtherPagesFlash(false), 1200);
+      return () => window.clearTimeout(t);
+    }
+    lastClickCountRef.current = sidebarClickCount;
+  }, [sidebarClickCount, sidebarMode, recencyOtherPages.length]);
 
   const ungroupedPages = visibleNavPages.filter((p) => !p.departmentId && !p.navGroup);
 
@@ -1041,7 +1060,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                         type="button"
                         onClick={() => setOtherPagesOpen((v) => !v)}
                         aria-expanded={otherPagesOpen}
-                        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/45 hover:bg-warm-bg/60 transition-colors"
+                        className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/45 hover:bg-warm-bg/60 transition-colors ${otherPagesFlash ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}
                         style={{ fontFamily: 'var(--font-body)' }}
                       >
                         <span>Other pages</span>
@@ -1322,7 +1341,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                             type="button"
                             onClick={() => setOtherPagesOpen((v) => !v)}
                             aria-expanded={otherPagesOpen}
-                            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/45 hover:bg-warm-bg/60"
+                            className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/45 hover:bg-warm-bg/60 ${otherPagesFlash ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}
                             style={{ fontFamily: 'var(--font-body)' }}
                           >
                             <span>Other pages</span>
