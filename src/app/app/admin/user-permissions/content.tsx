@@ -411,7 +411,22 @@ export default function UserPermissionsContent() {
       {topTab === 'groups' ? (
         <AccessGroupsTab />
       ) : topTab === 'alumni' ? (
-        <AlumniTab users={users} />
+        <AlumniTab
+          users={users}
+          onApproveAlumni={async (userId) => {
+            setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'active' } : u)));
+            const res = await db({
+              action: 'update',
+              table: 'users',
+              data: { status: 'active' },
+              match: { id: userId },
+            }).catch(() => null);
+            if (!res) {
+              // Roll back the optimistic flip if the write failed.
+              setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'on_hold' } : u)));
+            }
+          }}
+        />
       ) : (
       <>
 
@@ -777,7 +792,7 @@ interface PagePermRow {
   sort_order: number | null;
 }
 
-function AlumniTab({ users }: { users: AppUser[] }) {
+function AlumniTab({ users, onApproveAlumni }: { users: AppUser[]; onApproveAlumni: (userId: string) => Promise<void> | void }) {
   const alumni = useMemo(
     () => users.filter((u) => u.user_kind === 'alumni'),
     [users],
@@ -858,9 +873,33 @@ function AlumniTab({ users }: { users: AppUser[] }) {
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-semibold text-foreground truncate">{u.full_name || u.email}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-[13px] font-semibold text-foreground truncate">{u.full_name || u.email}</p>
+                    {u.status === 'on_hold' && (
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold border bg-amber-50 text-amber-800 border-amber-200 uppercase tracking-wider">
+                        On hold
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11.5px] text-foreground/55 truncate">{u.email}</p>
                 </div>
+                {/* Approve flips status: on_hold → active. Once
+                    they're already active there's nothing to do,
+                    so the button is replaced with a quiet
+                    "Approved" pill on those rows. */}
+                {u.status === 'on_hold' ? (
+                  <button
+                    type="button"
+                    onClick={() => void onApproveAlumni(u.id)}
+                    className="shrink-0 px-2.5 py-1 rounded-md bg-primary text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-primary/90"
+                  >
+                    Approve
+                  </button>
+                ) : (
+                  <span className="shrink-0 inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200 uppercase tracking-wider">
+                    Approved
+                  </span>
+                )}
               </li>
             ))}
           </ul>
