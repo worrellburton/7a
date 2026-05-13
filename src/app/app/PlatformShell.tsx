@@ -1045,14 +1045,17 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <>
                 {recencyTopPages.map(renderLink)}
                 {recencyOtherPages.length > 0 && (
-                  // The rail is icon-only by default and only fans
-                  // out to reveal labels on hover. The Other-pages
-                  // section is text-first (a label + chevron, no
-                  // icon makes sense), so collapse it entirely to
-                  // zero height when the rail isn't expanded —
-                  // otherwise the "OTHER" letterforms clip into
-                  // the gutter and look broken.
-                  <div className="mt-2 pt-2 border-t border-foreground/10 opacity-0 max-h-0 overflow-hidden pointer-events-none group-hover/sidebar:opacity-100 group-hover/sidebar:max-h-[80vh] group-hover/sidebar:pointer-events-auto transition-[opacity,max-height] duration-200">
+                  // The rail is icon-only at rest; the Other-pages
+                  // section is text-first (label + chevron, plus
+                  // the items underneath which would otherwise
+                  // bleed icons into the w-16 gutter). Render the
+                  // whole subtree only when the rail is hovered
+                  // out to w-64 — `hidden group-hover/sidebar:block`
+                  // is more reliable than opacity+max-h here
+                  // because Tailwind's `hidden` class triggers
+                  // display:none, which hard-blocks layout for the
+                  // icon stack entirely.
+                  <div className="mt-2 pt-2 border-t border-foreground/10 hidden group-hover/sidebar:block">
                     <button
                       type="button"
                       onClick={() => setOtherPagesOpen((v) => !v)}
