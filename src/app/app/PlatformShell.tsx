@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
-import { MARKETING_ADMISSIONS_DEPT_ID } from '@/lib/website-requests-auth';
 import { db } from '@/lib/db';
 import PageGuard from '@/lib/PageGuard';
 import PageViewers from './PageViewers';
@@ -334,6 +333,13 @@ const pageIcons: Record<string, React.ReactNode> = {
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="6" width="14" height="12" rx="2" />
       <path d="m22 8-6 4 6 4V8z" />
+    </svg>
+  ),
+  '/app/website': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
     </svg>
   ),
 };
@@ -918,6 +924,41 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             const renderLink = (item: PageConfig) => {
               const idx = animIdx++;
               const isActive = pathname === item.path;
+              // External-URL entries (e.g. "Website" → marketing
+              // site) render as a target="_blank" anchor instead of
+              // a Next Link. The recency visit still fires so they
+              // participate in reordering like internal pages.
+              const commonClassName = `group/nav relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium overflow-hidden transition-all duration-500 ease-out motion-reduce:transition-none hover:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.35)] ${
+                isActive
+                  ? 'bg-primary/12 text-primary shadow-[inset_0_0_0_1px_rgba(188,107,74,0.18)]'
+                  : 'text-foreground/60 hover:text-foreground'
+              } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`;
+              const commonStyle = { fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` } as const;
+              if (item.externalUrl) {
+                return (
+                  <a
+                    key={item.path}
+                    href={item.externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => recordSidebarVisit(item.path)}
+                    className={commonClassName}
+                    style={commonStyle}
+                  >
+                    {/* External-link svg slipped in next to the icon
+                        so the label still aligns with internal rows. */}
+                    <span className="text-foreground/40">
+                      {getPageIcon(item.path)}
+                    </span>
+                    <span className="flex-1 whitespace-nowrap transition-[opacity,transform] duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 group-hover/nav:translate-x-0.5">{item.label}</span>
+                    <svg className="w-3 h-3 text-foreground/35 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M14 3h7v7" />
+                      <path d="M21 3l-9 9" />
+                      <path d="M21 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h5" />
+                    </svg>
+                  </a>
+                );
+              }
               return (
                 <Link
                   key={item.path}
@@ -939,12 +980,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       router.replace(item.path, { scroll: false });
                     }
                   }}
-                  className={`group/nav relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium overflow-hidden transition-all duration-500 ease-out motion-reduce:transition-none hover:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.35)] ${
-                    isActive
-                      ? 'bg-primary/12 text-primary shadow-[inset_0_0_0_1px_rgba(188,107,74,0.18)]'
-                      : 'text-foreground/60 hover:text-foreground'
-                  } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
-                  style={{ fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` }}
+                  className={commonClassName}
+                  style={commonStyle}
                 >
                   {/* Phase 2: sliding pill background — primary-tinted
                       gradient that grows from the left edge on hover.
@@ -1074,35 +1111,6 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               </>
             );
           })()}
-          {/* "Website" external link — preserved from the
-              Marketing-dept group that used to nest it. Surfaces
-              for Marketing & Admissions members (their primary or
-              extra dept), and for admins. Drops the same dept gate
-              the dept-group rendering used to enforce. */}
-          {(isAdmin
-            || departmentId === MARKETING_ADMISSIONS_DEPT_ID
-            || userExtraDepartmentIds.includes(MARKETING_ADMISSIONS_DEPT_ID)
-          ) && (
-            <a
-              href="https://www.sevenarrowsrecoveryarizona.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-foreground/60 hover:bg-warm-bg hover:text-foreground"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <span className="text-foreground/40">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M3 12h18" />
-                  <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
-                </svg>
-              </span>
-              <span className="flex-1 whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">Website</span>
-              <svg className="w-3.5 h-3.5 text-foreground/35 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-6H18m0 0v4.5m0-4.5L10.5 13.5" />
-              </svg>
-            </a>
-          )}
         </nav>
 
         {/* User settings — bottom left */}

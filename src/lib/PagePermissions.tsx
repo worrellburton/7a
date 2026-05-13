@@ -26,10 +26,20 @@ export interface PageConfig {
   // entry + route access. Defaults to false; toggled per-page from
   // /app/admin/user-permissions → Alumni tab.
   alumniOnly?: boolean;
+  // Optional external URL. When set, the sidebar renders this page
+  // as a target="_blank" anchor instead of an internal Link, and
+  // the recency click-tracker still records the sentinel path so
+  // it participates in reordering like any other nav entry.
+  externalUrl?: string;
 }
 
 const defaultPages: PageConfig[] = [
   { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0, allowedDepartments: [], departmentId: null },
+  // External link to the marketing site. Routed through the sidebar
+  // like any other entry so it participates in recency reordering;
+  // the externalUrl field makes PlatformShell render it as an
+  // anchor (target=_blank) instead of an internal Link.
+  { path: '/app/website', label: 'Website', adminOnly: false, section: 'nav', sort_order: 99, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9', externalUrl: 'https://www.sevenarrowsrecoveryarizona.com/' },
   { path: '/app/facilities', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1, allowedDepartments: [], departmentId: null },
   { path: '/app/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2, allowedDepartments: [], departmentId: null },
   { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3, allowedDepartments: [], departmentId: null },
