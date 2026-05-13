@@ -28,7 +28,7 @@ type PartnerType = (typeof PARTNER_TYPES)[number];
 
 const FACILITY_TYPES: ReadonlySet<string> = new Set(['Detox', 'RTC', 'Outpatient', 'Extended Care']);
 
-type ContactMethod = 'Phone' | 'In Person' | 'Left Message';
+type ContactMethod = 'Phone' | 'In Person' | 'Left Message' | 'Text Message';
 
 type ContactRating = 'Tier 1' | 'Tier 2' | 'Tier 3';
 
@@ -46,6 +46,7 @@ const METHOD_TONES: Record<ContactMethod, string> = {
   Phone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   'In Person': 'bg-blue-50 text-blue-700 border-blue-200',
   'Left Message': 'bg-amber-50 text-amber-700 border-amber-200',
+  'Text Message': 'bg-violet-50 text-violet-700 border-violet-200',
 };
 
 interface Partner {
@@ -1716,7 +1717,7 @@ function LogContactModal({
               Method <span className="text-primary">*</span>
             </label>
             <div className="flex flex-wrap gap-2">
-              {(['Phone', 'In Person', 'Left Message'] as const).map((m) => (
+              {(['Phone', 'In Person', 'Left Message', 'Text Message'] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
