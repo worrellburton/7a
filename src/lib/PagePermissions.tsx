@@ -35,6 +35,10 @@ export interface PageConfig {
 
 const defaultPages: PageConfig[] = [
   { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0, allowedDepartments: [], departmentId: null },
+  // Connect-4 tournament — team-bonding game shipped across 10 phases.
+  // Phase 1: page scaffold + schema. Visible to all staff so the
+  // tournament participant pool isn't gated unnecessarily.
+  { path: '/app/games/connect4', label: 'Connect-4', adminOnly: false, section: 'nav', sort_order: 99, allowedDepartments: [], departmentId: null },
   // External link to the marketing site. Routed through the sidebar
   // like any other entry so it participates in recency reordering;
   // the externalUrl field makes PlatformShell render it as an
