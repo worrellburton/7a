@@ -137,6 +137,13 @@ export function useSidebarFlip(): FlipController {
   // setting it doesn't trigger an extra render between the click
   // and the recency reorder it's tied to.
   const travelerPathRef = useRef<string | null>(null);
+  // Phase 10 — cancel-on-rapid-click. We stash every active
+  // animation's cleanup so a second click before the first has
+  // finished cancels the in-flight pass cleanly. Without this, a
+  // rapid double-click would queue two overlapping FLIPs and the
+  // second one would invert against half-played transforms,
+  // producing visual jitter or stuck rows.
+  const inFlightCleanupRef = useRef<(() => void) | null>(null);
 
   const register = useCallback((path: string, el: HTMLElement | null) => {
     if (el) elementsRef.current.set(path, el);
@@ -164,6 +171,16 @@ export function useSidebarFlip(): FlipController {
     deltasRef.current = deltas;
 
     if (movers.length === 0) return;
+
+    // Phase 10 — if another FLIP is still finishing, fire its
+    // cleanup now so transforms / classes / will-change reset to
+    // a clean slate before we measure for the next pass. This is
+    // the rapid-click guard — without it, a second click before
+    // the first lands inverts against half-finished transforms.
+    if (inFlightCleanupRef.current) {
+      inFlightCleanupRef.current();
+      inFlightCleanupRef.current = null;
+    }
 
     // Phase 9 — global reduced-motion gate. If the user has opted
     // out of non-essential motion, we still want the sidebar to
@@ -280,7 +297,7 @@ export function useSidebarFlip(): FlipController {
       return () => el.removeEventListener('transitionend', onEnd);
     });
 
-    return () => {
+    const cancel = () => {
       window.cancelAnimationFrame(raf1);
       if (raf2) window.cancelAnimationFrame(raf2);
       for (const off of cleanups) off();
@@ -295,6 +312,8 @@ export function useSidebarFlip(): FlipController {
         }
       }
     };
+    inFlightCleanupRef.current = cancel;
+    return cancel;
   });
 
   const readDeltas = useCallback(() => deltasRef.current, []);
