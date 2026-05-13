@@ -741,3 +741,18 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .sa-flip-landing { animation: none; }
 }
+
+/* ─── Sidebar travel animation · Phase 7 · motion-trail ghosts ─── */
+/*
+ * Visual-only clones spawned next to the traveler during a FLIP
+ * reorder. They start at the traveler's pre-FLIP visual position,
+ * drift partway along its trajectory, and fade to zero. The
+ * --ghost-drift custom property is set inline per-ghost by
+ * spawnMotionTrail() in src/app/app/sidebar-flip.ts so the same
+ * keyframes work for any travel distance / direction.
+ */
+@keyframes sa-flip-ghost-fade {
+  0%   { opacity: var(--ghost-opacity, 0.30); transform: translate3d(0, 0, 0);                 filter: blur(0px); }
+  60%  { opacity: 0.08;                        transform: translate3d(0, var(--ghost-drift, -16px), 0); filter: blur(1.5px); }
+  100% { opacity: 0;                           transform: translate3d(0, var(--ghost-drift, -16px), 0); filter: blur(2px); }
+}
