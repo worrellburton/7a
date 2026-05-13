@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 import PageHero from '@/components/PageHero';
 import Link from 'next/link';
-import { EPISODES_BY_NUMBER, episodeHref } from '@/lib/episodes';
+import { EPISODES_BY_NUMBER, episodeHref, episodeImage } from '@/lib/episodes';
 
 export default function RecoveryRoadmapPage() {
   return (
@@ -49,7 +49,7 @@ export default function RecoveryRoadmapPage() {
             >
               <div className="relative md:w-80 shrink-0">
                 <img
-                  src={ep.image}
+                  src={episodeImage(ep)}
                   alt={ep.imageAlt}
                   className="h-56 md:h-full w-full object-cover"
                   loading="lazy"

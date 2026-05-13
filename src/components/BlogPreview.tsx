@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { EPISODES_NEWEST_FIRST, episodeHref } from '@/lib/episodes';
+import { EPISODES_NEWEST_FIRST, episodeHref, episodeImage } from '@/lib/episodes';
 
 // Landing-page surfacing of the Recovery Roadmap series. Reads the
 // latest 3 episodes from the shared episode manifest so adding a
@@ -39,7 +39,7 @@ export default function BlogPreview() {
             >
               <div className="relative">
                 <img
-                  src={ep.image}
+                  src={episodeImage(ep)}
                   alt={ep.imageAlt}
                   className="h-48 w-full object-cover"
                   loading="lazy"
