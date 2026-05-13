@@ -974,3 +974,29 @@ tr:hover .sa-engagement-cell {
     inset 1.5px 0 0 0 rgba(188, 107, 74, 0.85),
     inset 0 0 0 1px rgba(188, 107, 74, 0.25);
 }
+
+/* ─── Outreach engagement column · Phase 10 · reduced-motion sweep ─── */
+/*
+ * Final phase of the column-merge series. Consolidates the
+ * scattered prefers-reduced-motion gates from Phases 4-9 into
+ * one place so all the engagement-column motion is suppressed
+ * in lockstep — no half-on / half-off mix.
+ *
+ * Static signals (halo, copper hue, inset bar, sheen line) ALL
+ * stay; recency, hover lift, and the breath animation get
+ * frozen. That preserves the information layer (which row is
+ * active, where the column sits) while honouring "minimize
+ * non-essential motion."
+ *
+ * box-shadow transition is the only piece that lingers; we
+ * suppress it explicitly so a hover state lands instantly
+ * rather than fading.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .sa-engagement-cell {
+    transition: none;
+  }
+  .sa-engagement-cell-active {
+    animation: none;
+  }
+}
