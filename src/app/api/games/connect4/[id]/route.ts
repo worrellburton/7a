@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 import { buildBoard, currentPlayer, findWinner, isBoardFull, isColumnFull, COLS } from '@/lib/connect4';
 import { advanceBracketIfNeeded } from '@/lib/connect4-advance';
+import { applyMatchRating } from '@/lib/connect4-elo';
 
 // GET   /api/games/connect4/[id]              — fetch one match
 // PATCH /api/games/connect4/[id] { column }   — drop a chip
@@ -111,6 +112,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // If this match was part of a tournament bracket and just
   // resolved, see if we can pair up the next round. Async but
   // awaited so realtime fires after the next-round row exists.
+  // Phase 8: apply Elo deltas the moment the match resolves
+  // (win OR draw). Skipped while the game is still in progress.
+  if (win || draw) {
+    await applyMatchRating(admin, m.challenger_id, m.opponent_id, updates.winner_id ?? null);
+  }
   if (win) {
     await advanceBracketIfNeeded(admin, id);
   }
@@ -144,8 +150,9 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     .update({ status: 'forfeit', winner_id: winnerId, updated_at: new Date().toISOString() })
     .eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  // Forfeits also advance the bracket — winner is the opposite
-  // player; the rest of the auto-pair plumbing is identical.
+  // Forfeits count toward Elo too — the forfeiter takes the
+  // loss, the opponent takes the win at the standard K rate.
+  await applyMatchRating(admin, m.challenger_id, m.opponent_id, winnerId);
   await advanceBracketIfNeeded(admin, id);
   return NextResponse.json({ ok: true });
 }
