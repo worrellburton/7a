@@ -1589,6 +1589,21 @@ function VobExpandedDetail({
   const hasEligibility = !!row.eligibility_response;
   const fieldsReadyForEligibility = !!(draft.member_id?.trim() && draft.payer_id?.trim());
 
+  // Auto-run OCR the first time a row is expanded if there are card
+  // images and OCR has never been done on this row. Skipping when
+  // `card_ocr_at` is already set keeps re-runs explicit (the manual
+  // "Re-read card with Claude" button stays for that). One-shot per
+  // row.id so re-mounting on a different row still triggers.
+  const autoOcrTriggered = useRef<string | null>(null);
+  useEffect(() => {
+    if (autoOcrTriggered.current === row.id) return;
+    if (!hasCard) return;
+    if (row.card_ocr_at) return;
+    autoOcrTriggered.current = row.id;
+    runOcr();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.id, hasCard, row.card_ocr_at]);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,320px)_1fr] gap-6">
       {/* Card images */}
