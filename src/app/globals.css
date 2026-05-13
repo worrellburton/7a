@@ -806,3 +806,28 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
     rgba(255, 255, 255, 0) 100%
   );
 }
+
+/* ─── Outreach engagement column · column-merge Phase 5 · hue ─── */
+/*
+ * The engagement column needs to read distinct from the warm
+ * neutral the rest of the table carries, but it also can't fight
+ * the row-state colors (isNewToUser, hover) that the underlying
+ * <td> still applies. Solution: a copper-tinted overlay
+ * pseudo-element painted at low opacity above the row background
+ * but below the content. ::after layered on top of ::before (the
+ * Phase 4 sheen) so we don't collide on selectors. Both overlays
+ * are pointer-events:none so clicks still reach the buttons.
+ */
+.sa-engagement-cell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(188, 107, 74, 0.08) 0%,
+    rgba(188, 107, 74, 0.05) 50%,
+    rgba(188, 107, 74, 0.02) 100%
+  );
+}
