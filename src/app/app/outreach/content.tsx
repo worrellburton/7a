@@ -163,11 +163,14 @@ const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
   contact: 160,
   location: 240,
   notes: 280,
+  // Legacy widths kept for back-compat with shared_grid_prefs rows
+  // saved before the engagement column merge. The new unified
+  // engagement column (`engagement`) absorbs both slots and gets
+  // its own default sized to fit the Contact button + the merged
+  // last-contact summary on one row at desktop widths.
   actions: 140,
-  // Merged engagement column (replaces last_contact_by_name + time_since
-  // + last_contact_at). Needs room for avatar + name + method chip +
-  // freshness pill on row 1 and the relative + absolute date on row 2.
   last_contact_summary: 320,
+  engagement: 360,
 };
 const RESIZE_MIN_PX = 70;
 const RESIZE_MAX_PX = 900;
@@ -2700,8 +2703,12 @@ function ContactsGrid({
   const visibleIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const someSelected = visibleIds.some((id) => selectedIds.has(id));
-  const summaryWidth = columnWidths['last_contact_summary'] ?? DEFAULT_COL_WIDTHS_PX['last_contact_summary'];
-  const actionsStickyRightPx = EXPANDER_COL_WIDTH_PX + summaryWidth;
+  // The merged engagement column (Phase 1 of the column-merge
+  // overhaul) is a single sticky cell sitting between the 3-dot
+  // expander and the scrolling left columns. Width is resizable
+  // via the same column_widths plumbing; default 360px fits the
+  // last-contact summary + Contact button + chevron on one row.
+  const engagementWidth = columnWidths['engagement'] ?? DEFAULT_COL_WIDTHS_PX['engagement'];
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -2726,10 +2733,7 @@ function ContactsGrid({
             const w = columnWidths[c.key] ?? DEFAULT_COL_WIDTHS_PX[c.key] ?? 180;
             return <col key={c.key} style={{ width: `${w}px` }} />;
           })}
-          {(['actions', 'last_contact_summary'] as const).map((k) => {
-            const w = columnWidths[k] ?? DEFAULT_COL_WIDTHS_PX[k];
-            return <col key={k} style={{ width: `${w}px` }} />;
-          })}
+          <col style={{ width: `${engagementWidth}px` }} />
           <col style={{ width: `${EXPANDER_COL_WIDTH_PX}px` }} />
         </colgroup>
         <thead className="bg-warm-bg/50 text-left text-[10px] uppercase tracking-wider text-foreground/55">
@@ -2776,33 +2780,29 @@ function ContactsGrid({
                 />
               </th>
             ))}
-            {/* Trailing fixed columns — pinned to the far right of the
-                grid no matter how the user reorders/hides the dynamic
-                left-side columns. Order:
-                  1. Actions (Contact button)
-                  2. Action-menu expander (3-dot)
-                Contact history previously lived between these two but
-                has moved to the leftmost scrollable column so "when
-                did we last touch this person" is always the first
-                thing on screen. */}
+            {/* Merged engagement column — Phase 1 of the
+                column-merge overhaul. Previously the table pinned
+                two separate sticky cells (Actions = "Contact"
+                button, Contact history = last-touch summary) +
+                the 3-dot expander. Reps were treating them as one
+                concept ("the contact panel") so we've collapsed
+                them into a single unified cell. The 3-dot
+                expander stays separate because its role is
+                different (row-level menu rather than the contact
+                workflow itself). Sorting still hits the merged
+                column's header — same last_contact_at sort the
+                history column used to drive. */}
             <th
-              data-col-key="actions"
-              style={{ right: `${actionsStickyRightPx}px` }}
-              className="group/th sticky z-20 bg-[#faf8f5]/70 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2 whitespace-nowrap"
-            >
-              <span className="truncate">Actions</span>
-              <ResizeHandle colKey="actions" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
-            </th>
-            <th
-              data-col-key="last_contact_summary"
+              data-col-key="engagement"
+              style={{ right: `${EXPANDER_COL_WIDTH_PX}px` }}
               onClick={() => onSort('last_contact_at')}
-              className="group/th sticky right-10 z-20 bg-[#faf8f5]/70 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
+              className="group/th sticky z-20 bg-[#faf8f5]/70 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
             >
               <span className="inline-flex items-center gap-1 truncate">
-                Contact history
+                Contact
                 <SortIndicator active={sortKey === 'last_contact_at'} dir={sortDir} />
               </span>
-              <ResizeHandle colKey="last_contact_summary" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
+              <ResizeHandle colKey="engagement" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
             </th>
             <th className="sticky right-0 z-20 bg-[#faf8f5]/70 backdrop-blur-md backdrop-saturate-150 px-3 py-2" />
           </tr>
@@ -2859,39 +2859,44 @@ function ContactsGrid({
                     </td>
                   );
                 })}
+                {/* Merged engagement cell — Phase 1. One sticky
+                    TD containing both the "Contact" action button
+                    (left) and the last-contact history summary +
+                    expand chevron (right). Same data sources as
+                    before the merge; the visual difference is
+                    that the cell now reads as a single panel
+                    instead of two adjacent stickies. */}
                 <td
-                  style={{ right: `${actionsStickyRightPx}px` }}
-                  className={`sticky z-10 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed]/72 group-hover:bg-[#f7e8df]/85' : 'bg-white/65 group-hover:bg-white/85'}`}
+                  style={{ right: `${EXPANDER_COL_WIDTH_PX}px` }}
+                  className={`sa-engagement-cell sticky z-10 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed]/72 group-hover:bg-[#f7e8df]/85' : 'bg-white/65 group-hover:bg-white/85'} ${expandedDetailsId === c.id ? 'sa-engagement-cell-active' : ''}`}
                 >
-                  <div className="inline-flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => onContact(c)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
+                      className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
                     >
                       <PhoneIcon />
                       Contact
                     </button>
-                  </div>
-                </td>
-                <td className={`sticky right-10 z-10 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed]/72 group-hover:bg-[#f7e8df]/85' : 'bg-white/65 group-hover:bg-white/85'}`}>
-                  <button
-                    type="button"
-                    onClick={() => onHistory(c)}
-                    className="flex w-full items-start justify-between gap-2 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
-                    title={expandedDetailsId === c.id ? 'Hide history' : 'Show contact history'}
-                    aria-expanded={expandedDetailsId === c.id}
-                  >
-                    <span className="min-w-0 flex-1">
-                      <LastContactSummaryCell contact={c} />
-                    </span>
-                    <span
-                      className={`shrink-0 mt-1 inline-flex items-center justify-center w-6 h-6 rounded-md border transition-all ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground rotate-180' : 'bg-white text-foreground/55 border-black/10'}`}
-                      aria-hidden
+                    <button
+                      type="button"
+                      onClick={() => onHistory(c)}
+                      className="min-w-0 flex-1 flex items-start justify-between gap-2 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
+                      title={expandedDetailsId === c.id ? 'Hide history' : 'Show contact history'}
+                      aria-expanded={expandedDetailsId === c.id}
                     >
-                      <ChevronDownIcon />
-                    </span>
-                  </button>
+                      <span className="min-w-0 flex-1">
+                        <LastContactSummaryCell contact={c} />
+                      </span>
+                      <span
+                        className={`shrink-0 mt-0.5 inline-flex items-center justify-center w-6 h-6 rounded-md border transition-all ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground rotate-180' : 'bg-white text-foreground/55 border-black/10'}`}
+                        aria-hidden
+                      >
+                        <ChevronDownIcon />
+                      </span>
+                    </button>
+                  </div>
                 </td>
                 <td className={`sticky right-0 z-10 backdrop-blur-md backdrop-saturate-150 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed]/72 group-hover:bg-[#f7e8df]/85' : 'bg-white/65 group-hover:bg-white/85'}`}>
                   <button
