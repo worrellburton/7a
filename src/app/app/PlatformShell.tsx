@@ -434,7 +434,8 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const { user, loading, isAdmin, departmentId, status, userKind, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const isAlumni = userKind === 'alumni';
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
@@ -505,10 +506,16 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   //   2. Admin-only flag — non-admins can't see admin pages.
   //   3. Department allow-list — admins bypass; everyone else needs
   //      their dept on the page's allowed list (empty = unrestricted).
-  const canSeePage = (item: { path: string; adminOnly: boolean }) => {
+  const canSeePage = (item: { path: string; adminOnly: boolean; alumniOnly?: boolean }) => {
     const override = userOverrides[item.path];
     if (override === false) return false;
     if (override === true) return true;
+    // Alumni-only pages are exclusive: only user_kind='alumni' sees
+    // them, regardless of admin / super-admin / department rules.
+    if (item.alumniOnly) return isAlumni;
+    // Alumni only see pages explicitly marked alumni-only (handled
+    // above). Everything else in /app is staff-facing.
+    if (isAlumni) return false;
     if (item.adminOnly && !isAdmin) return false;
     if (isAdmin) return true;
     // Effective dept set = primary department_id + any extras a super
