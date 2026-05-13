@@ -872,3 +872,44 @@ tr:hover .sa-engagement-cell {
     -8px 0 16px -12px rgba(0, 0, 0, 0.22),
     -20px 0 44px -16px rgba(188, 107, 74, 0.42);
 }
+
+/* ─── Outreach engagement column · Phase 8 · active-row accent ─── */
+/*
+ * When the user has expanded a contact's history drawer, the
+ * engagement cell on THAT row picks up an extra accent so they
+ * can find which row is currently open even after scrolling
+ * away. Three signals stacked: brighter copper halo, an inset
+ * 1.5px ring at full opacity, and a pulsing 4px-wide bar pinned
+ * to the cell's left edge. Bar uses CSS keyframes for a slow,
+ * organic breath rather than a hard blink.
+ */
+.sa-engagement-cell-active {
+  box-shadow:
+    -8px 0 16px -12px rgba(0, 0, 0, 0.24),
+    -22px 0 48px -14px rgba(188, 107, 74, 0.55),
+    inset 1.5px 0 0 0 rgba(188, 107, 74, 0.85),
+    inset 0 0 0 1px rgba(188, 107, 74, 0.25);
+}
+.sa-engagement-cell-active::before {
+  /* Re-emphasises the sheen at active state too — Phase 4's
+     ::before already sits on the cell; the active variant ramps
+     the alpha so the top edge reads as a polished bevel rather
+     than a faint hint. */
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(255, 255, 255, 0.30) 1px,
+    rgba(255, 255, 255, 0) 8px,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+@keyframes sa-engagement-active-breath {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; }
+}
+.sa-engagement-cell-active {
+  animation: sa-engagement-active-breath 2400ms ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-engagement-cell-active { animation: none; }
+}
