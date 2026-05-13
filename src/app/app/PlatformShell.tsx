@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
@@ -434,7 +434,7 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, status, userKind, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const { user, loading, isAdmin, departmentId, status, userKind, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
   const isAlumni = userKind === 'alumni';
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
@@ -638,6 +638,20 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   //   2. `departmentId` — existing dept-based grouping from the DB.
   //   3. Ungrouped bucket at the very top of the sidebar.
   const visibleNavPages = navPages.filter(canSeePage);
+
+  // Phase 4 of the sidebar recency overhaul: users with fewer than
+  // ALPHA_THRESHOLD lifetime sidebar clicks see every accessible page
+  // in one flat alphabetical list (no department / navGroup
+  // sections). Once they've explored enough to cross the threshold,
+  // Phase 7 will flip them into recency mode. We compute this once
+  // up here so the desktop nav, mobile nav, and popup menu all agree.
+  const ALPHA_THRESHOLD = 10;
+  const sidebarMode: 'alpha' | 'recency' = sidebarClickCount < ALPHA_THRESHOLD ? 'alpha' : 'alpha';
+  const alphaSortedPages = useMemo(
+    () => [...visibleNavPages].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })),
+    [visibleNavPages],
+  );
+
   const ungroupedPages = visibleNavPages.filter((p) => !p.departmentId && !p.navGroup);
 
   // Preserve first-seen order of navGroups so Media shows up in the same
@@ -955,6 +969,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </Link>
               );
             };
+            // Phase 4 of the sidebar recency overhaul: in alpha mode
+            // we render every page the user can see as a single
+            // flat alphabetical list — no dept headers, no
+            // navGroup chunks. Phase 7 will replace this with the
+            // recency layout once the user crosses 10 clicks.
+            if (sidebarMode === 'alpha') {
+              return <>{alphaSortedPages.map(renderLink)}</>;
+            }
             return (
               <>
                 {ungroupedPages.map(renderLink)}
