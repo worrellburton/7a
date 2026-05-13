@@ -58,6 +58,66 @@ function flipDuration(dy: number): number {
   return Math.round(MIN_DURATION_MS + (MAX_DURATION_MS - MIN_DURATION_MS) * t);
 }
 
+// Phase 7 — spawn three offset ghosts that fade out behind the
+// traveler as it moves into place. Ghosts are visual-only clones
+// pinned to the traveler's PRE-FLIP visual position; they don't
+// participate in layout (position: absolute) so the surrounding
+// rows don't reflow. Each ghost is removed when its own keyframe
+// finishes, and the function returns silently for users with
+// prefers-reduced-motion enabled — the trail is non-essential.
+function spawnMotionTrail(travelerEl: HTMLElement, deltaY: number): void {
+  if (typeof window === 'undefined') return;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  // No trail when there's essentially no travel — a 1px hop
+  // would just paint three overlapping ghosts of the row.
+  if (Math.abs(deltaY) < 8) return;
+  const parent = travelerEl.parentElement;
+  if (!parent) return;
+  // Position the parent relatively if it isn't already, so our
+  // absolute-positioned ghosts anchor to the right scroll context.
+  const cs = window.getComputedStyle(parent);
+  if (cs.position === 'static') parent.style.position = 'relative';
+
+  const rect = travelerEl.getBoundingClientRect();
+  const parentRect = parent.getBoundingClientRect();
+  // The traveler is mid-FLIP: visually at its OLD position
+  // (rect.top), heading to its new position (rect.top - deltaY).
+  const startY = rect.top - parentRect.top;
+
+  // Three ghosts at staggered opacities; deeper into the trail =
+  // fainter + slightly delayed start so the trail reads as a
+  // sequence rather than a static blur.
+  const GHOSTS = [
+    { opacity: 0.32, delay: 0,  duration: 360 },
+    { opacity: 0.18, delay: 40, duration: 380 },
+    { opacity: 0.08, delay: 90, duration: 420 },
+  ];
+  for (const cfg of GHOSTS) {
+    const ghost = travelerEl.cloneNode(true) as HTMLElement;
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.removeAttribute('id');
+    ghost.style.position = 'absolute';
+    ghost.style.left = `${rect.left - parentRect.left}px`;
+    ghost.style.top = `${startY}px`;
+    ghost.style.width = `${rect.width}px`;
+    ghost.style.height = `${rect.height}px`;
+    ghost.style.pointerEvents = 'none';
+    ghost.style.opacity = String(cfg.opacity);
+    ghost.style.zIndex = '4';
+    // Drive the fade-out + slight upward drift via inline keyframe
+    // via animation shorthand. The drift is half the traveler's
+    // own delta so the trail "lags" rather than racing alongside.
+    ghost.style.animation = `sa-flip-ghost-fade ${cfg.duration}ms ${cfg.delay}ms cubic-bezier(0.22, 1, 0.36, 1) forwards`;
+    ghost.style.setProperty('--ghost-drift', `${-deltaY * 0.4}px`);
+    parent.appendChild(ghost);
+
+    ghost.addEventListener('animationend', () => ghost.remove(), { once: true });
+    // Belt-and-braces removal: if animationend never fires (tab
+    // backgrounded, etc.) yank the ghost after a generous timeout.
+    window.setTimeout(() => ghost.remove(), cfg.delay + cfg.duration + 400);
+  }
+}
+
 export function useSidebarFlip(): FlipController {
   const elementsRef = useRef(new Map<string, HTMLElement>());
   const prevPositionsRef = useRef(new Map<string, number>());
@@ -149,6 +209,14 @@ export function useSidebarFlip(): FlipController {
         // breathe out as the row lands.
         if (travelerEl) {
           travelerEl.classList.add('sa-flip-traveler');
+          // Phase 7: motion-trail ghosts. Three lightweight
+          // clones, each progressively more transparent and
+          // offset further behind the traveler's path, fade
+          // toward zero as the traveler tweens upward. Cloning
+          // up-front keeps the runtime cost bounded — we don't
+          // re-render anything, we just attach three siblings
+          // and let CSS animate them away.
+          spawnMotionTrail(travelerEl, deltas.get(travelerPath ?? '') ?? 0);
         }
       });
     });
