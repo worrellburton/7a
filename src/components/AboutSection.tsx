@@ -43,8 +43,10 @@ export default function AboutSection() {
             </h2>
             <p className="text-foreground/60 leading-relaxed mb-8" style={{ fontFamily: 'var(--font-body)' }}>
               Seven Arrows cultivates a healthy balance between providing the structure you need for sustainable
-              recovery and working with you as a unique individual. Your interests and needs are integrated into
-              your daily routine, and can be harmonized with existing treatment schedules.
+              recovery and working with you as a unique individual. As a leading drug rehab in Arizona, we
+              understand that every person struggling with addiction arrives with their own story, and your
+              interests and needs are integrated into your daily routine, harmonized with your existing
+              treatment schedule.
             </p>
             <Link href="/who-we-are" className="btn-outline">
               Who We Are
