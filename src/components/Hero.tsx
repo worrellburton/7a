@@ -398,33 +398,39 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
               className="max-w-3xl w-full text-center text-white py-16 lg:py-20"
               style={{ paddingTop: 'calc(var(--site-header-height, 68px) + 2rem)' }}
             >
-              {/* Small kicker above the H1 — gives "A drug rehab center
-                  in Arizona" visual + SEO presence without taking the
-                  H1 slot away from "A place to land." */}
-              <p
-                className="mb-3 text-[0.78rem] sm:text-sm font-semibold uppercase tracking-[0.18em] text-white/85"
+              {/* H1 carries the page's primary head term so search
+                  engines see "Drug Rehab Center in Arizona" as the
+                  document's main heading. "A place to land." sits
+                  underneath as a styled paragraph tagline so it
+                  keeps the editorial flourish without competing for
+                  the H1 slot. */}
+              <h1
+                id="hero-heading"
+                className="font-bold mb-4"
                 style={{
-                  fontFamily: 'var(--font-body)',
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'clamp(2.5rem, 6vw, 4.5rem)',
+                  lineHeight: 1.02,
+                  letterSpacing: '-0.01em',
                   opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
+                  transform: visible ? 'translateY(0)' : 'translateY(30px)',
                   transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.1s',
                 }}
               >
                 A Drug Rehab Center in Arizona
-              </p>
-              <h1
-                id="hero-heading"
+              </h1>
+              <p
                 className="font-bold leading-[1.02] tracking-tight mb-6"
                 style={{
                   fontFamily: 'var(--font-display)',
-                  fontSize: 'clamp(2.5rem, 6vw, 4.5rem)',
+                  fontSize: 'clamp(1.5rem, 3vw, 2.25rem)',
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(30px)',
                   transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.2s',
                 }}
               >
                 A place to <em className="not-italic font-bold" style={{ color: 'var(--color-accent)' }}>land</em>.
-              </h1>
+              </p>
 
               <p
                 className="mx-auto max-w-xl text-white/85 leading-relaxed mb-8 text-base sm:text-lg"

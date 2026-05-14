@@ -59,27 +59,18 @@ export default function PlaceToHeal() {
               transition: 'all 0.9s cubic-bezier(0.16,1,0.3,1) 0.05s',
             }}
           >
+            <p className="section-label mb-5">Drug Rehab in Arizona</p>
             <h2
               id="place-to-heal-heading"
-              className="text-foreground font-bold tracking-tight mb-3"
+              className="text-foreground font-bold tracking-tight mb-6"
               style={{
                 fontFamily: 'var(--font-display)',
                 fontSize: 'clamp(2.25rem, 4.4vw, 3.6rem)',
                 lineHeight: 1.02,
               }}
             >
-              Drug Rehab in Arizona
-            </h2>
-            <p
-              className="text-foreground/70 mb-6"
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 'clamp(1.25rem, 2vw, 1.75rem)',
-                lineHeight: 1.2,
-              }}
-            >
               A place to <em className="not-italic" style={{ color: 'var(--color-accent)' }}>heal</em>.
-            </p>
+            </h2>
             <p
               className="text-foreground/75 text-lg leading-relaxed mb-8 max-w-2xl"
               style={{ fontFamily: 'var(--font-body)' }}
