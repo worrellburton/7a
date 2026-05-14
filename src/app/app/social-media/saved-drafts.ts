@@ -10,6 +10,13 @@ export interface SavedDraft {
   mediaUrls: string[];
   ready?: boolean;
   platforms?: string[];
+  /**
+   * Optional per-deliverable media assignment, populated from the
+   * Create page's upload slots. Keys are stable strings of the form
+   * `${platformId}|${label}` (e.g. "facebook|Feed (1:1)") so the
+   * per-post page can reconcile the slot back to its spec.
+   */
+  mediaByDeliverable?: { key: string; url: string }[];
 }
 
 export const DRAFTS_KEY = 'social_media_saved_drafts_v1';

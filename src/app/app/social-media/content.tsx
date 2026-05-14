@@ -1842,10 +1842,11 @@ function CreativeLibraryPanel() {
       .filter((u): u is string => Boolean(u));
     if (urls.length === 0) return;
     pushCreativeStaging({ mediaUrls: urls });
-    const next = new URLSearchParams();
-    next.set('tab', 'creative');
-    next.set('sub', 'ai');
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    // Continue now lands on the dedicated Create page — caption +
+    // platform pills + a deliverable upload slot for every crop
+    // across the targeted networks, and a "Save and ready to go"
+    // button that drops the result into the Ready-to-go list.
+    router.push('/app/social-media/create');
   };
 
   const counts = useMemo(() => {
