@@ -369,7 +369,16 @@ body:has([data-sidebar-rail]:hover) [data-shift-on-sidebar] {
    was designed to fit one viewport. Lock the scroll on the platform
    shell's main content container while [data-home-no-scroll] is
    present so a sub-pixel layout discrepancy can't introduce a
-   scrollbar. */
+   scrollbar.
+
+   On mobile we also need to pin the body itself — iOS Safari otherwise
+   lets the page rubber-band when the URL bar collapses, which reads
+   as the screen scrolling up and down "randomly." Using svh on the
+   home container + a hard `overflow: hidden` on the body while
+   [data-home-no-scroll] is on the tree keeps the orbit pinned to a
+   single, deterministic viewport. overscroll-behavior cuts the
+   rubber-band glow that would otherwise telegraph "scrollable" even
+   when nothing actually scrolls. */
 [data-platform-main]:has([data-home-no-scroll]) {
   overflow: hidden !important;
 }
@@ -377,6 +386,22 @@ body:has([data-sidebar-rail]:hover) [data-shift-on-sidebar] {
   height: 100%;
   max-height: 100%;
   overflow: hidden;
+}
+html:has([data-home-no-scroll]),
+body:has([data-home-no-scroll]) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+@media (max-width: 1023px) {
+  html:has([data-home-no-scroll]),
+  body:has([data-home-no-scroll]) {
+    /* svh excludes the iOS dynamic URL bar so the locked viewport
+       always matches what the user actually sees, never bouncing
+       when the browser chrome resizes mid-gesture. */
+    height: 100svh;
+    max-height: 100svh;
+    touch-action: pan-x;
+  }
 }
 
 /* Hide the floating mobile call pill while the mobile nav drawer is
