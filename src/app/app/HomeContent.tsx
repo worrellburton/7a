@@ -477,7 +477,7 @@ export default function HomeContent() {
           (`h-[calc(100vh/0.82)]`) so the wrapper fills the real screen
           and `justify-center` on the centerpiece below lands the
           orbit at the visual middle of the viewport. */}
-      <div className="relative flex-1 flex flex-col h-[calc(100vh-1px)] max-h-[calc(100vh-1px)] lg:h-[calc((100vh-1px)/0.82)] lg:max-h-[calc((100vh-1px)/0.82)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
+      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] lg:h-[calc((100vh-1px)/0.82)] lg:max-h-[calc((100vh-1px)/0.82)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
 
         {/* Phase 4: hero — no glass card; the avatar/greeting and the
             create-menu button float on the page background. The hero
