@@ -179,6 +179,21 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M8.05 12.95 15.95 17.55" />
     </svg>
   ),
+  // Connect-4 — a 3-column board glyph with one filled chip,
+  // signalling "play / game" without leaning on a generic
+  // gamepad icon that would clash with the otherwise hand-drawn
+  // line-art set.
+  '/app/games/connect4': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="8" cy="9" r="1.6" />
+      <circle cx="12" cy="9" r="1.6" />
+      <circle cx="16" cy="9" r="1.6" />
+      <circle cx="8" cy="15" r="1.6" />
+      <circle cx="12" cy="15" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="15" r="1.6" />
+    </svg>
+  ),
   '/app/team': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
