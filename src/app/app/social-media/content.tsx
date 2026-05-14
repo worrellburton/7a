@@ -500,8 +500,8 @@ function OverviewSummary({ connected }: { connected: string[] }) {
 type PostSub = 'drafts' | 'scheduled' | 'history';
 
 const POST_SUBS: { id: PostSub; label: string }[] = [
-  { id: 'drafts', label: 'Drafts' },
-  { id: 'scheduled', label: 'Scheduled' },
+  { id: 'drafts', label: 'Post Now' },
+  { id: 'scheduled', label: 'Schedule Posts' },
   { id: 'history', label: 'History' },
 ];
 
@@ -829,23 +829,83 @@ function deriveDeliverables(selected: Set<PlatformId>): Deliverable[] {
   return list;
 }
 
+function PerPlatformDeliverables({ selected }: { selected: Set<PlatformId> }) {
+  // Per-network breakdown — for each selected platform, every
+  // image + video spec the platform accepts as its own line item.
+  // Sits ABOVE the de-duplicated union grid so a marketer can scan
+  // "what does Facebook want from me?" in one column rather than
+  // reverse-engineer it from the per-ratio chip's network icons.
+  if (selected.size === 0) return null;
+  const rows = PLATFORMS
+    .filter((p) => selected.has(p.id as PlatformId))
+    .map((p) => {
+      const spec = PLATFORM_SPECS[p.id as PlatformId];
+      if (!spec) return null;
+      const lines: { kind: 'image' | 'video'; label: string; size: string | undefined }[] = [];
+      for (const img of spec.images) lines.push({ kind: 'image', label: img.label, size: img.size });
+      for (const vid of spec.videos) lines.push({ kind: 'video', label: vid.label, size: vid.size });
+      return { id: p.id as PlatformId, label: p.label, lines };
+    })
+    .filter(Boolean) as { id: PlatformId; label: string; lines: { kind: 'image' | 'video'; label: string; size: string | undefined }[] }[];
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="mb-4">
+      <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">
+        By platform · what each network needs
+      </p>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {rows.map((r) => (
+          <li key={r.id} className="rounded-lg border border-black/10 bg-white px-3 py-2.5">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="inline-flex items-center justify-center w-4 h-4 text-foreground/65">
+                <PlatformIcon platform={r.id} size={13} />
+              </span>
+              <span className="text-[12px] font-semibold text-foreground">{r.label}</span>
+              <span className="ml-auto text-[10px] text-foreground/40 tabular-nums">{r.lines.length}</span>
+            </div>
+            <ul className="space-y-0.5">
+              {r.lines.map((l, i) => (
+                <li key={i} className="text-[11.5px] text-foreground/65 leading-snug flex items-start gap-1.5" style={{ fontFamily: 'var(--font-body)' }}>
+                  <span aria-hidden className="text-foreground/30 mt-[1px]">•</span>
+                  <span className="flex-1">
+                    <span className="text-foreground/85">{l.label}</span>
+                    {l.size && <span className="text-foreground/40 tabular-nums"> · {l.size}</span>}
+                  </span>
+                  <span className={`text-[8.5px] font-semibold uppercase tracking-wider ${l.kind === 'video' ? 'text-rose-600' : 'text-emerald-700'}`}>
+                    {l.kind}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function DeliverablesPanel({ selected }: { selected: Set<PlatformId> }) {
   const items = useMemo(() => deriveDeliverables(selected), [selected]);
   if (selected.size === 0) return null;
   if (items.length === 0) return null;
 
   return (
-    <div className="mb-4">
-      <div className="flex items-baseline justify-between gap-2 mb-2">
-        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55">
-          Deliverables · {items.length} {items.length === 1 ? 'crop' : 'crops'}
-        </p>
-        <p className="text-[10.5px] text-foreground/45">Every unique crop the selected networks accept.</p>
+    <>
+      <PerPlatformDeliverables selected={selected} />
+      <div className="mb-4">
+        <div className="flex items-baseline justify-between gap-2 mb-2">
+          <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55">
+            Unique crops · {items.length}
+          </p>
+          <p className="text-[10.5px] text-foreground/45">Every crop the selected networks share — no duplicates.</p>
+        </div>
+        <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {items.map((d) => <DeliverableCard key={d.ratio} d={d} />)}
+        </ul>
       </div>
-      <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-        {items.map((d) => <DeliverableCard key={d.ratio} d={d} />)}
-      </ul>
-    </div>
+    </>
   );
 }
 
@@ -1250,9 +1310,18 @@ function ScheduledPanel({
 type CreativeSub = 'library' | 'templates' | 'ai';
 
 const CREATIVE_SUBS: { id: CreativeSub; label: string; description: string }[] = [
-  { id: 'library', label: 'Library', description: 'Browse uploaded photos and videos.' },
-  { id: 'templates', label: 'Templates', description: 'Reusable post drafts with placeholders.' },
-  { id: 'ai', label: 'AI', description: 'Draft captions with Claude.' },
+  // Renamed + reordered to mirror the creation flow:
+  //   Build (gather media + raw ingredients — was "Library")
+  //   Draft (write the caption — was "Templates" + the AI tools)
+  //   Ready to go (a list view of every saved draft flagged as
+  //     publishable, ready to be picked up by the Post tab's
+  //     publish flow).
+  // Sub-route IDs stay 'library' / 'templates' / 'ai' so existing
+  // ?sub= deep links and the staging-key handoff (CREATIVE_TO_AI_KEY
+  // etc.) keep working without a separate migration.
+  { id: 'library', label: 'Build', description: 'Browse uploaded photos and videos.' },
+  { id: 'templates', label: 'Draft', description: 'Reusable post drafts with placeholders, plus AI assist.' },
+  { id: 'ai', label: 'Ready to go', description: 'Every saved draft flagged ready, in one list view.' },
 ];
 
 function readCreativeSub(raw: string | null): CreativeSub {
@@ -1301,8 +1370,115 @@ function CreativeTabBody() {
   const searchParams = useSearchParams();
   const sub = readCreativeSub(searchParams.get('sub'));
   if (sub === 'templates') return <CreativeTemplatesPanel />;
-  if (sub === 'ai') return <CreativeAiPanel />;
+  // 'ai' route id now backs the "Ready to go" tab. AI-assist still
+  // lives inside the Draft (templates) pane via the existing
+  // Send-to-Compose hand-off; surfacing it as a top-level Creative
+  // tab made less sense once the third slot became the publish-
+  // ready inbox.
+  if (sub === 'ai') return <ReadyToGoPanel />;
   return <CreativeLibraryPanel />;
+}
+
+// ── Creative > Ready to go ───────────────────────────────────────────
+//
+// List view of every SavedDraft that's been flagged ready: true.
+// Mirrors the publish-flow picker on the Post tab but lives here so
+// the marketer has a dedicated "what's queued?" surface. Cards
+// summarise caption + media count + saved timestamp; primary action
+// jumps straight into the Post tab's publish flow, which is the
+// next step in the creation order (Build → Draft → Ready to go →
+// Post Now).
+function ReadyToGoPanel() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [drafts, setDrafts] = useState<SavedDraft[]>([]);
+
+  useEffect(() => {
+    setDrafts(readSavedDrafts());
+    const onChange = () => setDrafts(readSavedDrafts());
+    window.addEventListener('storage', onChange);
+    return () => window.removeEventListener('storage', onChange);
+  }, []);
+
+  const ready = drafts.filter((d) => d.ready);
+  const goPublish = () => router.push(`${pathname}?tab=post`);
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white/65 px-4 py-4 lg:px-6 lg:py-5">
+      <header className="flex items-baseline justify-between mb-3">
+        <div>
+          <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+            Ready to go · {ready.length}
+          </h2>
+          <p className="text-[11px] text-foreground/45 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+            Drafts your team has signed off on. Jump to Post Now to publish or schedule.
+          </p>
+        </div>
+        {ready.length > 0 && (
+          <button
+            type="button"
+            onClick={goPublish}
+            className="px-3 py-1.5 rounded-md bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Open publish flow →
+          </button>
+        )}
+      </header>
+
+      {ready.length === 0 ? (
+        <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
+          Nothing marked ready yet. Save a draft in Draft and tick "Mark ready to go" once it's final.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {ready.map((d) => (
+            <li
+              key={d.id}
+              className="rounded-xl border border-emerald-200/70 bg-emerald-50/30 px-4 py-3 flex items-start gap-3"
+            >
+              <span className="mt-1 inline-block w-2 h-2 rounded-full bg-emerald-500" aria-hidden />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-emerald-700">Ready</span>
+                  <span className="text-[10.5px] text-foreground/45 tabular-nums">
+                    Saved {new Date(d.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                  {d.mediaUrls.length > 0 && (
+                    <span className="text-[10.5px] text-foreground/45">· {d.mediaUrls.length} media</span>
+                  )}
+                </div>
+                <p className="text-[13px] text-foreground/85 leading-snug line-clamp-3 whitespace-pre-line" style={{ fontFamily: 'var(--font-body)' }}>
+                  {d.caption || <span className="text-foreground/40 italic">(no caption)</span>}
+                </p>
+                {d.mediaUrls.length > 0 && (
+                  <div className="mt-2 flex gap-1.5 flex-wrap">
+                    {d.mediaUrls.slice(0, 4).map((url, i) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={i} src={url} alt="" className="w-10 h-10 rounded object-cover border border-black/5" />
+                    ))}
+                    {d.mediaUrls.length > 4 && (
+                      <div className="w-10 h-10 rounded bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
+                        +{d.mediaUrls.length - 4}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={goPublish}
+                className="shrink-0 px-2.5 py-1 rounded-md bg-primary text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-primary/90"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Publish →
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
 }
 
 // ── Creative > Library ───────────────────────────────────────────────
