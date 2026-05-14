@@ -976,7 +976,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               onChange={(e) => setNavSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Escape') setNavSearch(''); }}
               placeholder="Search pages…"
-              className="w-full pl-8 pr-2.5 py-1.5 rounded-lg bg-white/60 border border-black/10 text-[13px] placeholder:text-foreground/35 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="sa-liquid-glass w-full pl-8 pr-2.5 py-1.5 rounded-xl text-[13px] placeholder:text-foreground/40"
               style={{ fontFamily: 'var(--font-body)' }}
               aria-label="Search pages"
             />
