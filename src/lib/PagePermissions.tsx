@@ -39,6 +39,10 @@ const defaultPages: PageConfig[] = [
   // Phase 1: page scaffold + schema. Visible to all staff so the
   // tournament participant pool isn't gated unnecessarily.
   { path: '/app/games/connect4', label: 'Connect-4', adminOnly: false, section: 'nav', sort_order: 99, allowedDepartments: [], departmentId: null },
+  // Hardware inventory — admin-only because the list contains PINs,
+  // account credentials, and asset values that aren't appropriate
+  // for general staff visibility.
+  { path: '/app/hardware', label: 'Hardware', adminOnly: true, section: 'nav', sort_order: 80, allowedDepartments: [], departmentId: null },
   // External link to the marketing site. Routed through the sidebar
   // like any other entry so it participates in recency reordering;
   // the externalUrl field makes PlatformShell render it as an

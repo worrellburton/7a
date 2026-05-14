@@ -194,6 +194,16 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="16" cy="15" r="1.6" />
     </svg>
   ),
+  // Hardware — laptop silhouette with a small line representing
+  // the screen-bezel hinge and a base stand, signalling "tracked
+  // physical asset" without leaning on a generic box icon.
+  '/app/hardware': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="5" width="16" height="11" rx="1.5" />
+      <path d="M2 19h20" />
+      <path d="M10 16h4" />
+    </svg>
+  ),
   '/app/team': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
