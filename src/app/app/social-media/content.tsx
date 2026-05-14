@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +9,7 @@ import { PlatformIcon, type PlatformId } from './PlatformIcon';
 import { MediaPicker, type PickedMedia } from './MediaPicker';
 import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from './platform-specs';
+import ScheduleSlotsPanel from './ScheduleSlotsPanel';
 
 // ── Cross-tab Send-to-Compose handoff ────────────────────────────────
 //
@@ -64,6 +66,11 @@ interface SavedDraft {
   // the draft is publishable as-is. The Post tab's publish flow only
   // shows ready drafts, keeping in-progress text out of the picker.
   ready?: boolean;
+  // Networks this draft is intended for. Used to drive the
+  // per-post deliverables panel on /app/social-media/drafts/[id].
+  // Optional — older drafts without this field render the full
+  // deliverable matrix for every connected network instead.
+  platforms?: string[];
 }
 const DRAFTS_KEY = 'social_media_saved_drafts_v1';
 function readSavedDrafts(): SavedDraft[] {
@@ -559,7 +566,12 @@ function PostTabBody({
   const sub = readPostSub(searchParams.get('sub'));
 
   if (sub === 'scheduled') {
-    return <ScheduledPanel posts={history} loading={historyLoading} error={historyErr} onChanged={refreshHistory} />;
+    // Schedule Posts now leads with the new recurring-slot panel
+    // (list + calendar views, Add Schedule modal, drag-drop ready
+    // drafts onto occurrences). Below it, the existing Ayrshare
+    // scheduled-queue keeps showing the live "post-and-fire-later"
+    // entries so admins can still cancel individual posts.
+    return <SchedulePostsBody history={history} historyLoading={historyLoading} historyErr={historyErr} refreshHistory={refreshHistory} accounts={accounts} />;
   }
   if (sub === 'history') {
     return (
@@ -1192,6 +1204,67 @@ function isScheduledPending(p: HistoryPost): boolean {
   return Number.isFinite(t) && t > Date.now();
 }
 
+function SchedulePostsBody({
+  history, historyLoading, historyErr, refreshHistory, accounts,
+}: {
+  history: HistoryPost[];
+  historyLoading: boolean;
+  historyErr: string | null;
+  refreshHistory: () => void;
+  accounts: AccountsResponse | null;
+}) {
+  // Pull ready drafts off localStorage so they're draggable onto
+  // slot occurrences. Listens on the same storage / custom-event
+  // bus the rest of the page uses so dragging stays in sync with
+  // edits made on other tabs.
+  const [drafts, setDrafts] = useState<SavedDraft[]>([]);
+  useEffect(() => {
+    setDrafts(readSavedDrafts());
+    const onChange = () => setDrafts(readSavedDrafts());
+    window.addEventListener('social-media-drafts-changed', onChange);
+    window.addEventListener('storage', onChange);
+    return () => {
+      window.removeEventListener('social-media-drafts-changed', onChange);
+      window.removeEventListener('storage', onChange);
+    };
+  }, []);
+  const readyDrafts = useMemo(
+    () => drafts.filter((d) => d.ready).map((d) => ({
+      id: d.id,
+      caption: d.caption,
+      mediaUrls: d.mediaUrls,
+      createdAt: d.createdAt,
+    })),
+    [drafts],
+  );
+  const scheduledLite = useMemo(
+    () => history.filter(isScheduledPending).map((p) => ({
+      id: (p.id ?? '') as string,
+      scheduleDate: p.scheduleDate ?? '',
+      post: p.post ?? '',
+      platforms: p.platforms ?? [],
+    })),
+    [history],
+  );
+  const connectedPlatforms = accounts?.activeSocialAccounts ?? [];
+  return (
+    <div className="space-y-4">
+      <ScheduleSlotsPanel
+        readyDrafts={readyDrafts}
+        connectedPlatforms={connectedPlatforms}
+        scheduledPosts={scheduledLite}
+        onPostScheduled={refreshHistory}
+      />
+      <ScheduledPanel
+        posts={history}
+        loading={historyLoading}
+        error={historyErr}
+        onChanged={refreshHistory}
+      />
+    </div>
+  );
+}
+
 function ScheduledPanel({
   posts, loading, error, onChanged,
 }: {
@@ -1369,7 +1442,12 @@ function CreativeSubNav() {
 function CreativeTabBody() {
   const searchParams = useSearchParams();
   const sub = readCreativeSub(searchParams.get('sub'));
-  if (sub === 'templates') return <CreativeTemplatesPanel />;
+  // 'templates' route id now backs the "Draft" tab — the working
+  // list of in-progress saved posts. The pre-built Templates panel
+  // (CreativeTemplatesPanel) is still defined below but no longer
+  // owns a top-level tab slot; reachable via the "Start from a
+  // template" affordance inside the Draft panel.
+  if (sub === 'templates') return <CreativeDraftsPanel />;
   // 'ai' route id now backs the "Ready to go" tab. AI-assist still
   // lives inside the Draft (templates) pane via the existing
   // Send-to-Compose hand-off; surfacing it as a top-level Creative
@@ -1377,6 +1455,156 @@ function CreativeTabBody() {
   // ready inbox.
   if (sub === 'ai') return <ReadyToGoPanel />;
   return <CreativeLibraryPanel />;
+}
+
+// ── Creative > Draft ─────────────────────────────────────────────────
+//
+// Renamed Templates → Draft per spec. Shows every SavedDraft that
+// isn't yet flagged ready: true (work-in-progress posts), with the
+// same Edit / Delete / Mark-ready actions as the Post-tab drafts
+// list, plus a small "Start from a template" button that flips an
+// inline state to surface the original Templates panel without
+// taking up a top-level tab slot.
+function CreativeDraftsPanel() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [drafts, setDrafts] = useState<SavedDraft[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  useEffect(() => {
+    setDrafts(readSavedDrafts());
+    const onChange = () => setDrafts(readSavedDrafts());
+    window.addEventListener('social-media-drafts-changed', onChange);
+    window.addEventListener('storage', onChange);
+    return () => {
+      window.removeEventListener('social-media-drafts-changed', onChange);
+      window.removeEventListener('storage', onChange);
+    };
+  }, []);
+
+  const remove = (id: string) => {
+    const next = drafts.filter((d) => d.id !== id);
+    setDrafts(next);
+    writeSavedDrafts(next);
+    window.dispatchEvent(new Event('social-media-drafts-changed'));
+  };
+
+  const toggleReady = (id: string) => {
+    const next = drafts.map((d) => (d.id === id ? { ...d, ready: !d.ready } : d));
+    setDrafts(next);
+    writeSavedDrafts(next);
+    window.dispatchEvent(new Event('social-media-drafts-changed'));
+  };
+
+  const sendToCompose = (d: SavedDraft) => {
+    pushComposeDraft({ caption: d.caption, mediaUrls: d.mediaUrls, source: 'drafts' });
+    router.push(`${pathname}?tab=post`);
+  };
+
+  const inProgress = drafts.filter((d) => !d.ready);
+  const ready = drafts.filter((d) => d.ready);
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-5">
+      <div className="flex items-baseline justify-between flex-wrap gap-3 mb-3">
+        <div>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">
+            Drafts · {inProgress.length}
+          </h2>
+          <p className="text-[11px] text-foreground/45 mt-0.5">
+            Posts in progress. Mark one ready to go to publish or schedule it.
+            {ready.length > 0 && <> {ready.length} already marked ready.</>}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowTemplates((s) => !s)}
+          className="text-[11px] font-semibold text-primary hover:text-primary-dark"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {showTemplates ? '← Back to drafts' : 'Start from a template →'}
+        </button>
+      </div>
+
+      {showTemplates ? (
+        <CreativeTemplatesPanel />
+      ) : inProgress.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-black/10 bg-warm-bg/30 px-5 py-10 text-center">
+          <p className="text-sm text-foreground/55 max-w-md mx-auto">
+            No drafts in progress. Build one in <strong>Build</strong>, or start from a template.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowTemplates(true)}
+            className="mt-3 px-3 py-1.5 rounded-md bg-primary text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-primary/90"
+          >
+            Browse templates
+          </button>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {inProgress.map((d) => {
+            const created = new Date(d.createdAt).toLocaleString('en-US', {
+              month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+            });
+            const preview = d.caption.length > 240 ? `${d.caption.slice(0, 240)}…` : d.caption;
+            return (
+              <li key={d.id} className="rounded-xl border border-black/10 bg-warm-bg/20 p-4">
+                <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">
+                    Saved {created}
+                  </p>
+                  {d.mediaUrls.length > 0 && (
+                    <p className="text-[10px] text-foreground/45">{d.mediaUrls.length} media attached</p>
+                  )}
+                </div>
+                <p className="text-sm text-foreground/85 whitespace-pre-wrap leading-relaxed">{preview || <span className="text-foreground/40 italic">(no caption)</span>}</p>
+                {d.mediaUrls.length > 0 && (
+                  <ul className="mt-3 flex flex-wrap gap-2">
+                    {d.mediaUrls.slice(0, 6).map((url) => (
+                      <li key={url} className="w-12 h-12 rounded-lg overflow-hidden border border-black/10">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="Draft media" className="w-full h-full object-cover" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-4 flex items-center justify-end gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => remove(d.id)}
+                    className="text-[12px] text-foreground/55 hover:text-red-700"
+                  >
+                    Delete
+                  </button>
+                  <Link
+                    href={`/app/social-media/drafts/${d.id}`}
+                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+                  >
+                    Open page
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => sendToCompose(d)}
+                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+                  >
+                    Edit in Compose
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleReady(d.id)}
+                    className="rounded-lg bg-primary px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-primary-dark"
+                  >
+                    Mark ready to go
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
 }
 
 // ── Creative > Ready to go ───────────────────────────────────────────
@@ -1465,14 +1693,23 @@ function ReadyToGoPanel() {
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={goPublish}
-                className="shrink-0 px-2.5 py-1 rounded-md bg-primary text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-primary/90"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Publish →
-              </button>
+              <div className="shrink-0 flex flex-col gap-1">
+                <button
+                  type="button"
+                  onClick={goPublish}
+                  className="px-2.5 py-1 rounded-md bg-primary text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-primary/90"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Publish →
+                </button>
+                <Link
+                  href={`/app/social-media/drafts/${d.id}`}
+                  className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60 text-center"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Open →
+                </Link>
+              </div>
             </li>
           ))}
         </ul>
