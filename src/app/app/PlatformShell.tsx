@@ -672,20 +672,19 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   //   3. Ungrouped bucket at the very top of the sidebar.
   const visibleNavPages = navPages.filter(canSeePage);
 
-  // Phase 4 of the sidebar recency overhaul: users with fewer than
-  // ALPHA_THRESHOLD lifetime sidebar clicks see every accessible page
-  // in one flat alphabetical list (no department / navGroup
-  // sections). Once they've explored enough to cross the threshold,
-  // Phase 7 will flip them into recency mode. We compute this once
-  // up here so the desktop nav, mobile nav, and popup menu all agree.
-  const ALPHA_THRESHOLD = 10;
-  // RECENCY_VISIBLE_COUNT is the cap on visible nav entries once
-  // the user is in recency mode. Anything past this falls into the
-  // "Other pages" dropdown (Phase 8). Sized to 7 because that's the
-  // size most reps eyeball-scan without paging — same intuition as
-  // why phone numbers are 7 digits.
+  // RECENCY_VISIBLE_COUNT caps the top of the nav. Anything past
+  // this falls into the "Other pages" dropdown. Sized to 7 because
+  // that's the size most reps eyeball-scan without paging — same
+  // intuition as why phone numbers are 7 digits.
+  //
+  // The earlier "alpha mode" gate (sidebar_click_count <
+  // ALPHA_THRESHOLD → flat alpha list with no Other Pages) was
+  // removed so the overflow disclosure is reachable by every user
+  // from their first session, not only those who've crossed a
+  // lifetime click threshold. New users with no click history
+  // still see a sensible top N because the leftover-padding falls
+  // back to alphabetical order.
   const RECENCY_VISIBLE_COUNT = 7;
-  const sidebarMode: 'alpha' | 'recency' = sidebarClickCount < ALPHA_THRESHOLD ? 'alpha' : 'recency';
   // Both modes use a single recency stack: every page the user has
   // clicked, newest first, with never-clicked pages tail-padded in
   // alpha order. Clicking a page promotes it to position 1 and the
@@ -757,7 +756,6 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   const [otherPagesFlash, setOtherPagesFlash] = useState(false);
   const lastClickCountRef = useRef(sidebarClickCount);
   useEffect(() => {
-    if (sidebarMode !== 'recency') { lastClickCountRef.current = sidebarClickCount; return; }
     if (sidebarClickCount > lastClickCountRef.current && recencyOtherPages.length > 0) {
       // Respect prefers-reduced-motion — skip the flash entirely so
       // users who've opted out of non-essential motion don't get a
@@ -772,7 +770,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       }
     }
     lastClickCountRef.current = sidebarClickCount;
-  }, [sidebarClickCount, sidebarMode, recencyOtherPages.length]);
+  }, [sidebarClickCount, recencyOtherPages.length]);
 
   // Department / navGroup grouping is no longer rendered (Phase 5
   // of the sidebar overhaul). PageConfig.departmentId still drives
@@ -1153,15 +1151,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               }
               return <>{searchMatchedPages.map(renderLink)}</>;
             }
-            // Phase 4/5 of the sidebar overhaul: in alpha mode we
-            // render every page the user can see as a single flat
-            // alphabetical list — no dept headers, no navGroup
-            // chunks. Phase 7: once they cross ALPHA_THRESHOLD
-            // clicks, we render just the top RECENCY_VISIBLE_COUNT
-            // (Phase 8 adds the "Other pages" overflow under it).
-            if (sidebarMode === 'alpha') {
-              return <>{recencyOrderedPages.map(renderLink)}</>;
-            }
+            // Recency layout: top RECENCY_VISIBLE_COUNT pinned at
+            // the top, the rest tucked under an "Other pages"
+            // collapsible. Earlier this was gated behind an
+            // ALPHA_THRESHOLD click counter so new users got a
+            // flat alpha list — that gate was removed so Other
+            // Pages is reachable for every user from the first
+            // session, not only those who've crossed the threshold.
             // Phase 7+: recency mode renders the top
             // RECENCY_VISIBLE_COUNT entries above an "Other pages"
             // collapsible. The Marketing-team "Website" external
@@ -1393,7 +1389,6 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       </Link>
                     );
                   };
-                  if (sidebarMode === 'alpha') return <>{recencyOrderedPages.map(renderMobileLink)}</>;
                   return (
                     <>
                       {recencyTopPages.map(renderMobileLink)}
