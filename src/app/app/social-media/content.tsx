@@ -292,7 +292,7 @@ function SubNav() {
     next.delete('sub');
     const qs = next.toString();
     try { localStorage.setItem(LAST_TAB_KEY, id); } catch { /* no-op */ }
-    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    router.push(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
   };
 
   // Arrow-key keyboard nav across the tab strip — left/right cycles,
@@ -528,7 +528,7 @@ function PostSubNav() {
     if (id === 'drafts') next.delete('sub');
     else next.set('sub', id);
     const qs = next.toString();
-    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    router.push(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
   };
   return (
     <div role="tablist" aria-label="Post sections" className="mb-5 flex flex-wrap gap-1 rounded-xl bg-white border border-black/10 p-1">
@@ -1413,7 +1413,12 @@ function CreativeSubNav() {
     if (id === 'library') next.delete('sub');
     else next.set('sub', id);
     const qs = next.toString();
-    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    // push, not replace — replace was occasionally getting swallowed
+    // when the URL was structurally identical except for the ?sub=
+    // param, leaving the tab body stuck on the old pane. push always
+    // produces a fresh history entry so useSearchParams reliably
+    // re-renders the consumers downstream.
+    router.push(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
   };
   return (
     <div role="tablist" aria-label="Creative sections" className="mb-5 flex flex-wrap gap-1 rounded-xl bg-white border border-black/10 p-1">
