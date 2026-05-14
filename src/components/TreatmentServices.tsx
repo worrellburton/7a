@@ -64,19 +64,19 @@ export default function TreatmentServices() {
     <section className="py-20 lg:py-28 bg-warm-bg" aria-labelledby="treatment-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14 max-w-2xl mx-auto">
-          <p className="section-label justify-center mb-4">Our Program</p>
           <h2
             id="treatment-heading"
             className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground leading-tight mb-4"
           >
-            Comprehensive Care for Recovery
+            Our Addiction Treatment Programs
           </h2>
           <p
             className="text-foreground/60 leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Seven Arrows combines evidence-based modalities with holistic therapy,
-            offering personalized support tailored to your unique needs.
+            Seven Arrows combines evidence based treatment methods with holistic
+            therapy, offering personalized treatment plans tailored to your
+            unique needs across our addiction treatment programs.
           </p>
         </div>
 

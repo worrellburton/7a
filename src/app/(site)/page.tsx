@@ -19,6 +19,7 @@ import TourStats from "@/components/tour/TourStats";
 import PlaceToHeal from "@/components/PlaceToHeal";
 import ProgramSection from "@/components/ProgramSection";
 import TreatmentServices from "@/components/TreatmentServices";
+import ComprehensiveTreatment from "@/components/ComprehensiveTreatment";
 import InsuranceCarousel from "@/components/InsuranceCarousel";
 import CampusTour from "@/components/CampusTour";
 
@@ -31,13 +32,87 @@ import OutingsSection from "@/components/outings/OutingsSection";
 
 const structuredData = {
   "@context": "https://schema.org",
-  "@type": "MedicalBusiness",
+  "@type": ["Organization", "MedicalBusiness", "LocalBusiness"],
   "@id": "https://sevenarrowsrecoveryarizona.com/#organization",
   name: "Seven Arrows Recovery",
-  description:
-    "A boutique drug and alcohol rehab center in Arizona offering clinical and residential treatment with a Forward-Facing\u00ae Accelerated Recovery specialty approach.",
   url: "https://sevenarrowsrecoveryarizona.com",
-  telephone: "+1-866-718-1665",
+  logo: "https://sevenarrowsrecoveryarizona.com/images/logo.png",
+  hasMap:
+    "https://www.google.com/maps/place/Seven+Arrows+Recovery/@31.6816641,-109.5974003,840m/data=!3m2!1e3!4b1!4m6!3m5!1s0x86d757b12c931e93:0x4359cfcad3b471d5!8m2!3d31.6816641!4d-109.5974003!16s%2Fg%2F11sf3vbq_s",
+  geo: {
+    "@type": "GeoCoordinates",
+    latitude: 31.6816641,
+    longitude: -109.5974003,
+  },
+  aggregateRating: {
+    "@type": "AggregateRating",
+    ratingValue: "4.8",
+    reviewCount: "27",
+    bestRating: "5",
+    worstRating: "1",
+  },
+  review: [
+    {
+      "@type": "Review",
+      author: { "@type": "Person", name: "Kelly Jameson" },
+      reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+      reviewBody:
+        "Five stars aren't enough to express that going to treatment at Seven Arrows made me want to live my life again. Before I admitted to treatment there I was struggling with severe alcoholism, anxiety, and PTSD. I thought my life would always be filled with flashbacks, intrusive/racing thoughts, and low self-esteem.",
+    },
+    {
+      "@type": "Review",
+      author: { "@type": "Person", name: "Jessica Collins" },
+      reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+      reviewBody:
+        "Life changing. Completely and totally changed my entire life. I came to 7 Arrows with little will to live, overwhelmed with my past trauma and my addictions ruining me. These people and this place infiltrated my heart and soul. I really cannot put into words what those 41 days did for me.",
+    },
+    {
+      "@type": "Review",
+      author: { "@type": "Person", name: "Josh" },
+      reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+      reviewBody:
+        "Seven Arrows is a very special place to rest and recover. The remote setting is peaceful, with desert and mountain views on a large property. Incorporating equine therapy as well as native American traditions, the experience is a departure from what one might expect in an urban rehab center.",
+    },
+    {
+      "@type": "Review",
+      author: { "@type": "Person", name: "Boots" },
+      reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+      reviewBody:
+        "I called 24 other facilities in the United States, but this one called to me, spiritually the most. I am a dual diagnosis. The moment I got the call back that I was admitted and arrival date, I had little idea of what was going to happen next. I arrived to find the most genuine humans that walk this earth.",
+    },
+    {
+      "@type": "Review",
+      author: { "@type": "Person", name: "Roger McGehee" },
+      reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+      reviewBody:
+        "This place is truly special. They focus on healing from within rather than only treating symptoms of addiction. They have changed my life forever and have shown me that life is a beautiful thing. I would recommend Seven Arrows to anyone struggling with addiction.",
+    },
+  ],
+  contactPoint: {
+    "@type": "ContactPoint",
+    telephone: "+1-866-718-1665",
+    contactType: "admissions",
+    areaServed: "US",
+    availableLanguage: ["English", "Spanish"],
+    hoursAvailable: {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ],
+      opens: "00:00",
+      closes: "23:59",
+    },
+  },
+  sameAs: [
+    "https://www.facebook.com/sevenarrowsrecovery",
+    "https://www.instagram.com/sevenarrowsrecovery",
+  ],
   address: {
     "@type": "PostalAddress",
     streetAddress: "2491 W Jefferson Rd",
@@ -46,10 +121,11 @@ const structuredData = {
     postalCode: "85610",
     addressCountry: "US",
   },
-  geo: {
-    "@type": "GeoCoordinates",
-    latitude: 31.9,
-    longitude: -109.9,
+  foundingDate: "2020",
+  numberOfEmployees: {
+    "@type": "QuantitativeValue",
+    minValue: 10,
+    maxValue: 50,
   },
   areaServed: [
     { "@type": "State", name: "Arizona" },
@@ -57,62 +133,6 @@ const structuredData = {
     { "@type": "City", name: "Scottsdale" },
     { "@type": "City", name: "Tucson" },
     { "@type": "City", name: "Mesa" },
-    { "@type": "City", name: "Tempe" },
-    { "@type": "City", name: "Glendale" },
-  ],
-  medicalSpecialty: "Addiction Medicine",
-  isAcceptingNewPatients: true,
-  currenciesAccepted: "USD",
-  paymentAccepted: "Insurance, Private Pay",
-  hasCredential: [
-    { "@type": "EducationalOccupationalCredential", credentialCategory: "JCAHO Accredited" },
-    { "@type": "EducationalOccupationalCredential", credentialCategory: "LegitScript Certified" },
-    { "@type": "EducationalOccupationalCredential", credentialCategory: "HIPAA Compliant" },
-  ],
-  availableService: [
-    {
-      "@type": "MedicalTherapy",
-      name: "Residential Treatment",
-      description: "Inpatient residential drug and alcohol addiction treatment",
-    },
-    {
-      "@type": "MedicalTherapy",
-      name: "Clinical Treatment",
-      description: "Evidence-based clinical addiction treatment programs",
-    },
-    {
-      "@type": "MedicalTherapy",
-      name: "Forward-Facing Accelerated Recovery Treatment",
-      description:
-        "Specialty treatment combining body-based interventions with traditional psychotherapy for trauma and addiction",
-    },
-    {
-      "@type": "MedicalTherapy",
-      name: "Holistic Therapy",
-      description: "Holistic and experiential therapies including equine therapy",
-    },
-    {
-      "@type": "MedicalTherapy",
-      name: "Dual Diagnosis Treatment",
-      description: "Integrated treatment for co-occurring mental health and substance use disorders",
-    },
-  ],
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "4.9",
-    reviewCount: "27",
-    bestRating: "5",
-  },
-  priceRange: "$$$$",
-  openingHoursSpecification: {
-    "@type": "OpeningHoursSpecification",
-    dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    opens: "00:00",
-    closes: "23:59",
-  },
-  sameAs: [
-    "https://www.facebook.com/sevenarrowsrecovery",
-    "https://www.instagram.com/sevenarrowsrecovery",
   ],
 };
 
@@ -210,6 +230,7 @@ export default async function Home() {
       <PlaceToHeal />
       <ProgramSection />
       <TreatmentServices />
+      <ComprehensiveTreatment />
       <CampusTour />
       <InsuranceCarousel />
       <GoogleReviewsCinema />

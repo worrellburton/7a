@@ -44,7 +44,7 @@ const pillars: Pillar[] = [
   {
     video: siteVideos.ranchLife,
     eyebrow: 'With support',
-    statement: 'Growth happens with support.',
+    statement: 'Real recovery means treating both the symptoms and underlying issues with equal care.',
     gloss:
       'Small census. Primary therapist from day one. A cohort of peers who know your name before the second group.',
     poster: '/images/group-gathering-pavilion.jpg',
@@ -54,7 +54,7 @@ const pillars: Pillar[] = [
     eyebrow: 'When the body learns',
     statement: 'Freedom happens when the nervous system learns it is safe to live.',
     gloss:
-      'Regulated presence. Polyvagal-informed care. A 160-acre ranch where the land itself teaches the body how to settle.',
+      'Our clinicians know how to successfully manage symptoms while the deeper work unfolds. Regulated presence. Polyvagal-informed care. A 160-acre ranch where the land itself teaches the body how to settle.',
     poster: '/images/sign-night-sky-milky-way.jpg',
   },
 ];
@@ -105,7 +105,7 @@ export default function ProgramSection() {
               transition: 'all 0.85s cubic-bezier(0.16,1,0.3,1) 0.05s',
             }}
           >
-            Our promise
+            Our Promise
           </p>
           <h2
             id="our-promise-heading"
@@ -130,9 +130,9 @@ export default function ProgramSection() {
               transition: 'opacity 1s ease 0.45s',
             }}
           >
-            We see individuals as inherently resilient, capable of growth, and
-            worthy of compassion. Our role is to create the conditions where
-            that resilience can emerge.
+            Healing means addressing the root causes of addiction, not just
+            its surface symptoms. We see individuals as inherently resilient,
+            capable of growth, and worthy of compassion.
           </p>
         </div>
 
