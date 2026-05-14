@@ -518,35 +518,34 @@ function readPostSub(raw: string | null): PostSub {
 }
 
 function PostSubNav() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const active = readPostSub(searchParams.get('sub'));
-  const select = (id: PostSub) => {
+  const hrefFor = (id: PostSub): string => {
     const next = new URLSearchParams(searchParams.toString());
     next.set('tab', 'post');
     if (id === 'drafts') next.delete('sub');
     else next.set('sub', id);
     const qs = next.toString();
-    router.push(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    return `${pathname}${qs ? `?${qs}` : ''}`;
   };
   return (
     <div role="tablist" aria-label="Post sections" className="mb-5 flex flex-wrap gap-1 rounded-xl bg-white border border-black/10 p-1">
       {POST_SUBS.map((s) => {
         const selected = active === s.id;
         return (
-          <button
+          <Link
             key={s.id}
-            type="button"
+            href={hrefFor(s.id)}
+            scroll={false}
             role="tab"
             aria-selected={selected}
-            onClick={() => select(s.id)}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               selected ? 'bg-foreground text-white' : 'text-foreground/60 hover:bg-warm-bg/40'
             }`}
           >
             {s.label}
-          </button>
+          </Link>
         );
       })}
     </div>
@@ -1403,41 +1402,42 @@ function readCreativeSub(raw: string | null): CreativeSub {
 }
 
 function CreativeSubNav() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const active = readCreativeSub(searchParams.get('sub'));
-  const select = (id: CreativeSub) => {
+  // Build each sub-tab as a plain <Link> with a fully-qualified
+  // href. Earlier this nav used router.push() inside an onClick
+  // and the click occasionally got swallowed when the Suspense
+  // boundary upstream re-suspended on navigation — leaving the
+  // body stuck on the prior pane with the new pane's buttons
+  // inert. <Link> hands the navigation to Next's stock link
+  // semantics, which always paints a fresh client render.
+  const hrefFor = (id: CreativeSub): string => {
     const next = new URLSearchParams(searchParams.toString());
     next.set('tab', 'creative');
     if (id === 'library') next.delete('sub');
     else next.set('sub', id);
     const qs = next.toString();
-    // push, not replace — replace was occasionally getting swallowed
-    // when the URL was structurally identical except for the ?sub=
-    // param, leaving the tab body stuck on the old pane. push always
-    // produces a fresh history entry so useSearchParams reliably
-    // re-renders the consumers downstream.
-    router.push(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    return `${pathname}${qs ? `?${qs}` : ''}`;
   };
   return (
     <div role="tablist" aria-label="Creative sections" className="mb-5 flex flex-wrap gap-1 rounded-xl bg-white border border-black/10 p-1">
       {CREATIVE_SUBS.map((s) => {
         const selected = active === s.id;
         return (
-          <button
+          <Link
             key={s.id}
-            type="button"
+            href={hrefFor(s.id)}
+            scroll={false}
             role="tab"
             aria-selected={selected}
-            onClick={() => select(s.id)}
             title={s.description}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               selected ? 'bg-foreground text-white' : 'text-foreground/60 hover:bg-warm-bg/40'
             }`}
           >
             {s.label}
-          </button>
+          </Link>
         );
       })}
     </div>
