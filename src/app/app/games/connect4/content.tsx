@@ -15,7 +15,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { currentPlayer, COLS } from '@/lib/connect4';
 import Board from './Board';
-import Lobby from './Lobby';
+import BracketLobby from './BracketLobby';
 import Tournament from './Tournament';
 import TournamentList from './TournamentList';
 import Leaderboard from './Leaderboard';
@@ -135,7 +135,7 @@ export default function Content() {
   if (!matchId) {
     return (
       <PageShell tagline="Challenge a teammate, jump into an in-flight match, or open a tournament bracket.">
-        <Lobby />
+        <BracketLobby />
         <TournamentList />
         <Leaderboard />
       </PageShell>
