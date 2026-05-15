@@ -127,8 +127,38 @@ export default function Connect4Tournament({ tournamentId }: { tournamentId: str
     return <p className="text-[13px] text-foreground/55">{error ?? 'Loading tournament…'}</p>;
   }
 
+  const champion = tournament.status === 'complete' && tournament.winner_id
+    ? userById.get(tournament.winner_id) ?? null
+    : null;
+
   return (
     <div className="w-full">
+      {/* Champion banner — only renders when the final's been
+          resolved. Big tasteful celebration so a finished
+          tournament reads as A THING THAT HAPPENED rather than
+          another row in the bracket. */}
+      {champion && (
+        <div className="mb-4 rounded-2xl border border-amber-300/70 bg-gradient-to-r from-amber-50 via-amber-100/40 to-white px-5 py-4 flex items-center gap-4">
+          <span className="text-3xl" aria-hidden>🏆</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-amber-700">Champion</p>
+            <p className="text-lg font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-display)' }}>
+              {champion.full_name || champion.email || '—'}
+            </p>
+            <p className="text-[11.5px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+              Won {tournament.name} · {tournament.size}-seed bracket
+            </p>
+          </div>
+          {champion.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={champion.avatar_url} alt="" className="w-14 h-14 rounded-full object-cover ring-2 ring-amber-300" />
+          ) : (
+            <div className="w-14 h-14 rounded-full bg-warm-bg flex items-center justify-center text-xl font-bold text-foreground/55 ring-2 ring-amber-300">
+              {(champion.full_name || champion.email || '?').charAt(0).toUpperCase()}
+            </div>
+          )}
+        </div>
+      )}
       <header className="mb-4 flex items-baseline justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{tournament.name}</h2>
