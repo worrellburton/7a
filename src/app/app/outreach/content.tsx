@@ -1756,8 +1756,8 @@ function ThirtyDayTouchesChart({ contacts }: { contacts: Contact[] }) {
   return (
     <div className="col-span-12 md:col-span-8 rounded-xl border border-black/10 bg-white px-4 py-4">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">Last 30 days · daily touches</p>
-        <span className="text-[10.5px] text-foreground/45 tabular-nums">{total} {total === 1 ? 'touch' : 'touches'}</span>
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">Last 30 days · daily logs</p>
+        <span className="text-[10.5px] text-foreground/45 tabular-nums">{total} {total === 1 ? 'log' : 'logs'}</span>
       </div>
       <div className="mt-2 relative">
         <svg
@@ -1765,7 +1765,7 @@ function ThirtyDayTouchesChart({ contacts }: { contacts: Contact[] }) {
           viewBox={`0 0 ${W} ${H}`}
           className="w-full h-[220px]"
           role="img"
-          aria-label={`Daily touches over the last 30 days. Total ${total}.`}
+          aria-label={`Daily logs over the last 30 days. Total ${total}.`}
           onMouseMove={onMove}
           onMouseLeave={onLeave}
         >
@@ -1836,7 +1836,7 @@ function ThirtyDayTouchesChart({ contacts }: { contacts: Contact[] }) {
               className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-md bg-foreground text-white text-[10.5px] px-2 py-1.5 shadow-lg whitespace-nowrap"
               style={{ left: `${px}px`, top: `${(yFor(d.count) / H) * 220 - 4}px` }}
             >
-              <p className="font-semibold tabular-nums">{d.count} {d.count === 1 ? 'touch' : 'touches'}</p>
+              <p className="font-semibold tabular-nums">{d.count} {d.count === 1 ? 'log' : 'logs'}</p>
               <p className="text-white/65 text-[9.5px]">{d.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
             </div>
           );
@@ -2028,7 +2028,7 @@ function TopPerformersLeaderboard({ contacts }: { contacts: Contact[] }) {
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-[12px] font-semibold text-foreground truncate">{p.name}</span>
                     <span className="text-[11px] text-foreground/55 tabular-nums shrink-0">
-                      {p.count} {p.count === 1 ? 'touch' : 'touches'}
+                      {p.count} {p.count === 1 ? 'log' : 'logs'}
                     </span>
                   </div>
                   <div className="mt-1 h-2 rounded-full bg-foreground/5 overflow-hidden">

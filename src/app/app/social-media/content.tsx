@@ -1622,8 +1622,6 @@ function CreativeDraftsPanel() {
 // next step in the creation order (Build → Draft → Ready to go →
 // Post Now).
 function ReadyToGoPanel() {
-  const router = useRouter();
-  const pathname = usePathname();
   const [drafts, setDrafts] = useState<SavedDraft[]>([]);
 
   useEffect(() => {
@@ -1634,7 +1632,6 @@ function ReadyToGoPanel() {
   }, []);
 
   const ready = drafts.filter((d) => d.ready);
-  const goPublish = () => router.push(`${pathname}?tab=post`);
 
   return (
     <section className="rounded-2xl border border-black/10 bg-white/65 px-4 py-4 lg:px-6 lg:py-5">
@@ -1644,19 +1641,9 @@ function ReadyToGoPanel() {
             Ready to go · {ready.length}
           </h2>
           <p className="text-[11px] text-foreground/45 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-            Drafts your team has signed off on. Jump to Post Now to publish or schedule.
+            Drafts your team has signed off on.
           </p>
         </div>
-        {ready.length > 0 && (
-          <button
-            type="button"
-            onClick={goPublish}
-            className="px-3 py-1.5 rounded-md bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Open publish flow →
-          </button>
-        )}
       </header>
 
       {ready.length === 0 ? (
@@ -1698,23 +1685,13 @@ function ReadyToGoPanel() {
                   </div>
                 )}
               </div>
-              <div className="shrink-0 flex flex-col gap-1">
-                <button
-                  type="button"
-                  onClick={goPublish}
-                  className="px-2.5 py-1 rounded-md bg-primary text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-primary/90"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  Publish →
-                </button>
-                <Link
-                  href={`/app/social-media/drafts/${d.id}`}
-                  className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60 text-center"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  Open →
-                </Link>
-              </div>
+              <Link
+                href={`/app/social-media/drafts/${d.id}`}
+                className="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Open →
+              </Link>
             </li>
           ))}
         </ul>
