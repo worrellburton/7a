@@ -7,10 +7,11 @@
 //   1. Confirm / edit the caption.
 //   2. Pick which networks the post is going to.
 //   3. Fill an upload slot for every deliverable that those
-//      networks need (one per spec / aspect ratio). The first
-//      staged media URL is offered as a starter, so a single
-//      square already prefills the 1:1 slots; the rest land
-//      as "Use a copy of …" buttons.
+//      networks need (one per spec / aspect ratio). Hovering a
+//      slot reveals a "Pick from library" overlay; the
+//      first staged media URL is also one click away via
+//      "Use staged media." A media-URL textbox is the final
+//      fallback for assets that live outside the library.
 //   4. Hit "Save and ready to go" — that commits a SavedDraft
 //      with ready: true + the captured per-deliverable URLs and
 //      routes back to Creative > Ready to go.
@@ -18,6 +19,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from '../platform-specs';
 import { PlatformIcon, type PlatformId } from '../PlatformIcon';
 import { readSavedDrafts, writeSavedDrafts, type SavedDraft } from '../saved-drafts';
@@ -105,6 +107,14 @@ function aspectStyle(ratio: string): React.CSSProperties {
   return { aspectRatio: `${m[1]} / ${m[2]}` };
 }
 
+interface LibraryAsset {
+  id: string;
+  url: string;
+  thumbUrl: string;
+  kind: 'image' | 'video';
+  filename: string | null;
+}
+
 export default function CreatePostContent() {
   const router = useRouter();
   const [stagedMedia, setStagedMedia] = useState<string[]>([]);
@@ -114,10 +124,43 @@ export default function CreatePostContent() {
   const [urlByKey, setUrlByKey] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Build library — fetched once on mount; surfaced via a
+  // hover-overlay "Pick from library" button on each deliverable
+  // slot. The library is the same site_images / site_videos pool
+  // the Build (Library) tab renders.
+  const [libraryAssets, setLibraryAssets] = useState<LibraryAsset[]>([]);
+  const [pickerForKey, setPickerForKey] = useState<string | null>(null);
 
   useEffect(() => {
     const m = readStagedMedia();
     setStagedMedia(m);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [imagesRes, videosRes] = await Promise.all([
+        supabase.from('site_images')
+          .select('id, public_url, filename')
+          .order('created_at', { ascending: false })
+          .limit(200),
+        supabase.from('site_videos')
+          .select('id, video_url, thumbnail_url, filename')
+          .order('created_at', { ascending: false })
+          .limit(80),
+      ]);
+      if (cancelled) return;
+      const imageRows = (imagesRes.data ?? []) as Array<{ id: string; public_url: string; filename: string | null }>;
+      const videoRows = (videosRes.data ?? []) as Array<{ id: string; video_url: string | null; thumbnail_url: string | null; filename: string | null }>;
+      const merged: LibraryAsset[] = [
+        ...imageRows.map<LibraryAsset>((r) => ({ id: `img:${r.id}`, url: r.public_url, thumbUrl: r.public_url, kind: 'image', filename: r.filename })),
+        ...videoRows
+          .filter((r) => Boolean(r.video_url))
+          .map<LibraryAsset>((r) => ({ id: `vid:${r.id}`, url: r.video_url as string, thumbUrl: r.thumbnail_url || (r.video_url as string), kind: 'video', filename: r.filename })),
+      ];
+      setLibraryAssets(merged);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const rows = useMemo(
@@ -300,9 +343,11 @@ export default function CreatePostContent() {
                   </div>
 
                   {/* Preview at the actual aspect ratio so the marketer
-                      eyeballs the crop they're filling */}
+                      eyeballs the crop they're filling. Hover reveals
+                      a "Pick from library" overlay so the picker can
+                      be reached without leaving the row. */}
                   <div
-                    className={`w-full rounded-md overflow-hidden mb-2 ${url ? '' : 'border-2 border-dashed border-black/15 bg-white'}`}
+                    className={`group relative w-full rounded-md overflow-hidden mb-2 ${url ? '' : 'border-2 border-dashed border-black/15 bg-white'}`}
                     style={aspectStyle(row.ratio)}
                   >
                     {url ? (
@@ -314,6 +359,14 @@ export default function CreatePostContent() {
                         {row.size && <span className="ml-1 text-foreground/30">· {row.size}</span>}
                       </div>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => setPickerForKey(row.key)}
+                      className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-[11px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Pick from library
+                    </button>
                   </div>
 
                   <input
@@ -359,6 +412,67 @@ export default function CreatePostContent() {
           {saving ? 'Saving…' : 'Save and ready to go'}
         </button>
       </div>
+
+      {/* Library picker — triggered from any slot's "Pick from
+          library" hover overlay. Click an asset to assign its URL
+          to that slot. */}
+      {pickerForKey !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPickerForKey(null)}
+        >
+          <div
+            className="w-full max-w-3xl max-h-[80vh] rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="px-5 py-3 border-b border-black/5 flex items-baseline justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Pick media from library</h3>
+                <p className="text-[11.5px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                  {libraryAssets.length} asset{libraryAssets.length === 1 ? '' : 's'} from Build.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPickerForKey(null)}
+                className="text-[11px] text-foreground/55 hover:text-foreground"
+              >
+                ✕
+              </button>
+            </header>
+            <div className="flex-1 overflow-y-auto p-4">
+              {libraryAssets.length === 0 ? (
+                <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+                  Library is empty. Upload media via Build first.
+                </p>
+              ) : (
+                <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+                  {libraryAssets.map((a) => (
+                    <li key={a.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUrlByKey((prev) => ({ ...prev, [pickerForKey]: a.url }));
+                          setPickerForKey(null);
+                        }}
+                        className="relative w-full aspect-square rounded-md overflow-hidden border border-black/10 hover:border-primary hover:ring-2 hover:ring-primary/30 transition-all"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={a.thumbUrl} alt={a.filename ?? ''} className="w-full h-full object-cover" />
+                        {a.kind === 'video' && (
+                          <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-rose-500 text-white">VID</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
