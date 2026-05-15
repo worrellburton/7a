@@ -640,7 +640,7 @@ export default function ContactsContent() {
       if (tierFilter === 'unrated') { if (r.rating != null) return false; }
       else if (tierFilter !== 'all' && r.rating !== tierFilter) return false;
       if (!q) return true;
-      const hay = [r.name, r.company, r.company_website, r.role, r.phone, r.phone_cell, r.phone_office, r.email, r.location, r.formatted_address, r.notes]
+      const hay = [r.name, r.company, r.company_website, r.role, r.phone, r.phone_cell, r.phone_office, r.email, r.location, r.formatted_address, r.notes, r.specialty, ...(r.type ?? [])]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
@@ -979,7 +979,7 @@ export default function ContactsContent() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, phone, email, notes…"
+            placeholder="Search name, company, type, specialty, notes…"
             className="w-full pl-9 pr-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-[13px] sm:text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/35">
