@@ -2568,53 +2568,66 @@ function ContactsMapView({
               Loading map…
             </div>
           )}
-          {/* Side panel for the currently selected pin. */}
+          {/* Selected-pin card. Centered overlay (used to live in the
+              top-right corner where it collided with map controls and
+              clipped pins near the edge of the viewport). The wrapper
+              keeps pointer events on the card itself; clicking the
+              backdrop dismisses the selection so the map stays fully
+              interactive everywhere outside the card. */}
           {selected && (
-            <div className="absolute top-3 right-3 w-72 rounded-xl border border-black/10 bg-white shadow-xl overflow-hidden">
-              <div className="flex items-start justify-between gap-2 px-3 py-2 border-b border-black/5">
-                <div className="min-w-0">
-                  <p className="text-[13px] font-semibold text-foreground truncate">{selected.name}</p>
-                  {selected.company && (
-                    <p className="text-[11px] text-foreground/65 truncate">{selected.company}</p>
-                  )}
+            <div
+              className="absolute inset-0 z-10 flex items-center justify-center px-4"
+              onClick={() => setSelected(null)}
+            >
+              <div
+                className="w-80 max-w-[calc(100%-1.5rem)] rounded-xl border border-black/10 bg-white shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-2 px-3 py-2 border-b border-black/5">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-foreground truncate">{selected.name}</p>
+                    {selected.company && (
+                      <p className="text-[11px] text-foreground/65 truncate">{selected.company}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(null)}
+                    className="inline-flex items-center justify-center w-6 h-6 rounded text-foreground/40 hover:text-foreground hover:bg-warm-bg/60"
+                    aria-label="Close"
+                  >
+                    <CloseIcon />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelected(null)}
-                  className="inline-flex items-center justify-center w-6 h-6 rounded text-foreground/40 hover:text-foreground hover:bg-warm-bg/60"
-                  aria-label="Close"
-                >
-                  <CloseIcon />
-                </button>
-              </div>
-              <div className="px-3 py-2 space-y-1.5 text-[11.5px] text-foreground/75">
-                {selected.role && <p><span className="text-foreground/40">Role:</span> {selected.role}</p>}
-                {(selected.formatted_address || selected.location) && (
-                  <p><span className="text-foreground/40">Location:</span> {selected.formatted_address || selected.location}</p>
-                )}
-                {selected.phone && <p><span className="text-foreground/40">Phone:</span> {selected.phone}</p>}
-                {selected.email && <p className="truncate"><span className="text-foreground/40">Email:</span> {selected.email}</p>}
-                {selected.tz && (() => {
-                  const lt = localTimeInTz(selected.tz);
-                  return lt ? <p><span className="text-foreground/40">Local time:</span> {lt.label}{lt.abbr ? ` · ${lt.abbr}` : ''}</p> : null;
-                })()}
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-2 border-t border-black/5">
-                <button
-                  type="button"
-                  onClick={() => onLogContact(selected)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
-                >
-                  <PhoneIcon />
-                  Contact
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onOpenDetails(selected)}
-                  className="inline-flex items-center px-2.5 py-1 rounded-md bg-white text-foreground/70 text-[10px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
-                >
-                  Open details
-                </button>
+                <div className="px-3 py-2 space-y-1.5 text-[11.5px] text-foreground/75">
+                  {selected.role && <p><span className="text-foreground/40">Role:</span> {selected.role}</p>}
+                  {(selected.formatted_address || selected.location) && (
+                    <p><span className="text-foreground/40">Location:</span> {selected.formatted_address || selected.location}</p>
+                  )}
+                  {selected.phone && <p><span className="text-foreground/40">Phone:</span> {selected.phone}</p>}
+                  {selected.email && <p className="truncate"><span className="text-foreground/40">Email:</span> {selected.email}</p>}
+                  {selected.tz && (() => {
+                    const lt = localTimeInTz(selected.tz);
+                    return lt ? <p><span className="text-foreground/40">Local time:</span> {lt.label}{lt.abbr ? ` · ${lt.abbr}` : ''}</p> : null;
+                  })()}
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-2 border-t border-black/5">
+                  <button
+                    type="button"
+                    onClick={() => onLogContact(selected)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
+                  >
+                    <PhoneIcon />
+                    Contact
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetails(selected)}
+                    className="inline-flex items-center px-2.5 py-1 rounded-md bg-white text-foreground/70 text-[10px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
+                  >
+                    Contact history
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -2842,7 +2855,7 @@ function ContactsGrid({
           ) : (
             rows.map((c) => (
               <Fragment key={c.id}>
-              <tr className={`group align-top transition-colors ${selectedIds.has(c.id) ? 'bg-primary/[0.06] hover:bg-primary/10' : isNewToUser(c) ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}>
+              <tr className={`group align-middle transition-colors ${selectedIds.has(c.id) ? 'bg-primary/[0.06] hover:bg-primary/10' : isNewToUser(c) ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}>
                 <td className="px-2 py-2.5 text-center align-middle">
                   <input
                     type="checkbox"
@@ -4873,38 +4886,33 @@ function LastContactSummaryCell({ contact }: { contact: Contact }) {
     'text-rose-700';
 
   return (
-    <div className="flex items-start gap-2.5 min-w-0">
+    <div className="flex items-center gap-2.5 min-w-0">
       {contact.last_contact_by_avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={contact.last_contact_by_avatar_url}
           alt=""
-          className="w-7 h-7 rounded-full object-cover border border-black/10 shrink-0 mt-0.5"
+          className="w-7 h-7 rounded-full object-cover border border-black/10 shrink-0"
         />
       ) : (
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20 shrink-0 mt-0.5">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20 shrink-0">
           {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
         </span>
       )}
       <div className="min-w-0 flex-1">
-        {/* Top row: just the contacter's name. Freshness pill moved
-            out — the colored time on the bottom row already conveys
-            "how long ago" without the duplicate. */}
         <p className="text-[11.5px] font-semibold text-foreground truncate leading-tight">
           {contact.last_contact_by_name || '—'}
         </p>
-        {/* Bottom row: method pill (Phone / In Person / Left Message)
-            followed by the colored relative time + absolute timestamp.
-            The method pill lives here now so the top row reads as a
-            clean "who" and the bottom reads as "how + when". */}
-        <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[10.5px] leading-tight" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
+        {/* Absolute timestamp stays in the title tooltip so the row
+            stays single-line — the colored relative time conveys
+            freshness, the pill conveys method. */}
+        <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] leading-tight" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
           {contact.last_contact_method && (
             <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
               {contact.last_contact_method}
             </span>
           )}
           <span className={`font-semibold ${textTone}`}>{fmtAgo(contact.last_contact_at)}</span>
-          <span className="text-foreground/45">· {fmtAbsolute(contact.last_contact_at)}</span>
         </div>
       </div>
     </div>
