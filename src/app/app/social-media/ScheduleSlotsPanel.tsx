@@ -563,24 +563,41 @@ function ReadyDraftsRail({ drafts }: { drafts: ReadyDraft[] }) {
           Mark drafts as Ready to go in Creative to drag them here.
         </p>
       ) : (
-        <ul className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-          {drafts.map((d) => (
-            <li
-              key={d.id}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData('application/x-ready-draft', JSON.stringify(d));
-                e.dataTransfer.effectAllowed = 'copy';
-              }}
-              className="rounded-lg border border-emerald-200 bg-emerald-50/40 px-2.5 py-2 text-[11.5px] cursor-grab active:cursor-grabbing"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <p className="text-foreground/80 leading-snug line-clamp-3">{d.caption || '(no caption)'}</p>
-              {d.mediaUrls.length > 0 && (
-                <p className="mt-1 text-[10px] text-foreground/45">{d.mediaUrls.length} media</p>
-              )}
-            </li>
-          ))}
+        // Thumbnail grid — the lead image is the post's primary
+        // identifier when dragging onto a schedule cell. Caption
+        // shows on hover so the rail stays scannable at a glance.
+        <ul className="grid grid-cols-3 lg:grid-cols-2 gap-2 max-h-[460px] overflow-y-auto pr-1">
+          {drafts.map((d) => {
+            const thumb = d.mediaUrls[0];
+            return (
+              <li
+                key={d.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('application/x-ready-draft', JSON.stringify(d));
+                  e.dataTransfer.effectAllowed = 'copy';
+                }}
+                className="group relative rounded-lg overflow-hidden border border-emerald-200 bg-emerald-50/40 cursor-grab active:cursor-grabbing aspect-square"
+                title={d.caption || '(no caption)'}
+              >
+                {thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={thumb} alt={d.caption} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-warm-bg/40 text-[10px] text-foreground/45 px-1.5 text-center" style={{ fontFamily: 'var(--font-body)' }}>
+                    No media
+                  </div>
+                )}
+                <span className="absolute top-1 left-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" aria-hidden />
+                {/* Caption overlay revealed on hover. */}
+                <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                  <p className="text-[10px] text-white leading-tight line-clamp-2" style={{ fontFamily: 'var(--font-body)' }}>
+                    {d.caption || '(no caption)'}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </aside>

@@ -243,6 +243,70 @@ export default function DraftDetailContent({ id }: { id: string }) {
           Deliverables required for this post
         </p>
 
+        {/* Crop preview — one tile per (platform, spec) drawn at
+            the actual aspect ratio. If the Create page captured a
+            media URL for that slot via mediaByDeliverable, the
+            tile renders that asset; otherwise it shows a dashed
+            placeholder with the spec size. This is the closest the
+            page can get to "previewing how the post will deploy"
+            without actually invoking the platform APIs. */}
+        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-2">Per-slot preview</p>
+        {(() => {
+          const mediaMap = new Map((draft.mediaByDeliverable ?? []).map((m) => [m.key, m.url] as const));
+          const tiles: { key: string; platform: PlatformId; label: string; ratio: string; size: string | undefined; kind: 'image' | 'video'; url: string | undefined }[] = [];
+          for (const pid of platforms) {
+            const spec = PLATFORM_SPECS[pid];
+            if (!spec) continue;
+            for (const img of spec.images) {
+              const key = `${pid}|${img.label}`;
+              tiles.push({ key, platform: pid, label: img.label, ratio: img.ratio, size: img.size, kind: 'image', url: mediaMap.get(key) ?? draft.mediaUrls[0] });
+            }
+            for (const vid of spec.videos) {
+              const key = `${pid}|${vid.label}`;
+              tiles.push({ key, platform: pid, label: vid.label, ratio: vid.ratio, size: vid.size, kind: 'video', url: mediaMap.get(key) });
+            }
+          }
+          if (tiles.length === 0) return null;
+          return (
+            <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
+              {tiles.map((t) => {
+                const ratioStyle = (() => {
+                  const m = t.ratio.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+                  if (!m) return { aspectRatio: '1 / 1' as const };
+                  return { aspectRatio: `${m[1]} / ${m[2]}` };
+                })();
+                return (
+                  <li key={t.key} className="rounded-xl border border-black/10 bg-warm-bg/20 p-2.5">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span className="inline-flex items-center justify-center w-3.5 h-3.5 text-foreground/65">
+                        <PlatformIcon platform={t.platform} size={12} />
+                      </span>
+                      <span className="text-[11px] font-semibold text-foreground truncate">{PLATFORM_LABELS[t.platform] ?? t.platform}</span>
+                      <span className={`ml-auto text-[8.5px] font-semibold uppercase tracking-wider ${t.kind === 'video' ? 'text-rose-600' : 'text-emerald-700'}`}>{t.kind}</span>
+                    </div>
+                    <div
+                      className={`w-full rounded-md overflow-hidden ${t.url ? '' : 'border-2 border-dashed border-black/15 bg-white'}`}
+                      style={ratioStyle}
+                    >
+                      {t.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={t.url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-[10px] text-foreground/35">
+                          {t.ratio === 'free' ? 'Any ratio' : t.ratio}
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[10px] text-foreground/55 leading-snug truncate" style={{ fontFamily: 'var(--font-body)' }}>
+                      {t.label}{t.size && <span className="text-foreground/35"> · {t.size}</span>}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          );
+        })()}
+
         {/* Per-platform bullet list */}
         <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-2">By platform</p>
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-4">
