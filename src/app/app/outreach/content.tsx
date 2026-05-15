@@ -907,6 +907,54 @@ export default function ContactsContent() {
     return handleSaveField(id, 'notes', notes);
   }
 
+  // Rename / delete a dropdown option across every row at once.
+  // `to: null` means delete (clear the value on every row that held
+  // it). Hits the server-side bulk endpoint, then applies the same
+  // transform locally so the grid + options list update before the
+  // realtime channel echoes back.
+  async function handleBulkRenameOption(column: 'company' | 'role' | 'specialty' | 'type', from: string, to: string | null) {
+    if (!session?.access_token) return;
+    const res = await fetch('/api/contacts/rename-value', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ column, from, to }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(`Couldn't update: ${json.error ?? res.status}`);
+      return;
+    }
+    const fromLower = from.toLowerCase();
+    setRows((prev) => prev.map((r) => {
+      const cur = (r as unknown as Record<string, unknown>)[column];
+      if (Array.isArray(cur)) {
+        if (!cur.some((v) => typeof v === 'string' && v.toLowerCase() === fromLower)) return r;
+        let next: string[];
+        if (to === null) {
+          next = (cur as string[]).filter((v) => v.toLowerCase() !== fromLower);
+        } else {
+          const seen = new Set<string>();
+          next = [];
+          for (const v of cur as string[]) {
+            const repl = v.toLowerCase() === fromLower ? to : v;
+            const k = repl.toLowerCase();
+            if (seen.has(k)) continue;
+            seen.add(k);
+            next.push(repl);
+          }
+        }
+        return { ...r, [column]: next.length === 0 ? null : next };
+      }
+      if (typeof cur === 'string' && cur.toLowerCase() === fromLower) {
+        return { ...r, [column]: to };
+      }
+      return r;
+    }));
+  }
+
   async function handleDelete(target: Contact) {
     if (!session?.access_token) return;
     if (!confirm(`Delete ${target.name}? This can't be undone.`)) return;
@@ -1098,6 +1146,7 @@ export default function ContactsContent() {
         selectedIds={selectedIds}
         onToggleSelectOne={toggleSelectOne}
         onToggleSelectMany={setSelectedFromList}
+        onBulkRenameOption={handleBulkRenameOption}
       />
       )}
       {selectedIds.size > 0 && (
@@ -2679,6 +2728,7 @@ function ContactsGrid({
   selectedIds,
   onToggleSelectOne,
   onToggleSelectMany,
+  onBulkRenameOption,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -2713,6 +2763,7 @@ function ContactsGrid({
   selectedIds: Set<string>;
   onToggleSelectOne: (id: string) => void;
   onToggleSelectMany: (ids: string[], on: boolean) => void;
+  onBulkRenameOption: (column: 'company' | 'role' | 'specialty' | 'type', from: string, to: string | null) => Promise<void>;
 }) {
   // Tracks the row whose notes-editor strip is currently expanded.
   // Click the notes cell to toggle. Persists across rerenders via a
@@ -2901,7 +2952,7 @@ function ContactsGrid({
                   }
                   return (
                     <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} companyOptions={companyOptions} roleOptions={roleOptions} typeOptions={typeOptions} specialtyOptions={specialtyOptions} />
+                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} companyOptions={companyOptions} roleOptions={roleOptions} typeOptions={typeOptions} specialtyOptions={specialtyOptions} onBulkRenameOption={onBulkRenameOption} />
                     </td>
                   );
                 })}
@@ -3433,6 +3484,7 @@ function ContactCell({
   roleOptions = [],
   typeOptions = [],
   specialtyOptions = [],
+  onBulkRenameOption,
 }: {
   column: ColumnDef;
   contact: Contact;
@@ -3443,7 +3495,14 @@ function ContactCell({
   roleOptions?: string[];
   typeOptions?: string[];
   specialtyOptions?: string[];
+  onBulkRenameOption?: (column: 'company' | 'role' | 'specialty' | 'type', from: string, to: string | null) => Promise<void>;
 }) {
+  const renameFor = (col: 'company' | 'role' | 'specialty' | 'type') => onBulkRenameOption
+    ? (from: string, to: string) => onBulkRenameOption(col, from, to)
+    : undefined;
+  const deleteFor = (col: 'company' | 'role' | 'specialty' | 'type') => onBulkRenameOption
+    ? (v: string) => onBulkRenameOption(col, v, null)
+    : undefined;
   const save = (field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location') => (next: string) =>
     onSaveField(contact.id, field, next);
   switch (column.key) {
@@ -3474,6 +3533,8 @@ function ContactCell({
           value={contact.company}
           options={companyOptions}
           onSave={(next) => onSaveField(contact.id, 'company', next ?? '')}
+          onRenameOption={renameFor('company')}
+          onDeleteOption={deleteFor('company')}
           placeholder="Add company…"
         />
       );
@@ -3505,6 +3566,8 @@ function ContactCell({
           value={contact.specialty}
           options={specialtyOptions}
           onSave={(next) => onSavePatch(contact.id, { specialty: next ?? null })}
+          onRenameOption={renameFor('specialty')}
+          onDeleteOption={deleteFor('specialty')}
           placeholder="Set specialty…"
         />
       );
@@ -3514,6 +3577,8 @@ function ContactCell({
           value={contact.role}
           options={roleOptions}
           onSave={(next) => onSaveField(contact.id, 'role', next ?? '')}
+          onRenameOption={renameFor('role')}
+          onDeleteOption={deleteFor('role')}
           placeholder="Add role…"
         />
       );
