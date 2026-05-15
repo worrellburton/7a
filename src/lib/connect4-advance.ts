@@ -19,6 +19,8 @@ interface BracketRow {
 
 interface MatchRow {
   id: string;
+  challenger_id: string;
+  opponent_id: string;
   winner_id: string | null;
   status: string;
 }
@@ -47,12 +49,29 @@ export async function advanceBracketIfNeeded(
   // Read the match's winner.
   const { data: mRow } = await admin
     .from('connect4_matches')
-    .select('id, winner_id, status')
+    .select('id, challenger_id, opponent_id, winner_id, status')
     .eq('id', matchId)
     .maybeSingle();
   if (!mRow) return;
   const m = mRow as MatchRow;
-  if (!m.winner_id) return; // Draw or still pending; no advancement.
+  // If the match is still in progress, bail — we'll be re-invoked
+  // when it resolves.
+  if (m.status !== 'complete' && m.status !== 'forfeit') return;
+  // Draws need a tiebreaker so the bracket can progress to a
+  // champion. Pick the challenger deterministically — first to
+  // claim the slot wins on a tie. We stamp the winner_id here so
+  // the bracket-advance logic below works uniformly with regular
+  // wins; downstream (Elo apply) already fired on the original
+  // match resolution, so the rating side stays unaffected.
+  let effectiveWinnerId: string | null = m.winner_id;
+  if (m.status === 'complete' && !effectiveWinnerId) {
+    effectiveWinnerId = m.challenger_id;
+    await admin
+      .from('connect4_matches')
+      .update({ winner_id: effectiveWinnerId, status: 'complete' })
+      .eq('id', m.id);
+  }
+  if (!effectiveWinnerId) return;
 
   const next = nextBracketSlot(br.round, br.slot, totalRounds(t.size));
   if (!next) {
@@ -61,9 +80,9 @@ export async function advanceBracketIfNeeded(
     // leaderboard's "rings" metric.
     await admin
       .from('connect4_tournaments')
-      .update({ status: 'complete', winner_id: m.winner_id, completed_at: new Date().toISOString() })
+      .update({ status: 'complete', winner_id: effectiveWinnerId, completed_at: new Date().toISOString() })
       .eq('id', br.tournament_id);
-    await incrementTournamentWin(admin, m.winner_id);
+    await incrementTournamentWin(admin, effectiveWinnerId);
     return;
   }
 
@@ -105,8 +124,8 @@ export async function advanceBracketIfNeeded(
     if (existing.match_id) return; // Already created.
     // Bracket row exists but no game row yet — create the game
     // and attach.
-    const challengerId = br.slot < siblingSlot ? m.winner_id : sibMatch.winner_id;
-    const opponentId   = br.slot < siblingSlot ? sibMatch.winner_id : m.winner_id;
+    const challengerId = br.slot < siblingSlot ? effectiveWinnerId : sibMatch.winner_id;
+    const opponentId   = br.slot < siblingSlot ? sibMatch.winner_id : effectiveWinnerId;
     const { data: matchRow } = await admin
       .from('connect4_matches')
       .insert({ challenger_id: challengerId, opponent_id: opponentId, status: 'open', moves: [] })
@@ -122,8 +141,8 @@ export async function advanceBracketIfNeeded(
   }
 
   // No existing row; insert both the bracket row and the match.
-  const challengerId = br.slot < siblingSlot ? m.winner_id : sibMatch.winner_id;
-  const opponentId   = br.slot < siblingSlot ? sibMatch.winner_id : m.winner_id;
+  const challengerId = br.slot < siblingSlot ? effectiveWinnerId : sibMatch.winner_id;
+  const opponentId   = br.slot < siblingSlot ? sibMatch.winner_id : effectiveWinnerId;
   const { data: matchRow } = await admin
     .from('connect4_matches')
     .insert({ challenger_id: challengerId, opponent_id: opponentId, status: 'open', moves: [] })

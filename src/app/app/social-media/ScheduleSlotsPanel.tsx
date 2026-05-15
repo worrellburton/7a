@@ -319,15 +319,22 @@ function SlotsList({
 }) {
   const now = new Date();
   return (
-    <ul className="space-y-3">
-      {slots.map((slot) => {
+    <ul className="space-y-4">
+      {slots.map((slot, idx) => {
         const next = occurrencesFor(slot, now, 6);
+        // Cycle through 4 accent colors so adjacent slots are
+        // visually distinct without needing an explicit color
+        // picker. Each slot reads as its own "section" thanks to a
+        // colored top stripe + heavier header + clearer body row.
+        const accent = SECTION_ACCENTS[idx % SECTION_ACCENTS.length];
         return (
-          <li key={slot.id} className="rounded-xl border border-black/10 bg-white">
-            <div className="px-4 py-3 flex items-baseline justify-between gap-3">
-              <div>
-                <p className="text-[13px] font-semibold text-foreground">{slot.name}</p>
-                <p className="text-[11px] text-foreground/55 mt-0.5">{describeRule(slot)}</p>
+          <li key={slot.id} className="rounded-xl border border-black/10 bg-white overflow-hidden shadow-sm">
+            <div className={`h-1.5 ${accent.bar}`} aria-hidden />
+            <div className={`px-4 py-3 flex items-start justify-between gap-3 ${accent.headerBg} border-b border-black/5`}>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Schedule</p>
+                <h3 className="text-[15px] font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{slot.name}</h3>
+                <p className="text-[11.5px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{describeRule(slot)}</p>
               </div>
               <button
                 type="button"
@@ -337,15 +344,20 @@ function SlotsList({
                 Delete
               </button>
             </div>
-            <div className="border-t border-black/5 px-4 py-2 flex gap-2 overflow-x-auto">
-              {next.map((occ) => (
-                <OccurrenceCell
-                  key={occ.toISOString()}
-                  at={occ}
-                  scheduledPosts={scheduledPosts}
-                  onDropDraft={onDropDraft}
-                />
-              ))}
+            <div className="px-4 py-3">
+              <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-2">
+                Next {next.length} occurrence{next.length === 1 ? '' : 's'} · drop a draft to schedule
+              </p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {next.map((occ) => (
+                  <OccurrenceCell
+                    key={occ.toISOString()}
+                    at={occ}
+                    scheduledPosts={scheduledPosts}
+                    onDropDraft={onDropDraft}
+                  />
+                ))}
+              </div>
             </div>
           </li>
         );
@@ -353,6 +365,16 @@ function SlotsList({
     </ul>
   );
 }
+
+// 4-color cycle so adjacent schedule sections read as distinct
+// without needing a per-slot color picker. Each entry pairs a
+// 1.5px top accent bar with a faint matching header background.
+const SECTION_ACCENTS: { bar: string; headerBg: string }[] = [
+  { bar: 'bg-primary',       headerBg: 'bg-primary/[0.04]' },
+  { bar: 'bg-emerald-500',   headerBg: 'bg-emerald-50/40' },
+  { bar: 'bg-violet-500',    headerBg: 'bg-violet-50/40' },
+  { bar: 'bg-amber-500',     headerBg: 'bg-amber-50/40' },
+];
 
 /* ── Calendar view ───────────────────────────────────────────── */
 

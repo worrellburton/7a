@@ -92,6 +92,10 @@ interface Props {
   users: OrbitUser[];
   horses?: OrbitHorse[];
   pathLabelFor: (path: string | null) => string | null;
+  /** When set, the matching avatar gets a copper pulse ring —
+   *  used by the home "Your move" Connect-4 nudge to draw the
+   *  user's eye toward their opponent. */
+  highlightUserId?: string | null;
 }
 
 function isOnlineNow(lastSeen: string | null): boolean {
@@ -277,7 +281,7 @@ function OrbitTooltip({
   );
 }
 
-export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Props) {
+export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, highlightUserId = null }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   // Tooltips were previously pinned under the 7A medallion to dodge
@@ -570,7 +574,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor }: Pr
                     setHovered({ kind: 'user', user: u, viewing, navTarget, online });
                   }}
                   onBlur={() => clearHover((h) => h.kind === 'user' && h.user.id === u.id)}
-                  className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} ${navTarget ? 'cursor-pointer' : ''}`}
+                  className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} ${navTarget ? 'cursor-pointer' : ''} ${highlightUserId === u.id ? 'orbit-pin-your-move' : ''}`}
                   style={pinStyle}
                   title={navTarget ? `Go to ${viewing}` : undefined}
                   aria-label={u.full_name || 'Teammate'}
