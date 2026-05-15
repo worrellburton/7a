@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthProvider';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from '../platform-specs';
 import { PlatformIcon, type PlatformId } from '../PlatformIcon';
 import { readSavedDrafts, writeSavedDrafts, type SavedDraft } from '../saved-drafts';
@@ -117,8 +118,10 @@ interface LibraryAsset {
 
 export default function CreatePostContent() {
   const router = useRouter();
+  const { session } = useAuth();
   const [stagedMedia, setStagedMedia] = useState<string[]>([]);
   const [caption, setCaption] = useState('');
+  const [generatingCaption, setGeneratingCaption] = useState(false);
   const [platforms, setPlatforms] = useState<Set<PlatformId>>(() => new Set(['facebook', 'instagram', 'linkedin']));
   // Per-deliverable media URL. Keyed by "${platform}|${label}".
   const [urlByKey, setUrlByKey] = useState<Record<string, string>>({});
@@ -185,6 +188,39 @@ export default function CreatePostContent() {
     if (stagedMedia.length === 0) return;
     const first = stagedMedia[0];
     setUrlByKey(Object.fromEntries(rows.map((r) => [r.key, first])));
+  };
+
+  const generateCaption = async () => {
+    if (!session?.access_token || generatingCaption) return;
+    setGeneratingCaption(true);
+    setError(null);
+    try {
+      const r = await fetch('/api/claude/social-caption/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          platforms: Array.from(platforms),
+          mediaUrls: stagedMedia,
+          // Reuse whatever's in the textbox as a hint — lets the
+          // user iterate on a generated caption by tweaking the
+          // hint and clicking again.
+          hint: caption.trim(),
+        }),
+      });
+      const json = (await r.json().catch(() => ({}))) as { caption?: string; error?: string };
+      if (!r.ok || !json.caption) {
+        setError(json.error ?? `HTTP ${r.status}`);
+        return;
+      }
+      setCaption(json.caption);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGeneratingCaption(false);
+    }
   };
 
   const onSaveReady = () => {
@@ -260,17 +296,29 @@ export default function CreatePostContent() {
 
       {/* Caption */}
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
-        <label className="block">
+        <div className="flex items-center justify-between mb-1.5">
           <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Caption</span>
-          <textarea
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            rows={5}
-            placeholder="Write the post copy…"
-            className="mt-1.5 w-full px-3 py-2 rounded-md border border-black/10 text-[13.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30"
+          <button
+            type="button"
+            onClick={generateCaption}
+            disabled={generatingCaption || !session?.access_token}
+            title="Draft a caption with Claude"
+            aria-label="Draft caption with Claude"
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-primary/30 bg-primary/5 text-primary text-[11px] font-semibold hover:bg-primary/10 disabled:opacity-50"
             style={{ fontFamily: 'var(--font-body)' }}
-          />
-        </label>
+          >
+            <ClaudeMark className="w-3.5 h-3.5" />
+            {generatingCaption ? 'Drafting…' : 'Write with Claude'}
+          </button>
+        </div>
+        <textarea
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          rows={5}
+          placeholder="Write the post copy…"
+          className="w-full px-3 py-2 rounded-md border border-black/10 text-[13.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30"
+          style={{ fontFamily: 'var(--font-body)' }}
+        />
       </section>
 
       {/* Platform picker */}
@@ -474,5 +522,17 @@ export default function CreatePostContent() {
         </div>
       )}
     </div>
+  );
+}
+
+// Stylised Anthropic / Claude mark — eight rays radiating from a
+// center dot. Used on the "Write with Claude" button so the
+// affordance reads as "AI assist" without needing the wordmark.
+function ClaudeMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="2" />
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+    </svg>
   );
 }

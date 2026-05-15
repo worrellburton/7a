@@ -265,23 +265,17 @@ function SubNav() {
   const tabRaw = searchParams.get('tab');
   const active = readTab(tabRaw);
 
-  // Restore the last-used tab on first paint when no ?tab= is set.
-  // We replace (not push) so the back button still leaves the page.
+  // Per spec, Overview is always the default landing tab — the
+  // earlier last-used-tab restoration was producing situations
+  // where a user who'd briefly viewed Post once would never see
+  // Overview again on subsequent visits. We still write the
+  // last-used tab to localStorage for any other consumers that
+  // want it but don't read it back here.
   useEffect(() => {
     if (tabRaw !== null) {
       try { localStorage.setItem(LAST_TAB_KEY, active); } catch { /* no-op */ }
-      return;
     }
-    try {
-      const saved = localStorage.getItem(LAST_TAB_KEY);
-      if (saved && saved !== 'overview' && (saved === 'post' || saved === 'creative')) {
-        const next = new URLSearchParams(searchParams.toString());
-        next.set('tab', saved);
-        router.replace(`${pathname}?${next.toString()}`, { scroll: false });
-      }
-    } catch { /* no-op */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabRaw]);
+  }, [tabRaw, active]);
 
   const select = (id: Tab) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -417,6 +411,47 @@ function SocialTabBody(props: TabBodyProps) {
 
 function OverviewSummary({ connected }: { connected: string[] }) {
   const [snapshots, setSnapshots] = useState<Record<string, { raw: Record<string, unknown> | null; captured_at: string | null }>>({});
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncError, setResyncError] = useState<string | null>(null);
+
+  // Hoist the snapshot loader so the Resync button can re-run it
+  // after kicking off a fresh capture via the cron handler.
+  const loadSnapshots = useCallback(async () => {
+    try {
+      const res = await fetch('/api/social-media/analytics/history', {
+        credentials: 'include', cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const json = await res.json().catch(() => ({}));
+      const latest = (json.latest ?? {}) as Record<string, { raw: Record<string, unknown>; captured_at: string }>;
+      const out: Record<string, { raw: Record<string, unknown> | null; captured_at: string | null }> = {};
+      for (const [platform, row] of Object.entries(latest)) {
+        out[platform] = { raw: row.raw, captured_at: row.captured_at };
+      }
+      setSnapshots(out);
+    } catch {
+      /* leave empty — AnalyticsPanel will surface the real error */
+    }
+  }, []);
+
+  const resync = useCallback(async () => {
+    setResyncing(true);
+    setResyncError(null);
+    try {
+      const res = await fetch('/api/social-media/analytics/refresh', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      await loadSnapshots();
+    } catch (e) {
+      setResyncError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResyncing(false);
+    }
+  }, [loadSnapshots]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -463,35 +498,55 @@ function OverviewSummary({ connected }: { connected: string[] }) {
     return max;
   }, [snapshots]);
 
-  const tiles: { label: string; value: string; sub?: string }[] = [
-    {
-      label: 'Connected platforms',
-      value: connected.length.toLocaleString(),
-      sub: connected.length === 0 ? 'Connect one in the strip below' : 'Sending posts on these channels',
-    },
-    {
-      label: 'Total followers',
-      value: totalFollowers.toLocaleString(),
-      sub: 'Sum across connected platforms',
-    },
-    {
-      label: 'Snapshot freshness',
-      value: freshest
-        ? new Date(freshest).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-        : '—',
-      sub: 'Auto-refreshes daily at 6am',
-    },
-  ];
-
   return (
     <section aria-label="Overview summary" className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-      {tiles.map((t) => (
-        <div key={t.label} className="rounded-2xl border border-black/10 bg-white px-4 py-3">
-          <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">{t.label}</p>
-          <p className="text-xl font-bold text-foreground tabular-nums leading-tight mt-0.5">{t.value}</p>
-          {t.sub && <p className="text-[11px] text-foreground/45 mt-0.5">{t.sub}</p>}
+      <div className="rounded-2xl border border-black/10 bg-white px-4 py-3">
+        <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">Connected platforms</p>
+        <p className="text-xl font-bold text-foreground tabular-nums leading-tight mt-0.5">{connected.length.toLocaleString()}</p>
+        <p className="text-[11px] text-foreground/45 mt-0.5">
+          {connected.length === 0 ? 'Connect one in the strip below' : 'Sending posts on these channels'}
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-black/10 bg-white px-4 py-3">
+        <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">Total followers</p>
+        <p className="text-xl font-bold text-foreground tabular-nums leading-tight mt-0.5">{totalFollowers.toLocaleString()}</p>
+        <p className="text-[11px] text-foreground/45 mt-0.5">Sum across connected platforms</p>
+      </div>
+
+      {/* Snapshot freshness · resyncable. The cron handler captures
+          a fresh snapshot every morning at 6am, but admins can
+          force one out-of-band with Resync. Last-updated reads
+          straight off the latest captured_at across all platforms. */}
+      <div className="rounded-2xl border border-black/10 bg-white px-4 py-3">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">Snapshot freshness</p>
+          <button
+            type="button"
+            onClick={() => void resync()}
+            disabled={resyncing}
+            title="Pull a fresh snapshot from every connected platform"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-black/10 bg-warm-bg/40 text-[10px] font-semibold uppercase tracking-wider text-foreground/70 hover:bg-warm-bg/70 disabled:opacity-50"
+          >
+            <svg className={`w-3 h-3 ${resyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-3-6.7M21 4v5h-5" />
+            </svg>
+            {resyncing ? 'Resyncing…' : 'Resync'}
+          </button>
         </div>
-      ))}
+        <p className="text-xl font-bold text-foreground tabular-nums leading-tight mt-0.5">
+          {freshest
+            ? new Date(freshest).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+            : '—'}
+        </p>
+        {resyncError ? (
+          <p className="text-[11px] text-red-700 mt-0.5" role="alert">{resyncError}</p>
+        ) : (
+          <p className="text-[11px] text-foreground/45 mt-0.5">
+            Cron writes a fresh snapshot daily at 6am · pulled from DB, not live
+          </p>
+        )}
+      </div>
     </section>
   );
 }
