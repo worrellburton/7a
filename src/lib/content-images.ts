@@ -1,16 +1,22 @@
 // fal.ai image-generation helper for the content pipeline.
 //
-// Single provider, gated by FAL_KEY:
-//   * fal-ai/gpt-image-2 — OpenAI gpt-image-2 hosted on fal (requires
-//                          explicit pixel sizes like '1536x1024')
+// Two providers, both gated by FAL_KEY:
+//   * fal-ai/gpt-image-2  — OpenAI gpt-image-2 (image_size as a
+//                           { width, height } object; supports a
+//                           landscape/square/portrait aspect)
+//   * fal-ai/nano-banana-2 — Google's next-gen Gemini image model
+//                            (no image_size knob; only prompt + count)
 //
 // We submit jobs via fal's REST API directly (no SDK dependency) so
 // the route stays edge-friendly. Each call returns a list of image
 // URLs the caller can then upload to Supabase Storage.
 
 const FAL_QUEUE_BASE = 'https://queue.fal.run';
-const FAL_POLL_INTERVAL_MS = 1500;
-const FAL_POLL_TIMEOUT_MS = 90_000;
+const FAL_POLL_INTERVAL_MS = 2000;
+// 4 minutes — gpt-image-2 at `quality: 'high'` regularly stretches past
+// 90s, especially when 10 jobs queue at once and share fal's resources.
+// The route's `maxDuration` is 300s so 240s leaves a comfortable margin.
+const FAL_POLL_TIMEOUT_MS = 240_000;
 
 function loadKey(): string {
   const key = process.env.FAL_KEY;
@@ -110,4 +116,18 @@ export async function generateWithGptImage(prompt: string, alt: string, aspect: 
   const url = res.images?.[0]?.url ?? res.image?.url;
   if (!url) throw new Error('gpt-image-2 returned no url');
   return { provider: 'gpt-image-2', url, prompt, alt };
+}
+
+export async function generateWithNanoBanana2(prompt: string, alt: string): Promise<GeneratedImage> {
+  // fal hosts the next-gen Gemini image model at `fal-ai/nano-banana-2`.
+  // The endpoint inherits v1's payload shape: prompt + num_images only,
+  // no `image_size` knob (the model picks its own aspect, typically a
+  // landscape-ish frame).
+  const res = await falSubmit('fal-ai/nano-banana-2', {
+    prompt,
+    num_images: 1,
+  });
+  const url = res.images?.[0]?.url ?? res.image?.url;
+  if (!url) throw new Error('nano-banana-2 returned no url');
+  return { provider: 'nano-banana-2', url, prompt, alt };
 }
