@@ -1,7 +1,13 @@
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
+
+// `next/headers` is imported dynamically inside getServerSupabase() so
+// that callers of getAdminSupabase / getPublicSupabase / getUserFromRequest
+// don't pull next/headers into Turbopack's dependency graph. A static
+// import here taints every consumer of this file as "depends on
+// next/headers", which Next.js 16's Turbopack rejects from any module
+// that isn't a Server Component or Route Handler.
 
 // ------------------------------------------------------------
 // Server-side Supabase clients.
@@ -36,6 +42,7 @@ function requireEnv(value: string | undefined, name: string): string {
 export async function getServerSupabase() {
   const url = requireEnv(supabaseUrl, 'NEXT_PUBLIC_SUPABASE_URL');
   const key = requireEnv(supabaseAnonKey, 'NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  const { cookies } = await import('next/headers');
   const cookieStore = await cookies();
 
   return createServerClient(url, key, {
