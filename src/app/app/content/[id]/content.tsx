@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import DbBlogRenderer from '@/components/DbBlogRenderer';
@@ -76,6 +76,17 @@ export default function BlogEditor({ id }: { id: string }) {
   }, [session?.access_token, id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // While image generation is running server-side the only signal the
+  // page has that new thumbnails landed is a poll — refetch every 3s
+  // for the duration of the 'images' phase so the placeholder swirls
+  // give way to real artwork as it arrives.
+  useEffect(() => {
+    if (blog?.status !== 'images') return;
+    if (images.length >= 10) return;
+    const id = window.setInterval(() => { void load(); }, 3000);
+    return () => window.clearInterval(id);
+  }, [blog?.status, images.length, load]);
 
   if (!user) return null;
   if (!isSuperAdmin) {
@@ -158,6 +169,105 @@ export default function BlogEditor({ id }: { id: string }) {
   );
 }
 
+/**
+ * Auto-learning progress bar driver. Tracks how long each kind of
+ * operation typically takes (per-localStorage key) so the next run
+ * shows a progress bar that animates toward 90% on the same curve we
+ * actually observed. Once the request resolves we slam to 100% and
+ * fold the new duration into a rolling EMA. First-time runs use the
+ * `defaultMs` hint until we have real data.
+ */
+function useAutoProgress(operationKey: string, defaultMs: number) {
+  const [progress, setProgress] = useState(0);
+  const [running, setRunning] = useState(false);
+  const startTimeRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const storageKey = `content-timing:${operationKey}`;
+
+  function getLearnedMs(): number {
+    if (typeof window === 'undefined') return defaultMs;
+    try {
+      const stored = window.localStorage.getItem(storageKey);
+      const n = stored ? Number(stored) : NaN;
+      return Number.isFinite(n) && n > 0 ? n : defaultMs;
+    } catch {
+      return defaultMs;
+    }
+  }
+
+  function saveLearnedMs(elapsed: number) {
+    if (typeof window === 'undefined') return;
+    try {
+      const prev = getLearnedMs();
+      // EMA(0.3) — recent runs nudge the estimate without yanking it.
+      const next = Math.round(prev * 0.7 + elapsed * 0.3);
+      window.localStorage.setItem(storageKey, String(next));
+    } catch {
+      /* localStorage blocked — keep defaultMs */
+    }
+  }
+
+  function start() {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    setRunning(true);
+    setProgress(0);
+    startTimeRef.current = performance.now();
+    const target = getLearnedMs();
+    const tick = () => {
+      if (startTimeRef.current == null) return;
+      const elapsed = performance.now() - startTimeRef.current;
+      // Asymptote to 0.9 so we never claim "done" before the response
+      // lands. Exponential approach reads as "slows down as it gets
+      // close" — the right feel for an unknown-duration model call.
+      const pct = Math.min(0.9, 1 - Math.exp(-(elapsed / target) * 2.3));
+      setProgress(pct);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  function finish() {
+    const startedAt = startTimeRef.current;
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    if (startedAt != null) {
+      saveLearnedMs(performance.now() - startedAt);
+    }
+    startTimeRef.current = null;
+    setProgress(1);
+    window.setTimeout(() => {
+      setRunning(false);
+      setProgress(0);
+    }, 450);
+  }
+
+  function abort() {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    startTimeRef.current = null;
+    setRunning(false);
+    setProgress(0);
+  }
+
+  useEffect(() => () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  return { running, progress, start, finish, abort };
+}
+
+function ProgressBar({ value }: { value: number }) {
+  return (
+    <div className="mt-2 h-1.5 w-full rounded-full bg-foreground/8 overflow-hidden">
+      <div
+        className="h-full rounded-full bg-primary transition-[width] duration-150 ease-out"
+        style={{ width: `${Math.round(value * 100)}%` }}
+      />
+    </div>
+  );
+}
+
 function Panel({ heading, step, children }: { heading: string; step: number; children: React.ReactNode }) {
   return (
     <section className="mb-5 rounded-2xl border border-black/10 bg-white p-5">
@@ -179,9 +289,11 @@ function PromptPanel({ prompt }: { prompt: string }) {
 function GeneratePanel({ blog, token, onComplete }: { blog: DbBlog; token: string | null; onComplete: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const progress = useAutoProgress('generate', 60_000);
   async function go() {
     if (!token) return;
     setBusy(true); setErr(null);
+    progress.start();
     try {
       const res = await fetch(`/api/content/${blog.id}/generate`, {
         method: 'POST',
@@ -189,8 +301,10 @@ function GeneratePanel({ blog, token, onComplete }: { blog: DbBlog; token: strin
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      progress.finish();
       onComplete();
     } catch (e) {
+      progress.abort();
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
@@ -209,8 +323,11 @@ function GeneratePanel({ blog, token, onComplete }: { blog: DbBlog; token: strin
         disabled={busy}
         className="px-3 py-1.5 rounded-md bg-foreground text-white text-[11.5px] font-semibold disabled:opacity-50"
       >
-        {busy ? 'Generating…' : blog.body_markdown ? 'Regenerate body' : 'Generate blog'}
+        {busy
+          ? `Generating… ${Math.round(progress.progress * 100)}%`
+          : blog.body_markdown ? 'Regenerate body' : 'Generate blog'}
       </button>
+      {progress.running && <ProgressBar value={progress.progress} />}
     </Panel>
   );
 }
@@ -219,10 +336,12 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
   const [instruction, setInstruction] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const reviseProgress = useAutoProgress('revise', 35_000);
 
   async function revise() {
     if (!token || !instruction.trim()) return;
     setBusy(true); setErr(null);
+    reviseProgress.start();
     try {
       const res = await fetch(`/api/content/${blog.id}/revise`, {
         method: 'POST',
@@ -231,9 +350,11 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      reviseProgress.finish();
       setInstruction('');
       onChange();
     } catch (e) {
+      reviseProgress.abort();
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
@@ -284,8 +405,11 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
               disabled={busy || !instruction.trim()}
               className="px-3 py-1.5 rounded-md bg-foreground text-white text-[11.5px] font-semibold disabled:opacity-50"
             >
-              {busy ? 'Revising…' : 'Revise'}
+              {busy && reviseProgress.running
+                ? `Revising… ${Math.round(reviseProgress.progress * 100)}%`
+                : busy ? 'Revising…' : 'Revise'}
             </button>
+            {reviseProgress.running && <ProgressBar value={reviseProgress.progress} />}
             <button
               type="button"
               onClick={approve}
@@ -350,19 +474,71 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
     }
   }
 
+  // When server-side generation is in flight the page fills the grid
+  // with 10 placeholder cards immediately so the user sees a tangible
+  // "10 images on the way" instead of a blank panel. Each slot the
+  // server hasn't returned yet renders an animated conic-gradient
+  // swirl; arrived images take their slot in order as they land.
+  const generating = blog.status === 'images';
+  const slotCount = generating ? 10 : images.length;
+  const showGrid = generating || images.length > 0;
+
   return (
     <Panel heading="Images" step={4}>
-      {images.length === 0 ? (
+      {!showGrid ? (
         <p className="text-[12.5px] text-foreground/55">
-          {blog.status === 'images' ? 'Generating 10 images… this can take a minute.' : 'No images yet. Approve the body above to start generating.'}
+          No images yet. Approve the body above to start generating.
         </p>
       ) : (
         <>
-          <p className="text-[12px] text-foreground/55 mb-3">
-            Select <strong>exactly 7</strong> images. Currently selected: <strong>{selected.size}/7</strong>.
-          </p>
+          {generating && images.length < 10 && (
+            <p className="text-[12px] text-foreground/55 mb-3">
+              Generating 10 images… <strong>{images.length}/10</strong> ready · this can take a minute.
+            </p>
+          )}
+          {!generating && (
+            <p className="text-[12px] text-foreground/55 mb-3">
+              Select <strong>exactly 7</strong> images. Currently selected: <strong>{selected.size}/7</strong>.
+            </p>
+          )}
+          <style jsx>{`
+            @keyframes content-swirl {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            @keyframes content-shimmer {
+              0%, 100% { opacity: 0.55; }
+              50% { opacity: 0.85; }
+            }
+          `}</style>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {images.map((img) => {
+            {Array.from({ length: slotCount }).map((_, slotIdx) => {
+              const img = images[slotIdx];
+              if (!img) {
+                return (
+                  <div
+                    key={`placeholder-${slotIdx}`}
+                    className="relative rounded-lg overflow-hidden border-2 border-black/10 bg-gradient-to-br from-warm-bg/60 via-white to-warm-bg/40 aspect-square"
+                    aria-label={`Generating image ${slotIdx + 1} of 10`}
+                  >
+                    <span
+                      className="pointer-events-none absolute inset-0"
+                      aria-hidden="true"
+                      style={{
+                        background: 'conic-gradient(from 0deg, transparent 0deg, rgba(188,107,74,0.35) 90deg, transparent 180deg, rgba(188,107,74,0.18) 270deg, transparent 360deg)',
+                        animation: 'content-swirl 1.6s linear infinite',
+                      }}
+                    />
+                    <span className="absolute inset-2 rounded-md bg-white/55" aria-hidden="true" />
+                    <span
+                      className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/45"
+                      style={{ animation: 'content-shimmer 1.8s ease-in-out infinite' }}
+                    >
+                      {slotIdx + 1} / 10
+                    </span>
+                  </div>
+                );
+              }
               const isSel = selected.has(img.id);
               return (
                 <button
