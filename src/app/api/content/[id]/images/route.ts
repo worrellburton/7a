@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/content-server';
 import { generateImageConcepts } from '@/lib/content-claude';
-import { generateWithGptImage, type GeneratedImage } from '@/lib/content-images';
+import { generateWithGptImage, type GeneratedImage, type ImageAspect } from '@/lib/content-images';
 
 // GET  /api/content/[id]/images       — list current blog_images
 // POST /api/content/[id]/images       — phase 6: generate 10 images
@@ -93,9 +93,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: `concept stage failed: ${e instanceof Error ? e.message : String(e)}` }, { status: 503 });
   }
 
-  // 2) Fire all 10 generations through gpt-image-2 in parallel.
+  // 2) Fire all 10 generations through gpt-image-2 in parallel, mixing
+  //    aspect ratios so the user has variety to choose from at the
+  //    select stage: 4 landscape (hero-friendly 16:9-ish) + 4 square
+  //    (the most forgiving inline crop) + 2 portrait (sidebar / 4:5
+  //    pull quote). Positions stay deterministic so re-runs land
+  //    images in the same shaped slot.
+  const ASPECT_MIX: ImageAspect[] = [
+    'landscape', 'landscape', 'landscape', 'landscape',
+    'square',    'square',    'square',    'square',
+    'portrait',  'portrait',
+  ];
   const jobs = concepts.map((c, idx) => {
-    return generateWithGptImage(c.prompt, c.alt)
+    const aspect = ASPECT_MIX[idx] ?? 'square';
+    return generateWithGptImage(c.prompt, c.alt, aspect)
       .then((img) => ({ ok: true as const, img, position: idx }))
       .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err), position: idx }));
   });

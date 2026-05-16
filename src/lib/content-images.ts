@@ -80,16 +80,30 @@ async function falSubmit(endpoint: string, input: unknown): Promise<FalImageResu
 
 export interface GeneratedImage { provider: string; url: string; prompt: string; alt: string }
 
-export async function generateWithGptImage(prompt: string, alt: string): Promise<GeneratedImage> {
+export type ImageAspect = 'landscape' | 'square' | 'portrait';
+
+const ASPECT_SIZES: Record<ImageAspect, { width: number; height: number }> = {
+  // 1536×1024 — closest match to 16:9 hero framing.
+  landscape: { width: 1536, height: 1024 },
+  // 1024×1024 — gpt-image-2's native resolution; crops cleanly to any
+  // other shape so this is the most forgiving inline default.
+  square:    { width: 1024, height: 1024 },
+  // 1024×1536 — portrait/sidebar option for pull quotes and 4:5-ish
+  // social shares.
+  portrait:  { width: 1024, height: 1536 },
+};
+
+export async function generateWithGptImage(prompt: string, alt: string, aspect: ImageAspect = 'landscape'): Promise<GeneratedImage> {
   // fal hosts gpt-image-2 directly at `fal-ai/gpt-image-2` — the
   // `/text-to-image` suffix that gpt-image-1 used doesn't exist on
-  // v2 (verified via 404 "Path /text-to-image not found"). The model
-  // accepts the same explicit pixel sizes: 'auto' | '1024x1024' |
-  // '1536x1024' | '1024x1536'. 1536x1024 is the landscape option,
-  // closest to the 16:9 framing we want for blog hero / inline images.
+  // v2 (verified via 404 "Path /text-to-image not found"). v2 also
+  // tightened `image_size` from a string literal ('1536x1024') to a
+  // `{ width, height }` object — passing the legacy string form 422s
+  // with `model_attributes_type` because the union's object branch
+  // can't read fields from a bare string.
   const res = await falSubmit('fal-ai/gpt-image-2', {
     prompt,
-    image_size: '1536x1024',
+    image_size: ASPECT_SIZES[aspect],
     num_images: 1,
     quality: 'high',
   });
