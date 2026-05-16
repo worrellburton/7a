@@ -1,12 +1,16 @@
 import Link from 'next/link';
-import { EPISODES_NEWEST_FIRST, episodeHref, episodeImage } from '@/lib/episodes';
+import { getAllEpisodesNewestFirst, episodeHref, episodeImage } from '@/lib/episodes';
 
 // Landing-page surfacing of the Recovery Roadmap series. Reads the
-// latest 3 episodes from the shared episode manifest so adding a
-// new entry to src/lib/episodes.ts auto-pushes it onto the homepage.
+// latest 3 episodes from the shared episode manifest plus any
+// published AI-pipeline blogs, so a freshly-published entry from
+// /app/content auto-pushes onto the homepage.
 
-export default function BlogPreview() {
-  const latest = EPISODES_NEWEST_FIRST.slice(0, 3);
+export const revalidate = 60;
+
+export default async function BlogPreview() {
+  const all = await getAllEpisodesNewestFirst();
+  const latest = all.slice(0, 3);
 
   return (
     <section className="py-16 lg:py-20 bg-white" aria-labelledby="blog-preview-heading">

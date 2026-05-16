@@ -348,6 +348,15 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M8 11h6M11 8v6" />
     </svg>
   ),
+  '/app/content': (
+    // Page with a pen tip — composing long-form blog content.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
+      <path d="M14 4v5h5" />
+      <path d="m14.5 13.5-4 4-2 .5.5-2 4-4z" />
+      <path d="m13.5 12.5 1.4-1.4a1.2 1.2 0 0 1 1.7 0l.3.3a1.2 1.2 0 0 1 0 1.7l-1.4 1.4" />
+    </svg>
+  ),
   '/app/geo': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="9" />

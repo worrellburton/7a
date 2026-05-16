@@ -82,12 +82,19 @@ const GENERATE_SYSTEM = [
   '- GEO: anchor at least 3 references to Arizona / the southwest /',
   '  Seven Arrows Recovery so search engines understand the local context.',
   '- Cite credible sources inline as plain text (e.g. "the NIDA notes")',
-  '  rather than fabricated URLs — never invent links.',
+  '  rather than fabricated URLs. Never invent links.',
   '- End with a one-sentence call-to-action linking the reader to',
   '  /admissions on sevenarrowsrecoveryarizona.com.',
+  '- Punctuation: NEVER use em-dashes (the long "—" character) or',
+  '  en-dashes (the medium "–" character). Always substitute with a',
+  '  comma, a semicolon, parentheses, or a period. This is a strict',
+  '  house style rule, no exceptions, including in compound phrases.',
+  '- Mobile-first cadence: keep paragraphs short (2-4 sentences max),',
+  '  use generous subheads and bulleted lists. Assume the reader is',
+  '  on a phone, scrolling with their thumb.',
   '',
-  'Investigative angle: surface the *why* behind the topic — research,',
-  'mechanisms, real-world tradeoffs — not just the *what*.',
+  'Investigative angle: surface the *why* behind the topic (research,',
+  'mechanisms, real-world tradeoffs), not just the *what*.',
 ].join('\n');
 
 export async function generateBlogBody(prompt: string, title?: string | null): Promise<string> {
@@ -105,7 +112,10 @@ const REVISE_SYSTEM = [
   'You are revising a Seven Arrows Recovery blog post per the editor\'s',
   'instruction. Preserve the H1 title unless explicitly asked to change',
   'it. Preserve overall length unless asked to lengthen/shorten. Output',
-  'the full revised Markdown post — no preamble, no diff, no commentary.',
+  'the full revised Markdown post: no preamble, no diff, no commentary.',
+  '',
+  'Punctuation: NEVER use em-dashes (—) or en-dashes (–). Substitute',
+  'with a comma, a semicolon, parentheses, or a period. Strict rule.',
 ].join('\n');
 
 export async function reviseBlogBody(currentMarkdown: string, instruction: string): Promise<string> {
@@ -146,13 +156,13 @@ const BUILD_SYSTEM = [
   '- Output strict JSON only. No code fences, no commentary.',
   '- Top-level shape: { "blocks": [ ...LayoutBlock ] }',
   '- Block types allowed (lowercase "type" key):',
-  '  • hero { type, title, tagline?, image? { url, alt } }',
-  '  • prose { type, markdown }       — a chunk of the original markdown',
-  '  • image { type, url, alt, caption? }',
-  '  • pull_quote { type, quote, attribution? }',
-  '  • svg_icon { type, icon: "compass"|"leaf"|"mountain"|"sun"|"wave"|"arrow", heading?, body? }',
-  '  • webgl_animation { type, scene: "particles"|"orbit"|"aurora", accent: "#hex" }',
-  '  • callout { type, tone: "info"|"note"|"warning", heading, body }',
+  '  - hero { type, title, tagline?, image? { url, alt } }',
+  '  - prose { type, markdown }       (a chunk of the original markdown)',
+  '  - image { type, url, alt, caption? }',
+  '  - pull_quote { type, quote, attribution? }',
+  '  - svg_icon { type, icon: "compass"|"leaf"|"mountain"|"sun"|"wave"|"arrow", heading?, body? }',
+  '  - webgl_animation { type, scene: "particles"|"orbit"|"aurora", accent: "#hex" }',
+  '  - callout { type, tone: "info"|"note"|"warning", heading, body }',
   '',
   'Composition rules:',
   '- First block: hero, with the post H1 as the title and the first',
@@ -166,6 +176,26 @@ const BUILD_SYSTEM = [
   '- 2-3 svg_icon blocks, placed in section breaks.',
   '- 1-2 pull_quote blocks at emotional peaks of the body.',
   '- 1 callout near the end, tone "note", with a soft pointer to /admissions.',
+  '',
+  'Mobile readability (the renderer ships the same layout to phone and',
+  'desktop, but phone is the larger audience):',
+  '- Keep every prose block under ~600 chars so it reads as one swipe',
+  '  on a phone, not a wall of text. Break long sections across multiple',
+  '  prose blocks separated by image / pull_quote / svg_icon beats so',
+  '  the reader gets a visual breath at least every 2-3 screens.',
+  '- Pull_quote text: under 140 chars so it fits a phone screen without',
+  '  wrapping awkwardly.',
+  '- Callout body: under 200 chars and easy to scan at a glance.',
+  '- Hero tagline (if used): under 140 chars.',
+  '- Use bulleted lists inside prose where appropriate; phones render',
+  '  short bullets far better than dense paragraphs.',
+  '',
+  'Punctuation (strict, applies to every string in the JSON):',
+  '- NEVER use em-dashes ("—") or en-dashes ("–"). Substitute with a',
+  '  comma, a semicolon, parentheses, or a period.',
+  '- If the source markdown contains em-dashes or en-dashes, rewrite',
+  '  those phrases as you copy them into prose blocks so the published',
+  '  page contains zero "—" or "–" characters.',
 ].join('\n');
 
 export async function buildBlogLayout(args: {
@@ -182,37 +212,64 @@ export async function buildBlogLayout(args: {
     '---',
     '',
     'Images to use (7 total). Some are AI-generated, some came from the',
-    'editorial library — both are fine to use anywhere in the layout:',
-    ...args.images.map((img, i) => `${i + 1}. ${img.url} — alt: ${img.alt}${img.ai ? ' [AI-generated]' : ' [library]'}`),
+    'editorial library, both are fine to use anywhere in the layout:',
+    ...args.images.map((img, i) => `${i + 1}. ${img.url}, alt: ${img.alt}${img.ai ? ' [AI-generated]' : ' [library]'}`),
     '',
     'Return the JSON layout.',
   ].join('\n');
-  // 4000 tokens was tight — a 14-block layout with prose chunks regularly
+  // 4000 tokens was tight: a 14-block layout with prose chunks regularly
   // overflows and Claude truncates mid-string, which produced the
   // "Unexpected end of JSON input" error users were hitting. 12000 gives
   // ample headroom and on retry we ask Claude to be terser.
   const raw = await callClaude({ system: BUILD_SYSTEM, user: userMsg, maxTokens: 12000 });
   const first = tryParseLayout(raw);
-  if (first.ok) return first.layout;
+  if (first.ok) return stripDashes(first.layout);
 
   // One retry with a smaller target: pass back what we got and ask
   // Claude to return strict, terser JSON. This catches the cases where
   // the model went verbose and ran into the token cap.
   const retryMsg = [
-    'Your previous response was not valid JSON — it was likely',
+    'Your previous response was not valid JSON, it was likely',
     'truncated. Re-emit the layout, but be terser:',
     '- 10 blocks total, not 14',
-    '- prose blocks ≤ 600 chars each',
+    '- prose blocks under 600 chars each',
     '- no trailing prose; cut the body where needed',
     '- output strict JSON only, no commentary, no code fences',
+    '- NEVER use em-dashes or en-dashes in any string',
     '',
-    'Same inputs as before — same 7 images, same title, same body.',
+    'Same inputs as before, same 7 images, same title, same body.',
   ].join('\n');
   const raw2 = await callClaude({ system: BUILD_SYSTEM, user: `${userMsg}\n\n${retryMsg}`, maxTokens: 8000 });
   const second = tryParseLayout(raw2);
-  if (second.ok) return second.layout;
+  if (second.ok) return stripDashes(second.layout);
 
   throw new Error(`Failed to parse layout JSON: ${second.error}`);
+}
+
+/** Belt-and-braces em-dash scrubber. The system prompt tells Claude
+ * not to use em-dashes or en-dashes; this walks every string in the
+ * Layout and rewrites any that snuck through with a comma plus a
+ * space, which reads as a natural pause in nearly every context the
+ * model uses dashes for. */
+function stripDashes(layout: Layout): Layout {
+  function clean(s: string): string {
+    // Em-dash + en-dash + double-hyphen, with optional surrounding
+    // whitespace, collapsed to ", " so " — hello" becomes ", hello".
+    return s.replace(/\s*[—–]\s*/g, ', ').replace(/\s*--\s*/g, ', ');
+  }
+  function walk<T>(v: T): T {
+    if (typeof v === 'string') return clean(v) as unknown as T;
+    if (Array.isArray(v)) return v.map(walk) as unknown as T;
+    if (v && typeof v === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+        out[k] = walk(val);
+      }
+      return out as unknown as T;
+    }
+    return v;
+  }
+  return walk(layout);
 }
 
 /** Attempt to coerce a Claude response into a Layout. Strips code

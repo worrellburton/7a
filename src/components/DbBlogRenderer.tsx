@@ -299,7 +299,7 @@ function RenderBlock({ block }: { block: LayoutBlock }) {
         <blockquote className="my-12 border-l-4 border-primary pl-5 sm:pl-6 italic">
           <p className="text-xl sm:text-2xl font-display text-foreground/90 leading-snug">&ldquo;{block.quote}&rdquo;</p>
           {block.attribution && (
-            <footer className="mt-3 text-[12px] uppercase tracking-[0.18em] text-foreground/45 not-italic">— {block.attribution}</footer>
+            <footer className="mt-3 text-[12px] uppercase tracking-[0.18em] text-foreground/45 not-italic">{block.attribution}</footer>
           )}
         </blockquote>
       );
