@@ -81,7 +81,7 @@ async function falSubmit(endpoint: string, input: unknown): Promise<FalImageResu
       throw new Error(`fal job ${endpoint} ended as ${sJson.status}`);
     }
   }
-  throw new Error(`fal job ${endpoint} timed out after ${FAL_POLL_TIMEOUT_MS}ms`);
+  throw new Error(`fal job ${endpoint} timed out after ${FAL_POLL_TIMEOUT_MS}ms (build: content-images@2026-05-16b)`);
 }
 
 export interface GeneratedImage { provider: string; url: string; prompt: string; alt: string }
