@@ -8,9 +8,12 @@ export const metadata: Metadata = {
 
 import PageHero from '@/components/PageHero';
 import Link from 'next/link';
-import { EPISODES_BY_NUMBER, episodeHref, episodeImage } from '@/lib/episodes';
+import { getAllEpisodesByNumber, episodeHref, episodeImage } from '@/lib/episodes';
 
-export default function RecoveryRoadmapPage() {
+export const revalidate = 60;
+
+export default async function RecoveryRoadmapPage() {
+  const episodes = await getAllEpisodesByNumber();
   return (
     <>
       <PageHero
@@ -41,7 +44,7 @@ export default function RecoveryRoadmapPage() {
           entry there auto-appears here in chronological order. */}
       <section className="py-16 lg:py-24 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          {EPISODES_BY_NUMBER.map((ep) => (
+          {episodes.map((ep) => (
             <Link
               key={ep.slug}
               href={episodeHref(ep.slug)}
