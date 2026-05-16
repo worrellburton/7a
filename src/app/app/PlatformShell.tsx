@@ -284,13 +284,19 @@ const pageIcons: Record<string, React.ReactNode> = {
     </svg>
   ),
   '/app/outreach': (
-    // Address book / contact card — distinct from the team-people
-    // icon so the two surfaces don't read as duplicates.
+    // Marketing (formerly Outreach) — megaphone glyph for broadcasting
+    // to referrers, leads, and downgraded partners.
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="3" width="16" height="18" rx="2" />
-      <circle cx="12" cy="10" r="2.4" />
-      <path d="M8.5 17a3.5 3.5 0 017 0" />
-      <path d="M2 7h2M2 12h2M2 17h2" />
+      <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z" />
+      <path d="M15 8a4 4 0 0 1 0 8" />
+      <path d="M18 5a8 8 0 0 1 0 14" />
+    </svg>
+  ),
+  '/app/donations': (
+    // Donations — hand offering a heart-coin so the icon conveys
+    // "philanthropy / giving" without leaning on a literal $.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
     </svg>
   ),
   '/app/incoming-users': (
