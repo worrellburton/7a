@@ -268,6 +268,88 @@ function ProgressBar({ value }: { value: number }) {
   );
 }
 
+/**
+ * Inline error banner with a one-click Copy button. Image generation
+ * in particular can fail in ten different ways at once (per-image fal
+ * errors, missing FAL_KEY, storage upload errors) — surfacing the
+ * full payload + letting the user copy the lot is the difference
+ * between "something broke" and "FAL_KEY is not configured, paste
+ * this into chat." Falls back to a manual selectable textarea when
+ * the browser blocks the async clipboard API.
+ */
+function ErrorWithCopy({ message, details }: { message: string; details?: unknown }) {
+  const [copied, setCopied] = useState(false);
+  const payload = (() => {
+    const parts: string[] = [message];
+    if (details !== undefined && details !== null) {
+      try {
+        parts.push(JSON.stringify(details, null, 2));
+      } catch {
+        parts.push(String(details));
+      }
+    }
+    return parts.join('\n\n');
+  })();
+  async function copy() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = payload;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard blocked — user can still triple-click + copy by hand */
+    }
+  }
+  return (
+    <div className="mb-2 rounded-md border border-rose-200 bg-rose-50/70 p-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[12px] text-rose-700 leading-snug break-words flex-1">{message}</p>
+        <button
+          type="button"
+          onClick={copy}
+          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded border border-rose-300 bg-white text-[10.5px] font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
+          aria-label="Copy error details to clipboard"
+        >
+          {copied ? (
+            <>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              Copied
+            </>
+          ) : (
+            <>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="11" height="11" rx="2" />
+                <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+              </svg>
+              Copy
+            </>
+          )}
+        </button>
+      </div>
+      {details !== undefined && details !== null && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[10.5px] font-semibold uppercase tracking-wider text-rose-700/70 hover:text-rose-700">Details</summary>
+          <pre className="mt-1.5 max-h-48 overflow-auto rounded bg-white/70 p-2 text-[10.5px] leading-snug text-rose-900 whitespace-pre-wrap break-words">
+            {typeof details === 'string' ? details : JSON.stringify(details, null, 2)}
+          </pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function Panel({ heading, step, children }: { heading: string; step: number; children: React.ReactNode }) {
   return (
     <section className="mb-5 rounded-2xl border border-black/10 bg-white p-5">
@@ -288,7 +370,7 @@ function PromptPanel({ prompt }: { prompt: string }) {
 
 function GeneratePanel({ blog, token, onComplete }: { blog: DbBlog; token: string | null; onComplete: () => void }) {
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
   const progress = useAutoProgress('generate', 60_000);
   async function go() {
     if (!token) return;
@@ -300,12 +382,16 @@ function GeneratePanel({ blog, token, onComplete }: { blog: DbBlog; token: strin
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok) {
+        setErr({ message: json.error ?? `HTTP ${res.status}`, details: json });
+        progress.abort();
+        return;
+      }
       progress.finish();
       onComplete();
     } catch (e) {
       progress.abort();
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr({ message: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -316,7 +402,7 @@ function GeneratePanel({ blog, token, onComplete }: { blog: DbBlog; token: strin
         Runs Claude (opus 4.7) against the prompt to draft a full SEO/GEO-friendly investigative post for sevenarrowsrecoveryarizona.com.
         {blog.body_markdown ? ' A body is already saved — re-running replaces it.' : ''}
       </p>
-      {err && <p className="mb-2 text-[12px] text-rose-700">{err}</p>}
+      {err && <ErrorWithCopy message={err.message} details={err.details} />}
       <button
         type="button"
         onClick={go}
@@ -335,7 +421,7 @@ function GeneratePanel({ blog, token, onComplete }: { blog: DbBlog; token: strin
 function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token: string | null; revisions: DbRevision[]; onChange: () => void }) {
   const [instruction, setInstruction] = useState('');
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
   const reviseProgress = useAutoProgress('revise', 35_000);
 
   async function revise() {
@@ -349,13 +435,17 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
         body: JSON.stringify({ instruction: instruction.trim() }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok) {
+        setErr({ message: json.error ?? `HTTP ${res.status}`, details: json });
+        reviseProgress.abort();
+        return;
+      }
       reviseProgress.finish();
       setInstruction('');
       onChange();
     } catch (e) {
       reviseProgress.abort();
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr({ message: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -365,16 +455,21 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
     if (!token) return;
     setBusy(true); setErr(null);
     try {
-      // Approve = kick off image generation.
+      // Approve = kick off image generation. The route returns per-image
+      // failure detail in `failures` so we carry the full payload into
+      // the error component for the Copy button.
       const res = await fetch(`/api/content/${blog.id}/images`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok) {
+        setErr({ message: json.error ?? `HTTP ${res.status}`, details: json });
+        return;
+      }
       onChange();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr({ message: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -397,7 +492,7 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
               className="w-full rounded-md border border-black/10 px-2.5 py-2 text-[12.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </label>
-          {err && <p className="mb-2 text-[12px] text-rose-700">{err}</p>}
+          {err && <ErrorWithCopy message={err.message} details={err.details} />}
           <div className="flex flex-col gap-2">
             <button
               type="button"
@@ -440,7 +535,7 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
 function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: DbImage[]; token: string | null; onChange: () => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(blog.selected_image_ids ?? []));
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
 
   useEffect(() => {
     setSelected(new Set(blog.selected_image_ids ?? []));
@@ -465,10 +560,13 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
         body: JSON.stringify({ selected_image_ids: Array.from(selected) }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok) {
+        setErr({ message: json.error ?? `HTTP ${res.status}`, details: json });
+        return;
+      }
       onChange();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr({ message: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -559,7 +657,7 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
               );
             })}
           </div>
-          {err && <p className="mt-3 text-[12px] text-rose-700">{err}</p>}
+          {err && <div className="mt-3"><ErrorWithCopy message={err.message} details={err.details} /></div>}
           <div className="mt-3 flex items-center gap-2">
             <button
               type="button"
@@ -580,7 +678,7 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
 
 function BuildPanel({ blog, images, token, onChange }: { blog: DbBlog; images: DbImage[]; token: string | null; onChange: () => void }) {
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
   const ready = (blog.selected_image_ids?.length ?? 0) === 7;
 
   async function build() {
@@ -592,10 +690,13 @@ function BuildPanel({ blog, images, token, onChange }: { blog: DbBlog; images: D
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok) {
+        setErr({ message: json.error ?? `HTTP ${res.status}`, details: json });
+        return;
+      }
       onChange();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr({ message: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -610,7 +711,7 @@ function BuildPanel({ blog, images, token, onChange }: { blog: DbBlog; images: D
       <p className="text-[12.5px] text-foreground/65 mb-3 leading-relaxed">
         Asks Claude to compose a layout JSON — alternating prose, the 7 chosen images, SVG icons, a WebGL animation, pull quotes and a closing callout. The public page renders from this layout.
       </p>
-      {err && <p className="mb-2 text-[12px] text-rose-700">{err}</p>}
+      {err && <ErrorWithCopy message={err.message} details={err.details} />}
       <button
         type="button"
         onClick={build}
@@ -636,7 +737,7 @@ function PreviewPanel({ layout }: { layout: Layout }) {
 
 function PublishPanel({ blog, token, onChange }: { blog: DbBlog; token: string | null; onChange: () => void }) {
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
 
   async function go(method: 'POST' | 'DELETE') {
     if (!token) return;
@@ -647,10 +748,13 @@ function PublishPanel({ blog, token, onChange }: { blog: DbBlog; token: string |
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok) {
+        setErr({ message: json.error ?? `HTTP ${res.status}`, details: json });
+        return;
+      }
       onChange();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr({ message: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -664,7 +768,7 @@ function PublishPanel({ blog, token, onChange }: { blog: DbBlog; token: string |
           ? 'This post is live on the public site. Unpublish to take it back to a built draft.'
           : 'Flip the post live. It will appear at /who-we-are/blog/<slug> immediately.'}
       </p>
-      {err && <p className="mb-2 text-[12px] text-rose-700">{err}</p>}
+      {err && <ErrorWithCopy message={err.message} details={err.details} />}
       {!published ? (
         <button
           type="button"
