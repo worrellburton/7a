@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: imgs, error: imgErr } = await admin
     .from('blog_images')
-    .select('id, url, alt')
+    .select('id, url, alt, provider')
     .in('id', ids);
   if (imgErr) return NextResponse.json({ error: imgErr.message }, { status: 500 });
   if (!imgs || imgs.length !== 7) return NextResponse.json({ error: 'could not load all 7 selected images' }, { status: 500 });
@@ -43,7 +43,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     layout = await buildBlogLayout({
       title: blog.title ?? 'Untitled',
       bodyMarkdown: blog.body_markdown,
-      images: imgs.map((i) => ({ url: i.url as string, alt: (i.alt as string) ?? '' })),
+      images: imgs.map((i) => ({
+        url: i.url as string,
+        alt: (i.alt as string) ?? '',
+        ai: (i.provider as string) !== 'library',
+      })),
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 503 });

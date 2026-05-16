@@ -171,7 +171,7 @@ const BUILD_SYSTEM = [
 export async function buildBlogLayout(args: {
   bodyMarkdown: string;
   title: string;
-  images: { url: string; alt: string }[];
+  images: { url: string; alt: string; ai?: boolean }[];
 }): Promise<Layout> {
   const userMsg = [
     `Post title: ${args.title}`,
@@ -181,21 +181,125 @@ export async function buildBlogLayout(args: {
     args.bodyMarkdown.trim(),
     '---',
     '',
-    'Images to use (7 total):',
-    ...args.images.map((img, i) => `${i + 1}. ${img.url} — alt: ${img.alt}`),
+    'Images to use (7 total). Some are AI-generated, some came from the',
+    'editorial library — both are fine to use anywhere in the layout:',
+    ...args.images.map((img, i) => `${i + 1}. ${img.url} — alt: ${img.alt}${img.ai ? ' [AI-generated]' : ' [library]'}`),
     '',
     'Return the JSON layout.',
   ].join('\n');
-  const raw = await callClaude({ system: BUILD_SYSTEM, user: userMsg, maxTokens: 4000 });
-  // Defensive: strip code fences if Claude wrapped the JSON anyway.
-  const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-  try {
-    const parsed = JSON.parse(cleaned) as Layout;
-    if (!parsed || !Array.isArray(parsed.blocks)) throw new Error('layout missing blocks[]');
-    return parsed;
-  } catch (e) {
-    throw new Error(`Failed to parse layout JSON: ${e instanceof Error ? e.message : String(e)}`);
+  // 4000 tokens was tight — a 14-block layout with prose chunks regularly
+  // overflows and Claude truncates mid-string, which produced the
+  // "Unexpected end of JSON input" error users were hitting. 12000 gives
+  // ample headroom and on retry we ask Claude to be terser.
+  const raw = await callClaude({ system: BUILD_SYSTEM, user: userMsg, maxTokens: 12000 });
+  const first = tryParseLayout(raw);
+  if (first.ok) return first.layout;
+
+  // One retry with a smaller target: pass back what we got and ask
+  // Claude to return strict, terser JSON. This catches the cases where
+  // the model went verbose and ran into the token cap.
+  const retryMsg = [
+    'Your previous response was not valid JSON — it was likely',
+    'truncated. Re-emit the layout, but be terser:',
+    '- 10 blocks total, not 14',
+    '- prose blocks ≤ 600 chars each',
+    '- no trailing prose; cut the body where needed',
+    '- output strict JSON only, no commentary, no code fences',
+    '',
+    'Same inputs as before — same 7 images, same title, same body.',
+  ].join('\n');
+  const raw2 = await callClaude({ system: BUILD_SYSTEM, user: `${userMsg}\n\n${retryMsg}`, maxTokens: 8000 });
+  const second = tryParseLayout(raw2);
+  if (second.ok) return second.layout;
+
+  throw new Error(`Failed to parse layout JSON: ${second.error}`);
+}
+
+/** Attempt to coerce a Claude response into a Layout. Strips code
+ * fences, slices to the outermost `{...}`, and patches truncated JSON
+ * (unclosed strings / arrays / braces) before parsing. Returns the
+ * parsed layout or the parse error so the caller can decide whether to
+ * retry. */
+function tryParseLayout(raw: string): { ok: true; layout: Layout } | { ok: false; error: string } {
+  const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  // Slice to the outermost JSON object in case Claude wrapped it in prose.
+  const first = stripped.indexOf('{');
+  const last = stripped.lastIndexOf('}');
+  const candidate = first >= 0 && last > first ? stripped.slice(first, last + 1) : stripped;
+  const attempts = [candidate, repairTruncatedJson(candidate)];
+  for (const text of attempts) {
+    try {
+      const parsed = JSON.parse(text) as Layout;
+      if (!parsed || !Array.isArray(parsed.blocks)) {
+        return { ok: false, error: 'layout missing blocks[]' };
+      }
+      return { ok: true, layout: parsed };
+    } catch (e) {
+      // try the next repair pass
+      if (text === attempts[attempts.length - 1]) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    }
   }
+  return { ok: false, error: 'unable to parse layout' };
+}
+
+/** Last-ditch repair for a JSON payload Claude truncated mid-string.
+ * Closes the open string, drops the dangling element, and balances
+ * the remaining `[` and `{` so JSON.parse succeeds with whatever
+ * complete blocks we managed to capture. */
+function repairTruncatedJson(text: string): string {
+  let inString = false;
+  let escape = false;
+  const stack: string[] = [];
+  let lastCompletedIndex = -1; // index just after the last complete element
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (inString) {
+      if (ch === '\\') escape = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{' || ch === '[') stack.push(ch);
+    else if (ch === '}' || ch === ']') {
+      stack.pop();
+      if (stack.length === 1 && stack[0] === '[') {
+        // Just closed an element inside the blocks array — remember.
+        lastCompletedIndex = i + 1;
+      }
+    }
+  }
+  // If we landed mid-string or mid-element, rewind to the last complete one.
+  let body = text;
+  if (inString || stack.length > 0) {
+    if (lastCompletedIndex > 0) {
+      body = text.slice(0, lastCompletedIndex);
+    }
+    // Re-walk to compute the residual stack on the trimmed body.
+    inString = false; escape = false;
+    const stack2: string[] = [];
+    for (let i = 0; i < body.length; i++) {
+      const ch = body[i];
+      if (escape) { escape = false; continue; }
+      if (inString) {
+        if (ch === '\\') escape = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') { inString = true; continue; }
+      if (ch === '{' || ch === '[') stack2.push(ch);
+      else if (ch === '}' || ch === ']') stack2.pop();
+    }
+    // Strip trailing comma if any, then close every open container.
+    body = body.replace(/,\s*$/, '');
+    while (stack2.length) {
+      const open = stack2.pop();
+      body += open === '{' ? '}' : ']';
+    }
+  }
+  return body;
 }
 
 // Helper used by phase 6 image prompt construction — Claude reads the
