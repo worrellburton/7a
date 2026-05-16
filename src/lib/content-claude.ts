@@ -200,26 +200,50 @@ export async function buildBlogLayout(args: {
 
 // Helper used by phase 6 image prompt construction — Claude reads the
 // body and proposes 10 distinct visual concepts the image models can
-// render. Returns an array of {prompt, alt} pairs of length 10.
+// render. Each concept is tagged with a style (photoreal / editorial /
+// illustrative) so the resulting gallery feels intentional instead of
+// uniformly photographic. The route layers a style-specific modifier
+// onto each prompt before sending it to fal so the model knows what
+// register to render in.
 const IMAGE_CONCEPTS_SYSTEM = [
   'You read a Seven Arrows Recovery blog post and propose 10 distinct',
   'visual concepts for accompanying imagery. Each concept describes a',
-  'photographic scene or conceptual illustration suitable for an image-',
-  'generation model.',
+  'scene the image model should render, plus a style register.',
   '',
   'Output rules:',
-  '- Output strict JSON: { "concepts": [ { "prompt": str, "alt": str }, ... ] }',
+  '- Output strict JSON: { "concepts": [ { "prompt": str, "alt": str, "style": "photoreal"|"editorial"|"illustrative" }, ... ] }',
   '- Exactly 10 concepts.',
-  '- Aesthetic: cinematic, southwestern light, calming, no faces visible',
-  '  unless from behind / silhouetted. No medical or clinical imagery.',
-  '  No text or logos in the image.',
+  '- Style distribution across the 10: 4 photoreal, 3 editorial, 3',
+  '  illustrative. The photoreal concepts feel like cinematic',
+  '  documentary photography (real lenses, real light). The editorial',
+  '  concepts feel like New York Times Magazine fine-art photography —',
+  '  high-contrast, conceptual, often a single emblematic object.',
+  '  The illustrative concepts feel like an editorial illustration in',
+  '  the style of The Atlantic or The New Yorker — flat shapes, muted',
+  '  palette, symbolic composition.',
+  '- Subject variety: across the 10, mix landscape, architectural,',
+  '  abstract, conceptual object, hand/silhouette scenes. No two',
+  '  concepts should depict the same scene.',
+  '- Aesthetic guardrails (all styles): southwestern light, calming,',
+  '  no faces visible (silhouettes / from-behind OK). No medical or',
+  '  clinical imagery. No text or logos in the image.',
   '- Each prompt is 1-2 sentences, descriptive, ready to feed an image',
-  '  model. Vary subject matter across the 10 (landscape, abstract,',
-  '  object, architectural, etc).',
+  '  model — DO NOT include style cues like "photorealistic" or',
+  '  "illustrated" in the prompt itself; the route appends those.',
   '- alt is a brief accessibility description (≤ 100 chars).',
 ].join('\n');
 
-export interface ImageConcept { prompt: string; alt: string }
+export type ImageStyle = 'photoreal' | 'editorial' | 'illustrative';
+export interface ImageConcept { prompt: string; alt: string; style: ImageStyle }
+
+// The route appends this rendering modifier before sending the prompt
+// to fal — keeps the modifier authoritative on our side so we can tune
+// it without re-prompting Claude.
+export const STYLE_MODIFIERS: Record<ImageStyle, string> = {
+  photoreal:    'Render as cinematic documentary photography, real 35mm lens, natural golden-hour southwestern light, photorealistic, sharp focus, subtle film grain, no text, no logos.',
+  editorial:    'Render as fine-art editorial photography in the New York Times Magazine style, high-contrast conceptual composition, single emblematic subject, muted desaturated palette with one accent colour, no text, no logos.',
+  illustrative: 'Render as an editorial illustration in the style of The Atlantic / The New Yorker, flat geometric shapes, muted southwestern palette (terracotta, sand, sage), symbolic composition, gentle textures, no photographic detail, no text, no logos.',
+};
 
 export async function generateImageConcepts(bodyMarkdown: string, title: string): Promise<ImageConcept[]> {
   const userMsg = [
@@ -230,14 +254,29 @@ export async function generateImageConcepts(bodyMarkdown: string, title: string)
     bodyMarkdown.trim().slice(0, 8000),
     '---',
     '',
-    'Return the JSON of 10 concepts.',
+    'Return the JSON of 10 concepts (4 photoreal + 3 editorial + 3 illustrative).',
   ].join('\n');
   const raw = await callClaude({ system: IMAGE_CONCEPTS_SYSTEM, user: userMsg, maxTokens: 2000 });
   const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-  const parsed = JSON.parse(cleaned) as { concepts?: ImageConcept[] };
+  const parsed = JSON.parse(cleaned) as { concepts?: Partial<ImageConcept>[] };
   const list = Array.isArray(parsed.concepts) ? parsed.concepts : [];
   if (list.length === 0) throw new Error('Claude returned 0 image concepts');
-  // Pad / trim to 10 just in case.
-  while (list.length < 10) list.push({ prompt: list[list.length - 1]?.prompt ?? 'serene southwestern landscape at golden hour', alt: 'Serene southwestern landscape' });
-  return list.slice(0, 10);
+  // Normalise + pad to 10, defaulting style to photoreal so a malformed
+  // response never breaks the route.
+  const normalised: ImageConcept[] = list
+    .filter((c): c is ImageConcept => typeof c?.prompt === 'string')
+    .map((c) => ({
+      prompt: c.prompt,
+      alt: typeof c.alt === 'string' ? c.alt : 'Seven Arrows Recovery editorial image',
+      style: (c.style === 'editorial' || c.style === 'illustrative') ? c.style : 'photoreal',
+    }));
+  while (normalised.length < 10) {
+    const last = normalised[normalised.length - 1];
+    normalised.push({
+      prompt: last?.prompt ?? 'serene southwestern landscape at golden hour',
+      alt: last?.alt ?? 'Serene southwestern landscape',
+      style: last?.style ?? 'photoreal',
+    });
+  }
+  return normalised.slice(0, 10);
 }

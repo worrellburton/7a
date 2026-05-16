@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/content-server';
-import { generateImageConcepts } from '@/lib/content-claude';
+import { generateImageConcepts, STYLE_MODIFIERS, type ImageConcept } from '@/lib/content-claude';
 import { generateWithGptImage, generateWithNanoBanana2, type GeneratedImage, type ImageAspect } from '@/lib/content-images';
 
 // GET  /api/content/[id]/images       — list current blog_images
@@ -85,8 +85,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   await admin.from('blog_images').delete().eq('blog_id', id);
   await admin.from('blogs').update({ status: 'images', selected_image_ids: null }).eq('id', id);
 
-  // 1) Ask Claude for 10 distinct visual concepts.
-  let concepts: { prompt: string; alt: string }[];
+  // 1) Ask Claude for 10 distinct visual concepts. Each concept carries
+  //    a style tag (photoreal | editorial | illustrative) — Claude's
+  //    system prompt biases toward 4 photoreal + 3 editorial + 3
+  //    illustrative so the gallery feels intentional instead of
+  //    uniformly photographic.
+  let concepts: ImageConcept[];
   try {
     concepts = await generateImageConcepts(blog.body_markdown, blog.title ?? 'Untitled');
   } catch (e) {
@@ -99,16 +103,23 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   //    Positions stay deterministic so re-runs land each provider's
   //    output in the same slot. gpt-image-2 takes the even positions;
   //    nano-banana-2 the odd ones.
+  //
+  //    The concept's style tag is rendered into the prompt by appending
+  //    STYLE_MODIFIERS[style] before sending to fal — keeps the style
+  //    register authoritative on our side so we can tune wording without
+  //    re-prompting Claude. The augmented prompt is what gets persisted,
+  //    so the in-UI hover surfaces exactly what the model received.
   const GPT_ASPECTS: ImageAspect[] = ['landscape', 'landscape', 'square', 'square', 'portrait'];
   const jobs = concepts.map((c, idx) => {
+    const finalPrompt = `${c.prompt.trim()} ${STYLE_MODIFIERS[c.style]}`;
     const useGpt = idx % 2 === 0;
     if (useGpt) {
       const aspect = GPT_ASPECTS[Math.floor(idx / 2)] ?? 'square';
-      return generateWithGptImage(c.prompt, c.alt, aspect)
+      return generateWithGptImage(finalPrompt, c.alt, aspect, c.style)
         .then((img) => ({ ok: true as const, img, position: idx }))
         .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err), position: idx }));
     }
-    return generateWithNanoBanana2(c.prompt, c.alt)
+    return generateWithNanoBanana2(finalPrompt, c.alt, c.style)
       .then((img) => ({ ok: true as const, img, position: idx }))
       .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err), position: idx }));
   });

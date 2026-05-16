@@ -84,7 +84,7 @@ async function falSubmit(endpoint: string, input: unknown): Promise<FalImageResu
   throw new Error(`fal job ${endpoint} timed out after ${FAL_POLL_TIMEOUT_MS}ms (build: content-images@2026-05-16b)`);
 }
 
-export interface GeneratedImage { provider: string; url: string; prompt: string; alt: string }
+export interface GeneratedImage { provider: string; url: string; prompt: string; alt: string; style?: string }
 
 export type ImageAspect = 'landscape' | 'square' | 'portrait';
 
@@ -99,7 +99,7 @@ const ASPECT_SIZES: Record<ImageAspect, { width: number; height: number }> = {
   portrait:  { width: 1024, height: 1536 },
 };
 
-export async function generateWithGptImage(prompt: string, alt: string, aspect: ImageAspect = 'landscape'): Promise<GeneratedImage> {
+export async function generateWithGptImage(prompt: string, alt: string, aspect: ImageAspect = 'landscape', style?: string): Promise<GeneratedImage> {
   // fal hosts gpt-image-2 directly at `fal-ai/gpt-image-2` — the
   // `/text-to-image` suffix that gpt-image-1 used doesn't exist on
   // v2 (verified via 404 "Path /text-to-image not found"). v2 also
@@ -115,10 +115,10 @@ export async function generateWithGptImage(prompt: string, alt: string, aspect: 
   });
   const url = res.images?.[0]?.url ?? res.image?.url;
   if (!url) throw new Error('gpt-image-2 returned no url');
-  return { provider: 'gpt-image-2', url, prompt, alt };
+  return { provider: 'gpt-image-2', url, prompt, alt, style };
 }
 
-export async function generateWithNanoBanana2(prompt: string, alt: string): Promise<GeneratedImage> {
+export async function generateWithNanoBanana2(prompt: string, alt: string, style?: string): Promise<GeneratedImage> {
   // fal hosts the next-gen Gemini image model at `fal-ai/nano-banana-2`.
   // The endpoint inherits v1's payload shape: prompt + num_images only,
   // no `image_size` knob (the model picks its own aspect, typically a
@@ -129,5 +129,5 @@ export async function generateWithNanoBanana2(prompt: string, alt: string): Prom
   });
   const url = res.images?.[0]?.url ?? res.image?.url;
   if (!url) throw new Error('nano-banana-2 returned no url');
-  return { provider: 'nano-banana-2', url, prompt, alt };
+  return { provider: 'nano-banana-2', url, prompt, alt, style };
 }
