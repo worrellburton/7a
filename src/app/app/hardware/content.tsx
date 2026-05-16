@@ -63,6 +63,52 @@ export default function HardwareContent() {
     return () => { cancelled = true; };
   }, []);
 
+  // Live multi-user sync. Anyone editing a cell, adding a row, or
+  // deleting one elsewhere shows up here without a refresh. The
+  // table is already in the supabase_realtime publication, so we
+  // just subscribe and patch local state in place. Re-sort after
+  // every applied change so the (type asc, type_index asc) order
+  // matches the initial fetch.
+  useEffect(() => {
+    function sortItems(arr: HardwareItem[]): HardwareItem[] {
+      return [...arr].sort((a, b) => {
+        const t = a.type.localeCompare(b.type);
+        if (t !== 0) return t;
+        const ai = a.type_index ?? Number.POSITIVE_INFINITY;
+        const bi = b.type_index ?? Number.POSITIVE_INFINITY;
+        return ai - bi;
+      });
+    }
+    const ch = supabase
+      .channel('hardware-items-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'hardware_items' },
+        (payload) => {
+          setItems((cur) => {
+            if (!cur) return cur;
+            if (payload.eventType === 'INSERT') {
+              const n = payload.new as HardwareItem;
+              if (cur.some((i) => i.id === n.id)) return cur;
+              return sortItems([...cur, n]);
+            }
+            if (payload.eventType === 'UPDATE') {
+              const n = payload.new as HardwareItem;
+              return sortItems(cur.map((i) => (i.id === n.id ? { ...i, ...n } : i)));
+            }
+            if (payload.eventType === 'DELETE') {
+              const o = payload.old as { id?: string };
+              if (!o.id) return cur;
+              return cur.filter((i) => i.id !== o.id);
+            }
+            return cur;
+          });
+        },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, []);
+
   // Distinct-values memos drive both the filter dropdowns at the top
   // AND the per-cell SearchSelectCell suggestion lists. Rebuilt from
   // the live items array so a freshly-typed value shows up for the
