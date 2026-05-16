@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { OutingWithImage } from '@/lib/outings-data';
+import { cdnImage } from '@/lib/cdnImage';
 
 // Tour variant — magazine-style alternating list. Each outing is a
 // full row with image on one side and copy on the other; the row
@@ -68,7 +69,7 @@ export default function Tour({ outings }: { outings: OutingWithImage[] }) {
                       {cached ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={cached.imageUrl}
+                          src={cdnImage(cached.imageUrl, { width: 1400, quality: 72 })}
                           alt={`${outing.name}, ${outing.region}`}
                           loading="lazy"
                           decoding="async"

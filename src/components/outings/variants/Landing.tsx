@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { OutingWithImage } from '@/lib/outings-data';
+import { cdnImage } from '@/lib/cdnImage';
 
 // Landing variant — cinematic horizontal-scroll snap carousel on a
 // dark warm-charcoal background. Wider 3:2 landscape cards with the
@@ -89,7 +90,7 @@ export default function Landing({ outings }: { outings: OutingWithImage[] }) {
                       {cached ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={cached.imageUrl}
+                          src={cdnImage(cached.imageUrl, { width: 1200, quality: 72 })}
                           alt={`${outing.name}, ${outing.region}`}
                           loading="lazy"
                           decoding="async"

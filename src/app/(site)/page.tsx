@@ -19,7 +19,6 @@ import TourStats from "@/components/tour/TourStats";
 import PlaceToHeal from "@/components/PlaceToHeal";
 import ProgramSection from "@/components/ProgramSection";
 import TreatmentServices from "@/components/TreatmentServices";
-import ComprehensiveTreatment from "@/components/ComprehensiveTreatment";
 import InsuranceCarousel from "@/components/InsuranceCarousel";
 import CampusTour from "@/components/CampusTour";
 
@@ -230,7 +229,6 @@ export default async function Home() {
       <PlaceToHeal />
       <ProgramSection />
       <TreatmentServices />
-      <ComprehensiveTreatment />
       <CampusTour />
       <InsuranceCarousel />
       <GoogleReviewsCinema />

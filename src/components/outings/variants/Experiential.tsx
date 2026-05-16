@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { OutingWithImage } from '@/lib/outings-data';
+import { cdnImage } from '@/lib/cdnImage';
 
 // Experiential variant — dark-scrim caption reveal on hover. Each
 // card is image-led with the region eyebrow + name pinned over the
@@ -63,7 +64,7 @@ export default function Experiential({ outings }: { outings: OutingWithImage[] }
                     {cached ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={cached.imageUrl}
+                        src={cdnImage(cached.imageUrl, { width: 900, quality: 72 })}
                         alt={`${outing.name}, ${outing.region}`}
                         loading="lazy"
                         decoding="async"

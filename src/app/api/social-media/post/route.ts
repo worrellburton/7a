@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/social-media-auth';
 import { ayrsharePost, AYRSHARE_PLATFORMS, AyrshareNotConfigured, type AyrsharePlatform } from '@/lib/ayrshare';
+import { cdnImage } from '@/lib/cdnImage';
 
 // POST /api/social-media/post
 //   body: {
@@ -51,7 +52,14 @@ export async function POST(req: Request) {
     .filter((v): v is string => typeof v === 'string' && v.length > 0)
     // Cap at 10 — same default Ayrshare enforces; rejecting on our
     // side gives a clearer error than a 400 from upstream.
-    .slice(0, 10);
+    .slice(0, 10)
+    // Route Supabase-hosted images through the on-the-fly transform
+    // endpoint so Ayrshare (and downstream networks) pull a 1600px /
+    // q80 web-sized version, not the original 2–4 MB upload. Video
+    // and non-Supabase URLs pass through untouched. Networks accept
+    // the JPEG that the render endpoint serves when no
+    // Accept: image/webp header is present.
+    .map((url) => (/\.(mp4|mov|webm|m4v)(\?|$)/i.test(url) ? url : cdnImage(url, { width: 1600, quality: 80 })));
 
   const payload: Record<string, unknown> = {
     post,

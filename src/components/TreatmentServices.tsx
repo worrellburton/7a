@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { cdnImage } from '@/lib/cdnImage';
 
 // Homepage treatment-services grid. Mirrors the 'Our Program' header
 // dropdown so clicks from either surface land on the same set of
@@ -81,18 +82,24 @@ export default function TreatmentServices() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-5">
-          {services.map((service) => (
+          {services.map((service, i) => (
             <Link
               key={service.title}
               href={service.href}
               className="group relative block aspect-[4/5] rounded-2xl overflow-hidden shadow-sm bg-foreground/80"
             >
-              {/* Background image — slow Ken-Burns zoom on hover. */}
+              {/* Background image — slow Ken-Burns zoom on hover.
+                  Served through the Supabase render endpoint so each tile
+                  is a ~50 KB WebP instead of the 200–400 KB original. The
+                  first row (above the fold on mobile) loads eagerly so
+                  the section never lands on the user as black cards. */}
               <img
-                src={service.image}
+                src={cdnImage(service.image, { width: 800, quality: 72 })}
                 alt={service.title}
                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                loading="lazy"
+                loading={i < 4 ? 'eager' : 'lazy'}
+                decoding="async"
+                fetchPriority={i < 2 ? 'high' : 'auto'}
               />
 
               {/* Always-on scrim so the resting title stays legible. */}
