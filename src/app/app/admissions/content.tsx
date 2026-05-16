@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { DepartmentPageNav } from '../DepartmentPageNav';
 
 // Admissions — logistics board for incoming admissions. Tracks each upcoming
 // arrival with transportation details, flight info, pickup arrangements, and
@@ -176,6 +177,7 @@ export default function AdmissionsContent() {
   const [admissions, setAdmissions] = useState<Admission[]>(sampleAdmissions);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<AdmissionStatus | 'all'>('all');
+  const [mapOpen, setMapOpen] = useState(false);
 
   const addAdmission = () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -228,24 +230,40 @@ export default function AdmissionsContent() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="px-4 sm:px-6 lg:px-10 pt-6 pb-4 flex items-start justify-between gap-4 flex-wrap">
+      <div className="px-4 sm:px-6 lg:px-10 pt-6 pb-3">
+        <DepartmentPageNav />
+      </div>
+      <div className="px-4 sm:px-6 lg:px-10 pt-2 pb-4 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Admissions</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             Incoming arrivals, transportation, and pickup logistics.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={addAdmission}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-foreground text-white text-sm font-semibold hover:bg-foreground/90 transition-colors shrink-0"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          New Admission
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMapOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-black/10 text-foreground/70 text-sm font-medium hover:border-foreground/30 hover:text-foreground transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
+            </svg>
+            Map
+          </button>
+          <button
+            type="button"
+            onClick={addAdmission}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-foreground text-white text-sm font-semibold hover:bg-foreground/90 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            New Admission
+          </button>
+        </div>
       </div>
 
       <div className="px-4 sm:px-6 lg:px-10 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
@@ -333,6 +351,42 @@ export default function AdmissionsContent() {
           </div>
         ))}
       </div>
+
+      {mapOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/50 p-0 sm:p-6"
+          onClick={() => setMapOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-5xl bg-white rounded-none sm:rounded-2xl shadow-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-black/10">
+              <h2 className="text-base font-semibold text-foreground">Admissions map</h2>
+              <button
+                type="button"
+                onClick={() => setMapOpen(false)}
+                className="text-foreground/50 hover:text-foreground transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 min-h-[480px] flex items-center justify-center p-10 text-center">
+              <div>
+                <p className="text-sm text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+                  Origin-city map will appear here once admission rows include geocoded origins.
+                </p>
+                <p className="text-xs text-foreground/40 mt-2" style={{ fontFamily: 'var(--font-body)' }}>
+                  {admissions.length} arrival{admissions.length === 1 ? '' : 's'} scheduled across {new Set(admissions.map(a => a.origin_city).filter(Boolean)).size} cities.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
