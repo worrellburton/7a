@@ -83,6 +83,11 @@ const defaultPages: PageConfig[] = [
   // in directly. Every /api/social-media/* route enforces the same
   // server-side via requireSuperAdmin.
   { path: '/app/social-media', label: 'Social Media', adminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null },
+  // Content — super-admin-only AI blog pipeline. Same gating pattern
+  // as Social Media: adminOnly here for the sidebar, runtime
+  // is_super_admin check inside the page + every /api/content/*
+  // route via requireSuperAdmin.
+  { path: '/app/content', label: 'Content', adminOnly: true, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
   { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/reviews', label: 'Reviews', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },

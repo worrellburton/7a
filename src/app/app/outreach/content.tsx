@@ -641,7 +641,7 @@ export default function ContactsContent() {
       if (tierFilter === 'unrated') { if (r.rating != null) return false; }
       else if (tierFilter !== 'all' && r.rating !== tierFilter) return false;
       if (!q) return true;
-      const hay = [r.name, r.company, r.company_website, r.role, r.phone, r.phone_cell, r.phone_office, r.email, r.location, r.formatted_address, r.notes]
+      const hay = [r.name, r.company, r.company_website, r.role, r.phone, r.phone_cell, r.phone_office, r.email, r.location, r.formatted_address, r.notes, r.specialty, ...(r.type ?? [])]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
@@ -908,6 +908,54 @@ export default function ContactsContent() {
     return handleSaveField(id, 'notes', notes);
   }
 
+  // Rename / delete a dropdown option across every row at once.
+  // `to: null` means delete (clear the value on every row that held
+  // it). Hits the server-side bulk endpoint, then applies the same
+  // transform locally so the grid + options list update before the
+  // realtime channel echoes back.
+  async function handleBulkRenameOption(column: 'company' | 'role' | 'specialty' | 'type', from: string, to: string | null) {
+    if (!session?.access_token) return;
+    const res = await fetch('/api/contacts/rename-value', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ column, from, to }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(`Couldn't update: ${json.error ?? res.status}`);
+      return;
+    }
+    const fromLower = from.toLowerCase();
+    setRows((prev) => prev.map((r) => {
+      const cur = (r as unknown as Record<string, unknown>)[column];
+      if (Array.isArray(cur)) {
+        if (!cur.some((v) => typeof v === 'string' && v.toLowerCase() === fromLower)) return r;
+        let next: string[];
+        if (to === null) {
+          next = (cur as string[]).filter((v) => v.toLowerCase() !== fromLower);
+        } else {
+          const seen = new Set<string>();
+          next = [];
+          for (const v of cur as string[]) {
+            const repl = v.toLowerCase() === fromLower ? to : v;
+            const k = repl.toLowerCase();
+            if (seen.has(k)) continue;
+            seen.add(k);
+            next.push(repl);
+          }
+        }
+        return { ...r, [column]: next.length === 0 ? null : next };
+      }
+      if (typeof cur === 'string' && cur.toLowerCase() === fromLower) {
+        return { ...r, [column]: to };
+      }
+      return r;
+    }));
+  }
+
   async function handleDelete(target: Contact) {
     if (!session?.access_token) return;
     if (!confirm(`Delete ${target.name}? This can't be undone.`)) return;
@@ -1002,19 +1050,15 @@ export default function ContactsContent() {
         </div>
       </header>
 
-      <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-        <InsightTile label="Contacted this week" value={insights.week} tone="fresh" />
-        <InsightTile label="Contacted this month" value={insights.month} tone="cooling" />
-        <InsightTile label="Total contacted" value={insights.total} tone="neutral" />
-        <InsightTile label="Never contacted" value={insights.never} tone="stale" />
-      </div>
+      <InsightsCard fallback={insights} />
+
 
       <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
         <div className="relative w-full sm:flex-1 sm:min-w-[220px] sm:max-w-md">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, phone, email, notes…"
+            placeholder="Search name, company, type, specialty, notes…"
             className="w-full pl-9 pr-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-[13px] sm:text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/35">
@@ -1148,6 +1192,7 @@ export default function ContactsContent() {
         selectedIds={selectedIds}
         onToggleSelectOne={toggleSelectOne}
         onToggleSelectMany={setSelectedFromList}
+        onBulkRenameOption={handleBulkRenameOption}
       />
       {selectedIds.size > 0 && (
         <BatchEditBar
@@ -2613,53 +2658,66 @@ function ContactsMapView({
               Loading map…
             </div>
           )}
-          {/* Side panel for the currently selected pin. */}
+          {/* Selected-pin card. Centered overlay (used to live in the
+              top-right corner where it collided with map controls and
+              clipped pins near the edge of the viewport). The wrapper
+              keeps pointer events on the card itself; clicking the
+              backdrop dismisses the selection so the map stays fully
+              interactive everywhere outside the card. */}
           {selected && (
-            <div className="absolute top-3 right-3 w-72 rounded-xl border border-black/10 bg-white shadow-xl overflow-hidden">
-              <div className="flex items-start justify-between gap-2 px-3 py-2 border-b border-black/5">
-                <div className="min-w-0">
-                  <p className="text-[13px] font-semibold text-foreground truncate">{selected.name}</p>
-                  {selected.company && (
-                    <p className="text-[11px] text-foreground/65 truncate">{selected.company}</p>
-                  )}
+            <div
+              className="absolute inset-0 z-10 flex items-center justify-center px-4"
+              onClick={() => setSelected(null)}
+            >
+              <div
+                className="w-80 max-w-[calc(100%-1.5rem)] rounded-xl border border-black/10 bg-white shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-2 px-3 py-2 border-b border-black/5">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-foreground truncate">{selected.name}</p>
+                    {selected.company && (
+                      <p className="text-[11px] text-foreground/65 truncate">{selected.company}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(null)}
+                    className="inline-flex items-center justify-center w-6 h-6 rounded text-foreground/40 hover:text-foreground hover:bg-warm-bg/60"
+                    aria-label="Close"
+                  >
+                    <CloseIcon />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelected(null)}
-                  className="inline-flex items-center justify-center w-6 h-6 rounded text-foreground/40 hover:text-foreground hover:bg-warm-bg/60"
-                  aria-label="Close"
-                >
-                  <CloseIcon />
-                </button>
-              </div>
-              <div className="px-3 py-2 space-y-1.5 text-[11.5px] text-foreground/75">
-                {selected.role && <p><span className="text-foreground/40">Role:</span> {selected.role}</p>}
-                {(selected.formatted_address || selected.location) && (
-                  <p><span className="text-foreground/40">Location:</span> {selected.formatted_address || selected.location}</p>
-                )}
-                {selected.phone && <p><span className="text-foreground/40">Phone:</span> {selected.phone}</p>}
-                {selected.email && <p className="truncate"><span className="text-foreground/40">Email:</span> {selected.email}</p>}
-                {selected.tz && (() => {
-                  const lt = localTimeInTz(selected.tz);
-                  return lt ? <p><span className="text-foreground/40">Local time:</span> {lt.label}{lt.abbr ? ` · ${lt.abbr}` : ''}</p> : null;
-                })()}
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-2 border-t border-black/5">
-                <button
-                  type="button"
-                  onClick={() => onLogContact(selected)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
-                >
-                  <PhoneIcon />
-                  Contact
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onOpenDetails(selected)}
-                  className="inline-flex items-center px-2.5 py-1 rounded-md bg-white text-foreground/70 text-[10px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
-                >
-                  Open details
-                </button>
+                <div className="px-3 py-2 space-y-1.5 text-[11.5px] text-foreground/75">
+                  {selected.role && <p><span className="text-foreground/40">Role:</span> {selected.role}</p>}
+                  {(selected.formatted_address || selected.location) && (
+                    <p><span className="text-foreground/40">Location:</span> {selected.formatted_address || selected.location}</p>
+                  )}
+                  {selected.phone && <p><span className="text-foreground/40">Phone:</span> {selected.phone}</p>}
+                  {selected.email && <p className="truncate"><span className="text-foreground/40">Email:</span> {selected.email}</p>}
+                  {selected.tz && (() => {
+                    const lt = localTimeInTz(selected.tz);
+                    return lt ? <p><span className="text-foreground/40">Local time:</span> {lt.label}{lt.abbr ? ` · ${lt.abbr}` : ''}</p> : null;
+                  })()}
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-2 border-t border-black/5">
+                  <button
+                    type="button"
+                    onClick={() => onLogContact(selected)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20 hover:bg-primary/15 transition-colors"
+                  >
+                    <PhoneIcon />
+                    Contact
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetails(selected)}
+                    className="inline-flex items-center px-2.5 py-1 rounded-md bg-white text-foreground/70 text-[10px] font-semibold border border-black/10 hover:bg-warm-bg/60 transition-colors"
+                  >
+                    Contact history
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -2715,6 +2773,7 @@ function ContactsGrid({
   selectedIds,
   onToggleSelectOne,
   onToggleSelectMany,
+  onBulkRenameOption,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -2749,6 +2808,7 @@ function ContactsGrid({
   selectedIds: Set<string>;
   onToggleSelectOne: (id: string) => void;
   onToggleSelectMany: (ids: string[], on: boolean) => void;
+  onBulkRenameOption: (column: 'company' | 'role' | 'specialty' | 'type', from: string, to: string | null) => Promise<void>;
 }) {
   // Tracks the row whose notes-editor strip is currently expanded.
   // Click the notes cell to toggle. Persists across rerenders via a
@@ -2775,6 +2835,24 @@ function ContactsGrid({
   const engagementWidth = columnWidths['engagement'] ?? DEFAULT_COL_WIDTHS_PX['engagement'];
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // The expanded Notes editor and Contact-history panel live inside
+  // <td colSpan>, which by default stretches with the horizontally
+  // scrolling table — so the editor used to bleed off the right edge
+  // when many columns were visible. Tracking the scroll container's
+  // clientWidth lets us pin those panels to the visible viewport with
+  // position:sticky + width=<viewport>, so they always read as the
+  // full page width and never the full table width.
+  const [viewportWidth, setViewportWidth] = useState<number | null>(null);
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    const update = () => setViewportWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   return (
     <>
@@ -2887,7 +2965,7 @@ function ContactsGrid({
           ) : (
             rows.map((c) => (
               <Fragment key={c.id}>
-              <tr className={`group align-top transition-colors ${selectedIds.has(c.id) ? 'bg-primary/[0.06] hover:bg-primary/10' : isNewToUser(c) ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}>
+              <tr className={`group align-middle transition-colors ${selectedIds.has(c.id) ? 'bg-primary/[0.06] hover:bg-primary/10' : isNewToUser(c) ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}>
                 <td className="px-2 py-2.5 text-center align-middle">
                   <input
                     type="checkbox"
@@ -2919,7 +2997,7 @@ function ContactsGrid({
                   }
                   return (
                     <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} companyOptions={companyOptions} roleOptions={roleOptions} typeOptions={typeOptions} specialtyOptions={specialtyOptions} />
+                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} companyOptions={companyOptions} roleOptions={roleOptions} typeOptions={typeOptions} specialtyOptions={specialtyOptions} onBulkRenameOption={onBulkRenameOption} />
                     </td>
                   );
                 })}
@@ -2993,28 +3071,32 @@ function ContactsGrid({
               </tr>
               {expandedNotesId === c.id && (
                 <tr className="bg-warm-bg/30">
-                  <td colSpan={totalCols} className="px-4 py-4">
-                    <NotesEditor
-                      initial={c.notes ?? ''}
-                      onCancel={() => setExpandedNotesId(null)}
-                      onSave={async (next) => {
-                        await onSaveNotes(c.id, next);
-                        setExpandedNotesId(null);
-                      }}
-                    />
+                  <td colSpan={totalCols} className="p-0">
+                    <div className="sticky left-0 px-4 py-4" style={viewportWidth ? { width: viewportWidth } : undefined}>
+                      <NotesEditor
+                        initial={c.notes ?? ''}
+                        onCancel={() => setExpandedNotesId(null)}
+                        onSave={async (next) => {
+                          await onSaveNotes(c.id, next);
+                          setExpandedNotesId(null);
+                        }}
+                      />
+                    </div>
                   </td>
                 </tr>
               )}
               {expandedDetailsId === c.id && (
                 <tr className="bg-warm-bg/30">
-                  <td colSpan={totalCols} className="px-4 py-4">
-                    <ContactDetailsDrawer
-                      contact={c}
-                      accessToken={accessToken}
-                      onLogContact={() => onOpenLog(c)}
-                      onClose={() => onHistory(c)}
-                      historyOnly
-                    />
+                  <td colSpan={totalCols} className="p-0">
+                    <div className="sticky left-0 px-4 py-4" style={viewportWidth ? { width: viewportWidth } : undefined}>
+                      <ContactDetailsDrawer
+                        contact={c}
+                        accessToken={accessToken}
+                        onLogContact={() => onOpenLog(c)}
+                        onClose={() => onHistory(c)}
+                        historyOnly
+                      />
+                    </div>
                   </td>
                 </tr>
               )}
@@ -3447,6 +3529,7 @@ function ContactCell({
   roleOptions = [],
   typeOptions = [],
   specialtyOptions = [],
+  onBulkRenameOption,
 }: {
   column: ColumnDef;
   contact: Contact;
@@ -3457,7 +3540,14 @@ function ContactCell({
   roleOptions?: string[];
   typeOptions?: string[];
   specialtyOptions?: string[];
+  onBulkRenameOption?: (column: 'company' | 'role' | 'specialty' | 'type', from: string, to: string | null) => Promise<void>;
 }) {
+  const renameFor = (col: 'company' | 'role' | 'specialty' | 'type') => onBulkRenameOption
+    ? (from: string, to: string) => onBulkRenameOption(col, from, to)
+    : undefined;
+  const deleteFor = (col: 'company' | 'role' | 'specialty' | 'type') => onBulkRenameOption
+    ? (v: string) => onBulkRenameOption(col, v, null)
+    : undefined;
   const save = (field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location') => (next: string) =>
     onSaveField(contact.id, field, next);
   switch (column.key) {
@@ -3488,6 +3578,8 @@ function ContactCell({
           value={contact.company}
           options={companyOptions}
           onSave={(next) => onSaveField(contact.id, 'company', next ?? '')}
+          onRenameOption={renameFor('company')}
+          onDeleteOption={deleteFor('company')}
           placeholder="Add company…"
         />
       );
@@ -3519,6 +3611,8 @@ function ContactCell({
           value={contact.specialty}
           options={specialtyOptions}
           onSave={(next) => onSavePatch(contact.id, { specialty: next ?? null })}
+          onRenameOption={renameFor('specialty')}
+          onDeleteOption={deleteFor('specialty')}
           placeholder="Set specialty…"
         />
       );
@@ -3528,6 +3622,8 @@ function ContactCell({
           value={contact.role}
           options={roleOptions}
           onSave={(next) => onSaveField(contact.id, 'role', next ?? '')}
+          onRenameOption={renameFor('role')}
+          onDeleteOption={deleteFor('role')}
           placeholder="Add role…"
         />
       );
@@ -3678,14 +3774,166 @@ function InsightTile({
   tone: 'fresh' | 'cooling' | 'stale' | 'neutral';
 }) {
   const toneCx =
-    tone === 'fresh' ? 'text-emerald-700 bg-emerald-50/60 border-emerald-200/70' :
-    tone === 'cooling' ? 'text-amber-700 bg-amber-50/60 border-amber-200/70' :
-    tone === 'stale' ? 'text-rose-700 bg-rose-50/60 border-rose-200/70' :
-    'text-foreground/85 bg-warm-bg/50 border-black/10';
+    tone === 'fresh' ? 'text-emerald-700' :
+    tone === 'cooling' ? 'text-amber-700' :
+    tone === 'stale' ? 'text-rose-700' :
+    'text-foreground/85';
   return (
-    <div className={`rounded-xl border px-4 py-3 ${toneCx}`}>
-      <p className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70 truncate">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums leading-none">{value.toLocaleString()}</p>
+    <div className="min-w-0">
+      <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55 truncate">{label}</p>
+      <p className={`mt-0.5 text-xl font-semibold tabular-nums leading-none ${toneCx}`}>{value.toLocaleString()}</p>
+    </div>
+  );
+}
+
+// Consolidated insights card. Replaces the four-tile strip with one
+// card that carries: the pipeline counters across the top, today's
+// touched-areas list in the middle, and three leaderboards across the
+// bottom (today / this week / this month). Each leaderboard can be
+// flipped between "by logs" and "by duration" so admissions can ask
+// either "who logged the most touches?" or "who spent the most time
+// in conversation?".
+interface InsightsPayload {
+  counts: { week: number; month: number; total: number; never: number };
+  today: {
+    areas: { area: string; count: number }[];
+    leaderboard: { userId: string; name: string; avatarUrl: string | null; logs: number; durationSeconds: number }[];
+  };
+  week: { leaderboard: { userId: string; name: string; avatarUrl: string | null; logs: number; durationSeconds: number }[] };
+  month: { leaderboard: { userId: string; name: string; avatarUrl: string | null; logs: number; durationSeconds: number }[] };
+}
+
+function fmtTotalDuration(seconds: number): string {
+  if (seconds <= 0) return '0m';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+function InsightsCard({ fallback }: { fallback: { week: number; month: number; total: number; never: number } }) {
+  const [data, setData] = useState<InsightsPayload | null>(null);
+  const [mode, setMode] = useState<'logs' | 'duration'>('logs');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/contacts/insights', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: InsightsPayload | null) => { if (!cancelled && json) setData(json); })
+      .catch(() => { /* fall back to client-computed counts */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const counts = data?.counts ?? fallback;
+  const today = data?.today.leaderboard ?? [];
+  const week = data?.week.leaderboard ?? [];
+  const month = data?.month.leaderboard ?? [];
+  const areas = data?.today.areas ?? [];
+
+  return (
+    <div className="mb-4 rounded-xl border border-black/10 bg-white overflow-hidden">
+      {/* Pipeline counters */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 py-3 border-b border-black/5">
+        <InsightTile label="Contacted this week" value={counts.week} tone="fresh" />
+        <InsightTile label="Contacted this month" value={counts.month} tone="cooling" />
+        <InsightTile label="Total contacted" value={counts.total} tone="neutral" />
+        <InsightTile label="Never contacted" value={counts.never} tone="stale" />
+      </div>
+
+      {/* Areas touched today */}
+      <div className="px-4 py-3 border-b border-black/5">
+        <div className="flex items-baseline justify-between gap-2 mb-2">
+          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55">Areas contacted today</p>
+          <p className="text-[10.5px] text-foreground/45 tabular-nums">{areas.length} {areas.length === 1 ? 'area' : 'areas'}</p>
+        </div>
+        {areas.length === 0 ? (
+          <p className="text-[11.5px] italic text-foreground/40">No contacts logged today yet.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {areas.slice(0, 12).map((a) => (
+              <span
+                key={a.area}
+                className="inline-flex items-center gap-1.5 rounded-full bg-warm-bg/60 border border-black/10 px-2.5 py-0.5 text-[11px] text-foreground/80"
+                title={`${a.count} ${a.count === 1 ? 'touchpoint' : 'touchpoints'} in ${a.area}`}
+              >
+                <span className="truncate max-w-[200px]">{a.area}</span>
+                <span className="tabular-nums text-foreground/55">{a.count}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Leaderboards */}
+      <div className="px-4 py-3">
+        <div className="flex items-baseline justify-between gap-2 mb-2">
+          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55">Most active</p>
+          <div className="inline-flex items-center gap-0.5 rounded-md bg-warm-bg/60 border border-black/10 p-0.5">
+            <button
+              type="button"
+              onClick={() => setMode('logs')}
+              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${mode === 'logs' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
+            >
+              By logs
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('duration')}
+              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${mode === 'duration' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
+            >
+              By duration
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Leaderboard title="Today" entries={today} mode={mode} />
+          <Leaderboard title="This week" entries={week} mode={mode} />
+          <Leaderboard title="This month" entries={month} mode={mode} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Leaderboard({
+  title,
+  entries,
+  mode,
+}: {
+  title: string;
+  entries: InsightsPayload['today']['leaderboard'];
+  mode: 'logs' | 'duration';
+}) {
+  const sorted = [...entries].sort((a, b) =>
+    mode === 'logs' ? b.logs - a.logs : b.durationSeconds - a.durationSeconds,
+  ).slice(0, 5);
+  return (
+    <div className="rounded-lg border border-black/5 bg-warm-bg/40 px-3 py-2.5">
+      <p className="text-[10.5px] font-semibold text-foreground/65 mb-1.5">{title}</p>
+      {sorted.length === 0 ? (
+        <p className="text-[11px] italic text-foreground/40">No activity.</p>
+      ) : (
+        <ul className="space-y-1">
+          {sorted.map((e, i) => (
+            <li key={e.userId} className="flex items-center gap-2 min-w-0">
+              <span className="shrink-0 inline-flex items-center justify-center w-4 text-[10px] font-bold text-foreground/40 tabular-nums">{i + 1}</span>
+              {e.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={e.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover border border-black/10 shrink-0" />
+              ) : (
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20 shrink-0">
+                  {e.name.charAt(0).toUpperCase()}
+                </span>
+              )}
+              <span className="flex-1 min-w-0 truncate text-[11.5px] text-foreground/80" title={e.name}>{e.name}</span>
+              <span className="shrink-0 tabular-nums text-[11px] font-semibold text-foreground">
+                {mode === 'logs' ? e.logs : fmtTotalDuration(e.durationSeconds)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -4918,38 +5166,33 @@ function LastContactSummaryCell({ contact }: { contact: Contact }) {
     'text-rose-700';
 
   return (
-    <div className="flex items-start gap-2.5 min-w-0">
+    <div className="flex items-center gap-2.5 min-w-0">
       {contact.last_contact_by_avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={contact.last_contact_by_avatar_url}
           alt=""
-          className="w-7 h-7 rounded-full object-cover border border-black/10 shrink-0 mt-0.5"
+          className="w-7 h-7 rounded-full object-cover border border-black/10 shrink-0"
         />
       ) : (
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20 shrink-0 mt-0.5">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20 shrink-0">
           {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
         </span>
       )}
       <div className="min-w-0 flex-1">
-        {/* Top row: just the contacter's name. Freshness pill moved
-            out — the colored time on the bottom row already conveys
-            "how long ago" without the duplicate. */}
         <p className="text-[11.5px] font-semibold text-foreground truncate leading-tight">
           {contact.last_contact_by_name || '—'}
         </p>
-        {/* Bottom row: method pill (Phone / In Person / Left Message)
-            followed by the colored relative time + absolute timestamp.
-            The method pill lives here now so the top row reads as a
-            clean "who" and the bottom reads as "how + when". */}
-        <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[10.5px] leading-tight" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
+        {/* Absolute timestamp stays in the title tooltip so the row
+            stays single-line — the colored relative time conveys
+            freshness, the pill conveys method. */}
+        <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] leading-tight" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
           {contact.last_contact_method && (
             <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
               {contact.last_contact_method}
             </span>
           )}
           <span className={`font-semibold ${textTone}`}>{fmtAgo(contact.last_contact_at)}</span>
-          <span className="text-foreground/45">· {fmtAbsolute(contact.last_contact_at)}</span>
         </div>
       </div>
     </div>
