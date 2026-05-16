@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { DepartmentPageNav } from '../DepartmentPageNav';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
 import {
   CONTACT_METHODS,
@@ -929,17 +930,51 @@ export default function ContactsContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
+      <div className="mb-4">
+        <DepartmentPageNav />
+      </div>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-base font-semibold text-foreground tracking-tight">Outreach</h1>
+          <h1 className="text-base font-semibold text-foreground tracking-tight">Marketing</h1>
           <p className="text-[13px] text-foreground/55 mt-0.5">
-            Outreach tracker for referrers, leads, and downgraded partners.
+            Marketing tracker for referrers, leads, and downgraded partners.
             {rows.length > 0 && (
               <span className="ml-1 text-foreground/40">· {rows.length} {rows.length === 1 ? 'contact' : 'contacts'}</span>
             )}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setViewMode((v) => (v === 'map' ? 'table' : 'map'))}
+            aria-pressed={viewMode === 'map'}
+            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-colors ${
+              viewMode === 'map'
+                ? 'border-foreground bg-foreground text-white'
+                : 'border-black/10 bg-white text-foreground/70 hover:border-foreground/30 hover:text-foreground'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
+            </svg>
+            Map
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode((v) => (v === 'insights' ? 'table' : 'insights'))}
+            aria-pressed={viewMode === 'insights'}
+            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-colors ${
+              viewMode === 'insights'
+                ? 'border-foreground bg-foreground text-white'
+                : 'border-black/10 bg-white text-foreground/70 hover:border-foreground/30 hover:text-foreground'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3v18h18" />
+              <path d="M7 15l4-6 4 4 5-9" />
+            </svg>
+            Insights
+          </button>
           <button
             type="button"
             onClick={() => setShowSuggest(true)}
@@ -1037,37 +1072,48 @@ export default function ContactsContent() {
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
       )}
 
-      {/* View-mode tabs sit on top of the table card so the toggle
-          stays in muscle-memory regardless of which view is active.
-          Insights tiles + search bar above remain visible in both
-          views — they describe the underlying data, not the render. */}
-      <div className="hidden md:flex items-center gap-1 mb-2 border-b border-black/10">
-        {(['table', 'map', 'insights'] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            onClick={() => setViewMode(mode)}
-            className={`relative px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors ${viewMode === mode ? 'text-foreground' : 'text-foreground/45 hover:text-foreground/70'}`}
-            aria-pressed={viewMode === mode}
+      {(viewMode === 'map' || viewMode === 'insights') && (
+        <div
+          className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/50 p-0 sm:p-6"
+          onClick={() => setViewMode('table')}
+        >
+          <div
+            className="relative w-full max-w-6xl h-full sm:h-auto sm:max-h-[90vh] bg-white rounded-none sm:rounded-2xl shadow-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
           >
-            {mode}
-            {viewMode === mode && <span className="absolute left-2 right-2 -bottom-px h-[2px] bg-primary rounded-t" />}
-          </button>
-        ))}
-      </div>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-black/10 shrink-0">
+              <h2 className="text-base font-semibold text-foreground">
+                {viewMode === 'map' ? 'Marketing map' : 'Marketing insights'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className="text-foreground/50 hover:text-foreground transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5">
+              {viewMode === 'map' ? (
+                <ContactsMapView
+                  contacts={sorted}
+                  onLogContact={(c) => setLogTarget(c)}
+                  onOpenDetails={(c) => {
+                    setViewMode('table');
+                    setExpandedDetailsId(c.id);
+                  }}
+                />
+              ) : (
+                <ContactsInsightsView contacts={sorted} loading={loading} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
-      {viewMode === 'insights' ? (
-        <ContactsInsightsView contacts={sorted} loading={loading} />
-      ) : viewMode === 'map' ? (
-        <ContactsMapView
-          contacts={sorted}
-          onLogContact={(c) => setLogTarget(c)}
-          onOpenDetails={(c) => {
-            setViewMode('table');
-            setExpandedDetailsId(c.id);
-          }}
-        />
-      ) : (
       <ContactsGrid
         loading={loading}
         rows={sorted}
@@ -1103,7 +1149,6 @@ export default function ContactsContent() {
         onToggleSelectOne={toggleSelectOne}
         onToggleSelectMany={setSelectedFromList}
       />
-      )}
       {selectedIds.size > 0 && (
         <BatchEditBar
           selectedIds={selectedIds}
