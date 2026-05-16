@@ -6,14 +6,14 @@ import { generateWithGptImage, generateWithNanoBananaPro, type GeneratedImage } 
 
 // GET  /api/content/[id]/images       — list current blog_images
 // POST /api/content/[id]/images       — phase 6: generate 10 images
-//                                       (5 gpt-image-1 + 5 nano-banana-pro)
+//                                       (5 gpt-image-1 + 5 nano-banana)
 //
 // The POST handler is synchronous-ish: it runs all 10 generations in
 // parallel and waits for completion, then inserts blog_images rows
 // and bumps blog.status to 'selecting'. Total wall time is roughly
-// max(gpt-image-1 latency, nano-banana-pro latency) since each call
-// runs concurrently. We persist each upload to Supabase Storage so
-// the URLs survive after fal's CDN purges its temporary cache.
+// max(gpt-image-1 latency, nano-banana latency) since each call runs
+// concurrently. We persist each upload to Supabase Storage so the URLs
+// survive after fal's CDN purges its temporary cache.
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;

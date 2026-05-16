@@ -1,9 +1,12 @@
 // fal.ai image-generation helpers for the content pipeline.
 //
 // Two provider endpoints, both gated by FAL_KEY:
-//   * fal-ai/gpt-image-1        — OpenAI gpt-image-1 hosted on fal
-//   * fal-ai/nano-banana/pro    — Gemini 3 Pro Image preview ("nano
-//                                 banana pro") hosted on fal
+//   * fal-ai/gpt-image-1/text-to-image — OpenAI gpt-image-1 hosted on
+//                                        fal (requires explicit pixel
+//                                        sizes like '1536x1024')
+//   * fal-ai/nano-banana                — Google's Gemini image model
+//                                        hosted on fal (no image_size
+//                                        knob; only prompt + count)
 //
 // We submit jobs via fal's REST API directly (no SDK dependency) so
 // the route stays edge-friendly. Each call returns a list of image
@@ -81,9 +84,14 @@ async function falSubmit(endpoint: string, input: unknown): Promise<FalImageResu
 export interface GeneratedImage { provider: string; url: string; prompt: string; alt: string }
 
 export async function generateWithGptImage(prompt: string, alt: string): Promise<GeneratedImage> {
+  // fal's gpt-image-1 endpoint only accepts the literal sizes
+  // 'auto' | '1024x1024' | '1536x1024' | '1024x1536' (verified via the
+  // 422 response body — the older `landscape_16_9` shorthand was
+  // rejected). 1536x1024 is the landscape option and the closest to
+  // the 16:9 framing we want for blog hero / inline images.
   const res = await falSubmit('fal-ai/gpt-image-1/text-to-image', {
     prompt,
-    image_size: 'landscape_16_9',
+    image_size: '1536x1024',
     num_images: 1,
     quality: 'high',
   });
@@ -93,12 +101,15 @@ export async function generateWithGptImage(prompt: string, alt: string): Promise
 }
 
 export async function generateWithNanoBananaPro(prompt: string, alt: string): Promise<GeneratedImage> {
-  const res = await falSubmit('fal-ai/nano-banana/pro', {
+  // fal hosts the Gemini "nano-banana" image model at
+  // `fal-ai/nano-banana` — the `/pro` suffix the original code used
+  // doesn't exist (verified via 404 "Path /pro not found"). The model
+  // also rejects `image_size`; it only accepts `prompt` + `num_images`.
+  const res = await falSubmit('fal-ai/nano-banana', {
     prompt,
-    image_size: 'landscape_16_9',
     num_images: 1,
   });
   const url = res.images?.[0]?.url ?? res.image?.url;
-  if (!url) throw new Error('nano-banana-pro returned no url');
-  return { provider: 'nano-banana-pro', url, prompt, alt };
+  if (!url) throw new Error('nano-banana returned no url');
+  return { provider: 'nano-banana', url, prompt, alt };
 }
