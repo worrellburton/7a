@@ -701,6 +701,11 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
       )}
 
       {err && <div className="mt-3"><ErrorWithCopy message={err.message} details={err.details} /></div>}
+      <SelectedStrip
+        images={images}
+        selected={selected}
+        onToggle={toggle}
+      />
       <div className="mt-3 flex items-center gap-2">
         <button
           type="button"
@@ -714,6 +719,68 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
         <span className="text-[11px] text-foreground/45">{selected.size === 7 ? 'Ready to build.' : `${7 - selected.size} more to pick.`}</span>
       </div>
     </Panel>
+  );
+}
+
+// Footer strip — shows the 7 selected images as small thumbnails so the
+// editor can see the running selection without flipping tabs. Empty
+// slots render as dashed placeholders so the "out of 7" target is
+// visible at a glance. Clicking a thumbnail deselects it.
+function SelectedStrip({
+  images, selected, onToggle,
+}: { images: DbImage[]; selected: Set<string>; onToggle: (id: string) => void }) {
+  const byId = new Map(images.map((i) => [i.id, i] as const));
+  // Stable order: whatever order the user selected in. Set iteration
+  // order is insertion order so this Just Works.
+  const chosen: DbImage[] = [];
+  for (const id of selected) {
+    const img = byId.get(id);
+    if (img) chosen.push(img);
+  }
+  const slots = 7;
+
+  return (
+    <div className="mt-4 pt-3 border-t border-black/8">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-foreground/45 font-bold mb-2">
+        Your selection · {chosen.length} / {slots}
+      </p>
+      <div className="flex flex-wrap items-start gap-2">
+        {Array.from({ length: slots }).map((_, idx) => {
+          const img = chosen[idx];
+          if (!img) {
+            return (
+              <div
+                key={`empty-${idx}`}
+                className="w-14 h-14 rounded-md border border-dashed border-black/20 bg-warm-bg/20 flex items-center justify-center text-[10px] font-semibold text-foreground/35"
+                aria-hidden="true"
+              >
+                {idx + 1}
+              </div>
+            );
+          }
+          const ai = isAiImage(img.provider);
+          return (
+            <button
+              key={img.id}
+              type="button"
+              onClick={() => onToggle(img.id)}
+              className="group relative w-14 h-14 rounded-md overflow-hidden border-2 border-primary ring-1 ring-primary/40 hover:ring-2 transition-all"
+              title={`${ai ? 'AI · ' : 'Library · '}${img.alt ?? ''} — click to remove`}
+              aria-label="Remove from selection"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.url} alt={img.alt ?? ''} className="block w-full h-full object-cover" />
+              <span
+                className={`absolute bottom-0 left-0 right-0 px-0.5 py-px text-[7.5px] font-bold uppercase tracking-wider text-center ${ai ? 'bg-primary/85 text-white' : 'bg-emerald-600/85 text-white'}`}
+              >
+                {ai ? 'AI' : 'Lib'}
+              </span>
+              <span className="absolute top-0.5 right-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/0 group-hover:bg-white text-foreground/0 group-hover:text-rose-600 text-[11px] leading-none transition-colors">×</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -734,14 +801,19 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 // consistent across both sources.
 function ImageCard({ img, selected, onToggle }: { img: DbImage; selected: boolean; onToggle: () => void }) {
   const ai = isAiImage(img.provider);
+  // Outer wrapper deliberately does NOT use overflow-hidden so the
+  // prompt popover can break out of the card bounds (the previous
+  // version clipped the popover to the rounded corners). The image
+  // itself sits inside an inner overflow-hidden wrapper so the rounded
+  // corners still mask the photo.
   return (
     <div
-      className={`group/img relative rounded-lg overflow-hidden border-2 transition-all ${selected ? 'border-primary ring-2 ring-primary/30' : 'border-black/10 hover:border-foreground/40'}`}
+      className={`group/img relative rounded-lg border-2 transition-all ${selected ? 'border-primary ring-2 ring-primary/30' : 'border-black/10 hover:border-foreground/40'}`}
     >
       <button
         type="button"
         onClick={onToggle}
-        className="block w-full"
+        className="block w-full overflow-hidden rounded-[6px]"
         aria-label={selected ? 'Deselect image' : 'Select image'}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -762,7 +834,7 @@ function ImageCard({ img, selected, onToggle }: { img: DbImage; selected: boolea
       </div>
       <ImagePromptInfo img={img} />
       {selected && (
-        <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-white text-[12px] font-bold pointer-events-none">✓</span>
+        <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-white text-[12px] font-bold pointer-events-none z-10">✓</span>
       )}
     </div>
   );
@@ -982,7 +1054,7 @@ function ImagePromptInfo({ img }: { img: DbImage }) {
     return null;
   })();
   return (
-    <div className="absolute bottom-1.5 right-1.5 z-10">
+    <div className="absolute bottom-1.5 right-1.5 z-30">
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
@@ -998,12 +1070,13 @@ function ImagePromptInfo({ img }: { img: DbImage }) {
         </svg>
       </button>
       {open && (
-        // Wider popover + no inner max-height so the full prompt is
-        // always visible. Positioned bottom-right of the thumbnail and
-        // anchored to the right so it doesn't clip off the edge of the
-        // last column on narrow screens.
+        // Fixed-position popover so it escapes every parent's bounds:
+        // the card itself, the grid, the panel, the scroll container.
+        // Right-anchored to the info button via JS-free positioning:
+        // sticks to bottom-right of the card and grows up + left.
+        // High z so it sits above every sibling card in the grid.
         <div
-          className="absolute bottom-7 right-0 w-[26rem] max-w-[92vw] rounded-lg border border-black/10 bg-white shadow-xl p-3 text-[12px] leading-relaxed text-foreground/80"
+          className="absolute right-0 bottom-7 w-[28rem] max-w-[92vw] rounded-lg border border-black/10 bg-white shadow-2xl p-3 text-[12px] leading-relaxed text-foreground/80 z-50"
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
           onClick={(e) => e.stopPropagation()}
