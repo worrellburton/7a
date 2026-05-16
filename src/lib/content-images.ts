@@ -1,9 +1,8 @@
 // fal.ai image-generation helper for the content pipeline.
 //
 // Single provider, gated by FAL_KEY:
-//   * fal-ai/gpt-image-2/text-to-image — OpenAI gpt-image-2 hosted on
-//                                        fal (requires explicit pixel
-//                                        sizes like '1536x1024')
+//   * fal-ai/gpt-image-2 — OpenAI gpt-image-2 hosted on fal (requires
+//                          explicit pixel sizes like '1536x1024')
 //
 // We submit jobs via fal's REST API directly (no SDK dependency) so
 // the route stays edge-friendly. Each call returns a list of image
@@ -82,11 +81,13 @@ async function falSubmit(endpoint: string, input: unknown): Promise<FalImageResu
 export interface GeneratedImage { provider: string; url: string; prompt: string; alt: string }
 
 export async function generateWithGptImage(prompt: string, alt: string): Promise<GeneratedImage> {
-  // fal's gpt-image-2 endpoint accepts the same literal sizes as v1:
-  // 'auto' | '1024x1024' | '1536x1024' | '1024x1536'. 1536x1024 is
-  // the landscape option, closest to the 16:9 framing we want for
-  // blog hero / inline images.
-  const res = await falSubmit('fal-ai/gpt-image-2/text-to-image', {
+  // fal hosts gpt-image-2 directly at `fal-ai/gpt-image-2` — the
+  // `/text-to-image` suffix that gpt-image-1 used doesn't exist on
+  // v2 (verified via 404 "Path /text-to-image not found"). The model
+  // accepts the same explicit pixel sizes: 'auto' | '1024x1024' |
+  // '1536x1024' | '1024x1536'. 1536x1024 is the landscape option,
+  // closest to the 16:9 framing we want for blog hero / inline images.
+  const res = await falSubmit('fal-ai/gpt-image-2', {
     prompt,
     image_size: '1536x1024',
     num_images: 1,
