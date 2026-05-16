@@ -721,6 +721,26 @@ export function episodeImage(ep: Pick<Episode, 'image' | 'number'>): string {
   return LEGACY_ROTATION_IMAGES[i];
 }
 
+/** Server-side: fetch the set of slugs flagged hidden=true in the
+ * `blog_visibility` table. Lazy import keeps the server-only
+ * Supabase helper out of any client-side bundle that pulls in
+ * episodes.ts. Returns an empty set on any failure so a transient
+ * Supabase outage never blanks out the public Recovery Roadmap. */
+export async function getHiddenSlugs(): Promise<Set<string>> {
+  try {
+    const { getAdminSupabase } = await import('@/lib/supabase-server');
+    const admin = getAdminSupabase();
+    const { data, error } = await admin
+      .from('blog_visibility')
+      .select('slug, hidden')
+      .eq('hidden', true);
+    if (error || !data) return new Set();
+    return new Set(data.map((r) => r.slug as string));
+  } catch {
+    return new Set();
+  }
+}
+
 /** Server-side: fetch published AI-pipeline blogs and hydrate them into
  * Episode-shaped records so they slot into the same listings the
  * hand-coded EPISODES feed. Numbering continues after the static set
@@ -781,14 +801,18 @@ export async function getPublishedBlogEpisodes(): Promise<Episode[]> {
 
 /** Merge published AI blogs into the static episodes list, deduping by
  * slug so a static + AI duplicate never both render. Sorts newest
- * first by publishedAt. */
+ * first by publishedAt. Visibility-hidden slugs are filtered out. */
 export async function getAllEpisodesNewestFirst(): Promise<Episode[]> {
-  const published = await getPublishedBlogEpisodes();
+  const [published, hidden] = await Promise.all([
+    getPublishedBlogEpisodes(),
+    getHiddenSlugs(),
+  ]);
   const seen = new Set<string>();
   const merged: Episode[] = [];
   for (const ep of [...published, ...EPISODES]) {
     if (seen.has(ep.slug)) continue;
     seen.add(ep.slug);
+    if (hidden.has(ep.slug)) continue;
     merged.push(ep);
   }
   merged.sort((a, b) => {
@@ -799,14 +823,19 @@ export async function getAllEpisodesNewestFirst(): Promise<Episode[]> {
 }
 
 /** Merge published AI blogs into the static episodes list, sorted by
- * episode number ascending (the chronological "Series" view). */
+ * episode number ascending (the chronological "Series" view).
+ * Visibility-hidden slugs are filtered out. */
 export async function getAllEpisodesByNumber(): Promise<Episode[]> {
-  const published = await getPublishedBlogEpisodes();
+  const [published, hidden] = await Promise.all([
+    getPublishedBlogEpisodes(),
+    getHiddenSlugs(),
+  ]);
   const seen = new Set<string>();
   const merged: Episode[] = [];
   for (const ep of [...EPISODES, ...published]) {
     if (seen.has(ep.slug)) continue;
     seen.add(ep.slug);
+    if (hidden.has(ep.slug)) continue;
     merged.push(ep);
   }
   merged.sort((a, b) => a.number - b.number);

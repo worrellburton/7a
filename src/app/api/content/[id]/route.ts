@@ -34,6 +34,7 @@ interface PatchBody {
   status?: string;
   selected_image_ids?: string[] | null;
   body_markdown?: string;
+  layout?: unknown;
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -49,6 +50,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ('status' in body && body.status) patch.status = body.status;
   if ('selected_image_ids' in body) patch.selected_image_ids = body.selected_image_ids;
   if ('body_markdown' in body) patch.body_markdown = body.body_markdown;
+  if ('layout' in body) patch.layout = body.layout;
 
   const admin = getAdminSupabase();
   const { data, error } = await admin

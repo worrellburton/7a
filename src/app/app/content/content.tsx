@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
-import { EPISODES } from '@/lib/episodes';
+import { EPISODES, episodeHref } from '@/lib/episodes';
+import PageAnalyticsPanel from '@/components/PageAnalyticsPanel';
 
 // /app/content — super-admin-only blog pipeline.
 //
@@ -51,21 +52,37 @@ export default function ContentLanding() {
   const { user, isSuperAdmin, session } = useAuth();
   const router = useRouter();
   const [rows, setRows] = useState<DbBlog[]>([]);
+  const [visibility, setVisibility] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [analyticsFor, setAnalyticsFor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!session?.access_token) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/content', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        cache: 'no-store',
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      setRows(json.rows ?? []);
+      const [rowsRes, visRes] = await Promise.all([
+        fetch('/api/content', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: 'no-store',
+        }),
+        fetch('/api/content/visibility', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: 'no-store',
+        }),
+      ]);
+      const rowsJson = await rowsRes.json();
+      if (!rowsRes.ok) throw new Error(rowsJson.error ?? `HTTP ${rowsRes.status}`);
+      setRows(rowsJson.rows ?? []);
+      const visJson = await visRes.json().catch(() => ({}));
+      if (visRes.ok) {
+        const map: Record<string, boolean> = {};
+        for (const r of (visJson.rows ?? []) as Array<{ slug: string; hidden: boolean }>) {
+          map[r.slug] = r.hidden;
+        }
+        setVisibility(map);
+      }
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -75,6 +92,40 @@ export default function ContentLanding() {
   }, [session?.access_token]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Optimistic toggle: flip local state immediately, then PUT.
+  // Revert on failure so the switch doesn't lie to the user.
+  const toggleHidden = useCallback(async (slug: string, hidden: boolean) => {
+    if (!session?.access_token) return;
+    setVisibility((cur) => ({ ...cur, [slug]: hidden }));
+    try {
+      const res = await fetch('/api/content/visibility', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ slug, hidden }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error ?? `HTTP ${res.status}`);
+      }
+    } catch (e) {
+      setVisibility((cur) => ({ ...cur, [slug]: !hidden }));
+      setError(`Couldn't update visibility for "${slug}": ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [session?.access_token]);
+
+  // Episode number map for AI-pipeline posts. Mirrors
+  // getPublishedBlogEpisodes() in src/lib/episodes.ts so the number
+  // the admin sees is the same the public site computes.
+  const aiEpisodeNumber = useMemo(() => {
+    const maxStatic = EPISODES.reduce((m, e) => Math.max(m, e.number), 0);
+    const published = rows
+      .filter((r) => r.status === 'published' && r.published_at)
+      .sort((a, b) => (a.published_at! < b.published_at! ? -1 : 1));
+    const map = new Map<string, number>();
+    published.forEach((r, idx) => map.set(r.id, maxStatic + idx + 1));
+    return map;
+  }, [rows]);
 
   if (!user) return null;
   if (!isSuperAdmin) {
@@ -131,49 +182,168 @@ export default function ContentLanding() {
             </div>
           ) : (
             <ul className="divide-y divide-black/5">
-              {rows.map((r) => (
-                <li key={r.id}>
-                  <Link href={`/app/content/${r.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-warm-bg/40 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground truncate text-[14px]">{r.title || '(Untitled)'}</p>
-                      <p className="text-[11.5px] text-foreground/55 truncate">{r.slug} · updated {new Date(r.updated_at).toLocaleDateString()}</p>
-                    </div>
-                    <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
-                      {STATUS_LABELS[r.status]}
-                    </span>
-                  </Link>
-                </li>
-              ))}
+              {rows.map((r) => {
+                const path = `/who-we-are/blog/${r.slug}`;
+                const epNum = aiEpisodeNumber.get(r.id);
+                const hidden = !!visibility[r.slug];
+                const expanded = analyticsFor === r.id;
+                return (
+                  <li key={r.id}>
+                    <BlogRow
+                      title={r.title || '(Untitled)'}
+                      subtitle={`${r.slug} · updated ${new Date(r.updated_at).toLocaleDateString()}`}
+                      episodeLabel={epNum ? `Episode ${epNum}` : null}
+                      href={`/app/content/${r.id}`}
+                      statusBadge={(
+                        <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
+                          {STATUS_LABELS[r.status]}
+                        </span>
+                      )}
+                      hidden={hidden}
+                      onToggleHidden={() => void toggleHidden(r.slug, !hidden)}
+                      analyticsOpen={expanded}
+                      onToggleAnalytics={() => setAnalyticsFor(expanded ? null : r.id)}
+                    />
+                    {expanded && (
+                      <div className="border-t border-black/5 bg-warm-bg/30">
+                        <PageAnalyticsPanel
+                          path={path}
+                          token={session?.access_token ?? null}
+                        />
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
       </section>
 
       <section>
-        <h2 className="text-xs uppercase tracking-[0.18em] text-foreground/55 font-bold mb-2">Hand-coded posts (read-only)</h2>
-        <p className="text-[11.5px] text-foreground/50 mb-2">These predate the AI pipeline. Edit them by opening the source files.</p>
+        <h2 className="text-xs uppercase tracking-[0.18em] text-foreground/55 font-bold mb-2">Hand-coded posts</h2>
+        <p className="text-[11.5px] text-foreground/50 mb-2">These predate the AI pipeline. Body text is edited via the source files; the visibility toggle and analytics work the same as AI posts.</p>
         <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
           <ul className="divide-y divide-black/5">
-            {EPISODES.map((ep) => (
-              <li key={ep.slug} className="flex items-center gap-3 px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-foreground truncate text-[14px]">{ep.title}</p>
-                  <p className="text-[11.5px] text-foreground/55 truncate font-mono">src/app/(site)/who-we-are/blog/{ep.slug}/content.tsx</p>
-                </div>
-                <a
-                  href={`/who-we-are/blog/${ep.slug}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="shrink-0 text-[10.5px] font-semibold text-foreground/65 hover:text-foreground border border-black/10 rounded-md px-2 py-1"
-                >
-                  View
-                </a>
-              </li>
-            ))}
+            {EPISODES.map((ep) => {
+              const path = episodeHref(ep.slug);
+              const hidden = !!visibility[ep.slug];
+              const expanded = analyticsFor === `static:${ep.slug}`;
+              return (
+                <li key={ep.slug}>
+                  <BlogRow
+                    title={ep.title}
+                    subtitle={`src/app/(site)${path.startsWith('/who-we-are/blog/') ? path : path}/content.tsx`}
+                    subtitleMono
+                    episodeLabel={`Episode ${ep.number}`}
+                    externalHref={path}
+                    hidden={hidden}
+                    onToggleHidden={() => void toggleHidden(ep.slug, !hidden)}
+                    analyticsOpen={expanded}
+                    onToggleAnalytics={() => setAnalyticsFor(expanded ? null : `static:${ep.slug}`)}
+                  />
+                  {expanded && (
+                    <div className="border-t border-black/5 bg-warm-bg/30">
+                      <PageAnalyticsPanel
+                        path={path}
+                        token={session?.access_token ?? null}
+                      />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       </section>
     </div>
+  );
+}
+
+function BlogRow({
+  title,
+  subtitle,
+  subtitleMono,
+  episodeLabel,
+  href,
+  externalHref,
+  statusBadge,
+  hidden,
+  onToggleHidden,
+  analyticsOpen,
+  onToggleAnalytics,
+}: {
+  title: string;
+  subtitle: string;
+  subtitleMono?: boolean;
+  episodeLabel: string | null;
+  href?: string;
+  externalHref?: string;
+  statusBadge?: React.ReactNode;
+  hidden: boolean;
+  onToggleHidden: () => void;
+  analyticsOpen: boolean;
+  onToggleAnalytics: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 hover:bg-warm-bg/40 transition-colors">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          {episodeLabel && (
+            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider bg-foreground/[0.06] text-foreground/55 border border-black/5">
+              {episodeLabel}
+            </span>
+          )}
+          {href ? (
+            <Link href={href} className="font-semibold text-foreground truncate text-[14px] hover:underline">{title}</Link>
+          ) : (
+            <span className="font-semibold text-foreground truncate text-[14px]">{title}</span>
+          )}
+        </div>
+        <p className={`text-[11.5px] text-foreground/55 truncate ${subtitleMono ? 'font-mono' : ''}`}>{subtitle}</p>
+      </div>
+      {statusBadge}
+      <button
+        type="button"
+        onClick={onToggleAnalytics}
+        className={`shrink-0 text-[10.5px] font-semibold border rounded-md px-2 py-1 transition-colors ${analyticsOpen ? 'bg-foreground text-white border-foreground' : 'text-foreground/65 hover:text-foreground border-black/10 hover:bg-warm-bg/60'}`}
+        aria-expanded={analyticsOpen}
+      >
+        Analytics
+      </button>
+      {externalHref && (
+        <a
+          href={externalHref}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 text-[10.5px] font-semibold text-foreground/65 hover:text-foreground border border-black/10 rounded-md px-2 py-1"
+        >
+          View
+        </a>
+      )}
+      <VisibilityToggle hidden={hidden} onChange={onToggleHidden} />
+    </div>
+  );
+}
+
+function VisibilityToggle({ hidden, onChange }: { hidden: boolean; onChange: () => void }) {
+  // ON = visible on public site. OFF = hidden from listings.
+  // Color: emerald when visible, foreground/15 when hidden.
+  const visible = !hidden;
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={visible}
+      onClick={onChange}
+      title={visible ? 'Visible on the public site — click to hide' : 'Hidden from public listings — click to show'}
+      className={`shrink-0 relative inline-flex items-center h-5 w-9 rounded-full transition-colors ${visible ? 'bg-emerald-500' : 'bg-foreground/20'}`}
+    >
+      <span className="sr-only">{visible ? 'Visible' : 'Hidden'}</span>
+      <span
+        className={`absolute top-0.5 inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${visible ? 'translate-x-[18px]' : 'translate-x-0.5'}`}
+      />
+    </button>
   );
 }
 

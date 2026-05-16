@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
-import DbBlogRenderer from '@/components/DbBlogRenderer';
+import EditableBlogPreview from '@/components/EditableBlogPreview';
 import type { Layout } from '@/lib/content-claude';
 
 // One screen, six panels stacked vertically. Each panel light-greys
@@ -172,7 +172,13 @@ export default function BlogEditor({ id }: { id: string }) {
       )}
 
       {reachedBuild && blog.layout && (
-        <PreviewPanel layout={blog.layout} />
+        <PreviewPanel
+          blogId={blog.id}
+          layout={blog.layout}
+          images={images}
+          token={token}
+          onSaved={() => void load()}
+        />
       )}
 
       {reachedBuild && (
@@ -1172,12 +1178,34 @@ function BuildPanel({ blog, images, token, onChange }: { blog: DbBlog; images: D
   );
 }
 
-function PreviewPanel({ layout }: { layout: Layout }) {
+function PreviewPanel({
+  blogId,
+  layout,
+  images,
+  token,
+  onSaved,
+}: {
+  blogId: string;
+  layout: Layout;
+  images: DbImage[];
+  token: string | null;
+  onSaved: () => void;
+}) {
   return (
     <Panel heading="Preview" step={6}>
-      <div className="rounded-lg border border-black/5 overflow-hidden bg-white">
-        <DbBlogRenderer layout={layout} />
-      </div>
+      <EditableBlogPreview
+        blogId={blogId}
+        layout={layout}
+        blogImages={images.map((i) => ({
+          id: i.id,
+          url: i.url,
+          alt: i.alt,
+          prompt: i.prompt,
+          provider: i.provider,
+        }))}
+        token={token}
+        onSaved={onSaved}
+      />
     </Panel>
   );
 }
