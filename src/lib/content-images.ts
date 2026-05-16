@@ -1,12 +1,9 @@
-// fal.ai image-generation helpers for the content pipeline.
+// fal.ai image-generation helper for the content pipeline.
 //
-// Two provider endpoints, both gated by FAL_KEY:
-//   * fal-ai/gpt-image-1/text-to-image — OpenAI gpt-image-1 hosted on
+// Single provider, gated by FAL_KEY:
+//   * fal-ai/gpt-image-2/text-to-image — OpenAI gpt-image-2 hosted on
 //                                        fal (requires explicit pixel
 //                                        sizes like '1536x1024')
-//   * fal-ai/nano-banana                — Google's Gemini image model
-//                                        hosted on fal (no image_size
-//                                        knob; only prompt + count)
 //
 // We submit jobs via fal's REST API directly (no SDK dependency) so
 // the route stays edge-friendly. Each call returns a list of image
@@ -34,7 +31,8 @@ interface FalStatusResponse {
 }
 interface FalImageResult {
   images?: { url?: string }[];
-  // gpt-image-1 sometimes returns a single image field at top level
+  // gpt-image variants sometimes return a single image field at the
+  // top level instead of an `images` array.
   image?: { url?: string };
 }
 
@@ -84,32 +82,17 @@ async function falSubmit(endpoint: string, input: unknown): Promise<FalImageResu
 export interface GeneratedImage { provider: string; url: string; prompt: string; alt: string }
 
 export async function generateWithGptImage(prompt: string, alt: string): Promise<GeneratedImage> {
-  // fal's gpt-image-1 endpoint only accepts the literal sizes
-  // 'auto' | '1024x1024' | '1536x1024' | '1024x1536' (verified via the
-  // 422 response body — the older `landscape_16_9` shorthand was
-  // rejected). 1536x1024 is the landscape option and the closest to
-  // the 16:9 framing we want for blog hero / inline images.
-  const res = await falSubmit('fal-ai/gpt-image-1/text-to-image', {
+  // fal's gpt-image-2 endpoint accepts the same literal sizes as v1:
+  // 'auto' | '1024x1024' | '1536x1024' | '1024x1536'. 1536x1024 is
+  // the landscape option, closest to the 16:9 framing we want for
+  // blog hero / inline images.
+  const res = await falSubmit('fal-ai/gpt-image-2/text-to-image', {
     prompt,
     image_size: '1536x1024',
     num_images: 1,
     quality: 'high',
   });
   const url = res.images?.[0]?.url ?? res.image?.url;
-  if (!url) throw new Error('gpt-image-1 returned no url');
-  return { provider: 'gpt-image-1', url, prompt, alt };
-}
-
-export async function generateWithNanoBananaPro(prompt: string, alt: string): Promise<GeneratedImage> {
-  // fal hosts the Gemini "nano-banana" image model at
-  // `fal-ai/nano-banana` — the `/pro` suffix the original code used
-  // doesn't exist (verified via 404 "Path /pro not found"). The model
-  // also rejects `image_size`; it only accepts `prompt` + `num_images`.
-  const res = await falSubmit('fal-ai/nano-banana', {
-    prompt,
-    num_images: 1,
-  });
-  const url = res.images?.[0]?.url ?? res.image?.url;
-  if (!url) throw new Error('nano-banana returned no url');
-  return { provider: 'nano-banana', url, prompt, alt };
+  if (!url) throw new Error('gpt-image-2 returned no url');
+  return { provider: 'gpt-image-2', url, prompt, alt };
 }

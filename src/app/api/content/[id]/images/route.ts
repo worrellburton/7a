@@ -2,18 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/content-server';
 import { generateImageConcepts } from '@/lib/content-claude';
-import { generateWithGptImage, generateWithNanoBananaPro, type GeneratedImage } from '@/lib/content-images';
+import { generateWithGptImage, type GeneratedImage } from '@/lib/content-images';
 
 // GET  /api/content/[id]/images       — list current blog_images
 // POST /api/content/[id]/images       — phase 6: generate 10 images
-//                                       (5 gpt-image-1 + 5 nano-banana)
+//                                       (all via gpt-image-2)
 //
 // The POST handler is synchronous-ish: it runs all 10 generations in
 // parallel and waits for completion, then inserts blog_images rows
 // and bumps blog.status to 'selecting'. Total wall time is roughly
-// max(gpt-image-1 latency, nano-banana latency) since each call runs
-// concurrently. We persist each upload to Supabase Storage so the URLs
-// survive after fal's CDN purges its temporary cache.
+// gpt-image-2 latency since each call runs concurrently. We persist
+// each upload to Supabase Storage so the URLs survive after fal's CDN
+// purges its temporary cache.
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -93,10 +93,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: `concept stage failed: ${e instanceof Error ? e.message : String(e)}` }, { status: 503 });
   }
 
-  // 2) Split 5/5 between providers and fire them in parallel.
+  // 2) Fire all 10 generations through gpt-image-2 in parallel.
   const jobs = concepts.map((c, idx) => {
-    const useGpt = idx % 2 === 0;
-    return (useGpt ? generateWithGptImage(c.prompt, c.alt) : generateWithNanoBananaPro(c.prompt, c.alt))
+    return generateWithGptImage(c.prompt, c.alt)
       .then((img) => ({ ok: true as const, img, position: idx }))
       .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err), position: idx }));
   });
