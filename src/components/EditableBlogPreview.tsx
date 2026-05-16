@@ -419,9 +419,17 @@ function ImagePickerModal({
   onClose: () => void;
   onPick: (url: string, alt: string) => void;
 }) {
-  const [tab, setTab] = useState<'blog' | 'library'>(blogImages.length > 0 ? 'blog' : 'library');
+  const [tab, setTab] = useState<'blog' | 'ai' | 'library'>(
+    blogImages.length > 0 ? 'blog' : 'ai',
+  );
   const [library, setLibrary] = useState<SiteImage[]>([]);
+  // AI images across *all* blogs, so a striking generation from
+  // another article can be reused. provider='library' rows on
+  // blog_images are skipped — those came from site_images and live
+  // in the Library tab already.
+  const [aiImages, setAiImages] = useState<DbImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -436,14 +444,34 @@ function ImagePickerModal({
       setLibrary((data ?? []) as SiteImage[]);
       setLoading(false);
     })();
+    void (async () => {
+      const { data } = await supabase
+        .from('blog_images')
+        .select('id, url, alt, prompt, provider, blog_id')
+        .neq('provider', 'library')
+        .order('created_at', { ascending: false })
+        .limit(400);
+      if (cancelled) return;
+      setAiImages((data ?? []) as DbImage[]);
+      setAiLoading(false);
+    })();
     return () => { cancelled = true; };
   }, []);
 
-  const filtered = useMemo(() => {
+  // Same search box drives both library + AI tabs so the user
+  // doesn't have to re-type. The "This blog" tab stays unfiltered
+  // since it's already scoped tight.
+  const filteredLibrary = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return library;
     return library.filter((i) => `${i.filename} ${i.alt ?? ''}`.toLowerCase().includes(q));
   }, [library, search]);
+
+  const filteredAi = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return aiImages;
+    return aiImages.filter((i) => `${i.alt ?? ''} ${i.prompt ?? ''} ${i.provider}`.toLowerCase().includes(q));
+  }, [aiImages, search]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
@@ -458,6 +486,15 @@ function ImagePickerModal({
               }`}
             >
               This blog ({blogImages.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('ai')}
+              className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-md transition-colors ${
+                tab === 'ai' ? 'bg-foreground text-white' : 'text-foreground/65 hover:bg-warm-bg/60'
+              }`}
+            >
+              AI generated ({aiImages.length})
             </button>
             <button
               type="button"
@@ -478,67 +515,111 @@ function ImagePickerModal({
             ✕
           </button>
         </header>
-        {tab === 'library' && (
+        {(tab === 'library' || tab === 'ai') && (
           <div className="px-4 py-2 border-b border-black/5">
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search filename or alt…"
+              placeholder={tab === 'ai' ? 'Search alt or prompt…' : 'Search filename or alt…'}
               className="w-full rounded-md border border-black/10 px-2.5 py-1.5 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
         )}
         <div className="flex-1 overflow-y-auto p-4">
-          {tab === 'blog' ? (
+          {tab === 'blog' && (
             blogImages.length === 0 ? (
               <p className="text-[12px] text-foreground/55 italic">
-                No images attached to this blog yet. Use the Library tab to pull one in.
+                No images attached to this blog yet. Use the AI-generated or Library tab to pull one in.
               </p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {blogImages.map((img) => (
-                  <button
-                    key={img.id}
-                    type="button"
-                    onClick={() => onPick(img.url, img.alt ?? '')}
-                    className="group relative rounded-lg overflow-hidden border border-black/10 hover:border-primary/60 transition-colors"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.url} alt={img.alt ?? ''} className="w-full aspect-[4/3] object-cover" />
-                    <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors" />
-                    <p className="absolute bottom-0 inset-x-0 px-2 py-1 bg-gradient-to-t from-black/70 to-transparent text-white text-[10px] truncate text-left">
-                      {img.alt || img.prompt || img.provider}
-                    </p>
-                  </button>
-                ))}
-              </div>
+              <ImageGrid
+                items={blogImages.map((img) => ({
+                  key: img.id,
+                  url: img.url,
+                  alt: img.alt ?? '',
+                  caption: img.alt || img.prompt || img.provider,
+                }))}
+                onPick={onPick}
+              />
             )
-          ) : loading ? (
-            <p className="text-[12px] text-foreground/55 italic">Loading library…</p>
-          ) : filtered.length === 0 ? (
-            <p className="text-[12px] text-foreground/55 italic">No library images match.</p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {filtered.map((img) => (
-                <button
-                  key={img.id}
-                  type="button"
-                  onClick={() => onPick(img.public_url, img.alt ?? '')}
-                  className="group relative rounded-lg overflow-hidden border border-black/10 hover:border-primary/60 transition-colors"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.public_url} alt={img.alt ?? ''} className="w-full aspect-[4/3] object-cover" />
-                  <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors" />
-                  <p className="absolute bottom-0 inset-x-0 px-2 py-1 bg-gradient-to-t from-black/70 to-transparent text-white text-[10px] truncate text-left">
-                    {img.alt || img.filename}
-                  </p>
-                </button>
-              ))}
-            </div>
+          )}
+
+          {tab === 'ai' && (
+            aiLoading ? (
+              <p className="text-[12px] text-foreground/55 italic">Loading AI images…</p>
+            ) : filteredAi.length === 0 ? (
+              <p className="text-[12px] text-foreground/55 italic">
+                {search.trim()
+                  ? 'No AI images match.'
+                  : 'No AI images yet. Run image generation on a blog to seed this tab.'}
+              </p>
+            ) : (
+              <ImageGrid
+                items={filteredAi.map((img) => ({
+                  key: img.id,
+                  url: img.url,
+                  alt: img.alt ?? '',
+                  caption: img.prompt || img.alt || img.provider,
+                  badge: img.provider,
+                }))}
+                onPick={onPick}
+              />
+            )
+          )}
+
+          {tab === 'library' && (
+            loading ? (
+              <p className="text-[12px] text-foreground/55 italic">Loading library…</p>
+            ) : filteredLibrary.length === 0 ? (
+              <p className="text-[12px] text-foreground/55 italic">No library images match.</p>
+            ) : (
+              <ImageGrid
+                items={filteredLibrary.map((img) => ({
+                  key: img.id,
+                  url: img.public_url,
+                  alt: img.alt ?? '',
+                  caption: img.alt || img.filename,
+                }))}
+                onPick={onPick}
+              />
+            )
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ImageGrid({
+  items,
+  onPick,
+}: {
+  items: { key: string; url: string; alt: string; caption: string; badge?: string }[];
+  onPick: (url: string, alt: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      {items.map((img) => (
+        <button
+          key={img.key}
+          type="button"
+          onClick={() => onPick(img.url, img.alt)}
+          className="group relative rounded-lg overflow-hidden border border-black/10 hover:border-primary/60 transition-colors"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={img.url} alt={img.alt} className="w-full aspect-[4/3] object-cover" />
+          <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors" />
+          {img.badge && (
+            <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-white/85 text-foreground/75 backdrop-blur-sm">
+              {img.badge}
+            </span>
+          )}
+          <p className="absolute bottom-0 inset-x-0 px-2 py-1 bg-gradient-to-t from-black/70 to-transparent text-white text-[10px] truncate text-left">
+            {img.caption}
+          </p>
+        </button>
+      ))}
     </div>
   );
 }
